@@ -1,0 +1,97 @@
+package database
+
+import (
+	"fmt"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"log"
+	"sync"
+	"time"
+	"wealth-warden/server/pkg/config"
+)
+
+var (
+	mysqlDB *gorm.DB
+	once    sync.Once
+)
+
+// ConnectToMySQL initializes a singleton GORM connection to MySQL.
+func ConnectToMySQL(cfg *config.Config) (*gorm.DB, error) {
+	var err error
+
+	once.Do(func() {
+		hosts := []string{cfg.MySQLHost, "localhost", "mysql"}
+		for _, host := range hosts {
+			dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+				cfg.MySQLUser, cfg.MySQLPassword, host, cfg.MySQLPort, cfg.MySQLDatabase)
+
+			mysqlDB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
+				Logger: logger.Default.LogMode(logger.Info),
+			})
+			if err != nil {
+				log.Printf("Failed to connect to MySQL at %s: %v", host, err)
+				continue
+			}
+
+			sqlDB, err := mysqlDB.DB()
+			if err != nil {
+				log.Printf("Failed to get mysql database instance: %v", err)
+				continue
+			}
+
+			// Ping the database to check if the connection is alive
+			sqlDB.SetConnMaxLifetime(time.Minute * 5)
+			sqlDB.SetMaxIdleConns(10)
+			sqlDB.SetMaxOpenConns(100)
+
+			if err := sqlDB.Ping(); err != nil {
+				log.Printf("Could not ping MySQL at %s: %v", host, err)
+				continue
+			}
+
+			log.Printf("Connected to MySQL at %s", host)
+			return
+		}
+
+		err = fmt.Errorf("failed to connect to any MySQL host")
+	})
+
+	return mysqlDB, err
+}
+
+// DisconnectMySQL closes the database connection.
+func DisconnectMySQL() error {
+	if mysqlDB == nil {
+		return nil
+	}
+	sqlDB, err := mysqlDB.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
+}
+
+func connectWithoutDB(cfg *config.Config) (*gorm.DB, error) {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/?charset=utf8mb4&parseTime=True&loc=Local",
+		cfg.MySQLUser, cfg.MySQLPassword, cfg.MySQLHost, cfg.MySQLPort)
+
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
+func PingMysqlDatabase() error {
+	if mysqlDB == nil {
+		return fmt.Errorf("database connection is nil")
+	}
+
+	sqlDB, err := mysqlDB.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get database instance: %v", err)
+	}
+
+	return sqlDB.Ping()
+}
