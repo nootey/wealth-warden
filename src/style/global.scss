@@ -1,0 +1,28 @@
+@import 'material-icons/iconfont/material-icons.css';
+@import 'primeicons/primeicons.css';
+
+@font-face {
+  font-family: 'Fira Sans';
+  src: url('../assets/fonts/FiraSans-Medium.ttf') format('ttf'),
+  url('../assets/fonts/FiraSans-Medium.ttf') format('ttf');
+  font-weight: normal;
+  font-style: normal;
+}
+
+
+:root {
+  font-family: 'Fira Sans', sans-serif;
+  --background-primary: white;
+  --background-secondary: #cacaca;
+  --text-primary: black;
+  --accent-primary: #2796ff;
+  --sidebar-width: 300px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Fira Sans', sans-serif;
+}
+
