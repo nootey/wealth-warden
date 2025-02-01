@@ -2,12 +2,14 @@ import { createApp } from 'vue'
 import './style/global.scss'
 import App from './App.vue'
 import router from "./services/router";
+import { createPinia } from 'pinia';
 import PrimeVue from 'primevue/config';
 import Material from '@primevue/themes/material';
 import {Button} from "primevue";
 
 
 const app = createApp(App);
+const pinia = createPinia();
 
 app.component("Button", Button);
 
