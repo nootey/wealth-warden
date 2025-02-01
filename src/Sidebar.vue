@@ -1,49 +1,53 @@
 <script setup lang="ts">
 import {ref} from "vue";
+import { useThemeStore } from './services/stores/theme';
 
 const sidebarExpanded = ref(false);
+const darkModeActive = ref(false);
+const themeStore = useThemeStore();
 
 const toggleMenu = () => {
     sidebarExpanded.value = !sidebarExpanded.value;
 }
 
-function toggleDarkMode() {
-  document.documentElement.classList.toggle('my-app-dark');
-}
-
 </script>
 
 <template>
+<!--  <img src="./assets/images/temp_logo.png" alt="Temp" />-->
   <aside :class="`${sidebarExpanded ? 'sidebar-expanded' : ''}`">
     <div class="logo">
-      <img src="./assets/images/temp_logo.png" alt="Temp" />
+
       <div class="menu-toggle-wrap">
         <div class="menu-toggle" >
-          <i class="pi pi-angle-double-right" style="font-size: 1.5rem" @click="toggleMenu"></i>
+          <i class="pi pi-angle-double-right sidebar-icon" style="font-size: 1.5rem" @click="toggleMenu"></i>
         </div>
       </div>
     </div>
 
     <h3>Menu</h3>
     <div class="menu">
-      <router-link to="/" class="button">
-        <i class="pi pi-home material-icons"></i>
-        <span class="text">Home</span>
+      <router-link to="/" class="sidebar-item" v-tooltip="'Dashboard'">
+        <i class="pi pi-home sidebar-icon"></i>
+        <span class="text">Dashboard</span>
       </router-link>
-      <router-link to="/about" class="button">
-        <i class="pi pi-wallet material-icons"></i>
-        <span class="text">About</span>
+      <router-link to="/inflows" class="sidebar-item" v-tooltip="'Inflows'">
+        <i class="pi pi-cart-plus sidebar-icon"></i>
+        <span class="text">Inflows</span>
       </router-link>
     </div>
 
     <div class="flex"></div>
 
     <div class="menu">
-      <router-link to="/" class="button">
-        <i class="pi pi-cog material-icons"></i>
+      <div class="sidebar-item">
+        <i class="pi pi-cog sidebar-icon"></i>
         <span class="text">Settings</span>
-      </router-link>
-      <i class="pi pi-sun material-icons" @click="toggleDarkMode()" />
+      </div>
+      <div class="sidebar-item" @click="themeStore.toggleDarkMode()">
+        <i class="sidebar-icon pi" :class="darkModeActive ?  'pi-sun' : 'pi-moon'"></i>
+        <span class="text">Theme</span>
+      </div>
+
     </div>
 
   </aside>
@@ -76,23 +80,23 @@ function toggleDarkMode() {
 
     .menu-toggle-wrap {
       display: flex;
-      justify-content: flex-end;
+      justify-content: flex-start;
       margin-bottom: 1rem;
-
-      position: relative;
       top: 0;
+      position: relative;
       transition: 0.2s ease-out;
+      padding-bottom: 0.5rem;
 
       .menu-toggle {
         transition: 0.2s ease-out;
-        .material-icons {
+        .sidebar-icon {
           font-size: 2rem;
           color: var(--text-primary);
           transition: 0.2s ease-out;
         }
 
         &:hover {
-          .material-icons {
+          .sidebar-icon {
             color: var(--accent-primary);
             transform: translate(0.5rem);
           }
@@ -100,7 +104,7 @@ function toggleDarkMode() {
       }
     }
 
-    h3, .button .text {
+    h3, .sidebar-item .text {
       opacity: 0;
       transition: 0.3s ease-out;
     }
@@ -108,7 +112,7 @@ function toggleDarkMode() {
     .menu {
       margin: 0 -1rem;
 
-      .button {
+      .sidebar-item {
         display: flex;
         align-items: center;
         text-decoration: none;
@@ -116,7 +120,7 @@ function toggleDarkMode() {
         padding: 0.5rem 1rem;
         transition: 0.2s ease-out;
 
-        .material-icons {
+        .sidebar-icon {
           font-size: 1.35rem;
           color: var(--text-primary);
           margin-right: 1rem;
@@ -131,7 +135,7 @@ function toggleDarkMode() {
         &:hover, &.router-link-exact-active {
           background-color: var(--background-primary);
 
-          .material-icons, .text {
+          .sidebar-icon, .text {
             color: var(--text-primary);
           }
         }
@@ -146,13 +150,13 @@ function toggleDarkMode() {
       width: var(--sidebar-width);
 
       .menu-toggle-wrap {
-        top: -3rem;
+        //top: -3rem;
         .menu-toggle {
           transform: rotate(-180deg);
         }
       }
 
-      h3, .button .text {
+      h3, .sidebar-item .text {
         opacity: 1;
       }
 
@@ -163,8 +167,8 @@ function toggleDarkMode() {
         text-transform: uppercase;
       }
 
-      .button {
-        .material-icons {
+      .sidebar-item {
+        .sidebar-icon {
           margin-right: 1rem;
         }
       }
@@ -173,7 +177,7 @@ function toggleDarkMode() {
 
     @media (max-width: 768px) {
       position: fixed;
-      z-index: 99;
+      //z-index: 99;
     }
   }
 </style>

@@ -12,11 +12,18 @@
 
 :root {
   font-family: 'Fira Sans', sans-serif;
-  --background-primary: white;
-  --background-secondary: #cacaca;
-  --text-primary: black;
-  --accent-primary: #2796ff;
+  --background-primary: var(--p-gray-50);
+  --background-secondary: var(--p-slate-200);
+  --text-primary: var(--p-neutral-950);
+  --accent-primary: var(--p-blue-600);
   --sidebar-width: 300px;
+}
+
+.my-app-dark {
+  --background-primary: var(--p-gray-950);    /* or any other dark-friendly value */
+  --background-secondary: var(--p-slate-800);
+  --text-primary: var(--p-neutral-100);
+  --accent-primary: var(--p-blue-400);
 }
 
 * {

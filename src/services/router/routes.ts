@@ -1,16 +1,16 @@
-import HomeView from "../../components/HomeView.vue";
-import AboutView from "../../components/AboutView.vue";
+import DashboardIndex from "../../components/Dashboard/DashboardIndex.vue";
+import InflowsIndex from "../../components/Inflows/InflowsIndex.vue";
 
 const routes = [
     {
         path: '/',
-        name: 'Home',
-        component: HomeView
+        name: 'Dashboard',
+        component: DashboardIndex
     },
     {
-        path: '/about',
-        name: 'About',
-        component: AboutView
+        path: '/inflows',
+        name: 'Inflows',
+        component: InflowsIndex
     }
 ];
 

@@ -5,17 +5,21 @@ import router from "./services/router";
 import { createPinia } from 'pinia';
 import PrimeVue from 'primevue/config';
 import Material from '@primevue/themes/material';
+import Tooltip from "primevue/tooltip";
 import {Button} from "primevue";
+
 
 
 const app = createApp(App);
 const pinia = createPinia();
 
+app.directive('tooltip', Tooltip);
 app.component("Button", Button);
 
+
+app.use(pinia);
 app.use(router);
 app.use(PrimeVue, {
-    // Default theme configuration
     theme: {
         preset: Material,
         options: {

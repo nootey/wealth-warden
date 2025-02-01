@@ -4,8 +4,8 @@
 
 <template>
   <main>
-    <h1>About</h1>
-    <p> This is the about page </p>
+    <h1>Inflows</h1>
+    <p> Define your inflows. You can define reoccurring entries, and dynamically add random ones after.</p>
   </main>
 </template>
 
