@@ -8,7 +8,7 @@ import (
 	"log"
 	"sync"
 	"time"
-	"wealth-warden/server/pkg/config"
+	"wealth-warden/pkg/config"
 )
 
 var (
@@ -72,7 +72,7 @@ func DisconnectMySQL() error {
 	return sqlDB.Close()
 }
 
-func connectWithoutDB(cfg *config.Config) (*gorm.DB, error) {
+func ConnectWithoutDB(cfg *config.Config) (*gorm.DB, error) {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/?charset=utf8mb4&parseTime=True&loc=Local",
 		cfg.MySQLUser, cfg.MySQLPassword, cfg.MySQLHost, cfg.MySQLPort)
 

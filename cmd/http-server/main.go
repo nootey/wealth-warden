@@ -7,9 +7,10 @@ import (
 	"log"
 	"os/signal"
 	"syscall"
-	"wealth-warden/server/pkg/config"
-	"wealth-warden/server/pkg/database"
-	serverHttp "wealth-warden/server/pkg/http"
+	"wealth-warden/pkg/config"
+	"wealth-warden/pkg/database"
+	"wealth-warden/pkg/database/migrations"
+	serverHttp "wealth-warden/pkg/http"
 )
 
 // rootCmd is the main entry point for the NoiseGuard Licence Service
@@ -24,10 +25,10 @@ var rootCmd = &cobra.Command{
 
 // migrateCmd handles running migrations for the database
 var migrateCmd = &cobra.Command{
-	Use:   "migrate",
-	Short: "Run database migrations",
+	Use:   "migrate-base",
+	Short: "Run base database migrations",
 	Run: func(cmd *cobra.Command, args []string) {
-		runMigrations("full")
+		runMigrations("base")
 	},
 }
 
@@ -99,12 +100,12 @@ func runMigrations(migrationType string) {
 	cfg := config.LoadConfig()
 	logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
-	//if migrationType == "full" {
-	//	err = database.RunMigrations()
-	//	if err != nil {
-	//		logger.Fatal("Failed to run migrations", zap.Error(err))
-	//	}
-	//}
+	if migrationType == "base" {
+		err = migrations.RunBaseMigrations()
+		if err != nil {
+			logger.Fatal("Failed to run base migrations", zap.Error(err))
+		}
+	}
 
 	logger.Info("Migrations completed successfully")
 }

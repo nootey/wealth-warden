@@ -2,7 +2,7 @@ package repositories
 
 import (
 	"gorm.io/gorm"
-	"wealth-warden/server/internal/models"
+	"wealth-warden/internal/models"
 )
 
 type UserRepository struct {

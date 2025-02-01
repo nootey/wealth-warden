@@ -3,13 +3,14 @@ package http
 import (
 	"context"
 	"errors"
+	"github.com/gin-contrib/cors"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"net/http"
 	"time"
-	"wealth-warden/server/pkg/config"
+	"wealth-warden/pkg/config"
 )
 
 type Server struct {
@@ -63,14 +64,28 @@ func (s *Server) Shutdown() error {
 func NewRouter(cfg *config.Config, dbClient *gorm.DB) *gin.Engine {
 
 	var router *gin.Engine
+	var domainProtocol string
 
 	if cfg.Release == "production" {
 		gin.SetMode(gin.ReleaseMode)
 		router = gin.New()
+		domainProtocol = "https://"
 
 	} else {
 		router = gin.Default()
+		domainProtocol = "http://"
 	}
+
+	// Setup CORS
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowOrigins = []string{
+		domainProtocol + cfg.ClientDomain,
+		domainProtocol + cfg.ClientDomain + ":" + cfg.ClientPort,
+	}
+	corsConfig.AllowMethods = []string{"GET", "POST", "OPTIONS"}
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "ng-licence-vue", "Upgrade", "Connection"}
+	corsConfig.AllowCredentials = true
+	router.Use(cors.New(corsConfig))
 
 	// Global middlewares
 	router.Use(gin.Recovery())

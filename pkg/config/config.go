@@ -9,6 +9,8 @@ import (
 
 type Config struct {
 	Release        string
+	ClientDomain   string
+	ClientPort     string
 	HttpServerPort string
 	MySQLHost      string
 	MySQLUser      string
@@ -32,6 +34,8 @@ func LoadConfig() *Config {
 
 	return &Config{
 		Release:        os.Getenv("RELEASE"),
+		ClientDomain:   os.Getenv("CLIENT_DOMAIN"),
+		ClientPort:     os.Getenv("CLIENT_PORT"),
 		HttpServerPort: os.Getenv("HTTP_SERVER_PORT"),
 		MySQLHost:      os.Getenv("MYSQL_HOST"),
 		MySQLUser:      os.Getenv("MYSQL_USER"),

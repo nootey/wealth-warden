@@ -4,11 +4,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"net/http"
-	"wealth-warden/server/internal/handlers"
-	"wealth-warden/server/internal/repositories"
-	"wealth-warden/server/internal/services"
-	"wealth-warden/server/pkg/config"
-	"wealth-warden/server/pkg/database"
+	"wealth-warden/internal/handlers"
+	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/services"
+	"wealth-warden/pkg/config"
+	"wealth-warden/pkg/database"
 )
 
 func rootHandler(c *gin.Context) {
@@ -59,16 +59,27 @@ func InitEndpoints(router *gin.Engine, cfg *config.Config, dbClient *gorm.DB) {
 		healthCheck(c, cfg)
 	})
 
+	authRepo := repositories.NewAuthRepository(dbClient)
 	userRepo := repositories.NewUserRepository(dbClient)
 
+	authService := services.NewAuthService(authRepo)
 	userService := services.NewUserService(userRepo)
 
+	authHandler := handlers.NewAuthHandler(cfg, authService)
 	userHandler := handlers.NewUserHandler(cfg, userService)
 
 	authenticatedGroup := router.Group(apiPrefixV1)
 	{
+		authRoutes(authenticatedGroup, authHandler)
 		userRoutes(authenticatedGroup, userHandler)
 	}
+}
+
+func authRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) {
+
+	apiGroup.POST("/login", func(c *gin.Context) {
+		handler.LoginUser(c)
+	})
 }
 
 func userRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler) {

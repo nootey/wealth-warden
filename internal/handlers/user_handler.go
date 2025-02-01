@@ -3,9 +3,9 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
-	"wealth-warden/server/internal/models"
-	"wealth-warden/server/internal/services"
-	"wealth-warden/server/pkg/config"
+	"wealth-warden/internal/models"
+	"wealth-warden/internal/services"
+	"wealth-warden/pkg/config"
 )
 
 type UserHandler struct {

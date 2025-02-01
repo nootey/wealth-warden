@@ -1,8 +1,8 @@
 package services
 
 import (
-	"wealth-warden/server/internal/models"
-	"wealth-warden/server/internal/repositories"
+	"wealth-warden/internal/models"
+	"wealth-warden/internal/repositories"
 )
 
 type UserService struct {
