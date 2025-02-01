@@ -1,15 +1,20 @@
 <script setup lang="ts">
 import Sidebar from "./Sidebar.vue";
 
-const authenticated = true;
+const authenticated = false;
 const initialized = true;
-const loggedOut = false;
+const loggedOut = true;
 </script>
 
 <template>
   <div class="app">
-    <Sidebar />
-    <router-view/>
+
+    <router-view v-if="!authenticated && loggedOut"/>
+    <div v-else-if="initialized">
+      <Sidebar />
+      <router-view/>
+    </div>
+
   </div>
 </template>
 
