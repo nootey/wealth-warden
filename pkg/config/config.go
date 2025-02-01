@@ -8,15 +8,16 @@ import (
 )
 
 type Config struct {
-	Release        string
-	ClientDomain   string
-	ClientPort     string
-	HttpServerPort string
-	MySQLHost      string
-	MySQLUser      string
-	MySQLPassword  string
-	MySQLPort      int
-	MySQLDatabase  string
+	Release            bool
+	ClientDomain       string
+	ClientPort         string
+	HttpServerPort     string
+	SuperAdminPassword string
+	MySQLHost          string
+	MySQLUser          string
+	MySQLPassword      string
+	MySQLPort          int
+	MySQLDatabase      string
 }
 
 func LoadConfig() *Config {
@@ -29,18 +30,24 @@ func LoadConfig() *Config {
 
 	mysqlPort, err := strconv.Atoi(os.Getenv("MYSQL_PORT"))
 	if err != nil {
-		log.Fatalf("Invalid MySQL port: %v", err) // Handle conversion error
+		log.Fatalf("Invalid MySQL port: %v", err)
+	}
+
+	release, err := strconv.ParseBool(os.Getenv("RELEASE"))
+	if err != nil {
+		log.Fatalf("Invalid release mode: %v", err)
 	}
 
 	return &Config{
-		Release:        os.Getenv("RELEASE"),
-		ClientDomain:   os.Getenv("CLIENT_DOMAIN"),
-		ClientPort:     os.Getenv("CLIENT_PORT"),
-		HttpServerPort: os.Getenv("HTTP_SERVER_PORT"),
-		MySQLHost:      os.Getenv("MYSQL_HOST"),
-		MySQLUser:      os.Getenv("MYSQL_USER"),
-		MySQLPassword:  os.Getenv("MYSQL_PASSWORD"),
-		MySQLPort:      mysqlPort,
-		MySQLDatabase:  os.Getenv("MYSQL_DATABASE"),
+		Release:            release,
+		ClientDomain:       os.Getenv("CLIENT_DOMAIN"),
+		ClientPort:         os.Getenv("CLIENT_PORT"),
+		HttpServerPort:     os.Getenv("HTTP_SERVER_PORT"),
+		SuperAdminPassword: os.Getenv("SUPER_ADMIN_PASSWORD"),
+		MySQLHost:          os.Getenv("MYSQL_HOST"),
+		MySQLUser:          os.Getenv("MYSQL_USER"),
+		MySQLPassword:      os.Getenv("MYSQL_PASSWORD"),
+		MySQLPort:          mysqlPort,
+		MySQLDatabase:      os.Getenv("MYSQL_DATABASE"),
 	}
 }

@@ -66,7 +66,7 @@ func NewRouter(cfg *config.Config, dbClient *gorm.DB) *gin.Engine {
 	var router *gin.Engine
 	var domainProtocol string
 
-	if cfg.Release == "production" {
+	if cfg.Release {
 		gin.SetMode(gin.ReleaseMode)
 		router = gin.New()
 		domainProtocol = "https://"
@@ -83,7 +83,7 @@ func NewRouter(cfg *config.Config, dbClient *gorm.DB) *gin.Engine {
 		domainProtocol + cfg.ClientDomain + ":" + cfg.ClientPort,
 	}
 	corsConfig.AllowMethods = []string{"GET", "POST", "OPTIONS"}
-	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "ng-licence-vue", "Upgrade", "Connection"}
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "wealth-warden-client"}
 	corsConfig.AllowCredentials = true
 	router.Use(cors.New(corsConfig))
 

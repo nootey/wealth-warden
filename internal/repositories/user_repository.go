@@ -22,6 +22,15 @@ func (r *UserRepository) GetUserByID(id uint) (*models.User, error) {
 	return &user, nil
 }
 
+func (r *UserRepository) GetUserByEmail(email string) (*models.User, error) {
+	var user models.User
+	err := r.DB.Where("email = ?", email).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (r *UserRepository) GetAllUsers() ([]models.User, error) {
 	var users []models.User
 	err := r.DB.Find(&users).Error

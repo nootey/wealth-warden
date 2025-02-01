@@ -9,6 +9,7 @@ import (
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
+	"wealth-warden/pkg/middleware"
 )
 
 func rootHandler(c *gin.Context) {
@@ -59,26 +60,39 @@ func InitEndpoints(router *gin.Engine, cfg *config.Config, dbClient *gorm.DB) {
 		healthCheck(c, cfg)
 	})
 
-	authRepo := repositories.NewAuthRepository(dbClient)
 	userRepo := repositories.NewUserRepository(dbClient)
 
-	authService := services.NewAuthService(authRepo)
+	authService := services.NewAuthService(userRepo)
 	userService := services.NewUserService(userRepo)
 
 	authHandler := handlers.NewAuthHandler(cfg, authService)
 	userHandler := handlers.NewUserHandler(cfg, userService)
 
-	authenticatedGroup := router.Group(apiPrefixV1)
+	authenticatedGroup := router.Group(apiPrefixV1, middleware.FrontendAuthMiddleware())
 	{
 		authRoutes(authenticatedGroup, authHandler)
 		userRoutes(authenticatedGroup, userHandler)
 	}
+
+	unauthenticatedGroup := router.Group(apiPrefixV1)
+	{
+		nonAuthRoutes(unauthenticatedGroup, authHandler)
+	}
 }
 
-func authRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) {
+func nonAuthRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) {
 
 	apiGroup.POST("/login", func(c *gin.Context) {
 		handler.LoginUser(c)
+	})
+	apiGroup.POST("/logout", func(c *gin.Context) {
+		handler.LogoutUser(c)
+	})
+}
+
+func authRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) {
+	apiGroup.GET("/get-auth-user", func(c *gin.Context) {
+		handler.GetAuthUser(c)
 	})
 }
 
