@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import {ref} from "vue";
 import { useThemeStore } from './services/stores/theme';
+import { useAuthStore } from './services/stores/auth';
 
 const sidebarExpanded = ref(false);
 const darkModeActive = ref(false);
 const themeStore = useThemeStore();
+const authStore = useAuthStore();
 
 const toggleMenu = () => {
     sidebarExpanded.value = !sidebarExpanded.value;
@@ -45,6 +47,10 @@ const toggleMenu = () => {
       </div>
       <div class="sidebar-item" @click="themeStore.toggleDarkMode()">
         <i class="sidebar-icon pi" :class="darkModeActive ?  'pi-sun' : 'pi-moon'"></i>
+        <span class="text">Theme</span>
+      </div>
+      <div class="sidebar-item" @click="authStore.logoutUser()">
+        <i class="sidebar-icon pi pi-sign-out"></i>
         <span class="text">Theme</span>
       </div>
 

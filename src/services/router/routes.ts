@@ -26,7 +26,7 @@ const routes = [
 
 function requiresAuth() {
     const authStore = useAuthStore();
-    if (authStore.authenticated) {
+    if (authStore.isAuthenticated) {
         return true;
     } else {
         return { path: '/login' };

@@ -1,20 +1,25 @@
 <script setup lang="ts">
+import {computed, onMounted} from 'vue';
+import { useAuthStore } from './services/stores/auth';
 import Sidebar from "./Sidebar.vue";
 
-const authenticated = false;
-const initialized = true;
-const loggedOut = true;
+const authStore = useAuthStore();
+
+const authenticated = computed(() => authStore.isAuthenticated);
+const initialized = computed(() => authStore.isInitialized);
+
+onMounted(async () => {
+  if (authenticated.value) {
+    await authStore.init();
+  }
+});
+
 </script>
 
 <template>
-  <div class="app">
-
-    <router-view v-if="!authenticated && loggedOut"/>
-    <div v-else-if="initialized">
-      <Sidebar />
-      <router-view/>
-    </div>
-
+  <div id="app" class="app">
+    <Sidebar v-if="authenticated && initialized" />
+    <router-view/>
   </div>
 </template>
 

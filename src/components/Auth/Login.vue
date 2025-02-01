@@ -12,8 +12,8 @@ const authStore = useAuthStore();
 
 const router = useRouter();
 const form = ref({
-  email: null,
-  password: null,
+  email: "",
+  password: "",
   rememberMe: false,
 });
 
@@ -37,9 +37,10 @@ async function login() {
   if (v$.value.$error) return;
 
   try {
-
     await authStore.login(form.value);
-    console.log('Login successful!');
+    if (authStore.authenticated){
+      await router.push({name: "Dashboard"})
+    }
   } catch (error) {
     console.error('Error during login:', error);
   }
