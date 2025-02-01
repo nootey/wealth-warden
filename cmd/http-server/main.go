@@ -13,7 +13,7 @@ import (
 	serverHttp "wealth-warden/pkg/http"
 )
 
-// rootCmd is the main entry point for the NoiseGuard Licence Service
+// rootCmd is the main entry point for the app
 var rootCmd = &cobra.Command{
 	Use:     "wealth-warden",
 	Short:   "WealthWarden server",
