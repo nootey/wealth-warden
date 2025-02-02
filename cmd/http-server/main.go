@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/pressly/goose/v3"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"log"
@@ -9,7 +10,7 @@ import (
 	"syscall"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
-	"wealth-warden/pkg/database/migrations"
+	_ "wealth-warden/pkg/database/migrations" // Import for side effects
 	serverHttp "wealth-warden/pkg/http"
 )
 
@@ -23,22 +24,38 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// migrateCmd handles running migrations for the database
+// migrateCmd handles running stacked migrations
 var migrateCmd = &cobra.Command{
-	Use:   "migrate-base",
-	Short: "Run base database migrations",
+	Use:   "migrate [type]",
+	Short: "Run database migrations",
+	Args:  cobra.MaximumNArgs(1), // Ensure only one argument like "up", "down", etc.
 	Run: func(cmd *cobra.Command, args []string) {
-		runMigrations("base")
+		migrationType := "help"
+
+		if len(args) > 0 {
+			migrationType = args[0]
+		}
+
+		runMigrations(migrationType)
+	},
+}
+
+// seedBasicCmd handles seeding essential tables
+var seedBasicCmd = &cobra.Command{
+	Use:   "seed base",
+	Short: "Run essential database seeders",
+	Run: func(cmd *cobra.Command, args []string) {
+		runBasicSeeders()
 	},
 }
 
 func init() {
-
 	// Initialize cobra and add the commands
 	cobra.OnInitialize()
 
 	// Register commands
 	rootCmd.AddCommand(migrateCmd)
+	rootCmd.AddCommand(seedBasicCmd)
 }
 
 func main() {
@@ -100,12 +117,70 @@ func runMigrations(migrationType string) {
 	cfg := config.LoadConfig()
 	logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
-	if migrationType == "base" {
-		err = migrations.RunBaseMigrations()
-		if err != nil {
-			logger.Fatal("Failed to run base migrations", zap.Error(err))
+	// Connect to MySQL using GORM
+	gormDB, err := database.ConnectToMySQL(cfg)
+	if err != nil {
+		log.Fatalf("Failed to connect to MySQL: %v", err)
+	}
+
+	// Get the raw *sql.DB from GORM
+	sqlDB, err := gormDB.DB()
+	if err != nil {
+		log.Fatalf("Failed to get raw SQL DB: %v", err)
+	}
+
+	migrationsDir := "./pkg/database/migrations"
+	goose.SetDialect("mysql")
+
+	switch migrationType {
+	case "up":
+		if err := goose.Up(sqlDB, migrationsDir); err != nil {
+			log.Fatalf("Failed to apply migrations: %v", err)
 		}
+	case "down":
+		if err := goose.Down(sqlDB, migrationsDir); err != nil {
+			log.Fatalf("Failed to rollback migrations: %v", err)
+		}
+	case "status":
+		if err := goose.Status(sqlDB, migrationsDir); err != nil {
+			log.Fatalf("Failed to get migration status: %v", err)
+		}
+	case "fresh":
+		if err := goose.Reset(sqlDB, migrationsDir); err != nil {
+			log.Fatalf("Failed to reset migrations: %v", err)
+		}
+		if err := goose.Up(sqlDB, migrationsDir); err != nil {
+			log.Fatalf("Failed to apply fresh migrations: %v", err)
+		}
+	case "help":
+		log.Fatal("\n Provide an additional argument to the migration function. Valid migrate arguments are: up, down, status, fresh")
+	default:
+		log.Fatalf("Invalid migration type: %s", migrationType)
 	}
 
 	logger.Info("Migrations completed successfully")
+}
+
+func runBasicSeeders() {
+	// Initialize the logger
+	logger, err := zap.NewProduction()
+	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer logger.Sync()
+	logger.Info("Starting database seeding")
+
+	// Load Configuration
+	cfg := config.LoadConfig()
+	logger.Info("Loaded the configuration", zap.Any("config", cfg))
+
+	dbClient, err := database.ConnectToMySQL(cfg)
+	if err != nil {
+		log.Fatalf("Failed to connect to MySQL: %v", err)
+	}
+
+	err = database.RunEssentialSeeders(dbClient, cfg)
+	if err != nil {
+		logger.Fatal("Failed to run seeders", zap.Error(err))
+	}
 }

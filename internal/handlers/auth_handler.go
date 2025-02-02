@@ -35,19 +35,19 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 	user, _ := h.Service.UserRepo.GetUserByEmail(loginForm.Email)
 	if user == nil {
-		utils.ErrorMessage("Error occurred", "Incorrect credentials", http.StatusBadRequest)(c, nil)
+		utils.ErrorMessage("Error occurred", "Incorrect credentials", http.StatusUnauthorized)(c, nil)
 		return
 	}
 
 	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginForm.Password))
 	if err != nil {
-		utils.ErrorMessage("Error occurred", "Incorrect credentials", http.StatusBadRequest)(c, err)
+		utils.ErrorMessage("Error occurred", "Incorrect credentials", http.StatusUnauthorized)(c, err)
 		return
 	}
 
 	accessToken, refreshToken, err := middleware.GenerateLoginTokens(user.ID, loginForm.RememberMe)
 	if err != nil {
-		utils.ErrorMessage("Authentication error", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage("Authentication error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
