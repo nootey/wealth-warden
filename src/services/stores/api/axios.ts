@@ -5,6 +5,7 @@ const httpProtocol = isProduction ? "https" : "http";
 
 const apiClient = axios.create({
     baseURL: `${httpProtocol}://${import.meta.env.VITE_API_BASE_URL}`,
+    withCredentials: true,
 });
 
 export default apiClient;

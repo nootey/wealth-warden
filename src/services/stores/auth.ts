@@ -27,9 +27,7 @@ export const useAuthStore = defineStore('auth', {
     actions: {
         async login(authForm: AuthForm) {
             try {
-                const response = await apiClient.post('/login', authForm, {
-                    withCredentials: true
-                });
+                const response = await apiClient.post('/login', authForm);
                 await this.init();
                 return response;
             } catch (error) {
@@ -40,9 +38,7 @@ export const useAuthStore = defineStore('auth', {
 
         async getAuthUser(set = true) {
             try {
-                const response = await apiClient.get('/get-auth-user', {
-                    withCredentials: true
-                });
+                const response = await apiClient.get('/get-auth-user');
 
                 if (set) {
                     if (!response.data) {
@@ -66,9 +62,7 @@ export const useAuthStore = defineStore('auth', {
 
         async logoutUser() {
             try {
-                await apiClient.post('/logout', null,{
-                    withCredentials: true
-                });
+                await apiClient.post('/logout', null);
             } catch (error) {
                 console.error('Logout failed:', error);
             }
