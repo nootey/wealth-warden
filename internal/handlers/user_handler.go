@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/utils"
 )
 
 type UserHandler struct {
@@ -20,7 +21,7 @@ func NewUserHandler(userService *services.UserService) *UserHandler {
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	users, err := h.Service.GetAllUsers()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
+		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"users": users})
@@ -32,16 +33,16 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 
 	// Bind JSON request to the user struct
 	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+		utils.ErrorMessage("Json bind error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
 	// Call service to create user
 	err := h.Service.CreateUser(&user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "User created successfully", "user": user})
+	utils.SuccessMessage(user.Email, "User created successfully", http.StatusOK)(c.Writer, c.Request)
 }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/utils"
 )
 
 type InflowHandler struct {
@@ -18,7 +19,7 @@ func NewInflowHandler(service *services.InflowService) *InflowHandler {
 func (h *InflowHandler) GetAllInflowTypes(c *gin.Context) {
 	inflowTypes, err := h.Service.FetchAllInflowTypes()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, inflowTypes)
@@ -27,18 +28,15 @@ func (h *InflowHandler) GetAllInflowTypes(c *gin.Context) {
 func (h *InflowHandler) CreateNewInflowType(c *gin.Context) {
 	var inflowType *models.InflowType
 
-	// Bind the JSON from the request to the inflowType struct
 	if err := c.ShouldBindJSON(&inflowType); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.ErrorMessage("Json bind error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
-	// Send the inflowType to your service
 	if err := h.Service.CreateInflowType(inflowType); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create inflow type"})
+		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
-	// Respond with success
-	c.JSON(http.StatusOK, gin.H{"message": "Inflow type created successfully"})
+	utils.SuccessMessage(inflowType.Name, "Inflow created successfully", http.StatusOK)(c.Writer, c.Request)
 }
