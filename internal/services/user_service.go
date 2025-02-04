@@ -3,17 +3,18 @@ package services
 import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/config"
 )
 
 type UserService struct {
 	UserRepo *repositories.UserRepository
+	Config   *config.Config
 }
 
-func NewUserService(
-	userRepo *repositories.UserRepository,
-) *UserService {
+func NewUserService(cfg *config.Config, userRepo *repositories.UserRepository) *UserService {
 	return &UserService{
 		UserRepo: userRepo,
+		Config:   cfg,
 	}
 }
 

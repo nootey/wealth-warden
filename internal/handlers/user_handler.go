@@ -5,18 +5,15 @@ import (
 	"net/http"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
-	"wealth-warden/pkg/config"
 )
 
 type UserHandler struct {
 	Service *services.UserService
-	Config  *config.Config
 }
 
-func NewUserHandler(cfg *config.Config, userService *services.UserService) *UserHandler {
+func NewUserHandler(userService *services.UserService) *UserHandler {
 	return &UserHandler{
 		Service: userService,
-		Config:  cfg,
 	}
 }
 
