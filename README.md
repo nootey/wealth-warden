@@ -15,3 +15,10 @@ You can use the following options:
 - down -> rolls back migrations
 - status -> check status of migrations
 - fresh -> redo all migrations
+
+## Seeding
+
+To create a seeder with goose, use this command:
+```sh
+goose -dir .\pkg\database\seeders\ create seed_{table}.go
+```

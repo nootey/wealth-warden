@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
-	_ "wealth-warden/pkg/database/migrations" // Import for side effects
+	_ "wealth-warden/pkg/database/seeders" // Import for side effects
 	serverHttp "wealth-warden/pkg/http"
 )
 
@@ -174,13 +174,21 @@ func runBasicSeeders() {
 	cfg := config.LoadConfig()
 	logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
-	dbClient, err := database.ConnectToMySQL(cfg)
+	// Connect to MySQL using GORM
+	gormDB, err := database.ConnectToMySQL(cfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to MySQL: %v", err)
 	}
 
-	err = database.RunEssentialSeeders(dbClient, cfg)
+	// Get the raw *sql.DB from GORM
+	sqlDB, err := gormDB.DB()
 	if err != nil {
-		logger.Fatal("Failed to run seeders", zap.Error(err))
+		log.Fatalf("Failed to get raw SQL DB: %v", err)
+	}
+
+	seedersDir := "./pkg/database/seeders"
+	goose.SetDialect("mysql")
+	if err := goose.Up(sqlDB, seedersDir); err != nil {
+		log.Fatalf("Failed torun seeders: %v", err)
 	}
 }
