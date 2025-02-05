@@ -40,7 +40,7 @@ func refreshAccessToken(c *gin.Context, refreshClaims *WebClientUserClaim) error
 	}
 
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("wwa", accessToken, 60*15, "/", cfg.ClientDomain, cfg.Release, true)
+	c.SetCookie("wwa", accessToken, 60*15, "/", cfg.WebClientDomain, cfg.Release, true)
 
 	return nil
 }

@@ -79,8 +79,8 @@ func NewRouter(cfg *config.Config, dbClient *gorm.DB) *gin.Engine {
 	// Setup CORS
 	corsConfig := cors.DefaultConfig()
 	corsConfig.AllowOrigins = []string{
-		domainProtocol + cfg.ClientDomain,
-		domainProtocol + cfg.ClientDomain + ":" + cfg.ClientPort,
+		domainProtocol + cfg.WebClientDomain,
+		domainProtocol + cfg.WebClientDomain + ":" + cfg.WebClientPort,
 	}
 	corsConfig.AllowMethods = []string{"GET", "POST", "OPTIONS"}
 	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "wealth-warden-client"}
