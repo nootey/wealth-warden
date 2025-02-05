@@ -71,7 +71,7 @@ func InitEndpoints(router *gin.Engine, cfg *config.Config, dbClient *gorm.DB) {
 	userHandler := handlers.NewUserHandler(userService)
 	inflowHandler := handlers.NewInflowHandler(inflowService)
 
-	authenticatedGroup := router.Group(apiPrefixV1, middleware.FrontendAuthMiddleware())
+	authenticatedGroup := router.Group(apiPrefixV1, middleware.WebClientAuth())
 	{
 		authRoutes(authenticatedGroup, authHandler)
 		userRoutes(authenticatedGroup, userHandler)

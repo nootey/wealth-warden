@@ -34,13 +34,13 @@ if __name__ == "__main__":
     print("Generating frontend sessions keys ...")
     try:
         jwt_frontend_access = generate_random_key(12)
-        update_env_file(env_file_path, "JWT_SECRET_FRONTEND_ACCESS", jwt_frontend_access)
+        update_env_file(env_file_path, "JWT_WEB_CLIENT_ACCESS", jwt_frontend_access)
     except Exception as e:
         print("Error for: jwt_frontend_access", e)
 
     try:
         jwt_frontend_refresh = generate_random_key(12)
-        update_env_file(env_file_path, "JWT_SECRET_FRONTEND_REFRESH", jwt_frontend_refresh)
+        update_env_file(env_file_path, "JWT_WEB_CLIENT_REFRESH", jwt_frontend_refresh)
     except Exception as e:
         print("Error for: jwt_frontend_refresh", e)
 
@@ -49,7 +49,7 @@ if __name__ == "__main__":
         # but slightly decreased performance, use different byte values from this template:
         # AES128: 16 - AES192: 24 - AES256 - 32
         jwt_frontend_encode = generate_random_key(32)
-        update_env_file(env_file_path, "JWT_FRONTEND_ENCODE_KEY", jwt_frontend_encode)
+        update_env_file(env_file_path, "JWT_WEB_CLIENT_USER_ID", jwt_frontend_encode)
     except Exception as e:
         print("Error for: jwt_frontend_encode", e)
     print("Done")

@@ -28,12 +28,12 @@ func (s *AuthService) GetCurrentUser(c *gin.Context) (*models.User, error) {
 	}
 
 	if refreshToken != "" {
-		refreshClaims, err := middleware.DecodeFrontendToken(refreshToken, "refresh")
+		refreshClaims, err := middleware.DecryptWebClientToken(refreshToken, "refresh")
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode refresh token: %v", err)
 		}
 
-		userId, decodeErr := middleware.DecodeEncryptedFrontendUserID(refreshClaims.UserID)
+		userId, decodeErr := middleware.DecryptWebClientUserID(refreshClaims.UserID)
 		if decodeErr != nil {
 			return nil, fmt.Errorf("failed to decode user ID: %v", decodeErr)
 		}

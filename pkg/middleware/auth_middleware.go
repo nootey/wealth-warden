@@ -21,15 +21,15 @@ var (
 	ErrTokenExpired = errors.New("token has expired")
 )
 
-type FrontendUserClaim struct {
+type WebClientUserClaim struct {
 	UserID string `json:"ID"`
 	jwt.RegisteredClaims
 }
 
-func refreshAccessToken(c *gin.Context, refreshClaims *FrontendUserClaim) error {
+func refreshAccessToken(c *gin.Context, refreshClaims *WebClientUserClaim) error {
 
 	cfg := config.LoadConfig()
-	userId, err := DecodeEncryptedFrontendUserID(refreshClaims.UserID)
+	userId, err := DecryptWebClientUserID(refreshClaims.UserID)
 	if err != nil {
 		return err
 	}
@@ -45,11 +45,11 @@ func refreshAccessToken(c *gin.Context, refreshClaims *FrontendUserClaim) error 
 	return nil
 }
 
-func FrontendAuthMiddleware() gin.HandlerFunc {
+func WebClientAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
 
-		//if frontendIdentifier := c.GetHeader("wealth-warden-client"); frontendIdentifier != "true" {
+		//if webClientIdentifier := c.GetHeader("wealth-warden-client"); webClientIdentifier != "true" {
 		//	c.Next()
 		//	return
 		//}
@@ -63,7 +63,7 @@ func FrontendAuthMiddleware() gin.HandlerFunc {
 				return
 			}
 
-			refreshClaims, err2 := DecodeFrontendToken(refreshToken, "refresh")
+			refreshClaims, err2 := DecryptWebClientToken(refreshToken, "refresh")
 			if err2 != nil {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
 				return
@@ -79,11 +79,11 @@ func FrontendAuthMiddleware() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		_, err = DecodeFrontendToken(accessToken, "access")
+		_, err = DecryptWebClientToken(accessToken, "access")
 		if err != nil {
 			if errors.Is(err, ErrTokenExpired) {
 				refreshToken, _ := c.Cookie("wwr")
-				refreshClaims, err2 := DecodeFrontendToken(refreshToken, "refresh")
+				refreshClaims, err2 := DecryptWebClientToken(refreshToken, "refresh")
 				if err2 != nil {
 					c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
 					return
@@ -105,32 +105,8 @@ func FrontendAuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-func BackendAuthMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		tokenString := c.GetHeader("Authorization")
-		jwtSecret := os.Getenv("JWT_SECRET_API")
-		if tokenString == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-			c.Abort()
-			return
-		}
-
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return []byte(jwtSecret), nil
-		})
-
-		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
-
-func encryptFrontendUserID(userID uint) (string, error) {
-	key := os.Getenv("JWT_FRONTEND_ENCODE_KEY")
+func encryptWebClientUserID(userID uint) (string, error) {
+	key := os.Getenv("JWT_WEB_CLIENT_USER_ID")
 	if len(key) != 32 {
 		return "", fmt.Errorf("encryption key must be 32 bytes long for AES-256")
 	}
@@ -159,8 +135,8 @@ func encryptFrontendUserID(userID uint) (string, error) {
 	return encoded, nil
 }
 
-func DecodeEncryptedFrontendUserID(encodedString string) (uint, error) {
-	key := os.Getenv("JWT_FRONTEND_ENCODE_KEY")
+func DecryptWebClientUserID(encodedString string) (uint, error) {
+	key := os.Getenv("JWT_WEB_CLIENT_USER_ID")
 	if len(key) != 32 {
 		return 0, fmt.Errorf("encryption key must be 32 bytes long for AES-256")
 	}
@@ -213,21 +189,21 @@ func GenerateToken(tokenType string, expiration time.Time, userID uint) (string,
 	// Select the appropriate JWT secret based on token type
 	switch tokenType {
 	case "access":
-		jwtKey = []byte(os.Getenv("JWT_SECRET_FRONTEND_ACCESS"))
+		jwtKey = []byte(os.Getenv("JWT_WEB_CLIENT_ACCESS"))
 	case "refresh":
-		jwtKey = []byte(os.Getenv("JWT_SECRET_FRONTEND_REFRESH"))
+		jwtKey = []byte(os.Getenv("JWT_WEB_CLIENT_REFRESH"))
 	default:
 		return "", fmt.Errorf("unsupported token type: %s", tokenType)
 	}
 
 	// Encrypt the user ID before embedding it into the token
-	encryptedUserID, err := encryptFrontendUserID(userID)
+	encryptedUserID, err := encryptWebClientUserID(userID)
 	if err != nil {
 		return "", err
 	}
 
 	// Define the JWT claims
-	claims := FrontendUserClaim{
+	claims := WebClientUserClaim{
 		UserID: encryptedUserID, // Store the encrypted user ID
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiration),
@@ -245,6 +221,7 @@ func GenerateToken(tokenType string, expiration time.Time, userID uint) (string,
 
 	return signedToken, nil
 }
+
 func GenerateLoginTokens(userID uint, rememberMe bool) (string, string, error) {
 
 	var expiresAt time.Time
@@ -267,21 +244,21 @@ func GenerateLoginTokens(userID uint, rememberMe bool) (string, string, error) {
 	return accessToken, refreshToken, nil
 }
 
-func DecodeFrontendToken(tokenString string, cookieType string) (*FrontendUserClaim, error) {
+func DecryptWebClientToken(tokenString string, cookieType string) (*WebClientUserClaim, error) {
 	var secret string
 
 	switch cookieType {
 	case "access":
-		secret = os.Getenv("JWT_SECRET_FRONTEND_ACCESS")
+		secret = os.Getenv("JWT_WEB_CLIENT_ACCESS")
 	case "refresh":
-		secret = os.Getenv("JWT_SECRET_FRONTEND_REFRESH")
+		secret = os.Getenv("JWT_WEB_CLIENT_REFRESH")
 	default:
 		return nil, fmt.Errorf("unknown cookieType: %s", cookieType)
 	}
 
 	secretKey := []byte(secret)
 
-	claims := &FrontendUserClaim{}
+	claims := &WebClientUserClaim{}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
