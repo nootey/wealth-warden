@@ -13,7 +13,7 @@ last_login DATETIME,
 last_login_ip VARCHAR(255),
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-deleted_at DATETIME
+deleted_at TIMESTAMP DEFAULT null
 );
 
 -- +goose StatementEnd

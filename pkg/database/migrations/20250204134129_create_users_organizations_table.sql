@@ -4,6 +4,7 @@ CREATE TABLE user_organizations (
 user_id INT NOT NULL,
 organization_id INT NOT NULL,
 role VARCHAR(50) DEFAULT 'Member',
+deleted_at TIMESTAMP DEFAULT null,
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 PRIMARY KEY (user_id, organization_id),

@@ -9,7 +9,8 @@ end_date DATE DEFAULT NULL,  -- NULL if it continues indefinitely
 frequency ENUM('daily', 'weekly', 'monthly', 'yearly') NOT NULL,
 FOREIGN KEY (inflow_type_id) REFERENCES inflow_types(id),
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+deleted_at TIMESTAMP DEFAULT null
 );
 -- +goose StatementEnd
 
