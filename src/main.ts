@@ -1,6 +1,7 @@
 import './style/global.scss'
 import './style/auth.scss'
 import './style/auth_input_shake_animation.scss';
+import '../node_modules/primeflex/primeflex.css';
 
 import { createApp } from 'vue'
 import App from './App.vue'
@@ -12,16 +13,22 @@ import Tooltip from "primevue/tooltip";
 import {Button} from "primevue";
 import {Checkbox} from "primevue";
 import {InputText} from "primevue";
-
+import {FloatLabel} from "primevue";
+import {DataTable} from "primevue";
+import {Column} from "primevue";
 
 
 const app = createApp(App);
 const pinia = createPinia();
 
+
 app.directive('tooltip', Tooltip);
 app.component("Button", Button);
 app.component("Checkbox", Checkbox);
 app.component("InputText", InputText);
+app.component("FloatLabel", FloatLabel);
+app.component("DataTable", DataTable);
+app.component("Column", Column);
 
 
 app.use(pinia);
