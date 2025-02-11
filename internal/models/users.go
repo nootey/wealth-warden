@@ -8,7 +8,6 @@ import (
 type User struct {
 	ID            uint           `gorm:"primaryKey;autoIncrement"`
 	Username      string         `gorm:"unique;not null"`
-	Password      string         `gorm:"not null"`
 	Email         string         `gorm:"not null;unique;not null"`
 	DisplayName   *string        `gorm:"default:null"`
 	Role          string         `gorm:"default:member;not null"`

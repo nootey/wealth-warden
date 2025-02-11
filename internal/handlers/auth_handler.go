@@ -33,15 +33,21 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 		return
 	}
 
-	user, _ := h.Service.UserRepo.GetUserByEmail(loginForm.Email)
-	if user == nil {
+	userPassword, _ := h.Service.UserRepo.GetPasswordByEmail(loginForm.Email)
+	if userPassword == "" {
 		utils.ErrorMessage("Error occurred", "Incorrect credentials", http.StatusUnauthorized)(c, nil)
 		return
 	}
 
-	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginForm.Password))
+	err := bcrypt.CompareHashAndPassword([]byte(userPassword), []byte(loginForm.Password))
 	if err != nil {
 		utils.ErrorMessage("Error occurred", "Incorrect credentials", http.StatusUnauthorized)(c, err)
+		return
+	}
+
+	user, _ := h.Service.UserRepo.GetUserByEmail(loginForm.Email)
+	if user == nil {
+		utils.ErrorMessage("Error occurred", "Data unavailable", http.StatusInternalServerError)(c, nil)
 		return
 	}
 

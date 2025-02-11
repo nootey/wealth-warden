@@ -13,6 +13,15 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 	return &UserRepository{DB: db}
 }
 
+func (r *UserRepository) GetPasswordByEmail(email string) (string, error) {
+	var password string
+	err := r.DB.Model(&models.User{}).Select("password").Where("email = ?", email).Scan(&password).Error
+	if err != nil {
+		return "", err
+	}
+	return password, nil
+}
+
 func (r *UserRepository) GetUserByID(id uint) (*models.User, error) {
 	var user models.User
 	err := r.DB.First(&user, id).Error
