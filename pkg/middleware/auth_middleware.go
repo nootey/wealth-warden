@@ -40,7 +40,7 @@ func refreshAccessToken(c *gin.Context, refreshClaims *WebClientUserClaim) error
 	}
 
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("wwa", accessToken, 60*15, "/", cfg.WebClientDomain, cfg.Release, true)
+	c.SetCookie("access", accessToken, 60*15, "/", cfg.WebClientDomain, cfg.Release, true)
 
 	return nil
 }
@@ -54,10 +54,10 @@ func WebClientAuth() gin.HandlerFunc {
 		//	return
 		//}
 
-		accessToken, accessError := c.Cookie("wwa")
+		accessToken, accessError := c.Cookie("access")
 		if accessError != nil {
 
-			refreshToken, refreshError := c.Cookie("wwr")
+			refreshToken, refreshError := c.Cookie("refresh")
 			if refreshError != nil {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
 				return
@@ -82,7 +82,7 @@ func WebClientAuth() gin.HandlerFunc {
 		_, err = DecryptWebClientToken(accessToken, "access")
 		if err != nil {
 			if errors.Is(err, ErrTokenExpired) {
-				refreshToken, _ := c.Cookie("wwr")
+				refreshToken, _ := c.Cookie("refresh")
 				refreshClaims, err2 := DecryptWebClientToken(refreshToken, "refresh")
 				if err2 != nil {
 					c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
