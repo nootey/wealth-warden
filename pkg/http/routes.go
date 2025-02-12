@@ -71,7 +71,7 @@ func InitEndpoints(router *gin.Engine, cfg *config.Config, dbClient *gorm.DB) {
 	userHandler := handlers.NewUserHandler(userService)
 	inflowHandler := handlers.NewInflowHandler(inflowService)
 
-	authenticatedGroup := router.Group(apiPrefixV1, middleware.WebClientAuth())
+	authenticatedGroup := router.Group(apiPrefixV1, middleware.WebClientAuthentication())
 	{
 		authRoutes(authenticatedGroup, authHandler)
 		userRoutes(authenticatedGroup, userHandler)
@@ -80,11 +80,11 @@ func InitEndpoints(router *gin.Engine, cfg *config.Config, dbClient *gorm.DB) {
 
 	unauthenticatedGroup := router.Group(apiPrefixV1)
 	{
-		nonAuthRoutes(unauthenticatedGroup, authHandler)
+		exposedAuthRoutes(unauthenticatedGroup, authHandler)
 	}
 }
 
-func nonAuthRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) {
+func exposedAuthRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) {
 
 	apiGroup.POST("/login", func(c *gin.Context) {
 		handler.LoginUser(c)
@@ -109,8 +109,14 @@ func userRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler) {
 
 func inflowRoutes(apiGroup *gin.RouterGroup, handler *handlers.InflowHandler) {
 
+	apiGroup.GET("/get-inflows-paginated", func(c *gin.Context) {
+		handler.GetInflowsPaginated(c)
+	})
 	apiGroup.GET("/get-all-inflow-types", func(c *gin.Context) {
 		handler.GetAllInflowTypes(c)
+	})
+	apiGroup.POST("/create-new-inflow", func(c *gin.Context) {
+		handler.CreateNewInflow(c)
 	})
 	apiGroup.POST("/create-new-inflow-type", func(c *gin.Context) {
 		handler.CreateNewInflowType(c)
