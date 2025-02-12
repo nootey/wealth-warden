@@ -29,7 +29,7 @@ type WebClientUserClaim struct {
 func refreshAccessToken(c *gin.Context, refreshClaims *WebClientUserClaim) error {
 
 	cfg := config.LoadConfig()
-	userId, err := DecryptWebClientUserID(refreshClaims.UserID)
+	userId, err := DecodeWebClientUserID(refreshClaims.UserID)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func refreshAccessToken(c *gin.Context, refreshClaims *WebClientUserClaim) error
 	return nil
 }
 
-func WebClientAuth() gin.HandlerFunc {
+func WebClientAuthentication() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
 
@@ -63,7 +63,7 @@ func WebClientAuth() gin.HandlerFunc {
 				return
 			}
 
-			refreshClaims, err2 := DecryptWebClientToken(refreshToken, "refresh")
+			refreshClaims, err2 := DecodeWebClientToken(refreshToken, "refresh")
 			if err2 != nil {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
 				return
@@ -79,11 +79,11 @@ func WebClientAuth() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		_, err = DecryptWebClientToken(accessToken, "access")
+		_, err = DecodeWebClientToken(accessToken, "access")
 		if err != nil {
 			if errors.Is(err, ErrTokenExpired) {
 				refreshToken, _ := c.Cookie("refresh")
-				refreshClaims, err2 := DecryptWebClientToken(refreshToken, "refresh")
+				refreshClaims, err2 := DecodeWebClientToken(refreshToken, "refresh")
 				if err2 != nil {
 					c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
 					return
@@ -105,8 +105,8 @@ func WebClientAuth() gin.HandlerFunc {
 	}
 }
 
-func encryptWebClientUserID(userID uint) (string, error) {
-	key := os.Getenv("JWT_WEB_CLIENT_USER_ID")
+func encodeWebClientUserID(userID uint) (string, error) {
+	key := os.Getenv("JWT_WEB_CLIENT_ENCODE_ID")
 	if len(key) != 32 {
 		return "", fmt.Errorf("encryption key must be 32 bytes long for AES-256")
 	}
@@ -135,8 +135,8 @@ func encryptWebClientUserID(userID uint) (string, error) {
 	return encoded, nil
 }
 
-func DecryptWebClientUserID(encodedString string) (uint, error) {
-	key := os.Getenv("JWT_WEB_CLIENT_USER_ID")
+func DecodeWebClientUserID(encodedString string) (uint, error) {
+	key := os.Getenv("JWT_WEB_CLIENT_ENCODE_ID")
 	if len(key) != 32 {
 		return 0, fmt.Errorf("encryption key must be 32 bytes long for AES-256")
 	}
@@ -197,7 +197,7 @@ func GenerateToken(tokenType string, expiration time.Time, userID uint) (string,
 	}
 
 	// Encrypt the user ID before embedding it into the token
-	encryptedUserID, err := encryptWebClientUserID(userID)
+	encryptedUserID, err := encodeWebClientUserID(userID)
 	if err != nil {
 		return "", err
 	}
@@ -208,7 +208,7 @@ func GenerateToken(tokenType string, expiration time.Time, userID uint) (string,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiration),
 			IssuedAt:  jwt.NewNumericDate(issuedAt),
-			Issuer:    "wealth-warden",
+			Issuer:    "wealth-warden-server",
 		},
 	}
 
@@ -221,7 +221,6 @@ func GenerateToken(tokenType string, expiration time.Time, userID uint) (string,
 
 	return signedToken, nil
 }
-
 func GenerateLoginTokens(userID uint, rememberMe bool) (string, string, error) {
 
 	var expiresAt time.Time
@@ -244,7 +243,7 @@ func GenerateLoginTokens(userID uint, rememberMe bool) (string, string, error) {
 	return accessToken, refreshToken, nil
 }
 
-func DecryptWebClientToken(tokenString string, cookieType string) (*WebClientUserClaim, error) {
+func DecodeWebClientToken(tokenString string, cookieType string) (*WebClientUserClaim, error) {
 	var secret string
 
 	switch cookieType {

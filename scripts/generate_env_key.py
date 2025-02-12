@@ -36,30 +36,30 @@ if __name__ == "__main__":
         jwt_frontend_access = generate_random_key(12)
         update_env_file(env_file_path, "JWT_WEB_CLIENT_ACCESS", jwt_frontend_access)
     except Exception as e:
-        print("Error for: jwt_frontend_access", e)
+        print("Error for: jwt_web_client_access", e)
 
     try:
         jwt_frontend_refresh = generate_random_key(12)
         update_env_file(env_file_path, "JWT_WEB_CLIENT_REFRESH", jwt_frontend_refresh)
     except Exception as e:
-        print("Error for: jwt_frontend_refresh", e)
+        print("Error for: jwt_web_client_refresh", e)
 
     try:
         # 16 bytes is the default value for AES128, if you want higher security,
         # but slightly decreased performance, use different byte values from this template:
         # AES128: 16 - AES192: 24 - AES256 - 32
         jwt_frontend_encode = generate_random_key(32)
-        update_env_file(env_file_path, "JWT_WEB_CLIENT_USER_ID", jwt_frontend_encode)
+        update_env_file(env_file_path, "JWT_WEB_CLIENT_ENCODE_ID", jwt_frontend_encode)
     except Exception as e:
-        print("Error for: jwt_frontend_encode", e)
+        print("Error for: jwt_web_client_encode", e)
     print("Done")
 
     print("Generating api jwt keys ...")
     try:
         api_licence = generate_random_key(12)
-        update_env_file(env_file_path, "JWT_SECRET_API", api_licence)
+        update_env_file(env_file_path, "JWT_API_SECRET", api_licence)
     except Exception as e:
-        print("Error for: api_licence", e)
+        print("Error for: api", e)
     print("Done")
 
     print("Keys generated and written to .env file.")

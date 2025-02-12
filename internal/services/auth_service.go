@@ -22,18 +22,18 @@ func NewAuthService(
 
 func (s *AuthService) GetCurrentUser(c *gin.Context) (*models.User, error) {
 
-	refreshToken, err := c.Cookie("wwr")
+	refreshToken, err := c.Cookie("refresh")
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve cookie: %v", err)
 	}
 
 	if refreshToken != "" {
-		refreshClaims, err := middleware.DecryptWebClientToken(refreshToken, "refresh")
+		refreshClaims, err := middleware.DecodeWebClientToken(refreshToken, "refresh")
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode refresh token: %v", err)
 		}
 
-		userId, decodeErr := middleware.DecryptWebClientUserID(refreshClaims.UserID)
+		userId, decodeErr := middleware.DecodeWebClientUserID(refreshClaims.UserID)
 		if decodeErr != nil {
 			return nil, fmt.Errorf("failed to decode user ID: %v", decodeErr)
 		}
