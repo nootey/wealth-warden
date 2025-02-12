@@ -16,11 +16,14 @@ import {InputText} from "primevue";
 import {FloatLabel} from "primevue";
 import {DataTable} from "primevue";
 import {Column} from "primevue";
-
+import {AutoComplete} from "primevue";
+import {InputGroup} from "primevue";
+import {InputGroupAddon} from "primevue";
+import {DatePicker} from "primevue";
+import {InputNumber} from "primevue";
 
 const app = createApp(App);
 const pinia = createPinia();
-
 
 app.directive('tooltip', Tooltip);
 app.component("Button", Button);
@@ -29,7 +32,11 @@ app.component("InputText", InputText);
 app.component("FloatLabel", FloatLabel);
 app.component("DataTable", DataTable);
 app.component("Column", Column);
-
+app.component("AutoComplete", AutoComplete);
+app.component("InputGroup", InputGroup);
+app.component("InputGroupAddon", InputGroupAddon);
+app.component("DatePicker", DatePicker);
+app.component("InputNumber", InputNumber);
 
 app.use(pinia);
 app.use(router);
