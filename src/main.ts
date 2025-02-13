@@ -21,6 +21,8 @@ import {InputGroup} from "primevue";
 import {InputGroupAddon} from "primevue";
 import {DatePicker} from "primevue";
 import {InputNumber} from "primevue";
+import {Toast} from "primevue";
+import {ToastService } from "primevue";
 
 const app = createApp(App);
 const pinia = createPinia();
@@ -37,6 +39,7 @@ app.component("InputGroup", InputGroup);
 app.component("InputGroupAddon", InputGroupAddon);
 app.component("DatePicker", DatePicker);
 app.component("InputNumber", InputNumber);
+app.component("Toast", Toast);
 
 app.use(pinia);
 app.use(router);
@@ -48,6 +51,7 @@ app.use(PrimeVue, {
         }
     }
 });
+app.use(ToastService);
 
 app.component('App', App);
 app.mount('#app');

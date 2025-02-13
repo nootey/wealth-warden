@@ -18,6 +18,7 @@ onMounted(async () => {
 
 <template>
   <div id="app" class="app">
+    <Toast position="top-right"/>
     <Sidebar v-if="authenticated && initialized" />
     <router-view/>
   </div>
