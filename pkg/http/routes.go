@@ -121,4 +121,10 @@ func inflowRoutes(apiGroup *gin.RouterGroup, handler *handlers.InflowHandler) {
 	apiGroup.POST("/create-new-inflow-category", func(c *gin.Context) {
 		handler.CreateNewInflowCategory(c)
 	})
+	apiGroup.POST("/delete-inflow", func(c *gin.Context) {
+		handler.DeleteInflow(c)
+	})
+	apiGroup.POST("/delete-inflow-category", func(c *gin.Context) {
+		handler.DeleteInflowCategory(c)
+	})
 }

@@ -83,3 +83,47 @@ func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
 
 	utils.SuccessMessage(inflowCategory.Name, "Inflow category created successfully", http.StatusOK)(c.Writer, c.Request)
 }
+
+func (h *InflowHandler) DeleteInflow(c *gin.Context) {
+
+	var requestBody struct {
+		ID uint `json:"id"`
+	}
+
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		utils.ErrorMessage("Invalid request body", "Error", http.StatusBadRequest)(c, err)
+		return
+	}
+
+	id := requestBody.ID
+
+	err := h.Service.DeleteInflow(c, id)
+	if err != nil {
+		utils.ErrorMessage("Error occurred", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("Inflow has been deleted successfully.", "Success", http.StatusOK)(c.Writer, c.Request)
+}
+
+func (h *InflowHandler) DeleteInflowCategory(c *gin.Context) {
+
+	var requestBody struct {
+		ID uint `json:"id"`
+	}
+
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		utils.ErrorMessage("Invalid request body", "Error", http.StatusBadRequest)(c, err)
+		return
+	}
+
+	id := requestBody.ID
+
+	err := h.Service.DeleteInflowCategory(c, id)
+	if err != nil {
+		utils.ErrorMessage("Error occurred", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("Inflow category has been deleted successfully.", "Success", http.StatusOK)(c.Writer, c.Request)
+}

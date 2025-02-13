@@ -13,6 +13,12 @@ func NewInflowRepository(db *gorm.DB) *InflowRepository {
 	return &InflowRepository{db: db}
 }
 
+func (r *InflowRepository) CountInflowsByCategory(categoryID uint, count *int64) error {
+	return r.db.Model(&models.Inflow{}).
+		Where("inflow_category_id = ?", categoryID).
+		Count(count).Error
+}
+
 func (r *InflowRepository) CountInflows() (int64, error) {
 	var totalRecords int64
 	err := r.db.Model(&models.Inflow{}).Count(&totalRecords).Error
@@ -57,6 +63,20 @@ func (r *InflowRepository) SaveInflow(inflow *models.Inflow) error {
 func (r *InflowRepository) SaveInflowCategory(inflowCategory *models.InflowCategory) error {
 
 	if err := r.db.Create(&inflowCategory).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *InflowRepository) DropInflow(id uint) error {
+	if err := r.db.Delete(&models.Inflow{}, id).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *InflowRepository) DropInflowCategory(id uint) error {
+	if err := r.db.Delete(&models.InflowCategory{}, id).Error; err != nil {
 		return err
 	}
 	return nil
