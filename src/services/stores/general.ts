@@ -1,13 +1,13 @@
 import {defineStore} from "pinia";
 import apiClient from './api/axios_interceptor.ts';
 
-interface InflowType {
+interface InflowCategory {
     name: string;
 }
 
 interface Inflow {
-    inflow_type_id: number;
-    inflow_type: object;
+    inflow_category_id: number;
+    inflow_category: object;
     amount: number;
     inflow_date: any;
 }
@@ -25,9 +25,9 @@ export const useGeneralStore = defineStore('general', {
             }
         },
 
-        async getInflowTypes() {
+        async getInflowCategories() {
             try {
-                const response = await apiClient.get("get-all-inflow-types");
+                const response = await apiClient.get("get-all-inflow-categories");
                 return response.data;
             } catch (err) {
                 console.error(err);
@@ -46,9 +46,9 @@ export const useGeneralStore = defineStore('general', {
             }
         },
 
-        async createInflowType(InflowType: InflowType|null) {
+        async createInflowCategory(InflowCategory: InflowCategory|null) {
             try {
-                const response = await apiClient.post("create-new-inflow-type", InflowType);
+                const response = await apiClient.post("create-new-inflow-category", InflowCategory);
                 return response.data;
             } catch (err) {
                 console.error(err);

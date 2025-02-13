@@ -7,23 +7,23 @@ const generalStore = useGeneralStore();
 
 const loadingInflows = ref(false);
 
-const inflowTypes = ref([]);
-const filteredInflowTypes = ref([]);
+const inflowCategories = ref([]);
+const filteredInflowCategories = ref([]);
 const inflows = ref([]);
-const newInflowType = ref(null);
+const newInflowCategory = ref(null);
 const newInflow = ref(initInflow());
 
 init()
 
 async function init() {
   await getInflowsPaginated();
-  await getInflowTypes();
+  await getInflowCategories();
 }
 
 function initInflow():object {
   return {
     amount: 0.00,
-    inflowType: [],
+    inflowCategory: [],
     date: new Date().toISOString(),
   }
 }
@@ -32,16 +32,14 @@ async function getInflowsPaginated() {
   try {
     let paginationResponse = await generalStore.getInflowsPaginated();
     inflows.value = paginationResponse.data;
-    console.log(paginationResponse);
-    console.log(inflows.value)
   } catch (error) {
     console.error('Error during login:', error);
   }
 }
 
-async function getInflowTypes() {
+async function getInflowCategories() {
   try {
-    inflowTypes.value = await generalStore.getInflowTypes();
+    inflowCategories.value = await generalStore.getInflowCategories();
   } catch (error) {
     console.error('Error during login:', error);
   }
@@ -51,8 +49,8 @@ async function createNewInflow() {
   try {
     let date = new Date(newInflow.value.date).toISOString()
     await generalStore.createInflow({
-      inflow_type_id: newInflow.value.inflowType.id,
-      inflow_type: newInflow.value.inflowType,
+      inflow_category_id: newInflow.value.inflowCategory.id,
+      inflow_category: newInflow.value.inflowCategory,
       amount: newInflow.value.amount,
       inflow_date: date});
   } catch (error) {
@@ -60,22 +58,22 @@ async function createNewInflow() {
   }
 }
 
-async function createNewInflowType() {
+async function createNewInflowCategory() {
   console.log("test")
   try {
-    inflowTypes.value = await generalStore.createInflowType({name: newInflowType.value});
+    inflowCategories.value = await generalStore.createInflowCategory({name: newInflowCategory.value});
   } catch (error) {
     console.error('Error during login:', error);
   }
 }
 
-const searchInflowType = (event) => {
+const searchInflowCategory = (event) => {
   setTimeout(() => {
     if (!event.query.trim().length) {
-      filteredInflowTypes.value = [...inflowTypes.value];
+      filteredInflowCategories.value = [...inflowCategories.value];
     } else {
-      filteredInflowTypes.value = inflowTypes.value.filter((inflowType) => {
-        return inflowType.name.toLowerCase().startsWith(event.query.toLowerCase());
+      filteredInflowCategories.value = inflowCategories.value.filter((inflowCategory) => {
+        return inflowCategory.name.toLowerCase().startsWith(event.query.toLowerCase());
       });
     }
   }, 250);
@@ -89,11 +87,11 @@ async function removeInflow(id) {
   console.log(id)
 }
 
-async function editInflowType(id) {
+async function editInflowCategory(id) {
   console.log(id)
 }
 
-async function removeInflowType(id) {
+async function removeInflowCategory(id) {
   console.log(id)
 }
 </script>
@@ -111,13 +109,13 @@ async function removeInflowType(id) {
       <div class="flex flex-row gap-2">
 
         <div class="flex flex-column">
-          <label>Type</label>
+          <label>Category</label>
           <InputGroup>
             <InputGroupAddon>
               <i class="pi pi-user"></i>
             </InputGroupAddon>
-            <AutoComplete size="small" v-model="newInflow.inflowType" :suggestions="filteredInflowTypes"
-                          @complete="searchInflowType" option-label="name" dropdown></AutoComplete>
+            <AutoComplete size="small" v-model="newInflow.inflowCategory" :suggestions="filteredInflowCategories"
+                          @complete="searchInflowCategory" option-label="name" dropdown></AutoComplete>
           </InputGroup>
         </div>
 
@@ -158,12 +156,11 @@ async function removeInflowType(id) {
               </div>
             </template>
           </Column>
-
-          <Column field="id" header="ID"></Column>
+          
+          <Column field="inflow_category.name" header="Category"></Column>
           <Column field="amount" header="Amount"></Column>
           <Column field="inflow_date" header="Date"></Column>
-          <Column field="inflow_category" header="Category"></Column>
-          <Column field="inflow_date" header="Date"></Column>
+
         </DataTable>
       </div>
 
@@ -172,23 +169,23 @@ async function removeInflowType(id) {
     <div class="flex flex-column w-3 p-3 gap-3" style="border-left: 1px solid var(--text-primary);">
       <div class="flex flex-row p-1">
         <h1>
-          Inflow types
+          Inflow Categories
         </h1>
       </div>
       <div class="flex flex-row p-1">
         <span>
-          These are your inflow types. Think of them as spending categories.
+          These are your inflow categories. Assign as many as you deem necessary. Once assigned to an inflow record, a category can not be deleted.
         </span>
       </div>
       <div class="flex flex-row p-1">
           <FloatLabel variant="in">
-            <InputText id="in_label" v-model="newInflowType" variant="filled" @keydown.enter="createNewInflowType" />
-            <label for="in_label">New inflow type</label>
+            <InputText id="in_label" v-model="newInflowCategory" variant="filled" @keydown.enter="createNewInflowCategory" />
+            <label for="in_label">New inflow category</label>
           </FloatLabel>
 
       </div>
       <div class="flex flex-row p-1">
-        <DataTable dataKey="id" :loading="loadingInflows" :value="inflowTypes" class="p-datatable-sm">
+        <DataTable dataKey="id" :loading="loadingInflows" :value="inflowCategories" class="p-datatable-sm">
           <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
           <template #loading> <LoadingSpinner></LoadingSpinner> </template>
 
@@ -196,9 +193,9 @@ async function removeInflowType(id) {
             <template #body="slotProps">
               <div class="flex flex-row align-items-center gap-2">
                 <i class="pi pi-pencil hover_icon"
-                   @click="editInflowType(slotProps.data?.id)"></i>
+                   @click="editInflowCategory(slotProps.data?.id)"></i>
                 <i class="pi pi-trash hover_icon" style="color: var(--accent-primary)"
-                   @click="removeInflowType(slotProps.data?.id)"></i>
+                   @click="removeInflowCategory(slotProps.data?.id)"></i>
               </div>
             </template>
           </Column>
