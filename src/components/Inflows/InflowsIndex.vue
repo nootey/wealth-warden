@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import {useGeneralStore} from "../../services/stores/general.ts";
+import {useInflowStore} from "../../services/stores/inflowStore.ts";
 import {ref} from "vue";
 import LoadingSpinner from "../Utils/LoadingSpinner.vue";
+import {useToastStore} from "../../services/stores/toastStore.ts";
 
-const generalStore = useGeneralStore();
+const inflowStore = useInflowStore();
+const toastStore = useToastStore();
 
 const loadingInflows = ref(false);
 
@@ -30,7 +32,7 @@ function initInflow():object {
 
 async function getInflowsPaginated() {
   try {
-    let paginationResponse = await generalStore.getInflowsPaginated();
+    let paginationResponse = await inflowStore.getInflowsPaginated();
     inflows.value = paginationResponse.data;
   } catch (error) {
     console.error('Error during login:', error);
@@ -39,7 +41,7 @@ async function getInflowsPaginated() {
 
 async function getInflowCategories() {
   try {
-    inflowCategories.value = await generalStore.getInflowCategories();
+    inflowCategories.value = await inflowStore.getInflowCategories();
   } catch (error) {
     console.error('Error during login:', error);
   }
@@ -48,26 +50,29 @@ async function getInflowCategories() {
 async function createNewInflow() {
   try {
     let date = new Date(newInflow.value.date).toISOString()
-    await generalStore.createInflow({
+    let response = await inflowStore.createInflow({
       inflow_category_id: newInflow.value.inflowCategory.id,
       inflow_category: newInflow.value.inflowCategory,
       amount: newInflow.value.amount,
       inflow_date: date});
+    toastStore.successResponseToast(response);
+    await getInflowsPaginated();
   } catch (error) {
-    console.error('Error during login:', error);
+    toastStore.errorResponseToast(error);
   }
 }
 
 async function createNewInflowCategory() {
-  console.log("test")
   try {
-    inflowCategories.value = await generalStore.createInflowCategory({name: newInflowCategory.value});
+    let response = await inflowStore.createInflowCategory({name: newInflowCategory.value});
+    toastStore.successResponseToast(response);
+    await getInflowCategories();
   } catch (error) {
-    console.error('Error during login:', error);
+    toastStore.errorResponseToast(error);
   }
 }
 
-const searchInflowCategory = (event) => {
+const searchInflowCategory = (event: any) => {
   setTimeout(() => {
     if (!event.query.trim().length) {
       filteredInflowCategories.value = [...inflowCategories.value];
@@ -79,20 +84,32 @@ const searchInflowCategory = (event) => {
   }, 250);
 }
 
-async function editInflow(id) {
+async function editInflow(id: number) {
   console.log(id)
 }
 
-async function removeInflow(id) {
+async function removeInflow(id: number) {
+  try {
+    let response = await inflowStore.deleteInflow(id);
+    toastStore.successResponseToast(response);
+    await getInflowsPaginated();
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
+async function editInflowCategory(id: number) {
   console.log(id)
 }
 
-async function editInflowCategory(id) {
-  console.log(id)
-}
-
-async function removeInflowCategory(id) {
-  console.log(id)
+async function removeInflowCategory(id: number) {
+  try {
+    let response = await inflowStore.deleteInflowCategory(id);
+    toastStore.successResponseToast(response);
+    await getInflowCategories();
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
 }
 </script>
 
@@ -156,7 +173,7 @@ async function removeInflowCategory(id) {
               </div>
             </template>
           </Column>
-          
+
           <Column field="inflow_category.name" header="Category"></Column>
           <Column field="amount" header="Amount"></Column>
           <Column field="inflow_date" header="Date"></Column>

@@ -12,7 +12,7 @@ interface Inflow {
     inflow_date: any;
 }
 
-export const useGeneralStore = defineStore('general', {
+export const useInflowStore = defineStore('inflow', {
     state: () => ({}),
     actions: {
         async getInflowsPaginated() {
@@ -51,6 +51,24 @@ export const useGeneralStore = defineStore('general', {
                 console.error(err);
                 throw err;
             }
-        }
+        },
+
+        async deleteInflow(id: number) {
+            try {
+                return await apiClient.post("delete-inflow", {id: id});
+            } catch (err) {
+                console.error(err);
+                throw err;
+            }
+        },
+
+        async deleteInflowCategory(id: number) {
+            try {
+                return await apiClient.post("delete-inflow-category", {id: id});
+            } catch (err) {
+                console.error(err);
+                throw err;
+            }
+        },
     }
 });
