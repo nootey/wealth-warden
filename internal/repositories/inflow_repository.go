@@ -27,7 +27,7 @@ func (r *InflowRepository) GetInflows(offset, limit int, sortField, sortOrder st
 	orderBy := sortField + " " + sortOrder
 
 	err := r.db.
-		Preload("InflowType").
+		Preload("InflowCategory").
 		Order(orderBy).
 		Limit(limit).
 		Offset(offset).
@@ -40,10 +40,10 @@ func (r *InflowRepository) GetInflows(offset, limit int, sortField, sortOrder st
 	return inflows, nil
 }
 
-func (r *InflowRepository) GetAllInflowTypes() ([]models.InflowType, error) {
-	var inflowTypes []models.InflowType
-	result := r.db.Find(&inflowTypes)
-	return inflowTypes, result.Error
+func (r *InflowRepository) GetAllInflowCategories() ([]models.InflowCategory, error) {
+	var inflowCategories []models.InflowCategory
+	result := r.db.Find(&inflowCategories)
+	return inflowCategories, result.Error
 }
 
 func (r *InflowRepository) SaveInflow(inflow *models.Inflow) error {
@@ -54,9 +54,9 @@ func (r *InflowRepository) SaveInflow(inflow *models.Inflow) error {
 	return nil
 }
 
-func (r *InflowRepository) SaveInflowType(inflowType *models.InflowType) error {
+func (r *InflowRepository) SaveInflowCategory(inflowCategory *models.InflowCategory) error {
 
-	if err := r.db.Create(&inflowType).Error; err != nil {
+	if err := r.db.Create(&inflowCategory).Error; err != nil {
 		return err
 	}
 	return nil

@@ -43,13 +43,13 @@ func (h *InflowHandler) GetInflowsPaginated(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (h *InflowHandler) GetAllInflowTypes(c *gin.Context) {
-	inflowTypes, err := h.Service.FetchAllInflowTypes()
+func (h *InflowHandler) GetAllInflowCategories(c *gin.Context) {
+	inflowCategories, err := h.Service.FetchAllInflowCategories()
 	if err != nil {
 		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, inflowTypes)
+	c.JSON(http.StatusOK, inflowCategories)
 }
 
 func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
@@ -68,18 +68,18 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 	utils.SuccessMessage("", "Inflow created successfully", http.StatusOK)(c.Writer, c.Request)
 }
 
-func (h *InflowHandler) CreateNewInflowType(c *gin.Context) {
-	var inflowType *models.InflowType
+func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
+	var inflowCategory *models.InflowCategory
 
-	if err := c.ShouldBindJSON(&inflowType); err != nil {
+	if err := c.ShouldBindJSON(&inflowCategory); err != nil {
 		utils.ErrorMessage("Json bind error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
-	if err := h.Service.CreateInflowType(inflowType); err != nil {
+	if err := h.Service.CreateInflowCategory(inflowCategory); err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
-	utils.SuccessMessage(inflowType.Name, "Inflow type created successfully", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(inflowCategory.Name, "Inflow category created successfully", http.StatusOK)(c.Writer, c.Request)
 }

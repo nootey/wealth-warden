@@ -112,13 +112,13 @@ func inflowRoutes(apiGroup *gin.RouterGroup, handler *handlers.InflowHandler) {
 	apiGroup.GET("/get-inflows-paginated", func(c *gin.Context) {
 		handler.GetInflowsPaginated(c)
 	})
-	apiGroup.GET("/get-all-inflow-types", func(c *gin.Context) {
-		handler.GetAllInflowTypes(c)
+	apiGroup.GET("/get-all-inflow-categories", func(c *gin.Context) {
+		handler.GetAllInflowCategories(c)
 	})
 	apiGroup.POST("/create-new-inflow", func(c *gin.Context) {
 		handler.CreateNewInflow(c)
 	})
-	apiGroup.POST("/create-new-inflow-type", func(c *gin.Context) {
-		handler.CreateNewInflowType(c)
+	apiGroup.POST("/create-new-inflow-category", func(c *gin.Context) {
+		handler.CreateNewInflowCategory(c)
 	})
 }

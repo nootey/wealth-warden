@@ -36,8 +36,8 @@ func (s *InflowService) GetInflowsPaginated(paginationParams utils.PaginationPar
 	return inflows, int(totalRecords), nil
 }
 
-func (s *InflowService) FetchAllInflowTypes() ([]models.InflowType, error) {
-	return s.InflowRepo.GetAllInflowTypes()
+func (s *InflowService) FetchAllInflowCategories() ([]models.InflowCategory, error) {
+	return s.InflowRepo.GetAllInflowCategories()
 }
 
 func (s *InflowService) CreateInflow(inflow *models.Inflow) error {
@@ -48,8 +48,8 @@ func (s *InflowService) CreateInflow(inflow *models.Inflow) error {
 	return nil
 }
 
-func (s *InflowService) CreateInflowType(inflowType *models.InflowType) error {
-	err := s.InflowRepo.SaveInflowType(inflowType)
+func (s *InflowService) CreateInflowCategory(inflowCategory *models.InflowCategory) error {
+	err := s.InflowRepo.SaveInflowCategory(inflowCategory)
 	if err != nil {
 		return err
 	}
