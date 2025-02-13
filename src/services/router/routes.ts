@@ -1,4 +1,4 @@
-import { useAuthStore } from '../stores/auth.ts';
+import { useAuthStore } from '../stores/authStore.ts';
 
 import DashboardIndex from "../../components/Dashboard/DashboardIndex.vue";
 import InflowsIndex from "../../components/Inflows/InflowsIndex.vue";

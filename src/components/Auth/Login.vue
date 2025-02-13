@@ -6,7 +6,7 @@ import {useRouter} from "vue-router";
 import InputValidation from "../Validation/InputValidation.vue";
 import ValidationError from "../Validation/ValidationError.vue";
 import vueHelper from "../../utils/vueHelper.ts"
-import {useAuthStore} from "../../services/stores/auth.ts";
+import {useAuthStore} from "../../services/stores/authStore.ts";
 
 const authStore = useAuthStore();
 

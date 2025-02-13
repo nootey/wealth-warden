@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {computed, onMounted} from 'vue';
-import { useAuthStore } from './services/stores/auth';
+import { useAuthStore } from './services/stores/authStore.ts';
 import Sidebar from "./Sidebar.vue";
 
 const authStore = useAuthStore();

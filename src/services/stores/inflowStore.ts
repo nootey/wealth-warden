@@ -37,9 +37,7 @@ export const useGeneralStore = defineStore('general', {
 
         async createInflow(Inflow: Inflow|null) {
             try {
-                console.log(Inflow)
-                const response = await apiClient.post("create-new-inflow", Inflow);
-                return response.data;
+                return await apiClient.post("create-new-inflow", Inflow);
             } catch (err) {
                 console.error(err);
                 throw err;
@@ -48,8 +46,7 @@ export const useGeneralStore = defineStore('general', {
 
         async createInflowCategory(InflowCategory: InflowCategory|null) {
             try {
-                const response = await apiClient.post("create-new-inflow-category", InflowCategory);
-                return response.data;
+                return await apiClient.post("create-new-inflow-category", InflowCategory);
             } catch (err) {
                 console.error(err);
                 throw err;

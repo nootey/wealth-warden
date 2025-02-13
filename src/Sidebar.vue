@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {ref} from "vue";
-import { useThemeStore } from './services/stores/theme';
-import { useAuthStore } from './services/stores/auth';
+import { useThemeStore } from './services/stores/themeStore.ts';
+import { useAuthStore } from './services/stores/authStore.ts';
 
 const sidebarExpanded = ref(false);
 const darkModeActive = ref(false);
