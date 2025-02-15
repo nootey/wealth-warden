@@ -32,7 +32,7 @@ const dateHelper = {
         const date = utc ? dayjs.utc(date_string) : dayjs(date_string);
         const formatted_date = date.format(date_format);
 
-        return time ? `${formatted_date} ${date.format("HH:mm:ss")}` : formatted_date;
+        return time ? `${formatted_date} ${date.format("HH:mm")}` : formatted_date;
     },
 
     mergeDateWithCurrentTime(dateString: string, tz: string = "UTC"): string {
