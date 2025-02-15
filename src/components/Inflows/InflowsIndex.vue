@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import {useInflowStore} from "../../services/stores/inflowStore.ts";
-import {ref} from "vue";
+import {computed, ref} from "vue";
 import LoadingSpinner from "../Utils/LoadingSpinner.vue";
 import {useToastStore} from "../../services/stores/toastStore.ts";
 import dateHelper from "../../utils/dateHelper.ts"
 import ValidationError from "../Validation/ValidationError.vue";
-import {integer, required} from "@vuelidate/validators";
+import {required} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import InflowCategories from "./InflowCategories.vue";
 
@@ -37,11 +37,41 @@ const inflowRules = {
 
 const v$ = useVuelidate(inflowRules, { newInflow });
 
+const params = computed(() => {
+  return {
+    rowsPerPage: paginator.value.rowsPerPage,
+    sort: sort.value,
+    filters: [],
+  }
+});
+const rows = ref([25, 50, 100]);
+const default_rows = ref(rows.value[0]);
+const paginator = ref({
+  total: 0,
+  from: 0,
+  to: 0,
+  rowsPerPage: default_rows.value
+});
+const page = ref(1);
+const sort = ref(initSort(true));
+
 init();
 
 async function init() {
-  await getInflowsPaginated();
+  await getData();
   await getInflowCategories();
+  initSort();
+}
+
+function initSort(init = false) {
+  let obj = {
+    order: -1,
+    field: 'created_at'
+  };
+  if (init) {
+    return obj;
+  }
+  sort.value = obj;
 }
 
 function initInflow():object {
@@ -64,15 +94,29 @@ const searchInflowCategory = (event: any) => {
   }, 250);
 }
 
-async function getInflowsPaginated() {
+async function getData(new_page = null) {
+
+  loading.value = true;
+  if(new_page)
+    page.value = new_page;
+
   try {
-    loading.value = true;
-    let paginationResponse = await inflowStore.getInflowsPaginated();
+
+    let paginationResponse = await inflowStore.getInflowsPaginated(params.value, page.value);
     inflows.value = paginationResponse.data;
+    paginator.value.total = paginationResponse.total_records;
+    paginator.value.to = paginationResponse.to;
+    paginator.value.from = paginationResponse.from;
     loading.value = false;
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
+}
+
+async function onPage(event) {
+  paginator.value.rowsPerPage = event.rows;
+  page.value = (event.page+1)
+  await getData();
 }
 
 async function getInflowCategories() {
@@ -100,7 +144,7 @@ async function createNewInflow() {
     newInflow.value = initInflow();
     v$.value.newInflow.$reset();
     toastStore.successResponseToast(response);
-    await getInflowsPaginated();
+    await getData();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -114,7 +158,7 @@ async function removeInflow(id: number) {
   try {
     let response = await inflowStore.deleteInflow(id);
     toastStore.successResponseToast(response);
-    await getInflowsPaginated();
+    await getData();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -181,7 +225,21 @@ async function removeInflow(id: number) {
         <DataTable dataKey="id" :loading="loading" :value="inflows" class="p-datatable-sm">
           <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
           <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-
+          <template #footer>
+            <Paginator v-model:first="paginator.from"
+                       v-model:rows="paginator.rowsPerPage"
+                       :rowsPerPageOptions="rows"
+                       :totalRecords="paginator.total"
+                       @page="onPage($event)">
+              <template #end>
+                <div>
+                  {{
+                    "Showing " + paginator.from + " to " + paginator.to + " out of " + paginator.total + " " + "records"
+                  }}
+                </div>
+              </template>
+            </Paginator>
+          </template>
           <Column header="Actions">
             <template #body="slotProps">
               <div class="flex flex-row align-items-center gap-2">

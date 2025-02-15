@@ -8,6 +8,8 @@ import { createPinia } from 'pinia';
 import PrimeVue from 'primevue/config';
 import Material from '@primevue/themes/material';
 import Tooltip from "primevue/tooltip";
+import {Toast} from "primevue";
+import {ToastService } from "primevue";
 import {Button} from "primevue";
 import {Checkbox} from "primevue";
 import {InputText} from "primevue";
@@ -19,13 +21,14 @@ import {InputGroup} from "primevue";
 import {InputGroupAddon} from "primevue";
 import {DatePicker} from "primevue";
 import {InputNumber} from "primevue";
-import {Toast} from "primevue";
-import {ToastService } from "primevue";
+import {Paginator} from "primevue";
+
 
 const app = createApp(App);
 const pinia = createPinia();
 
 app.directive('tooltip', Tooltip);
+app.component("Toast", Toast);
 app.component("Button", Button);
 app.component("Checkbox", Checkbox);
 app.component("InputText", InputText);
@@ -37,7 +40,7 @@ app.component("InputGroup", InputGroup);
 app.component("InputGroupAddon", InputGroupAddon);
 app.component("DatePicker", DatePicker);
 app.component("InputNumber", InputNumber);
-app.component("Toast", Toast);
+app.component("Paginator", Paginator);
 
 app.use(pinia);
 app.use(router);

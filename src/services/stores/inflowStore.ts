@@ -15,12 +15,20 @@ interface Inflow {
 export const useInflowStore = defineStore('inflow', {
     state: () => ({}),
     actions: {
-        async getInflowsPaginated() {
+        async getInflowsPaginated(params: object, page: number) {
             try {
-                const response = await apiClient.get("get-inflows-paginated");
+
+                const queryParams = {
+                    ...params,
+                    page: page,
+                };
+
+                const response = await apiClient.get("get-inflows-paginated", {
+                    params: queryParams,
+                });
+
                 return response.data;
             } catch (err) {
-                console.error(err);
                 throw err;
             }
         },
@@ -30,7 +38,6 @@ export const useInflowStore = defineStore('inflow', {
                 const response = await apiClient.get("get-all-inflow-categories");
                 return response.data;
             } catch (err) {
-                console.error(err);
                 throw err;
             }
         },
@@ -39,7 +46,6 @@ export const useInflowStore = defineStore('inflow', {
             try {
                 return await apiClient.post("create-new-inflow", Inflow);
             } catch (err) {
-                console.error(err);
                 throw err;
             }
         },
@@ -48,7 +54,6 @@ export const useInflowStore = defineStore('inflow', {
             try {
                 return await apiClient.post("create-new-inflow-category", InflowCategory);
             } catch (err) {
-                console.error(err);
                 throw err;
             }
         },
@@ -57,7 +62,6 @@ export const useInflowStore = defineStore('inflow', {
             try {
                 return await apiClient.post("delete-inflow", {id: id});
             } catch (err) {
-                console.error(err);
                 throw err;
             }
         },
@@ -66,7 +70,6 @@ export const useInflowStore = defineStore('inflow', {
             try {
                 return await apiClient.post("delete-inflow-category", {id: id});
             } catch (err) {
-                console.error(err);
                 throw err;
             }
         },
