@@ -18,25 +18,24 @@ const newInflow = ref(initInflow());
 const inflowCategories = ref([]);
 const filteredInflowCategories = ref([]);
 
-const rules = {
+const inflowRules = {
   newInflow: {
-    amount : {
+    amount: {
       required,
-      integer,
-      $autoDirty: true,
+      $autoDirty: true
     },
-    inflowCategory : {
+    inflowCategory: {
       required,
-      $autoDirty: true,
+      $autoDirty: true
     },
-    inflowDate : {
+    inflowDate: {
       required,
-      $autoDirty: true,
+      $autoDirty: true
     },
-  },
-}
+  }
+};
 
-const v$ = useVuelidate(rules, {newInflow: newInflow});
+const v$ = useVuelidate(inflowRules, { newInflow });
 
 init();
 
@@ -86,8 +85,10 @@ async function getInflowCategories() {
 
 async function createNewInflow() {
 
-  v$.value.$touch();
-  if (v$.value.$error) return;
+  v$.value.newInflow.amount.$touch();
+  v$.value.newInflow.inflowDate.$touch();
+  v$.value.newInflow.inflowCategory.$touch();
+  if (v$.value.newInflow.$error) return;
 
   try {
     let inflow_date = dateHelper.mergeDateWithCurrentTime(newInflow.value.inflowDate, "Europe/Ljubljana");
@@ -97,7 +98,7 @@ async function createNewInflow() {
       amount: newInflow.value.amount,
       inflow_date: inflow_date});
     newInflow.value = initInflow();
-    v$.value.$reset();
+    v$.value.newInflow.$reset();
     toastStore.successResponseToast(response);
     await getInflowsPaginated();
   } catch (error) {

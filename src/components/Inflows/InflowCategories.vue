@@ -13,10 +13,10 @@ const inflowStore = useInflowStore();
 const toastStore = useToastStore();
 
 const inflowCategories = ref([]);
-const newInflowCategory = ref(null);
+const newInflowCategory = ref(initInflowCategory());
 const loading = ref(true);
 
-const rules = {
+const inflowCategoryRules = {
   newInflowCategory: {
     name: {
       required,
@@ -25,12 +25,18 @@ const rules = {
   }
 }
 
-const v$ = useVuelidate(rules, {newInflowCategory: newInflowCategory});
+const v$ = useVuelidate(inflowCategoryRules, {newInflowCategory: newInflowCategory});
 
 init();
 
 async function init() {
   await getInflowCategories();
+}
+
+function initInflowCategory():object {
+  return {
+    name: null,
+  }
 }
 
 async function getInflowCategories() {
@@ -44,10 +50,15 @@ async function getInflowCategories() {
 }
 
 async function createNewInflowCategory() {
+
+  v$.value.newInflowCategory.$touch();
+  if (v$.value.newInflowCategory.$error) return;
+
   try {
-    let response = await inflowStore.createInflowCategory({name: newInflowCategory.value});
-    newInflowCategory.value = null;
+    let response = await inflowStore.createInflowCategory({name: newInflowCategory.value.name});
+    newInflowCategory.value = initInflowCategory();
     toastStore.successResponseToast(response);
+    v$.value.newInflowCategory.$reset();
     await getInflowCategories();
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -91,7 +102,7 @@ async function removeInflowCategory(id: number) {
           <InputGroupAddon>
             <i class="pi pi-clipboard"></i>
           </InputGroupAddon>
-          <InputText v-model="newInflowCategory"/>
+          <InputText v-model="newInflowCategory.name"/>
         </InputGroup>
       </div>
       <div class="flex flex-column">
