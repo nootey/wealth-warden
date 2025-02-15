@@ -4,19 +4,41 @@ import {ref} from "vue";
 import LoadingSpinner from "../Utils/LoadingSpinner.vue";
 import {useToastStore} from "../../services/stores/toastStore.ts";
 import dateHelper from "../../utils/dateHelper.ts"
+import ValidationError from "../Validation/ValidationError.vue";
+import {integer, required} from "@vuelidate/validators";
+import useVuelidate from "@vuelidate/core";
+import InflowCategories from "./InflowCategories.vue";
 
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();
 
-const loadingInflows = ref(false);
-
+const loading = ref(true);
+const inflows = ref([]);
+const newInflow = ref(initInflow());
 const inflowCategories = ref([]);
 const filteredInflowCategories = ref([]);
-const inflows = ref([]);
-const newInflowCategory = ref(null);
-const newInflow = ref(initInflow());
 
-init()
+const rules = {
+  newInflow: {
+    amount : {
+      required,
+      integer,
+      $autoDirty: true,
+    },
+    inflowCategory : {
+      required,
+      $autoDirty: true,
+    },
+    inflowDate : {
+      required,
+      $autoDirty: true,
+    },
+  },
+}
+
+const v$ = useVuelidate(rules, {newInflow: newInflow});
+
+init();
 
 async function init() {
   await getInflowsPaginated();
@@ -25,53 +47,9 @@ async function init() {
 
 function initInflow():object {
   return {
-    amount: 0.00,
+    amount: null,
     inflowCategory: [],
-    date: new Date().toISOString(),
-  }
-}
-
-async function getInflowsPaginated() {
-  try {
-    let paginationResponse = await inflowStore.getInflowsPaginated();
-    inflows.value = paginationResponse.data;
-  } catch (error) {
-    console.error('Error during login:', error);
-  }
-}
-
-async function getInflowCategories() {
-  try {
-    inflowCategories.value = await inflowStore.getInflowCategories();
-  } catch (error) {
-    console.error('Error during login:', error);
-  }
-}
-
-async function createNewInflow() {
-  try {
-    let inflow_date = dateHelper.mergeDateWithCurrentTime(newInflow.value.date, "Europe/Ljubljana");
-    let response = await inflowStore.createInflow({
-      inflow_category_id: newInflow.value.inflowCategory.id,
-      inflow_category: newInflow.value.inflowCategory,
-      amount: newInflow.value.amount,
-      inflow_date: inflow_date});
-    newInflow.value = initInflow();
-    toastStore.successResponseToast(response);
-    await getInflowsPaginated();
-  } catch (error) {
-    toastStore.errorResponseToast(error);
-  }
-}
-
-async function createNewInflowCategory() {
-  try {
-    let response = await inflowStore.createInflowCategory({name: newInflowCategory.value});
-    newInflowCategory.value = null;
-    toastStore.successResponseToast(response);
-    await getInflowCategories();
-  } catch (error) {
-    toastStore.errorResponseToast(error);
+    inflowDate: dateHelper.formatDate(new Date(), true),
   }
 }
 
@@ -85,6 +63,46 @@ const searchInflowCategory = (event: any) => {
       });
     }
   }, 250);
+}
+
+async function getInflowsPaginated() {
+  try {
+    loading.value = true;
+    let paginationResponse = await inflowStore.getInflowsPaginated();
+    inflows.value = paginationResponse.data;
+    loading.value = false;
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
+async function getInflowCategories() {
+  try {
+    inflowCategories.value = await inflowStore.getInflowCategories();
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
+async function createNewInflow() {
+
+  v$.value.$touch();
+  if (v$.value.$error) return;
+
+  try {
+    let inflow_date = dateHelper.mergeDateWithCurrentTime(newInflow.value.inflowDate, "Europe/Ljubljana");
+    let response = await inflowStore.createInflow({
+      inflow_category_id: newInflow.value.inflowCategory.id,
+      inflow_category: newInflow.value.inflowCategory,
+      amount: newInflow.value.amount,
+      inflow_date: inflow_date});
+    newInflow.value = initInflow();
+    v$.value.$reset();
+    toastStore.successResponseToast(response);
+    await getInflowsPaginated();
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
 }
 
 async function editInflow(id: number) {
@@ -101,19 +119,7 @@ async function removeInflow(id: number) {
   }
 }
 
-async function editInflowCategory(id: number) {
-  console.log(id)
-}
 
-async function removeInflowCategory(id: number) {
-  try {
-    let response = await inflowStore.deleteInflowCategory(id);
-    toastStore.successResponseToast(response);
-    await getInflowCategories();
-  } catch (error) {
-    toastStore.errorResponseToast(error);
-  }
-}
 </script>
 
 <template>
@@ -129,7 +135,9 @@ async function removeInflowCategory(id: number) {
       <div class="flex flex-row gap-2">
 
         <div class="flex flex-column">
-          <label>Category</label>
+          <ValidationError :isRequired="true" :message="v$.newInflow.inflowCategory.$errors[0]?.$message">
+            <label>Category</label>
+          </ValidationError>
           <InputGroup>
             <InputGroupAddon>
               <i class="pi pi-address-book"></i>
@@ -140,30 +148,36 @@ async function removeInflowCategory(id: number) {
         </div>
 
         <div class="flex flex-column">
-          <label>Amount</label>
+          <ValidationError :isRequired="true" :message="v$.newInflow.amount.$errors[0]?.$message">
+            <label>Amount</label>
+          </ValidationError>
           <InputGroup>
             <InputGroupAddon>
               <i class="pi pi-wallet"></i>
             </InputGroupAddon>
-            <InputNumber v-model="newInflow.amount" mode="currency" currency="EUR" locale="de-DE"></InputNumber>
+            <InputNumber size="small" v-model="newInflow.amount" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00"></InputNumber>
           </InputGroup>
         </div>
 
         <div class="flex flex-column">
-          <label>Date</label>
-          <DatePicker size="small" v-model="newInflow.date"
-          date-format="dd/mm/yy"/>
+          <ValidationError :isRequired="true" :message="v$.newInflow.inflowDate.$errors[0]?.$message">
+            <label>Date</label>
+          </ValidationError>
+          <DatePicker v-model="newInflow.inflowDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
+          style="height: 42px;"/>
         </div>
 
         <div class="flex flex-column">
-          <label>Submit</label>
-          <Button icon="pi pi-cart-plus" @click="createNewInflow" />
+          <ValidationError :isRequired="false" message="">
+            <label>Submit</label>
+          </ValidationError>
+          <Button icon="pi pi-cart-plus" @click="createNewInflow" style="height: 42px;" />
         </div>
 
       </div>
 
       <div class="flex flex-row gap-2" style="border-top: 1px solid var(--text-primary)">
-        <DataTable dataKey="id" :loading="loadingInflows" :value="inflows" class="p-datatable-sm">
+        <DataTable dataKey="id" :loading="loading" :value="inflows" class="p-datatable-sm">
           <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
           <template #loading> <LoadingSpinner></LoadingSpinner> </template>
 
@@ -191,50 +205,7 @@ async function removeInflowCategory(id: number) {
 
     </div>
 
-    <div class="flex flex-column w-3 p-3 gap-3" style="border-left: 1px solid var(--text-primary);">
-      <div class="flex flex-row p-1">
-        <h1>
-          Inflow Categories
-        </h1>
-      </div>
-      <div class="flex flex-row p-1">
-        <span>
-          These are your inflow categories. Assign as many as you deem necessary. Once assigned to an inflow record, a category can not be deleted.
-        </span>
-      </div>
-      <div class="flex flex-row p-1">
-          <FloatLabel variant="in">
-            <InputText id="in_label" v-model="newInflowCategory" variant="filled" @keydown.enter="createNewInflowCategory" />
-            <label for="in_label">New inflow category</label>
-          </FloatLabel>
-
-      </div>
-      <div class="flex flex-row p-1">
-        <DataTable dataKey="id" :loading="loadingInflows" :value="inflowCategories" class="p-datatable-sm">
-          <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-          <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-
-          <Column header="Actions">
-            <template #body="slotProps">
-              <div class="flex flex-row align-items-center gap-2">
-                <i class="pi pi-pencil hover_icon"
-                   @click="editInflowCategory(slotProps.data?.id)"></i>
-                <i class="pi pi-trash hover_icon" style="color: var(--accent-primary)"
-                   @click="removeInflowCategory(slotProps.data?.id)"></i>
-              </div>
-            </template>
-          </Column>
-
-          <Column field="name" header="Name"></Column>
-          <Column field="created_at" header="Created">
-            <template #body="slotProps">
-              {{ dateHelper.formatDate(slotProps.data?.created_at, true) }}
-            </template>
-          </Column>
-        </DataTable>
-      </div>
-
-    </div>
+    <InflowCategories></InflowCategories>
 
 
   </div>

@@ -20,6 +20,7 @@ const rules = {
   form: {
     email : {
       required,
+      email,
       $autoDirty: true,
     },
     password : {
