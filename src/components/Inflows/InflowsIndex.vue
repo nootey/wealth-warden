@@ -3,6 +3,7 @@ import {useInflowStore} from "../../services/stores/inflowStore.ts";
 import {ref} from "vue";
 import LoadingSpinner from "../Utils/LoadingSpinner.vue";
 import {useToastStore} from "../../services/stores/toastStore.ts";
+import dateHelper from "../../utils/dateHelper.ts"
 
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();
@@ -49,12 +50,13 @@ async function getInflowCategories() {
 
 async function createNewInflow() {
   try {
-    let date = new Date(newInflow.value.date).toISOString()
+    let inflow_date = dateHelper.mergeDateWithCurrentTime(newInflow.value.date, "Europe/Ljubljana");
     let response = await inflowStore.createInflow({
       inflow_category_id: newInflow.value.inflowCategory.id,
       inflow_category: newInflow.value.inflowCategory,
       amount: newInflow.value.amount,
-      inflow_date: date});
+      inflow_date: inflow_date});
+    newInflow.value = initInflow();
     toastStore.successResponseToast(response);
     await getInflowsPaginated();
   } catch (error) {
@@ -65,6 +67,7 @@ async function createNewInflow() {
 async function createNewInflowCategory() {
   try {
     let response = await inflowStore.createInflowCategory({name: newInflowCategory.value});
+    newInflowCategory.value = null;
     toastStore.successResponseToast(response);
     await getInflowCategories();
   } catch (error) {
@@ -129,10 +132,10 @@ async function removeInflowCategory(id: number) {
           <label>Category</label>
           <InputGroup>
             <InputGroupAddon>
-              <i class="pi pi-user"></i>
+              <i class="pi pi-address-book"></i>
             </InputGroupAddon>
             <AutoComplete size="small" v-model="newInflow.inflowCategory" :suggestions="filteredInflowCategories"
-                          @complete="searchInflowCategory" option-label="name" dropdown></AutoComplete>
+                          @complete="searchInflowCategory" option-label="name" placeholder="Select category" dropdown></AutoComplete>
           </InputGroup>
         </div>
 
@@ -140,15 +143,16 @@ async function removeInflowCategory(id: number) {
           <label>Amount</label>
           <InputGroup>
             <InputGroupAddon>
-              <i class="pi pi-book"></i>
+              <i class="pi pi-wallet"></i>
             </InputGroupAddon>
-            <InputNumber size="small" v-model="newInflow.amount"></InputNumber>
+            <InputNumber v-model="newInflow.amount" mode="currency" currency="EUR" locale="de-DE"></InputNumber>
           </InputGroup>
         </div>
 
         <div class="flex flex-column">
           <label>Date</label>
-          <DatePicker size="small" v-model="newInflow.date"/>
+          <DatePicker size="small" v-model="newInflow.date"
+          date-format="dd/mm/yy"/>
         </div>
 
         <div class="flex flex-column">
@@ -176,7 +180,11 @@ async function removeInflowCategory(id: number) {
 
           <Column field="inflow_category.name" header="Category"></Column>
           <Column field="amount" header="Amount"></Column>
-          <Column field="inflow_date" header="Date"></Column>
+          <Column field="inflow_date" header="Date">
+            <template #body="slotProps">
+               {{ dateHelper.formatDate(slotProps.data?.inflow_date, true) }}
+            </template>
+          </Column>
 
         </DataTable>
       </div>
@@ -218,7 +226,11 @@ async function removeInflowCategory(id: number) {
           </Column>
 
           <Column field="name" header="Name"></Column>
-          <Column field="created_at" header="Created"></Column>
+          <Column field="created_at" header="Created">
+            <template #body="slotProps">
+              {{ dateHelper.formatDate(slotProps.data?.created_at, true) }}
+            </template>
+          </Column>
         </DataTable>
       </div>
 
