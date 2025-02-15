@@ -29,7 +29,14 @@ func (h *InflowHandler) GetInflowsPaginated(c *gin.Context) {
 
 	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
 	from := offset + 1
+	if from > totalRecords {
+		from = totalRecords
+	}
+
 	to := offset + len(inflows)
+	if to > totalRecords {
+		to = totalRecords
+	}
 
 	response := gin.H{
 		"current_page":  paginationParams.PageNumber,
