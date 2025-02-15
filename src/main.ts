@@ -1,6 +1,4 @@
 import './style/global.scss'
-import './style/auth.scss'
-import './style/auth_input_shake_animation.scss';
 import '../node_modules/primeflex/primeflex.css';
 
 import { createApp } from 'vue'
