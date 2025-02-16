@@ -13,7 +13,9 @@ interface Inflow {
 }
 
 export const useInflowStore = defineStore('inflow', {
-    state: () => ({}),
+    state: () => ({
+        inflowCategories: [],
+    }),
     actions: {
         async getInflowsPaginated(params: object, page: number) {
             try {
@@ -28,6 +30,17 @@ export const useInflowStore = defineStore('inflow', {
                 });
 
                 return response.data;
+
+            } catch (err) {
+                throw err;
+            }
+        },
+
+        async getAllGroupedInflows() {
+            try {
+
+                return await apiClient.get("get-all-inflows-grouped-month");
+
             } catch (err) {
                 throw err;
             }

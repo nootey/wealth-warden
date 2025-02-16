@@ -8,12 +8,15 @@ import ValidationError from "../Validation/ValidationError.vue";
 import {required} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import InflowCategories from "./InflowCategories.vue";
+import vueHelper from "../../utils/vueHelper.ts";
 
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();
 
-const loading = ref(true);
+const loadingInflows = ref(true);
+const loadingGroupedInflows = ref(true);
 const inflows = ref([]);
+const groupedInflows = ref([]);
 const newInflow = ref(initInflow());
 const inflowCategories = ref([]);
 const filteredInflowCategories = ref([]);
@@ -60,6 +63,7 @@ init();
 async function init() {
   await getData();
   await getInflowCategories();
+  await getGroupedData();
   initSort();
 }
 
@@ -96,7 +100,7 @@ const searchInflowCategory = (event: any) => {
 
 async function getData(new_page = null) {
 
-  loading.value = true;
+  loadingInflows.value = true;
   if(new_page)
     page.value = new_page;
 
@@ -107,7 +111,21 @@ async function getData(new_page = null) {
     paginator.value.total = paginationResponse.total_records;
     paginator.value.to = paginationResponse.to;
     paginator.value.from = paginationResponse.from;
-    loading.value = false;
+    loadingInflows.value = false;
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
+async function getGroupedData() {
+
+  loadingGroupedInflows.value = true;
+
+  try {
+
+    let response = await inflowStore.getAllGroupedInflows();
+    groupedInflows.value = response.data;
+    loadingGroupedInflows.value = false;
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -141,10 +159,15 @@ async function createNewInflow() {
       inflow_category: newInflow.value.inflowCategory,
       amount: newInflow.value.amount,
       inflow_date: inflow_date});
+
     newInflow.value = initInflow();
     v$.value.newInflow.$reset();
-    toastStore.successResponseToast(response);
+
     await getData();
+    await getGroupedData();
+
+    toastStore.successResponseToast(response);
+
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -175,6 +198,37 @@ async function removeInflow(id: number) {
         <h1>
           Inflows
         </h1>
+      </div>
+
+      <div class="flex flex-row p-1">
+        <h3>
+          Add a new inflow
+        </h3>
+      </div>
+
+      <div class="flex flex-row p-1">
+        <h3>
+          Inflows by month
+        </h3>
+      </div>
+
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column w-full">
+          <DataTable :value="vueHelper.pivotedRecords(groupedInflows)" size="small" showGridlines>
+            <Column field="inflow_category_name" header="Category" />
+
+            <Column
+                v-for="month in dateHelper.monthColumns.value"
+                :key="month"
+                :field="month.toString()"
+                :header="dateHelper.formatMonth(month)"
+                :body="(data: any) => data[month] ? data[month] : 0">
+              <template #body="slotProps">
+                {{ vueHelper.displayAsCurrency(slotProps.data[month])}}
+              </template>
+            </Column>
+          </DataTable>
+        </div>
       </div>
 
       <div class="flex flex-row gap-2">
@@ -221,8 +275,14 @@ async function removeInflow(id: number) {
 
       </div>
 
-      <div class="flex flex-row gap-2" style="border-top: 1px solid var(--text-primary)">
-        <DataTable dataKey="id" :loading="loading" :value="inflows" class="p-datatable-sm">
+      <div class="flex flex-row p-1">
+        <h3>
+          All inflows
+        </h3>
+      </div>
+
+      <div class="flex flex-row gap-2">
+        <DataTable dataKey="id" :loading="loadingInflows" :value="inflows" size="small">
           <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
           <template #loading> <LoadingSpinner></LoadingSpinner> </template>
           <template #footer>
@@ -252,7 +312,11 @@ async function removeInflow(id: number) {
           </Column>
 
           <Column field="inflow_category.name" header="Category"></Column>
-          <Column field="amount" header="Amount"></Column>
+          <Column field="amount" header="Amount">
+            <template #body="slotProps">
+              {{ vueHelper.displayAsCurrency(slotProps.data.amount)}}
+            </template>
+          </Column>
           <Column field="inflow_date" header="Date">
             <template #body="slotProps">
                {{ dateHelper.formatDate(slotProps.data?.inflow_date, true) }}

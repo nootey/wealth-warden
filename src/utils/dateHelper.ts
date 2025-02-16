@@ -1,11 +1,15 @@
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
+import {computed} from "vue";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const dateHelper = {
+    monthColumns: computed(() => {
+        return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    }),
     convertTimeZone(
         timestamp: string | number | Date,
         tz: string | null = null,
@@ -60,6 +64,12 @@ const dateHelper = {
         // Convert to UTC before returning
         return mergedDateTime.utc().toISOString();
     },
+
+    formatMonth(monthNumber: number): string {
+        const currentYear = new Date().getFullYear();
+        const date = new Date(currentYear, monthNumber - 1);
+        return new Intl.DateTimeFormat(navigator.language, { month: 'long' }).format(date)
+    }
 };
 
 export default dateHelper;
