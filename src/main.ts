@@ -22,7 +22,7 @@ import {InputGroupAddon} from "primevue";
 import {DatePicker} from "primevue";
 import {InputNumber} from "primevue";
 import {Paginator} from "primevue";
-
+import {Dialog} from "primevue";
 
 const app = createApp(App);
 const pinia = createPinia();
@@ -41,6 +41,7 @@ app.component("InputGroupAddon", InputGroupAddon);
 app.component("DatePicker", DatePicker);
 app.component("InputNumber", InputNumber);
 app.component("Paginator", Paginator);
+app.component("Dialog", Dialog);
 
 app.use(pinia);
 app.use(router);

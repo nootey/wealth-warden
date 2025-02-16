@@ -29,11 +29,11 @@ const vueHelper = {
             [errorClass]: !!state?.$error,
         }
     },
-    displayAsCurrency: (data: number) => {
-        if(!data)
+    displayAsCurrency: (amount: number) => {
+        if(!amount)
             return null;
         let currency = " €"
-        return data + currency;
+        return amount.toFixed(2) + currency;
     },
 };
 

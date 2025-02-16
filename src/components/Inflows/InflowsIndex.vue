@@ -9,6 +9,9 @@ import {required} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import InflowCategories from "./InflowCategories.vue";
 import vueHelper from "../../utils/vueHelper.ts";
+import chartHelper from "../../utils/chartHelper.ts";
+import type {GroupedItem, Inflow, Statistics} from '../../models/inflows.ts';
+import ComparativePieChart from "../Statistics/Charts/ComparativePieChart.vue";
 
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();
@@ -21,6 +24,8 @@ const newInflow = ref(initInflow());
 
 const inflowCategories = computed(() => inflowStore.inflowCategories);
 const filteredInflowCategories = ref([]);
+const categoryModal = ref(false);
+const inflowStatistics = ref<Statistics[]>([]);
 
 const inflowRules = {
   newInflow: {
@@ -127,23 +132,16 @@ async function getGroupedData() {
     let response = await inflowStore.getAllGroupedInflows();
     groupedInflows.value = response.data;
     loadingGroupedInflows.value = false;
+    await calculateStatistics(groupedInflows.value);
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
 }
 
-async function onPage(event) {
+async function onPage(event: any) {
   paginator.value.rowsPerPage = event.rows;
   page.value = (event.page+1)
   await getData();
-}
-
-async function getInflowCategories() {
-  try {
-    inflowCategories.value = await inflowStore.getInflowCategories();
-  } catch (error) {
-    toastStore.errorResponseToast(error);
-  }
 }
 
 async function createNewInflow() {
@@ -188,10 +186,56 @@ async function removeInflow(id: number) {
   }
 }
 
+function manipulateDialog(modal: string, value: boolean) {
+  switch (modal) {
+    case 'category': {
+      categoryModal.value = value;
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+}
+
+function calculateStatistics(groupedInflows: Inflow[]): void {
+
+  const groupedData = groupedInflows.reduce<Record<number, GroupedItem>>((acc, curr) => {
+    const { inflow_category_id, inflow_category_name, total_amount, month } = curr;
+
+    // Initialize the group if it doesn't exist
+    if (!acc[inflow_category_id]) {
+      acc[inflow_category_id] = {
+        categoryName: inflow_category_name,
+        total: 0,
+        months: new Set<number>(),
+      };
+    }
+
+    // Add the amount and record the month
+    acc[inflow_category_id].total += total_amount;
+    acc[inflow_category_id].months.add(month);
+
+    return acc;
+  }, {});
+
+  inflowStatistics.value = Object.values(groupedData).map((category: GroupedItem) => {
+    const monthCount = category.months.size;
+    return {
+      category: category.categoryName,
+      total: category.total,
+      average: category.total / monthCount
+    };
+  });
+}
 
 </script>
 
 <template>
+  <Dialog v-model:visible="categoryModal" :breakpoints="{'801px': '90vw'}"
+          :modal="true" :style="{width: '800px'}" header="Inflow categories">
+    <InflowCategories></InflowCategories>
+  </Dialog>
   <div class="flex w-12 p-2">
     <div class="flex w-9 flex-column p-2 gap-3">
 
@@ -203,12 +247,6 @@ async function removeInflow(id: number) {
 
       <div class="flex flex-row p-1">
         <h3>
-          Add a new inflow
-        </h3>
-      </div>
-
-      <div class="flex flex-row p-1">
-        <h3>
           Inflows by month
         </h3>
       </div>
@@ -216,20 +254,27 @@ async function removeInflow(id: number) {
       <div class="flex flex-row w-full">
         <div class="flex flex-column w-full">
           <DataTable :value="vueHelper.pivotedRecords(groupedInflows)" size="small" showGridlines>
-            <Column field="inflow_category_name" header="Category" />
+            <Column field="inflow_category_name" header="Category" style="max-width: 2rem;"/>
 
             <Column
                 v-for="month in dateHelper.monthColumns.value"
                 :key="month"
                 :field="month.toString()"
                 :header="dateHelper.formatMonth(month)"
-                :body="(data: any) => data[month] ? data[month] : 0">
+                :body="(data: any) => data[month] ? data[month] : 0"
+                style="max-width: 1rem;">
               <template #body="slotProps">
                 {{ vueHelper.displayAsCurrency(slotProps.data[month])}}
               </template>
             </Column>
           </DataTable>
         </div>
+      </div>
+
+      <div class="flex flex-row p-1">
+        <h3>
+          Add a new inflow
+        </h3>
       </div>
 
       <div class="flex flex-row gap-2">
@@ -272,6 +317,13 @@ async function removeInflow(id: number) {
             <label>Submit</label>
           </ValidationError>
           <Button icon="pi pi-cart-plus" @click="createNewInflow" style="height: 42px;" />
+        </div>
+
+        <div class="flex flex-column" style="margin-left: auto;">
+          <ValidationError :isRequired="false" message="">
+            <label>Inflow categories</label>
+          </ValidationError>
+          <Button icon="pi pi-box" label="View" @click="manipulateDialog('category', true)"></Button>
         </div>
 
       </div>
@@ -328,10 +380,44 @@ async function removeInflow(id: number) {
       </div>
 
     </div>
+    <div class="flex flex-column w-3 p-2 gap-3" style="border-left: 1px solid var(--text-primary);">
 
-    <InflowCategories></InflowCategories>
+      <div class="flex flex-row p-1">
+        <h1>
+          Statistics
+        </h1>
+      </div>
 
+      <div class="flex flex-row p-1">
+        <h3>
+          Inflows
+        </h3>
+      </div>
 
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column w-full">
+          <DataTable :value="inflowStatistics" size="small" showGridlines>
+            <Column field="category" header="Category" style="max-width: 2rem;"/>
+            <Column field="total" header="Total" style="max-width: 2rem;">
+              <template #body="slotProps">
+                {{vueHelper.displayAsCurrency(slotProps.data.total)}}
+              </template>
+            </Column>
+            <Column field="average" header="Average" style="max-width: 2rem;">
+              <template #body="slotProps">
+                {{vueHelper.displayAsCurrency(slotProps.data.average)}}
+              </template>
+            </Column>
+          </DataTable>
+        </div>
+      </div>
+
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column w-full">
+          <ComparativePieChart :firstValue="chartHelper.extractAllFor(inflowStatistics, 'category', 'Salary').totalSum" firstLabel="Salary" :secondValue="chartHelper.extractAllBut(inflowStatistics, 'category', 'Salary').totalSum" secondLabel="Other" />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 

@@ -56,7 +56,6 @@ async function removeInflowCategory(id: number) {
   try {
     let response = await inflowStore.deleteInflowCategory(id);
     toastStore.successResponseToast(response);
-    await getInflowCategories();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -65,18 +64,18 @@ async function removeInflowCategory(id: number) {
 </script>
 
 <template>
-  <div class="flex flex-column w-3 p-3 gap-3" style="border-left: 1px solid var(--text-primary);">
-    <div class="flex flex-row p-1">
+  <div class="flex flex-column w-full p-3 gap-3">
+    <div class="flex flex-row p-1 w-full">
       <h1>
         Inflow Categories
       </h1>
     </div>
-    <div class="flex flex-row p-1">
+    <div class="flex flex-row p-1 w-full">
         <span>
           These are your inflow categories. Assign as many as you deem necessary. Once assigned to an inflow record, a category can not be deleted.
         </span>
     </div>
-    <div class="flex flex-row gap-2 align-items-center">
+    <div class="flex flex-row gap-2 align-items-center w-full">
       <div class="flex flex-column">
         <ValidationError :isRequired="true" :message="v$.newInflowCategory.name.$errors[0]?.$message">
           <label>Inflow category</label>
@@ -95,7 +94,8 @@ async function removeInflowCategory(id: number) {
         <Button icon="pi pi-cart-plus" @click="createNewInflowCategory" style="height: 42px;" />
       </div>
     </div>
-    <div class="flex flex-row p-1">
+
+    <div class="flex flex-row p-1 w-full">
       <DataTable dataKey="id" :loading="loading" :value="inflowCategories" class="p-datatable-sm">
         <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
         <template #loading> <LoadingSpinner></LoadingSpinner> </template>
