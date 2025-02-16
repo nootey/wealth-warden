@@ -3,7 +3,7 @@
 import dateHelper from "../../utils/dateHelper.ts";
 import ValidationError from "../Validation/ValidationError.vue";
 import LoadingSpinner from "../Utils/LoadingSpinner.vue";
-import {ref} from "vue";
+import {computed, ref} from "vue";
 import {required} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import {useInflowStore} from "../../services/stores/inflowStore.ts";
@@ -12,9 +12,9 @@ import {useToastStore} from "../../services/stores/toastStore.ts";
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();
 
-const inflowCategories = ref([]);
+const inflowCategories = computed(() => inflowStore.inflowCategories);
 const newInflowCategory = ref(initInflowCategory());
-const loading = ref(true);
+const loading = ref(false);
 
 const inflowCategoryRules = {
   newInflowCategory: {
@@ -27,25 +27,9 @@ const inflowCategoryRules = {
 
 const v$ = useVuelidate(inflowCategoryRules, {newInflowCategory: newInflowCategory});
 
-init();
-
-async function init() {
-  await getInflowCategories();
-}
-
 function initInflowCategory():object {
   return {
     name: null,
-  }
-}
-
-async function getInflowCategories() {
-  try {
-    loading.value = true;
-    inflowCategories.value = await inflowStore.getInflowCategories();
-    loading.value = false;
-  } catch (error) {
-    toastStore.errorResponseToast(error);
   }
 }
 
@@ -59,7 +43,6 @@ async function createNewInflowCategory() {
     newInflowCategory.value = initInflowCategory();
     toastStore.successResponseToast(response);
     v$.value.newInflowCategory.$reset();
-    await getInflowCategories();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }

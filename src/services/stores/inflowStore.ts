@@ -2,6 +2,7 @@ import {defineStore} from "pinia";
 import apiClient from './api/axios_interceptor.ts';
 
 interface InflowCategory {
+    id: number;
     name: string;
 }
 
@@ -14,7 +15,7 @@ interface Inflow {
 
 export const useInflowStore = defineStore('inflow', {
     state: () => ({
-        inflowCategories: [],
+        inflowCategories: [] as InflowCategory[],
     }),
     actions: {
         async getInflowsPaginated(params: object, page: number) {
@@ -49,7 +50,7 @@ export const useInflowStore = defineStore('inflow', {
         async getInflowCategories() {
             try {
                 const response = await apiClient.get("get-all-inflow-categories");
-                return response.data;
+                this.inflowCategories = response.data;
             } catch (err) {
                 throw err;
             }
@@ -65,7 +66,9 @@ export const useInflowStore = defineStore('inflow', {
 
         async createInflowCategory(InflowCategory: InflowCategory|null) {
             try {
-                return await apiClient.post("create-new-inflow-category", InflowCategory);
+                const response = await apiClient.post("create-new-inflow-category", InflowCategory);
+                await this.getInflowCategories();
+                return response;
             } catch (err) {
                 throw err;
             }
@@ -81,7 +84,9 @@ export const useInflowStore = defineStore('inflow', {
 
         async deleteInflowCategory(id: number) {
             try {
-                return await apiClient.post("delete-inflow-category", {id: id});
+                const response = await apiClient.post("delete-inflow-category", {id: id});
+                await this.getInflowCategories();
+                return response;
             } catch (err) {
                 throw err;
             }

@@ -18,7 +18,8 @@ const loadingGroupedInflows = ref(true);
 const inflows = ref([]);
 const groupedInflows = ref([]);
 const newInflow = ref(initInflow());
-const inflowCategories = ref([]);
+
+const inflowCategories = computed(() => inflowStore.inflowCategories);
 const filteredInflowCategories = ref([]);
 
 const inflowRules = {
@@ -62,7 +63,7 @@ init();
 
 async function init() {
   await getData();
-  await getInflowCategories();
+  await inflowStore.getInflowCategories();
   await getGroupedData();
   initSort();
 }
