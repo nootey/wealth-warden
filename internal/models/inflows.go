@@ -19,3 +19,10 @@ type Inflow struct {
 	CreatedAt        time.Time      `json:"created_at"`
 	UpdatedAt        time.Time      `json:"updated_at"`
 }
+
+type InflowSummary struct {
+	Month              int     `json:"month"`
+	TotalAmount        float64 `json:"total_amount"`
+	InflowCategoryID   uint    `json:"inflow_category_id"`
+	InflowCategoryName string  `json:"inflow_category_name"`
+}

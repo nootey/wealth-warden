@@ -21,7 +21,7 @@ func NewInflowService(cfg *config.Config, repo *repositories.InflowRepository) *
 	}
 }
 
-func (s *InflowService) GetInflowsPaginated(paginationParams utils.PaginationParams) ([]models.Inflow, int, error) {
+func (s *InflowService) FetchInflowsPaginated(paginationParams utils.PaginationParams) ([]models.Inflow, int, error) {
 
 	totalRecords, err := s.InflowRepo.CountInflows()
 	if err != nil {
@@ -30,7 +30,7 @@ func (s *InflowService) GetInflowsPaginated(paginationParams utils.PaginationPar
 
 	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
 
-	inflows, err := s.InflowRepo.GetInflows(offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder)
+	inflows, err := s.InflowRepo.FindInflows(offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -38,12 +38,16 @@ func (s *InflowService) GetInflowsPaginated(paginationParams utils.PaginationPar
 	return inflows, int(totalRecords), nil
 }
 
+func (s *InflowService) FetchAllInflowsGroupedByMonth() ([]models.InflowSummary, error) {
+	return s.InflowRepo.FindAllInflowsGroupedByMonth()
+}
+
 func (s *InflowService) FetchAllInflowCategories() ([]models.InflowCategory, error) {
 	return s.InflowRepo.GetAllInflowCategories()
 }
 
 func (s *InflowService) CreateInflow(inflow *models.Inflow) error {
-	err := s.InflowRepo.SaveInflow(inflow)
+	err := s.InflowRepo.InsertInflow(inflow)
 	if err != nil {
 		return err
 	}
@@ -51,7 +55,7 @@ func (s *InflowService) CreateInflow(inflow *models.Inflow) error {
 }
 
 func (s *InflowService) CreateInflowCategory(inflowCategory *models.InflowCategory) error {
-	err := s.InflowRepo.SaveInflowCategory(inflowCategory)
+	err := s.InflowRepo.InsertInflowCategory(inflowCategory)
 	if err != nil {
 		return err
 	}

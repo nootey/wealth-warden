@@ -28,7 +28,7 @@ func (r *InflowRepository) CountInflows() (int64, error) {
 	return totalRecords, nil
 }
 
-func (r *InflowRepository) GetInflows(offset, limit int, sortField, sortOrder string) ([]models.Inflow, error) {
+func (r *InflowRepository) FindInflows(offset, limit int, sortField, sortOrder string) ([]models.Inflow, error) {
 	var inflows []models.Inflow
 	orderBy := sortField + " " + sortOrder
 
@@ -46,13 +46,56 @@ func (r *InflowRepository) GetInflows(offset, limit int, sortField, sortOrder st
 	return inflows, nil
 }
 
+func (r *InflowRepository) FindAllInflowsGroupedByMonth() ([]models.InflowSummary, error) {
+	var results []models.InflowSummary
+
+	err := r.db.Raw(`
+        SELECT * FROM (
+            -- Regular category rows
+            SELECT
+                MONTH(i.inflow_date) AS month,
+                ic.id AS inflow_category_id,
+                ic.name AS inflow_category_name,
+                SUM(i.amount) AS total_amount
+            FROM inflows i
+            JOIN inflow_categories ic ON i.inflow_category_id = ic.id
+            WHERE i.deleted_at IS NULL
+              AND YEAR(i.inflow_date) = YEAR(CURDATE())
+            GROUP BY ic.id, ic.name, month
+
+            UNION ALL
+
+            -- "Total" row for each month (sums all categories)
+            SELECT
+                MONTH(i.inflow_date) AS month,
+                0 AS inflow_category_id,
+                'Total' AS inflow_category_name,
+                SUM(i.amount) AS total_amount
+            FROM inflows i
+            WHERE i.deleted_at IS NULL
+              AND YEAR(i.inflow_date) = YEAR(CURDATE())
+            GROUP BY MONTH(i.inflow_date)
+        ) AS combined
+        ORDER BY 
+            (CASE WHEN inflow_category_name = 'Total' THEN 1 ELSE 0 END),
+            inflow_category_name, 
+            month
+    `).Scan(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
+
 func (r *InflowRepository) GetAllInflowCategories() ([]models.InflowCategory, error) {
 	var inflowCategories []models.InflowCategory
 	result := r.db.Find(&inflowCategories)
 	return inflowCategories, result.Error
 }
 
-func (r *InflowRepository) SaveInflow(inflow *models.Inflow) error {
+func (r *InflowRepository) InsertInflow(inflow *models.Inflow) error {
 
 	if err := r.db.Create(&inflow).Error; err != nil {
 		return err
@@ -60,7 +103,7 @@ func (r *InflowRepository) SaveInflow(inflow *models.Inflow) error {
 	return nil
 }
 
-func (r *InflowRepository) SaveInflowCategory(inflowCategory *models.InflowCategory) error {
+func (r *InflowRepository) InsertInflowCategory(inflowCategory *models.InflowCategory) error {
 
 	if err := r.db.Create(&inflowCategory).Error; err != nil {
 		return err

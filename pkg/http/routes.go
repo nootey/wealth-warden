@@ -112,6 +112,9 @@ func inflowRoutes(apiGroup *gin.RouterGroup, handler *handlers.InflowHandler) {
 	apiGroup.GET("/get-inflows-paginated", func(c *gin.Context) {
 		handler.GetInflowsPaginated(c)
 	})
+	apiGroup.GET("/get-all-inflows-grouped-month", func(c *gin.Context) {
+		handler.GetAllInflowsGroupedByMonth(c)
+	})
 	apiGroup.GET("/get-all-inflow-categories", func(c *gin.Context) {
 		handler.GetAllInflowCategories(c)
 	})
