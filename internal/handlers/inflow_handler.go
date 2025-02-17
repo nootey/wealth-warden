@@ -21,7 +21,7 @@ func (h *InflowHandler) GetInflowsPaginated(c *gin.Context) {
 	queryParams := c.Request.URL.Query()
 	paginationParams := utils.GetPaginationParams(queryParams)
 
-	inflows, totalRecords, err := h.Service.FetchInflowsPaginated(paginationParams)
+	inflows, totalRecords, err := h.Service.FetchInflowsPaginated(c, paginationParams)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching inflows"})
 		return
@@ -52,7 +52,7 @@ func (h *InflowHandler) GetInflowsPaginated(c *gin.Context) {
 
 func (h *InflowHandler) GetAllInflowsGroupedByMonth(c *gin.Context) {
 
-	inflows, err := h.Service.FetchAllInflowsGroupedByMonth()
+	inflows, err := h.Service.FetchAllInflowsGroupedByMonth(c)
 	if err != nil {
 		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
@@ -61,7 +61,7 @@ func (h *InflowHandler) GetAllInflowsGroupedByMonth(c *gin.Context) {
 }
 
 func (h *InflowHandler) GetAllInflowCategories(c *gin.Context) {
-	inflowCategories, err := h.Service.FetchAllInflowCategories()
+	inflowCategories, err := h.Service.FetchAllInflowCategories(c)
 	if err != nil {
 		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
@@ -77,7 +77,7 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.CreateInflow(inflow); err != nil {
+	if err := h.Service.CreateInflow(c, inflow); err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
@@ -93,7 +93,7 @@ func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.CreateInflowCategory(inflowCategory); err != nil {
+	if err := h.Service.CreateInflowCategory(c, inflowCategory); err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}

@@ -10,10 +10,10 @@ import (
 )
 
 func init() {
-	goose.AddMigrationContext(upSeedSuperAdminGo, downSeedSuperAdminGo)
+	goose.AddMigrationContext(upSeedMember, downSeedMember)
 }
 
-func upSeedSuperAdminGo(ctx context.Context, tx *sql.Tx) error {
+func upSeedMember(ctx context.Context, tx *sql.Tx) error {
 	// This code is executed when the migration is applied.
 
 	cfg := config.LoadConfig()
@@ -28,20 +28,22 @@ func upSeedSuperAdminGo(ctx context.Context, tx *sql.Tx) error {
 	_, err = tx.Exec(`
         INSERT INTO users (username, email, password, role)
         VALUES (?, ?, ?, ?)
-    `, "Support", "support@wealth-warden.com", hashedPassword, "super-admin")
+    `, "Member", "member@wealth-warden.com", hashedPassword, "member")
 
 	if err != nil {
-		return fmt.Errorf("failed to insert super admin: %w", err)
+		return fmt.Errorf("failed to insert member: %w", err)
 	}
 
 	return nil
+
 }
 
-func downSeedSuperAdminGo(ctx context.Context, tx *sql.Tx) error {
+func downSeedMember(ctx context.Context, tx *sql.Tx) error {
 	// This code is executed when the migration is rolled back.
-	_, err := tx.Exec(`DELETE FROM users WHERE email = ?`, "support@wealth-warden.com")
+
+	_, err := tx.Exec(`DELETE FROM users WHERE email = ?`, "member@wealth-warden.com")
 	if err != nil {
-		return fmt.Errorf("failed to delete super admin: %w", err)
+		return fmt.Errorf("failed to delete member: %w", err)
 	}
 	return nil
 }

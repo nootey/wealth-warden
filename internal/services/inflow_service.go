@@ -10,27 +10,34 @@ import (
 )
 
 type InflowService struct {
-	InflowRepo *repositories.InflowRepository
-	Config     *config.Config
+	InflowRepo  *repositories.InflowRepository
+	AuthService *AuthService
+	Config      *config.Config
 }
 
-func NewInflowService(cfg *config.Config, repo *repositories.InflowRepository) *InflowService {
+func NewInflowService(cfg *config.Config, authService *AuthService, repo *repositories.InflowRepository) *InflowService {
 	return &InflowService{
-		InflowRepo: repo,
-		Config:     cfg,
+		InflowRepo:  repo,
+		AuthService: authService,
+		Config:      cfg,
 	}
 }
 
-func (s *InflowService) FetchInflowsPaginated(paginationParams utils.PaginationParams) ([]models.Inflow, int, error) {
+func (s *InflowService) FetchInflowsPaginated(c *gin.Context, paginationParams utils.PaginationParams) ([]models.Inflow, int, error) {
 
-	totalRecords, err := s.InflowRepo.CountInflows()
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	totalRecords, err := s.InflowRepo.CountInflows(user.ID)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
 
-	inflows, err := s.InflowRepo.FindInflows(offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder)
+	inflows, err := s.InflowRepo.FindInflows(user.ID, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -38,24 +45,40 @@ func (s *InflowService) FetchInflowsPaginated(paginationParams utils.PaginationP
 	return inflows, int(totalRecords), nil
 }
 
-func (s *InflowService) FetchAllInflowsGroupedByMonth() ([]models.InflowSummary, error) {
-	return s.InflowRepo.FindAllInflowsGroupedByMonth()
+func (s *InflowService) FetchAllInflowsGroupedByMonth(c *gin.Context) ([]models.InflowSummary, error) {
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return nil, err
+	}
+	return s.InflowRepo.FindAllInflowsGroupedByMonth(user.ID)
 }
 
-func (s *InflowService) FetchAllInflowCategories() ([]models.InflowCategory, error) {
-	return s.InflowRepo.GetAllInflowCategories()
+func (s *InflowService) FetchAllInflowCategories(c *gin.Context) ([]models.InflowCategory, error) {
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return nil, err
+	}
+	return s.InflowRepo.GetAllInflowCategories(user.ID)
 }
 
-func (s *InflowService) CreateInflow(inflow *models.Inflow) error {
-	err := s.InflowRepo.InsertInflow(inflow)
+func (s *InflowService) CreateInflow(c *gin.Context, inflow *models.Inflow) error {
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+	err = s.InflowRepo.InsertInflow(user.ID, inflow)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *InflowService) CreateInflowCategory(inflowCategory *models.InflowCategory) error {
-	err := s.InflowRepo.InsertInflowCategory(inflowCategory)
+func (s *InflowService) CreateInflowCategory(c *gin.Context, inflowCategory *models.InflowCategory) error {
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+	err = s.InflowRepo.InsertInflowCategory(user.ID, inflowCategory)
 	if err != nil {
 		return err
 	}
@@ -63,8 +86,11 @@ func (s *InflowService) CreateInflowCategory(inflowCategory *models.InflowCatego
 }
 
 func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
-
-	err := s.InflowRepo.DropInflow(id)
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+	err = s.InflowRepo.DropInflow(user.ID, id)
 	if err != nil {
 		return err
 	}
@@ -73,9 +99,13 @@ func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
 
 func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
 	var count int64
 
-	if err := s.InflowRepo.CountInflowsByCategory(id, &count); err != nil {
+	if err := s.InflowRepo.CountInflowsByCategory(user.ID, id, &count); err != nil {
 		return err
 	}
 
@@ -83,7 +113,7 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 		return fmt.Errorf("cannot delete inflow category: it is being used by %d inflow(s)", count)
 	}
 
-	err := s.InflowRepo.DropInflowCategory(id)
+	err = s.InflowRepo.DropInflowCategory(user.ID, id)
 	if err != nil {
 		return err
 	}

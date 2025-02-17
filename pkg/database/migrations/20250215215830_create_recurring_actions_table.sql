@@ -13,7 +13,8 @@ interval_unit ENUM('days', 'weeks', 'months', 'years') NOT NULL,
 last_processed DATE DEFAULT NULL,
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+INDEX idx_user_id (user_id)  -- Index for performance on user queries
 );
 -- +goose StatementEnd
 

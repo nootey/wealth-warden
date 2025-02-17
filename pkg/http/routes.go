@@ -65,7 +65,7 @@ func InitEndpoints(router *gin.Engine, cfg *config.Config, dbClient *gorm.DB) {
 
 	authService := services.NewAuthService(userRepo)
 	userService := services.NewUserService(cfg, userRepo)
-	inflowService := services.NewInflowService(cfg, inflowRepo)
+	inflowService := services.NewInflowService(cfg, authService, inflowRepo)
 
 	authHandler := handlers.NewAuthHandler(cfg, authService)
 	userHandler := handlers.NewUserHandler(userService)
