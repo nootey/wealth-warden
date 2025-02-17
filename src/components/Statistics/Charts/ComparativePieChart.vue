@@ -14,7 +14,6 @@ const props = defineProps<{
   secondLabel: string;
 }>();
 
-const chartDataReady = ref(false);
 
 // Initialize the chart with both values set to 0
 const chartData = ref<ChartData<"pie">>({
