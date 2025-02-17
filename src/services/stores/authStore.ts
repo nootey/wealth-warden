@@ -1,18 +1,7 @@
 import { defineStore } from 'pinia';
 import apiClient from './api/axios_interceptor.ts';
 import router from "../router";
-
-interface AuthForm {
-    email: string;
-    password: string;
-    rememberMe?: boolean;
-}
-
-interface User {
-    id: number;
-    email: string;
-    validated_at?: string;
-}
+import type {AuthForm, User} from '../../models/auth.ts';
 
 export const useAuthStore = defineStore('auth', {
     state: () => ({
