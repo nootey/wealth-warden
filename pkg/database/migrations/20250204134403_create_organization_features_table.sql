@@ -1,8 +1,8 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE organization_features (
-organization_id INT NOT NULL,
-feature_id INT NOT NULL,
+organization_id BIGINT UNSIGNED NOT NULL,
+feature_id BIGINT UNSIGNED NOT NULL,
 enabled BOOLEAN DEFAULT TRUE,
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

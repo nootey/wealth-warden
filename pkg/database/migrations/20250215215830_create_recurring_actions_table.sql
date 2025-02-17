@@ -1,10 +1,10 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS recurring_actions (
-id INT AUTO_INCREMENT PRIMARY KEY,
-user_id INT NOT NULL,
+id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+user_id BIGINT UNSIGNED NOT NULL,
 category_type VARCHAR(50) NOT NULL, -- Now a generic category type instead of ENUM
-category_id INT NOT NULL, -- Renamed from action_id
+category_id BIGINT UNSIGNED NOT NULL, -- Renamed from action_id
 amount DECIMAL(10, 2) NOT NULL,
 start_date DATE NOT NULL,
 end_date DATE DEFAULT NULL,

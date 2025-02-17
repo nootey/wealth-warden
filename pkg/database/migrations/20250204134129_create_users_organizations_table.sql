@@ -1,8 +1,8 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE user_organizations (
-user_id INT NOT NULL,
-organization_id INT NOT NULL,
+user_id BIGINT UNSIGNED NOT NULL,
+organization_id BIGINT UNSIGNED NOT NULL,
 role VARCHAR(50) DEFAULT 'Member',
 deleted_at TIMESTAMP DEFAULT null,
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
