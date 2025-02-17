@@ -61,14 +61,17 @@ func InitEndpoints(router *gin.Engine, cfg *config.Config, dbClient *gorm.DB) {
 	})
 
 	userRepo := repositories.NewUserRepository(dbClient)
+	loggingRepo := repositories.NewLoggingRepository(dbClient)
 	inflowRepo := repositories.NewInflowRepository(dbClient)
 
 	authService := services.NewAuthService(userRepo)
 	userService := services.NewUserService(cfg, userRepo)
-	inflowService := services.NewInflowService(cfg, authService, inflowRepo)
+	loggingService := services.NewLoggingService(cfg, loggingRepo)
+	inflowService := services.NewInflowService(cfg, authService, loggingService, inflowRepo)
 
 	authHandler := handlers.NewAuthHandler(cfg, authService)
 	userHandler := handlers.NewUserHandler(userService)
+	loggingHandler := handlers.NewLoggingHandler(loggingService)
 	inflowHandler := handlers.NewInflowHandler(inflowService)
 
 	authenticatedGroup := router.Group(apiPrefixV1, middleware.WebClientAuthentication())
@@ -76,6 +79,7 @@ func InitEndpoints(router *gin.Engine, cfg *config.Config, dbClient *gorm.DB) {
 		authRoutes(authenticatedGroup, authHandler)
 		userRoutes(authenticatedGroup, userHandler)
 		inflowRoutes(authenticatedGroup, inflowHandler)
+		loggingRoutes(authenticatedGroup, loggingHandler)
 	}
 
 	unauthenticatedGroup := router.Group(apiPrefixV1)
@@ -129,5 +133,18 @@ func inflowRoutes(apiGroup *gin.RouterGroup, handler *handlers.InflowHandler) {
 	})
 	apiGroup.POST("/delete-inflow-category", func(c *gin.Context) {
 		handler.DeleteInflowCategory(c)
+	})
+}
+
+func loggingRoutes(apiGroup *gin.RouterGroup, handler *handlers.LoggingHandler) {
+
+	apiGroup.GET("/get-activity-logs", func(c *gin.Context) {
+		handler.GetActivityLogs(c)
+	})
+	apiGroup.GET("/get-access-logs", func(c *gin.Context) {
+		handler.GetAccessLogs(c)
+	})
+	apiGroup.GET("/get-notification-logs", func(c *gin.Context) {
+		handler.GetNotificationLogs(c)
 	})
 }

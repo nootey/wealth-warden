@@ -16,12 +16,13 @@ func NewInflowRepository(db *gorm.DB) *InflowRepository {
 func (r *InflowRepository) CountInflowsByCategory(userID, categoryID uint, count *int64) error {
 	return r.db.Model(&models.Inflow{}).
 		Where("inflow_category_id = ?", categoryID).
+		Where("user_id = ?", userID).
 		Count(count).Error
 }
 
 func (r *InflowRepository) CountInflows(userID uint) (int64, error) {
 	var totalRecords int64
-	err := r.db.Model(&models.Inflow{}).Count(&totalRecords).Error
+	err := r.db.Model(&models.Inflow{}).Where("user_id = ?", userID).Count(&totalRecords).Error
 	if err != nil {
 		return 0, err
 	}

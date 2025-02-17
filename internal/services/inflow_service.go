@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"strconv"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
@@ -10,16 +11,18 @@ import (
 )
 
 type InflowService struct {
-	InflowRepo  *repositories.InflowRepository
-	AuthService *AuthService
-	Config      *config.Config
+	InflowRepo     *repositories.InflowRepository
+	AuthService    *AuthService
+	LoggingService *LoggingService
+	Config         *config.Config
 }
 
-func NewInflowService(cfg *config.Config, authService *AuthService, repo *repositories.InflowRepository) *InflowService {
+func NewInflowService(cfg *config.Config, authService *AuthService, loggingService *LoggingService, repo *repositories.InflowRepository) *InflowService {
 	return &InflowService{
-		InflowRepo:  repo,
-		AuthService: authService,
-		Config:      cfg,
+		InflowRepo:     repo,
+		AuthService:    authService,
+		LoggingService: loggingService,
+		Config:         cfg,
 	}
 }
 
@@ -62,10 +65,25 @@ func (s *InflowService) FetchAllInflowCategories(c *gin.Context) ([]models.Inflo
 }
 
 func (s *InflowService) CreateInflow(c *gin.Context, inflow *models.Inflow) error {
+
 	user, err := s.AuthService.GetCurrentUser(c)
 	if err != nil {
 		return err
 	}
+	changes := utils.InitChanges()
+
+	amountString := strconv.FormatFloat(inflow.Amount, 'f', 6, 64)
+
+	utils.CompareChanges("", inflow.InflowCategory.Name, changes, "inflow_category")
+	utils.CompareChanges("", amountString, changes, "amount")
+
+	fmt.Println(changes)
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog("create", "inflow", nil, changes, user)
+	if err != nil {
+		return err
+	}
+
 	err = s.InflowRepo.InsertInflow(user.ID, inflow)
 	if err != nil {
 		return err
