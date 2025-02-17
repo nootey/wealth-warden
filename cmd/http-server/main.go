@@ -80,6 +80,11 @@ func runServer() {
 	cfg := config.LoadConfig()
 	logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
+	// Ensure the database exists before connecting
+	if err := database.EnsureDatabaseExists(cfg); err != nil {
+		log.Fatalf("Database check failed: %v", err)
+	}
+
 	dbClient, err := database.ConnectToMySQL(cfg)
 	if err != nil {
 		log.Fatalf("MySQL Connection Error: %v", err)
@@ -88,8 +93,6 @@ func runServer() {
 
 	// Initialize the server with the logger
 	httpServer := serverHttp.NewServer(cfg, logger, dbClient)
-
-	// Start the server with health checks
 	go httpServer.Start()
 
 	// Wait for the interrupt signal

@@ -95,3 +95,38 @@ func PingMysqlDatabase() error {
 
 	return sqlDB.Ping()
 }
+
+// EnsureDatabaseExists checks if the database exists, and if not, it creates it.
+func EnsureDatabaseExists(cfg *config.Config) error {
+	// Connect to MySQL without specifying a database
+	db, err := ConnectWithoutDB(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to connect to MySQL server: %w", err)
+	}
+	defer func() {
+		sqlDB, _ := db.DB()
+		sqlDB.Close()
+	}()
+
+	// Check if the database exists
+	var exists int
+	checkQuery := fmt.Sprintf("SELECT COUNT(*) FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '%s'", cfg.MySQLDatabase)
+	err = db.Raw(checkQuery).Scan(&exists).Error
+	if err != nil {
+		return fmt.Errorf("error checking if database exists: %w", err)
+	}
+
+	// If the database doesn't exist, create it
+	if exists == 0 {
+		log.Printf("Database '%s' does not exist, creating it...", cfg.MySQLDatabase)
+		createQuery := fmt.Sprintf("CREATE DATABASE %s CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", cfg.MySQLDatabase)
+		if err := db.Exec(createQuery).Error; err != nil {
+			return fmt.Errorf("failed to create database: %w", err)
+		}
+		log.Printf("Database '%s' created successfully", cfg.MySQLDatabase)
+	} else {
+		log.Printf("Database '%s' already exists", cfg.MySQLDatabase)
+	}
+
+	return nil
+}
