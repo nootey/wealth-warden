@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {defineProps, onMounted, ref} from "vue";
+import {onMounted, ref, watch} from "vue";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, PieController } from "chart.js";
 import { PieChart } from "vue-chart-3";
 import type { ChartData } from "chart.js";
@@ -27,23 +27,22 @@ const chartData = ref<ChartData<"pie">>({
   ]
 });
 
-onMounted(() => {
-  // Simulate async data load
-  setTimeout(() => {
-    chartData.value = {
-      labels: [props.firstLabel, props.secondLabel],
-      datasets: [
-        {
-          data: [props.firstValue, props.secondValue],
-          backgroundColor: ["#36A2EB", "#FF6384"]
-        }
-      ]
-    };
-    chartDataReady.value = true;
-  }, 250);
-
-});
-
+// Watch for prop changes and update chart data
+watch(
+    () => [props.firstValue, props.secondValue, props.firstLabel, props.secondLabel],
+    ([newFirstValue, newSecondValue, newFirstLabel, newSecondLabel]) => {
+      chartData.value = {
+        labels: [newFirstLabel, newSecondLabel],
+        datasets: [
+          {
+            data: [newFirstValue, newSecondValue],
+            backgroundColor: ["#36A2EB", "#FF6384"]
+          }
+        ]
+      };
+    },
+    { immediate: true } // Run the watcher immediately to set the initial values
+);
 
 const chartOptions = ref({
   responsive: true,

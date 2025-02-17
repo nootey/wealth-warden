@@ -5,6 +5,11 @@ interface ValidationObject {
 
 const vueHelper = {
     pivotedRecords: (records: any[]) => {
+
+        if (!records || records.length === 0) {
+            return;
+        }
+
         const pivot: Record<number, any> = {}
 
         records.forEach(item => {

@@ -132,7 +132,7 @@ async function getGroupedData() {
     let response = await inflowStore.getAllGroupedInflows();
     groupedInflows.value = response.data;
     loadingGroupedInflows.value = false;
-    await calculateStatistics(groupedInflows.value);
+    calculateStatistics(groupedInflows.value);
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -199,6 +199,10 @@ function manipulateDialog(modal: string, value: boolean) {
 }
 
 function calculateStatistics(groupedInflows: Inflow[]): void {
+
+  if (!groupedInflows || groupedInflows.length === 0) {
+    return;
+  }
 
   const groupedData = groupedInflows.reduce<Record<number, GroupedItem>>((acc, curr) => {
     const { inflow_category_id, inflow_category_name, total_amount, month } = curr;
