@@ -89,9 +89,10 @@ func NewRouter(cfg *config.Config, dbClient *gorm.DB) *gin.Engine {
 
 	// Global middlewares
 	router.Use(gin.Recovery())
-
-	// Initialize API routes
-	InitEndpoints(router, cfg, dbClient)
+	
+	// Create RouteInitializer and initialize endpoints
+	routeInitializer := NewRouteInitializer(router, cfg, dbClient)
+	routeInitializer.InitEndpoints()
 
 	return router
 }

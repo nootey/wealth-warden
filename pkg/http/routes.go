@@ -12,12 +12,75 @@ import (
 	"wealth-warden/pkg/middleware"
 )
 
+type RouteInitializer struct {
+	Router         *gin.Engine
+	Config         *config.Config
+	DB             *gorm.DB
+	AuthService    *services.AuthService
+	UserService    *services.UserService
+	InflowService  *services.InflowService
+	LoggingService *services.LoggingService
+}
+
+func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *RouteInitializer {
+	// Initialize repositories
+	loggingRepo := repositories.NewLoggingRepository(db)
+	userRepo := repositories.NewUserRepository(db)
+	inflowRepo := repositories.NewInflowRepository(db)
+
+	// Initialize services
+	loggingService := services.NewLoggingService(cfg, loggingRepo)
+	authService := services.NewAuthService(userRepo, loggingService)
+	userService := services.NewUserService(cfg, userRepo)
+	inflowService := services.NewInflowService(cfg, authService, loggingService, inflowRepo)
+
+	return &RouteInitializer{
+		Router:         router,
+		Config:         cfg,
+		DB:             db,
+		AuthService:    authService,
+		UserService:    userService,
+		InflowService:  inflowService,
+		LoggingService: loggingService,
+	}
+}
+
+func (r *RouteInitializer) InitEndpoints() {
+	apiPrefixV1 := "/api/v1"
+
+	r.Router.GET("/", rootHandler)
+	r.Router.GET(apiPrefixV1+"/health", func(c *gin.Context) {
+		healthCheck(c)
+	})
+
+	authHandler := handlers.NewAuthHandler(r.Config, r.AuthService)
+	userHandler := handlers.NewUserHandler(r.UserService)
+	inflowHandler := handlers.NewInflowHandler(r.InflowService)
+	loggingHandler := handlers.NewLoggingHandler(r.LoggingService)
+
+	// Protected routes
+	authGroup := r.Router.Group(apiPrefixV1, middleware.WebClientAuthentication())
+	{
+		authRoutes(authGroup, authHandler)
+		userRoutes(authGroup, userHandler)
+		inflowRoutes(authGroup, inflowHandler)
+		loggingRoutes(authGroup, loggingHandler)
+	}
+
+	// Public routes
+	publicGroup := r.Router.Group(apiPrefixV1)
+	{
+		exposedAuthRoutes(publicGroup, authHandler)
+	}
+}
+
+// Root handler for basic server check
 func rootHandler(c *gin.Context) {
-	c.JSON(http.StatusOK, "Wealth Warden server")
+	c.JSON(http.StatusOK, gin.H{"message": "Wealth Warden server is running!"})
 }
 
 // Health check handler function
-func healthCheck(c *gin.Context, cfg *config.Config) {
+func healthCheck(c *gin.Context) {
 	httpHealthStatus := "healthy"
 	dbStatus := "healthy"
 
@@ -28,123 +91,17 @@ func healthCheck(c *gin.Context, cfg *config.Config) {
 		httpHealthStatus = "degraded"
 	}
 
-	response := gin.H{
-		"status": gin.H{
-			"api": gin.H{
-				"http": httpHealthStatus,
-			},
-			"services": gin.H{
-				"database": gin.H{
-					"mysql": dbStatus,
-				},
-			},
-		},
-	}
-
 	statusCode := http.StatusOK
 	if httpHealthStatus == "degraded" {
 		statusCode = http.StatusServiceUnavailable
 	}
 
-	c.JSON(statusCode, response)
-}
-
-func InitEndpoints(router *gin.Engine, cfg *config.Config, dbClient *gorm.DB) {
-	apiPrefixV1 := "/api/v1"
-
-	router.GET("/", func(c *gin.Context) {
-		rootHandler(c)
-	})
-
-	router.GET(apiPrefixV1+"/health", func(c *gin.Context) {
-		healthCheck(c, cfg)
-	})
-
-	loggingRepo := repositories.NewLoggingRepository(dbClient)
-	userRepo := repositories.NewUserRepository(dbClient)
-	inflowRepo := repositories.NewInflowRepository(dbClient)
-
-	loggingService := services.NewLoggingService(cfg, loggingRepo)
-	authService := services.NewAuthService(userRepo, loggingService)
-	userService := services.NewUserService(cfg, userRepo)
-	inflowService := services.NewInflowService(cfg, authService, loggingService, inflowRepo)
-
-	loggingHandler := handlers.NewLoggingHandler(loggingService)
-	authHandler := handlers.NewAuthHandler(cfg, authService)
-	userHandler := handlers.NewUserHandler(userService)
-	inflowHandler := handlers.NewInflowHandler(inflowService)
-
-	authenticatedGroup := router.Group(apiPrefixV1, middleware.WebClientAuthentication())
-	{
-		authRoutes(authenticatedGroup, authHandler)
-		userRoutes(authenticatedGroup, userHandler)
-		inflowRoutes(authenticatedGroup, inflowHandler)
-		loggingRoutes(authenticatedGroup, loggingHandler)
-	}
-
-	unauthenticatedGroup := router.Group(apiPrefixV1)
-	{
-		exposedAuthRoutes(unauthenticatedGroup, authHandler)
-	}
-}
-
-func exposedAuthRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) {
-
-	apiGroup.POST("/login", func(c *gin.Context) {
-		handler.LoginUser(c)
-	})
-	apiGroup.POST("/logout", func(c *gin.Context) {
-		handler.LogoutUser(c)
-	})
-}
-
-func authRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) {
-	apiGroup.GET("/get-auth-user", func(c *gin.Context) {
-		handler.GetAuthUser(c)
-	})
-}
-
-func userRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler) {
-
-	apiGroup.GET("/get-users", func(c *gin.Context) {
-		handler.GetUsers(c)
-	})
-}
-
-func inflowRoutes(apiGroup *gin.RouterGroup, handler *handlers.InflowHandler) {
-
-	apiGroup.GET("/get-inflows-paginated", func(c *gin.Context) {
-		handler.GetInflowsPaginated(c)
-	})
-	apiGroup.GET("/get-all-inflows-grouped-month", func(c *gin.Context) {
-		handler.GetAllInflowsGroupedByMonth(c)
-	})
-	apiGroup.GET("/get-all-inflow-categories", func(c *gin.Context) {
-		handler.GetAllInflowCategories(c)
-	})
-	apiGroup.POST("/create-new-inflow", func(c *gin.Context) {
-		handler.CreateNewInflow(c)
-	})
-	apiGroup.POST("/create-new-inflow-category", func(c *gin.Context) {
-		handler.CreateNewInflowCategory(c)
-	})
-	apiGroup.POST("/delete-inflow", func(c *gin.Context) {
-		handler.DeleteInflow(c)
-	})
-	apiGroup.POST("/delete-inflow-category", func(c *gin.Context) {
-		handler.DeleteInflowCategory(c)
-	})
-}
-
-func loggingRoutes(apiGroup *gin.RouterGroup, handler *handlers.LoggingHandler) {
-
-	apiGroup.GET("/get-activity-logs", func(c *gin.Context) {
-		handler.GetActivityLogs(c)
-	})
-	apiGroup.GET("/get-access-logs", func(c *gin.Context) {
-		handler.GetAccessLogs(c)
-	})
-	apiGroup.GET("/get-notification-logs", func(c *gin.Context) {
-		handler.GetNotificationLogs(c)
+	c.JSON(statusCode, gin.H{
+		"status": gin.H{
+			"api": gin.H{"http": httpHealthStatus},
+			"services": gin.H{
+				"database": gin.H{"mysql": dbStatus},
+			},
+		},
 	})
 }
