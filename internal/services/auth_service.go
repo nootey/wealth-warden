@@ -9,14 +9,17 @@ import (
 )
 
 type AuthService struct {
-	UserRepo *repositories.UserRepository
+	UserRepo       *repositories.UserRepository
+	LoggingService *LoggingService
 }
 
 func NewAuthService(
 	userRepo *repositories.UserRepository,
+	loggingService *LoggingService,
 ) *AuthService {
 	return &AuthService{
-		UserRepo: userRepo,
+		UserRepo:       userRepo,
+		LoggingService: loggingService,
 	}
 }
 

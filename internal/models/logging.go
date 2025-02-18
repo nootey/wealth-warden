@@ -7,9 +7,9 @@ import (
 
 type AccessLog struct {
 	ID          uint           `gorm:"primaryKey;autoIncrement" json:"id"`
+	Status      string         `gorm:"type:varchar(255);not null" json:"status"`
 	Event       string         `gorm:"type:varchar(255);not null" json:"event"`
 	Service     *string        `gorm:"type:varchar(255)" json:"service,omitempty"`
-	Status      string         `gorm:"type:varchar(255);not null" json:"status"`
 	IPAddress   *string        `gorm:"type:varchar(45)" json:"ip_address,omitempty"`
 	UserAgent   *string        `gorm:"type:text" json:"user_agent,omitempty"`
 	CauserID    *uint          `gorm:"index" json:"causer_id,omitempty"`
@@ -31,13 +31,13 @@ type ActivityLog struct {
 }
 
 type NotificationLog struct {
-	ID          uint           `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID      *uint          `gorm:"index" json:"user_id,omitempty"`
-	Type        string         `gorm:"type:varchar(255);not null" json:"type"`
-	Destination *string        `gorm:"type:varchar(255)" json:"destination,omitempty"`
-	Status      string         `gorm:"type:varchar(50);not null" json:"status"`
-	Message     *string        `gorm:"type:text" json:"message,omitempty"`
-	Metadata    datatypes.JSON `gorm:"type:json" json:"metadata,omitempty"`
-	CreatedAt   time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt   time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	ID               uint           `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID           *uint          `gorm:"index" json:"user_id,omitempty"`
+	NotificationType string         `gorm:"type:varchar(255);not null" json:"type"`
+	Destination      *string        `gorm:"type:varchar(255)" json:"destination,omitempty"`
+	Status           string         `gorm:"type:varchar(50);not null" json:"status"`
+	Message          *string        `gorm:"type:text" json:"message,omitempty"`
+	Metadata         datatypes.JSON `gorm:"type:json" json:"metadata,omitempty"`
+	CreatedAt        time.Time      `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt        time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 }

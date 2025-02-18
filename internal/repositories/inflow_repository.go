@@ -6,15 +6,15 @@ import (
 )
 
 type InflowRepository struct {
-	db *gorm.DB
+	Db *gorm.DB
 }
 
 func NewInflowRepository(db *gorm.DB) *InflowRepository {
-	return &InflowRepository{db: db}
+	return &InflowRepository{Db: db}
 }
 
 func (r *InflowRepository) CountInflowsByCategory(userID, categoryID uint, count *int64) error {
-	return r.db.Model(&models.Inflow{}).
+	return r.Db.Model(&models.Inflow{}).
 		Where("inflow_category_id = ?", categoryID).
 		Where("user_id = ?", userID).
 		Count(count).Error
@@ -22,7 +22,7 @@ func (r *InflowRepository) CountInflowsByCategory(userID, categoryID uint, count
 
 func (r *InflowRepository) CountInflows(userID uint) (int64, error) {
 	var totalRecords int64
-	err := r.db.Model(&models.Inflow{}).Where("user_id = ?", userID).Count(&totalRecords).Error
+	err := r.Db.Model(&models.Inflow{}).Where("user_id = ?", userID).Count(&totalRecords).Error
 	if err != nil {
 		return 0, err
 	}
@@ -33,7 +33,7 @@ func (r *InflowRepository) FindInflows(userID uint, offset, limit int, sortField
 	var inflows []models.Inflow
 	orderBy := sortField + " " + sortOrder
 
-	err := r.db.
+	err := r.Db.
 		Preload("InflowCategory").
 		Where("user_id = ?", userID).
 		Order(orderBy).
@@ -48,10 +48,28 @@ func (r *InflowRepository) FindInflows(userID uint, offset, limit int, sortField
 	return inflows, nil
 }
 
+func (r *InflowRepository) GetInflowByID(userID, inflowID uint) (*models.Inflow, error) {
+	var inflow models.Inflow
+	err := r.Db.Preload("InflowCategory").Where("id = ? AND user_id = ?", inflowID, userID).First(&inflow).Error
+	if err != nil {
+		return nil, err
+	}
+	return &inflow, nil
+}
+
+func (r *InflowRepository) GetInflowCategoryByID(userID, inflowCategoryID uint) (*models.InflowCategory, error) {
+	var inflowCategory models.InflowCategory
+	err := r.Db.Where("id = ? AND user_id = ?", inflowCategoryID, userID).First(&inflowCategory).Error
+	if err != nil {
+		return nil, err
+	}
+	return &inflowCategory, nil
+}
+
 func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint) ([]models.InflowSummary, error) {
 	var results []models.InflowSummary
 
-	err := r.db.Raw(`
+	err := r.Db.Raw(`
         SELECT * FROM (
             -- Regular category rows
             SELECT
@@ -94,36 +112,32 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint) ([]models.I
 
 func (r *InflowRepository) GetAllInflowCategories(userID uint) ([]models.InflowCategory, error) {
 	var inflowCategories []models.InflowCategory
-	result := r.db.Where("user_id = ?", userID).Find(&inflowCategories)
+	result := r.Db.Where("user_id = ?", userID).Find(&inflowCategories)
 	return inflowCategories, result.Error
 }
 
-func (r *InflowRepository) InsertInflow(userID uint, inflow *models.Inflow) error {
+func (r *InflowRepository) InsertInflow(tx *gorm.DB, userID uint, inflow *models.Inflow) error {
 	inflow.UserID = userID
-	if err := r.db.Create(&inflow).Error; err != nil {
+	if err := tx.Create(&inflow).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *InflowRepository) InsertInflowCategory(userID uint, inflowCategory *models.InflowCategory) error {
+func (r *InflowRepository) InsertInflowCategory(tx *gorm.DB, userID uint, inflowCategory *models.InflowCategory) error {
 	inflowCategory.UserID = userID
-	if err := r.db.Create(&inflowCategory).Error; err != nil {
+	if err := tx.Create(&inflowCategory).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *InflowRepository) DropInflow(userID uint, id uint) error {
-	result := r.db.Where("user_id = ?", userID).Delete(&models.Inflow{}, id)
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
+func (r *InflowRepository) DropInflow(tx *gorm.DB, userID uint, inflowID uint) error {
+	return tx.Where("id = ? AND user_id = ?", inflowID, userID).Delete(&models.Inflow{}).Error
 }
 
-func (r *InflowRepository) DropInflowCategory(userID uint, id uint) error {
-	result := r.db.Where("user_id = ?", userID).Delete(&models.InflowCategory{}, id)
+func (r *InflowRepository) DropInflowCategory(tx *gorm.DB, userID uint, id uint) error {
+	result := tx.Where("user_id = ?", userID).Delete(&models.InflowCategory{}, id)
 	if result.Error != nil {
 		return result.Error
 	}

@@ -25,7 +25,8 @@ func NewAuthHandler(cfg *config.Config, authService *services.AuthService) *Auth
 
 func (h *AuthHandler) LoginUser(c *gin.Context) {
 
-	//loginIP := c.ClientIP()
+	loginIP := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
 
 	var loginForm models.LoginForm
 	if err := c.ShouldBindJSON(&loginForm); err != nil {
@@ -35,12 +36,34 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 	userPassword, _ := h.Service.UserRepo.GetPasswordByEmail(loginForm.Email)
 	if userPassword == "" {
+
+		changes := utils.InitChanges()
+		description := "user does not exist"
+		utils.CompareChanges("", loginForm.Email, changes, "email")
+
+		logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "fail", "login", nil, &loginIP, &userAgent, nil, changes, &description)
+		if logErr != nil {
+			utils.ErrorMessage("Error occurred", logErr.Error(), http.StatusBadRequest)(c, logErr)
+			return
+		}
+
 		utils.ErrorMessage("Error occurred", "Incorrect credentials", http.StatusUnauthorized)(c, nil)
 		return
 	}
 
 	err := bcrypt.CompareHashAndPassword([]byte(userPassword), []byte(loginForm.Password))
 	if err != nil {
+
+		changes := utils.InitChanges()
+		description := "incorrect password"
+		utils.CompareChanges("", loginForm.Email, changes, "email")
+
+		logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "fail", "login", nil, &loginIP, &userAgent, nil, changes, &description)
+		if logErr != nil {
+			utils.ErrorMessage("Error occurred", logErr.Error(), http.StatusBadRequest)(c, logErr)
+			return
+		}
+
 		utils.ErrorMessage("Error occurred", "Incorrect credentials", http.StatusUnauthorized)(c, err)
 		return
 	}
@@ -72,6 +95,12 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 	//if secrets.IPLog == false {
 	//	loginIP = ""
 	//}
+
+	logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "success", "login", nil, &loginIP, &userAgent, nil, nil, nil)
+	if logErr != nil {
+		utils.ErrorMessage("Error occurred", logErr.Error(), http.StatusBadRequest)(c, logErr)
+		return
+	}
 
 	// Set cookies and return success message as in your original function
 	c.SetSameSite(http.SameSiteLaxMode)

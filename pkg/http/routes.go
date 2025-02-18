@@ -60,18 +60,18 @@ func InitEndpoints(router *gin.Engine, cfg *config.Config, dbClient *gorm.DB) {
 		healthCheck(c, cfg)
 	})
 
-	userRepo := repositories.NewUserRepository(dbClient)
 	loggingRepo := repositories.NewLoggingRepository(dbClient)
+	userRepo := repositories.NewUserRepository(dbClient)
 	inflowRepo := repositories.NewInflowRepository(dbClient)
 
-	authService := services.NewAuthService(userRepo)
-	userService := services.NewUserService(cfg, userRepo)
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
+	authService := services.NewAuthService(userRepo, loggingService)
+	userService := services.NewUserService(cfg, userRepo)
 	inflowService := services.NewInflowService(cfg, authService, loggingService, inflowRepo)
 
+	loggingHandler := handlers.NewLoggingHandler(loggingService)
 	authHandler := handlers.NewAuthHandler(cfg, authService)
 	userHandler := handlers.NewUserHandler(userService)
-	loggingHandler := handlers.NewLoggingHandler(loggingService)
 	inflowHandler := handlers.NewInflowHandler(inflowService)
 
 	authenticatedGroup := router.Group(apiPrefixV1, middleware.WebClientAuthentication())
