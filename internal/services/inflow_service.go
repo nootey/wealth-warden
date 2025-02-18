@@ -72,6 +72,11 @@ func (s *InflowService) CreateInflow(c *gin.Context, inflow *models.Inflow) erro
 	}
 	changes := utils.InitChanges()
 
+	tx := s.InflowRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
 	amountString := strconv.FormatFloat(inflow.Amount, 'f', 6, 64)
 
 	utils.CompareChanges("", inflow.InflowCategory.Name, changes, "inflow_category")
@@ -79,12 +84,12 @@ func (s *InflowService) CreateInflow(c *gin.Context, inflow *models.Inflow) erro
 
 	fmt.Println(changes)
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog("create", "inflow", nil, changes, user)
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow", nil, changes, user)
 	if err != nil {
 		return err
 	}
 
-	err = s.InflowRepo.InsertInflow(user.ID, inflow)
+	err = s.InflowRepo.InsertInflow(tx, user.ID, inflow)
 	if err != nil {
 		return err
 	}
@@ -92,27 +97,72 @@ func (s *InflowService) CreateInflow(c *gin.Context, inflow *models.Inflow) erro
 }
 
 func (s *InflowService) CreateInflowCategory(c *gin.Context, inflowCategory *models.InflowCategory) error {
+
 	user, err := s.AuthService.GetCurrentUser(c)
 	if err != nil {
 		return err
 	}
-	err = s.InflowRepo.InsertInflowCategory(user.ID, inflowCategory)
+	changes := utils.InitChanges()
+
+	tx := s.InflowRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	utils.CompareChanges("", inflowCategory.Name, changes, "category")
+
+	err = s.InflowRepo.InsertInflowCategory(tx, user.ID, inflowCategory)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
-	return nil
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow_category", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }
 
 func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
+
 	user, err := s.AuthService.GetCurrentUser(c)
 	if err != nil {
 		return err
 	}
-	err = s.InflowRepo.DropInflow(user.ID, id)
+	changes := utils.InitChanges()
+
+	tx := s.InflowRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	inflow, err := s.InflowRepo.GetInflowByID(user.ID, id)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
-	return nil
+
+	amountString := strconv.FormatFloat(inflow.Amount, 'f', 6, 64)
+
+	utils.CompareChanges(inflow.InflowCategory.Name, "", changes, "inflow")
+	utils.CompareChanges(amountString, "", changes, "amount")
+
+	err = s.InflowRepo.DropInflow(tx, user.ID, id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "inflow", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }
 
 func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
@@ -122,6 +172,18 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 		return err
 	}
 	var count int64
+	changes := utils.InitChanges()
+
+	tx := s.InflowRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	inflowCategory, err := s.InflowRepo.GetInflowCategoryByID(user.ID, id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	if err := s.InflowRepo.CountInflowsByCategory(user.ID, id, &count); err != nil {
 		return err
@@ -131,9 +193,19 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 		return fmt.Errorf("cannot delete inflow category: it is being used by %d inflow(s)", count)
 	}
 
-	err = s.InflowRepo.DropInflowCategory(user.ID, id)
+	utils.CompareChanges(inflowCategory.Name, "", changes, "category")
+
+	err = s.InflowRepo.DropInflowCategory(tx, user.ID, id)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
-	return nil
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "inflow_category", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }

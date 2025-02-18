@@ -38,7 +38,19 @@ func (r *LoggingRepository) FindLogs(tableName string, offset, limit int, sortFi
 	return logs, nil
 }
 
-func (r *LoggingRepository) InsertActivityLog(event string, category string, description *string, payload *utils.Changes, causer *models.User) error {
+func (r *LoggingRepository) InsertActivityLog(
+	tx *gorm.DB,
+	event string,
+	category string,
+	description *string,
+	payload *utils.Changes,
+	causer *models.User,
+) error {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
 
 	doc := models.ActivityLog{
 		Event:       event,
@@ -61,9 +73,89 @@ func (r *LoggingRepository) InsertActivityLog(event string, category string, des
 		doc.CauserID = &causer.ID
 	}
 
-	if err := r.db.Table("activity_logs").Create(&doc).Error; err != nil {
-		return err
+	return db.Table("activity_logs").Create(&doc).Error
+}
+
+func (r *LoggingRepository) InsertAccessLog(
+	tx *gorm.DB,
+	status string,
+	event string,
+	service *string,
+	ip *string,
+	userAgent *string,
+	causer *models.User,
+	payload *utils.Changes,
+	description *string,
+) error {
+
+	db := tx
+	if db == nil {
+		db = r.db
 	}
 
-	return nil
+	doc := models.AccessLog{
+		Event:       event,
+		Status:      status,
+		Service:     service,
+		IPAddress:   ip,
+		UserAgent:   userAgent,
+		Description: description,
+	}
+
+	if payload != nil && (len(payload.New) != 0 || len(payload.Old) != 0) {
+		metadata, err := json.Marshal(map[string]interface{}{
+			"new": payload.New,
+			"old": payload.Old,
+		})
+		if err != nil {
+			return err
+		}
+		doc.Metadata = metadata
+	}
+
+	if causer != nil {
+		doc.CauserID = &causer.ID
+	}
+
+	return db.Table("access_logs").Create(&doc).Error
+}
+
+func (r *LoggingRepository) InsertNotificationLog(
+	tx *gorm.DB,
+	status string,
+	notificationType string,
+	message *string,
+	destination *string,
+	causer *models.User,
+	payload *utils.Changes,
+) error {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	doc := models.NotificationLog{
+		NotificationType: notificationType,
+		Status:           status,
+		Message:          message,
+		Destination:      destination,
+	}
+
+	if payload != nil && (len(payload.New) != 0 || len(payload.Old) != 0) {
+		metadata, err := json.Marshal(map[string]interface{}{
+			"new": payload.New,
+			"old": payload.Old,
+		})
+		if err != nil {
+			return err
+		}
+		doc.Metadata = metadata
+	}
+
+	if causer != nil {
+		doc.UserID = &causer.ID
+	}
+
+	return db.Table("notification_logs").Create(&doc).Error
 }
