@@ -77,23 +77,24 @@ func (s *InflowService) CreateInflow(c *gin.Context, inflow *models.Inflow) erro
 		return tx.Error
 	}
 
-	amountString := strconv.FormatFloat(inflow.Amount, 'f', 6, 64)
+	amountString := strconv.FormatFloat(inflow.Amount, 'f', 2, 64)
 
 	utils.CompareChanges("", inflow.InflowCategory.Name, changes, "inflow_category")
 	utils.CompareChanges("", amountString, changes, "amount")
 
-	fmt.Println(changes)
+	err = s.InflowRepo.InsertInflow(tx, user.ID, inflow)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow", nil, changes, user)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	err = s.InflowRepo.InsertInflow(tx, user.ID, inflow)
-	if err != nil {
-		return err
-	}
-	return nil
+	return tx.Commit().Error
 }
 
 func (s *InflowService) CreateInflowCategory(c *gin.Context, inflowCategory *models.InflowCategory) error {
@@ -145,7 +146,7 @@ func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
 		return err
 	}
 
-	amountString := strconv.FormatFloat(inflow.Amount, 'f', 6, 64)
+	amountString := strconv.FormatFloat(inflow.Amount, 'f', 2, 64)
 
 	utils.CompareChanges(inflow.InflowCategory.Name, "", changes, "inflow")
 	utils.CompareChanges(amountString, "", changes, "amount")
