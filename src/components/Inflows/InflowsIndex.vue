@@ -5,7 +5,7 @@ import LoadingSpinner from "../Utils/LoadingSpinner.vue";
 import {useToastStore} from "../../services/stores/toastStore.ts";
 import dateHelper from "../../utils/dateHelper.ts"
 import ValidationError from "../Validation/ValidationError.vue";
-import {required} from "@vuelidate/validators";
+import {required, numeric,} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import InflowCategories from "./InflowCategories.vue";
 import vueHelper from "../../utils/vueHelper.ts";
@@ -31,6 +31,9 @@ const inflowRules = {
   newInflow: {
     amount: {
       required,
+      numeric,
+      minValue: 0,
+      maxValue: 1000000000,
       $autoDirty: true
     },
     inflowCategory: {
