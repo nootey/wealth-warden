@@ -74,7 +74,32 @@ func ErrorMessage(title string, message string, code int) func(c *gin.Context, e
 	}
 }
 
-// PrintError PrintRed prints the given text in red color.
+func ValidationFailed(message string) func(c *gin.Context, err error) {
+
+	return func(c *gin.Context, err error) {
+		response := struct {
+			Title   string `json:"title"`
+			Message string `json:"message"`
+			Code    int    `json:"code"`
+		}{
+			Title:   "Validation failed",
+			Message: message,
+			Code:    422,
+		}
+		if err != nil {
+			prodMode := os.Getenv("RELEASE")
+			prod, err2 := strconv.ParseBool(prodMode)
+			if err2 != nil {
+				prod = false
+			}
+			if prod == false {
+				PrintError(err)
+			}
+		}
+		c.JSON(422, response)
+	}
+}
+
 func PrintError(err error) {
 	fmt.Println("\033[31m" + err.Error() + "\033[0m")
 }
@@ -83,12 +108,10 @@ func WarnError(message string) {
 	fmt.Println("\033[31m" + message + "\033[0m")
 }
 
-// PrintSuccess PrintGreen prints the given text in green color.
 func PrintSuccess(text string) {
 	fmt.Println("\033[32m" + text + "\033[0m")
 }
 
-// PrintInfo PrintBlue prints the given text in blue color.
 func PrintInfo(text string) {
 	fmt.Println("\033[34;1m" + text + "\033[0m")
 }

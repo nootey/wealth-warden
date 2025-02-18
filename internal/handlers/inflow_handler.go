@@ -6,6 +6,7 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
+	"wealth-warden/pkg/validators"
 )
 
 type InflowHandler struct {
@@ -70,11 +71,24 @@ func (h *InflowHandler) GetAllInflowCategories(c *gin.Context) {
 }
 
 func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
-	var inflow *models.Inflow
 
-	if err := c.ShouldBindJSON(&inflow); err != nil {
-		utils.ErrorMessage("Json bind error", err.Error(), http.StatusInternalServerError)(c, err)
+	var req validators.CreateInflowRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
 		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(err.Error())(c, nil)
+		return
+	}
+
+	inflow := &models.Inflow{
+		InflowCategoryID: req.InflowCategoryID,
+		Amount:           req.Amount,
+		InflowDate:       req.InflowDate,
 	}
 
 	if err := h.Service.CreateInflow(c, inflow); err != nil {
@@ -86,11 +100,22 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 }
 
 func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
-	var inflowCategory *models.InflowCategory
 
-	if err := c.ShouldBindJSON(&inflowCategory); err != nil {
-		utils.ErrorMessage("Json bind error", err.Error(), http.StatusInternalServerError)(c, err)
+	var req validators.CreateInflowCategoryRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
 		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(err.Error())(c, nil)
+		return
+	}
+
+	inflowCategory := &models.InflowCategory{
+		Name: req.Name,
 	}
 
 	if err := h.Service.CreateInflowCategory(c, inflowCategory); err != nil {
