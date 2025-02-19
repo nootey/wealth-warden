@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"errors"
 	"gorm.io/gorm"
 	"wealth-warden/internal/models"
 )
@@ -125,6 +126,15 @@ func (r *InflowRepository) InsertInflow(tx *gorm.DB, userID uint, inflow *models
 }
 
 func (r *InflowRepository) InsertInflowCategory(tx *gorm.DB, userID uint, inflowCategory *models.InflowCategory) error {
+
+	var existing models.InflowCategory
+	if err := tx.Where("user_id = ? AND name = ?", userID, inflowCategory.Name).First(&existing).Error; err == nil {
+		return errors.New("category with this name already exists")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	// Insert new category
 	inflowCategory.UserID = userID
 	if err := tx.Create(&inflowCategory).Error; err != nil {
 		return err
