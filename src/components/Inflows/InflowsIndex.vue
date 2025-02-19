@@ -421,7 +421,10 @@ function calculateStatistics(groupedInflows: Inflow[]): void {
 
       <div class="flex flex-row w-full">
         <div class="flex flex-column w-full">
-          <ComparativePieChart :firstValue="chartHelper.extractAllFor(inflowStatistics, 'category', 'Salary').totalSum" firstLabel="Salary" :secondValue="chartHelper.extractAllBut(inflowStatistics, 'category', 'Salary').totalSum" secondLabel="Other" />
+          <ComparativePieChart
+              :values="inflowStatistics.filter(item => item.category !== 'Total').map(item => item.total)"
+              :labels="inflowStatistics.filter(item => item.category !== 'Total').map(item => item.category)"
+          />
         </div>
       </div>
     </div>

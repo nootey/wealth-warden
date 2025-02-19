@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {onMounted, ref, watch} from "vue";
+import { ref, watch} from "vue";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, PieController } from "chart.js";
 import { PieChart } from "vue-chart-3";
 import type { ChartData } from "chart.js";
@@ -8,39 +8,47 @@ import type { ChartData } from "chart.js";
 ChartJS.register(PieController, ArcElement, Tooltip, Legend);
 
 const props = defineProps<{
-  firstValue: number;
-  firstLabel: string;
-  secondValue: number;
-  secondLabel: string;
+  values: number[];
+  labels: string[];
 }>();
 
-
-// Initialize the chart with both values set to 0
 const chartData = ref<ChartData<"pie">>({
-  labels: [props.firstLabel, props.secondLabel],
+  labels: props.labels,
   datasets: [
     {
-      data: [0, 0],
-      backgroundColor: ["#36A2EB", "#FF6384"]
+      data: props.values,
+      backgroundColor: ["#36A2EB", "#FF6384", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40"]
     }
   ]
 });
 
-// Watch for prop changes and update chart data
+const generateColors = (count: number) => {
+  const colors = [
+    "#36A2EB", "#FF6384", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40"
+  ];
+
+  // If there are more categories than predefined colors, generate random colors
+  while (colors.length < count) {
+    colors.push(`#${Math.floor(Math.random() * 16777215).toString(16)}`);
+  }
+
+  return colors.slice(0, count);
+};
+
 watch(
-    () => [props.firstValue, props.secondValue, props.firstLabel, props.secondLabel],
-    ([newFirstValue, newSecondValue, newFirstLabel, newSecondLabel]) => {
+    () => [props.values, props.labels],
+    ([newValues, newLabels]) => {
       chartData.value = {
-        labels: [newFirstLabel, newSecondLabel],
+        labels: newLabels,
         datasets: [
           {
-            data: [newFirstValue, newSecondValue],
-            backgroundColor: ["#36A2EB", "#FF6384"]
+            data: newValues,
+            backgroundColor: generateColors(newLabels.length)
           }
         ]
       };
     },
-    { immediate: true } // Run the watcher immediately to set the initial values
+    { immediate: true }
 );
 
 const chartOptions = ref({
