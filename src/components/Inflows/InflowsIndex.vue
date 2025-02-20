@@ -9,9 +9,9 @@ import {required, numeric,} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import InflowCategories from "./InflowCategories.vue";
 import vueHelper from "../../utils/vueHelper.ts";
-import chartHelper from "../../utils/chartHelper.ts";
-import type {GroupedItem, Inflow, Statistics} from '../../models/inflows.ts';
-import ComparativePieChart from "../Statistics/Charts/ComparativePieChart.vue";
+import type {GroupedItem, Inflow, Statistics, InflowGroup} from '../../models/inflows.ts';
+import BasicStatDisplay from "../Shared/BasicStatDisplay.vue";
+import DisplayMonthlyDate from "../Shared/DisplayMonthlyDate.vue";
 
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();
@@ -19,7 +19,7 @@ const toastStore = useToastStore();
 const loadingInflows = ref(true);
 const loadingGroupedInflows = ref(true);
 const inflows = ref([]);
-const groupedInflows = ref([]);
+const groupedInflows = ref<InflowGroup[]>([]);
 const newInflow = ref(initInflow());
 
 const inflowCategories = computed(() => inflowStore.inflowCategories);
@@ -243,7 +243,7 @@ function calculateStatistics(groupedInflows: Inflow[]): void {
           :modal="true" :style="{width: '800px'}" header="Inflow categories">
     <InflowCategories></InflowCategories>
   </Dialog>
-  <div class="flex w-12 p-2">
+  <div class="flex w-full p-2">
     <div class="flex w-9 flex-column p-2 gap-3">
 
       <div class="flex flex-row p-1">
@@ -254,37 +254,11 @@ function calculateStatistics(groupedInflows: Inflow[]): void {
 
       <div class="flex flex-row p-1">
         <h3>
-          Inflows by month
-        </h3>
-      </div>
-
-      <div class="flex flex-row w-full">
-        <div class="flex flex-column w-full">
-          <DataTable :value="vueHelper.pivotedRecords(groupedInflows)" size="small" showGridlines>
-            <Column field="inflow_category_name" header="Category" style="max-width: 2rem;"/>
-
-            <Column
-                v-for="month in dateHelper.monthColumns.value"
-                :key="month"
-                :field="month.toString()"
-                :header="dateHelper.formatMonth(month)"
-                :body="(data: any) => data[month] ? data[month] : 0"
-                style="max-width: 1rem;">
-              <template #body="slotProps">
-                {{ vueHelper.displayAsCurrency(slotProps.data[month])}}
-              </template>
-            </Column>
-          </DataTable>
-        </div>
-      </div>
-
-      <div class="flex flex-row p-1">
-        <h3>
           Add a new inflow
         </h3>
       </div>
 
-      <div class="flex flex-row gap-2">
+      <div class="flex flex-row gap-2 w-full">
 
         <div class="flex flex-column">
           <ValidationError :isRequired="true" :message="v$.newInflow.inflowCategory.$errors[0]?.$message">
@@ -316,7 +290,7 @@ function calculateStatistics(groupedInflows: Inflow[]): void {
             <label>Date</label>
           </ValidationError>
           <DatePicker v-model="newInflow.inflowDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
-          style="height: 42px;"/>
+                      style="height: 42px;"/>
         </div>
 
         <div class="flex flex-column">
@@ -337,12 +311,20 @@ function calculateStatistics(groupedInflows: Inflow[]): void {
 
       <div class="flex flex-row p-1">
         <h3>
+          Inflows by month
+        </h3>
+      </div>
+
+      <DisplayMonthlyDate :groupedValues="groupedInflows" />
+
+      <div class="flex flex-row p-1 w-full">
+        <h3>
           All inflows
         </h3>
       </div>
 
-      <div class="flex flex-row gap-2">
-        <DataTable dataKey="id" :loading="loadingInflows" :value="inflows" size="small">
+      <div class="flex flex-row gap-2 w-full">
+        <DataTable class="w-full" dataKey="id" :loading="loadingInflows" :value="inflows" size="small">
           <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
           <template #loading> <LoadingSpinner></LoadingSpinner> </template>
           <template #footer>
@@ -385,8 +367,8 @@ function calculateStatistics(groupedInflows: Inflow[]): void {
 
         </DataTable>
       </div>
-
     </div>
+
     <div class="flex flex-column w-3 p-2 gap-3" style="border-left: 1px solid var(--text-primary);">
 
       <div class="flex flex-row p-1">
@@ -401,31 +383,12 @@ function calculateStatistics(groupedInflows: Inflow[]): void {
         </h3>
       </div>
 
-      <div class="flex flex-row w-full">
-        <div class="flex flex-column w-full">
-          <DataTable :value="inflowStatistics" size="small" showGridlines>
-            <Column field="category" header="Category" style="max-width: 2rem;"/>
-            <Column field="total" header="Total" style="max-width: 2rem;">
-              <template #body="slotProps">
-                {{vueHelper.displayAsCurrency(slotProps.data.total)}}
-              </template>
-            </Column>
-            <Column field="average" header="Average" style="max-width: 2rem;">
-              <template #body="slotProps">
-                {{vueHelper.displayAsCurrency(slotProps.data.average)}}
-              </template>
-            </Column>
-          </DataTable>
-        </div>
-      </div>
+      <BasicStatDisplay :basicStats="inflowStatistics" />
 
-      <div class="flex flex-row w-full">
-        <div class="flex flex-column w-full">
-          <ComparativePieChart
-              :values="inflowStatistics.filter(item => item.category !== 'Total').map(item => item.total)"
-              :labels="inflowStatistics.filter(item => item.category !== 'Total').map(item => item.category)"
-          />
-        </div>
+      <div class="flex flex-row p-1">
+        <h3>
+          Reoccurring
+        </h3>
       </div>
     </div>
   </div>

@@ -16,3 +16,10 @@ export interface Statistics {
     total: number;
     average: number;
 }
+
+export interface InflowGroup {
+    month: number;
+    total_amount: number;
+    inflow_category_id: number;
+    inflow_category_name: string;
+}
