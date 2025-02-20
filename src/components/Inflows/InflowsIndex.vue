@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import {useInflowStore} from "../../services/stores/inflowStore.ts";
-import {computed, ref} from "vue";
+import {computed, onMounted, provide, ref} from "vue";
 import LoadingSpinner from "../Utils/LoadingSpinner.vue";
 import {useToastStore} from "../../services/stores/toastStore.ts";
 import dateHelper from "../../utils/dateHelper.ts"
 import ValidationError from "../Validation/ValidationError.vue";
-import {required, numeric,} from "@vuelidate/validators";
-import useVuelidate from "@vuelidate/core";
+
 import InflowCategories from "./InflowCategories.vue";
 import vueHelper from "../../utils/vueHelper.ts";
 import type {GroupedItem, Inflow, Statistics, InflowGroup} from '../../models/inflows.ts';
 import BasicStatDisplay from "../Shared/BasicStatDisplay.vue";
 import DisplayMonthlyDate from "../Shared/DisplayMonthlyDate.vue";
+import InflowCreate from "./InflowCreate.vue";
 
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();
@@ -20,34 +20,10 @@ const loadingInflows = ref(true);
 const loadingGroupedInflows = ref(true);
 const inflows = ref([]);
 const groupedInflows = ref<InflowGroup[]>([]);
-const newInflow = ref(initInflow());
 
-const inflowCategories = computed(() => inflowStore.inflowCategories);
-const filteredInflowCategories = ref([]);
-const categoryModal = ref(false);
+const addInflowModal = ref(false);
+const addCategoryModal = ref(false);
 const inflowStatistics = ref<Statistics[]>([]);
-
-const inflowRules = {
-  newInflow: {
-    amount: {
-      required,
-      numeric,
-      minValue: 0,
-      maxValue: 1000000000,
-      $autoDirty: true
-    },
-    inflowCategory: {
-      required,
-      $autoDirty: true
-    },
-    inflowDate: {
-      required,
-      $autoDirty: true
-    },
-  }
-};
-
-const v$ = useVuelidate(inflowRules, { newInflow });
 
 const params = computed(() => {
   return {
@@ -67,14 +43,12 @@ const paginator = ref({
 const page = ref(1);
 const sort = ref(initSort(true));
 
-init();
-
-async function init() {
+onMounted(async () => {
   await getData();
   await inflowStore.getInflowCategories();
   await getGroupedData();
   initSort();
-}
+});
 
 function initSort(init = false) {
   let obj = {
@@ -85,26 +59,6 @@ function initSort(init = false) {
     return obj;
   }
   sort.value = obj;
-}
-
-function initInflow():object {
-  return {
-    amount: null,
-    inflowCategory: [],
-    inflowDate: dateHelper.formatDate(new Date(), true),
-  }
-}
-
-const searchInflowCategory = (event: any) => {
-  setTimeout(() => {
-    if (!event.query.trim().length) {
-      filteredInflowCategories.value = [...inflowCategories.value];
-    } else {
-      filteredInflowCategories.value = inflowCategories.value.filter((inflowCategory) => {
-        return inflowCategory.name.toLowerCase().startsWith(event.query.toLowerCase());
-      });
-    }
-  }, 250);
 }
 
 async function getData(new_page = null) {
@@ -147,37 +101,7 @@ async function onPage(event: any) {
   await getData();
 }
 
-async function createNewInflow() {
 
-  v$.value.newInflow.amount.$touch();
-  v$.value.newInflow.inflowDate.$touch();
-  v$.value.newInflow.inflowCategory.$touch();
-  if (v$.value.newInflow.$error) return;
-
-  try {
-    let inflow_date = dateHelper.mergeDateWithCurrentTime(newInflow.value.inflowDate, "Europe/Ljubljana");
-    let response = await inflowStore.createInflow({
-      inflow_category_id: newInflow.value.inflowCategory.id,
-      inflow_category: newInflow.value.inflowCategory,
-      amount: newInflow.value.amount,
-      inflow_date: inflow_date});
-
-    newInflow.value = initInflow();
-    v$.value.newInflow.$reset();
-
-    await getData();
-    await getGroupedData();
-
-    toastStore.successResponseToast(response);
-
-  } catch (error) {
-    toastStore.errorResponseToast(error);
-  }
-}
-
-async function editInflow(id: number) {
-  console.log(id)
-}
 
 async function removeInflow(id: number) {
   try {
@@ -191,8 +115,12 @@ async function removeInflow(id: number) {
 
 function manipulateDialog(modal: string, value: boolean) {
   switch (modal) {
-    case 'category': {
-      categoryModal.value = value;
+    case 'add-inflow': {
+      addInflowModal.value = value;
+      break;
+    }
+    case 'add-category': {
+      addCategoryModal.value = value;
       break;
     }
     default: {
@@ -236,13 +164,22 @@ function calculateStatistics(groupedInflows: Inflow[]): void {
   });
 }
 
+provide("getData", getData)
+provide("getGroupedData", getGroupedData)
+
 </script>
 
 <template>
-  <Dialog v-model:visible="categoryModal" :breakpoints="{'801px': '90vw'}"
-          :modal="true" :style="{width: '800px'}" header="Inflow categories">
+
+  <Dialog v-model:visible="addInflowModal" :breakpoints="{'801px': '90vw'}"
+          :modal="true" :style="{width: '800px'}" header="Add entries">
+    <InflowCreate></InflowCreate>
+  </Dialog>
+  <Dialog v-model:visible="addCategoryModal" :breakpoints="{'801px': '90vw'}"
+          :modal="true" :style="{width: '800px'}" header="Add entries">
     <InflowCategories></InflowCategories>
   </Dialog>
+
   <div class="flex w-full p-2">
     <div class="flex w-9 flex-column p-2 gap-3">
 
@@ -260,72 +197,20 @@ function calculateStatistics(groupedInflows: Inflow[]): void {
 
 
       <div class="flex flex-row p-1 w-full gap-3">
-        <div class="flex flex-column w-6">
-          <div class="flex flex-column w-8">
-            <ValidationError :isRequired="false" message="">
-              <label>Inflows</label>
-            </ValidationError>
-            <Button icon="pi pi-box" label="View" @click="manipulateDialog('category', true)"></Button>
-          </div>
+        <div class="flex flex-column w-6 justify-content-center align-items-center">
+          <ValidationError :isRequired="false" message="">
+            <label>Inflows</label>
+          </ValidationError>
+          <Button class="w-6" icon="pi pi-box" label="View" @click="manipulateDialog('add-inflow', true)"></Button>
         </div>
 
-        <div class="flex flex-column w-6">
-        <div class="flex flex-column w-8">
+        <div class="flex flex-column w-6 justify-content-center align-items-center">
           <ValidationError :isRequired="false" message="">
             <label>Inflow categories</label>
           </ValidationError>
-          <Button icon="pi pi-box" label="View" @click="manipulateDialog('category', true)"></Button>
-        </div>
+          <Button class="w-6" icon="pi pi-box" label="View" @click="manipulateDialog('add-category', true)"></Button>
         </div>
       </div>
-
-
-
-<!--      <div class="flex flex-row gap-2 w-full">-->
-
-<!--        <div class="flex flex-column">-->
-<!--          <ValidationError :isRequired="true" :message="v$.newInflow.inflowCategory.$errors[0]?.$message">-->
-<!--            <label>Category</label>-->
-<!--          </ValidationError>-->
-<!--          <InputGroup>-->
-<!--            <InputGroupAddon>-->
-<!--              <i class="pi pi-address-book"></i>-->
-<!--            </InputGroupAddon>-->
-<!--            <AutoComplete size="small" v-model="newInflow.inflowCategory" :suggestions="filteredInflowCategories"-->
-<!--                          @complete="searchInflowCategory" option-label="name" placeholder="Select category" dropdown></AutoComplete>-->
-<!--          </InputGroup>-->
-<!--        </div>-->
-
-<!--        <div class="flex flex-column">-->
-<!--          <ValidationError :isRequired="true" :message="v$.newInflow.amount.$errors[0]?.$message">-->
-<!--            <label>Amount</label>-->
-<!--          </ValidationError>-->
-<!--          <InputGroup>-->
-<!--            <InputGroupAddon>-->
-<!--              <i class="pi pi-wallet"></i>-->
-<!--            </InputGroupAddon>-->
-<!--            <InputNumber size="small" v-model="newInflow.amount" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00"></InputNumber>-->
-<!--          </InputGroup>-->
-<!--        </div>-->
-
-<!--        <div class="flex flex-column">-->
-<!--          <ValidationError :isRequired="true" :message="v$.newInflow.inflowDate.$errors[0]?.$message">-->
-<!--            <label>Date</label>-->
-<!--          </ValidationError>-->
-<!--          <DatePicker v-model="newInflow.inflowDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"-->
-<!--                      style="height: 42px;"/>-->
-<!--        </div>-->
-
-<!--        <div class="flex flex-column">-->
-<!--          <ValidationError :isRequired="false" message="">-->
-<!--            <label>Submit</label>-->
-<!--          </ValidationError>-->
-<!--          <Button icon="pi pi-cart-plus" @click="createNewInflow" style="height: 42px;" />-->
-<!--        </div>-->
-
-
-
-<!--      </div>-->
 
       <div class="flex flex-row p-1">
         <h3>

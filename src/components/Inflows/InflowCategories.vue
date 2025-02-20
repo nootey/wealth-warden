@@ -64,11 +64,11 @@ async function removeInflowCategory(id: number) {
 </script>
 
 <template>
-  <div class="flex flex-column w-full p-3 gap-3">
+  <div class="flex flex-column w-full p-1 gap-4">
     <div class="flex flex-row p-1 w-full">
-      <h1>
+      <h2>
         Inflow Categories
-      </h1>
+      </h2>
     </div>
     <div class="flex flex-row p-1 w-full">
         <span>
