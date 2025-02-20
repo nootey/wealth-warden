@@ -254,60 +254,78 @@ function calculateStatistics(groupedInflows: Inflow[]): void {
 
       <div class="flex flex-row p-1">
         <h3>
-          Add a new inflow
+          Add a new item
         </h3>
       </div>
 
-      <div class="flex flex-row gap-2 w-full">
 
-        <div class="flex flex-column">
-          <ValidationError :isRequired="true" :message="v$.newInflow.inflowCategory.$errors[0]?.$message">
-            <label>Category</label>
-          </ValidationError>
-          <InputGroup>
-            <InputGroupAddon>
-              <i class="pi pi-address-book"></i>
-            </InputGroupAddon>
-            <AutoComplete size="small" v-model="newInflow.inflowCategory" :suggestions="filteredInflowCategories"
-                          @complete="searchInflowCategory" option-label="name" placeholder="Select category" dropdown></AutoComplete>
-          </InputGroup>
+      <div class="flex flex-row p-1 w-full gap-3">
+        <div class="flex flex-column w-6">
+          <div class="flex flex-column w-8">
+            <ValidationError :isRequired="false" message="">
+              <label>Inflows</label>
+            </ValidationError>
+            <Button icon="pi pi-box" label="View" @click="manipulateDialog('category', true)"></Button>
+          </div>
         </div>
 
-        <div class="flex flex-column">
-          <ValidationError :isRequired="true" :message="v$.newInflow.amount.$errors[0]?.$message">
-            <label>Amount</label>
-          </ValidationError>
-          <InputGroup>
-            <InputGroupAddon>
-              <i class="pi pi-wallet"></i>
-            </InputGroupAddon>
-            <InputNumber size="small" v-model="newInflow.amount" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00"></InputNumber>
-          </InputGroup>
-        </div>
-
-        <div class="flex flex-column">
-          <ValidationError :isRequired="true" :message="v$.newInflow.inflowDate.$errors[0]?.$message">
-            <label>Date</label>
-          </ValidationError>
-          <DatePicker v-model="newInflow.inflowDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
-                      style="height: 42px;"/>
-        </div>
-
-        <div class="flex flex-column">
-          <ValidationError :isRequired="false" message="">
-            <label>Submit</label>
-          </ValidationError>
-          <Button icon="pi pi-cart-plus" @click="createNewInflow" style="height: 42px;" />
-        </div>
-
-        <div class="flex flex-column" style="margin-left: auto;">
+        <div class="flex flex-column w-6">
+        <div class="flex flex-column w-8">
           <ValidationError :isRequired="false" message="">
             <label>Inflow categories</label>
           </ValidationError>
           <Button icon="pi pi-box" label="View" @click="manipulateDialog('category', true)"></Button>
         </div>
-
+        </div>
       </div>
+
+
+
+<!--      <div class="flex flex-row gap-2 w-full">-->
+
+<!--        <div class="flex flex-column">-->
+<!--          <ValidationError :isRequired="true" :message="v$.newInflow.inflowCategory.$errors[0]?.$message">-->
+<!--            <label>Category</label>-->
+<!--          </ValidationError>-->
+<!--          <InputGroup>-->
+<!--            <InputGroupAddon>-->
+<!--              <i class="pi pi-address-book"></i>-->
+<!--            </InputGroupAddon>-->
+<!--            <AutoComplete size="small" v-model="newInflow.inflowCategory" :suggestions="filteredInflowCategories"-->
+<!--                          @complete="searchInflowCategory" option-label="name" placeholder="Select category" dropdown></AutoComplete>-->
+<!--          </InputGroup>-->
+<!--        </div>-->
+
+<!--        <div class="flex flex-column">-->
+<!--          <ValidationError :isRequired="true" :message="v$.newInflow.amount.$errors[0]?.$message">-->
+<!--            <label>Amount</label>-->
+<!--          </ValidationError>-->
+<!--          <InputGroup>-->
+<!--            <InputGroupAddon>-->
+<!--              <i class="pi pi-wallet"></i>-->
+<!--            </InputGroupAddon>-->
+<!--            <InputNumber size="small" v-model="newInflow.amount" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00"></InputNumber>-->
+<!--          </InputGroup>-->
+<!--        </div>-->
+
+<!--        <div class="flex flex-column">-->
+<!--          <ValidationError :isRequired="true" :message="v$.newInflow.inflowDate.$errors[0]?.$message">-->
+<!--            <label>Date</label>-->
+<!--          </ValidationError>-->
+<!--          <DatePicker v-model="newInflow.inflowDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"-->
+<!--                      style="height: 42px;"/>-->
+<!--        </div>-->
+
+<!--        <div class="flex flex-column">-->
+<!--          <ValidationError :isRequired="false" message="">-->
+<!--            <label>Submit</label>-->
+<!--          </ValidationError>-->
+<!--          <Button icon="pi pi-cart-plus" @click="createNewInflow" style="height: 42px;" />-->
+<!--        </div>-->
+
+
+
+<!--      </div>-->
 
       <div class="flex flex-row p-1">
         <h3>
