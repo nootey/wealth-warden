@@ -8,7 +8,7 @@ import ValidationError from "../Validation/ValidationError.vue";
 
 import InflowCategories from "./InflowCategories.vue";
 import vueHelper from "../../utils/vueHelper.ts";
-import type {GroupedItem, Inflow, Statistics, InflowGroup} from '../../models/inflows.ts';
+import type {GroupedItem, InflowStat, Statistics, InflowGroup} from '../../models/inflows.ts';
 import BasicStatDisplay from "../Shared/BasicStatDisplay.vue";
 import DisplayMonthlyDate from "../Shared/DisplayMonthlyDate.vue";
 import InflowCreate from "./InflowCreate.vue";
@@ -129,7 +129,7 @@ function manipulateDialog(modal: string, value: boolean) {
   }
 }
 
-function calculateStatistics(groupedInflows: Inflow[]): void {
+function calculateStatistics(groupedInflows: InflowStat[]): void {
 
   if (!groupedInflows || groupedInflows.length === 0) {
     return;

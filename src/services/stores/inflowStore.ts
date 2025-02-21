@@ -1,17 +1,6 @@
 import {defineStore} from "pinia";
 import apiClient from './api/axios_interceptor.ts';
-
-interface InflowCategory {
-    id: number;
-    name: string;
-}
-
-interface Inflow {
-    inflow_category_id: number;
-    inflow_category: object;
-    amount: number;
-    inflow_date: any;
-}
+import type {Inflow, InflowCategory, ReoccurringInflow} from "../../models/inflows.ts";
 
 export const useInflowStore = defineStore('inflow', {
     state: () => ({
@@ -59,6 +48,14 @@ export const useInflowStore = defineStore('inflow', {
         async createInflow(Inflow: Inflow|null) {
             try {
                 return await apiClient.post("create-new-inflow", Inflow);
+            } catch (err) {
+                throw err;
+            }
+        },
+
+        async createReoccurringInflow(RecInflow: ReoccurringInflow|null, Inflow: Inflow|null) {
+            try {
+                return await apiClient.post("create-new-reoccurring-inflow", {Inflow, RecInflow});
             } catch (err) {
                 throw err;
             }
