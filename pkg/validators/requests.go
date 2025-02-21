@@ -13,3 +13,14 @@ type CreateInflowRequest struct {
 type CreateInflowCategoryRequest struct {
 	Name string `json:"name" validate:"required,max=100"`
 }
+
+type CreateReoccurringInflowRequest struct {
+	InflowCategoryID uint      `json:"inflow_category_id" validate:"required,numeric"`
+	Amount           float64   `json:"amount" validate:"required,numeric,min=0,max=1000000000"`
+	InflowDate       time.Time `json:"inflow_date" validate:"required"`
+}
+
+type FullInflowRequest struct {
+	Inflow    CreateInflowRequest            `json:"Inflow" validate:"required,dive"`
+	RecInflow CreateReoccurringInflowRequest `json:"RecInflow" validate:"required,dive"`
+}

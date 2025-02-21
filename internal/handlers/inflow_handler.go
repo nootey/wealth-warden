@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"wealth-warden/internal/models"
@@ -97,6 +98,38 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 	}
 
 	utils.SuccessMessage("", "Inflow created successfully", http.StatusOK)(c.Writer, c.Request)
+}
+
+func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
+
+	// TEMP
+	var req validators.FullInflowRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(err.Error())(c, nil)
+		return
+	}
+
+	inflow := &models.Inflow{
+		InflowCategoryID: req.Inflow.InflowCategoryID,
+		Amount:           req.Inflow.Amount,
+		InflowDate:       req.Inflow.InflowDate,
+	}
+
+	recInflow := &models.RecurringAction{
+		CategoryType: "inflow",
+		CategoryID:   inflow.ID,
+		Amount:       req.Inflow.Amount,
+	}
+
+	fmt.Println(inflow)
+	fmt.Println(recInflow)
 }
 
 func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
