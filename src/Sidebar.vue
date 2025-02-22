@@ -12,6 +12,25 @@ const toggleMenu = () => {
     sidebarExpanded.value = !sidebarExpanded.value;
 }
 
+interface MenuItem {
+  to: string;
+  icon: string;
+  text: string;
+}
+
+const menuItems: MenuItem[] = [
+  { to: "/", icon: "pi-home", text: "Dashboard"},
+  { to: "/inflows", icon: "pi-arrow-circle-up", text: "Inflows"},
+  { to: "/Outflows", icon: "pi-arrow-circle-down", text: "Outflows"},
+  { to: "/investments", icon: "pi-chart-line", text: "Investments"},
+  { to: "/savings", icon: "pi-database", text: "Savings"},
+  { to: "/debt", icon: "pi-ban", text: "Debt"},
+  { to: "/cash", icon: "pi-dollar", text: "Cash"},
+  { to: "/charts", icon: "pi-chart-scatter", text: "Charts"},
+  { to: "/logs", icon: "pi-address-book", text: "Logging"},
+];
+
+
 </script>
 
 <template>
@@ -28,13 +47,14 @@ const toggleMenu = () => {
 
     <h3>Menu</h3>
     <div class="menu">
-      <router-link to="/" class="sidebar-item" v-tooltip="'Dashboard'">
-        <i class="pi pi-home sidebar-icon"></i>
-        <span class="text">Dashboard</span>
-      </router-link>
-      <router-link to="/inflows" class="sidebar-item" v-tooltip="'Inflows'">
-        <i class="pi pi-cart-plus sidebar-icon"></i>
-        <span class="text">Inflows</span>
+      <router-link
+          v-for="(item, index) in menuItems"
+          :key="index"
+          :to="item.to"
+          class="sidebar-item"
+          v-tooltip="item.text">
+        <i :class="['pi', item.icon, 'sidebar-icon']"></i>
+        <span class="text">{{ item.text }}</span>
       </router-link>
     </div>
 
