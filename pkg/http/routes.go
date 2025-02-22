@@ -13,35 +13,39 @@ import (
 )
 
 type RouteInitializer struct {
-	Router         *gin.Engine
-	Config         *config.Config
-	DB             *gorm.DB
-	AuthService    *services.AuthService
-	UserService    *services.UserService
-	InflowService  *services.InflowService
-	LoggingService *services.LoggingService
+	Router                   *gin.Engine
+	Config                   *config.Config
+	DB                       *gorm.DB
+	AuthService              *services.AuthService
+	UserService              *services.UserService
+	InflowService            *services.InflowService
+	LoggingService           *services.LoggingService
+	ReoccurringActionService *services.ReoccurringActionService
 }
 
 func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *RouteInitializer {
 	// Initialize repositories
 	loggingRepo := repositories.NewLoggingRepository(db)
 	userRepo := repositories.NewUserRepository(db)
+	recActionRepo := repositories.NewReoccurringActionsRepository(db)
 	inflowRepo := repositories.NewInflowRepository(db)
 
 	// Initialize services
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
 	authService := services.NewAuthService(userRepo, loggingService)
 	userService := services.NewUserService(cfg, userRepo)
-	inflowService := services.NewInflowService(cfg, authService, loggingService, inflowRepo)
+	recActionService := services.NewReoccurringActionService(recActionRepo)
+	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, inflowRepo)
 
 	return &RouteInitializer{
-		Router:         router,
-		Config:         cfg,
-		DB:             db,
-		AuthService:    authService,
-		UserService:    userService,
-		InflowService:  inflowService,
-		LoggingService: loggingService,
+		Router:                   router,
+		Config:                   cfg,
+		DB:                       db,
+		AuthService:              authService,
+		UserService:              userService,
+		InflowService:            inflowService,
+		LoggingService:           loggingService,
+		ReoccurringActionService: recActionService,
 	}
 }
 

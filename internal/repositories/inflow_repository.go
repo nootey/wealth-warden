@@ -117,12 +117,12 @@ func (r *InflowRepository) GetAllInflowCategories(userID uint) ([]models.InflowC
 	return inflowCategories, result.Error
 }
 
-func (r *InflowRepository) InsertInflow(tx *gorm.DB, userID uint, inflow *models.Inflow) error {
+func (r *InflowRepository) InsertInflow(tx *gorm.DB, userID uint, inflow *models.Inflow) (uint, error) {
 	inflow.UserID = userID
 	if err := tx.Create(&inflow).Error; err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return inflow.ID, nil
 }
 
 func (r *InflowRepository) InsertInflowCategory(tx *gorm.DB, userID uint, inflowCategory *models.InflowCategory) error {

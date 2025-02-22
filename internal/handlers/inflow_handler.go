@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
@@ -102,8 +102,7 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 
 func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
 
-	// TEMP
-	var req validators.FullInflowRequest
+	var req validators.ReoccurringInflowRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
@@ -122,14 +121,28 @@ func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
 		InflowDate:       req.Inflow.InflowDate,
 	}
 
-	recInflow := &models.RecurringAction{
-		CategoryType: "inflow",
-		CategoryID:   inflow.ID,
-		Amount:       req.Inflow.Amount,
+	var endDate *time.Time
+	if req.RecInflow.EndDate != nil {
+		endDate = req.RecInflow.EndDate
+	} else {
+		endDate = nil // Explicitly set to nil
 	}
 
-	fmt.Println(inflow)
-	fmt.Println(recInflow)
+	recInflow := &models.RecurringAction{
+		CategoryType:  req.RecInflow.Category,
+		Amount:        req.Inflow.Amount,
+		StartDate:     req.RecInflow.StartDate,
+		EndDate:       endDate,
+		IntervalUnit:  req.RecInflow.IntervalUnit,
+		IntervalValue: req.RecInflow.IntervalValue,
+	}
+
+	if err := h.Service.CreateReoccurringInflow(c, inflow, recInflow); err != nil {
+		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("", "Reoccurring inflow created successfully", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
