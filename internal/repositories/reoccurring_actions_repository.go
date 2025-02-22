@@ -13,6 +13,13 @@ func NewReoccurringActionsRepository(db *gorm.DB) *ReoccurringActionsRepository 
 	return &ReoccurringActionsRepository{db: db}
 }
 
+func (r *ReoccurringActionsRepository) CountReoccurringActionByCategory(userID uint, categoryName string, categoryID uint, count *int64) error {
+	return r.db.Model(&models.RecurringAction{}).
+		Where("category_id = ?", categoryID).
+		Where("category_type = ?", categoryName).
+		Where("user_id = ?", userID).
+		Count(count).Error
+}
 
 func (r *ReoccurringActionsRepository) FindAllActionsForCategory(userID uint, categoryName string) ([]models.RecurringAction, error) {
 	var actions []models.RecurringAction

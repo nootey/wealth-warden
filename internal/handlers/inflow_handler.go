@@ -125,10 +125,11 @@ func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
 	if req.RecInflow.EndDate != nil {
 		endDate = req.RecInflow.EndDate
 	} else {
-		endDate = nil // Explicitly set to nil
+		endDate = nil
 	}
 
 	recInflow := &models.RecurringAction{
+		CategoryID:    req.Inflow.InflowCategoryID,
 		CategoryType:  req.RecInflow.Category,
 		Amount:        req.Inflow.Amount,
 		StartDate:     req.RecInflow.StartDate,

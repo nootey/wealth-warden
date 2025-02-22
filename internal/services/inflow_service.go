@@ -128,13 +128,11 @@ func (s *InflowService) CreateReoccurringInflow(c *gin.Context, inflow *models.I
 	utils.CompareChanges("", inflow.InflowCategory.Name, changes, "inflow_category")
 	utils.CompareChanges("", amountString, changes, "amount")
 
-	inflowID, err := s.InflowRepo.InsertInflow(tx, user.ID, inflow)
+	_, err = s.InflowRepo.InsertInflow(tx, user.ID, inflow)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
-
-	reoccurringInflow.CategoryID = inflowID
 
 	startDateStr := reoccurringInflow.StartDate.UTC().Format(time.RFC3339)
 	var endDateStr *string
@@ -244,7 +242,8 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	var count int64
+	var countInflows int64
+	var countActions int64
 	changes := utils.InitChanges()
 
 	tx := s.InflowRepo.Db.Begin()
@@ -258,12 +257,19 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 		return err
 	}
 
-	if err := s.InflowRepo.CountInflowsByCategory(user.ID, id, &count); err != nil {
+	if err := s.InflowRepo.CountInflowsByCategory(user.ID, id, &countInflows); err != nil {
+		return err
+	}
+	if err := s.RecActionsService.ActionRepo.CountReoccurringActionByCategory(user.ID, "inflow", id, &countActions); err != nil {
 		return err
 	}
 
-	if count > 0 {
-		return fmt.Errorf("cannot delete inflow category: it is being used by %d inflow(s)", count)
+	if countInflows > 0 {
+		return fmt.Errorf("cannot delete inflow category: it is being used by %d inflow(s)", countInflows)
+	}
+
+	if countActions > 0 {
+		return fmt.Errorf("cannot delete inflow category: it is being used by %d reoccurring action(s)", countActions)
 	}
 
 	utils.CompareChanges(inflowCategory.Name, "", changes, "category")
