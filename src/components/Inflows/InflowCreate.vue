@@ -2,7 +2,7 @@
 
 import ValidationError from "../Validation/ValidationError.vue";
 import dateHelper from "../../utils/dateHelper.ts";
-import {integer, numeric, required} from "@vuelidate/validators";
+import {integer, numeric, required, helpers} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import {computed, inject, ref} from "vue";
 import {useInflowStore} from "../../services/stores/inflowStore.ts";
@@ -29,6 +29,11 @@ const newReoccurringInflow = ref(initInflow(true));
 const getData = inject<((new_page?: number | null) => Promise<void>) | null>("getData", null);
 const getGroupedData = inject<(() => Promise<void>) | null>("getGroupedData", null);
 
+const isEndDateValid = (value: string | null) => {
+  if (!value) return true; // Allow null values
+  return new Date(value) > new Date(newReoccurringInflow.value?.startDate);
+};
+
 const inflowRules = {
   newInflow: {
     amount: {
@@ -53,7 +58,8 @@ const inflowRules = {
       $autoDirty: true
     },
     endDate: {
-      $autoDirty: true
+      $autoDirty: true,
+      isEndDateValid: helpers.withMessage('End date must be higher than starting date.', isEndDateValid),
     },
     intervalValue: {
       required,
@@ -107,6 +113,8 @@ async function createNewInflow() {
 
   if (await validateInflow(isReoccurring.value)) return;
 
+  if(isReoccurring.value) return;
+
   try {
     let inflow_date = dateHelper.mergeDateWithCurrentTime(newInflow.value.inflowDate, "Europe/Ljubljana");
     let response = await inflowStore.createInflow({
@@ -133,8 +141,11 @@ async function createNewReoccurringInflow() {
   if (await validateInflow(true)) return;
 
   let inflow_date = dateHelper.mergeDateWithCurrentTime(newInflow.value.inflowDate, "Europe/Ljubljana");
+  let start_date = dateHelper.mergeDateWithCurrentTime(newReoccurringInflow.value.start_date, "Europe/Ljubljana");
+  let end_date = newReoccurringInflow.value.end_date ? dateHelper.mergeDateWithCurrentTime(newReoccurringInflow.value.end_date, "Europe/Ljubljana") : null;
 
   try {
+
     let response = await inflowStore.createReoccurringInflow({
       inflow_category_id: newInflow.value.inflowCategory.id,
       inflow_category: newInflow.value.inflowCategory,
@@ -142,10 +153,11 @@ async function createNewReoccurringInflow() {
       inflow_date: inflow_date
       },
       {
-      startDate: newReoccurringInflow.value.startDate,
-      endDate: newReoccurringInflow.value.endDate,
-      intervalUnit: newReoccurringInflow.value.intervalUnit,
-      intervalValue: newReoccurringInflow.value.intervalValue
+      category_type: "inflow",
+      start_date: start_date,
+      end_date: end_date,
+      interval_unit: newReoccurringInflow.value.intervalUnit.name,
+      interval_value: newReoccurringInflow.value.intervalValue
       });
 
     newInflow.value = initInflow(false);
@@ -153,8 +165,8 @@ async function createNewReoccurringInflow() {
     newReoccurringInflow.value = initInflow(true);
     v$.value.newReoccurringInflow.$reset();
 
-    // await getData();
-    // await getGroupedData();
+    await getData();
+    await getGroupedData();
 
     toastStore.successResponseToast(response);
 
@@ -189,6 +201,23 @@ const searchReoccurrenceUnit = (event: any) => {
       });
     }
   }, 250);
+}
+
+function updateStartDate(event: any) {
+  if (isReoccurring.value){
+    newReoccurringInflow.value.startDate = event;
+  }
+}
+
+function toggleReoccurrence(event: any){
+  if(event === true){
+    if(newInflow.value.inflowDate){
+      newReoccurringInflow.value.startDate = newInflow.value.inflowDate;
+    }
+  } else {
+    newReoccurringInflow.value = initInflow(true);
+  }
+  isReoccurring.value = event;
 }
 
 </script>
@@ -239,24 +268,33 @@ const searchReoccurrenceUnit = (event: any) => {
           <label>Date</label>
         </ValidationError>
         <DatePicker v-model="newInflow.inflowDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
-                    style="height: 42px;"/>
+                    style="height: 42px;" @update:modelValue="updateStartDate"/>
       </div>
 
       <div class="flex flex-column">
         <ValidationError :isRequired="false" message="">
           <label>Submit</label>
         </ValidationError>
-        <Button icon="pi pi-cart-plus" @click="createNewInflow" style="height: 42px;" />
+        <Button :disabled="isReoccurring" icon="pi pi-cart-plus" @click="createNewInflow" style="height: 42px;" />
       </div>
     </div>
 
     <div class="flex flex-row w-full gap-2 p-1 align-items-center">
       <span>Make reoccurring?</span>
-      <Checkbox v-model="isReoccurring" binary />
+      <Checkbox :value="isReoccurring" @update:modelValue="toggleReoccurrence" binary />
     </div>
 
     <div v-if="isReoccurring" class="flex flex-row  w-full">
       <h3>Reoccurring details</h3>
+    </div>
+
+    <div v-if="isReoccurring" class="flex flex-row  w-full">
+      <span>  {{ "This reoccurring action will trigger on: " + (newReoccurringInflow.startDate ? dateHelper.formatDate(newReoccurringInflow.startDate) : "/") }}  </span>
+      <span>  {{ ", and will end on: " + (newReoccurringInflow.endDate ? dateHelper.formatDate(newReoccurringInflow.endDate) : "until canceled") }} </span>
+    </div>
+
+    <div v-if="isReoccurring" class="flex flex-row  w-full">
+      <span> {{ "It will repeat every: " + (newReoccurringInflow.intervalValue ?? 0) + " " + (newReoccurringInflow.intervalUnit.name ??  "times") }}  </span>
     </div>
 
     <div v-if="isReoccurring" class="flex flex-row w-full gap-2 p-1 align-items-center">
@@ -266,7 +304,7 @@ const searchReoccurrenceUnit = (event: any) => {
           <label>Start date</label>
         </ValidationError>
         <DatePicker v-model="newReoccurringInflow.startDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
-                    style="height: 42px;"/>
+                    style="height: 42px;" />
       </div>
 
       <div class="flex flex-column">

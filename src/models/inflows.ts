@@ -5,13 +5,6 @@ export interface Inflow {
     inflow_date: any;
 }
 
-export interface ReoccurringInflow {
-    startDate: number;
-    endDate: string;
-    intervalValue: number;
-    intervalUnit: number;
-}
-
 export interface InflowCategory {
     id: number;
     name: string;
