@@ -12,9 +12,12 @@ import type {GroupedItem, InflowStat, Statistics, InflowGroup} from '../../model
 import BasicStatDisplay from "../Shared/BasicStatDisplay.vue";
 import DisplayMonthlyDate from "../Shared/DisplayMonthlyDate.vue";
 import InflowCreate from "./InflowCreate.vue";
+import ReoccurringActionsDisplay from "../Shared/ReoccurringActionsDisplay.vue";
+import {useActionStore} from "../../services/stores/reoccurringActionStore.ts";
 
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();
+const actionStore = useActionStore();
 
 const loadingInflows = ref(true);
 const loadingGroupedInflows = ref(true);
@@ -32,7 +35,7 @@ const params = computed(() => {
     filters: [],
   }
 });
-const rows = ref([25, 50, 100]);
+const rows = ref([10, 25, 50, 100]);
 const default_rows = ref(rows.value[0]);
 const paginator = ref({
   total: 0,
@@ -46,6 +49,7 @@ const sort = ref(initSort(true));
 onMounted(async () => {
   await getData();
   await inflowStore.getInflowCategories();
+  await actionStore.getAllActionsForCategory("inflow");
   await getGroupedData();
   initSort();
 });
@@ -100,8 +104,6 @@ async function onPage(event: any) {
   page.value = (event.page+1)
   await getData();
 }
-
-
 
 async function removeInflow(id: number) {
   try {
@@ -293,6 +295,8 @@ provide("getGroupedData", getGroupedData)
           Reoccurring
         </h3>
       </div>
+
+      <ReoccurringActionsDisplay :categoryItems="actionStore.reoccurringActions" />
     </div>
   </div>
 </template>
