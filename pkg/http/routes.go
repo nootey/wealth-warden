@@ -34,7 +34,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
 	authService := services.NewAuthService(userRepo, loggingService)
 	userService := services.NewUserService(cfg, userRepo)
-	recActionService := services.NewReoccurringActionService(recActionRepo)
+	recActionService := services.NewReoccurringActionService(recActionRepo, authService)
 	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, inflowRepo)
 
 	return &RouteInitializer{
@@ -61,6 +61,7 @@ func (r *RouteInitializer) InitEndpoints() {
 	userHandler := handlers.NewUserHandler(r.UserService)
 	inflowHandler := handlers.NewInflowHandler(r.InflowService)
 	loggingHandler := handlers.NewLoggingHandler(r.LoggingService)
+	recActionHandler := handlers.NewReoccurringActionHandler(r.ReoccurringActionService)
 
 	// Protected routes
 	authGroup := r.Router.Group(apiPrefixV1, middleware.WebClientAuthentication())
@@ -69,6 +70,7 @@ func (r *RouteInitializer) InitEndpoints() {
 		userRoutes(authGroup, userHandler)
 		inflowRoutes(authGroup, inflowHandler)
 		loggingRoutes(authGroup, loggingHandler)
+		recActionRoutes(authGroup, recActionHandler)
 	}
 
 	// Public routes
