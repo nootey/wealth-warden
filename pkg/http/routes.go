@@ -19,6 +19,7 @@ type RouteInitializer struct {
 	AuthService              *services.AuthService
 	UserService              *services.UserService
 	InflowService            *services.InflowService
+	OutflowService           *services.OutflowService
 	LoggingService           *services.LoggingService
 	ReoccurringActionService *services.ReoccurringActionService
 }
@@ -29,6 +30,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 	userRepo := repositories.NewUserRepository(db)
 	recActionRepo := repositories.NewReoccurringActionsRepository(db)
 	inflowRepo := repositories.NewInflowRepository(db)
+	outflowRepo := repositories.NewOutflowRepository(db)
 
 	// Initialize services
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
@@ -36,6 +38,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 	userService := services.NewUserService(cfg, userRepo)
 	recActionService := services.NewReoccurringActionService(recActionRepo, authService)
 	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, inflowRepo)
+	outflowService := services.NewOutflowService(cfg, authService, loggingService, recActionService, outflowRepo)
 
 	return &RouteInitializer{
 		Router:                   router,
@@ -44,6 +47,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 		AuthService:              authService,
 		UserService:              userService,
 		InflowService:            inflowService,
+		OutflowService:           outflowService,
 		LoggingService:           loggingService,
 		ReoccurringActionService: recActionService,
 	}
@@ -60,6 +64,7 @@ func (r *RouteInitializer) InitEndpoints() {
 	authHandler := handlers.NewAuthHandler(r.Config, r.AuthService)
 	userHandler := handlers.NewUserHandler(r.UserService)
 	inflowHandler := handlers.NewInflowHandler(r.InflowService)
+	outflowHandler := handlers.NewOutflowHandler(r.OutflowService)
 	loggingHandler := handlers.NewLoggingHandler(r.LoggingService)
 	recActionHandler := handlers.NewReoccurringActionHandler(r.ReoccurringActionService)
 
@@ -69,6 +74,7 @@ func (r *RouteInitializer) InitEndpoints() {
 		authRoutes(authGroup, authHandler)
 		userRoutes(authGroup, userHandler)
 		inflowRoutes(authGroup, inflowHandler)
+		outflowRoutes(authGroup, outflowHandler)
 		loggingRoutes(authGroup, loggingHandler)
 		recActionRoutes(authGroup, recActionHandler)
 	}

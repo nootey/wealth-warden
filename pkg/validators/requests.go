@@ -26,3 +26,21 @@ type ReoccurringInflowRequest struct {
 	Inflow    CreateInflowRequest            `json:"Inflow" validate:"required"`
 	RecInflow CreateReoccurringActionRequest `json:"RecInflow" validate:"required"`
 }
+
+type CreateOutflowRequest struct {
+	OutflowCategoryID uint      `json:"outflow_category_id" validate:"required,numeric"`
+	Amount            float64   `json:"amount" validate:"required,numeric,min=0,max=1000000000"`
+	OutflowDate       time.Time `json:"outflow_date" validate:"required"`
+	Description       string    `json:"description"`
+}
+
+type CreateOutflowCategoryRequest struct {
+	Name          string `json:"name" validate:"required,max=100"`
+	OutflowType   string `json:"outflow_type" validate:"required"`
+	SpendingLimit int16  `json:"spending_limit"`
+}
+
+type ReoccurringOutflowRequest struct {
+	Outflow    CreateOutflowRequest           `json:"Outflow" validate:"required"`
+	RecOutflow CreateReoccurringActionRequest `json:"RecOutflow" validate:"required"`
+}

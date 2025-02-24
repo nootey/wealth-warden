@@ -7,5 +7,4 @@ import (
 
 func recActionRoutes(apiGroup *gin.RouterGroup, handler *handlers.ReoccurringActionHandler) {
 	apiGroup.GET("/get-all-reoccurring-actions-for-category", handler.GetAllActionsForCategory)
-
 }
