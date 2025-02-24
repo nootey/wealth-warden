@@ -2,7 +2,7 @@
 
 import vueHelper from "../../utils/vueHelper.ts";
 import ComparativePieChart from "./Charts/ComparativePieChart.vue";
-import type {Statistics} from '../../models/inflows.ts';
+import type {Statistics} from "../../models/shared.ts";
 
 const props = defineProps<{
   basicStats: Statistics[];
