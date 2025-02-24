@@ -45,26 +45,15 @@ const paginator = ref({
   rowsPerPage: default_rows.value
 });
 const page = ref(1);
-const sort = ref(initSort(true));
+const sort = ref(vueHelper.initSort());
 
 onMounted(async () => {
   await getData();
   await inflowStore.getInflowCategories();
   await actionStore.getAllActionsForCategory("inflow");
   await getGroupedData();
-  initSort();
+  sort.value = vueHelper.initSort();
 });
-
-function initSort(init = false) {
-  let obj = {
-    order: -1,
-    field: 'created_at'
-  };
-  if (init) {
-    return obj;
-  }
-  sort.value = obj;
-}
 
 async function getData(new_page = null) {
 

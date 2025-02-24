@@ -40,6 +40,12 @@ const vueHelper = {
         let currency = " €"
         return amount.toFixed(2) + currency;
     },
+    initSort() {
+        return {
+            order: -1,
+            field: 'created_at'
+        };
+    }
 };
 
 export default vueHelper;
