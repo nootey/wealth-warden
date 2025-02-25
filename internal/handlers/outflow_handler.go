@@ -25,7 +25,7 @@ func (h *OutflowHandler) GetOutflowsPaginated(c *gin.Context) {
 
 	outflows, totalRecords, err := h.Service.FetchOutflowsPaginated(c, paginationParams)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching outflows"})
+		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
@@ -97,7 +97,7 @@ func (h *OutflowHandler) CreateNewOutflow(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("", "outflow created successfully", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Outflow created", " Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *OutflowHandler) CreateNewReoccurringOutflow(c *gin.Context) {
@@ -143,7 +143,7 @@ func (h *OutflowHandler) CreateNewReoccurringOutflow(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("", "Reoccurring outflow created successfully", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Reoccurring outflow created", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *OutflowHandler) CreateNewOutflowCategory(c *gin.Context) {
@@ -170,7 +170,7 @@ func (h *OutflowHandler) CreateNewOutflowCategory(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(outflowCategory.Name, "Outflow category created successfully", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Outflow category created", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *OutflowHandler) DeleteOutflow(c *gin.Context) {
@@ -192,7 +192,7 @@ func (h *OutflowHandler) DeleteOutflow(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("Outflow has been deleted successfully.", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Outflow has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *OutflowHandler) DeleteOutflowCategory(c *gin.Context) {
@@ -214,5 +214,5 @@ func (h *OutflowHandler) DeleteOutflowCategory(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("Outflow category has been deleted successfully.", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Outflow category has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
 }

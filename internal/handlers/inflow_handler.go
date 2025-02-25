@@ -25,7 +25,7 @@ func (h *InflowHandler) GetInflowsPaginated(c *gin.Context) {
 
 	inflows, totalRecords, err := h.Service.FetchInflowsPaginated(c, paginationParams)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching inflows"})
+		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
@@ -97,7 +97,9 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("", "Inflow created successfully", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Inflow created", "Success", http.StatusOK)(c.Writer, c.Request)
+}
+
 func (h *InflowHandler) UpdateInflow(c *gin.Context) {
 
 	var req validators.CreateInflowRequest
@@ -172,7 +174,7 @@ func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("", "Reoccurring inflow created successfully", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Reoccurring inflow created", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
@@ -199,7 +201,9 @@ func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(inflowCategory.Name, "Inflow category created successfully", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Inflow category created", "Success", http.StatusOK)(c.Writer, c.Request)
+}
+
 func (h *InflowHandler) UpdateInflowCategory(c *gin.Context) {
 
 	var req validators.CreateInflowCategoryRequest
@@ -247,7 +251,7 @@ func (h *InflowHandler) DeleteInflow(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("Inflow has been deleted successfully.", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Inflow has been deleted.", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *InflowHandler) DeleteInflowCategory(c *gin.Context) {
@@ -269,5 +273,5 @@ func (h *InflowHandler) DeleteInflowCategory(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("Inflow category has been deleted successfully.", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Inflow category has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
 }
