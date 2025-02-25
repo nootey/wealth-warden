@@ -5,12 +5,15 @@ import (
 )
 
 type CreateInflowRequest struct {
+	ID               uint      `json:"id"`
 	InflowCategoryID uint      `json:"inflow_category_id" validate:"required,numeric"`
 	Amount           float64   `json:"amount" validate:"required,numeric,min=0,max=1000000000"`
 	InflowDate       time.Time `json:"inflow_date" validate:"required"`
+	Description      string    `json:"description"`
 }
 
 type CreateInflowCategoryRequest struct {
+	ID   uint   `json:"id"`
 	Name string `json:"name" validate:"required,max=100"`
 }
 

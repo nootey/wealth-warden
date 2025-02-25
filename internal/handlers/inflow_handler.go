@@ -98,6 +98,35 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 	}
 
 	utils.SuccessMessage("", "Inflow created successfully", http.StatusOK)(c.Writer, c.Request)
+func (h *InflowHandler) UpdateInflow(c *gin.Context) {
+
+	var req validators.CreateInflowRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(err.Error())(c, nil)
+		return
+	}
+
+	inflow := &models.Inflow{
+		ID:               req.ID,
+		InflowCategoryID: req.InflowCategoryID,
+		Amount:           req.Amount,
+		InflowDate:       req.InflowDate,
+		Description:      &req.Description,
+	}
+
+	if err := h.Service.UpdateInflow(c, inflow); err != nil {
+		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("Inflow updated", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
@@ -171,6 +200,32 @@ func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(inflowCategory.Name, "Inflow category created successfully", http.StatusOK)(c.Writer, c.Request)
+func (h *InflowHandler) UpdateInflowCategory(c *gin.Context) {
+
+	var req validators.CreateInflowCategoryRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(err.Error())(c, nil)
+		return
+	}
+
+	inflowCategory := &models.InflowCategory{
+		ID:   req.ID,
+		Name: req.Name,
+	}
+
+	if err := h.Service.UpdateInflowCategory(c, inflowCategory); err != nil {
+		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("Inflow category updated", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *InflowHandler) DeleteInflow(c *gin.Context) {

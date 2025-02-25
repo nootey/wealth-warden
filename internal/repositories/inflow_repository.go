@@ -125,6 +125,14 @@ func (r *InflowRepository) InsertInflow(tx *gorm.DB, userID uint, inflow *models
 	return inflow.ID, nil
 }
 
+func (r *InflowRepository) UpdateInflow(tx *gorm.DB, userID uint, inflow *models.Inflow) (uint, error) {
+	inflow.UserID = userID
+	if err := tx.Model(&models.Inflow{}).Where("id = ?", inflow.ID).Updates(inflow).Error; err != nil {
+		return 0, err
+	}
+	return inflow.ID, nil
+}
+
 func (r *InflowRepository) InsertInflowCategory(tx *gorm.DB, userID uint, inflowCategory *models.InflowCategory) error {
 
 	var existing models.InflowCategory
@@ -137,6 +145,14 @@ func (r *InflowRepository) InsertInflowCategory(tx *gorm.DB, userID uint, inflow
 	// Insert new category
 	inflowCategory.UserID = userID
 	if err := tx.Create(&inflowCategory).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *InflowRepository) UpdateInflowCategory(tx *gorm.DB, userID uint, inflowCategory *models.InflowCategory) error {
+
+	if err := tx.Model(&models.InflowCategory{}).Where("id = ?", inflowCategory.ID).Updates(inflowCategory).Error; err != nil {
 		return err
 	}
 	return nil

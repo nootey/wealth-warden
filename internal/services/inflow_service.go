@@ -92,6 +92,7 @@ func (s *InflowService) CreateInflow(c *gin.Context, inflow *models.Inflow) erro
 	utils.CompareChanges("", inflowDateStr, changes, "inflow_date")
 	utils.CompareChanges("", inflow.InflowCategory.Name, changes, "inflow_category")
 	utils.CompareChanges("", amountString, changes, "amount")
+	utils.CompareChanges("", *inflow.Description, changes, "description")
 
 	_, err = s.InflowRepo.InsertInflow(tx, user.ID, inflow)
 	if err != nil {
@@ -100,6 +101,51 @@ func (s *InflowService) CreateInflow(c *gin.Context, inflow *models.Inflow) erro
 	}
 
 	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func (s *InflowService) UpdateInflow(c *gin.Context, inflow *models.Inflow) error {
+
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+	changes := utils.InitChanges()
+
+	tx := s.InflowRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	existingInflow, err := s.InflowRepo.GetInflowByID(user.ID, inflow.ID)
+	if err != nil {
+		return err
+	}
+
+	existingAmountString := strconv.FormatFloat(existingInflow.Amount, 'f', 2, 64)
+	amountString := strconv.FormatFloat(inflow.Amount, 'f', 2, 64)
+	existingInflowDateStr := existingInflow.InflowDate.UTC().Format(time.RFC3339)
+	inflowDateStr := inflow.InflowDate.UTC().Format(time.RFC3339)
+
+	utils.CompareChanges(existingInflowDateStr, inflowDateStr, changes, "inflow_date")
+	utils.CompareChanges(existingInflow.InflowCategory.Name, inflow.InflowCategory.Name, changes, "inflow_category")
+	utils.CompareChanges(existingAmountString, amountString, changes, "amount")
+	utils.CompareChanges(utils.SafeString(existingInflow.Description), utils.SafeString(inflow.Description), changes, "description")
+
+	_, err = s.InflowRepo.UpdateInflow(tx, user.ID, inflow)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	description := fmt.Sprintf("Updated inflow with ID: %d", inflow.ID)
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "inflow", &description, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -189,6 +235,43 @@ func (s *InflowService) CreateInflowCategory(c *gin.Context, inflowCategory *mod
 	}
 
 	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow_category", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func (s *InflowService) UpdateInflowCategory(c *gin.Context, inflowCategory *models.InflowCategory) error {
+
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+	changes := utils.InitChanges()
+
+	tx := s.InflowRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	existingCategory, err := s.InflowRepo.GetInflowCategoryByID(user.ID, inflowCategory.ID)
+	if err != nil {
+		return err
+	}
+
+	utils.CompareChanges(existingCategory.Name, inflowCategory.Name, changes, "category")
+
+	err = s.InflowRepo.UpdateInflowCategory(tx, user.ID, inflowCategory)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	description := fmt.Sprintf("Inflow category with ID: %d has been updated", inflowCategory.ID)
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "inflow_category", &description, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
