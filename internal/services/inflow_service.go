@@ -92,7 +92,7 @@ func (s *InflowService) CreateInflow(c *gin.Context, inflow *models.Inflow) erro
 	utils.CompareChanges("", inflowDateStr, changes, "inflow_date")
 	utils.CompareChanges("", inflow.InflowCategory.Name, changes, "inflow_category")
 	utils.CompareChanges("", amountString, changes, "amount")
-	utils.CompareChanges("", *inflow.Description, changes, "description")
+	utils.CompareChanges("", utils.SafeString(inflow.Description), changes, "description")
 
 	_, err = s.InflowRepo.InsertInflow(tx, user.ID, inflow)
 	if err != nil {

@@ -90,6 +90,7 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 		InflowCategoryID: req.InflowCategoryID,
 		Amount:           req.Amount,
 		InflowDate:       req.InflowDate,
+		Description:      &req.Description,
 	}
 
 	if err := h.Service.CreateInflow(c, inflow); err != nil {
