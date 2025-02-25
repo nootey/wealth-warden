@@ -54,6 +54,14 @@ export const useInflowStore = defineStore('inflow', {
             }
         },
 
+        async updateInflow(Inflow: Inflow|null) {
+            try {
+                return await apiClient.post("update-inflow", Inflow);
+            } catch (err) {
+                throw err;
+            }
+        },
+
         async createReoccurringInflow(Inflow: Inflow|null, RecInflow: ReoccurringAction|null) {
             try {
                 return await apiClient.post("create-new-reoccurring-inflow", {Inflow, RecInflow});
@@ -65,6 +73,16 @@ export const useInflowStore = defineStore('inflow', {
         async createInflowCategory(InflowCategory: InflowCategory|null) {
             try {
                 const response = await apiClient.post("create-new-inflow-category", InflowCategory);
+                await this.getInflowCategories();
+                return response;
+            } catch (err) {
+                throw err;
+            }
+        },
+
+        async updateInflowCategory(InflowCategory: InflowCategory|null) {
+            try {
+                const response = await apiClient.post("update-inflow-category", InflowCategory);
                 await this.getInflowCategories();
                 return response;
             } catch (err) {

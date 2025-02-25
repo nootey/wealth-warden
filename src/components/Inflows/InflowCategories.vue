@@ -48,10 +48,6 @@ async function createNewInflowCategory() {
   }
 }
 
-async function editInflowCategory(id: number) {
-  console.log(id)
-}
-
 async function removeInflowCategory(id: number) {
   try {
     let response = await inflowStore.deleteInflowCategory(id);
@@ -59,6 +55,22 @@ async function removeInflowCategory(id: number) {
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
+}
+
+async function onCellEditComplete(event: any) {
+
+  try {
+    let response = await inflowStore.updateInflowCategory({
+      id: event.data.id,
+      name: event?.newData?.name,
+    });
+
+    toastStore.successResponseToast(response);
+
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+
 }
 
 </script>
@@ -96,22 +108,25 @@ async function removeInflowCategory(id: number) {
     </div>
 
     <div class="flex flex-row p-1 w-full">
-      <DataTable dataKey="id" :loading="loading" :value="inflowCategories" class="p-datatable-sm">
+      <DataTable dataKey="id" :loading="loading" :value="inflowCategories" size="small"
+                 editMode="cell" @cell-edit-complete="onCellEditComplete">
         <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
         <template #loading> <LoadingSpinner></LoadingSpinner> </template>
 
         <Column header="Actions">
           <template #body="slotProps">
             <div class="flex flex-row align-items-center gap-2">
-              <i class="pi pi-pencil hover_icon"
-                 @click="editInflowCategory(slotProps.data?.id)"></i>
               <i class="pi pi-trash hover_icon" style="color: var(--accent-primary)"
                  @click="removeInflowCategory(slotProps.data?.id)"></i>
             </div>
           </template>
         </Column>
 
-        <Column field="name" header="Name"></Column>
+        <Column field="name" header="Name">
+          <template #editor="{ data, field }">
+            <InputText size="small" v-model="data[field]" autofocus fluid />
+          </template>
+        </Column>
         <Column field="created_at" header="Created">
           <template #body="slotProps">
             {{ dateHelper.formatDate(slotProps.data?.created_at, true) }}

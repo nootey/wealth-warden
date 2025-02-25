@@ -47,6 +47,16 @@ const paginator = ref({
 const page = ref(1);
 const sort = ref(vueHelper.initSort());
 
+const inflowColumns = ref([
+  { field: 'inflow_category', header: 'Category' },
+  { field: 'amount', header: 'Amount' },
+  { field: 'inflow_date', header: 'Date' },
+  { field: 'description', header: 'Description' }
+]);
+
+const inflowCategories = computed(() => inflowStore.inflowCategories);
+const filteredInflowCategories = ref([]);
+
 onMounted(async () => {
   await getData();
   await inflowStore.getInflowCategories();
@@ -156,6 +166,44 @@ function calculateStatistics(groupedInflows: InflowStat[]): void {
   });
 }
 
+const searchInflowCategory = (event: any) => {
+  setTimeout(() => {
+    if (!event.query.trim().length) {
+      filteredInflowCategories.value = [...inflowCategories.value];
+    } else {
+      filteredInflowCategories.value = inflowCategories.value.filter((inflowCategory) => {
+        return inflowCategory.name.toLowerCase().startsWith(event.query.toLowerCase());
+      });
+    }
+  }, 250);
+}
+
+async function onCellEditComplete(event: any) {
+
+  let inflow_date = dateHelper.mergeDateWithCurrentTime(event?.newData?.inflow_date, "Europe/Ljubljana");
+
+  try {
+
+    let response = await inflowStore.updateInflow({
+      id: event.data.id,
+      inflow_category_id: event?.newData?.inflow_category.id,
+      inflow_category: event?.newData?.inflow_category,
+      amount: event?.newData?.amount,
+      inflow_date: inflow_date,
+      description: event?.newData?.description,
+    });
+
+    await getData();
+    await getGroupedData();
+
+    toastStore.successResponseToast(response);
+
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+
+}
+
 provide("getData", getData)
 provide("getGroupedData", getGroupedData)
 
@@ -186,7 +234,6 @@ provide("getGroupedData", getGroupedData)
           Add a new item
         </h3>
       </div>
-
 
       <div class="flex flex-row p-1 w-full gap-3">
         <div class="flex flex-column w-6 justify-content-center align-items-center">
@@ -219,7 +266,8 @@ provide("getGroupedData", getGroupedData)
       </div>
 
       <div class="flex flex-row gap-2 w-full">
-        <DataTable class="w-full" dataKey="id" :loading="loadingInflows" :value="inflows" size="small">
+        <DataTable class="w-full" dataKey="id" :loading="loadingInflows" :value="inflows" size="small"
+                   editMode="cell" @cell-edit-complete="onCellEditComplete">
           <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
           <template #loading> <LoadingSpinner></LoadingSpinner> </template>
           <template #footer>
@@ -240,23 +288,43 @@ provide("getGroupedData", getGroupedData)
           <Column header="Actions">
             <template #body="slotProps">
               <div class="flex flex-row align-items-center gap-2">
-                <i class="pi pi-pencil hover_icon"
-                   @click="editInflow(slotProps.data?.id)"></i>
                 <i class="pi pi-trash hover_icon" style="color: var(--accent-primary)"
                    @click="removeInflow(slotProps.data?.id)"></i>
               </div>
             </template>
           </Column>
 
-          <Column field="inflow_category.name" header="Category"></Column>
-          <Column field="amount" header="Amount">
-            <template #body="slotProps">
-              {{ vueHelper.displayAsCurrency(slotProps.data.amount)}}
+          <Column v-for="col of inflowColumns" :key="col.field" :field="col.field" :header="col.header" style="width: 25%">
+            <template #body="{ data, field }">
+              <template v-if="field === 'amount'">
+                {{ vueHelper.displayAsCurrency(data.amount)}}
+              </template>
+              <template v-else-if="field === 'inflow_date'">
+                {{ dateHelper.formatDate(data?.inflow_date, true) }}
+              </template>
+              <template v-else-if="field === 'inflow_category'">
+                {{ data[field]["name"] }}
+              </template>
+              <template v-else>
+                {{ data[field] }}
+              </template>
             </template>
-          </Column>
-          <Column field="inflow_date" header="Date">
-            <template #body="slotProps">
-               {{ dateHelper.formatDate(slotProps.data?.inflow_date, true) }}
+
+            <template #editor="{ data, field }">
+              <template v-if="field === 'amount'">
+                <InputNumber size="small" v-model="data[field]" mode="currency" currency="EUR" locale="de-DE" autofocus fluid />
+              </template>
+              <template v-else-if="field === 'inflow_date'">
+                <DatePicker v-model="data[field]" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
+                            style="height: 42px;"/>
+              </template>
+              <template v-else-if="field === 'inflow_category'">
+                <AutoComplete size="small" v-model="data[field]" :suggestions="filteredInflowCategories"
+                              @complete="searchInflowCategory" option-label="name" placeholder="Select category" dropdown></AutoComplete>
+              </template>
+              <template v-else>
+                <InputText size="small" v-model="data[field]" autofocus fluid />
+              </template>
             </template>
           </Column>
 

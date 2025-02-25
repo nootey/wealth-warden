@@ -1,12 +1,14 @@
 export interface Inflow {
+    id: number|null;
     inflow_category_id: number;
     inflow_category: object;
     amount: number;
     inflow_date: any;
+    description: string|null;
 }
 
 export interface InflowCategory {
-    id: number;
+    id: number|null;
     name: string;
 }
 

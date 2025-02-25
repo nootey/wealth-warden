@@ -84,6 +84,7 @@ function initInflow(isReoccurring: boolean = false): Record<string, any> {
       endDate: null,
       intervalValue: 1,
       intervalUnit: {name: "Months"},
+      description: null,
     };
   }
 
@@ -118,10 +119,13 @@ async function createNewInflow() {
   try {
     let inflow_date = dateHelper.mergeDateWithCurrentTime(newInflow.value.inflowDate, "Europe/Ljubljana");
     let response = await inflowStore.createInflow({
+      id: null,
       inflow_category_id: newInflow.value.inflowCategory.id,
       inflow_category: newInflow.value.inflowCategory,
       amount: newInflow.value.amount,
-      inflow_date: inflow_date});
+      inflow_date: inflow_date,
+      description: newInflow.value.description,
+    });
 
     newInflow.value = initInflow(false);
     v$.value.newInflow.$reset();
@@ -173,10 +177,6 @@ async function createNewReoccurringInflow() {
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
-}
-
-async function editInflow(id: number) {
-  console.log(id)
 }
 
 const searchInflowCategory = (event: any) => {
