@@ -51,6 +51,9 @@ const inflowRules = {
       required,
       $autoDirty: true
     },
+    description: {
+      $autoDirty: true
+    },
   },
   newReoccurringInflow: {
     startDate: {
@@ -276,6 +279,15 @@ function toggleReoccurrence(event: any){
           <label>Submit</label>
         </ValidationError>
         <Button :disabled="isReoccurring" icon="pi pi-cart-plus" @click="createNewInflow" style="height: 42px;" />
+      </div>
+    </div>
+
+    <div class="flex flex-row w-full gap-2 p-1 align-items-center">
+      <div class="flex flex-column w-full">
+        <ValidationError :isRequired="false" :message="v$.newInflow.description.$errors[0]?.$message">
+          <label>Description</label>
+        </ValidationError>
+        <InputText size="small" v-model="newInflow.description"></InputText>
       </div>
     </div>
 
