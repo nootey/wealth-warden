@@ -14,31 +14,22 @@ func init() {
 }
 
 func upSeedInflowTable(ctx context.Context, tx *sql.Tx) error {
-	// Define the target users by email
+
 	emails := []string{"support@wealth-warden.com", "member@wealth-warden.com"}
-
-	// Fetch user IDs for the specified emails
-	var userIDs []uint
-	for _, email := range emails {
-		var userID uint
-		err := tx.QueryRowContext(ctx, `SELECT id FROM users WHERE email = ?`, email).Scan(&userID)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				continue // Skip if user not found
-			}
-			return err
-		}
-		userIDs = append(userIDs, userID)
+	userIDs, err := getUserIDs(ctx, tx, emails)
+	if err != nil || len(userIDs) == 0 {
+		return err
 	}
 
-	// If no users found, return
-	if len(userIDs) == 0 {
-		return nil
+	randomDescriptions := []string{
+		"Salary payment", "Freelance gig", "Bonus received", "Investment return",
+		"Side hustle income", "Gift money", "Stock dividend", "Tax refund",
+		"Cashback", "Rental income", "Savings interest", "Other income",
 	}
 
-	// Seed inflows for each user
+	currentYear := time.Now().Year()
+
 	for _, userID := range userIDs {
-		// Fetch all category IDs for this user
 		rows, err := tx.QueryContext(ctx, `SELECT id FROM inflow_categories WHERE user_id = ?`, userID)
 		if err != nil {
 			return err
@@ -54,21 +45,28 @@ func upSeedInflowTable(ctx context.Context, tx *sql.Tx) error {
 			categoryIDs = append(categoryIDs, categoryID)
 		}
 
-		// If no categories exist for this user, skip seeding inflows
 		if len(categoryIDs) == 0 {
 			continue
 		}
 
-		// Insert 20 inflows for this user
-		for i := 0; i < 20; i++ {
-			randomCategory := categoryIDs[rand.Intn(len(categoryIDs))]         // Pick a random category
-			randomAmount := 10.00 + rand.Float64()*(10000.00-10.00)            // Generate a random amount between 10 and 10,000
-			randomDate := time.Now().AddDate(0, -rand.Intn(6), -rand.Intn(30)) // Random date in the last 6 months
+		for i := 0; i < 100; i++ {
+			randomCategory := categoryIDs[rand.Intn(len(categoryIDs))]
+			randomAmount := 10.00 + rand.Float64()*(1000.00-10.00)
+
+			randomMonth := rand.Intn(12) + 1
+			randomDay := rand.Intn(28) + 1
+			randomDate := time.Date(currentYear, time.Month(randomMonth), randomDay, 0, 0, 0, 0, time.UTC)
+
+			var description *string
+			if rand.Float64() < 0.5 { // 50% chance of having a description
+				desc := randomDescriptions[rand.Intn(len(randomDescriptions))]
+				description = &desc
+			}
 
 			_, err := tx.ExecContext(ctx, `
-				INSERT INTO inflows (user_id, inflow_category_id, amount, inflow_date, created_at, updated_at) 
-				VALUES (?, ?, ?, ?, ?, ?)
-			`, userID, randomCategory, randomAmount, randomDate, time.Now(), time.Now())
+				INSERT INTO inflows (user_id, inflow_category_id, amount, inflow_date, description, created_at, updated_at) 
+				VALUES (?, ?, ?, ?, ?, ?, ?)
+			`, userID, randomCategory, randomAmount, randomDate, description, time.Now(), time.Now())
 			if err != nil {
 				return err
 			}
@@ -79,29 +77,26 @@ func upSeedInflowTable(ctx context.Context, tx *sql.Tx) error {
 }
 
 func downSeedInflowTable(ctx context.Context, tx *sql.Tx) error {
-	// Define the target users by email
+
 	emails := []string{"support@wealth-warden.com", "member@wealth-warden.com"}
 
-	// Fetch user IDs for the specified emails
 	var userIDs []uint
 	for _, email := range emails {
 		var userID uint
 		err := tx.QueryRowContext(ctx, `SELECT id FROM users WHERE email = ?`, email).Scan(&userID)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				continue // Skip if user not found
+				continue
 			}
 			return err
 		}
 		userIDs = append(userIDs, userID)
 	}
 
-	// If no users found, return
 	if len(userIDs) == 0 {
 		return nil
 	}
 
-	// Delete inflows for the specified users
 	for _, userID := range userIDs {
 		_, err := tx.ExecContext(ctx, `DELETE FROM inflows WHERE user_id = ?`, userID)
 		if err != nil {
