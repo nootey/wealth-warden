@@ -16,6 +16,7 @@ type Inflow struct {
 	InflowCategoryID uint           `gorm:"index" json:"inflow_category_id"`
 	InflowCategory   InflowCategory `gorm:"foreignKey:InflowCategoryID" json:"inflow_category"`
 	Amount           float64        `gorm:"type:decimal(10,2);not null;check:amount >= 0 AND amount <= 1000000000" json:"amount"`
+	Description      *string        `gorm:"" json:"description"`
 	InflowDate       time.Time      `gorm:"not null" json:"inflow_date"`
 	DeletedAt        *time.Time     `gorm:"index" json:"deleted_at,omitempty"`
 	CreatedAt        time.Time      `json:"created_at"`

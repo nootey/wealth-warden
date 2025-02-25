@@ -16,7 +16,7 @@ type Outflow struct {
 	OutflowCategoryID uint            `gorm:"index" json:"outflow_category_id"`
 	OutflowCategory   OutflowCategory `gorm:"foreignKey:OutflowCategoryID" json:"outflow_category"`
 	Amount            float64         `gorm:"type:decimal(10,2);not null;check:amount >= 0 AND amount <= 1000000000" json:"amount"`
-	Description       string          `gorm:"" json:"description"`
+	Description       *string         `gorm:"" json:"description"`
 	OutflowDate       time.Time       `gorm:"not null" json:"outflow_date"`
 	DeletedAt         *time.Time      `gorm:"index" json:"deleted_at,omitempty"`
 	CreatedAt         time.Time       `json:"created_at"`
