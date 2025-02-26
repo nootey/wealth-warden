@@ -117,53 +117,53 @@ func (r *InflowRepository) GetAllInflowCategories(userID uint) ([]models.InflowC
 	return inflowCategories, result.Error
 }
 
-func (r *InflowRepository) InsertInflow(tx *gorm.DB, userID uint, inflow *models.Inflow) (uint, error) {
-	inflow.UserID = userID
-	if err := tx.Create(&inflow).Error; err != nil {
+func (r *InflowRepository) InsertInflow(tx *gorm.DB, userID uint, record *models.Inflow) (uint, error) {
+	record.UserID = userID
+	if err := tx.Create(&record).Error; err != nil {
 		return 0, err
 	}
-	return inflow.ID, nil
+	return record.ID, nil
 }
 
-func (r *InflowRepository) UpdateInflow(tx *gorm.DB, userID uint, inflow *models.Inflow) (uint, error) {
-	inflow.UserID = userID
-	if err := tx.Model(&models.Inflow{}).Where("id = ?", inflow.ID).Updates(inflow).Error; err != nil {
+func (r *InflowRepository) UpdateInflow(tx *gorm.DB, userID uint, record *models.Inflow) (uint, error) {
+	record.UserID = userID
+	if err := tx.Model(&models.Inflow{}).Where("id = ? AND user_id = ?", record.ID, userID).Updates(record).Error; err != nil {
 		return 0, err
 	}
-	return inflow.ID, nil
+	return record.ID, nil
 }
 
-func (r *InflowRepository) InsertInflowCategory(tx *gorm.DB, userID uint, inflowCategory *models.InflowCategory) error {
+func (r *InflowRepository) InsertInflowCategory(tx *gorm.DB, userID uint, record *models.InflowCategory) error {
 
 	var existing models.InflowCategory
-	if err := tx.Where("user_id = ? AND name = ?", userID, inflowCategory.Name).First(&existing).Error; err == nil {
+	if err := tx.Where("user_id = ? AND name = ?", userID, record.Name).First(&existing).Error; err == nil {
 		return errors.New("category with this name already exists")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
 
 	// Insert new category
-	inflowCategory.UserID = userID
-	if err := tx.Create(&inflowCategory).Error; err != nil {
+	record.UserID = userID
+	if err := tx.Create(&record).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *InflowRepository) UpdateInflowCategory(tx *gorm.DB, userID uint, inflowCategory *models.InflowCategory) error {
+func (r *InflowRepository) UpdateInflowCategory(tx *gorm.DB, userID uint, record *models.InflowCategory) error {
 
-	if err := tx.Model(&models.InflowCategory{}).Where("id = ?", inflowCategory.ID).Updates(inflowCategory).Error; err != nil {
+	if err := tx.Model(&models.InflowCategory{}).Where("user_id = ? AND id = ?", userID, record.ID).Updates(record).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *InflowRepository) DropInflow(tx *gorm.DB, userID uint, inflowID uint) error {
-	return tx.Where("id = ? AND user_id = ?", inflowID, userID).Delete(&models.Inflow{}).Error
+func (r *InflowRepository) DropInflow(tx *gorm.DB, userID uint, recordID uint) error {
+	return tx.Where("id = ? AND user_id = ?", recordID, userID).Delete(&models.Inflow{}).Error
 }
 
-func (r *InflowRepository) DropInflowCategory(tx *gorm.DB, userID uint, id uint) error {
-	result := tx.Where("user_id = ?", userID).Delete(&models.InflowCategory{}, id)
+func (r *InflowRepository) DropInflowCategory(tx *gorm.DB, userID uint, recordID uint) error {
+	result := tx.Where("user_id = ?", userID).Delete(&models.InflowCategory{}, recordID)
 	if result.Error != nil {
 		return result.Error
 	}

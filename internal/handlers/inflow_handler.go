@@ -86,14 +86,14 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 		return
 	}
 
-	inflow := &models.Inflow{
+	record := &models.Inflow{
 		InflowCategoryID: req.InflowCategoryID,
 		Amount:           req.Amount,
 		InflowDate:       req.InflowDate,
 		Description:      &req.Description,
 	}
 
-	if err := h.Service.CreateInflow(c, inflow); err != nil {
+	if err := h.Service.CreateInflow(c, record); err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
@@ -116,7 +116,7 @@ func (h *InflowHandler) UpdateInflow(c *gin.Context) {
 		return
 	}
 
-	inflow := &models.Inflow{
+	record := &models.Inflow{
 		ID:               req.ID,
 		InflowCategoryID: req.InflowCategoryID,
 		Amount:           req.Amount,
@@ -124,7 +124,7 @@ func (h *InflowHandler) UpdateInflow(c *gin.Context) {
 		Description:      &req.Description,
 	}
 
-	if err := h.Service.UpdateInflow(c, inflow); err != nil {
+	if err := h.Service.UpdateInflow(c, record); err != nil {
 		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
@@ -147,7 +147,7 @@ func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
 		return
 	}
 
-	inflow := &models.Inflow{
+	record := &models.Inflow{
 		InflowCategoryID: req.Inflow.InflowCategoryID,
 		Amount:           req.Inflow.Amount,
 		InflowDate:       req.Inflow.InflowDate,
@@ -160,7 +160,7 @@ func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
 		endDate = nil
 	}
 
-	recInflow := &models.RecurringAction{
+	recRecord := &models.RecurringAction{
 		CategoryID:    req.Inflow.InflowCategoryID,
 		CategoryType:  req.RecInflow.Category,
 		Amount:        req.Inflow.Amount,
@@ -170,7 +170,7 @@ func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
 		IntervalValue: req.RecInflow.IntervalValue,
 	}
 
-	if err := h.Service.CreateReoccurringInflow(c, inflow, recInflow); err != nil {
+	if err := h.Service.CreateReoccurringInflow(c, record, recRecord); err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
@@ -193,11 +193,11 @@ func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
 		return
 	}
 
-	inflowCategory := &models.InflowCategory{
+	record := &models.InflowCategory{
 		Name: req.Name,
 	}
 
-	if err := h.Service.CreateInflowCategory(c, inflowCategory); err != nil {
+	if err := h.Service.CreateInflowCategory(c, record); err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
@@ -220,12 +220,12 @@ func (h *InflowHandler) UpdateInflowCategory(c *gin.Context) {
 		return
 	}
 
-	inflowCategory := &models.InflowCategory{
+	record := &models.InflowCategory{
 		ID:   req.ID,
 		Name: req.Name,
 	}
 
-	if err := h.Service.UpdateInflowCategory(c, inflowCategory); err != nil {
+	if err := h.Service.UpdateInflowCategory(c, record); err != nil {
 		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
