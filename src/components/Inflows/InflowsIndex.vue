@@ -93,7 +93,14 @@ async function getGroupedData() {
     let response = await inflowStore.getAllGroupedInflows();
     groupedInflows.value = response.data;
     loadingGroupedInflows.value = false;
-    calculateStatistics(groupedInflows.value);
+    vueHelper.calculateGroupedStatistics(
+        groupedInflows.value,
+        inflowStatistics,
+        item => item.category_id,
+        item => item.category_name,
+        item => item.total_amount,
+        item => item.month
+    );
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -131,41 +138,6 @@ function manipulateDialog(modal: string, value: boolean) {
   }
 }
 
-function calculateStatistics(groupedInflows: InflowStat[]): void {
-
-  if (!groupedInflows || groupedInflows.length === 0) {
-    return;
-  }
-
-  const groupedData = groupedInflows.reduce<Record<number, GroupedItem>>((acc, curr) => {
-    const { inflow_category_id, inflow_category_name, total_amount, month } = curr;
-
-    // Initialize the group if it doesn't exist
-    if (!acc[inflow_category_id]) {
-      acc[inflow_category_id] = {
-        categoryName: inflow_category_name,
-        total: 0,
-        months: new Set<number>(),
-      };
-    }
-
-    // Add the amount and record the month
-    acc[inflow_category_id].total += total_amount;
-    acc[inflow_category_id].months.add(month);
-
-    return acc;
-  }, {});
-
-  inflowStatistics.value = Object.values(groupedData).map((category: GroupedItem) => {
-    const monthCount = category.months.size;
-    return {
-      category: category.categoryName,
-      total: category.total,
-      average: category.total / monthCount
-    };
-  });
-}
-
 const searchInflowCategory = (event: any) => {
   setTimeout(() => {
     if (!event.query.trim().length) {
@@ -196,7 +168,7 @@ async function onCellEditComplete(event: any) {
     await getData();
     await getGroupedData();
 
-    toastStore.successResponseToast(response);
+    toastStore.infoResponseToast(response);
 
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -297,7 +269,7 @@ provide("getGroupedData", getGroupedData)
           <Column v-for="col of inflowColumns" :key="col.field" :field="col.field" :header="col.header" style="width: 25%">
             <template #body="{ data, field }">
               <template v-if="field === 'amount'">
-                {{ vueHelper.displayAsCurrency(data.amount)}}
+                {{ vueHelper.displayAsCurrency(data.amount) }}
               </template>
               <template v-else-if="field === 'inflow_date'">
                 {{ dateHelper.formatDate(data?.inflow_date, true) }}
@@ -346,7 +318,7 @@ provide("getGroupedData", getGroupedData)
         </h3>
       </div>
 
-      <BasicStatDisplay :basicStats="inflowStatistics" />
+      <BasicStatDisplay :basicStats="inflowStatistics" :limit="false" />
 
       <div class="flex flex-row p-1">
         <h3>

@@ -14,7 +14,7 @@ const props = defineProps<{
   <div class="flex flex-row w-full">
     <div class="flex flex-column w-full">
       <DataTable :value="vueHelper.pivotedRecords(groupedValues)" size="small" showGridlines>
-        <Column field="inflow_category_name" header="Category" style="max-width: 2rem;"/>
+        <Column field="category_name" header="Category" style="max-width: 2rem;"/>
 
         <Column
             v-for="month in dateHelper.monthColumns.value"

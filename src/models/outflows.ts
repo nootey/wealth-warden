@@ -4,6 +4,7 @@ export interface Outflow {
     outflow_category: object;
     amount: number;
     outflow_date: any;
+    description: string|null;
 }
 
 export interface OutflowCategory {
@@ -14,8 +15,8 @@ export interface OutflowCategory {
 }
 
 export interface OutflowStat {
-    outflow_category_id: number;
-    outflow_category_name: string;
+    category_id: number;
+    category_name: string;
     total_amount: number;
     month: number;
 }
@@ -23,6 +24,6 @@ export interface OutflowStat {
 export interface OutflowGroup {
     month: number;
     total_amount: number;
-    outflow_category_id: number;
-    outflow_category_name: string;
+    category_id: number;
+    category_name: string;
 }

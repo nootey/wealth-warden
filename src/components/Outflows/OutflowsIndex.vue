@@ -92,7 +92,15 @@ async function getGroupedData() {
     let response = await outflowStore.getAllGroupedOutflows();
     groupedOutflows.value = response.data;
     loadingGroupedOutflows.value = false;
-    calculateStatistics(groupedOutflows.value);
+    vueHelper.calculateGroupedStatistics(
+        groupedOutflows.value,
+        outflowStatistics,
+        item => item.category_id,
+        item => item.category_name,
+        item => item.total_amount,
+        item => item.month,
+        item => (item as any).spending_limit
+    );
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -131,41 +139,6 @@ function manipulateDialog(modal: string, value: boolean) {
   }
 }
 
-function calculateStatistics(groupedOutflows: OutflowStat[]): void {
-
-  if (!groupedOutflows || groupedOutflows.length === 0) {
-    return;
-  }
-
-  const groupedData = groupedOutflows.reduce<Record<number, GroupedItem>>((acc, curr) => {
-    const { outflow_category_id, outflow_category_name, total_amount, month } = curr;
-
-    // Initialize the group if it doesn't exist
-    if (!acc[outflow_category_id]) {
-      acc[outflow_category_id] = {
-        categoryName: outflow_category_name,
-        total: 0,
-        months: new Set<number>(),
-      };
-    }
-
-    // Add the amount and record the month
-    acc[outflow_category_id].total += total_amount;
-    acc[outflow_category_id].months.add(month);
-
-    return acc;
-  }, {});
-
-  outflowStatistics.value = Object.values(groupedData).map((category: GroupedItem) => {
-    const monthCount = category.months.size;
-    return {
-      category: category.categoryName,
-      total: category.total,
-      average: category.total / monthCount
-    };
-  });
-}
-
 const searchOutflowCategory = (event: any) => {
   setTimeout(() => {
     if (!event.query.trim().length) {
@@ -196,7 +169,7 @@ async function onCellEditComplete(event: any) {
     await getData();
     await getGroupedData();
 
-    toastStore.successResponseToast(response);
+    toastStore.infoResponseToast(response);
 
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -212,11 +185,11 @@ provide("getGroupedData", getGroupedData)
 <template>
 
   <Dialog v-model:visible="addOutflowModal" :breakpoints="{'801px': '90vw'}"
-          :modal="true" :style="{width: '800px'}" header="Add entries">
+          :modal="true" :style="{width: '800px'}" header="Add outflow">
     <OutflowCreate></OutflowCreate>
   </Dialog>
   <Dialog v-model:visible="addCategoryModal" :breakpoints="{'801px': '90vw'}"
-          :modal="true" :style="{width: '800px'}" header="Add entries">
+          :modal="true" :style="{width: '800px'}" header="Outflow categories">
     <OutflowCategories></OutflowCategories>
   </Dialog>
 
@@ -228,13 +201,6 @@ provide("getGroupedData", getGroupedData)
           Outflows
         </h1>
       </div>
-
-      <div class="flex flex-row p-1">
-        <h3>
-          Add a new item
-        </h3>
-      </div>
-
 
       <div class="flex flex-row p-1 w-full gap-3">
         <div class="flex flex-column w-6 justify-content-center align-items-center">
@@ -257,6 +223,7 @@ provide("getGroupedData", getGroupedData)
           Outflows by month
         </h3>
       </div>
+
 
       <DisplayMonthlyDate :groupedValues="groupedOutflows" />
 
@@ -347,7 +314,7 @@ provide("getGroupedData", getGroupedData)
         </h3>
       </div>
 
-      <BasicStatDisplay :basicStats="outflowStatistics" />
+      <BasicStatDisplay :basicStats="outflowStatistics" :limit="true"/>
 
       <div class="flex flex-row p-1">
         <h3>

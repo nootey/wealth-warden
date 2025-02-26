@@ -13,8 +13,8 @@ export interface InflowCategory {
 }
 
 export interface InflowStat {
-    inflow_category_id: number;
-    inflow_category_name: string;
+    category_id: number;
+    category_name: string;
     total_amount: number;
     month: number;
 }
