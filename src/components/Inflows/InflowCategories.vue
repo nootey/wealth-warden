@@ -65,7 +65,7 @@ async function onCellEditComplete(event: any) {
       name: event?.newData?.name,
     });
 
-    toastStore.successResponseToast(response);
+    toastStore.infoResponseToast(response);
 
   } catch (error) {
     toastStore.errorResponseToast(error);

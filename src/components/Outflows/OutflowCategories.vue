@@ -8,6 +8,7 @@ import {integer, required} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import {useOutflowStore} from "../../services/stores/outflowStore.ts";
 import {useToastStore} from "../../services/stores/toastStore.ts";
+import vueHelper from "../../utils/vueHelper.ts";
 
 const outflowStore = useOutflowStore();
 const toastStore = useToastStore();
@@ -35,6 +36,15 @@ const outflowCategoryRules = {
 }
 
 const v$ = useVuelidate(outflowCategoryRules, {newOutflowCategory: newOutflowCategory});
+
+const categoryColumns = ref([
+  { field: 'name', header: 'Name' },
+  { field: 'outflow_type', header: 'Outflow type' },
+  { field: 'spending_limit', header: 'Spending limit' },
+]);
+
+const outflowTypes = ref(["fixed", "variable"]);
+const filteredOutflowTypes = ref([]);
 
 function initOutflowCategory():object {
   return {
@@ -83,7 +93,7 @@ async function onCellEditComplete(event: any) {
       outflow_type: event?.newData?.outflow_type,
     });
 
-    toastStore.successResponseToast(response);
+    toastStore.infoResponseToast(response);
 
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -91,31 +101,58 @@ async function onCellEditComplete(event: any) {
 
 }
 
+const searchOutflowType = (event: any) => {
+  setTimeout(() => {
+    if (!event.query.trim().length) {
+      filteredOutflowTypes.value = [...outflowTypes.value];
+    } else {
+      filteredOutflowTypes.value = outflowTypes.value.filter((record) => {
+        return record.toLowerCase().startsWith(event.query.toLowerCase());
+      });
+    }
+  }, 250);
+}
+
 </script>
 
 <template>
   <div class="flex flex-column w-full p-1 gap-4">
     <div class="flex flex-row p-1 w-full">
-      <h2>
-        Outflow Categories
-      </h2>
+        <span>
+          These are your outflow categories. Assign as many as you deem necessary.
+          Once assigned to an outflow record, a category can not be deleted.
+        </span>
     </div>
     <div class="flex flex-row p-1 w-full">
         <span>
-          These are your outflow categories. Assign as many as you deem necessary. Once assigned to an outflow record, a category can not be deleted.
+          Define spending limits. These will serve as thresholds for each category, which you shouldn't cross.
         </span>
     </div>
+    <div class="flex flex-row p-1 w-full">
+        <span>
+          Outflow type will define if the category should be budgeted automatically or not.
+        </span>
+    </div>
+
     <div class="flex flex-row gap-2 align-items-center w-full">
       <div class="flex flex-column">
         <ValidationError :isRequired="true" :message="v$.newOutflowCategory.name.$errors[0]?.$message">
-          <label>Outflow category</label>
+          <label>Name</label>
         </ValidationError>
-        <InputGroup>
-          <InputGroupAddon>
-            <i class="pi pi-clipboard"></i>
-          </InputGroupAddon>
-          <InputText v-model="newOutflowCategory.name"/>
-        </InputGroup>
+        <InputText size="small" v-model="newOutflowCategory.name" placeholder="Input name"/>
+      </div>
+      <div class="flex flex-column">
+        <ValidationError :isRequired="true" :message="v$.newOutflowCategory.outflow_type.$errors[0]?.$message">
+          <label>Outflow type</label>
+        </ValidationError>
+        <AutoComplete size="small" v-model="newOutflowCategory.outflow_type" :suggestions="filteredOutflowTypes"
+                      placeholder="Select type" dropdown @complete="searchOutflowType"></AutoComplete>
+      </div>
+      <div class="flex flex-column">
+        <ValidationError :isRequired="true" :message="v$.newOutflowCategory.spending_limit.$errors[0]?.$message">
+          <label>Spending limit</label>
+        </ValidationError>
+        <InputNumber size="small" v-model="newOutflowCategory.spending_limit" mode="currency" currency="EUR" locale="de-DE" autofocus fluid />
       </div>
       <div class="flex flex-column">
         <ValidationError :isRequired="false" message="">
@@ -125,11 +162,10 @@ async function onCellEditComplete(event: any) {
       </div>
     </div>
 
-    {{ outflowCategories }}
-
     <div class="flex flex-row p-1 w-full">
-      <DataTable dataKey="id" :loading="loading" :value="outflowCategories" size="small"
-                 editMode="cell" @cell-edit-complete="onCellEditComplete">
+      <DataTable class="w-full" dataKey="id" :loading="loading" :value="outflowCategories" size="small"
+                 editMode="cell" @cell-edit-complete="onCellEditComplete" sortField="outflow_type" :sortOrder="1"
+                 paginator :rows="10" :rowsPerPageOptions="[10, 25, 50]">
         <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
         <template #loading> <LoadingSpinner></LoadingSpinner> </template>
 
@@ -142,16 +178,38 @@ async function onCellEditComplete(event: any) {
           </template>
         </Column>
 
-        <Column field="name" header="Name">
+        <Column v-for="col of categoryColumns" :key="col.field" :field="col.field" :header="col.header"
+                style="width: 33%" :sortable="true" >
+          <template #body="{ data, field }">
+            <template v-if="field === 'spending_limit'">
+              {{ vueHelper.displayAsCurrency(data.spending_limit)}}
+            </template>
+            <template v-else-if="field === 'created_at'">
+              {{ dateHelper.formatDate(data.created_at, true) }}
+            </template>
+            <template v-else>
+              {{ data[field] }}
+            </template>
+          </template>
+
           <template #editor="{ data, field }">
-            <InputText size="small" v-model="data[field]" autofocus fluid />
+            <template v-if="field === 'spending_limit'">
+              <InputNumber size="small" v-model="data[field]" mode="currency" currency="EUR" locale="de-DE" autofocus fluid />
+            </template>
+            <template v-else-if="field === 'created_at'">
+              <DatePicker v-model="data[field]" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
+                          style="height: 42px;"/>
+            </template>
+            <template v-else-if="field === 'outflow_type'">
+              <AutoComplete size="small" v-model="data[field]" :suggestions="filteredOutflowTypes"
+                            placeholder="Select type" dropdown @complete="searchOutflowType"></AutoComplete>
+            </template>
+            <template v-else>
+              <InputText size="small" v-model="data[field]" autofocus fluid />
+            </template>
           </template>
         </Column>
-        <Column field="created_at" header="Created">
-          <template #body="slotProps">
-            {{ dateHelper.formatDate(slotProps.data?.created_at, true) }}
-          </template>
-        </Column>
+
       </DataTable>
     </div>
 
