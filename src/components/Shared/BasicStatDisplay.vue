@@ -6,24 +6,30 @@ import type {Statistics} from "../../models/shared.ts";
 
 const props = defineProps<{
   basicStats: Statistics[];
+  limit: boolean;
 }>();
-
 
 </script>
 
 <template>
   <div class="flex flex-row w-full">
     <div class="flex flex-column w-full">
+
       <DataTable :value="basicStats" size="small" showGridlines>
         <Column field="category" header="Category" style="max-width: 2rem;"/>
         <Column field="total" header="Total" style="max-width: 2rem;">
           <template #body="slotProps">
-            {{vueHelper.displayAsCurrency(slotProps.data.total)}}
+            {{ vueHelper.displayAsCurrency(slotProps.data.total) }}
           </template>
         </Column>
         <Column field="average" header="Average" style="max-width: 2rem;">
           <template #body="slotProps">
-            {{vueHelper.displayAsCurrency(slotProps.data.average)}}
+            {{ vueHelper.displayAsCurrency(slotProps.data.average) }}
+          </template>
+        </Column>
+        <Column v-if="limit" field="spending_limit" header="Limit" style="max-width: 1.5rem;">
+          <template #body="slotProps">
+            {{ vueHelper.displayAsCurrency(slotProps.data.spending_limit) }}
           </template>
         </Column>
       </DataTable>
