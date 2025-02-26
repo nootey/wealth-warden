@@ -86,19 +86,19 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 		return
 	}
 
-	record := &models.Inflow{
+	inflow := &models.Inflow{
 		InflowCategoryID: req.InflowCategoryID,
 		Amount:           req.Amount,
 		InflowDate:       req.InflowDate,
 		Description:      &req.Description,
 	}
 
-	if err := h.Service.CreateInflow(c, record); err != nil {
+	if err := h.Service.CreateInflow(c, inflow); err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
-	utils.SuccessMessage("Inflow created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *InflowHandler) UpdateInflow(c *gin.Context) {
@@ -116,7 +116,7 @@ func (h *InflowHandler) UpdateInflow(c *gin.Context) {
 		return
 	}
 
-	record := &models.Inflow{
+	inflow := &models.Inflow{
 		ID:               req.ID,
 		InflowCategoryID: req.InflowCategoryID,
 		Amount:           req.Amount,
@@ -124,12 +124,12 @@ func (h *InflowHandler) UpdateInflow(c *gin.Context) {
 		Description:      &req.Description,
 	}
 
-	if err := h.Service.UpdateInflow(c, record); err != nil {
+	if err := h.Service.UpdateInflow(c, inflow); err != nil {
 		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
-	utils.SuccessMessage("Inflow updated", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record updated", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
@@ -147,7 +147,7 @@ func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
 		return
 	}
 
-	record := &models.Inflow{
+	inflow := &models.Inflow{
 		InflowCategoryID: req.Inflow.InflowCategoryID,
 		Amount:           req.Inflow.Amount,
 		InflowDate:       req.Inflow.InflowDate,
@@ -160,7 +160,7 @@ func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
 		endDate = nil
 	}
 
-	recRecord := &models.RecurringAction{
+	recInflow := &models.RecurringAction{
 		CategoryID:    req.Inflow.InflowCategoryID,
 		CategoryType:  req.RecInflow.Category,
 		Amount:        req.Inflow.Amount,
@@ -170,12 +170,12 @@ func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
 		IntervalValue: req.RecInflow.IntervalValue,
 	}
 
-	if err := h.Service.CreateReoccurringInflow(c, record, recRecord); err != nil {
+	if err := h.Service.CreateReoccurringInflow(c, inflow, recInflow); err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
-	utils.SuccessMessage("Reoccurring inflow created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
@@ -193,16 +193,16 @@ func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
 		return
 	}
 
-	record := &models.InflowCategory{
+	inflowCategory := &models.InflowCategory{
 		Name: req.Name,
 	}
 
-	if err := h.Service.CreateInflowCategory(c, record); err != nil {
+	if err := h.Service.CreateInflowCategory(c, inflowCategory); err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
-	utils.SuccessMessage("Inflow category created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *InflowHandler) UpdateInflowCategory(c *gin.Context) {
@@ -220,17 +220,17 @@ func (h *InflowHandler) UpdateInflowCategory(c *gin.Context) {
 		return
 	}
 
-	record := &models.InflowCategory{
+	inflowCategory := &models.InflowCategory{
 		ID:   req.ID,
 		Name: req.Name,
 	}
 
-	if err := h.Service.UpdateInflowCategory(c, record); err != nil {
+	if err := h.Service.UpdateInflowCategory(c, inflowCategory); err != nil {
 		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
-	utils.SuccessMessage("Inflow category updated", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record updated", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *InflowHandler) DeleteInflow(c *gin.Context) {
@@ -252,7 +252,7 @@ func (h *InflowHandler) DeleteInflow(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("Inflow has been deleted.", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record has been deleted.", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *InflowHandler) DeleteInflowCategory(c *gin.Context) {
@@ -274,5 +274,5 @@ func (h *InflowHandler) DeleteInflowCategory(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("Inflow category has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
 }

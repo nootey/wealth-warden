@@ -98,7 +98,7 @@ func (h *OutflowHandler) CreateNewOutflow(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("Outflow created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *OutflowHandler) UpdateOutflow(c *gin.Context) {
@@ -129,7 +129,7 @@ func (h *OutflowHandler) UpdateOutflow(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("Outflow updated", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record updated", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *OutflowHandler) CreateNewReoccurringOutflow(c *gin.Context) {
@@ -175,7 +175,7 @@ func (h *OutflowHandler) CreateNewReoccurringOutflow(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("Reoccurring outflow created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *OutflowHandler) CreateNewOutflowCategory(c *gin.Context) {
@@ -194,7 +194,9 @@ func (h *OutflowHandler) CreateNewOutflowCategory(c *gin.Context) {
 	}
 
 	record := &models.OutflowCategory{
-		Name: req.Name,
+		Name:          req.Name,
+		SpendingLimit: req.SpendingLimit,
+		OutflowType:   req.OutflowType,
 	}
 
 	if err := h.Service.CreateOutflowCategory(c, record); err != nil {
@@ -202,7 +204,7 @@ func (h *OutflowHandler) CreateNewOutflowCategory(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("Outflow category created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *OutflowHandler) UpdateOutflowCategory(c *gin.Context) {
@@ -221,16 +223,18 @@ func (h *OutflowHandler) UpdateOutflowCategory(c *gin.Context) {
 	}
 
 	record := &models.OutflowCategory{
-		ID:   req.ID,
-		Name: req.Name,
+		ID:            req.ID,
+		Name:          req.Name,
+		SpendingLimit: req.SpendingLimit,
+		OutflowType:   req.OutflowType,
 	}
 
 	if err := h.Service.UpdateOutflowCategory(c, record); err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
-	utils.SuccessMessage("Outflow category created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record updated", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *OutflowHandler) DeleteOutflow(c *gin.Context) {
@@ -252,7 +256,7 @@ func (h *OutflowHandler) DeleteOutflow(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("Outflow has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *OutflowHandler) DeleteOutflowCategory(c *gin.Context) {
@@ -274,5 +278,5 @@ func (h *OutflowHandler) DeleteOutflowCategory(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("Outflow category has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Record has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
 }
