@@ -54,6 +54,14 @@ export const useOutflowStore = defineStore('outflow', {
             }
         },
 
+        async updateOutflow(Outflow: Outflow|null) {
+            try {
+                return await apiClient.post("update-outflow", Outflow);
+            } catch (err) {
+                throw err;
+            }
+        },
+
         async createReoccurringOutflow(Outflow: Outflow|null, RecOutflow: ReoccurringAction|null) {
             try {
                 return await apiClient.post("create-new-reoccurring-outflow", {Outflow, RecOutflow});
@@ -65,6 +73,16 @@ export const useOutflowStore = defineStore('outflow', {
         async createOutflowCategory(OutflowCategory: OutflowCategory|null) {
             try {
                 const response = await apiClient.post("create-new-outflow-category", OutflowCategory);
+                await this.getOutflowCategories();
+                return response;
+            } catch (err) {
+                throw err;
+            }
+        },
+
+        async updateOutflowCategory(OutflowCategory: OutflowCategory|null) {
+            try {
+                const response = await apiClient.post("update-outflow-category", OutflowCategory);
                 await this.getOutflowCategories();
                 return response;
             } catch (err) {
