@@ -2,10 +2,9 @@
 
 import vueHelper from "../../utils/vueHelper.ts";
 import dateHelper from "../../utils/dateHelper.ts";
-import type {InflowGroup} from '../../models/inflows.ts';
 
 const props = defineProps<{
-  groupedValues: InflowGroup[];
+  groupedValues: any[];
 }>();
 
 
