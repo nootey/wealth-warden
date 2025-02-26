@@ -75,8 +75,8 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint) ([]models.I
             -- Regular category rows
             SELECT
                 MONTH(i.inflow_date) AS month,
-                ic.id AS inflow_category_id,
-                ic.name AS inflow_category_name,
+                ic.id AS category_id,
+                ic.name AS category_name,
                 SUM(i.amount) AS total_amount
             FROM inflows i
             JOIN inflow_categories ic ON i.inflow_category_id = ic.id
@@ -90,8 +90,8 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint) ([]models.I
             -- "Total" row for each month (sums all categories)
             SELECT
                 MONTH(i.inflow_date) AS month,
-                0 AS inflow_category_id,
-                'Total' AS inflow_category_name,
+                0 AS category_id,
+                'Total' AS category_name,
                 SUM(i.amount) AS total_amount
             FROM inflows i
             WHERE i.deleted_at IS NULL
@@ -100,8 +100,8 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint) ([]models.I
             GROUP BY MONTH(i.inflow_date)
         ) AS combined
         ORDER BY 
-            (CASE WHEN inflow_category_name = 'Total' THEN 1 ELSE 0 END),
-            inflow_category_name, 
+            (CASE WHEN category_name = 'Total' THEN 1 ELSE 0 END),
+            category_name, 
             month`, userID, userID).Scan(&results).Error
 
 	if err != nil {

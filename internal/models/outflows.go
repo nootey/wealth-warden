@@ -7,7 +7,7 @@ type OutflowCategory struct {
 	UserID        uint      `gorm:"not_null;index" json:"user_id"`
 	Name          string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_outflow_category_name" json:"name"`
 	OutflowType   string    `gorm:"type:varchar(100);not null;" json:"outflow_type"`
-	SpendingLimit string    `gorm:"type:decimal(10,2);" json:"spending_limit"`
+	SpendingLimit float64   `gorm:"type:decimal(10,2);" json:"spending_limit"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -26,8 +26,9 @@ type Outflow struct {
 }
 
 type OutflowSummary struct {
-	Month               int     `json:"month"`
-	TotalAmount         float64 `json:"total_amount"`
-	OutflowCategoryID   uint    `json:"outflow_category_id"`
-	OutflowCategoryName string  `json:"outflow_category_name"`
+	Month         int      `json:"month"`
+	CategoryID    uint     `json:"category_id" gorm:"column:category_id"`
+	CategoryName  string   `json:"category_name" gorm:"column:category_name"`
+	TotalAmount   float64  `json:"total_amount" gorm:"column:total_amount"`
+	SpendingLimit *float64 `json:"spending_limit"`
 }

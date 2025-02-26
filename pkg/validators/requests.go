@@ -39,10 +39,10 @@ type CreateOutflowRequest struct {
 }
 
 type CreateOutflowCategoryRequest struct {
-	ID            uint   `json:"id"`
-	Name          string `json:"name" validate:"required,max=100"`
-	OutflowType   string `json:"outflow_type" validate:"required"`
-	SpendingLimit int16  `json:"spending_limit"`
+	ID            uint    `json:"id"`
+	Name          string  `json:"name" validate:"required,max=100"`
+	OutflowType   string  `json:"outflow_type" validate:"required"`
+	SpendingLimit float64 `json:"spending_limit"`
 }
 
 type ReoccurringOutflowRequest struct {

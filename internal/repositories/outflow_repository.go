@@ -74,34 +74,36 @@ func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint) ([]models
         SELECT * FROM (
             -- Regular category rows
             SELECT
-                MONTH(i.outflow_date) AS month,
-                ic.id AS outflow_category_id,
-                ic.name AS outflow_category_name,
-                SUM(i.amount) AS total_amount
-            FROM outflows i
-            JOIN outflow_categories ic ON i.outflow_category_id = ic.id
-            WHERE i.deleted_at IS NULL
-            AND i.user_id = ?
-            AND YEAR(i.outflow_date) = YEAR(CURDATE())
-            GROUP BY ic.id, ic.name, month
+                MONTH(o.outflow_date) AS month,
+                oc.id AS category_id,
+                oc.name AS category_name,
+                SUM(o.amount) AS total_amount,
+                oc.spending_limit AS spending_limit
+            FROM outflows o
+            JOIN outflow_categories oc ON o.outflow_category_id = oc.id
+            WHERE o.deleted_at IS NULL
+            AND o.user_id = ?
+            AND YEAR(o.outflow_date) = YEAR(CURDATE())
+            GROUP BY oc.id, oc.name, month, oc.spending_limit
 
             UNION ALL
 
             -- "Total" row for each month (sums all categories)
             SELECT
-                MONTH(i.outflow_date) AS month,
-                0 AS outflow_category_id,
-                'Total' AS outflow_category_name,
-                SUM(i.amount) AS total_amount
-            FROM outflows i
-            WHERE i.deleted_at IS NULL
-            AND i.user_id = ?
-            AND YEAR(i.outflow_date) = YEAR(CURDATE())
-            GROUP BY MONTH(i.outflow_date)
+                MONTH(o.outflow_date) AS month,
+                0 AS category_id,
+                'Total' AS category_name,
+                SUM(o.amount) AS total_amount,
+                NULL AS spending_limit  -- No spending limit for the total row
+            FROM outflows o
+            WHERE o.deleted_at IS NULL
+            AND o.user_id = ?
+            AND YEAR(o.outflow_date) = YEAR(CURDATE())
+            GROUP BY MONTH(o.outflow_date)
         ) AS combined
         ORDER BY 
-            (CASE WHEN outflow_category_name = 'Total' THEN 1 ELSE 0 END),
-            outflow_category_name, 
+            (CASE WHEN category_name = 'Total' THEN 1 ELSE 0 END),
+            category_name, 
             month`, userID, userID).Scan(&results).Error
 
 	if err != nil {
