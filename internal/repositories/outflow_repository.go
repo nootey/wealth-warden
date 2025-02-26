@@ -117,12 +117,19 @@ func (r *OutflowRepository) GetAllOutflowCategories(userID uint) ([]models.Outfl
 	return outflowCategories, result.Error
 }
 
-func (r *OutflowRepository) InsertOutflow(tx *gorm.DB, userID uint, outflow *models.Outflow) (uint, error) {
-	outflow.UserID = userID
-	if err := tx.Create(&outflow).Error; err != nil {
+func (r *OutflowRepository) InsertOutflow(tx *gorm.DB, userID uint, record *models.Outflow) (uint, error) {
+	record.UserID = userID
+	if err := tx.Create(&record).Error; err != nil {
 		return 0, err
 	}
-	return outflow.ID, nil
+	return record.ID, nil
+}
+
+func (r *OutflowRepository) UpdateOutflow(tx *gorm.DB, userID uint, record *models.Outflow) (uint, error) {
+	if err := tx.Model(&models.Outflow{}).Where("id = ? AND user_id = ?", record.ID, userID).Updates(record).Error; err != nil {
+		return 0, err
+	}
+	return record.ID, nil
 }
 
 func (r *OutflowRepository) InsertOutflowCategory(tx *gorm.DB, userID uint, outflowCategory *models.OutflowCategory) error {
@@ -142,12 +149,20 @@ func (r *OutflowRepository) InsertOutflowCategory(tx *gorm.DB, userID uint, outf
 	return nil
 }
 
-func (r *OutflowRepository) DropOutflow(tx *gorm.DB, userID uint, outflowID uint) error {
-	return tx.Where("id = ? AND user_id = ?", outflowID, userID).Delete(&models.Outflow{}).Error
+func (r *OutflowRepository) UpdateOutflowCategory(tx *gorm.DB, userID uint, record *models.OutflowCategory) error {
+
+	if err := tx.Model(&models.OutflowCategory{}).Where("user_id = ? AND id = ?", userID, record.ID).Updates(record).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
-func (r *OutflowRepository) DropOutflowCategory(tx *gorm.DB, userID uint, id uint) error {
-	result := tx.Where("user_id = ?", userID).Delete(&models.OutflowCategory{}, id)
+func (r *OutflowRepository) DropOutflow(tx *gorm.DB, userID uint, recordID uint) error {
+	return tx.Where("id = ? AND user_id = ?", recordID, userID).Delete(&models.Outflow{}).Error
+}
+
+func (r *OutflowRepository) DropOutflowCategory(tx *gorm.DB, userID uint, recordID uint) error {
+	result := tx.Where("user_id = ?", userID).Delete(&models.OutflowCategory{}, recordID)
 	if result.Error != nil {
 		return result.Error
 	}

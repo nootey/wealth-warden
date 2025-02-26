@@ -31,6 +31,7 @@ type ReoccurringInflowRequest struct {
 }
 
 type CreateOutflowRequest struct {
+	ID                uint      `json:"id"`
 	OutflowCategoryID uint      `json:"outflow_category_id" validate:"required,numeric"`
 	Amount            float64   `json:"amount" validate:"required,numeric,min=0,max=1000000000"`
 	OutflowDate       time.Time `json:"outflow_date" validate:"required"`
@@ -38,6 +39,7 @@ type CreateOutflowRequest struct {
 }
 
 type CreateOutflowCategoryRequest struct {
+	ID            uint   `json:"id"`
 	Name          string `json:"name" validate:"required,max=100"`
 	OutflowType   string `json:"outflow_type" validate:"required"`
 	SpendingLimit int16  `json:"spending_limit"`

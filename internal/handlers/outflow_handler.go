@@ -90,6 +90,7 @@ func (h *OutflowHandler) CreateNewOutflow(c *gin.Context) {
 		OutflowCategoryID: req.OutflowCategoryID,
 		Amount:            req.Amount,
 		OutflowDate:       req.OutflowDate,
+		Description:       &req.Description,
 	}
 
 	if err := h.Service.CreateOutflow(c, outflow); err != nil {
@@ -97,7 +98,38 @@ func (h *OutflowHandler) CreateNewOutflow(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage("Outflow created", " Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Outflow created", "Success", http.StatusOK)(c.Writer, c.Request)
+}
+
+func (h *OutflowHandler) UpdateOutflow(c *gin.Context) {
+
+	var req validators.CreateOutflowRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(err.Error())(c, nil)
+		return
+	}
+
+	record := &models.Outflow{
+		ID:                req.ID,
+		OutflowCategoryID: req.OutflowCategoryID,
+		Amount:            req.Amount,
+		OutflowDate:       req.OutflowDate,
+		Description:       &req.Description,
+	}
+
+	if err := h.Service.UpdateOutflow(c, record); err != nil {
+		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("Outflow updated", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *OutflowHandler) CreateNewReoccurringOutflow(c *gin.Context) {
@@ -115,7 +147,7 @@ func (h *OutflowHandler) CreateNewReoccurringOutflow(c *gin.Context) {
 		return
 	}
 
-	outflow := &models.Outflow{
+	record := &models.Outflow{
 		OutflowCategoryID: req.Outflow.OutflowCategoryID,
 		Amount:            req.Outflow.Amount,
 		OutflowDate:       req.Outflow.OutflowDate,
@@ -128,7 +160,7 @@ func (h *OutflowHandler) CreateNewReoccurringOutflow(c *gin.Context) {
 		endDate = nil
 	}
 
-	recOutflow := &models.RecurringAction{
+	recRecord := &models.RecurringAction{
 		CategoryID:    req.Outflow.OutflowCategoryID,
 		CategoryType:  req.RecOutflow.Category,
 		Amount:        req.Outflow.Amount,
@@ -138,7 +170,7 @@ func (h *OutflowHandler) CreateNewReoccurringOutflow(c *gin.Context) {
 		IntervalValue: req.RecOutflow.IntervalValue,
 	}
 
-	if err := h.Service.CreateReoccurringOutflow(c, outflow, recOutflow); err != nil {
+	if err := h.Service.CreateReoccurringOutflow(c, record, recRecord); err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
@@ -161,11 +193,39 @@ func (h *OutflowHandler) CreateNewOutflowCategory(c *gin.Context) {
 		return
 	}
 
-	outflowCategory := &models.OutflowCategory{
+	record := &models.OutflowCategory{
 		Name: req.Name,
 	}
 
-	if err := h.Service.CreateOutflowCategory(c, outflowCategory); err != nil {
+	if err := h.Service.CreateOutflowCategory(c, record); err != nil {
+		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("Outflow category created", "Success", http.StatusOK)(c.Writer, c.Request)
+}
+
+func (h *OutflowHandler) UpdateOutflowCategory(c *gin.Context) {
+
+	var req validators.CreateOutflowCategoryRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(err.Error())(c, nil)
+		return
+	}
+
+	record := &models.OutflowCategory{
+		ID:   req.ID,
+		Name: req.Name,
+	}
+
+	if err := h.Service.UpdateOutflowCategory(c, record); err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}

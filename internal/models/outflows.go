@@ -3,11 +3,13 @@ package models
 import "time"
 
 type OutflowCategory struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	UserID    uint      `gorm:"not_null;index" json:"user_id"`
-	Name      string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_user_name" json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID            uint      `gorm:"primaryKey" json:"id"`
+	UserID        uint      `gorm:"not_null;index" json:"user_id"`
+	Name          string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_outflow_category_name" json:"name"`
+	OutflowType   string    `gorm:"type:varchar(100);not null;" json:"outflow_type"`
+	SpendingLimit string    `gorm:"type:decimal(10,2);" json:"spending_limit"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 type Outflow struct {

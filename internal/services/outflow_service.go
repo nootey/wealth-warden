@@ -73,7 +73,7 @@ func (s *OutflowService) FetchAllOutflowCategories(c *gin.Context) ([]models.Out
 	return s.OutflowRepo.GetAllOutflowCategories(user.ID)
 }
 
-func (s *OutflowService) CreateOutflow(c *gin.Context, outflow *models.Outflow) error {
+func (s *OutflowService) CreateOutflow(c *gin.Context, newRecord *models.Outflow) error {
 
 	user, err := s.AuthService.GetCurrentUser(c)
 	if err != nil {
@@ -86,14 +86,14 @@ func (s *OutflowService) CreateOutflow(c *gin.Context, outflow *models.Outflow) 
 		return tx.Error
 	}
 
-	amountString := strconv.FormatFloat(outflow.Amount, 'f', 2, 64)
-	outflowDateStr := outflow.OutflowDate.UTC().Format(time.RFC3339)
+	amountString := strconv.FormatFloat(newRecord.Amount, 'f', 2, 64)
+	outflowDateStr := newRecord.OutflowDate.UTC().Format(time.RFC3339)
 
 	utils.CompareChanges("", outflowDateStr, changes, "outflow_date")
-	utils.CompareChanges("", outflow.OutflowCategory.Name, changes, "outflow_category")
+	utils.CompareChanges("", newRecord.OutflowCategory.Name, changes, "outflow_category")
 	utils.CompareChanges("", amountString, changes, "amount")
 
-	_, err = s.OutflowRepo.InsertOutflow(tx, user.ID, outflow)
+	_, err = s.OutflowRepo.InsertOutflow(tx, user.ID, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -108,7 +108,7 @@ func (s *OutflowService) CreateOutflow(c *gin.Context, outflow *models.Outflow) 
 	return tx.Commit().Error
 }
 
-func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, outflow *models.Outflow, reoccurringOutflow *models.RecurringAction) error {
+func (s *OutflowService) UpdateOutflow(c *gin.Context, newRecord *models.Outflow) error {
 
 	user, err := s.AuthService.GetCurrentUser(c)
 	if err != nil {
@@ -121,23 +121,68 @@ func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, outflow *model
 		return tx.Error
 	}
 
-	amountString := strconv.FormatFloat(outflow.Amount, 'f', 2, 64)
-	outflowDateStr := outflow.OutflowDate.UTC().Format(time.RFC3339)
+	existingRecord, err := s.OutflowRepo.GetOutflowByID(user.ID, newRecord.ID)
+	if err != nil {
+		return err
+	}
 
-	utils.CompareChanges("", outflowDateStr, changes, "outflow_date")
-	utils.CompareChanges("", outflow.OutflowCategory.Name, changes, "outflow_category")
-	utils.CompareChanges("", amountString, changes, "amount")
+	existingAmountString := strconv.FormatFloat(existingRecord.Amount, 'f', 2, 64)
+	amountString := strconv.FormatFloat(newRecord.Amount, 'f', 2, 64)
+	existingOutflowDateStr := existingRecord.OutflowDate.UTC().Format(time.RFC3339)
+	outflowDateStr := newRecord.OutflowDate.UTC().Format(time.RFC3339)
 
-	_, err = s.OutflowRepo.InsertOutflow(tx, user.ID, outflow)
+	utils.CompareChanges(existingOutflowDateStr, outflowDateStr, changes, "outflow_date")
+	utils.CompareChanges(existingRecord.OutflowCategory.Name, newRecord.OutflowCategory.Name, changes, "outflow_category")
+	utils.CompareChanges(existingAmountString, amountString, changes, "amount")
+	utils.CompareChanges(utils.SafeString(existingRecord.Description), utils.SafeString(newRecord.Description), changes, "description")
+
+	_, err = s.OutflowRepo.UpdateOutflow(tx, user.ID, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	startDateStr := reoccurringOutflow.StartDate.UTC().Format(time.RFC3339)
+	description := fmt.Sprintf("Updated record with ID: %d", newRecord.ID)
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "outflow", &description, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, newRecord *models.Outflow, newReoccurringRecord *models.RecurringAction) error {
+
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+	changes := utils.InitChanges()
+
+	tx := s.OutflowRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	amountString := strconv.FormatFloat(newRecord.Amount, 'f', 2, 64)
+	outflowDateStr := newRecord.OutflowDate.UTC().Format(time.RFC3339)
+
+	utils.CompareChanges("", outflowDateStr, changes, "outflow_date")
+	utils.CompareChanges("", newRecord.OutflowCategory.Name, changes, "outflow_category")
+	utils.CompareChanges("", amountString, changes, "amount")
+
+	_, err = s.OutflowRepo.InsertOutflow(tx, user.ID, newRecord)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	startDateStr := newReoccurringRecord.StartDate.UTC().Format(time.RFC3339)
 	var endDateStr *string
-	if reoccurringOutflow.EndDate != nil {
-		formatted := reoccurringOutflow.EndDate.UTC().Format(time.RFC3339)
+	if newReoccurringRecord.EndDate != nil {
+		formatted := newReoccurringRecord.EndDate.UTC().Format(time.RFC3339)
 		endDateStr = &formatted
 	} else {
 		endDateStr = nil // Ensure it remains nil instead of an empty string
@@ -148,11 +193,11 @@ func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, outflow *model
 	}
 
 	utils.CompareChanges("", startDateStr, changes, "start_date")
-	utils.CompareChanges("", reoccurringOutflow.CategoryType, changes, "category")
-	utils.CompareChanges("", reoccurringOutflow.IntervalUnit, changes, "interval_unit")
-	utils.CompareChanges("", strconv.Itoa(reoccurringOutflow.IntervalValue), changes, "interval_value")
+	utils.CompareChanges("", newReoccurringRecord.CategoryType, changes, "category")
+	utils.CompareChanges("", newReoccurringRecord.IntervalUnit, changes, "interval_unit")
+	utils.CompareChanges("", strconv.Itoa(newReoccurringRecord.IntervalValue), changes, "interval_value")
 
-	_, err = s.RecActionsService.ActionRepo.InsertReoccurringAction(tx, user.ID, reoccurringOutflow)
+	_, err = s.RecActionsService.ActionRepo.InsertReoccurringAction(tx, user.ID, newReoccurringRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -167,7 +212,7 @@ func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, outflow *model
 	return tx.Commit().Error
 }
 
-func (s *OutflowService) CreateOutflowCategory(c *gin.Context, OutflowCategory *models.OutflowCategory) error {
+func (s *OutflowService) CreateOutflowCategory(c *gin.Context, newRecord *models.OutflowCategory) error {
 
 	user, err := s.AuthService.GetCurrentUser(c)
 	if err != nil {
@@ -180,15 +225,52 @@ func (s *OutflowService) CreateOutflowCategory(c *gin.Context, OutflowCategory *
 		return tx.Error
 	}
 
-	utils.CompareChanges("", OutflowCategory.Name, changes, "category")
+	utils.CompareChanges("", newRecord.Name, changes, "category")
 
-	err = s.OutflowRepo.InsertOutflowCategory(tx, user.ID, OutflowCategory)
+	err = s.OutflowRepo.InsertOutflowCategory(tx, user.ID, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "outflow_category", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func (s *OutflowService) UpdateOutflowCategory(c *gin.Context, newRecord *models.OutflowCategory) error {
+
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+	changes := utils.InitChanges()
+
+	tx := s.OutflowRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	existingRecord, err := s.OutflowRepo.GetOutflowCategoryByID(user.ID, newRecord.ID)
+	if err != nil {
+		return err
+	}
+
+	utils.CompareChanges(existingRecord.Name, newRecord.Name, changes, "category")
+
+	err = s.OutflowRepo.UpdateOutflowCategory(tx, user.ID, newRecord)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	description := fmt.Sprintf("Outflow category with ID: %d has been updated", newRecord.ID)
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "outflow_category", &description, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
