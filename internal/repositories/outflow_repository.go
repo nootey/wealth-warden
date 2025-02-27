@@ -78,13 +78,14 @@ func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint) ([]models
                 oc.id AS category_id,
                 oc.name AS category_name,
                 SUM(o.amount) AS total_amount,
-                oc.spending_limit AS spending_limit
+                oc.spending_limit AS spending_limit,
+                oc.outflow_type AS category_type
             FROM outflows o
             JOIN outflow_categories oc ON o.outflow_category_id = oc.id
             WHERE o.deleted_at IS NULL
             AND o.user_id = ?
             AND YEAR(o.outflow_date) = YEAR(CURDATE())
-            GROUP BY oc.id, oc.name, month, oc.spending_limit
+            GROUP BY oc.id, oc.name, month, oc.spending_limit, category_type
 
             UNION ALL
 
@@ -94,7 +95,8 @@ func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint) ([]models
                 0 AS category_id,
                 'Total' AS category_name,
                 SUM(o.amount) AS total_amount,
-                NULL AS spending_limit  -- No spending limit for the total row
+                NULL AS spending_limit,  -- No spending limit for the total row
+                NULL AS category_type  -- No outflow_type for the total row
             FROM outflows o
             WHERE o.deleted_at IS NULL
             AND o.user_id = ?
