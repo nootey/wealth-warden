@@ -26,4 +26,5 @@ export interface OutflowGroup {
     total_amount: number;
     category_id: number;
     category_name: string;
+    category_type: string;
 }

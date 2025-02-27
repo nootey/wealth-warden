@@ -5,7 +5,7 @@ interface ValidationObject {
 }
 
 const vueHelper = {
-    pivotedRecords: (records: any[]) => {
+    pivotedRecords: (records: any[], getCategoryType?: (item: any) => string | null) => {
         if (!records || records.length === 0) {
             return;
         }
@@ -13,22 +13,25 @@ const vueHelper = {
         const pivot: Record<number, any> = {}
 
         records.forEach(item => {
-            const { category_id, category_name, month, total_amount } = item
+            const { category_id, category_name, month, total_amount } = item;
+            const category_type = getCategoryType ? getCategoryType(item) : "";  // Ensure category_type defaults to an empty string if not provided
 
             // Create a new pivot row for the category if it doesn't exist yet
             if (!pivot[category_id]) {
                 pivot[category_id] = {
                     category_id,
-                    category_name
-                }
+                    category_name,
+                    category_type: category_type || "Unknown",  // Set a fallback for empty category_type
+                };
             }
             // Use the month number as key
-            pivot[category_id][month] = total_amount
-        })
+            pivot[category_id][month] = total_amount;
+        });
 
-        // Return an array of pivoted rows
-        return Object.values(pivot)
+        // Return the pivoted records
+        return Object.values(pivot);
     },
+
     getValidationClass: (state: ValidationObject | null | undefined, errorClass: string) => {
         return {
             [errorClass]: !!state?.$error,
@@ -48,12 +51,13 @@ const vueHelper = {
     },
     calculateGroupedStatistics<T>(
         groupedItems: T[],
-        targetRef: { value: { category: string; total: number; average: number; spending_limit: number | null }[] },
+        targetRef: { value: { category: string; total: number; average: number; spending_limit: number | null, outflow_type: string | null }[] },
         getCategoryId: (item: T) => number,
         getCategoryName: (item: T) => string,
         getTotalAmount: (item: T) => number,
         getMonth: (item: T) => number,
-        getSpendingLimit?: (item: T) => number
+        getSpendingLimit?: (item: T) => number | null,
+        getOutflowType?: (item: T) => string | null,
     ): void {
         if (!groupedItems || groupedItems.length === 0) {
         return;
@@ -65,6 +69,7 @@ const vueHelper = {
         const total_amount = getTotalAmount(curr);
         const month = getMonth(curr);
         const spending_limit = getSpendingLimit ? getSpendingLimit(curr) : null;
+        const outflow_type = getOutflowType ? getOutflowType(curr) : null;
 
         if (!acc[category_id]) {
             acc[category_id] = {
@@ -72,6 +77,7 @@ const vueHelper = {
                 total: 0,
                 months: new Set<number>(),
                 spendingLimit: spending_limit,
+                outflowType: outflow_type,
             };
         }
 
@@ -88,6 +94,7 @@ const vueHelper = {
             total: category.total,
             average: category.total / monthCount,
             spending_limit: category.spendingLimit ?? null,
+            outflow_type: category.outflowType ?? null
         };
     });
     }

@@ -99,7 +99,8 @@ async function getGroupedData() {
         item => item.category_name,
         item => item.total_amount,
         item => item.month,
-        item => (item as any).spending_limit
+        item => (item as any).spending_limit,
+        item => (item as any).category_type
     );
   } catch (error) {
     toastStore.errorResponseToast(error);
