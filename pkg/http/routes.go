@@ -36,7 +36,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
 	authService := services.NewAuthService(userRepo, loggingService)
 	userService := services.NewUserService(cfg, userRepo)
-	recActionService := services.NewReoccurringActionService(recActionRepo, authService)
+	recActionService := services.NewReoccurringActionService(recActionRepo, authService, loggingService)
 	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, inflowRepo)
 	outflowService := services.NewOutflowService(cfg, authService, loggingService, recActionService, outflowRepo)
 
