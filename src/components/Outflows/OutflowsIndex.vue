@@ -2,8 +2,8 @@
 import {useToastStore} from "../../services/stores/toastStore.ts";
 import {useActionStore} from "../../services/stores/reoccurringActionStore.ts";
 import {computed, onMounted, provide, ref} from "vue";
-import type {OutflowStat, OutflowGroup} from "../../models/outflows.ts";
-import type {GroupedItem, Statistics} from "../../models/shared.ts";
+import type {OutflowGroup} from "../../models/outflows.ts";
+import type {Statistics} from "../../models/shared.ts";
 import {useOutflowStore} from "../../services/stores/outflowStore.ts";
 import vueHelper from "../../utils/vueHelper.ts";
 import dateHelper from "../../utils/dateHelper.ts";
@@ -178,6 +178,18 @@ async function onCellEditComplete(event: any) {
 
 }
 
+async function handleEmit(emitType: any) {
+  switch (emitType) {
+    case 'insertRecAction': {
+      await actionStore.getAllActionsForCategory("outflow");
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+}
+
 provide("getData", getData)
 provide("getGroupedData", getGroupedData)
 
@@ -187,7 +199,7 @@ provide("getGroupedData", getGroupedData)
 
   <Dialog v-model:visible="addOutflowModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '800px'}" header="Add outflow">
-    <OutflowCreate></OutflowCreate>
+    <OutflowCreate @insertReoccurringActionEvent="handleEmit('insertRecAction')"></OutflowCreate>
   </Dialog>
   <Dialog v-model:visible="addCategoryModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '800px'}" header="Outflow categories">
@@ -323,7 +335,7 @@ provide("getGroupedData", getGroupedData)
         </h3>
       </div>
 
-      <ReoccurringActionsDisplay :categoryItems="actionStore.reoccurringActions" />
+      <ReoccurringActionsDisplay categoryName="outflow" :categoryItems="actionStore.reoccurringActions" />
     </div>
   </div>
 </template>

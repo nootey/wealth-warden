@@ -2,17 +2,24 @@
 import type {ReoccurringAction} from "../../models/actions.ts";
 import vueHelper from "../../utils/vueHelper.ts";
 import dateHelper from "../../utils/dateHelper.ts";
+import {useActionStore} from "../../services/stores/reoccurringActionStore.ts";
+import {useToastStore} from "../../services/stores/toastStore.ts";
 
 const props = defineProps<{
   categoryItems: ReoccurringAction[];
+  categoryName: string;
 }>();
 
-async function editAction(id: number) {
-  console.log(id)
-}
+const actionStore = useActionStore();
+const toastStore = useToastStore();
 
 async function removeAction(id: number) {
-  console.log(id)
+  try {
+    let response = await actionStore.deleteRecAction(id, props.categoryName);
+    toastStore.successResponseToast(response);
+  } catch (err) {
+    toastStore.errorResponseToast(err)
+  }
 }
 </script>
 
@@ -20,12 +27,10 @@ async function removeAction(id: number) {
   <div class="flex flex-row w-full">
     <div class="flex flex-column w-full">
 
-      <DataTable :value="categoryItems" size="small">
+      <DataTable :value="categoryItems" size="small" scrollable scrollHeight="275px">
         <Column header="Actions">
           <template #body="slotProps">
             <div class="flex flex-row align-items-center gap-2">
-              <i class="pi pi-pencil hover_icon"
-                 @click="editAction(slotProps.data?.id)"></i>
               <i class="pi pi-trash hover_icon" style="color: var(--accent-primary)"
                  @click="removeAction(slotProps.data?.id)"></i>
             </div>

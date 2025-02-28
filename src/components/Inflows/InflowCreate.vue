@@ -29,6 +29,10 @@ const newReoccurringInflow = ref(initInflow(true));
 const getData = inject<((new_page?: number | null) => Promise<void>) | null>("getData", null);
 const getGroupedData = inject<(() => Promise<void>) | null>("getGroupedData", null);
 
+const emit = defineEmits<{
+  (event: 'insertReoccurringActionEvent'): void;
+}>();
+
 const isEndDateValid = (value: string | null) => {
   if (!value) return true; // Allow null values
   return new Date(value) > new Date(newReoccurringInflow.value?.startDate);
@@ -172,6 +176,7 @@ async function createNewReoccurringInflow() {
     newReoccurringInflow.value = initInflow(true);
     v$.value.newReoccurringInflow.$reset();
 
+    emit("insertReoccurringActionEvent");
     await getData();
     await getGroupedData();
 

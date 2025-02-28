@@ -8,8 +8,8 @@ import ValidationError from "../Validation/ValidationError.vue";
 
 import InflowCategories from "./InflowCategories.vue";
 import vueHelper from "../../utils/vueHelper.ts";
-import type {InflowStat, InflowGroup} from '../../models/inflows.ts';
-import type {GroupedItem, Statistics} from "../../models/shared.ts";
+import type {InflowGroup} from '../../models/inflows.ts';
+import type {Statistics} from "../../models/shared.ts";
 import BasicStatDisplay from "../Shared/BasicStatDisplay.vue";
 import DisplayMonthlyDate from "../Shared/DisplayMonthlyDate.vue";
 import InflowCreate from "./InflowCreate.vue";
@@ -176,6 +176,18 @@ async function onCellEditComplete(event: any) {
 
 }
 
+async function handleEmit(emitType: any) {
+  switch (emitType) {
+    case 'insertRecAction': {
+      await actionStore.getAllActionsForCategory("inflow");
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+}
+
 provide("getData", getData)
 provide("getGroupedData", getGroupedData)
 
@@ -185,7 +197,7 @@ provide("getGroupedData", getGroupedData)
 
   <Dialog v-model:visible="addInflowModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '800px'}" header="Add entries">
-    <InflowCreate></InflowCreate>
+    <InflowCreate @insertReoccurringActionEvent="handleEmit('insertRecAction')"></InflowCreate>
   </Dialog>
   <Dialog v-model:visible="addCategoryModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '800px'}" header="Add entries">
@@ -326,7 +338,7 @@ provide("getGroupedData", getGroupedData)
         </h3>
       </div>
 
-      <ReoccurringActionsDisplay :categoryItems="actionStore.reoccurringActions" />
+      <ReoccurringActionsDisplay :categoryItems="actionStore.reoccurringActions" categoryName="inflow" />
     </div>
   </div>
 </template>

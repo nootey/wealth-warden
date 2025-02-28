@@ -9,9 +9,18 @@ export const useActionStore = defineStore('action', {
     actions: {
         async getAllActionsForCategory(categoryName: string) {
             try {
-
                 const response = await apiClient.get("get-all-reoccurring-actions-for-category", {params: {categoryName: categoryName}});
                 this.reoccurringActions = response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
+
+        async deleteRecAction(id: number, categoryName: string) {
+            try {
+                const response = await apiClient.post("delete-reoccurring-action", {id: id, category_name: categoryName});
+                await this.getAllActionsForCategory(categoryName);
+                return response;
             } catch (err) {
                 throw err;
             }
