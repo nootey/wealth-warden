@@ -13,3 +13,15 @@ export interface Statistics {
     spending_limit: number|null;
     category_type: string|null;
 }
+
+export interface DynamicCategory {
+    id: number|null;
+    name: string;
+}
+
+export interface DynamicCategoryMapping {
+    primary_links: object;
+    primary_type: string;
+    secondary_links: object;
+    secondary_type: string;
+}

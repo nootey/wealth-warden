@@ -2,6 +2,7 @@ import {defineStore} from "pinia";
 import apiClient from './api/axios_interceptor.ts';
 import type {Inflow, InflowCategory} from "../../models/inflows.ts";
 import type {ReoccurringAction} from "../../models/actions.ts";
+import type {DynamicCategory, DynamicCategoryMapping} from "../../models/shared.ts";
 
 export const useInflowStore = defineStore('inflow', {
     state: () => ({
@@ -46,6 +47,14 @@ export const useInflowStore = defineStore('inflow', {
             }
         },
 
+        async getDynamicCategories() {
+            try {
+                return await apiClient.get("get-all-dynamic-categories");
+            } catch (err) {
+                throw err;
+            }
+        },
+
         async createInflow(Inflow: Inflow|null) {
             try {
                 return await apiClient.post("create-new-inflow", Inflow);
@@ -75,6 +84,14 @@ export const useInflowStore = defineStore('inflow', {
                 const response = await apiClient.post("create-new-inflow-category", InflowCategory);
                 await this.getInflowCategories();
                 return response;
+            } catch (err) {
+                throw err;
+            }
+        },
+
+        async createDynamicCategory(Category: DynamicCategory, Mapping: DynamicCategoryMapping) {
+            try {
+                return await apiClient.post("create-new-dynamic-category", {Category, Mapping});
             } catch (err) {
                 throw err;
             }

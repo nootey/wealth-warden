@@ -15,6 +15,7 @@ import DisplayMonthlyDate from "../Shared/DisplayMonthlyDate.vue";
 import InflowCreate from "./InflowCreate.vue";
 import ReoccurringActionsDisplay from "../Shared/ReoccurringActionsDisplay.vue";
 import {useActionStore} from "../../services/stores/reoccurringActionStore.ts";
+import DynamicCategories from "./DynamicCategories.vue";
 
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();
@@ -27,6 +28,7 @@ const groupedInflows = ref<InflowGroup[]>([]);
 
 const addInflowModal = ref(false);
 const addCategoryModal = ref(false);
+const addDynamicCategoryModal = ref(false);
 const inflowStatistics = ref<Statistics[]>([]);
 
 const params = computed(() => {
@@ -132,6 +134,10 @@ function manipulateDialog(modal: string, value: boolean) {
       addCategoryModal.value = value;
       break;
     }
+    case 'add-dynamic-category': {
+      addDynamicCategoryModal.value = value;
+      break;
+    }
     default: {
       break;
     }
@@ -196,12 +202,16 @@ provide("getGroupedData", getGroupedData)
 <template>
 
   <Dialog v-model:visible="addInflowModal" :breakpoints="{'801px': '90vw'}"
-          :modal="true" :style="{width: '800px'}" header="Add entries">
+          :modal="true" :style="{width: '800px'}" header="Add inflow">
     <InflowCreate @insertReoccurringActionEvent="handleEmit('insertRecAction')"></InflowCreate>
   </Dialog>
   <Dialog v-model:visible="addCategoryModal" :breakpoints="{'801px': '90vw'}"
-          :modal="true" :style="{width: '800px'}" header="Add entries">
+          :modal="true" :style="{width: '800px'}" header="Inflow categories">
     <InflowCategories></InflowCategories>
+  </Dialog>
+  <Dialog v-model:visible="addDynamicCategoryModal" :breakpoints="{'801px': '90vw'}"
+          :modal="true" :style="{width: '800px'}" header="Dynamic categories">
+    <DynamicCategories></DynamicCategories>
   </Dialog>
 
   <div class="flex w-full p-2">
@@ -224,15 +234,23 @@ provide("getGroupedData", getGroupedData)
           <ValidationError :isRequired="false" message="">
             <label>Inflows</label>
           </ValidationError>
-          <Button class="w-6" icon="pi pi-box" label="View" @click="manipulateDialog('add-inflow', true)"></Button>
+          <Button class="w-6" icon="pi pi-file-check" label="Create" @click="manipulateDialog('add-inflow', true)"></Button>
         </div>
 
         <div class="flex flex-column w-6 justify-content-center align-items-center">
           <ValidationError :isRequired="false" message="">
             <label>Inflow categories</label>
           </ValidationError>
-          <Button class="w-6" icon="pi pi-box" label="View" @click="manipulateDialog('add-category', true)"></Button>
+          <Button class="w-6" icon="pi pi-file-arrow-up" label="Manage" @click="manipulateDialog('add-category', true)"></Button>
         </div>
+
+        <div class="flex flex-column w-6 justify-content-center align-items-center">
+          <ValidationError :isRequired="false" message="">
+            <label>Dynamic inflow categories</label>
+          </ValidationError>
+          <Button class="w-6" icon="pi pi-file-excel" label="Manage" @click="manipulateDialog('add-dynamic-category', true)"></Button>
+        </div>
+
       </div>
 
       <div class="flex flex-row p-1">

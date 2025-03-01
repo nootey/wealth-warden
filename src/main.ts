@@ -23,6 +23,7 @@ import {DatePicker} from "primevue";
 import {InputNumber} from "primevue";
 import {Paginator} from "primevue";
 import {Dialog} from "primevue";
+import {MultiSelect} from "primevue";
 
 const app = createApp(App);
 const pinia = createPinia();
@@ -42,6 +43,7 @@ app.component("DatePicker", DatePicker);
 app.component("InputNumber", InputNumber);
 app.component("Paginator", Paginator);
 app.component("Dialog", Dialog);
+app.component("MultiSelect", MultiSelect);
 
 app.use(pinia);
 app.use(router);
