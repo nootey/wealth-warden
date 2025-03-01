@@ -14,7 +14,6 @@ const inflowStore = useInflowStore();
 const outflowStore = useOutflowStore();
 const toastStore = useToastStore();
 
-const categories = ref([]);
 const newDynamicCategory = ref(initDynamicCategory());
 const loading = ref(false);
 
@@ -22,14 +21,28 @@ const categoryTypes = ref([
   {name: "inflow"},
   {name: "outflow"},
 ]);
+const dynamicCategories = computed(() => inflowStore.dynamicCategories);
 const inflowCategories = computed(() => inflowStore.inflowCategories);
 const outflowCategories = computed(() => outflowStore.outflowCategories);
+const mergedCategories = computed(() => {
+  return [
+    ...(dynamicCategories.value || []).map(category => ({
+      ...category,
+      category_type: 'dynamic'
+    })),
+    ...(inflowCategories.value || []).map(category => ({
+      ...category,
+      category_type: 'inflow'
+    }))
+  ];
+});
 const selectedCategories = ref([]);
 
 const filteredCategoryTypes = ref([]);
 
 onMounted(async () => {
   await outflowStore.getOutflowCategories();
+  await inflowStore.getDynamicCategories();
 })
 
 const inflowCategoryRules = {
@@ -43,7 +56,6 @@ const inflowCategoryRules = {
       $autoDirty: true
     },
     secondary_links: {
-      required,
       $autoDirty: true
     }
   }
@@ -51,15 +63,13 @@ const inflowCategoryRules = {
 
 const v$ = useVuelidate(inflowCategoryRules, {newDynamicCategory: newDynamicCategory});
 
-
-
 function initDynamicCategory():object {
   return {
     name: null,
     primary_type: "inflow",
     primary_links: [],
     secondary_type: "outflow",
-    secondary_links: []
+    secondary_links: [],
   }
 }
 
@@ -110,6 +120,7 @@ async function createNewDynamicCategory() {
     }
     );
     newDynamicCategory.value = initDynamicCategory();
+    await inflowStore.getDynamicCategories();
     toastStore.successResponseToast(response);
     v$.value.newDynamicCategory.$reset();
   } catch (error) {
@@ -176,12 +187,12 @@ async function onCellEditComplete(event: any) {
         <ValidationError :isRequired="true" :message="v$.newDynamicCategory.primary_links.$errors[0]?.$message">
           <label>Primary link</label>
         </ValidationError>
-        <MultiSelect v-model="newDynamicCategory.primary_links" :options="inflowCategories" optionLabel="name" filter
+        <MultiSelect v-model="newDynamicCategory.primary_links" :options="mergedCategories" optionLabel="name" filter
                      placeholder="Select category" size="small"></MultiSelect>
       </div>
 
       <div class="flex flex-column w-4">
-        <ValidationError :isRequired="true" :message="v$.newDynamicCategory.primary_links.$errors[0]?.$message">
+        <ValidationError :isRequired="false" :message="v$.newDynamicCategory.secondary_links.$errors[0]?.$message">
           <label>Secondary link</label>
         </ValidationError>
         <MultiSelect v-model="newDynamicCategory.secondary_links"
@@ -200,7 +211,7 @@ async function onCellEditComplete(event: any) {
     <hr>
 
     <div class="flex flex-row p-1 w-full">
-      <DataTable dataKey="id" class="w-full" :loading="loading" :value="categories" size="small"
+      <DataTable dataKey="id" class="w-full" :loading="loading" :value="dynamicCategories" size="small"
                  editMode="cell" @cell-edit-complete="onCellEditComplete" sortField="created_at" :sortOrder="1"
                  paginator :rows="5" :rowsPerPageOptions="[5, 10, 25]">
         <template #empty> <div style="padding: 10px;"> No records found. </div> </template>

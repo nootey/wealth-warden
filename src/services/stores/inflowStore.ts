@@ -7,6 +7,7 @@ import type {DynamicCategory, DynamicCategoryMapping} from "../../models/shared.
 export const useInflowStore = defineStore('inflow', {
     state: () => ({
         inflowCategories: [] as InflowCategory[],
+        dynamicCategories: [] as DynamicCategory[],
     }),
     actions: {
         async getInflowsPaginated(params: object, page: number) {
@@ -49,7 +50,8 @@ export const useInflowStore = defineStore('inflow', {
 
         async getDynamicCategories() {
             try {
-                return await apiClient.get("get-all-dynamic-categories");
+                const response =  await apiClient.get("get-all-dynamic-categories");
+                this.dynamicCategories = response.data;
             } catch (err) {
                 throw err;
             }
