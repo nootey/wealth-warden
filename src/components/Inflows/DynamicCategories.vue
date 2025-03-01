@@ -129,10 +129,9 @@ async function createNewDynamicCategory() {
 }
 
 async function removeDynamicCategory(id: number) {
-  console.log(id)
-  return;
+
   try {
-    let response = await inflowStore.deleteInflowCategory(id);
+    let response = await inflowStore.deleteDynamicCategory(id);
     toastStore.successResponseToast(response);
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -155,6 +154,22 @@ async function onCellEditComplete(event: any) {
   }
 
 }
+
+const getCategoryName = (relatedId: number, relatedType: string) => {
+  if (relatedType === "inflow") {
+    const category = inflowCategories.value.find(cat => cat.id === relatedId);
+    return category ? category.name : "Unknown Inflow Category";
+  } else if (relatedType === "dynamic") {
+    const category = dynamicCategories.value.find(cat => cat.id === relatedId);
+    return category ? category.name : "Unknown Dynamic Category";
+  }
+  else if (relatedType === "outflow") {
+    const category = outflowCategories.value.find(cat => cat.id === relatedId);
+    return category ? category.name : "Unknown Outflow Category";
+  }
+  return "Unknown Category";
+};
+
 
 </script>
 
@@ -229,6 +244,30 @@ async function onCellEditComplete(event: any) {
         <Column field="name" header="Name">
           <template #editor="{ data, field }">
             <InputText size="small" v-model="data[field]" autofocus fluid />
+          </template>
+        </Column>
+
+        <Column field="Mappings" header="Primary links">
+          <template #body="slotProps">
+            <div style="overflow-y: auto; max-height: 35px;">
+              <div v-for="item in slotProps.data.Mappings" >
+              <span v-if="item?.related_type === 'inflow' || item?.related_type === 'dynamic'">
+                {{ getCategoryName(item?.related_id, item?.related_type) }}
+              </span>
+              </div>
+            </div>
+          </template>
+        </Column>
+
+        <Column field="Mappings" header="Secondary links">
+          <template #body="slotProps">
+            <div style="overflow-y: auto; max-height: 35px;">
+              <div v-for="item in slotProps.data.Mappings">
+                <span v-if="item?.related_type === 'outflow'">
+                  {{ getCategoryName(item?.related_id, item?.related_type) }}
+                </span>
+              </div>
+            </div>
           </template>
         </Column>
         <Column field="created_at" header="Created">

@@ -126,5 +126,15 @@ export const useInflowStore = defineStore('inflow', {
                 throw err;
             }
         },
+
+        async deleteDynamicCategory(id: number) {
+            try {
+                const response = await apiClient.post("delete-dynamic-category", {id: id});
+                await this.getDynamicCategories();
+                return response;
+            } catch (err) {
+                throw err;
+            }
+        },
     }
 });
