@@ -40,7 +40,7 @@ type DynamicCategory struct {
 
 type DynamicCategoryMapping struct {
 	ID                  uint      `gorm:"primaryKey" json:"id"`
-	DynamicCategoryID   uint      `gorm:"not_null;index" json:"dynamic_category_id"`
+	DynamicCategoryID   uint      `gorm:"column:dynamic_category_id;not_null;index" json:"dynamic_category_id"`
 	RelatedCategoryID   uint      `gorm:"column:related_id;not_null;index" json:"related_id"`
 	RelatedCategoryName string    `gorm:"column:related_type;not_null" json:"related_type"`
 	CreatedAt           time.Time `json:"created_at"`

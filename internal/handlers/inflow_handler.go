@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"time"
@@ -223,6 +224,12 @@ func (h *InflowHandler) CreateNewDynamicCategory(c *gin.Context) {
 		return
 	}
 
+	if len(req.Mapping.SecondaryLinks) > 0 && req.Mapping.SecondaryType == "" {
+		err := errors.New("secondary type is required if secondary links are provided")
+		utils.ErrorMessage("Validation error", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
 		utils.ValidationFailed(err.Error())(c, nil)
@@ -239,18 +246,21 @@ func (h *InflowHandler) CreateNewDynamicCategory(c *gin.Context) {
 	for _, item := range req.Mapping.PrimaryLinks {
 		mapping := models.DynamicCategoryMapping{
 			RelatedCategoryID:   item.ID,
-			RelatedCategoryName: req.Mapping.PrimaryType,
+			RelatedCategoryName: item.CategoryType,
 		}
 		mappings = append(mappings, mapping)
 	}
 
-	// Process Secondary Links
-	for _, item := range req.Mapping.SecondaryLinks {
-		mapping := models.DynamicCategoryMapping{
-			RelatedCategoryID:   item.ID,
-			RelatedCategoryName: req.Mapping.SecondaryType,
+	if len(req.Mapping.SecondaryLinks) > 0 {
+		// Process Secondary Links
+		for _, item := range req.Mapping.SecondaryLinks {
+
+			mapping := models.DynamicCategoryMapping{
+				RelatedCategoryID:   item.ID,
+				RelatedCategoryName: req.Mapping.SecondaryType, // hardcoded for now, only outflows are supported as secondary links
+			}
+			mappings = append(mappings, mapping)
 		}
-		mappings = append(mappings, mapping)
 	}
 
 	err := h.Service.CreateDynamicCategoryWithMappings(c, record, mappings)

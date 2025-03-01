@@ -288,7 +288,11 @@ func (s *InflowService) CreateDynamicCategoryWithMappings(c *gin.Context, catego
 
 	for _, mapping := range mappings {
 
+		fmt.Println("categoryID")
+		fmt.Println(categoryID)
 		mapping.DynamicCategoryID = categoryID
+		fmt.Println("mapping.DynamicCategoryID")
+		fmt.Println(mapping.DynamicCategoryID)
 
 		linkInfo := LinkInfo{
 			ID:   mapping.RelatedCategoryID,
@@ -301,7 +305,7 @@ func (s *InflowService) CreateDynamicCategoryWithMappings(c *gin.Context, catego
 			secondaryLinks = append(secondaryLinks, linkInfo)
 		}
 
-		err := s.InflowRepo.InsertDynamicCategoryMapping(tx, user.ID, mapping)
+		err := s.InflowRepo.InsertDynamicCategoryMapping(tx, mapping)
 		if err != nil {
 			tx.Rollback()
 			return err

@@ -56,17 +56,18 @@ type CreateDynamicCategoryRequest struct {
 }
 
 type Link struct {
-	ID     uint   `json:"id"`
-	Name   string `json:"name"`
-	UserID uint   `json:"user_id"`
+	ID           uint   `json:"id" validate:"required"`
+	Name         string `json:"name" validate:"required"`
+	UserID       uint   `json:"user_id"`
+	CategoryType string `json:"category_type" validate:"required"`
 }
 
 type CreateDynamicCategoryMappingRequest struct {
 	ID             uint   `json:"id"`
 	PrimaryLinks   []Link `json:"primary_links" validate:"required"`
 	PrimaryType    string `json:"primary_type" validate:"required"`
-	SecondaryLinks []Link `json:"secondary_links" validate:"required"`
-	SecondaryType  string `json:"secondary_type" validate:"required"`
+	SecondaryLinks []Link `json:"secondary_links"`
+	SecondaryType  string `json:"secondary_type"`
 }
 
 type DynamicCategoryMapRequest struct {

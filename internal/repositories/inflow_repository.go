@@ -173,9 +173,8 @@ func (r *InflowRepository) InsertDynamicCategory(tx *gorm.DB, userID uint, recor
 	return record.ID, nil
 }
 
-func (r *InflowRepository) InsertDynamicCategoryMapping(tx *gorm.DB, categoryID uint, mapping models.DynamicCategoryMapping) error {
+func (r *InflowRepository) InsertDynamicCategoryMapping(tx *gorm.DB, mapping models.DynamicCategoryMapping) error {
 
-	mapping.DynamicCategoryID = categoryID
 	if err := tx.Create(&mapping).Error; err != nil {
 		return err
 	}
