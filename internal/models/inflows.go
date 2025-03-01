@@ -29,3 +29,20 @@ type InflowSummary struct {
 	CategoryName string  `json:"category_name" gorm:"column:category_name"`
 	TotalAmount  float64 `json:"total_amount" gorm:"column:total_amount"`
 }
+
+type DynamicCategory struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"not_null;index" json:"user_id"`
+	Name      string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_user_name" json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type DynamicCategoryMapping struct {
+	ID                  uint      `gorm:"primaryKey" json:"id"`
+	DynamicCategoryID   uint      `gorm:"not_null;index" json:"dynamic_category_id"`
+	RelatedCategoryID   uint      `gorm:"column:related_id;not_null;index" json:"related_id"`
+	RelatedCategoryName string    `gorm:"column:related_type;not_null" json:"related_type"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+}

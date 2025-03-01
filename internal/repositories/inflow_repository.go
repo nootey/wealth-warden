@@ -117,6 +117,12 @@ func (r *InflowRepository) GetAllInflowCategories(userID uint) ([]models.InflowC
 	return inflowCategories, result.Error
 }
 
+func (r *InflowRepository) GetAllDynamicCategories(userID uint) ([]models.DynamicCategory, error) {
+	var records []models.DynamicCategory
+	result := r.Db.Where("user_id = ?", userID).Find(&records)
+	return records, result.Error
+}
+
 func (r *InflowRepository) InsertInflow(tx *gorm.DB, userID uint, record *models.Inflow) (uint, error) {
 	record.UserID = userID
 	if err := tx.Create(&record).Error; err != nil {
@@ -147,6 +153,33 @@ func (r *InflowRepository) InsertInflowCategory(tx *gorm.DB, userID uint, record
 	if err := tx.Create(&record).Error; err != nil {
 		return err
 	}
+	return nil
+}
+
+func (r *InflowRepository) InsertDynamicCategory(tx *gorm.DB, userID uint, record *models.DynamicCategory) (uint, error) {
+
+	var existing models.DynamicCategory
+	if err := tx.Where("user_id = ? AND name = ?", userID, record.Name).First(&existing).Error; err == nil {
+		return 0, errors.New("category with this name already exists")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, err
+	}
+
+	// Insert new category
+	record.UserID = userID
+	if err := tx.Create(&record).Error; err != nil {
+		return 0, err
+	}
+	return record.ID, nil
+}
+
+func (r *InflowRepository) InsertDynamicCategoryMapping(tx *gorm.DB, categoryID uint, mapping models.DynamicCategoryMapping) error {
+
+	mapping.DynamicCategoryID = categoryID
+	if err := tx.Create(&mapping).Error; err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -71,6 +71,15 @@ func (h *InflowHandler) GetAllInflowCategories(c *gin.Context) {
 	c.JSON(http.StatusOK, inflowCategories)
 }
 
+func (h *InflowHandler) GetAllDynamicCategories(c *gin.Context) {
+	records, err := h.Service.FetchAllDynamicCategories(c)
+	if err != nil {
+		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, records)
+}
+
 func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 
 	var req validators.CreateInflowRequest
@@ -198,6 +207,54 @@ func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
 	}
 
 	if err := h.Service.CreateInflowCategory(c, inflowCategory); err != nil {
+		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+}
+
+func (h *InflowHandler) CreateNewDynamicCategory(c *gin.Context) {
+
+	var req validators.DynamicCategoryMapRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(err.Error())(c, nil)
+		return
+	}
+
+	record := &models.DynamicCategory{
+		Name: req.Category.Name,
+	}
+
+	var mappings []models.DynamicCategoryMapping
+
+	// Process Primary Links
+	for _, item := range req.Mapping.PrimaryLinks {
+		mapping := models.DynamicCategoryMapping{
+			RelatedCategoryID:   item.ID,
+			RelatedCategoryName: req.Mapping.PrimaryType,
+		}
+		mappings = append(mappings, mapping)
+	}
+
+	// Process Secondary Links
+	for _, item := range req.Mapping.SecondaryLinks {
+		mapping := models.DynamicCategoryMapping{
+			RelatedCategoryID:   item.ID,
+			RelatedCategoryName: req.Mapping.SecondaryType,
+		}
+		mappings = append(mappings, mapping)
+	}
+
+	err := h.Service.CreateDynamicCategoryWithMappings(c, record, mappings)
+	if err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}

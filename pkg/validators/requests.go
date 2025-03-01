@@ -49,3 +49,27 @@ type ReoccurringOutflowRequest struct {
 	Outflow    CreateOutflowRequest           `json:"Outflow" validate:"required"`
 	RecOutflow CreateReoccurringActionRequest `json:"RecOutflow" validate:"required"`
 }
+
+type CreateDynamicCategoryRequest struct {
+	ID   uint   `json:"id"`
+	Name string `json:"name" validate:"required"`
+}
+
+type Link struct {
+	ID     uint   `json:"id"`
+	Name   string `json:"name"`
+	UserID uint   `json:"user_id"`
+}
+
+type CreateDynamicCategoryMappingRequest struct {
+	ID             uint   `json:"id"`
+	PrimaryLinks   []Link `json:"primary_links" validate:"required"`
+	PrimaryType    string `json:"primary_type" validate:"required"`
+	SecondaryLinks []Link `json:"secondary_links" validate:"required"`
+	SecondaryType  string `json:"secondary_type" validate:"required"`
+}
+
+type DynamicCategoryMapRequest struct {
+	Category CreateDynamicCategoryRequest        `json:"Category" validate:"required"`
+	Mapping  CreateDynamicCategoryMappingRequest `json:"Mapping" validate:"required"`
+}

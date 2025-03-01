@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"strconv"
@@ -71,6 +72,14 @@ func (s *InflowService) FetchAllInflowCategories(c *gin.Context) ([]models.Inflo
 		return nil, err
 	}
 	return s.InflowRepo.GetAllInflowCategories(user.ID)
+}
+
+func (s *InflowService) FetchAllDynamicCategories(c *gin.Context) ([]models.DynamicCategory, error) {
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return nil, err
+	}
+	return s.InflowRepo.GetAllDynamicCategories(user.ID)
 }
 
 func (s *InflowService) CreateInflow(c *gin.Context, newRecord *models.Inflow) error {
@@ -235,6 +244,77 @@ func (s *InflowService) CreateInflowCategory(c *gin.Context, newRecord *models.I
 	}
 
 	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow_category", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+type LinkInfo struct {
+	ID   uint   `json:"id"`
+	Name string `json:"name"`
+}
+
+func keysFromSlice(links []LinkInfo) string {
+	jsonData, _ := json.Marshal(links)
+	return string(jsonData)
+}
+
+func (s *InflowService) CreateDynamicCategoryWithMappings(c *gin.Context, category *models.DynamicCategory, mappings []models.DynamicCategoryMapping) error {
+
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+	changes := utils.InitChanges()
+
+	tx := s.InflowRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	utils.CompareChanges("", category.Name, changes, "name")
+
+	categoryID, err := s.InflowRepo.InsertDynamicCategory(tx, user.ID, category)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	var primaryLinks []LinkInfo
+	var secondaryLinks []LinkInfo
+
+	for _, mapping := range mappings {
+
+		mapping.DynamicCategoryID = categoryID
+
+		linkInfo := LinkInfo{
+			ID:   mapping.RelatedCategoryID,
+			Name: mapping.RelatedCategoryName,
+		}
+
+		if mapping.RelatedCategoryName == "inflow" {
+			primaryLinks = append(primaryLinks, linkInfo)
+		} else if mapping.RelatedCategoryName == "outflow" {
+			secondaryLinks = append(secondaryLinks, linkInfo)
+		}
+
+		err := s.InflowRepo.InsertDynamicCategoryMapping(tx, user.ID, mapping)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	primaryLinksJSON := keysFromSlice(primaryLinks)
+	secondaryLinksJSON := keysFromSlice(secondaryLinks)
+
+	utils.CompareChanges("", primaryLinksJSON, changes, "primary_links")
+	utils.CompareChanges("", secondaryLinksJSON, changes, "secondary_links")
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "dynamic_category", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
