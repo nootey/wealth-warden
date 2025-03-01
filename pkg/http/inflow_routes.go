@@ -18,4 +18,5 @@ func inflowRoutes(apiGroup *gin.RouterGroup, handler *handlers.InflowHandler) {
 	apiGroup.POST("/update-inflow-category", handler.UpdateInflowCategory)
 	apiGroup.POST("/delete-inflow", handler.DeleteInflow)
 	apiGroup.POST("/delete-inflow-category", handler.DeleteInflowCategory)
+	apiGroup.POST("/delete-dynamic-category", handler.DeleteDynamicCategory)
 }

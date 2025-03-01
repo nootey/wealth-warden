@@ -30,6 +30,13 @@ func (r *InflowRepository) CountInflows(userID uint) (int64, error) {
 	return totalRecords, nil
 }
 
+func (r *InflowRepository) CountDynamicCategoryByID(categoryID uint, count *int64) error {
+	return r.Db.Model(&models.DynamicCategoryMapping{}).
+		Where("related_id = ?", categoryID).
+		Where("related_type = ?", "dynamic").
+		Count(count).Error
+}
+
 func (r *InflowRepository) FindInflows(userID uint, offset, limit int, sortField, sortOrder string) ([]models.Inflow, error) {
 	var inflows []models.Inflow
 	orderBy := sortField + " " + sortOrder
@@ -65,6 +72,15 @@ func (r *InflowRepository) GetInflowCategoryByID(userID, inflowCategoryID uint) 
 		return nil, err
 	}
 	return &inflowCategory, nil
+}
+
+func (r *InflowRepository) GetDynamicCategoryByID(userID, ID uint) (*models.DynamicCategory, error) {
+	var record models.DynamicCategory
+	err := r.Db.Where("id = ? AND user_id = ?", ID, userID).First(&record).Error
+	if err != nil {
+		return nil, err
+	}
+	return &record, nil
 }
 
 func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint) ([]models.InflowSummary, error) {
@@ -119,7 +135,7 @@ func (r *InflowRepository) GetAllInflowCategories(userID uint) ([]models.InflowC
 
 func (r *InflowRepository) GetAllDynamicCategories(userID uint) ([]models.DynamicCategory, error) {
 	var records []models.DynamicCategory
-	result := r.Db.Where("user_id = ?", userID).Find(&records)
+	result := r.Db.Preload("Mappings").Where("user_id = ?", userID).Find(&records)
 	return records, result.Error
 }
 
@@ -199,5 +215,20 @@ func (r *InflowRepository) DropInflowCategory(tx *gorm.DB, userID uint, recordID
 	if result.Error != nil {
 		return result.Error
 	}
+	return nil
+}
+
+func (r *InflowRepository) DropDynamicCategory(tx *gorm.DB, userID uint, recordID uint) error {
+	// Delete related mappings first
+	if err := tx.Where("dynamic_category_id = ?", recordID).Delete(&models.DynamicCategoryMapping{}).Error; err != nil {
+		return err
+	}
+
+	// Delete the dynamic category
+	result := tx.Where("user_id = ?", userID).Delete(&models.DynamicCategory{}, recordID)
+	if result.Error != nil {
+		return result.Error
+	}
+
 	return nil
 }

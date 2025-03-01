@@ -343,3 +343,25 @@ func (h *InflowHandler) DeleteInflowCategory(c *gin.Context) {
 
 	utils.SuccessMessage("Record has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
 }
+
+func (h *InflowHandler) DeleteDynamicCategory(c *gin.Context) {
+
+	var requestBody struct {
+		ID uint `json:"id"`
+	}
+
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		utils.ErrorMessage("Invalid request body", "Error", http.StatusBadRequest)(c, err)
+		return
+	}
+
+	id := requestBody.ID
+
+	err := h.Service.DeleteDynamicCategory(c, id)
+	if err != nil {
+		utils.ErrorMessage("Error occurred", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("Record has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
+}

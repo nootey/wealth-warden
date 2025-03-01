@@ -288,11 +288,7 @@ func (s *InflowService) CreateDynamicCategoryWithMappings(c *gin.Context, catego
 
 	for _, mapping := range mappings {
 
-		fmt.Println("categoryID")
-		fmt.Println(categoryID)
 		mapping.DynamicCategoryID = categoryID
-		fmt.Println("mapping.DynamicCategoryID")
-		fmt.Println(mapping.DynamicCategoryID)
 
 		linkInfo := LinkInfo{
 			ID:   mapping.RelatedCategoryID,
@@ -448,6 +444,52 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 	}
 
 	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "inflow_category", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func (s *InflowService) DeleteDynamicCategory(c *gin.Context, id uint) error {
+
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+	var countCategories int64
+
+	changes := utils.InitChanges()
+
+	tx := s.InflowRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	record, err := s.InflowRepo.GetDynamicCategoryByID(user.ID, id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.InflowRepo.CountDynamicCategoryByID(id, &countCategories); err != nil {
+		return err
+	}
+
+	if countCategories > 0 {
+		return fmt.Errorf("cannot delete dynamic category: it is being used by %d other categories(s)", countCategories)
+	}
+
+	utils.CompareChanges(record.Name, "", changes, "category")
+
+	err = s.InflowRepo.DropDynamicCategory(tx, user.ID, id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "dynamic_category", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err

@@ -31,11 +31,12 @@ type InflowSummary struct {
 }
 
 type DynamicCategory struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	UserID    uint      `gorm:"not_null;index" json:"user_id"`
-	Name      string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_user_name" json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        uint                     `gorm:"primaryKey" json:"id"`
+	UserID    uint                     `gorm:"not_null;index" json:"user_id"`
+	Name      string                   `gorm:"type:varchar(100);not null;uniqueIndex:idx_user_name" json:"name"`
+	Mappings  []DynamicCategoryMapping `gorm:"foreignKey:DynamicCategoryID"`
+	CreatedAt time.Time                `json:"created_at"`
+	UpdatedAt time.Time                `json:"updated_at"`
 }
 
 type DynamicCategoryMapping struct {
