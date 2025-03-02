@@ -75,8 +75,8 @@ func (s *InflowService) FetchAllInflowsGroupedByMonth(c *gin.Context, yearParam 
 
 	currentYear := time.Now().Year()
 	year, err := strconv.Atoi(yearParam)
-	if err != nil || year > currentYear || year < 2000 { // Ensure year is valid
-		year = currentYear // Default to current year if invalid
+	if err != nil || year > currentYear || year < 2000 {
+		year = currentYear
 	}
 
 	return s.InflowRepo.FindAllInflowsGroupedByMonth(user.ID, year)
