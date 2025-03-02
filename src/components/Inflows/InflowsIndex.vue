@@ -64,13 +64,17 @@ onMounted(async () => {
     await init();
 });
 
-async function init() {
+async function initData() {
   await getData();
+  await getGroupedData();
+  await inflowStore.getInflowYears();
+}
+
+async function init() {
+  await initData();
   await inflowStore.getInflowCategories();
   await actionStore.getAllActionsForCategory("inflow");
-  await getGroupedData();
   sort.value = vueHelper.initSort();
-  await inflowStore.getInflowYears()
 }
 
 async function getData(new_page = null) {
@@ -209,8 +213,7 @@ async function updateYear(newYear: number) {
   await init();
 }
 
-provide("getData", getData)
-provide("getGroupedData", getGroupedData)
+provide("initData", initData)
 
 </script>
 
@@ -267,7 +270,7 @@ provide("getGroupedData", getGroupedData)
           <ValidationError :isRequired="false" message="">
             <label>Dynamic inflow categories</label>
           </ValidationError>
-          <Button class="w-6" icon="pi pi-file-excel" label="Manage" @click="manipulateDialog('add-dynamic-category', true)"></Button>
+          <Button class="w-6" icon="pi pi-file-arrow-up" label="Manage" @click="manipulateDialog('add-dynamic-category', true)"></Button>
         </div>
 
       </div>

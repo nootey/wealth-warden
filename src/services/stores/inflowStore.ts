@@ -12,6 +12,7 @@ export const useInflowStore = defineStore('inflow', {
         inflowYears: [] as number[],
     }),
     actions: {
+
         async getInflowYears() {
             try {
                 const response = await apiClient.get("get-available-record-years", {
