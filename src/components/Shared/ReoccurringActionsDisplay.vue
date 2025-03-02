@@ -28,6 +28,7 @@ async function removeAction(id: number) {
     <div class="flex flex-column w-full">
 
       <DataTable :value="categoryItems" size="small" scrollable scrollHeight="275px">
+        <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
         <Column header="Actions">
           <template #body="slotProps">
             <div class="flex flex-row align-items-center gap-2">
