@@ -1,11 +1,11 @@
-package http
+package endpoints
 
 import (
 	"github.com/gin-gonic/gin"
 	"wealth-warden/internal/handlers"
 )
 
-func inflowRoutes(apiGroup *gin.RouterGroup, handler *handlers.InflowHandler) {
+func InflowRoutes(apiGroup *gin.RouterGroup, handler *handlers.InflowHandler) {
 	apiGroup.GET("/get-inflows-paginated", handler.GetInflowsPaginated)
 	apiGroup.GET("/get-all-inflows-grouped-month", handler.GetAllInflowsGroupedByMonth)
 	apiGroup.GET("/get-all-inflow-categories", handler.GetAllInflowCategories)

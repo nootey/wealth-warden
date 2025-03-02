@@ -9,6 +9,7 @@ import (
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
+	"wealth-warden/pkg/http/endpoints"
 	"wealth-warden/pkg/middleware"
 )
 
@@ -71,18 +72,18 @@ func (r *RouteInitializer) InitEndpoints() {
 	// Protected routes
 	authGroup := r.Router.Group(apiPrefixV1, middleware.WebClientAuthentication())
 	{
-		authRoutes(authGroup, authHandler)
-		userRoutes(authGroup, userHandler)
-		inflowRoutes(authGroup, inflowHandler)
-		outflowRoutes(authGroup, outflowHandler)
-		loggingRoutes(authGroup, loggingHandler)
-		recActionRoutes(authGroup, recActionHandler)
+		endpoints.AuthRoutes(authGroup, authHandler)
+		endpoints.UserRoutes(authGroup, userHandler)
+		endpoints.InflowRoutes(authGroup, inflowHandler)
+		endpoints.OutflowRoutes(authGroup, outflowHandler)
+		endpoints.LoggingRoutes(authGroup, loggingHandler)
+		endpoints.RecActionRoutes(authGroup, recActionHandler)
 	}
 
 	// Public routes
 	publicGroup := r.Router.Group(apiPrefixV1)
 	{
-		exposedAuthRoutes(publicGroup, authHandler)
+		endpoints.ExposedAuthRoutes(publicGroup, authHandler)
 	}
 }
 
