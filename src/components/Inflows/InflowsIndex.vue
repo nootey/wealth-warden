@@ -101,7 +101,9 @@ async function getGroupedData() {
         item => item.category_id,
         item => item.category_name,
         item => item.total_amount,
-        item => item.month
+        item => item.month,
+        null,
+        item => (item as any).category_type
     );
   } catch (error) {
     toastStore.errorResponseToast(error);

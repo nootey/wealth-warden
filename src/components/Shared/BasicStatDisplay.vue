@@ -14,7 +14,6 @@ const props = defineProps<{
 <template>
   <div class="flex flex-row w-full">
     <div class="flex flex-column w-full">
-
       <DataTable :value="basicStats" size="small" showGridlines groupRowsBy="category_type" scrollable scrollHeight="450px">
         <Column field="category" header="Category" style="max-width: 2rem;"/>
         <Column field="total" header="Total" style="max-width: 2rem;">

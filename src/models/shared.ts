@@ -3,7 +3,7 @@ export interface GroupedItem {
     total: number;
     months: Set<number>;
     spendingLimit: number|null;
-    outflowType: string|null;
+    categoryType: string|null;
 }
 
 export interface Statistics {

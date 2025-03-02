@@ -51,13 +51,13 @@ const vueHelper = {
     },
     calculateGroupedStatistics<T>(
         groupedItems: T[],
-        targetRef: { value: { category: string; total: number; average: number; spending_limit: number | null, outflow_type: string | null }[] },
+        targetRef: { value: { category: string; total: number; average: number; spending_limit: number | null, category_type: string | null }[] },
         getCategoryId: (item: T) => number,
         getCategoryName: (item: T) => string,
         getTotalAmount: (item: T) => number,
         getMonth: (item: T) => number,
         getSpendingLimit?: (item: T) => number | null,
-        getOutflowType?: (item: T) => string | null,
+        getCategoryType?: (item: T) => string | null,
     ): void {
         if (!groupedItems || groupedItems.length === 0) {
         return;
@@ -69,7 +69,7 @@ const vueHelper = {
         const total_amount = getTotalAmount(curr);
         const month = getMonth(curr);
         const spending_limit = getSpendingLimit ? getSpendingLimit(curr) : null;
-        const outflow_type = getOutflowType ? getOutflowType(curr) : null;
+        const category_type = getCategoryType ? getCategoryType(curr) : null;
 
         if (!acc[category_id]) {
             acc[category_id] = {
@@ -77,7 +77,7 @@ const vueHelper = {
                 total: 0,
                 months: new Set<number>(),
                 spendingLimit: spending_limit,
-                outflowType: outflow_type,
+                categoryType: category_type,
             };
         }
 
@@ -94,7 +94,7 @@ const vueHelper = {
             total: category.total,
             average: category.total / monthCount,
             spending_limit: category.spendingLimit ?? null,
-            outflow_type: category.outflowType ?? null
+            category_type: category.categoryType ?? null
         };
     });
     }
