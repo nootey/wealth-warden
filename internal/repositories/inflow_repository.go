@@ -87,38 +87,127 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint) ([]models.I
 	var results []models.InflowSummary
 
 	err := r.Db.Raw(`
-        SELECT * FROM (
-            -- Regular category rows
-            SELECT
-                MONTH(i.inflow_date) AS month,
-                ic.id AS category_id,
-                ic.name AS category_name,
-                SUM(i.amount) AS total_amount
-            FROM inflows i
-            JOIN inflow_categories ic ON i.inflow_category_id = ic.id
-            WHERE i.deleted_at IS NULL
-            AND i.user_id = ?
-            AND YEAR(i.inflow_date) = YEAR(CURDATE())
-            GROUP BY ic.id, ic.name, month
-
-            UNION ALL
-
-            -- "Total" row for each month (sums all categories)
-            SELECT
-                MONTH(i.inflow_date) AS month,
-                0 AS category_id,
-                'Total' AS category_name,
-                SUM(i.amount) AS total_amount
-            FROM inflows i
-            WHERE i.deleted_at IS NULL
-            AND i.user_id = ?
-            AND YEAR(i.inflow_date) = YEAR(CURDATE())
-            GROUP BY MONTH(i.inflow_date)
-        ) AS combined
-        ORDER BY 
-            (CASE WHEN category_name = 'Total' THEN 1 ELSE 0 END),
-            category_name, 
-            month`, userID, userID).Scan(&results).Error
+WITH RECURSIVE dynamic_flat AS (
+    -- Base: for every mapping attached to a dynamic category
+    SELECT
+        dcm.dynamic_category_id AS root_dynamic_category_id,
+        dcm.related_type,
+        dcm.related_id,
+        CASE 
+          WHEN dcm.related_type = 'inflow' THEN 1
+          WHEN dcm.related_type = 'outflow' THEN -1
+          WHEN dcm.related_type = 'dynamic' THEN 1
+        END AS sign,
+        0 AS level
+    FROM dynamic_category_mappings dcm
+    UNION ALL
+    -- Recursive: if a mapping’s type is 'dynamic', traverse further
+    SELECT
+        df.root_dynamic_category_id,
+        dcm.related_type,
+        dcm.related_id,
+        df.sign * (CASE 
+                    WHEN dcm.related_type = 'inflow' THEN 1
+                    WHEN dcm.related_type = 'outflow' THEN -1
+                    WHEN dcm.related_type = 'dynamic' THEN 1
+                   END) AS sign,
+        df.level + 1 AS level
+    FROM dynamic_flat df
+    JOIN dynamic_category_mappings dcm 
+      ON df.related_type = 'dynamic' 
+     AND dcm.dynamic_category_id = df.related_id
+)
+SELECT * FROM (
+    -- Static inflow categories
+    SELECT
+        MONTH(i.inflow_date) AS month,
+        ic.id AS category_id,
+        ic.name AS category_name,
+        SUM(i.amount) AS total_amount,
+        'static' AS category_type
+    FROM inflows i
+    JOIN inflow_categories ic 
+      ON i.inflow_category_id = ic.id
+    WHERE i.deleted_at IS NULL
+      AND i.user_id = ?
+      AND YEAR(i.inflow_date) = YEAR(CURDATE())
+    GROUP BY ic.id, ic.name, MONTH(i.inflow_date)
+    
+    UNION ALL
+    
+    -- Dynamic categories calculation
+    SELECT
+        m.month,
+        dc.id AS category_id,
+        dc.name AS category_name,
+        SUM( df.sign * COALESCE(inf.total_amount, outf.total_amount, 0) ) AS total_amount,
+        'dynamic' AS category_type
+    FROM dynamic_categories dc
+    CROSS JOIN (
+      SELECT 1 AS month UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 
+      UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 
+      UNION SELECT 9 UNION SELECT 10 UNION SELECT 11 UNION SELECT 12
+    ) m
+    LEFT JOIN dynamic_flat df 
+      ON df.root_dynamic_category_id = dc.id
+    -- Base inflow amounts for mappings of type 'inflow'
+    LEFT JOIN (
+        SELECT 
+            MONTH(inflow_date) AS month, 
+            inflow_category_id, 
+            SUM(amount) AS total_amount
+        FROM inflows
+        JOIN inflow_categories ic 
+          ON inflows.inflow_category_id = ic.id
+        WHERE inflows.deleted_at IS NULL 
+          AND inflows.user_id = ?
+          AND YEAR(inflow_date) = YEAR(CURDATE())
+        GROUP BY MONTH(inflow_date), inflow_category_id
+    ) inf 
+      ON df.related_type = 'inflow' 
+     AND inf.inflow_category_id = df.related_id 
+     AND inf.month = m.month
+    -- Base outflow amounts for mappings of type 'outflow'
+    LEFT JOIN (
+        SELECT 
+            MONTH(outflow_date) AS month, 
+            outflow_category_id, 
+            SUM(amount) AS total_amount
+        FROM outflows
+        WHERE deleted_at IS NULL 
+          AND user_id = ?
+          AND YEAR(outflow_date) = YEAR(CURDATE())
+        GROUP BY MONTH(outflow_date), outflow_category_id
+    ) outf 
+      ON df.related_type = 'outflow' 
+     AND outf.outflow_category_id = df.related_id 
+     AND outf.month = m.month
+    WHERE dc.user_id = ?
+      AND df.related_type IN ('inflow', 'outflow')
+    GROUP BY m.month, dc.id, dc.name
+    
+    UNION ALL
+    
+    -- "Total" row for static inflows only (exclude dynamic)
+    SELECT
+        MONTH(i.inflow_date) AS month,
+        0 AS category_id,
+        'Total' AS category_name,
+        SUM(i.amount) AS total_amount,
+        'static' AS category_type
+    FROM inflows i
+    JOIN inflow_categories ic 
+      ON i.inflow_category_id = ic.id
+    WHERE i.deleted_at IS NULL
+      AND i.user_id = ?
+      AND YEAR(i.inflow_date) = YEAR(CURDATE())
+    GROUP BY MONTH(i.inflow_date)
+) AS combined
+ORDER BY 
+    (CASE WHEN category_name = 'Total' THEN 1 ELSE 0 END),
+    category_name, 
+    month;
+`, userID, userID, userID, userID, userID).Scan(&results).Error
 
 	if err != nil {
 		return nil, err

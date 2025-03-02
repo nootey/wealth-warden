@@ -27,6 +27,7 @@ type InflowSummary struct {
 	Month        int     `json:"month"`
 	CategoryID   uint    `json:"category_id" gorm:"column:category_id"`
 	CategoryName string  `json:"category_name" gorm:"column:category_name"`
+	CategoryType string  `json:"category_type"`
 	TotalAmount  float64 `json:"total_amount" gorm:"column:total_amount"`
 }
 
