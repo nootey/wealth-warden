@@ -8,8 +8,20 @@ export const useInflowStore = defineStore('inflow', {
     state: () => ({
         inflowCategories: [] as InflowCategory[],
         dynamicCategories: [] as DynamicCategory[],
+        currentYear: new Date().getFullYear(),
+        inflowYears: [] as number[],
     }),
     actions: {
+        async getInflowYears() {
+            try {
+                const response = await apiClient.get("get-available-record-years", {
+                    params: {table: "inflows", field: "inflow_date"}});
+                this.inflowYears = response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
+
         async getInflowsPaginated(params: object, page: number) {
             try {
 
@@ -29,10 +41,10 @@ export const useInflowStore = defineStore('inflow', {
             }
         },
 
-        async getAllGroupedInflows() {
+        async getAllGroupedInflows(year: number) {
             try {
 
-                return await apiClient.get("get-all-inflows-grouped-month");
+                return await apiClient.get("get-all-inflows-grouped-month", {params: {year: year}});
 
             } catch (err) {
                 throw err;

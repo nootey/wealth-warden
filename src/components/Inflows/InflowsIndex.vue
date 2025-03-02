@@ -16,6 +16,7 @@ import InflowCreate from "./InflowCreate.vue";
 import ReoccurringActionsDisplay from "../Shared/ReoccurringActionsDisplay.vue";
 import {useActionStore} from "../../services/stores/reoccurringActionStore.ts";
 import DynamicCategories from "./DynamicCategories.vue";
+import YearPicker from "../Shared/YearPicker.vue";
 
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();
@@ -60,12 +61,17 @@ const inflowCategories = computed(() => inflowStore.inflowCategories);
 const filteredInflowCategories = ref([]);
 
 onMounted(async () => {
+    await init();
+});
+
+async function init() {
   await getData();
   await inflowStore.getInflowCategories();
   await actionStore.getAllActionsForCategory("inflow");
   await getGroupedData();
   sort.value = vueHelper.initSort();
-});
+  await inflowStore.getInflowYears()
+}
 
 async function getData(new_page = null) {
 
@@ -74,8 +80,10 @@ async function getData(new_page = null) {
     page.value = new_page;
 
   try {
-
-    let paginationResponse = await inflowStore.getInflowsPaginated(params.value, page.value);
+    let paginationResponse = await inflowStore.getInflowsPaginated(
+        { ...params.value, year: inflowStore.currentYear },
+        page.value
+    );
     inflows.value = paginationResponse.data;
     paginator.value.total = paginationResponse.total_records;
     paginator.value.to = paginationResponse.to;
@@ -92,7 +100,7 @@ async function getGroupedData() {
 
   try {
 
-    let response = await inflowStore.getAllGroupedInflows();
+    let response = await inflowStore.getAllGroupedInflows(inflowStore.currentYear);
     groupedInflows.value = response.data;
     loadingGroupedInflows.value = false;
     vueHelper.calculateGroupedStatistics(
@@ -196,6 +204,11 @@ async function handleEmit(emitType: any) {
   }
 }
 
+async function updateYear(newYear: number) {
+  inflowStore.currentYear = newYear;
+  await init();
+}
+
 provide("getData", getData)
 provide("getGroupedData", getGroupedData)
 
@@ -219,19 +232,23 @@ provide("getGroupedData", getGroupedData)
   <div class="flex w-full p-2">
     <div class="flex w-9 flex-column p-2 gap-3">
 
-      <div class="flex flex-row p-1">
-        <h1>
-          Inflows
-        </h1>
+      <div class="flex flex-row p-1 fap-2 align-items-center">
+        <div class="flex flex-column p-1">
+          Select year:
+        </div>
+        <div>
+          <YearPicker records="inflows" :year="inflowStore.currentYear"
+                          :availableYears="inflowStore.inflowYears"  @update:year="updateYear" />
+        </div>
       </div>
 
       <div class="flex flex-row p-1">
         <h3>
-          Add a new item
+          Manage entries
         </h3>
       </div>
 
-      <div class="flex flex-row p-1 w-full gap-3">
+      <div class="flex flex-row p-1 w-full gap-2">
         <div class="flex flex-column w-6 justify-content-center align-items-center">
           <ValidationError :isRequired="false" message="">
             <label>Inflows</label>
@@ -257,7 +274,7 @@ provide("getGroupedData", getGroupedData)
 
       <div class="flex flex-row p-1">
         <h3>
-          Inflows by month
+          Grouped categories
         </h3>
       </div>
 
@@ -339,9 +356,9 @@ provide("getGroupedData", getGroupedData)
     <div class="flex flex-column w-3 p-2 gap-3" style="border-left: 1px solid var(--text-primary);">
 
       <div class="flex flex-row p-1">
-        <h1>
+        <h2>
           Statistics
-        </h1>
+        </h2>
       </div>
 
       <div class="flex flex-row p-1">
