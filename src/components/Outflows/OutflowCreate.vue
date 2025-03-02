@@ -26,8 +26,7 @@ const filteredReoccurrenceUnits = ref([]);
 const isReoccurring = ref(false);
 const newReoccurringOutflow = ref(initOutflow(true));
 
-const getData = inject<((new_page?: number | null) => Promise<void>) | null>("getData", null);
-const getGroupedData = inject<(() => Promise<void>) | null>("getGroupedData", null);
+const initData = inject<((new_page?: number | null) => Promise<void>) | null>("initData", null);
 
 const emit = defineEmits<{
   (event: 'insertReoccurringActionEvent'): void;
@@ -137,8 +136,7 @@ async function createNewOutflow() {
     newOutflow.value = initOutflow(false);
     v$.value.newOutflow.$reset();
 
-    await getData();
-    await getGroupedData();
+    await initData();
 
     toastStore.successResponseToast(response);
 
@@ -177,8 +175,7 @@ async function createNewReoccurringOutflow() {
     v$.value.newReoccurringOutflow.$reset();
 
     emit("insertReoccurringActionEvent");
-    await getData();
-    await getGroupedData();
+    await initData();
 
     toastStore.successResponseToast(response);
 

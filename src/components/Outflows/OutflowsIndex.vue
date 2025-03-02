@@ -14,6 +14,7 @@ import LoadingSpinner from "../Utils/LoadingSpinner.vue";
 import DisplayMonthlyDate from "../Shared/DisplayMonthlyDate.vue";
 import OutflowCategories from "./OutflowCategories.vue";
 import OutflowCreate from "./OutflowCreate.vue";
+import YearPicker from "../Shared/YearPicker.vue";
 
 const outflowStore = useOutflowStore();
 const toastStore = useToastStore();
@@ -57,12 +58,21 @@ const outflowCategories = computed(() => outflowStore.outflowCategories);
 const filteredOutflowCategories = ref([]);
 
 onMounted(async () => {
+  await init();
+});
+
+async function initData() {
   await getData();
+  await getGroupedData();
+  await outflowStore.getOutflowYears();
+}
+
+async function init() {
+  await initData();
   await outflowStore.getOutflowCategories();
   await actionStore.getAllActionsForCategory("outflow");
-  await getGroupedData();
   sort.value = vueHelper.initSort();
-});
+}
 
 async function getData(new_page = null) {
 
@@ -72,7 +82,10 @@ async function getData(new_page = null) {
 
   try {
 
-    let paginationResponse = await outflowStore.getOutflowsPaginated(params.value, page.value);
+    let paginationResponse = await outflowStore.getOutflowsPaginated(
+        { ...params.value, year: outflowStore.currentYear },
+        page.value
+    );
     outflows.value = paginationResponse.data;
     paginator.value.total = paginationResponse.total_records;
     paginator.value.to = paginationResponse.to;
@@ -89,7 +102,7 @@ async function getGroupedData() {
 
   try {
 
-    let response = await outflowStore.getAllGroupedOutflows();
+    let response = await outflowStore.getAllGroupedOutflows(outflowStore.currentYear);
     groupedOutflows.value = response.data;
     loadingGroupedOutflows.value = false;
     vueHelper.calculateGroupedStatistics(
@@ -118,7 +131,7 @@ async function removeOutflow(id: number) {
   try {
     let response = await outflowStore.deleteOutflow(id);
     toastStore.successResponseToast(response);
-    await getData();
+    await  initData();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -190,8 +203,12 @@ async function handleEmit(emitType: any) {
   }
 }
 
-provide("getData", getData)
-provide("getGroupedData", getGroupedData)
+async function updateYear(newYear: number) {
+  outflowStore.currentYear = newYear;
+  await init();
+}
+
+provide("initData", initData)
 
 </script>
 
@@ -209,10 +226,20 @@ provide("getGroupedData", getGroupedData)
   <div class="flex w-full p-2">
     <div class="flex w-9 flex-column p-2 gap-3">
 
+      <div class="flex flex-row p-1 fap-2 align-items-center">
+        <div class="flex flex-column p-1">
+          Select year:
+        </div>
+        <div>
+          <YearPicker records="outflows" :year="outflowStore.currentYear"
+                      :availableYears="outflowStore.outflowYears"  @update:year="updateYear" />
+        </div>
+      </div>
+
       <div class="flex flex-row p-1">
-        <h1>
-          Outflows
-        </h1>
+        <h3>
+          Manage entries
+        </h3>
       </div>
 
       <div class="flex flex-row p-1 w-full gap-3">
@@ -220,14 +247,14 @@ provide("getGroupedData", getGroupedData)
           <ValidationError :isRequired="false" message="">
             <label>Outflows</label>
           </ValidationError>
-          <Button class="w-6" icon="pi pi-box" label="View" @click="manipulateDialog('add-outflow', true)"></Button>
+          <Button class="w-6" icon="pi pi-file-check" label="Create" @click="manipulateDialog('add-outflow', true)"></Button>
         </div>
 
         <div class="flex flex-column w-6 justify-content-center align-items-center">
           <ValidationError :isRequired="false" message="">
             <label>Outflow categories</label>
           </ValidationError>
-          <Button class="w-6" icon="pi pi-box" label="View" @click="manipulateDialog('add-category', true)"></Button>
+          <Button class="w-6" icon="pi pi-file-arrow-up" label="Manage" @click="manipulateDialog('add-category', true)"></Button>
         </div>
       </div>
 

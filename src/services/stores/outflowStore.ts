@@ -6,8 +6,21 @@ import type {ReoccurringAction} from "../../models/actions.ts";
 export const useOutflowStore = defineStore('outflow', {
     state: () => ({
         outflowCategories: [] as OutflowCategory[],
+        currentYear: new Date().getFullYear(),
+        outflowYears: [] as number[],
     }),
     actions: {
+
+        async getOutflowYears() {
+            try {
+                const response = await apiClient.get("get-available-record-years", {
+                    params: {table: "outflows", field: "outflow_date"}});
+                this.outflowYears = response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
+
         async getOutflowsPaginated(params: object, page: number) {
             try {
 
@@ -27,10 +40,10 @@ export const useOutflowStore = defineStore('outflow', {
             }
         },
 
-        async getAllGroupedOutflows() {
+        async getAllGroupedOutflows(year: number) {
             try {
 
-                return await apiClient.get("get-all-outflows-grouped-month");
+                return await apiClient.get("get-all-outflows-grouped-month", {params: {year: year}});
 
             } catch (err) {
                 throw err;
