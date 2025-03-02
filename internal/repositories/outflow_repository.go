@@ -21,22 +21,24 @@ func (r *OutflowRepository) CountOutflowsByCategory(userID, categoryID uint, cou
 		Count(count).Error
 }
 
-func (r *OutflowRepository) CountOutflows(userID uint) (int64, error) {
+func (r *OutflowRepository) CountOutflows(userID uint, year int) (int64, error) {
 	var totalRecords int64
-	err := r.Db.Model(&models.Outflow{}).Where("user_id = ?", userID).Count(&totalRecords).Error
+	err := r.Db.Model(&models.Outflow{}).
+		Where("user_id = ? AND YEAR(outflow_date) = ?", userID, year).
+		Count(&totalRecords).Error
 	if err != nil {
 		return 0, err
 	}
 	return totalRecords, nil
 }
 
-func (r *OutflowRepository) FindOutflows(userID uint, offset, limit int, sortField, sortOrder string) ([]models.Outflow, error) {
+func (r *OutflowRepository) FindOutflows(userID uint, year, offset, limit int, sortField, sortOrder string) ([]models.Outflow, error) {
 	var outflows []models.Outflow
 	orderBy := sortField + " " + sortOrder
 
 	err := r.Db.
 		Preload("OutflowCategory").
-		Where("user_id = ?", userID).
+		Where("user_id = ? AND YEAR(outflow_date) = ?", userID, year).
 		Order(orderBy).
 		Limit(limit).
 		Offset(offset).
@@ -67,7 +69,7 @@ func (r *OutflowRepository) GetOutflowCategoryByID(userID, outflowCategoryID uin
 	return &outflowCategory, nil
 }
 
-func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint) ([]models.OutflowSummary, error) {
+func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint, year int) ([]models.OutflowSummary, error) {
 	var results []models.OutflowSummary
 
 	err := r.Db.Raw(`
@@ -84,7 +86,7 @@ func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint) ([]models
             JOIN outflow_categories oc ON o.outflow_category_id = oc.id
             WHERE o.deleted_at IS NULL
             AND o.user_id = ?
-            AND YEAR(o.outflow_date) = YEAR(CURDATE())
+            AND YEAR(o.outflow_date) = ?
             GROUP BY oc.id, oc.name, month, oc.spending_limit, category_type
 
             UNION ALL
@@ -100,13 +102,13 @@ func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint) ([]models
             FROM outflows o
             WHERE o.deleted_at IS NULL
             AND o.user_id = ?
-            AND YEAR(o.outflow_date) = YEAR(CURDATE())
+            AND YEAR(o.outflow_date) = ?
             GROUP BY MONTH(o.outflow_date)
         ) AS combined
         ORDER BY 
             (CASE WHEN category_name = 'Total' THEN 1 ELSE 0 END),
             category_name, 
-            month`, userID, userID).Scan(&results).Error
+            month`, userID, year, userID, year).Scan(&results).Error
 
 	if err != nil {
 		return nil, err

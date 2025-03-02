@@ -35,21 +35,30 @@ func NewOutflowService(
 	}
 }
 
-func (s *OutflowService) FetchOutflowsPaginated(c *gin.Context, paginationParams utils.PaginationParams) ([]models.Outflow, int, error) {
+func (s *OutflowService) FetchOutflowsPaginated(c *gin.Context, paginationParams utils.PaginationParams, yearParam string) ([]models.Outflow, int, error) {
 
 	user, err := s.AuthService.GetCurrentUser(c)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	totalRecords, err := s.OutflowRepo.CountOutflows(user.ID)
+	// Get the current year
+	currentYear := time.Now().Year()
+
+	// Convert yearParam to integer
+	year, err := strconv.Atoi(yearParam)
+	if err != nil || year > currentYear || year < 2000 { // Ensure year is valid
+		year = currentYear // Default to current year if invalid
+	}
+
+	totalRecords, err := s.OutflowRepo.CountOutflows(user.ID, year)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
 
-	outflows, err := s.OutflowRepo.FindOutflows(user.ID, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder)
+	outflows, err := s.OutflowRepo.FindOutflows(user.ID, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -57,12 +66,19 @@ func (s *OutflowService) FetchOutflowsPaginated(c *gin.Context, paginationParams
 	return outflows, int(totalRecords), nil
 }
 
-func (s *OutflowService) FetchAllOutflowsGroupedByMonth(c *gin.Context) ([]models.OutflowSummary, error) {
+func (s *OutflowService) FetchAllOutflowsGroupedByMonth(c *gin.Context, yearParam string) ([]models.OutflowSummary, error) {
 	user, err := s.AuthService.GetCurrentUser(c)
 	if err != nil {
 		return nil, err
 	}
-	return s.OutflowRepo.FindAllOutflowsGroupedByMonth(user.ID)
+
+	currentYear := time.Now().Year()
+	year, err := strconv.Atoi(yearParam)
+	if err != nil || year > currentYear || year < 2000 {
+		year = currentYear
+	}
+
+	return s.OutflowRepo.FindAllOutflowsGroupedByMonth(user.ID, year)
 }
 
 func (s *OutflowService) FetchAllOutflowCategories(c *gin.Context) ([]models.OutflowCategory, error) {
