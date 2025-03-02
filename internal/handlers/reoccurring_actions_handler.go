@@ -55,3 +55,17 @@ func (h *ReoccurringActionHandler) DeleteReoccurringAction(c *gin.Context) {
 
 	utils.SuccessMessage("Record has been deleted.", "Success", http.StatusOK)(c.Writer, c.Request)
 }
+
+func (h *ReoccurringActionHandler) GetAvailableRecordYears(c *gin.Context) {
+	queryParams := c.Request.URL.Query()
+	table := queryParams.Get("table")
+	field := queryParams.Get("field")
+
+	availableYears, err := h.Service.FetchAvailableYearsForRecords(c, table, field)
+	if err != nil {
+		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, availableYears)
+}

@@ -12,7 +12,8 @@ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 FOREIGN KEY (outflow_category_id) REFERENCES outflow_categories(id) ON DELETE CASCADE,
 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-INDEX idx_user_id (user_id)  -- Index for performance on user queries
+INDEX idx_user_id (user_id),  -- Index for performance on user queries
+INDEX idx_outflow_date (outflow_date)  -- Index for performance on date queries
 );
 -- +goose StatementEnd
 

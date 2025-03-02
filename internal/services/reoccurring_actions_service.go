@@ -93,3 +93,19 @@ func (s *ReoccurringActionService) DeleteReoccurringAction(c *gin.Context, id ui
 
 	return tx.Commit().Error
 }
+
+func (s *ReoccurringActionService) FetchAvailableYearsForRecords(c *gin.Context, table, dateField string) ([]int, error) {
+
+	user, err := s.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return nil, err
+	}
+
+	years, err := s.ActionRepo.FindDistinctYearsForRecords(user.ID, table, dateField)
+	if err != nil {
+		return nil, err
+	}
+
+	return years, nil
+
+}

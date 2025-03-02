@@ -23,8 +23,9 @@ func (h *InflowHandler) GetInflowsPaginated(c *gin.Context) {
 
 	queryParams := c.Request.URL.Query()
 	paginationParams := utils.GetPaginationParams(queryParams)
+	yearParam := queryParams.Get("year")
 
-	inflows, totalRecords, err := h.Service.FetchInflowsPaginated(c, paginationParams)
+	inflows, totalRecords, err := h.Service.FetchInflowsPaginated(c, paginationParams, yearParam)
 	if err != nil {
 		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
@@ -55,7 +56,10 @@ func (h *InflowHandler) GetInflowsPaginated(c *gin.Context) {
 
 func (h *InflowHandler) GetAllInflowsGroupedByMonth(c *gin.Context) {
 
-	inflows, err := h.Service.FetchAllInflowsGroupedByMonth(c)
+	queryParams := c.Request.URL.Query()
+	yearParam := queryParams.Get("year")
+
+	inflows, err := h.Service.FetchAllInflowsGroupedByMonth(c, yearParam)
 	if err != nil {
 		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
 		return

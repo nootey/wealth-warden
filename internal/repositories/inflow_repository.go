@@ -21,9 +21,11 @@ func (r *InflowRepository) CountInflowsByCategory(userID, categoryID uint, count
 		Count(count).Error
 }
 
-func (r *InflowRepository) CountInflows(userID uint) (int64, error) {
+func (r *InflowRepository) CountInflows(userID uint, year int) (int64, error) {
 	var totalRecords int64
-	err := r.Db.Model(&models.Inflow{}).Where("user_id = ?", userID).Count(&totalRecords).Error
+	err := r.Db.Model(&models.Inflow{}).
+		Where("user_id = ? AND YEAR(inflow_date) = ?", userID, year).
+		Count(&totalRecords).Error
 	if err != nil {
 		return 0, err
 	}
@@ -37,13 +39,13 @@ func (r *InflowRepository) CountDynamicCategoryByID(categoryID uint, count *int6
 		Count(count).Error
 }
 
-func (r *InflowRepository) FindInflows(userID uint, offset, limit int, sortField, sortOrder string) ([]models.Inflow, error) {
+func (r *InflowRepository) FindInflows(userID uint, year, offset, limit int, sortField, sortOrder string) ([]models.Inflow, error) {
 	var inflows []models.Inflow
 	orderBy := sortField + " " + sortOrder
 
 	err := r.Db.
 		Preload("InflowCategory").
-		Where("user_id = ?", userID).
+		Where("user_id = ? AND YEAR(inflow_date) = ?", userID, year).
 		Order(orderBy).
 		Limit(limit).
 		Offset(offset).
@@ -83,7 +85,7 @@ func (r *InflowRepository) GetDynamicCategoryByID(userID, ID uint) (*models.Dyna
 	return &record, nil
 }
 
-func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint) ([]models.InflowSummary, error) {
+func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint, year int) ([]models.InflowSummary, error) {
 	var results []models.InflowSummary
 
 	// Define the recursive CTE for dynamic categories
@@ -130,7 +132,7 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint) ([]models.I
     JOIN inflow_categories ic ON i.inflow_category_id = ic.id
     WHERE i.deleted_at IS NULL
       AND i.user_id = ?
-      AND YEAR(i.inflow_date) = YEAR(CURDATE())
+      AND YEAR(i.inflow_date) = ?
     GROUP BY ic.id, ic.name, MONTH(i.inflow_date)
 	`
 
@@ -158,7 +160,7 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint) ([]models.I
         JOIN inflow_categories ic ON inflows.inflow_category_id = ic.id
         WHERE inflows.deleted_at IS NULL 
           AND inflows.user_id = ?
-          AND YEAR(inflow_date) = YEAR(CURDATE())
+          AND YEAR(inflow_date) = ?
         GROUP BY MONTH(inflow_date), inflow_category_id
     ) inf ON df.related_type = 'inflow' 
        AND inf.inflow_category_id = df.related_id 
@@ -171,7 +173,7 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint) ([]models.I
         FROM outflows
         WHERE deleted_at IS NULL 
           AND user_id = ?
-          AND YEAR(outflow_date) = YEAR(CURDATE())
+          AND YEAR(outflow_date) = ?
         GROUP BY MONTH(outflow_date), outflow_category_id
     ) outf ON df.related_type = 'outflow' 
        AND outf.outflow_category_id = df.related_id 
@@ -193,7 +195,7 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint) ([]models.I
     JOIN inflow_categories ic ON i.inflow_category_id = ic.id
     WHERE i.deleted_at IS NULL
       AND i.user_id = ?
-      AND YEAR(i.inflow_date) = YEAR(CURDATE())
+      AND YEAR(i.inflow_date) = ?
     GROUP BY MONTH(i.inflow_date)
 	`
 
@@ -213,8 +215,13 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint) ([]models.I
 	`
 
 	// Execute the final query with the required parameters
-	// TODO: this query is quite disgusting, brainstorm some options to improve it
-	err := r.Db.Raw(finalQuery, userID, userID, userID, userID, userID).Scan(&results).Error
+	err := r.Db.Raw(finalQuery,
+		userID, year,
+		userID, year,
+		userID, year,
+		userID,
+		userID, year,
+	).Scan(&results).Error
 	if err != nil {
 		return nil, err
 	}

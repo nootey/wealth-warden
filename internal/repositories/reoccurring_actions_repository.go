@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"fmt"
 	"gorm.io/gorm"
 	"wealth-warden/internal/models"
 )
@@ -19,6 +20,19 @@ func (r *ReoccurringActionsRepository) CountReoccurringActionByCategory(userID u
 		Where("category_type = ?", categoryName).
 		Where("user_id = ?", userID).
 		Count(count).Error
+}
+
+func (r *ReoccurringActionsRepository) FindDistinctYearsForRecords(userID uint, table, field string) ([]int, error) {
+	var years []int
+
+	query := fmt.Sprintf("SELECT DISTINCT YEAR(%s) FROM %s WHERE user_id = ? ORDER BY YEAR(%s) DESC", field, table, field)
+
+	err := r.Db.Raw(query, userID).Scan(&years).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return years, nil
 }
 
 func (r *ReoccurringActionsRepository) FindAllActionsForCategory(userID uint, categoryName string) ([]models.RecurringAction, error) {
