@@ -85,8 +85,8 @@ func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint, year int)
             FROM outflows o
             JOIN outflow_categories oc ON o.outflow_category_id = oc.id
             WHERE o.deleted_at IS NULL
-            AND o.user_id = ?
-            AND YEAR(o.outflow_date) = ?
+              AND o.user_id = ?
+              AND YEAR(o.outflow_date) = ?
             GROUP BY oc.id, oc.name, month, oc.spending_limit, category_type
 
             UNION ALL
@@ -97,18 +97,20 @@ func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint, year int)
                 0 AS category_id,
                 'Total' AS category_name,
                 SUM(o.amount) AS total_amount,
-                NULL AS spending_limit,  -- No spending limit for the total row
-                NULL AS category_type  -- No outflow_type for the total row
+                NULL AS spending_limit,
+                NULL AS category_type
             FROM outflows o
             WHERE o.deleted_at IS NULL
-            AND o.user_id = ?
-            AND YEAR(o.outflow_date) = ?
+              AND o.user_id = ?
+              AND YEAR(o.outflow_date) = ?
             GROUP BY MONTH(o.outflow_date)
         ) AS combined
         ORDER BY 
-            (CASE WHEN category_name = 'Total' THEN 1 ELSE 0 END),
-            category_name, 
-            month`, userID, year, userID, year).Scan(&results).Error
+            (CASE WHEN category_name = 'Total' THEN 0 ELSE 1 END),
+            category_type,
+            category_name,
+            month
+    `, userID, year, userID, year).Scan(&results).Error
 
 	if err != nil {
 		return nil, err
