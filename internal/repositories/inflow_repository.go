@@ -209,8 +209,8 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(userID uint, year int) (
     ` + totalRowQuery + `
 	) AS combined
 	ORDER BY 
-    (CASE WHEN category_name = 'Total' THEN 1 ELSE 0 END),
-    category_name, 
+    (CASE category_type WHEN 'static' THEN 0 WHEN 'dynamic' THEN 1 ELSE 2 END), 
+    category_id,
     month;
 	`
 
