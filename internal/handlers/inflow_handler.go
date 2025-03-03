@@ -104,7 +104,7 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 		InflowCategoryID: req.InflowCategoryID,
 		Amount:           req.Amount,
 		InflowDate:       req.InflowDate,
-		Description:      &req.Description,
+		Description:      utils.CleanString(req.Description).(*string),
 	}
 
 	if err := h.Service.CreateInflow(c, inflow); err != nil {
@@ -135,7 +135,7 @@ func (h *InflowHandler) UpdateInflow(c *gin.Context) {
 		InflowCategoryID: req.InflowCategoryID,
 		Amount:           req.Amount,
 		InflowDate:       req.InflowDate,
-		Description:      &req.Description,
+		Description:      utils.CleanString(req.Description).(*string),
 	}
 
 	if err := h.Service.UpdateInflow(c, inflow); err != nil {
@@ -208,7 +208,7 @@ func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
 	}
 
 	inflowCategory := &models.InflowCategory{
-		Name: req.Name,
+		Name: utils.CleanString(req.Name).(string),
 	}
 
 	if err := h.Service.CreateInflowCategory(c, inflowCategory); err != nil {
@@ -241,7 +241,7 @@ func (h *InflowHandler) CreateNewDynamicCategory(c *gin.Context) {
 	}
 
 	record := &models.DynamicCategory{
-		Name: req.Category.Name,
+		Name: utils.CleanString(req.Category.Name).(string),
 	}
 
 	var mappings []models.DynamicCategoryMapping
@@ -293,7 +293,7 @@ func (h *InflowHandler) UpdateInflowCategory(c *gin.Context) {
 
 	inflowCategory := &models.InflowCategory{
 		ID:   req.ID,
-		Name: req.Name,
+		Name: utils.CleanString(req.Name).(string),
 	}
 
 	if err := h.Service.UpdateInflowCategory(c, inflowCategory); err != nil {

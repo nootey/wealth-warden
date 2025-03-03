@@ -94,7 +94,7 @@ func (h *OutflowHandler) CreateNewOutflow(c *gin.Context) {
 		OutflowCategoryID: req.OutflowCategoryID,
 		Amount:            req.Amount,
 		OutflowDate:       req.OutflowDate,
-		Description:       &req.Description,
+		Description:       utils.CleanString(req.Description).(*string),
 	}
 
 	if err := h.Service.CreateOutflow(c, outflow); err != nil {
@@ -125,7 +125,7 @@ func (h *OutflowHandler) UpdateOutflow(c *gin.Context) {
 		OutflowCategoryID: req.OutflowCategoryID,
 		Amount:            req.Amount,
 		OutflowDate:       req.OutflowDate,
-		Description:       &req.Description,
+		Description:       utils.CleanString(req.Description).(*string),
 	}
 
 	if err := h.Service.UpdateOutflow(c, record); err != nil {
@@ -198,9 +198,9 @@ func (h *OutflowHandler) CreateNewOutflowCategory(c *gin.Context) {
 	}
 
 	record := &models.OutflowCategory{
-		Name:          req.Name,
+		Name:          utils.CleanString(req.Name).(string),
 		SpendingLimit: req.SpendingLimit,
-		OutflowType:   req.OutflowType,
+		OutflowType:   utils.CleanString(req.OutflowType).(string),
 	}
 
 	if err := h.Service.CreateOutflowCategory(c, record); err != nil {
@@ -228,9 +228,9 @@ func (h *OutflowHandler) UpdateOutflowCategory(c *gin.Context) {
 
 	record := &models.OutflowCategory{
 		ID:            req.ID,
-		Name:          req.Name,
+		Name:          utils.CleanString(req.Name).(string),
 		SpendingLimit: req.SpendingLimit,
-		OutflowType:   req.OutflowType,
+		OutflowType:   utils.CleanString(req.OutflowType).(string),
 	}
 
 	if err := h.Service.UpdateOutflowCategory(c, record); err != nil {
