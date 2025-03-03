@@ -69,7 +69,7 @@ const vueHelper = {
     },
     calculateGroupedStatistics<T>(
         groupedItems: T[],
-        targetRef: { value: { category: string; total: number; average: number; spending_limit: number | null, category_type: string | null }[] },
+        targetRef: { value: { category: string; total: number; average: number; spending_limit: number | null; category_type: string | null }[] },
         getCategoryId: (item: T) => number,
         getCategoryName: (item: T) => string,
         getTotalAmount: (item: T) => number,
@@ -78,44 +78,49 @@ const vueHelper = {
         getCategoryType?: (item: T) => string | null,
     ): void {
         if (!groupedItems || groupedItems.length === 0) {
-        return;
-    }
-
-    const groupedData = groupedItems.reduce<Record<number, GroupedItem>>((acc, curr) => {
-        const category_id = getCategoryId(curr);
-        const category_name = getCategoryName(curr);
-        const total_amount = getTotalAmount(curr);
-        const month = getMonth(curr);
-        const spending_limit = getSpendingLimit ? getSpendingLimit(curr) : null;
-        const category_type = getCategoryType ? getCategoryType(curr) : null;
-
-        if (!acc[category_id]) {
-            acc[category_id] = {
-                categoryName: category_name,
-                total: 0,
-                months: new Set<number>(),
-                spendingLimit: spending_limit,
-                categoryType: category_type,
-            };
+            return;
         }
 
-        acc[category_id].total += total_amount;
-        acc[category_id].months.add(month);
+        // Use a composite key for grouping that includes both category_id and category_type.
+        const groupedData = groupedItems.reduce<Record<string, GroupedItem>>((acc, curr) => {
+            const category_id = getCategoryId(curr);
+            const category_name = getCategoryName(curr);
+            const total_amount = getTotalAmount(curr);
+            const month = getMonth(curr);
+            const spending_limit = getSpendingLimit ? getSpendingLimit(curr) : null;
+            const category_type = getCategoryType ? getCategoryType(curr) : null;
 
-        return acc;
-    }, {});
+            // Create a composite key. Using a default value for null category_type if needed.
+            const key = `${category_id}-${category_type ?? 'default'}`;
 
-    targetRef.value = Object.values(groupedData).map((category: GroupedItem) => {
-        const monthCount = category.months.size;
-        return {
-            category: category.categoryName,
-            total: category.total,
-            average: category.total / monthCount,
-            spending_limit: category.spendingLimit ?? null,
-            category_type: category.categoryType ?? null
-        };
-    });
+            if (!acc[key]) {
+                acc[key] = {
+                    categoryName: category_name,
+                    total: 0,
+                    months: new Set<number>(),
+                    spendingLimit: spending_limit,
+                    categoryType: category_type,
+                };
+            }
+
+            acc[key].total += total_amount;
+            acc[key].months.add(month);
+
+            return acc;
+        }, {});
+
+        targetRef.value = Object.values(groupedData).map((group: GroupedItem) => {
+            const monthCount = group.months.size;
+            return {
+                category: group.categoryName,
+                total: group.total,
+                average: group.total / monthCount,
+                spending_limit: group.spendingLimit ?? null,
+                category_type: group.categoryType ?? null
+            };
+        });
     }
+
 
 };
 
