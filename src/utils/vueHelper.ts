@@ -7,29 +7,40 @@ interface ValidationObject {
 const vueHelper = {
     pivotedRecords: (records: any[], getCategoryType?: (item: any) => string | null) => {
         if (!records || records.length === 0) {
-            return;
+            return [];
         }
 
-        const pivot: Record<number, any> = {}
+        const pivot: Record<string, any> = {}; // Use a string key instead of number
 
         records.forEach(item => {
             const { category_id, category_name, month, total_amount } = item;
-            const category_type = getCategoryType ? getCategoryType(item) : "";  // Ensure category_type defaults to an empty string if not provided
+            const category_type = getCategoryType ? getCategoryType(item) : item.category_type || "Unknown";
 
-            // Create a new pivot row for the category if it doesn't exist yet
-            if (!pivot[category_id]) {
-                pivot[category_id] = {
+            // Create a unique key based on category_id and category_type
+            const uniqueKey = `${category_type}_${category_id}`;
+
+            // Ensure a pivot row exists for this category
+            if (!pivot[uniqueKey]) {
+                pivot[uniqueKey] = {
                     category_id,
                     category_name,
-                    category_type: category_type || "Unknown",  // Set a fallback for empty category_type
+                    category_type,
                 };
             }
-            // Use the month number as key
-            pivot[category_id][month] = total_amount;
+
+            // Assign total_amount for the correct month
+            pivot[uniqueKey][month] = total_amount || 0;
         });
 
-        // Return the pivoted records
-        return Object.values(pivot);
+        // Convert the pivot object to an array and sort by category_type
+        return Object.values(pivot).sort((a, b) => {
+            // Sort by category_type first ('static' before 'dynamic')
+            if (a.category_type !== b.category_type) {
+                return a.category_type.localeCompare(b.category_type);
+            }
+            // Then sort by category_id
+            return a.category_id - b.category_id;
+        });
     },
 
     getValidationClass: (state: ValidationObject | null | undefined, errorClass: string) => {
