@@ -80,7 +80,7 @@ func upSeedOutflowCategoryTable(ctx context.Context, tx *sql.Tx) error {
 	variableCategories := []Category{
 		{"Car - gas", 130.00}, {"Car - general", 500.00}, {"Food", 250.00}, {"Health", 250.00},
 		{"Hygiene", 100.00}, {"Socialization", 100.00}, {"Tech", 250.00}, {"Entertainment", 100.00},
-		{"eCommerce", 100.00}, {"Gifts", 300.00}, {"Random", 150.00},
+		{"eCommerce", 100.00}, {"Gifts", 300.00}, {"Random", 150.00}, {"SP", 160.00},
 	}
 
 	err = insertCategories(ctx, tx, userIDs, variableCategories, "variable")

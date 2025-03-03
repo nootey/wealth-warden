@@ -104,7 +104,7 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 		InflowCategoryID: req.InflowCategoryID,
 		Amount:           req.Amount,
 		InflowDate:       req.InflowDate,
-		Description:      utils.CleanString(req.Description).(*string),
+		Description:      utils.CleanString(&req.Description).(*string),
 	}
 
 	if err := h.Service.CreateInflow(c, inflow); err != nil {
@@ -135,7 +135,7 @@ func (h *InflowHandler) UpdateInflow(c *gin.Context) {
 		InflowCategoryID: req.InflowCategoryID,
 		Amount:           req.Amount,
 		InflowDate:       req.InflowDate,
-		Description:      utils.CleanString(req.Description).(*string),
+		Description:      utils.CleanString(&req.Description).(*string),
 	}
 
 	if err := h.Service.UpdateInflow(c, inflow); err != nil {

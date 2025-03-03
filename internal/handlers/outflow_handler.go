@@ -94,7 +94,7 @@ func (h *OutflowHandler) CreateNewOutflow(c *gin.Context) {
 		OutflowCategoryID: req.OutflowCategoryID,
 		Amount:            req.Amount,
 		OutflowDate:       req.OutflowDate,
-		Description:       utils.CleanString(req.Description).(*string),
+		Description:       utils.CleanString(&req.Description).(*string),
 	}
 
 	if err := h.Service.CreateOutflow(c, outflow); err != nil {
@@ -125,7 +125,7 @@ func (h *OutflowHandler) UpdateOutflow(c *gin.Context) {
 		OutflowCategoryID: req.OutflowCategoryID,
 		Amount:            req.Amount,
 		OutflowDate:       req.OutflowDate,
-		Description:       utils.CleanString(req.Description).(*string),
+		Description:       utils.CleanString(&req.Description).(*string),
 	}
 
 	if err := h.Service.UpdateOutflow(c, record); err != nil {
