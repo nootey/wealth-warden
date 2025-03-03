@@ -10,38 +10,45 @@ const vueHelper = {
             return [];
         }
 
-        const pivot: Record<string, any> = {}; // Use a string key instead of number
+        const pivot: Record<string, any> = {};
 
         records.forEach(item => {
             const { category_id, category_name, month, total_amount } = item;
-            const category_type = getCategoryType ? getCategoryType(item) : item.category_type || "Unknown";
+            const category_type = getCategoryType ? getCategoryType(item) : (item.category_type || "Unknown");
 
-            // Create a unique key based on category_id and category_type
-            const uniqueKey = `${category_type}_${category_id}`;
-
-            // Ensure a pivot row exists for this category
-            if (!pivot[uniqueKey]) {
-                pivot[uniqueKey] = {
-                    category_id,
-                    category_name,
-                    category_type,
-                };
+            if (category_type.toLowerCase() === "total") {
+                // For total rows, use a fixed key so that they are merged into one row
+                const uniqueKey = "total";
+                if (!pivot[uniqueKey]) {
+                    pivot[uniqueKey] = { category_type: "total" };
+                }
+                // Sum amounts if there are multiple total records for the same month
+                pivot[uniqueKey][month] = (pivot[uniqueKey][month] || 0) + (total_amount || 0);
+            } else {
+                // For other rows, group by category_type and category_id
+                const uniqueKey = `${category_type}_${category_id}`;
+                if (!pivot[uniqueKey]) {
+                    pivot[uniqueKey] = {
+                        category_id,
+                        category_name,
+                        category_type,
+                    };
+                }
+                // Simply assign (or overwrite) the amount for this month
+                pivot[uniqueKey][month] = total_amount || 0;
             }
-
-            // Assign total_amount for the correct month
-            pivot[uniqueKey][month] = total_amount || 0;
         });
 
-        // Convert the pivot object to an array and sort by category_type
-        return Object.values(pivot).sort((a, b) => {
-            // Sort by category_type first ('static' before 'dynamic')
-            if (a.category_type !== b.category_type) {
-                return a.category_type.localeCompare(b.category_type);
-            }
-            // Then sort by category_id
-            return a.category_id - b.category_id;
-        });
+        const pivotArray = Object.values(pivot);
+
+        // Separate total rows and non-total rows.
+        // Total row(s) always come first, while non-total rows remain unsorted.
+        const totalRows = pivotArray.filter(item => item.category_type.toLowerCase() === "total");
+        const otherRows = pivotArray.filter(item => item.category_type.toLowerCase() !== "total");
+
+        return [...totalRows, ...otherRows];
     },
+
 
     getValidationClass: (state: ValidationObject | null | undefined, errorClass: string) => {
         return {
