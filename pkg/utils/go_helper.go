@@ -6,7 +6,7 @@ func SafeString(s *string) string {
 	if s == nil {
 		return ""
 	}
-	return CleanString(s).(string)
+	return CleanString(*s).(string)
 }
 
 // CleanString trims leading/trailing spaces for both `string` and `*string` types.
