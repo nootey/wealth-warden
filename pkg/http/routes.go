@@ -23,6 +23,7 @@ type RouteInitializer struct {
 	OutflowService           *services.OutflowService
 	LoggingService           *services.LoggingService
 	ReoccurringActionService *services.ReoccurringActionService
+	SavingsService           *services.SavingsService
 }
 
 func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *RouteInitializer {
@@ -32,6 +33,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 	recActionRepo := repositories.NewReoccurringActionsRepository(db)
 	inflowRepo := repositories.NewInflowRepository(db)
 	outflowRepo := repositories.NewOutflowRepository(db)
+	savingsRepo := repositories.NewSavingsRepository(db)
 
 	// Initialize services
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
@@ -40,6 +42,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 	recActionService := services.NewReoccurringActionService(recActionRepo, authService, loggingService)
 	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, inflowRepo)
 	outflowService := services.NewOutflowService(cfg, authService, loggingService, recActionService, outflowRepo)
+	savingsService := services.NewSavingsService(cfg, authService, loggingService, recActionService, savingsRepo)
 
 	return &RouteInitializer{
 		Router:                   router,
@@ -51,6 +54,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 		OutflowService:           outflowService,
 		LoggingService:           loggingService,
 		ReoccurringActionService: recActionService,
+		SavingsService:           savingsService,
 	}
 }
 
@@ -68,6 +72,7 @@ func (r *RouteInitializer) InitEndpoints() {
 	outflowHandler := handlers.NewOutflowHandler(r.OutflowService)
 	loggingHandler := handlers.NewLoggingHandler(r.LoggingService)
 	recActionHandler := handlers.NewReoccurringActionHandler(r.ReoccurringActionService)
+	savingsHandler := handlers.NewSavingsHandler(r.SavingsService)
 
 	// Protected routes
 	authGroup := r.Router.Group(apiPrefixV1, middleware.WebClientAuthentication())
@@ -78,6 +83,7 @@ func (r *RouteInitializer) InitEndpoints() {
 		endpoints.OutflowRoutes(authGroup, outflowHandler)
 		endpoints.LoggingRoutes(authGroup, loggingHandler)
 		endpoints.RecActionRoutes(authGroup, recActionHandler)
+		endpoints.SavingsRoutes(authGroup, savingsHandler)
 	}
 
 	// Public routes
