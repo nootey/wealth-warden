@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
-	_ "wealth-warden/pkg/database/seeders" // Import for side effects
+	"wealth-warden/pkg/database/seeders"
 	serverHttp "wealth-warden/pkg/http"
 )
 
@@ -40,12 +40,19 @@ var migrateCmd = &cobra.Command{
 	},
 }
 
-// seedBasicCmd handles seeding essential tables
-var seedBasicCmd = &cobra.Command{
-	Use:   "seed base",
-	Short: "Run essential database seeders",
+// seedCmd handles seeding  tables
+var seedCmd = &cobra.Command{
+	Use:   "seed [type]",
+	Short: "Run database seeders",
+	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		runBasicSeeders()
+		seedType := "help"
+
+		if len(args) > 0 {
+			seedType = args[0]
+		}
+
+		runSeeders(seedType)
 	},
 }
 
@@ -55,7 +62,7 @@ func init() {
 
 	// Register commands
 	rootCmd.AddCommand(migrateCmd)
-	rootCmd.AddCommand(seedBasicCmd)
+	rootCmd.AddCommand(seedCmd)
 }
 
 func main() {
@@ -85,7 +92,7 @@ func runServer() {
 		log.Fatalf("Database check failed: %v", err)
 	}
 
-	dbClient, err := database.ConnectToMySQL(cfg)
+	dbClient, err := database.ConnectToMySQL(cfg, !cfg.Release)
 	if err != nil {
 		log.Fatalf("MySQL Connection Error: %v", err)
 	}
@@ -121,7 +128,7 @@ func runMigrations(migrationType string) {
 	logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
 	// Connect to MySQL using GORM
-	gormDB, err := database.ConnectToMySQL(cfg)
+	gormDB, err := database.ConnectToMySQL(cfg, true)
 	if err != nil {
 		log.Fatalf("Failed to connect to MySQL: %v", err)
 	}
@@ -155,8 +162,28 @@ func runMigrations(migrationType string) {
 		if err := goose.Up(sqlDB, migrationsDir); err != nil {
 			log.Fatalf("Failed to apply fresh migrations: %v", err)
 		}
+	case "fresh-seed-full", "fresh-seed-basic":
+		// Extract seed type from the migrationType (last part after "fresh-seed-")
+		seedType := "full"
+		if migrationType == "fresh-seed-basic" {
+			seedType = "basic"
+		}
+
+		// Reset database and reapply migrations
+		if err := goose.Reset(sqlDB, migrationsDir); err != nil {
+			log.Fatalf("Failed to reset migrations: %v", err)
+		}
+		if err := goose.Up(sqlDB, migrationsDir); err != nil {
+			log.Fatalf("Failed to apply fresh migrations: %v", err)
+		}
+
+		// Run the seeder
+		ctx := context.Background()
+		if err := seeders.SeedDatabase(ctx, gormDB, seedType); err != nil {
+			log.Fatalf("Failed to seed database: %v", err)
+		}
 	case "help":
-		log.Fatal("\n Provide an additional argument to the migration function. Valid migrate arguments are: up, down, status, fresh")
+		log.Fatal("\n Provide an additional argument to the migration function. Valid arguments are: up, down, status, fresh")
 	default:
 		log.Fatalf("Invalid migration type: %s", migrationType)
 	}
@@ -164,7 +191,19 @@ func runMigrations(migrationType string) {
 	logger.Info("Migrations completed successfully")
 }
 
-func runBasicSeeders() {
+func runSeeders(seedType string) {
+
+	// Validate seed type
+	var validSeedTypes = map[string]bool{
+		"full":  true,
+		"basic": true,
+		"help":  true,
+	}
+
+	if !validSeedTypes[seedType] {
+		log.Fatalf("Invalid seed type provided: %s.", seedType)
+	}
+
 	// Initialize the logger
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -178,20 +217,27 @@ func runBasicSeeders() {
 	logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
 	// Connect to MySQL using GORM
-	gormDB, err := database.ConnectToMySQL(cfg)
+	gormDB, err := database.ConnectToMySQL(cfg, false)
 	if err != nil {
 		log.Fatalf("Failed to connect to MySQL: %v", err)
 	}
+	ctx := context.Background()
 
-	// Get the raw *sql.DB from GORM
-	sqlDB, err := gormDB.DB()
-	if err != nil {
-		log.Fatalf("Failed to get raw SQL DB: %v", err)
+	switch seedType {
+	case "full":
+		err = seeders.SeedDatabase(ctx, gormDB, "full")
+		if err != nil {
+			log.Fatalf("Failed to seed database: %v", err)
+		}
+	case "basic":
+		err = seeders.SeedDatabase(ctx, gormDB, "basic")
+		if err != nil {
+			log.Fatalf("Failed to seed database: %v", err)
+		}
+	case "help":
+		log.Fatal("\n Provide an additional argument to the seeder function. Valid arguments are: full, basic")
+	default:
+		log.Fatalf("Invalid seeder type: %s", seedType)
 	}
 
-	seedersDir := "./pkg/database/seeders"
-	goose.SetDialect("mysql")
-	if err := goose.Up(sqlDB, seedersDir); err != nil {
-		log.Fatalf("Failed torun seeders: %v", err)
-	}
 }

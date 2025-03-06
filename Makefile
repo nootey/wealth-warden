@@ -14,8 +14,8 @@ migrate:
 	go run cmd/http-server/main.go migrate $(type)
 
 # Seed essential tables
-seed-base:
-	go run cmd/http-server/main.go seed base
+seed:
+	go run cmd/http-server/main.go seed $(type)
 
 # Clean up binaries
 clean:

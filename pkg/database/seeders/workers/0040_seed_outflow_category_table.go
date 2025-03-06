@@ -1,80 +1,58 @@
-package migrations
+package workers
 
 import (
 	"context"
-	"database/sql"
-	"github.com/pressly/goose/v3"
+	"fmt"
+	"gorm.io/gorm"
 	"time"
 )
-
-func init() {
-	goose.AddMigrationContext(upSeedOutflowCategoryTable, downSeedOutflowCategoryTable)
-}
 
 type Category struct {
 	Name          string
 	SpendingLimit float64
 }
 
-func getUserIDs(ctx context.Context, tx *sql.Tx, emails []string) ([]uint, error) {
-	var userIDs []uint
-	for _, email := range emails {
-		var userID uint
-		err := tx.QueryRowContext(ctx, `SELECT id FROM users WHERE email = ?`, email).Scan(&userID)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				continue
-			}
-			return nil, err
-		}
-		userIDs = append(userIDs, userID)
-	}
-	return userIDs, nil
-}
-
-func insertCategories(ctx context.Context, tx *sql.Tx, userIDs []uint, categories []Category, outflowType string) error {
+func insertCategories(ctx context.Context, tx *gorm.DB, userIDs []uint, categories []Category, outflowType string) error {
 	for _, userID := range userIDs {
 		for _, category := range categories {
-			_, err := tx.ExecContext(ctx, `
+			err := tx.Exec(`
 				INSERT INTO outflow_categories (user_id, name, spending_limit, outflow_type, created_at, updated_at) 
 				VALUES (?, ?, ?, ?, ?, ?)
-			`, userID, category.Name, category.SpendingLimit, outflowType, time.Now(), time.Now())
+			`, userID, category.Name, category.SpendingLimit, outflowType, time.Now(), time.Now()).Error
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to insert category %s for user %d: %w", category.Name, userID, err)
 			}
 		}
 	}
 	return nil
 }
 
-func deleteCategories(ctx context.Context, tx *sql.Tx, userIDs []uint, categories []Category) error {
+func deleteCategories(ctx context.Context, tx *gorm.DB, userIDs []uint, categories []Category) error {
 	for _, userID := range userIDs {
 		for _, category := range categories {
-			_, err := tx.ExecContext(ctx, `
+			err := tx.Exec(`
 				DELETE FROM outflow_categories WHERE user_id = ? AND name = ?
-			`, userID, category.Name)
+			`, userID, category.Name).Error
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to delete category %s for user %d: %w", category.Name, userID, err)
 			}
 		}
 	}
 	return nil
 }
 
-func upSeedOutflowCategoryTable(ctx context.Context, tx *sql.Tx) error {
+func SeedOutflowCategoryTable(ctx context.Context, db *gorm.DB) error {
 	emails := []string{"support@wealth-warden.com", "member@wealth-warden.com"}
-	userIDs, err := getUserIDs(ctx, tx, emails)
+
+	// Get user IDs
+	userIDs, err := GetUserIDs(ctx, db, emails)
 	if err != nil || len(userIDs) == 0 {
 		return err
 	}
 
+	// Fixed and variable categories
 	fixedCategories := []Category{
 		{"Rent", 600.00}, {"Utility", 200.00}, {"Car loan", 500.00}, {"Phone plan", 15.00},
-	}
-
-	err = insertCategories(ctx, tx, userIDs, fixedCategories, "fixed")
-	if err != nil {
-		return err
 	}
 
 	variableCategories := []Category{
@@ -83,17 +61,23 @@ func upSeedOutflowCategoryTable(ctx context.Context, tx *sql.Tx) error {
 		{"eCommerce", 100.00}, {"Gifts", 300.00}, {"Random", 150.00}, {"SP", 160.00},
 	}
 
-	err = insertCategories(ctx, tx, userIDs, variableCategories, "variable")
-	if err != nil {
-		return err
-	}
-
-	return nil
+	// Wrap in transaction
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := insertCategories(ctx, tx, userIDs, fixedCategories, "fixed"); err != nil {
+			return err
+		}
+		if err := insertCategories(ctx, tx, userIDs, variableCategories, "variable"); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
-func downSeedOutflowCategoryTable(ctx context.Context, tx *sql.Tx) error {
+func UnseedOutflowCategoryTable(ctx context.Context, db *gorm.DB) error {
 	emails := []string{"support@wealth-warden.com", "member@wealth-warden.com"}
-	userIDs, err := getUserIDs(ctx, tx, emails)
+
+	// Get user IDs
+	userIDs, err := GetUserIDs(ctx, db, emails)
 	if err != nil || len(userIDs) == 0 {
 		return err
 	}
@@ -105,5 +89,8 @@ func downSeedOutflowCategoryTable(ctx context.Context, tx *sql.Tx) error {
 		{"eCommerce", 100.00}, {"Gifts", 300.00}, {"Random", 150.00},
 	}
 
-	return deleteCategories(ctx, tx, userIDs, categories)
+	// Wrap deletion in transaction
+	return db.Transaction(func(tx *gorm.DB) error {
+		return deleteCategories(ctx, tx, userIDs, categories)
+	})
 }
