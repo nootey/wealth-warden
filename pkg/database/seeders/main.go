@@ -18,6 +18,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, seederType string) error {
 	switch seederType {
 	case "full":
 		seeders = []SeederFunc{
+			workers.SeedRolesAndPermissions,
 			workers.SeedSuperAdmin,
 			workers.SeedMember,
 			workers.SeedInflowCategoryTable,
@@ -28,6 +29,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, seederType string) error {
 		}
 	case "basic":
 		seeders = []SeederFunc{
+			workers.SeedRolesAndPermissions,
 			workers.SeedSuperAdmin,
 		}
 	default:
@@ -39,12 +41,14 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, seederType string) error {
 		for _, seeder := range seeders {
 			// Get the function name using reflection
 			seederName := getFunctionName(seeder)
-			fmt.Printf("%s OK %s\n", time.Now().Format("2006/01/02 15:04:05"), seederName)
 
 			// Run the seeder
 			if err := seeder(ctx, tx); err != nil {
 				return fmt.Errorf("seeder %s failed: %w", seederName, err)
 			}
+
+			// Print status
+			fmt.Printf("%s OK %s\n", time.Now().Format("2006/01/02 15:04:05"), seederName)
 		}
 		return nil
 	})

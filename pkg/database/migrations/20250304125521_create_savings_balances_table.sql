@@ -3,7 +3,7 @@
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS savings_balances (
 id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-user_id BIGINT UNSIGNED NOT NULL,
+organization_id BIGINT UNSIGNED NOT NULL,
 savings_category_id BIGINT UNSIGNED NOT NULL,
 year INT NOT NULL, -- Yearly balance tracking
 total_saved DECIMAL(10,2) NOT NULL DEFAULT 0.00, -- Total savings added this year
@@ -14,8 +14,9 @@ balance DECIMAL(10,2) NOT NULL DEFAULT 0.00, -- Running balance (total_saved + i
 last_updated DATE DEFAULT NULL, -- Last modification date
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-FOREIGN KEY (savings_category_id) REFERENCES savings_categories(id) ON DELETE CASCADE
+FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+FOREIGN KEY (savings_category_id) REFERENCES savings_categories(id) ON DELETE CASCADE,
+INDEX idx_org_id (organization_id)
 );
 -- +goose StatementEnd
 

@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS recurring_actions (
 id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-user_id BIGINT UNSIGNED NOT NULL,
+organization_id BIGINT UNSIGNED NOT NULL,
 category_type VARCHAR(50) NOT NULL, -- Distinguish category
 category_id BIGINT UNSIGNED NOT NULL, -- Map category
 amount DECIMAL(10,2) DEFAULT NULL, -- Can be NULL if using percentage for savings
@@ -14,8 +14,8 @@ interval_unit ENUM('days', 'weeks', 'months', 'years') NOT NULL, -- Recurrence u
 last_processed DATE DEFAULT NULL, -- Tracks last execution date
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-INDEX idx_user_id (user_id)  -- Index for performance on user queries
+FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+INDEX idx_org_id (organization_id)
 );
 -- +goose StatementEnd
 

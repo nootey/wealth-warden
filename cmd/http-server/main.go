@@ -217,7 +217,7 @@ func runSeeders(seedType string) {
 	logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
 	// Connect to MySQL using GORM
-	gormDB, err := database.ConnectToMySQL(cfg, false)
+	gormDB, err := database.ConnectToMySQL(cfg, true)
 	if err != nil {
 		log.Fatalf("Failed to connect to MySQL: %v", err)
 	}

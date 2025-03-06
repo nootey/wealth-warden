@@ -9,11 +9,24 @@ import (
 )
 
 func SeedInflowTable(ctx context.Context, db *gorm.DB) error {
-	emails := []string{"support@wealth-warden.com", "member@wealth-warden.com"}
+	// Define the organization names that should have inflow records.
+	orgNames := []string{"Super Admin", "Member"}
 
-	userIDs, err := GetUserIDs(ctx, db, emails)
-	if err != nil || len(userIDs) == 0 {
-		return err
+	var organizationIDs []uint
+	for _, orgName := range orgNames {
+		var orgID uint
+		err := db.Raw(`SELECT id FROM organizations WHERE name = ?`, orgName).Scan(&orgID).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				continue
+			}
+			return fmt.Errorf("error retrieving organization ID for %s: %w", orgName, err)
+		}
+		organizationIDs = append(organizationIDs, orgID)
+	}
+
+	if len(organizationIDs) == 0 {
+		return nil
 	}
 
 	randomDescriptions := []string{
@@ -24,13 +37,13 @@ func SeedInflowTable(ctx context.Context, db *gorm.DB) error {
 
 	currentYear := time.Now().Year()
 
-	// Use a transaction for safe execution
+	// Use a transaction for safe execution.
 	return db.Transaction(func(tx *gorm.DB) error {
-		for _, userID := range userIDs {
+		for _, orgID := range organizationIDs {
 			var categoryIDs []uint
-			err := tx.Raw(`SELECT id FROM inflow_categories WHERE user_id = ?`, userID).Scan(&categoryIDs).Error
+			err := tx.Raw(`SELECT id FROM inflow_categories WHERE organization_id = ?`, orgID).Scan(&categoryIDs).Error
 			if err != nil {
-				return fmt.Errorf("failed to retrieve categories for user %d: %w", userID, err)
+				return fmt.Errorf("failed to retrieve categories for organization %d: %w", orgID, err)
 			}
 
 			if len(categoryIDs) == 0 {
@@ -52,11 +65,11 @@ func SeedInflowTable(ctx context.Context, db *gorm.DB) error {
 				}
 
 				err := tx.Exec(`
-					INSERT INTO inflows (user_id, inflow_category_id, amount, inflow_date, description, created_at, updated_at) 
+					INSERT INTO inflows (organization_id, inflow_category_id, amount, inflow_date, description, created_at, updated_at) 
 					VALUES (?, ?, ?, ?, ?, ?, ?)
-				`, userID, randomCategory, randomAmount, randomDate, description, time.Now(), time.Now()).Error
+				`, orgID, randomCategory, randomAmount, randomDate, description, time.Now(), time.Now()).Error
 				if err != nil {
-					return fmt.Errorf("failed to insert inflow record for user %d: %w", userID, err)
+					return fmt.Errorf("failed to insert inflow record for organization %d: %w", orgID, err)
 				}
 			}
 		}
