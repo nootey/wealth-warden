@@ -87,11 +87,6 @@ func runServer() {
 	cfg := config.LoadConfig()
 	logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
-	// Ensure the database exists before connecting
-	if err := database.EnsureDatabaseExists(cfg); err != nil {
-		log.Fatalf("Database check failed: %v", err)
-	}
-
 	dbClient, err := database.ConnectToMySQL(cfg, !cfg.Release)
 	if err != nil {
 		log.Fatalf("MySQL Connection Error: %v", err)
@@ -126,6 +121,11 @@ func runMigrations(migrationType string) {
 	// Load Configuration
 	cfg := config.LoadConfig()
 	logger.Info("Loaded the configuration", zap.Any("config", cfg))
+
+	// Ensure the database exists before migrating
+	if err := database.EnsureDatabaseExists(cfg); err != nil {
+		log.Fatalf("Database check failed: %v", err)
+	}
 
 	// Connect to MySQL using GORM
 	gormDB, err := database.ConnectToMySQL(cfg, true)
