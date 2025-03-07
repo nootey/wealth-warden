@@ -29,38 +29,14 @@ func SeedSuperAdmin(ctx context.Context, db *gorm.DB) error {
 		return fmt.Errorf("global role 'super-admin' does not exist, please seed roles first")
 	}
 
-	// Step 1: Check if the Super Admin user already exists.
-	var userID uint
-	err = db.Raw(`SELECT id FROM users WHERE email = ?`, "support@wealth-warden.com").Scan(&userID).Error
-	if err != nil && err != gorm.ErrRecordNotFound {
-		return fmt.Errorf("failed to check existing super admin user: %w", err)
-	}
-
-	// Step 2: If the user doesn't exist, insert them with the global role "super-admin".
-	if userID == 0 {
-		err = db.Exec(`
-			INSERT INTO users (username, email, password, display_name, role_id, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, "Support", "support@wealth-warden.com", hashedPassword, "Super Admin", globalRoleID, time.Now(), time.Now()).Error
-		if err != nil {
-			return fmt.Errorf("failed to insert super admin user: %w", err)
-		}
-
-		// Retrieve the newly inserted user ID.
-		err = db.Raw(`SELECT id FROM users WHERE email = ?`, "support@wealth-warden.com").Scan(&userID).Error
-		if err != nil {
-			return fmt.Errorf("failed to retrieve new super admin user ID: %w", err)
-		}
-	}
-
-	// Step 3: Check if the "Super Admin" organization already exists.
+	// Step 1: Check if the "Super Admin" organization already exists.
 	var organizationID uint
 	err = db.Raw(`SELECT id FROM organizations WHERE name = ?`, "Super Admin").Scan(&organizationID).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return fmt.Errorf("failed to check existing Super Admin organization: %w", err)
 	}
 
-	// Step 4: If the organization doesn't exist, create it.
+	// Step 2: If the organization doesn't exist, create it.
 	if organizationID == 0 {
 		err = db.Exec(`
 			INSERT INTO organizations (name, organization_type, created_at)
@@ -74,6 +50,31 @@ func SeedSuperAdmin(ctx context.Context, db *gorm.DB) error {
 		err = db.Raw(`SELECT id FROM organizations WHERE name = ?`, "Super Admin").Scan(&organizationID).Error
 		if err != nil {
 			return fmt.Errorf("failed to retrieve new Super Admin organization ID: %w", err)
+		}
+	}
+
+	// Step 3: Check if the Super Admin user already exists.
+	var userID uint
+	err = db.Raw(`SELECT id FROM users WHERE email = ?`, "support@wealth-warden.com").Scan(&userID).Error
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return fmt.Errorf("failed to check existing super admin user: %w", err)
+	}
+
+	// Step 4: If the user doesn't exist, insert them with the global role "super-admin"
+	// and assign the primary_organization_id.
+	if userID == 0 {
+		err = db.Exec(`
+			INSERT INTO users (username, email, password, display_name, role_id, primary_organization_id, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, "Support", "support@wealth-warden.com", hashedPassword, "Super Admin", globalRoleID, organizationID, time.Now(), time.Now()).Error
+		if err != nil {
+			return fmt.Errorf("failed to insert super admin user: %w", err)
+		}
+
+		// Retrieve the newly inserted user ID.
+		err = db.Raw(`SELECT id FROM users WHERE email = ?`, "support@wealth-warden.com").Scan(&userID).Error
+		if err != nil {
+			return fmt.Errorf("failed to retrieve new super admin user ID: %w", err)
 		}
 	}
 

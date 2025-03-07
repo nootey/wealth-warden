@@ -22,18 +22,35 @@ func (r *UserRepository) GetPasswordByEmail(email string) (string, error) {
 	return password, nil
 }
 
-func (r *UserRepository) GetUserByID(id uint) (*models.User, error) {
+func (r *UserRepository) GetUserByID(id uint, includeSecrets bool) (*models.User, error) {
 	var user models.User
-	err := r.DB.First(&user, id).Error
+
+	// Preload the user's global Role and organization membership details.
+	query := r.DB.
+		Preload("Role").
+		Preload("Organizations.Organization")
+	if includeSecrets {
+		query = query.Preload("Secrets")
+	}
+
+	err := query.First(&user, id).Error
 	if err != nil {
 		return nil, err
 	}
 	return &user, nil
 }
 
-func (r *UserRepository) GetUserByEmail(email string) (*models.User, error) {
+func (r *UserRepository) GetUserByEmail(email string, includeSecrets bool) (*models.User, error) {
 	var user models.User
-	err := r.DB.Where("email = ?", email).First(&user).Error
+
+	query := r.DB.
+		Preload("Role").
+		Preload("PrimaryOrganization")
+	if includeSecrets {
+		query = query.Preload("Secrets")
+	}
+
+	err := query.Where("email = ?", email).First(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +59,13 @@ func (r *UserRepository) GetUserByEmail(email string) (*models.User, error) {
 
 func (r *UserRepository) GetAllUsers() ([]models.User, error) {
 	var users []models.User
-	err := r.DB.Find(&users).Error
+
+	// Preload the organizations for each user, including the Organization and organization-specific Role.
+	err := r.DB.
+		Omit("Secrets").
+		Preload("PrimaryOrganization").
+		Preload("Role").
+		Find(&users).Error
 	if err != nil {
 		return nil, err
 	}

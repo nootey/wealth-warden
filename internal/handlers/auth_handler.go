@@ -68,7 +68,7 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 		return
 	}
 
-	user, _ := h.Service.UserRepo.GetUserByEmail(loginForm.Email)
+	user, _ := h.Service.UserRepo.GetUserByEmail(loginForm.Email, false)
 	if user == nil {
 		utils.ErrorMessage("Error occurred", "Data unavailable", http.StatusInternalServerError)(c, nil)
 		return
