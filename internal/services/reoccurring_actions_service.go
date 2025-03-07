@@ -101,7 +101,7 @@ func (s *ReoccurringActionService) FetchAvailableYearsForRecords(c *gin.Context,
 		return nil, err
 	}
 
-	years, err := s.ActionRepo.FindDistinctYearsForRecords(user.ID, table, dateField)
+	years, err := s.ActionRepo.FindDistinctYearsForRecords(*user.PrimaryOrganizationID, table, dateField)
 	if err != nil {
 		return nil, err
 	}

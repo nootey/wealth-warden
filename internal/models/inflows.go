@@ -3,16 +3,16 @@ package models
 import "time"
 
 type InflowCategory struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	UserID    uint      `gorm:"not_null;index" json:"user_id"`
-	Name      string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_user_name" json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID             uint      `gorm:"primaryKey" json:"id"`
+	OrganizationID uint      `gorm:"not_null;index" json:"organization_id"`
+	Name           string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_user_name" json:"name"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type Inflow struct {
 	ID               uint           `gorm:"primaryKey" json:"id"`
-	UserID           uint           `gorm:"not_null" json:"user_id"`
+	OrganizationID   uint           `gorm:"not_null" json:"organization_id"`
 	InflowCategoryID uint           `gorm:"index" json:"inflow_category_id"`
 	InflowCategory   InflowCategory `gorm:"foreignKey:InflowCategoryID" json:"inflow_category"`
 	Amount           float64        `gorm:"type:decimal(10,2);not null;check:amount >= 0 AND amount <= 1000000000" json:"amount"`
@@ -32,12 +32,12 @@ type InflowSummary struct {
 }
 
 type DynamicCategory struct {
-	ID        uint                     `gorm:"primaryKey" json:"id"`
-	UserID    uint                     `gorm:"not_null;index" json:"user_id"`
-	Name      string                   `gorm:"type:varchar(100);not null;uniqueIndex:idx_user_name" json:"name"`
-	Mappings  []DynamicCategoryMapping `gorm:"foreignKey:DynamicCategoryID"`
-	CreatedAt time.Time                `json:"created_at"`
-	UpdatedAt time.Time                `json:"updated_at"`
+	ID             uint                     `gorm:"primaryKey" json:"id"`
+	OrganizationID uint                     `gorm:"not_null;index" json:"organization_id"`
+	Name           string                   `gorm:"type:varchar(100);not null;uniqueIndex:idx_user_name" json:"name"`
+	Mappings       []DynamicCategoryMapping `gorm:"foreignKey:DynamicCategoryID"`
+	CreatedAt      time.Time                `json:"created_at"`
+	UpdatedAt      time.Time                `json:"updated_at"`
 }
 
 type DynamicCategoryMapping struct {

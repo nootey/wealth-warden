@@ -52,14 +52,14 @@ func (s *InflowService) FetchInflowsPaginated(c *gin.Context, paginationParams u
 		year = currentYear // Default to current year if invalid
 	}
 
-	totalRecords, err := s.InflowRepo.CountInflows(user.ID, year)
+	totalRecords, err := s.InflowRepo.CountInflows(*user.PrimaryOrganizationID, year)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
 
-	inflows, err := s.InflowRepo.FindInflows(user.ID, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder)
+	inflows, err := s.InflowRepo.FindInflows(*user.PrimaryOrganizationID, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -79,7 +79,7 @@ func (s *InflowService) FetchAllInflowsGroupedByMonth(c *gin.Context, yearParam 
 		year = currentYear
 	}
 
-	return s.InflowRepo.FindAllInflowsGroupedByMonth(user.ID, year)
+	return s.InflowRepo.FindAllInflowsGroupedByMonth(*user.PrimaryOrganizationID, year)
 }
 
 func (s *InflowService) FetchAllInflowCategories(c *gin.Context) ([]models.InflowCategory, error) {
@@ -87,7 +87,7 @@ func (s *InflowService) FetchAllInflowCategories(c *gin.Context) ([]models.Inflo
 	if err != nil {
 		return nil, err
 	}
-	return s.InflowRepo.GetAllInflowCategories(user.ID)
+	return s.InflowRepo.GetAllInflowCategories(*user.PrimaryOrganizationID)
 }
 
 func (s *InflowService) FetchAllDynamicCategories(c *gin.Context) ([]models.DynamicCategory, error) {
@@ -95,7 +95,7 @@ func (s *InflowService) FetchAllDynamicCategories(c *gin.Context) ([]models.Dyna
 	if err != nil {
 		return nil, err
 	}
-	return s.InflowRepo.GetAllDynamicCategories(user.ID)
+	return s.InflowRepo.GetAllDynamicCategories(*user.PrimaryOrganizationID)
 }
 
 func (s *InflowService) CreateInflow(c *gin.Context, newRecord *models.Inflow) error {
@@ -119,7 +119,7 @@ func (s *InflowService) CreateInflow(c *gin.Context, newRecord *models.Inflow) e
 	utils.CompareChanges("", amountString, changes, "amount")
 	utils.CompareChanges("", utils.SafeString(newRecord.Description), changes, "description")
 
-	_, err = s.InflowRepo.InsertInflow(tx, user.ID, newRecord)
+	_, err = s.InflowRepo.InsertInflow(tx, *user.PrimaryOrganizationID, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -147,7 +147,7 @@ func (s *InflowService) UpdateInflow(c *gin.Context, newRecord *models.Inflow) e
 		return tx.Error
 	}
 
-	existingRecord, err := s.InflowRepo.GetInflowByID(user.ID, newRecord.ID)
+	existingRecord, err := s.InflowRepo.GetInflowByID(*user.PrimaryOrganizationID, newRecord.ID)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (s *InflowService) UpdateInflow(c *gin.Context, newRecord *models.Inflow) e
 	utils.CompareChanges(existingAmountString, amountString, changes, "amount")
 	utils.CompareChanges(utils.SafeString(existingRecord.Description), utils.SafeString(newRecord.Description), changes, "description")
 
-	_, err = s.InflowRepo.UpdateInflow(tx, user.ID, newRecord)
+	_, err = s.InflowRepo.UpdateInflow(tx, *user.PrimaryOrganizationID, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -199,7 +199,7 @@ func (s *InflowService) CreateReoccurringInflow(c *gin.Context, newRecord *model
 	utils.CompareChanges("", newRecord.InflowCategory.Name, changes, "inflow_category")
 	utils.CompareChanges("", amountString, changes, "amount")
 
-	_, err = s.InflowRepo.InsertInflow(tx, user.ID, newRecord)
+	_, err = s.InflowRepo.InsertInflow(tx, *user.PrimaryOrganizationID, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -223,7 +223,7 @@ func (s *InflowService) CreateReoccurringInflow(c *gin.Context, newRecord *model
 	utils.CompareChanges("", newReoccurringRecord.IntervalUnit, changes, "interval_unit")
 	utils.CompareChanges("", strconv.Itoa(newReoccurringRecord.IntervalValue), changes, "interval_value")
 
-	_, err = s.RecActionsService.ActionRepo.InsertReoccurringAction(tx, user.ID, newReoccurringRecord)
+	_, err = s.RecActionsService.ActionRepo.InsertReoccurringAction(tx, *user.PrimaryOrganizationID, newReoccurringRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -253,7 +253,7 @@ func (s *InflowService) CreateInflowCategory(c *gin.Context, newRecord *models.I
 
 	utils.CompareChanges("", newRecord.Name, changes, "category")
 
-	err = s.InflowRepo.InsertInflowCategory(tx, user.ID, newRecord)
+	err = s.InflowRepo.InsertInflowCategory(tx, *user.PrimaryOrganizationID, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -293,7 +293,7 @@ func (s *InflowService) CreateDynamicCategoryWithMappings(c *gin.Context, catego
 
 	utils.CompareChanges("", category.Name, changes, "name")
 
-	categoryID, err := s.InflowRepo.InsertDynamicCategory(tx, user.ID, category)
+	categoryID, err := s.InflowRepo.InsertDynamicCategory(tx, *user.PrimaryOrganizationID, category)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -352,14 +352,14 @@ func (s *InflowService) UpdateInflowCategory(c *gin.Context, newRecord *models.I
 		return tx.Error
 	}
 
-	existingRecord, err := s.InflowRepo.GetInflowCategoryByID(user.ID, newRecord.ID)
+	existingRecord, err := s.InflowRepo.GetInflowCategoryByID(*user.PrimaryOrganizationID, newRecord.ID)
 	if err != nil {
 		return err
 	}
 
 	utils.CompareChanges(existingRecord.Name, newRecord.Name, changes, "category")
 
-	err = s.InflowRepo.UpdateInflowCategory(tx, user.ID, newRecord)
+	err = s.InflowRepo.UpdateInflowCategory(tx, *user.PrimaryOrganizationID, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -389,7 +389,7 @@ func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
 		return tx.Error
 	}
 
-	inflow, err := s.InflowRepo.GetInflowByID(user.ID, id)
+	inflow, err := s.InflowRepo.GetInflowByID(*user.PrimaryOrganizationID, id)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -400,7 +400,7 @@ func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
 	utils.CompareChanges(inflow.InflowCategory.Name, "", changes, "inflow")
 	utils.CompareChanges(amountString, "", changes, "amount")
 
-	err = s.InflowRepo.DropInflow(tx, user.ID, id)
+	err = s.InflowRepo.DropInflow(tx, *user.PrimaryOrganizationID, id)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -430,16 +430,16 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 		return tx.Error
 	}
 
-	inflowCategory, err := s.InflowRepo.GetInflowCategoryByID(user.ID, id)
+	inflowCategory, err := s.InflowRepo.GetInflowCategoryByID(*user.PrimaryOrganizationID, id)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	if err := s.InflowRepo.CountInflowsByCategory(user.ID, id, &countInflows); err != nil {
+	if err := s.InflowRepo.CountInflowsByCategory(*user.PrimaryOrganizationID, id, &countInflows); err != nil {
 		return err
 	}
-	if err := s.RecActionsService.ActionRepo.CountReoccurringActionByCategory(user.ID, "inflow", id, &countActions); err != nil {
+	if err := s.RecActionsService.ActionRepo.CountReoccurringActionByCategory(*user.PrimaryOrganizationID, "inflow", id, &countActions); err != nil {
 		return err
 	}
 
@@ -453,7 +453,7 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 
 	utils.CompareChanges(inflowCategory.Name, "", changes, "category")
 
-	err = s.InflowRepo.DropInflowCategory(tx, user.ID, id)
+	err = s.InflowRepo.DropInflowCategory(tx, *user.PrimaryOrganizationID, id)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -483,7 +483,7 @@ func (s *InflowService) DeleteDynamicCategory(c *gin.Context, id uint) error {
 		return tx.Error
 	}
 
-	record, err := s.InflowRepo.GetDynamicCategoryByID(user.ID, id)
+	record, err := s.InflowRepo.GetDynamicCategoryByID(*user.PrimaryOrganizationID, id)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -499,7 +499,7 @@ func (s *InflowService) DeleteDynamicCategory(c *gin.Context, id uint) error {
 
 	utils.CompareChanges(record.Name, "", changes, "category")
 
-	err = s.InflowRepo.DropDynamicCategory(tx, user.ID, id)
+	err = s.InflowRepo.DropDynamicCategory(tx, *user.PrimaryOrganizationID, id)
 	if err != nil {
 		tx.Rollback()
 		return err

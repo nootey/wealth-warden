@@ -3,18 +3,18 @@ package models
 import "time"
 
 type OutflowCategory struct {
-	ID            uint      `gorm:"primaryKey" json:"id"`
-	UserID        uint      `gorm:"not_null;index" json:"user_id"`
-	Name          string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_outflow_category_name" json:"name"`
-	OutflowType   string    `gorm:"type:varchar(100);not null;" json:"outflow_type"`
-	SpendingLimit float64   `gorm:"type:decimal(10,2);" json:"spending_limit"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID             uint      `gorm:"primaryKey" json:"id"`
+	OrganizationID uint      `gorm:"not_null;index" json:"organization_id"`
+	Name           string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_outflow_category_name" json:"name"`
+	OutflowType    string    `gorm:"type:varchar(100);not null;" json:"outflow_type"`
+	SpendingLimit  float64   `gorm:"type:decimal(10,2);" json:"spending_limit"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type Outflow struct {
 	ID                uint            `gorm:"primaryKey" json:"id"`
-	UserID            uint            `gorm:"not_null" json:"user_id"`
+	OrganizationID    uint            `gorm:"not_null" json:"organization_id"`
 	OutflowCategoryID uint            `gorm:"index" json:"outflow_category_id"`
 	OutflowCategory   OutflowCategory `gorm:"foreignKey:OutflowCategoryID" json:"outflow_category"`
 	Amount            float64         `gorm:"type:decimal(10,2);not null;check:amount >= 0 AND amount <= 1000000000" json:"amount"`

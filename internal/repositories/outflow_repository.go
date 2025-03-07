@@ -14,17 +14,17 @@ func NewOutflowRepository(db *gorm.DB) *OutflowRepository {
 	return &OutflowRepository{Db: db}
 }
 
-func (r *OutflowRepository) CountOutflowsByCategory(userID, categoryID uint, count *int64) error {
+func (r *OutflowRepository) CountOutflowsByCategory(organizationID, categoryID uint, count *int64) error {
 	return r.Db.Model(&models.Outflow{}).
 		Where("outflow_category_id = ?", categoryID).
-		Where("user_id = ?", userID).
+		Where("organization_id = ?", organizationID).
 		Count(count).Error
 }
 
-func (r *OutflowRepository) CountOutflows(userID uint, year int) (int64, error) {
+func (r *OutflowRepository) CountOutflows(organizationID uint, year int) (int64, error) {
 	var totalRecords int64
 	err := r.Db.Model(&models.Outflow{}).
-		Where("user_id = ? AND YEAR(outflow_date) = ?", userID, year).
+		Where("organization_id = ? AND YEAR(outflow_date) = ?", organizationID, year).
 		Count(&totalRecords).Error
 	if err != nil {
 		return 0, err
@@ -32,13 +32,13 @@ func (r *OutflowRepository) CountOutflows(userID uint, year int) (int64, error) 
 	return totalRecords, nil
 }
 
-func (r *OutflowRepository) FindOutflows(userID uint, year, offset, limit int, sortField, sortOrder string) ([]models.Outflow, error) {
+func (r *OutflowRepository) FindOutflows(organizationID uint, year, offset, limit int, sortField, sortOrder string) ([]models.Outflow, error) {
 	var outflows []models.Outflow
 	orderBy := sortField + " " + sortOrder
 
 	err := r.Db.
 		Preload("OutflowCategory").
-		Where("user_id = ? AND YEAR(outflow_date) = ?", userID, year).
+		Where("organization_id = ? AND YEAR(outflow_date) = ?", organizationID, year).
 		Order(orderBy).
 		Limit(limit).
 		Offset(offset).
@@ -51,25 +51,25 @@ func (r *OutflowRepository) FindOutflows(userID uint, year, offset, limit int, s
 	return outflows, nil
 }
 
-func (r *OutflowRepository) GetOutflowByID(userID, outflowID uint) (*models.Outflow, error) {
+func (r *OutflowRepository) GetOutflowByID(organizationID, outflowID uint) (*models.Outflow, error) {
 	var outflow models.Outflow
-	err := r.Db.Preload("OutflowCategory").Where("id = ? AND user_id = ?", outflowID, userID).First(&outflow).Error
+	err := r.Db.Preload("OutflowCategory").Where("id = ? AND organization_id = ?", outflowID, organizationID).First(&outflow).Error
 	if err != nil {
 		return nil, err
 	}
 	return &outflow, nil
 }
 
-func (r *OutflowRepository) GetOutflowCategoryByID(userID, outflowCategoryID uint) (*models.OutflowCategory, error) {
+func (r *OutflowRepository) GetOutflowCategoryByID(organizationID, outflowCategoryID uint) (*models.OutflowCategory, error) {
 	var outflowCategory models.OutflowCategory
-	err := r.Db.Where("id = ? AND user_id = ?", outflowCategoryID, userID).First(&outflowCategory).Error
+	err := r.Db.Where("id = ? AND organization_id = ?", outflowCategoryID, organizationID).First(&outflowCategory).Error
 	if err != nil {
 		return nil, err
 	}
 	return &outflowCategory, nil
 }
 
-func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint, year int) ([]models.OutflowSummary, error) {
+func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(organizationID uint, year int) ([]models.OutflowSummary, error) {
 	var results []models.OutflowSummary
 
 	err := r.Db.Raw(`
@@ -85,7 +85,7 @@ func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint, year int)
             FROM outflows o
             JOIN outflow_categories oc ON o.outflow_category_id = oc.id
             WHERE o.deleted_at IS NULL
-              AND o.user_id = ?
+              AND o.organization_id = ?
               AND YEAR(o.outflow_date) = ?
             GROUP BY oc.id, oc.name, month, oc.spending_limit, category_type
 
@@ -101,7 +101,7 @@ func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint, year int)
                 NULL AS category_type
             FROM outflows o
             WHERE o.deleted_at IS NULL
-              AND o.user_id = ?
+              AND o.organization_id = ?
               AND YEAR(o.outflow_date) = ?
             GROUP BY MONTH(o.outflow_date)
         ) AS combined
@@ -110,7 +110,7 @@ func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint, year int)
             category_type,
             category_name,
             month
-    `, userID, year, userID, year).Scan(&results).Error
+    `, organizationID, year, organizationID, year).Scan(&results).Error
 
 	if err != nil {
 		return nil, err
@@ -119,58 +119,58 @@ func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(userID uint, year int)
 	return results, nil
 }
 
-func (r *OutflowRepository) GetAllOutflowCategories(userID uint) ([]models.OutflowCategory, error) {
+func (r *OutflowRepository) GetAllOutflowCategories(organizationID uint) ([]models.OutflowCategory, error) {
 	var outflowCategories []models.OutflowCategory
-	result := r.Db.Where("user_id = ?", userID).Find(&outflowCategories)
+	result := r.Db.Where("organization_id = ?", organizationID).Find(&outflowCategories)
 	return outflowCategories, result.Error
 }
 
-func (r *OutflowRepository) InsertOutflow(tx *gorm.DB, userID uint, record *models.Outflow) (uint, error) {
-	record.UserID = userID
+func (r *OutflowRepository) InsertOutflow(tx *gorm.DB, organizationID uint, record *models.Outflow) (uint, error) {
+	record.OrganizationID = organizationID
 	if err := tx.Create(&record).Error; err != nil {
 		return 0, err
 	}
 	return record.ID, nil
 }
 
-func (r *OutflowRepository) UpdateOutflow(tx *gorm.DB, userID uint, record *models.Outflow) (uint, error) {
-	if err := tx.Model(&models.Outflow{}).Where("id = ? AND user_id = ?", record.ID, userID).Updates(record).Error; err != nil {
+func (r *OutflowRepository) UpdateOutflow(tx *gorm.DB, organizationID uint, record *models.Outflow) (uint, error) {
+	if err := tx.Model(&models.Outflow{}).Where("id = ? AND organization_id = ?", record.ID, organizationID).Updates(record).Error; err != nil {
 		return 0, err
 	}
 	return record.ID, nil
 }
 
-func (r *OutflowRepository) InsertOutflowCategory(tx *gorm.DB, userID uint, outflowCategory *models.OutflowCategory) error {
+func (r *OutflowRepository) InsertOutflowCategory(tx *gorm.DB, organizationID uint, outflowCategory *models.OutflowCategory) error {
 
 	var existing models.OutflowCategory
-	if err := tx.Where("user_id = ? AND name = ?", userID, outflowCategory.Name).First(&existing).Error; err == nil {
+	if err := tx.Where("organization_id = ? AND name = ?", organizationID, outflowCategory.Name).First(&existing).Error; err == nil {
 		return errors.New("category with this name already exists")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
 
 	// Insert new category
-	outflowCategory.UserID = userID
+	outflowCategory.OrganizationID = organizationID
 	if err := tx.Create(&outflowCategory).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *OutflowRepository) UpdateOutflowCategory(tx *gorm.DB, userID uint, record *models.OutflowCategory) error {
+func (r *OutflowRepository) UpdateOutflowCategory(tx *gorm.DB, organizationID uint, record *models.OutflowCategory) error {
 
-	if err := tx.Model(&models.OutflowCategory{}).Where("user_id = ? AND id = ?", userID, record.ID).Updates(record).Error; err != nil {
+	if err := tx.Model(&models.OutflowCategory{}).Where("organization_id = ? AND id = ?", organizationID, record.ID).Updates(record).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *OutflowRepository) DropOutflow(tx *gorm.DB, userID uint, recordID uint) error {
-	return tx.Where("id = ? AND user_id = ?", recordID, userID).Delete(&models.Outflow{}).Error
+func (r *OutflowRepository) DropOutflow(tx *gorm.DB, organizationID uint, recordID uint) error {
+	return tx.Where("id = ? AND organization_id = ?", recordID, organizationID).Delete(&models.Outflow{}).Error
 }
 
-func (r *OutflowRepository) DropOutflowCategory(tx *gorm.DB, userID uint, recordID uint) error {
-	result := tx.Where("user_id = ?", userID).Delete(&models.OutflowCategory{}, recordID)
+func (r *OutflowRepository) DropOutflowCategory(tx *gorm.DB, organizationID uint, recordID uint) error {
+	result := tx.Where("organization_id = ?", organizationID).Delete(&models.OutflowCategory{}, recordID)
 	if result.Error != nil {
 		return result.Error
 	}

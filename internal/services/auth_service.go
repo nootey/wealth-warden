@@ -41,7 +41,7 @@ func (s *AuthService) GetCurrentUser(c *gin.Context) (*models.User, error) {
 			return nil, fmt.Errorf("failed to decode user ID: %v", decodeErr)
 		}
 
-		user, repoError := s.UserRepo.GetUserByID(userId)
+		user, repoError := s.UserRepo.GetUserByID(userId, false)
 		if repoError != nil {
 			return nil, fmt.Errorf("failed to get user from repository: %v", repoError)
 		}
