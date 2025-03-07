@@ -6,7 +6,7 @@ import (
 )
 
 func LoggingRoutes(apiGroup *gin.RouterGroup, handler *handlers.LoggingHandler) {
-	apiGroup.GET("/get-activity-logs", handler.GetActivityLogs)
-	apiGroup.GET("/get-access-logs", handler.GetAccessLogs)
-	apiGroup.GET("/get-notification-logs", handler.GetNotificationLogs)
+	apiGroup.GET("/activity", handler.GetActivityLogs)
+	apiGroup.GET("/access", handler.GetAccessLogs)
+	apiGroup.GET("/notification", handler.GetNotificationLogs)
 }

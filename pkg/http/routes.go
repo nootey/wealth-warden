@@ -77,13 +77,26 @@ func (r *RouteInitializer) InitEndpoints() {
 	// Protected routes
 	authGroup := r.Router.Group(apiPrefixV1, middleware.WebClientAuthentication(r.Config.Release))
 	{
-		endpoints.AuthRoutes(authGroup, authHandler)
-		endpoints.UserRoutes(authGroup, userHandler)
-		endpoints.InflowRoutes(authGroup, inflowHandler)
-		endpoints.OutflowRoutes(authGroup, outflowHandler)
-		endpoints.LoggingRoutes(authGroup, loggingHandler)
-		endpoints.RecActionRoutes(authGroup, recActionHandler)
-		endpoints.SavingsRoutes(authGroup, savingsHandler)
+		authRoutes := authGroup.Group("/auth")
+		endpoints.AuthRoutes(authRoutes, authHandler)
+
+		userRoutes := authGroup.Group("/users")
+		endpoints.UserRoutes(userRoutes, userHandler)
+
+		inflowRoutes := authGroup.Group("/inflows")
+		endpoints.InflowRoutes(inflowRoutes, inflowHandler)
+
+		outflowRoutes := authGroup.Group("/outflows")
+		endpoints.OutflowRoutes(outflowRoutes, outflowHandler)
+
+		loggingRoutes := authGroup.Group("/logs")
+		endpoints.LoggingRoutes(loggingRoutes, loggingHandler)
+
+		reoccurringRoutes := authGroup.Group("/reoccurring")
+		endpoints.RecActionRoutes(reoccurringRoutes, recActionHandler)
+
+		savingsRoutes := authGroup.Group("/savings")
+		endpoints.SavingsRoutes(savingsRoutes, savingsHandler)
 	}
 
 	// Public routes

@@ -11,5 +11,5 @@ func ExposedAuthRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler)
 }
 
 func AuthRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) {
-	apiGroup.GET("/get-auth-user", handler.GetAuthUser)
+	apiGroup.GET("/me", handler.GetAuthUser)
 }

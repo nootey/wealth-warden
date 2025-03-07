@@ -6,7 +6,7 @@ import (
 )
 
 func RecActionRoutes(apiGroup *gin.RouterGroup, handler *handlers.ReoccurringActionHandler) {
-	apiGroup.GET("/get-all-reoccurring-actions-for-category", handler.GetAllActionsForCategory)
-	apiGroup.POST("/delete-reoccurring-action", handler.DeleteReoccurringAction)
-	apiGroup.GET("/get-available-record-years", handler.GetAvailableRecordYears)
+	apiGroup.GET("/by-category", handler.GetAllActionsForCategory)
+	apiGroup.POST("/delete", handler.DeleteReoccurringAction)
+	apiGroup.GET("/available-record-years", handler.GetAvailableRecordYears)
 }
