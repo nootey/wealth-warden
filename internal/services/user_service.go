@@ -27,7 +27,15 @@ func (s *UserService) GetAllUsers() ([]models.User, error) {
 	return users, nil
 }
 
-// CreateUser adds a new user through the repository.
+func (s *UserService) FetchUserByID(ID uint) (*models.User, error) {
+	record, err := s.UserRepo.GetUserByID(ID, false)
+	if err != nil {
+		return nil, err
+	}
+
+	return record, nil
+}
+
 func (s *UserService) CreateUser(user *models.User) error {
 	err := s.UserRepo.CreateUser(user)
 	if err != nil {

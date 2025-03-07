@@ -25,7 +25,6 @@ func (r *UserRepository) GetPasswordByEmail(email string) (string, error) {
 func (r *UserRepository) GetUserByID(id uint, includeSecrets bool) (*models.User, error) {
 	var user models.User
 
-	// Preload the user's global Role and organization membership details.
 	query := r.DB.
 		Preload("Role").
 		Preload("Organizations.Organization")
@@ -60,7 +59,6 @@ func (r *UserRepository) GetUserByEmail(email string, includeSecrets bool) (*mod
 func (r *UserRepository) GetAllUsers() ([]models.User, error) {
 	var users []models.User
 
-	// Preload the organizations for each user, including the Organization and organization-specific Role.
 	err := r.DB.
 		Omit("Secrets").
 		Preload("PrimaryOrganization").

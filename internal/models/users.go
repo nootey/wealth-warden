@@ -19,7 +19,7 @@ type User struct {
 	CreatedAt             time.Time          `json:"created_at"`
 	UpdatedAt             time.Time          `json:"updated_at"`
 	DeletedAt             gorm.DeletedAt     `gorm:"index" json:"-"`
-	Secrets               UserSecret         `gorm:"constraint:OnDelete:CASCADE;foreignKey:UserID" json:"secrets,omitempty"`
+	Secrets               *UserSecret        `gorm:"constraint:OnDelete:CASCADE;foreignKey:UserID" json:"secrets,omitempty"`
 	Organizations         []OrganizationUser `gorm:"foreignKey:UserID" json:"organizations"`
 }
 

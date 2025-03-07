@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strconv"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
@@ -27,17 +29,39 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"users": users})
 }
 
-// CreateUser adds a new user to the database.
+func (h *UserHandler) GetUserById(c *gin.Context) {
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage("param error", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	parsedID, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage("param error", "id must be a positive integer", http.StatusBadRequest)(c, err)
+		return
+	}
+	uintID := uint(parsedID)
+
+	user, err := h.Service.FetchUserByID(uintID)
+	if err != nil {
+		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": user})
+}
+
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var user models.User
 
-	// Bind JSON request to the user struct
 	if err := c.ShouldBindJSON(&user); err != nil {
 		utils.ErrorMessage("Json bind error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
-	// Call service to create user
 	err := h.Service.CreateUser(&user)
 	if err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)

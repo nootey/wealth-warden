@@ -6,5 +6,6 @@ import (
 )
 
 func UserRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler) {
-	apiGroup.GET("/get-users", handler.GetUsers)
+	apiGroup.GET("/", handler.GetUsers)
+	apiGroup.GET("/:id", handler.GetUserById)
 }
