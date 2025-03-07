@@ -45,7 +45,7 @@ func refreshAccessToken(c *gin.Context, refreshClaims *WebClientUserClaim) error
 	return nil
 }
 
-func WebClientAuthentication() gin.HandlerFunc {
+func WebClientAuthentication(releaseMode bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
 
@@ -53,6 +53,13 @@ func WebClientAuthentication() gin.HandlerFunc {
 		//	c.Next()
 		//	return
 		//}
+
+		// Skip JWT authentication in development mode
+		// TODO: REMOVE THIS AFTER DEVELOPMENT
+		if releaseMode == false {
+			c.Next()
+			return
+		}
 
 		accessToken, accessError := c.Cookie("access")
 		if accessError != nil {

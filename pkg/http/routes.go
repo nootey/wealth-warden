@@ -75,7 +75,7 @@ func (r *RouteInitializer) InitEndpoints() {
 	savingsHandler := handlers.NewSavingsHandler(r.SavingsService)
 
 	// Protected routes
-	authGroup := r.Router.Group(apiPrefixV1, middleware.WebClientAuthentication())
+	authGroup := r.Router.Group(apiPrefixV1, middleware.WebClientAuthentication(r.Config.Release))
 	{
 		endpoints.AuthRoutes(authGroup, authHandler)
 		endpoints.UserRoutes(authGroup, userHandler)
