@@ -155,32 +155,28 @@ func runMigrations(migrationType string) {
 		if err := goose.Status(sqlDB, migrationsDir); err != nil {
 			log.Fatalf("Failed to get migration status: %v", err)
 		}
-	case "fresh":
-		if err := goose.Reset(sqlDB, migrationsDir); err != nil {
-			log.Fatalf("Failed to reset migrations: %v", err)
-		}
-		if err := goose.Up(sqlDB, migrationsDir); err != nil {
-			log.Fatalf("Failed to apply fresh migrations: %v", err)
-		}
-	case "fresh-seed-full", "fresh-seed-basic":
-		// Extract seed type from the migrationType (last part after "fresh-seed-")
-		seedType := "full"
-		if migrationType == "fresh-seed-basic" {
-			seedType = "basic"
+	case "fresh", "fresh-seed-full", "fresh-seed-basic":
+
+		// Drop all tables explicitly.
+		if err := database.DropAndRecreateDatabase(sqlDB, cfg); err != nil {
+			log.Fatalf("Failed to recreate database: %v", err)
 		}
 
-		// Reset database and reapply migrations
-		if err := goose.Reset(sqlDB, migrationsDir); err != nil {
-			log.Fatalf("Failed to reset migrations: %v", err)
-		}
+		// Then, run migrations.
 		if err := goose.Up(sqlDB, migrationsDir); err != nil {
 			log.Fatalf("Failed to apply fresh migrations: %v", err)
 		}
 
-		// Run the seeder
-		ctx := context.Background()
-		if err := seeders.SeedDatabase(ctx, gormDB, seedType); err != nil {
-			log.Fatalf("Failed to seed database: %v", err)
+		// If seeding is required, run the seeder.
+		if migrationType == "fresh-seed-full" || migrationType == "fresh-seed-basic" {
+			seedType := "full"
+			if migrationType == "fresh-seed-basic" {
+				seedType = "basic"
+			}
+			ctx := context.Background()
+			if err := seeders.SeedDatabase(ctx, gormDB, seedType); err != nil {
+				log.Fatalf("Failed to seed database: %v", err)
+			}
 		}
 	case "help":
 		log.Fatal("\n Provide an additional argument to the migration function. Valid arguments are: up, down, status, fresh")

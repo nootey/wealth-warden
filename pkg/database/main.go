@@ -1,6 +1,7 @@
 package database
 
 import (
+	"database/sql"
 	"fmt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -131,6 +132,25 @@ func EnsureDatabaseExists(cfg *config.Config) error {
 		log.Printf("Database '%s' created successfully", cfg.MySQLDatabase)
 	} else {
 		log.Printf("Database '%s' already exists", cfg.MySQLDatabase)
+	}
+
+	return nil
+}
+
+func DropAndRecreateDatabase(db *sql.DB, cfg *config.Config) error {
+	// Drop the database
+	if _, err := db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`;", cfg.MySQLDatabase)); err != nil {
+		return fmt.Errorf("failed to drop database: %w", err)
+	}
+
+	// Recreate the database
+	if _, err := db.Exec(fmt.Sprintf("CREATE DATABASE `%s`;", cfg.MySQLDatabase)); err != nil {
+		return fmt.Errorf("failed to create database: %w", err)
+	}
+
+	// Re-select the newly created database.
+	if _, err := db.Exec(fmt.Sprintf("USE `%s`;", cfg.MySQLDatabase)); err != nil {
+		return fmt.Errorf("failed to select database: %w", err)
 	}
 
 	return nil
