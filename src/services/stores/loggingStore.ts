@@ -3,6 +3,7 @@ import apiClient from "./api/axios_interceptor.ts";
 
 export const useLoggingStore = defineStore('logging', {
     state: () => ({
+        apiPrefix: "logs",
     }),
     actions: {
         async getActivityLogs() {

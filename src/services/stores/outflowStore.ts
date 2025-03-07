@@ -5,6 +5,7 @@ import type {ReoccurringAction} from "../../models/actions.ts";
 
 export const useOutflowStore = defineStore('outflow', {
     state: () => ({
+        apiPrefix: "outflows",
         outflowCategories: [] as OutflowCategory[],
         currentYear: new Date().getFullYear(),
         outflowYears: [] as number[],
@@ -13,7 +14,7 @@ export const useOutflowStore = defineStore('outflow', {
 
         async getOutflowYears() {
             try {
-                const response = await apiClient.get("get-available-record-years", {
+                const response = await apiClient.get("reoccurring/available-record-years", {
                     params: {table: "outflows", field: "outflow_date"}});
                 this.outflowYears = response.data;
             } catch (err) {
@@ -29,7 +30,7 @@ export const useOutflowStore = defineStore('outflow', {
                     page: page,
                 };
 
-                const response = await apiClient.get("get-outflows-paginated", {
+                const response = await apiClient.get(`${this.apiPrefix}/`, {
                     params: queryParams,
                 });
 
@@ -43,7 +44,7 @@ export const useOutflowStore = defineStore('outflow', {
         async getAllGroupedOutflows(year: number) {
             try {
 
-                return await apiClient.get("get-all-outflows-grouped-month", {params: {year: year}});
+                return await apiClient.get(`${this.apiPrefix}/grouped-by-month`, {params: {year: year}});
 
             } catch (err) {
                 throw err;
@@ -52,7 +53,7 @@ export const useOutflowStore = defineStore('outflow', {
 
         async getOutflowCategories() {
             try {
-                const response = await apiClient.get("get-all-outflow-categories");
+                const response = await apiClient.get(`${this.apiPrefix}/categories`);
                 this.outflowCategories = response.data;
             } catch (err) {
                 throw err;
@@ -61,7 +62,7 @@ export const useOutflowStore = defineStore('outflow', {
 
         async createOutflow(Outflow: Outflow|null) {
             try {
-                return await apiClient.post("create-new-outflow", Outflow);
+                return await apiClient.post(`${this.apiPrefix}/create`, Outflow);
             } catch (err) {
                 throw err;
             }
@@ -69,7 +70,7 @@ export const useOutflowStore = defineStore('outflow', {
 
         async updateOutflow(Outflow: Outflow|null) {
             try {
-                return await apiClient.post("update-outflow", Outflow);
+                return await apiClient.post(`${this.apiPrefix}/update`, Outflow);
             } catch (err) {
                 throw err;
             }
@@ -77,7 +78,7 @@ export const useOutflowStore = defineStore('outflow', {
 
         async createReoccurringOutflow(Outflow: Outflow|null, RecOutflow: ReoccurringAction|null) {
             try {
-                return await apiClient.post("create-new-reoccurring-outflow", {Outflow, RecOutflow});
+                return await apiClient.post(`${this.apiPrefix}/create-reoccurring`, {Outflow, RecOutflow});
             } catch (err) {
                 throw err;
             }
@@ -85,7 +86,7 @@ export const useOutflowStore = defineStore('outflow', {
 
         async createOutflowCategory(OutflowCategory: OutflowCategory|null) {
             try {
-                const response = await apiClient.post("create-new-outflow-category", OutflowCategory);
+                const response = await apiClient.post(`${this.apiPrefix}/create-category`, OutflowCategory);
                 await this.getOutflowCategories();
                 return response;
             } catch (err) {
@@ -95,7 +96,7 @@ export const useOutflowStore = defineStore('outflow', {
 
         async updateOutflowCategory(OutflowCategory: OutflowCategory|null) {
             try {
-                const response = await apiClient.post("update-outflow-category", OutflowCategory);
+                const response = await apiClient.post(`${this.apiPrefix}/update-category`, OutflowCategory);
                 await this.getOutflowCategories();
                 return response;
             } catch (err) {
@@ -105,7 +106,7 @@ export const useOutflowStore = defineStore('outflow', {
 
         async deleteOutflow(id: number) {
             try {
-                return await apiClient.post("delete-outflow", {id: id});
+                return await apiClient.post(`${this.apiPrefix}/delete`, {id: id});
             } catch (err) {
                 throw err;
             }
@@ -113,7 +114,7 @@ export const useOutflowStore = defineStore('outflow', {
 
         async deleteOutflowCategory(id: number) {
             try {
-                const response = await apiClient.post("delete-outflow-category", {id: id});
+                const response = await apiClient.post(`${this.apiPrefix}/delete-category`, {id: id});
                 await this.getOutflowCategories();
                 return response;
             } catch (err) {

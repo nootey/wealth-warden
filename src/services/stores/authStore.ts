@@ -5,6 +5,7 @@ import type {AuthForm, User} from '../../models/auth.ts';
 
 export const useAuthStore = defineStore('auth', {
     state: () => ({
+        apiPrefix: "auth",
         authenticated: localStorage.getItem('authenticated') == "true",
         user: null as User | null,
         initialized: false,
@@ -27,7 +28,7 @@ export const useAuthStore = defineStore('auth', {
 
         async getAuthUser(set = true) {
             try {
-                const response = await apiClient.get('/get-auth-user');
+                const response = await apiClient.get(`${this.apiPrefix}/me`);
 
                 if (set) {
                     if (!response.data) {

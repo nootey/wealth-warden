@@ -6,6 +6,7 @@ import type {DynamicCategory, DynamicCategoryMapping} from "../../models/shared.
 
 export const useInflowStore = defineStore('inflow', {
     state: () => ({
+        apiPrefix: "inflows",
         inflowCategories: [] as InflowCategory[],
         dynamicCategories: [] as DynamicCategory[],
         currentYear: new Date().getFullYear(),
@@ -15,7 +16,7 @@ export const useInflowStore = defineStore('inflow', {
 
         async getInflowYears() {
             try {
-                const response = await apiClient.get("get-available-record-years", {
+                const response = await apiClient.get("reoccurring/available-record-years", {
                     params: {table: "inflows", field: "inflow_date"}});
                 this.inflowYears = response.data;
             } catch (err) {
@@ -31,7 +32,7 @@ export const useInflowStore = defineStore('inflow', {
                     page: page,
                 };
 
-                const response = await apiClient.get("get-inflows-paginated", {
+                const response = await apiClient.get(`${this.apiPrefix}/`, {
                     params: queryParams,
                 });
 
@@ -45,7 +46,7 @@ export const useInflowStore = defineStore('inflow', {
         async getAllGroupedInflows(year: number) {
             try {
 
-                return await apiClient.get("get-all-inflows-grouped-month", {params: {year: year}});
+                return await apiClient.get(`${this.apiPrefix}/grouped-by-month`, {params: {year: year}});
 
             } catch (err) {
                 throw err;
@@ -54,7 +55,7 @@ export const useInflowStore = defineStore('inflow', {
 
         async getInflowCategories() {
             try {
-                const response = await apiClient.get("get-all-inflow-categories");
+                const response = await apiClient.get(`${this.apiPrefix}/categories`);
                 this.inflowCategories = response.data;
             } catch (err) {
                 throw err;
@@ -63,7 +64,7 @@ export const useInflowStore = defineStore('inflow', {
 
         async getDynamicCategories() {
             try {
-                const response =  await apiClient.get("get-all-dynamic-categories");
+                const response =  await apiClient.get(`${this.apiPrefix}/dynamic-categories`);
                 this.dynamicCategories = response.data;
             } catch (err) {
                 throw err;
@@ -72,7 +73,7 @@ export const useInflowStore = defineStore('inflow', {
 
         async createInflow(Inflow: Inflow|null) {
             try {
-                return await apiClient.post("create-new-inflow", Inflow);
+                return await apiClient.post(`${this.apiPrefix}/create`, Inflow);
             } catch (err) {
                 throw err;
             }
@@ -80,7 +81,7 @@ export const useInflowStore = defineStore('inflow', {
 
         async updateInflow(Inflow: Inflow|null) {
             try {
-                return await apiClient.post("update-inflow", Inflow);
+                return await apiClient.post(`${this.apiPrefix}/update`, Inflow);
             } catch (err) {
                 throw err;
             }
@@ -88,7 +89,7 @@ export const useInflowStore = defineStore('inflow', {
 
         async createReoccurringInflow(Inflow: Inflow|null, RecInflow: ReoccurringAction|null) {
             try {
-                return await apiClient.post("create-new-reoccurring-inflow", {Inflow, RecInflow});
+                return await apiClient.post(`${this.apiPrefix}/create-reoccurring`, {Inflow, RecInflow});
             } catch (err) {
                 throw err;
             }
@@ -96,7 +97,7 @@ export const useInflowStore = defineStore('inflow', {
 
         async createInflowCategory(InflowCategory: InflowCategory|null) {
             try {
-                const response = await apiClient.post("create-new-inflow-category", InflowCategory);
+                const response = await apiClient.post(`${this.apiPrefix}/create-category`, InflowCategory);
                 await this.getInflowCategories();
                 return response;
             } catch (err) {
@@ -106,7 +107,7 @@ export const useInflowStore = defineStore('inflow', {
 
         async createDynamicCategory(Category: DynamicCategory, Mapping: DynamicCategoryMapping) {
             try {
-                return await apiClient.post("create-new-dynamic-category", {Category, Mapping});
+                return await apiClient.post(`${this.apiPrefix}/create-dynamic-category`, {Category, Mapping});
             } catch (err) {
                 throw err;
             }
@@ -114,7 +115,7 @@ export const useInflowStore = defineStore('inflow', {
 
         async updateInflowCategory(InflowCategory: InflowCategory|null) {
             try {
-                const response = await apiClient.post("update-inflow-category", InflowCategory);
+                const response = await apiClient.post(`${this.apiPrefix}/update-category`, InflowCategory);
                 await this.getInflowCategories();
                 return response;
             } catch (err) {
@@ -124,7 +125,7 @@ export const useInflowStore = defineStore('inflow', {
 
         async deleteInflow(id: number) {
             try {
-                return await apiClient.post("delete-inflow", {id: id});
+                return await apiClient.post(`${this.apiPrefix}/delete`, {id: id});
             } catch (err) {
                 throw err;
             }
@@ -132,7 +133,7 @@ export const useInflowStore = defineStore('inflow', {
 
         async deleteInflowCategory(id: number) {
             try {
-                const response = await apiClient.post("delete-inflow-category", {id: id});
+                const response = await apiClient.post(`${this.apiPrefix}/delete-category`, {id: id});
                 await this.getInflowCategories();
                 return response;
             } catch (err) {
@@ -142,7 +143,7 @@ export const useInflowStore = defineStore('inflow', {
 
         async deleteDynamicCategory(id: number) {
             try {
-                const response = await apiClient.post("delete-dynamic-category", {id: id});
+                const response = await apiClient.post(`${this.apiPrefix}/delete-dynamic-category`, {id: id});
                 await this.getDynamicCategories();
                 return response;
             } catch (err) {
