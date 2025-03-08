@@ -20,16 +20,19 @@ import (
 )
 
 type Config struct {
-	Release            bool
-	WebClientDomain    string
-	WebClientPort      string
-	HttpServerPort     string
-	SuperAdminPassword string
-	MySQLHost          string
-	MySQLUser          string
-	MySQLPassword      string
-	MySQLPort          int
-	MySQLDatabase      string
+	Release              bool
+	WebClientDomain      string
+	WebClientPort        string
+	HttpServerPort       string
+	SuperAdminPassword   string
+	MySQLHost            string
+	MySQLUser            string
+	MySQLPassword        string
+	MySQLPort            int
+	MySQLDatabase        string
+	JwtWebClientAccess   string
+	JwtWebClientRefresh  string
+	JwtWebClientEncodeID string
 }
 
 // loadSecrets reads the secrets from the .env.secret file.
@@ -166,15 +169,18 @@ func LoadConfig() *Config {
 	}
 
 	return &Config{
-		Release:            release,
-		WebClientDomain:    envMap["WEB_CLIENT_DOMAIN"],
-		WebClientPort:      envMap["WEB_CLIENT_PORT"],
-		HttpServerPort:     envMap["HTTP_SERVER_PORT"],
-		SuperAdminPassword: envMap["SUPER_ADMIN_PASSWORD"],
-		MySQLHost:          envMap["MYSQL_HOST"],
-		MySQLUser:          envMap["MYSQL_USER"],
-		MySQLPassword:      envMap["MYSQL_PASSWORD"],
-		MySQLPort:          mysqlPort,
-		MySQLDatabase:      envMap["MYSQL_DATABASE"],
+		Release:              release,
+		WebClientDomain:      envMap["WEB_CLIENT_DOMAIN"],
+		WebClientPort:        envMap["WEB_CLIENT_PORT"],
+		HttpServerPort:       envMap["HTTP_SERVER_PORT"],
+		SuperAdminPassword:   envMap["SUPER_ADMIN_PASSWORD"],
+		MySQLHost:            envMap["MYSQL_HOST"],
+		MySQLUser:            envMap["MYSQL_USER"],
+		MySQLPassword:        envMap["MYSQL_PASSWORD"],
+		MySQLPort:            mysqlPort,
+		MySQLDatabase:        envMap["MYSQL_DATABASE"],
+		JwtWebClientAccess:   envMap["JWT_WEB_CLIENT_ACCESS"],
+		JwtWebClientRefresh:  envMap["JWT_WEB_CLIENT_REFRESH"],
+		JwtWebClientEncodeID: envMap["JWT_WEB_CLIENT_ENCODE_ID"],
 	}
 }
