@@ -9,17 +9,20 @@ import (
 )
 
 type AuthService struct {
-	UserRepo       *repositories.UserRepository
-	LoggingService *LoggingService
+	UserRepo            *repositories.UserRepository
+	LoggingService      *LoggingService
+	WebClientMiddleware *middleware.WebClientMiddleware
 }
 
 func NewAuthService(
 	userRepo *repositories.UserRepository,
 	loggingService *LoggingService,
+	webClientMiddleware *middleware.WebClientMiddleware,
 ) *AuthService {
 	return &AuthService{
-		UserRepo:       userRepo,
-		LoggingService: loggingService,
+		UserRepo:            userRepo,
+		LoggingService:      loggingService,
+		WebClientMiddleware: webClientMiddleware,
 	}
 }
 
@@ -31,12 +34,12 @@ func (s *AuthService) GetCurrentUser(c *gin.Context) (*models.User, error) {
 	}
 
 	if refreshToken != "" {
-		refreshClaims, err := middleware.DecodeWebClientToken(refreshToken, "refresh")
+		refreshClaims, err := s.WebClientMiddleware.DecodeWebClientToken(refreshToken, "refresh")
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode refresh token: %v", err)
 		}
 
-		userId, decodeErr := middleware.DecodeWebClientUserID(refreshClaims.UserID)
+		userId, decodeErr := s.WebClientMiddleware.DecodeWebClientUserID(refreshClaims.UserID)
 		if decodeErr != nil {
 			return nil, fmt.Errorf("failed to decode user ID: %v", decodeErr)
 		}

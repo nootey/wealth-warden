@@ -1,13 +1,13 @@
 package handlers
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/config"
-	"wealth-warden/pkg/middleware"
 	"wealth-warden/pkg/utils"
 )
 
@@ -74,7 +74,7 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, err := middleware.GenerateLoginTokens(user.ID, loginForm.RememberMe)
+	accessToken, refreshToken, err := h.Service.WebClientMiddleware.GenerateLoginTokens(user.ID, loginForm.RememberMe)
 	if err != nil {
 		utils.ErrorMessage("Authentication error", err.Error(), http.StatusInternalServerError)(c, err)
 		return

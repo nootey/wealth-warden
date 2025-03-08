@@ -27,6 +27,10 @@ type RouteInitializer struct {
 }
 
 func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *RouteInitializer {
+
+	// Initialize middleware
+	webClientMiddleware := middleware.NewWebClientMiddleware(cfg)
+
 	// Initialize repositories
 	loggingRepo := repositories.NewLoggingRepository(db)
 	userRepo := repositories.NewUserRepository(db)
@@ -37,7 +41,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 
 	// Initialize services
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
-	authService := services.NewAuthService(userRepo, loggingService)
+	authService := services.NewAuthService(userRepo, loggingService, webClientMiddleware)
 	userService := services.NewUserService(cfg, userRepo)
 	recActionService := services.NewReoccurringActionService(recActionRepo, authService, loggingService)
 	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, inflowRepo)
@@ -75,7 +79,7 @@ func (r *RouteInitializer) InitEndpoints() {
 	savingsHandler := handlers.NewSavingsHandler(r.SavingsService)
 
 	// Protected routes
-	authGroup := r.Router.Group(apiPrefixV1, middleware.WebClientAuthentication(r.Config.Release))
+	authGroup := r.Router.Group(apiPrefixV1, r.AuthService.WebClientMiddleware.WebClientAuthentication())
 	{
 		authRoutes := authGroup.Group("/auth")
 		endpoints.AuthRoutes(authRoutes, authHandler)
@@ -102,7 +106,8 @@ func (r *RouteInitializer) InitEndpoints() {
 	// Public routes
 	publicGroup := r.Router.Group(apiPrefixV1)
 	{
-		endpoints.ExposedAuthRoutes(publicGroup, authHandler)
+		publicAuthRoutes := publicGroup.Group("/auth")
+		endpoints.PublicAuthRoutes(publicAuthRoutes, authHandler)
 	}
 }
 

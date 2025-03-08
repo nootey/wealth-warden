@@ -11,7 +11,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"io"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 	"wealth-warden/pkg/config"
@@ -26,26 +25,17 @@ type WebClientUserClaim struct {
 	jwt.RegisteredClaims
 }
 
-func refreshAccessToken(c *gin.Context, refreshClaims *WebClientUserClaim) error {
-
-	cfg := config.LoadConfig()
-	userId, err := DecodeWebClientUserID(refreshClaims.UserID)
-	if err != nil {
-		return err
-	}
-
-	accessToken, err := GenerateToken("access", time.Now().Add(15*time.Minute), userId)
-	if err != nil {
-		return err
-	}
-
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("access", accessToken, 60*15, "/", cfg.WebClientDomain, cfg.Release, true)
-
-	return nil
+type WebClientMiddleware struct {
+	config *config.Config
 }
 
-func WebClientAuthentication(releaseMode bool) gin.HandlerFunc {
+func NewWebClientMiddleware(cfg *config.Config) *WebClientMiddleware {
+	return &WebClientMiddleware{
+		config: cfg,
+	}
+}
+
+func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
 
@@ -56,7 +46,7 @@ func WebClientAuthentication(releaseMode bool) gin.HandlerFunc {
 
 		// Skip JWT authentication in development mode
 		// TODO: REMOVE THIS AFTER DEVELOPMENT
-		if releaseMode == false {
+		if m.config.Release == false {
 			c.Next()
 			return
 		}
@@ -70,7 +60,7 @@ func WebClientAuthentication(releaseMode bool) gin.HandlerFunc {
 				return
 			}
 
-			refreshClaims, err2 := DecodeWebClientToken(refreshToken, "refresh")
+			refreshClaims, err2 := m.DecodeWebClientToken(refreshToken, "refresh")
 			if err2 != nil {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
 				return
@@ -78,7 +68,7 @@ func WebClientAuthentication(releaseMode bool) gin.HandlerFunc {
 
 			// Perform token refresh asynchronously
 			go func() {
-				if err := refreshAccessToken(c, refreshClaims); err != nil {
+				if err := m.refreshAccessToken(c, refreshClaims); err != nil {
 					fmt.Println("Error refreshing token:", err)
 				}
 			}()
@@ -86,11 +76,11 @@ func WebClientAuthentication(releaseMode bool) gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		_, err = DecodeWebClientToken(accessToken, "access")
+		_, err = m.DecodeWebClientToken(accessToken, "access")
 		if err != nil {
 			if errors.Is(err, ErrTokenExpired) {
 				refreshToken, _ := c.Cookie("refresh")
-				refreshClaims, err2 := DecodeWebClientToken(refreshToken, "refresh")
+				refreshClaims, err2 := m.DecodeWebClientToken(refreshToken, "refresh")
 				if err2 != nil {
 					c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
 					return
@@ -98,7 +88,7 @@ func WebClientAuthentication(releaseMode bool) gin.HandlerFunc {
 
 				// Perform token refresh asynchronously
 				go func() {
-					if err := refreshAccessToken(c, refreshClaims); err != nil {
+					if err := m.refreshAccessToken(c, refreshClaims); err != nil {
 						fmt.Println("Error refreshing token:", err)
 					}
 				}()
@@ -112,8 +102,27 @@ func WebClientAuthentication(releaseMode bool) gin.HandlerFunc {
 	}
 }
 
-func encodeWebClientUserID(userID uint) (string, error) {
-	key := os.Getenv("JWT_WEB_CLIENT_ENCODE_ID")
+func (m *WebClientMiddleware) refreshAccessToken(c *gin.Context, refreshClaims *WebClientUserClaim) error {
+
+	cfg := config.LoadConfig()
+	userId, err := m.DecodeWebClientUserID(refreshClaims.UserID)
+	if err != nil {
+		return err
+	}
+
+	accessToken, err := m.GenerateToken("access", time.Now().Add(15*time.Minute), userId)
+	if err != nil {
+		return err
+	}
+
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("access", accessToken, 60*15, "/", cfg.WebClientDomain, cfg.Release, true)
+
+	return nil
+}
+
+func (m *WebClientMiddleware) encodeWebClientUserID(userID uint) (string, error) {
+	key := m.config.JwtWebClientEncodeID
 	if len(key) != 32 {
 		return "", fmt.Errorf("encryption key must be 32 bytes long for AES-256")
 	}
@@ -142,8 +151,8 @@ func encodeWebClientUserID(userID uint) (string, error) {
 	return encoded, nil
 }
 
-func DecodeWebClientUserID(encodedString string) (uint, error) {
-	key := os.Getenv("JWT_WEB_CLIENT_ENCODE_ID")
+func (m *WebClientMiddleware) DecodeWebClientUserID(encodedString string) (uint, error) {
+	key := m.config.JwtWebClientEncodeID
 	if len(key) != 32 {
 		return 0, fmt.Errorf("encryption key must be 32 bytes long for AES-256")
 	}
@@ -189,22 +198,22 @@ func DecodeWebClientUserID(encodedString string) (uint, error) {
 	return uint(intUserID), nil
 }
 
-func GenerateToken(tokenType string, expiration time.Time, userID uint) (string, error) {
+func (m *WebClientMiddleware) GenerateToken(tokenType string, expiration time.Time, userID uint) (string, error) {
 	var jwtKey []byte
 	issuedAt := time.Now()
 
 	// Select the appropriate JWT secret based on token type
 	switch tokenType {
 	case "access":
-		jwtKey = []byte(os.Getenv("JWT_WEB_CLIENT_ACCESS"))
+		jwtKey = []byte(m.config.JwtWebClientAccess)
 	case "refresh":
-		jwtKey = []byte(os.Getenv("JWT_WEB_CLIENT_REFRESH"))
+		jwtKey = []byte(m.config.JwtWebClientRefresh)
 	default:
 		return "", fmt.Errorf("unsupported token type: %s", tokenType)
 	}
 
 	// Encrypt the user ID before embedding it into the token
-	encryptedUserID, err := encodeWebClientUserID(userID)
+	encryptedUserID, err := m.encodeWebClientUserID(userID)
 	if err != nil {
 		return "", err
 	}
@@ -228,7 +237,7 @@ func GenerateToken(tokenType string, expiration time.Time, userID uint) (string,
 
 	return signedToken, nil
 }
-func GenerateLoginTokens(userID uint, rememberMe bool) (string, string, error) {
+func (m *WebClientMiddleware) GenerateLoginTokens(userID uint, rememberMe bool) (string, string, error) {
 
 	var expiresAt time.Time
 	if rememberMe {
@@ -237,12 +246,12 @@ func GenerateLoginTokens(userID uint, rememberMe bool) (string, string, error) {
 		expiresAt = time.Now().Add(1 * time.Hour) // Token expires in 1 hour
 	}
 
-	accessToken, err := GenerateToken("access", time.Now().Add(15*time.Minute), userID)
+	accessToken, err := m.GenerateToken("access", time.Now().Add(15*time.Minute), userID)
 	if err != nil {
 		return "", "", err
 	}
 
-	refreshToken, err := GenerateToken("refresh", expiresAt, userID)
+	refreshToken, err := m.GenerateToken("refresh", expiresAt, userID)
 	if err != nil {
 		return "", "", err
 	}
@@ -250,14 +259,14 @@ func GenerateLoginTokens(userID uint, rememberMe bool) (string, string, error) {
 	return accessToken, refreshToken, nil
 }
 
-func DecodeWebClientToken(tokenString string, cookieType string) (*WebClientUserClaim, error) {
+func (m *WebClientMiddleware) DecodeWebClientToken(tokenString string, cookieType string) (*WebClientUserClaim, error) {
 	var secret string
 
 	switch cookieType {
 	case "access":
-		secret = os.Getenv("JWT_WEB_CLIENT_ACCESS")
+		secret = m.config.JwtWebClientAccess
 	case "refresh":
-		secret = os.Getenv("JWT_WEB_CLIENT_REFRESH")
+		secret = m.config.JwtWebClientRefresh
 	default:
 		return nil, fmt.Errorf("unknown cookieType: %s", cookieType)
 	}
