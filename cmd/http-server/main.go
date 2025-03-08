@@ -8,10 +8,10 @@ import (
 	"log"
 	"os/signal"
 	"syscall"
+	serverHttp "wealth-warden/internal/http"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
 	"wealth-warden/pkg/database/seeders"
-	serverHttp "wealth-warden/pkg/http"
 )
 
 // rootCmd is the main entry point for the app

@@ -3,10 +3,10 @@ package services
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
-	"wealth-warden/pkg/middleware"
 )
 
 type AuthService struct {

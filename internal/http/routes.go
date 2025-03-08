@@ -5,12 +5,12 @@ import (
 	"gorm.io/gorm"
 	"net/http"
 	"wealth-warden/internal/handlers"
+	"wealth-warden/internal/http/endpoints"
+	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
-	"wealth-warden/pkg/http/endpoints"
-	"wealth-warden/pkg/middleware"
 )
 
 type RouteInitializer struct {
