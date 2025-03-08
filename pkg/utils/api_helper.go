@@ -60,15 +60,7 @@ func ErrorMessage(title string, message string, code int) func(c *gin.Context, e
 			Code:    code,
 		}
 		if err != nil {
-			prodMode := os.Getenv("RELEASE")
-			prod, err2 := strconv.ParseBool(prodMode)
-			if err2 != nil {
-				prod = false
-			}
-			if prod == false {
-				PrintError(err)
-			}
-
+			PrintError(err)
 		}
 		c.JSON(code, response)
 	}
