@@ -5,21 +5,25 @@ import (
 	"github.com/gin-gonic/gin"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/middleware"
 )
 
 type AuthService struct {
+	Config              *config.Config
 	UserRepo            *repositories.UserRepository
 	LoggingService      *LoggingService
 	WebClientMiddleware *middleware.WebClientMiddleware
 }
 
 func NewAuthService(
+	cfg *config.Config,
 	userRepo *repositories.UserRepository,
 	loggingService *LoggingService,
 	webClientMiddleware *middleware.WebClientMiddleware,
 ) *AuthService {
 	return &AuthService{
+		Config:              cfg,
 		UserRepo:            userRepo,
 		LoggingService:      loggingService,
 		WebClientMiddleware: webClientMiddleware,

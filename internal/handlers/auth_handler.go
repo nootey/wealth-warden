@@ -6,19 +6,16 @@ import (
 	"net/http"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
 type AuthHandler struct {
 	Service *services.AuthService
-	Config  *config.Config
 }
 
-func NewAuthHandler(cfg *config.Config, authService *services.AuthService) *AuthHandler {
+func NewAuthHandler(authService *services.AuthService) *AuthHandler {
 	return &AuthHandler{
 		Service: authService,
-		Config:  cfg,
 	}
 }
 
@@ -103,8 +100,8 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 	// Set cookies and return success message as in your original function
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("access", accessToken, 60*15, "/", h.Config.WebClientDomain, h.Config.Release, true)
-	c.SetCookie("refresh", refreshToken, expiresAt, "/", h.Config.WebClientDomain, h.Config.Release, true)
+	c.SetCookie("access", accessToken, 60*15, "/", h.Service.Config.WebClientDomain, h.Service.Config.Release, true)
+	c.SetCookie("refresh", refreshToken, expiresAt, "/", h.Service.Config.WebClientDomain, h.Service.Config.Release, true)
 
 	utils.SuccessMessage("200", "Logged in", http.StatusOK)(c.Writer, c.Request)
 }
@@ -120,7 +117,7 @@ func (h *AuthHandler) GetAuthUser(c *gin.Context) {
 }
 
 func (h *AuthHandler) LogoutUser(c *gin.Context) {
-	c.SetCookie("access", "", -1, "/", h.Config.WebClientDomain, h.Config.Release, true)
-	c.SetCookie("refresh", "", -1, "/", h.Config.WebClientDomain, h.Config.Release, true)
+	c.SetCookie("access", "", -1, "/", h.Service.Config.WebClientDomain, h.Service.Config.Release, true)
+	c.SetCookie("refresh", "", -1, "/", h.Service.Config.WebClientDomain, h.Service.Config.Release, true)
 	utils.SuccessMessage("", "Logged out", http.StatusOK)(c.Writer, c.Request)
 }

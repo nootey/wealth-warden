@@ -41,7 +41,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 
 	// Initialize services
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
-	authService := services.NewAuthService(userRepo, loggingService, webClientMiddleware)
+	authService := services.NewAuthService(cfg, userRepo, loggingService, webClientMiddleware)
 	userService := services.NewUserService(cfg, userRepo)
 	recActionService := services.NewReoccurringActionService(recActionRepo, authService, loggingService)
 	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, inflowRepo)
@@ -70,7 +70,7 @@ func (r *RouteInitializer) InitEndpoints() {
 		healthCheck(c)
 	})
 
-	authHandler := handlers.NewAuthHandler(r.Config, r.AuthService)
+	authHandler := handlers.NewAuthHandler(r.AuthService)
 	userHandler := handlers.NewUserHandler(r.UserService)
 	inflowHandler := handlers.NewInflowHandler(r.InflowService)
 	outflowHandler := handlers.NewOutflowHandler(r.OutflowService)
