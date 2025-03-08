@@ -6,8 +6,10 @@ import {useRouter} from "vue-router";
 import ValidationError from "../Validation/ValidationError.vue";
 import {useAuthStore} from "../../services/stores/authStore.ts";
 import AuthSkeleton from "./AuthSkeleton.vue";
+import {useToastStore} from "../../services/stores/toastStore.ts";
 
 const authStore = useAuthStore();
+const toastStore = useToastStore()
 
 const router = useRouter();
 const form = ref({
@@ -42,7 +44,7 @@ async function login() {
       await router.push({name: "Dashboard"})
     }
   } catch (error) {
-    console.error('Error during login:', error);
+    toastStore.errorResponseToast(error)
   }
 
 }
