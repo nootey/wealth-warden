@@ -1,0 +1,10 @@
+package endpoints
+
+import (
+	"github.com/gin-gonic/gin"
+	"wealth-warden/internal/handlers"
+)
+
+func BudgetRoutes(apiGroup *gin.RouterGroup, handler *handlers.BudgetHandler) {
+
+}

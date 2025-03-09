@@ -23,6 +23,7 @@ type RouteInitializer struct {
 	OutflowService           *services.OutflowService
 	LoggingService           *services.LoggingService
 	ReoccurringActionService *services.ReoccurringActionService
+	BudgetService            *services.BudgetService
 	SavingsService           *services.SavingsService
 }
 
@@ -37,6 +38,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 	recActionRepo := repositories.NewReoccurringActionsRepository(db)
 	inflowRepo := repositories.NewInflowRepository(db)
 	outflowRepo := repositories.NewOutflowRepository(db)
+	budgetRepo := repositories.NewBudgetRepository(db)
 	savingsRepo := repositories.NewSavingsRepository(db)
 
 	// Initialize services
@@ -46,6 +48,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 	recActionService := services.NewReoccurringActionService(recActionRepo, authService, loggingService)
 	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, inflowRepo)
 	outflowService := services.NewOutflowService(cfg, authService, loggingService, recActionService, outflowRepo)
+	budgetService := services.NewBudgetService(cfg, authService, loggingService, budgetRepo)
 	savingsService := services.NewSavingsService(cfg, authService, loggingService, recActionService, savingsRepo)
 
 	return &RouteInitializer{
@@ -58,6 +61,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 		OutflowService:           outflowService,
 		LoggingService:           loggingService,
 		ReoccurringActionService: recActionService,
+		BudgetService:            budgetService,
 		SavingsService:           savingsService,
 	}
 }
@@ -76,6 +80,7 @@ func (r *RouteInitializer) InitEndpoints() {
 	outflowHandler := handlers.NewOutflowHandler(r.OutflowService)
 	loggingHandler := handlers.NewLoggingHandler(r.LoggingService)
 	recActionHandler := handlers.NewReoccurringActionHandler(r.ReoccurringActionService)
+	budgetHandler := handlers.NewBudgetHandler(r.BudgetService)
 	savingsHandler := handlers.NewSavingsHandler(r.SavingsService)
 
 	// Protected routes
@@ -98,6 +103,9 @@ func (r *RouteInitializer) InitEndpoints() {
 
 		reoccurringRoutes := authGroup.Group("/reoccurring")
 		endpoints.RecActionRoutes(reoccurringRoutes, recActionHandler)
+
+		budgetRoutes := authGroup.Group("/budget")
+		endpoints.BudgetRoutes(budgetRoutes, budgetHandler)
 
 		savingsRoutes := authGroup.Group("/savings")
 		endpoints.SavingsRoutes(savingsRoutes, savingsHandler)
