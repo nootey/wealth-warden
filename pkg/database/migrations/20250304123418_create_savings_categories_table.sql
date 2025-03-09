@@ -3,6 +3,7 @@
 CREATE TABLE IF NOT EXISTS savings_categories (
 id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
 organization_id BIGINT UNSIGNED NOT NULL,
+user_id BIGINT UNSIGNED NOT NULL,
 name VARCHAR(100) NOT NULL,
 savings_type ENUM('fixed', 'variable') NOT NULL,
 priority INT DEFAULT 1,
@@ -15,6 +16,7 @@ account_type VARCHAR(128) DEFAULT 'manual',
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
 INDEX idx_org_id (organization_id)
 );
 -- +goose StatementEnd
