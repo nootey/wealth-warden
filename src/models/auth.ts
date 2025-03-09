@@ -8,4 +8,9 @@ export interface User {
     id: number;
     email: string;
     validated_at?: string;
+    secrets: Secrets;
+}
+
+interface Secrets {
+    budget_initialized: boolean;
 }

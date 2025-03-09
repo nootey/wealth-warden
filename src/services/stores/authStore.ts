@@ -12,6 +12,7 @@ export const useAuthStore = defineStore('auth', {
     }),
     getters: {
         isAuthenticated: (state) => state.authenticated,
+        hasUserInitializedBudget: (state) => state?.user?.secrets.budget_initialized,
         isInitialized: (state) => state.initialized,
     },
     actions: {
@@ -28,7 +29,7 @@ export const useAuthStore = defineStore('auth', {
 
         async getAuthUser(set = true) {
             try {
-                const response = await apiClient.get(`${this.apiPrefix}/current`);
+                const response = await apiClient.get(`${this.apiPrefix}/current`, {params: {withSecrets: true}});
 
                 if (set) {
                     if (!response.data) {

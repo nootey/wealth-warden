@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {ref} from "vue";
+import {computed, ref} from "vue";
 import { useThemeStore } from './services/stores/themeStore.ts';
 import { useAuthStore } from './services/stores/authStore.ts';
 
@@ -16,19 +16,24 @@ interface MenuItem {
   to: string;
   icon: string;
   text: string;
+  requireBudgetInit: boolean;
 }
 
+const budget_initialized = computed(() => authStore.hasUserInitializedBudget);
+
 const menuItems: MenuItem[] = [
-  { to: "/", icon: "pi-home", text: "Dashboard"},
-  { to: "/inflows", icon: "pi-arrow-circle-up", text: "Inflows"},
-  { to: "/Outflows", icon: "pi-arrow-circle-down", text: "Outflows"},
-  { to: "/investments", icon: "pi-chart-line", text: "Investments"},
-  { to: "/savings", icon: "pi-database", text: "Savings"},
-  { to: "/debt", icon: "pi-ban", text: "Debt"},
-  { to: "/cash", icon: "pi-dollar", text: "Cash"},
-  { to: "/charts", icon: "pi-chart-scatter", text: "Charts"},
-  { to: "/logs", icon: "pi-address-book", text: "Logging"},
+  { to: "/", icon: "pi-home", text: "Dashboard", requireBudgetInit: false},
+  { to: "/inflows", icon: "pi-arrow-circle-up", text: "Inflows", requireBudgetInit: true},
+  { to: "/Outflows", icon: "pi-arrow-circle-down", text: "Outflows", requireBudgetInit: true},
+  { to: "/investments", icon: "pi-chart-line", text: "Investments", requireBudgetInit: true},
+  { to: "/savings", icon: "pi-database", text: "Savings", requireBudgetInit: true},
+  { to: "/debt", icon: "pi-ban", text: "Debt", requireBudgetInit: true},
+  { to: "/cash", icon: "pi-dollar", text: "Cash", requireBudgetInit: true},
+  { to: "/charts", icon: "pi-chart-scatter", text: "Charts", requireBudgetInit: true},
+  { to: "/logs", icon: "pi-address-book", text: "Logging", requireBudgetInit: true},
 ];
+
+const filteredMenuItems = computed(() => menuItems.filter(item => !item.requireBudgetInit || budget_initialized.value));
 
 
 </script>
@@ -48,7 +53,7 @@ const menuItems: MenuItem[] = [
     <h3>Menu</h3>
     <div class="menu">
       <router-link
-          v-for="(item, index) in menuItems"
+          v-for="(item, index) in filteredMenuItems"
           :key="index"
           :to="item.to"
           class="sidebar-item"
