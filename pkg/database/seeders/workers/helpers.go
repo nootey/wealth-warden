@@ -1,19 +1,36 @@
 package workers
 
 import (
-	"context"
-	"fmt"
-	"gorm.io/gorm"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
-func GetUserIDs(ctx context.Context, db *gorm.DB, emails []string) ([]uint, error) {
-	var userIDs []uint
-
-	// Query all matching user IDs in a single query
-	err := db.WithContext(ctx).Raw(`SELECT id FROM users WHERE email IN (?)`, emails).Scan(&userIDs).Error
+func LoadSeederCredentials() (map[string]string, error) {
+	wd, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve user IDs: %w", err)
+		log.Fatalf("Error loading secrets: %v", err)
 	}
-
-	return userIDs, nil
+	path := filepath.Join(wd, "pkg", "config", ".seeder.credentials")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	creds := make(map[string]string)
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		creds[key] = value
+	}
+	return creds, nil
 }

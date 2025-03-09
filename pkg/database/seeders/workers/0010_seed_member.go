@@ -4,17 +4,28 @@ import (
 	"context"
 	"fmt"
 	"time"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
 	"gorm.io/gorm"
 )
 
 func SeedMember(ctx context.Context, db *gorm.DB) error {
-	cfg := config.LoadConfig()
+
+	creds, err := LoadSeederCredentials()
+	if err != nil {
+		return fmt.Errorf("failed to load seeder credentials: %w", err)
+	}
+	email, ok := creds["MEMBER_EMAIL"]
+	if !ok || email == "" {
+		return fmt.Errorf("MEMBER_EMAIL not set in seeder credentials")
+	}
+	password, ok := creds["MEMBER_PASSWORD"]
+	if !ok || password == "" {
+		return fmt.Errorf("MEMBER_PASSWORD not set in seeder credentials")
+	}
 
 	// Hash the Member password.
-	hashedPassword, err := utils.HashAndSaltPassword(cfg.SuperAdminPassword)
+	hashedPassword, err := utils.HashAndSaltPassword(password)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -55,7 +66,7 @@ func SeedMember(ctx context.Context, db *gorm.DB) error {
 
 	// Step 3: Check if the member user already exists.
 	var userID uint
-	err = db.Raw(`SELECT id FROM users WHERE email = ?`, "member@wealth-warden.com").Scan(&userID).Error
+	err = db.Raw(`SELECT id FROM users WHERE email = ?`, email).Scan(&userID).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return fmt.Errorf("failed to check existing user: %w", err)
 	}
@@ -65,13 +76,13 @@ func SeedMember(ctx context.Context, db *gorm.DB) error {
 		err = db.Exec(`
 			INSERT INTO users (username, email, password, display_name, role_id, primary_organization_id, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		`, "Member", "member@wealth-warden.com", hashedPassword, "Member", globalRoleID, organizationID, time.Now(), time.Now()).Error
+		`, "Member", email, hashedPassword, "Member", globalRoleID, organizationID, time.Now(), time.Now()).Error
 		if err != nil {
 			return fmt.Errorf("failed to insert user: %w", err)
 		}
 
 		// Retrieve the newly inserted user ID.
-		err = db.Raw(`SELECT id FROM users WHERE email = ?`, "member@wealth-warden.com").Scan(&userID).Error
+		err = db.Raw(`SELECT id FROM users WHERE email = ?`, email).Scan(&userID).Error
 		if err != nil {
 			return fmt.Errorf("failed to retrieve new member user ID: %w", err)
 		}

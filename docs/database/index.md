@@ -42,3 +42,16 @@ go run cmd/http-server/main.go seed {type}
 You can use the following options:
 - basic -> runs the basic seeders for a fresh rollout
 - full -> runs all defined seeders, for faking data
+
+<hr> 
+
+Seeders require a .seeder.credentials file in `./pkg/config` to read values to seed.
+
+Currently, these are the required parameters:
+
+```js
+SUPER_ADMIN_EMAIL=
+SUPER_ADMIN_PASSWORD= 
+MEMBER_EMAIL=
+MEMBER_PASSWORD=
+```

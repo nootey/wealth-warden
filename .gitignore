@@ -23,5 +23,6 @@ go.work.sum
 
 # env file
 pkg/config/.env.secret
+pkg/config/.seeder.credentials
 .idea
 

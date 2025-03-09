@@ -4,17 +4,28 @@ import (
 	"context"
 	"fmt"
 	"time"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
 	"gorm.io/gorm"
 )
 
 func SeedSuperAdmin(ctx context.Context, db *gorm.DB) error {
-	cfg := config.LoadConfig()
+
+	creds, err := LoadSeederCredentials()
+	if err != nil {
+		return fmt.Errorf("failed to load seeder credentials: %w", err)
+	}
+	email, ok := creds["SUPER_ADMIN_EMAIL"]
+	if !ok || email == "" {
+		return fmt.Errorf("SUPER_ADMIN_EMAIL not set in seeder credentials")
+	}
+	password, ok := creds["SUPER_ADMIN_PASSWORD"]
+	if !ok || password == "" {
+		return fmt.Errorf("SUPER_ADMIN_PASSWORD not set in seeder credentials")
+	}
 
 	// Hash the Super Admin password.
-	hashedPassword, err := utils.HashAndSaltPassword(cfg.SuperAdminPassword)
+	hashedPassword, err := utils.HashAndSaltPassword(password)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -55,7 +66,7 @@ func SeedSuperAdmin(ctx context.Context, db *gorm.DB) error {
 
 	// Step 3: Check if the Super Admin user already exists.
 	var userID uint
-	err = db.Raw(`SELECT id FROM users WHERE email = ?`, "support@wealth-warden.com").Scan(&userID).Error
+	err = db.Raw(`SELECT id FROM users WHERE email = ?`, email).Scan(&userID).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return fmt.Errorf("failed to check existing super admin user: %w", err)
 	}
@@ -66,13 +77,13 @@ func SeedSuperAdmin(ctx context.Context, db *gorm.DB) error {
 		err = db.Exec(`
 			INSERT INTO users (username, email, password, display_name, role_id, primary_organization_id, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		`, "Support", "support@wealth-warden.com", hashedPassword, "Super Admin", globalRoleID, organizationID, time.Now(), time.Now()).Error
+		`, "Support", email, hashedPassword, "Super Admin", globalRoleID, organizationID, time.Now(), time.Now()).Error
 		if err != nil {
 			return fmt.Errorf("failed to insert super admin user: %w", err)
 		}
 
 		// Retrieve the newly inserted user ID.
-		err = db.Raw(`SELECT id FROM users WHERE email = ?`, "support@wealth-warden.com").Scan(&userID).Error
+		err = db.Raw(`SELECT id FROM users WHERE email = ?`, email).Scan(&userID).Error
 		if err != nil {
 			return fmt.Errorf("failed to retrieve new super admin user ID: %w", err)
 		}
