@@ -27,7 +27,7 @@ func NewReoccurringActionService(repo *repositories.ReoccurringActionsRepository
 
 func (s *ReoccurringActionService) FetchAllActionsForCategory(c *gin.Context, categoryName string) ([]models.RecurringAction, error) {
 
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +36,7 @@ func (s *ReoccurringActionService) FetchAllActionsForCategory(c *gin.Context, ca
 
 func (s *ReoccurringActionService) DeleteReoccurringAction(c *gin.Context, id uint, categoryName string) error {
 
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (s *ReoccurringActionService) DeleteReoccurringAction(c *gin.Context, id ui
 
 func (s *ReoccurringActionService) FetchAvailableYearsForRecords(c *gin.Context, table, dateField string) ([]int, error) {
 
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}

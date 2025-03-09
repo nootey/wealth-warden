@@ -38,7 +38,7 @@ func NewInflowService(
 
 func (s *InflowService) FetchInflowsPaginated(c *gin.Context, paginationParams utils.PaginationParams, yearParam string) ([]models.Inflow, int, error) {
 
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -68,7 +68,7 @@ func (s *InflowService) FetchInflowsPaginated(c *gin.Context, paginationParams u
 }
 
 func (s *InflowService) FetchAllInflowsGroupedByMonth(c *gin.Context, yearParam string) ([]models.InflowSummary, error) {
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func (s *InflowService) FetchAllInflowsGroupedByMonth(c *gin.Context, yearParam 
 }
 
 func (s *InflowService) FetchAllInflowCategories(c *gin.Context) ([]models.InflowCategory, error) {
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (s *InflowService) FetchAllInflowCategories(c *gin.Context) ([]models.Inflo
 }
 
 func (s *InflowService) FetchAllDynamicCategories(c *gin.Context) ([]models.DynamicCategory, error) {
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (s *InflowService) FetchAllDynamicCategories(c *gin.Context) ([]models.Dyna
 
 func (s *InflowService) CreateInflow(c *gin.Context, newRecord *models.Inflow) error {
 
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func (s *InflowService) CreateInflow(c *gin.Context, newRecord *models.Inflow) e
 
 func (s *InflowService) UpdateInflow(c *gin.Context, newRecord *models.Inflow) error {
 
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func (s *InflowService) UpdateInflow(c *gin.Context, newRecord *models.Inflow) e
 
 func (s *InflowService) CreateReoccurringInflow(c *gin.Context, newRecord *models.Inflow, newReoccurringRecord *models.RecurringAction) error {
 
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -240,7 +240,7 @@ func (s *InflowService) CreateReoccurringInflow(c *gin.Context, newRecord *model
 
 func (s *InflowService) CreateInflowCategory(c *gin.Context, newRecord *models.InflowCategory) error {
 
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -280,7 +280,7 @@ func keysFromSlice(links []LinkInfo) string {
 
 func (s *InflowService) CreateDynamicCategoryWithMappings(c *gin.Context, category *models.DynamicCategory, mappings []models.DynamicCategoryMapping) error {
 
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -341,7 +341,7 @@ func (s *InflowService) CreateDynamicCategoryWithMappings(c *gin.Context, catego
 
 func (s *InflowService) UpdateInflowCategory(c *gin.Context, newRecord *models.InflowCategory) error {
 
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -378,7 +378,7 @@ func (s *InflowService) UpdateInflowCategory(c *gin.Context, newRecord *models.I
 
 func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
 
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -417,7 +417,7 @@ func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
 
 func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -470,7 +470,7 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 
 func (s *InflowService) DeleteDynamicCategory(c *gin.Context, id uint) error {
 
-	user, err := s.AuthService.GetCurrentUser(c)
+	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}

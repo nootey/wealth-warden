@@ -30,7 +30,7 @@ func NewAuthService(
 	}
 }
 
-func (s *AuthService) GetCurrentUser(c *gin.Context) (*models.User, error) {
+func (s *AuthService) GetCurrentUser(c *gin.Context, withSecrets bool) (*models.User, error) {
 
 	refreshToken, err := c.Cookie("refresh")
 	if err != nil {
@@ -48,7 +48,7 @@ func (s *AuthService) GetCurrentUser(c *gin.Context) (*models.User, error) {
 			return nil, fmt.Errorf("failed to decode user ID: %v", decodeErr)
 		}
 
-		user, repoError := s.UserRepo.GetUserByID(userId, false)
+		user, repoError := s.UserRepo.GetUserByID(userId, withSecrets)
 		if repoError != nil {
 			return nil, fmt.Errorf("failed to get user from repository: %v", repoError)
 		}
