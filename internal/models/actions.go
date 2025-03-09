@@ -5,6 +5,7 @@ import "time"
 type RecurringAction struct {
 	ID             uint       `gorm:"primaryKey" json:"id"`
 	OrganizationID uint       `gorm:"index" json:"organization_id"`
+	UserID         uint       `gorm:"not_null" json:"user_id"`
 	CategoryType   string     `gorm:"not null" json:"category_type"`
 	CategoryID     uint       `gorm:"index" json:"action_id"`
 	Amount         float64    `gorm:"type:decimal(10,2);not null" json:"amount"`

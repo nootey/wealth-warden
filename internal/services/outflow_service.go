@@ -51,14 +51,14 @@ func (s *OutflowService) FetchOutflowsPaginated(c *gin.Context, paginationParams
 		year = currentYear // Default to current year if invalid
 	}
 
-	totalRecords, err := s.OutflowRepo.CountOutflows(*user.PrimaryOrganizationID, year)
+	totalRecords, err := s.OutflowRepo.CountOutflows(user, year)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
 
-	outflows, err := s.OutflowRepo.FindOutflows(*user.PrimaryOrganizationID, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder)
+	outflows, err := s.OutflowRepo.FindOutflows(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -78,7 +78,7 @@ func (s *OutflowService) FetchAllOutflowsGroupedByMonth(c *gin.Context, yearPara
 		year = currentYear
 	}
 
-	return s.OutflowRepo.FindAllOutflowsGroupedByMonth(*user.PrimaryOrganizationID, year)
+	return s.OutflowRepo.FindAllOutflowsGroupedByMonth(user, year)
 }
 
 func (s *OutflowService) FetchAllOutflowCategories(c *gin.Context) ([]models.OutflowCategory, error) {
@@ -86,7 +86,7 @@ func (s *OutflowService) FetchAllOutflowCategories(c *gin.Context) ([]models.Out
 	if err != nil {
 		return nil, err
 	}
-	return s.OutflowRepo.GetAllOutflowCategories(*user.PrimaryOrganizationID)
+	return s.OutflowRepo.GetAllOutflowCategories(user)
 }
 
 func (s *OutflowService) CreateOutflow(c *gin.Context, newRecord *models.Outflow) error {
@@ -109,7 +109,7 @@ func (s *OutflowService) CreateOutflow(c *gin.Context, newRecord *models.Outflow
 	utils.CompareChanges("", newRecord.OutflowCategory.Name, changes, "outflow_category")
 	utils.CompareChanges("", amountString, changes, "amount")
 
-	_, err = s.OutflowRepo.InsertOutflow(tx, *user.PrimaryOrganizationID, newRecord)
+	_, err = s.OutflowRepo.InsertOutflow(tx, user, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -137,7 +137,7 @@ func (s *OutflowService) UpdateOutflow(c *gin.Context, newRecord *models.Outflow
 		return tx.Error
 	}
 
-	existingRecord, err := s.OutflowRepo.GetOutflowByID(*user.PrimaryOrganizationID, newRecord.ID)
+	existingRecord, err := s.OutflowRepo.GetOutflowByID(user, newRecord.ID)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func (s *OutflowService) UpdateOutflow(c *gin.Context, newRecord *models.Outflow
 	utils.CompareChanges(existingAmountString, amountString, changes, "amount")
 	utils.CompareChanges(utils.SafeString(existingRecord.Description), utils.SafeString(newRecord.Description), changes, "description")
 
-	_, err = s.OutflowRepo.UpdateOutflow(tx, *user.PrimaryOrganizationID, newRecord)
+	_, err = s.OutflowRepo.UpdateOutflow(tx, user, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -189,7 +189,7 @@ func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, newRecord *mod
 	utils.CompareChanges("", newRecord.OutflowCategory.Name, changes, "outflow_category")
 	utils.CompareChanges("", amountString, changes, "amount")
 
-	_, err = s.OutflowRepo.InsertOutflow(tx, *user.PrimaryOrganizationID, newRecord)
+	_, err = s.OutflowRepo.InsertOutflow(tx, user, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -213,7 +213,7 @@ func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, newRecord *mod
 	utils.CompareChanges("", newReoccurringRecord.IntervalUnit, changes, "interval_unit")
 	utils.CompareChanges("", strconv.Itoa(newReoccurringRecord.IntervalValue), changes, "interval_value")
 
-	_, err = s.RecActionsService.ActionRepo.InsertReoccurringAction(tx, *user.PrimaryOrganizationID, newReoccurringRecord)
+	_, err = s.RecActionsService.ActionRepo.InsertReoccurringAction(tx, user, newReoccurringRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -243,7 +243,7 @@ func (s *OutflowService) CreateOutflowCategory(c *gin.Context, newRecord *models
 
 	utils.CompareChanges("", newRecord.Name, changes, "category")
 
-	err = s.OutflowRepo.InsertOutflowCategory(tx, *user.PrimaryOrganizationID, newRecord)
+	err = s.OutflowRepo.InsertOutflowCategory(tx, user, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -271,14 +271,14 @@ func (s *OutflowService) UpdateOutflowCategory(c *gin.Context, newRecord *models
 		return tx.Error
 	}
 
-	existingRecord, err := s.OutflowRepo.GetOutflowCategoryByID(*user.PrimaryOrganizationID, newRecord.ID)
+	existingRecord, err := s.OutflowRepo.GetOutflowCategoryByID(user, newRecord.ID)
 	if err != nil {
 		return err
 	}
 
 	utils.CompareChanges(existingRecord.Name, newRecord.Name, changes, "category")
 
-	err = s.OutflowRepo.UpdateOutflowCategory(tx, *user.PrimaryOrganizationID, newRecord)
+	err = s.OutflowRepo.UpdateOutflowCategory(tx, user, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -308,7 +308,7 @@ func (s *OutflowService) DeleteOutflow(c *gin.Context, id uint) error {
 		return tx.Error
 	}
 
-	outflow, err := s.OutflowRepo.GetOutflowByID(*user.PrimaryOrganizationID, id)
+	outflow, err := s.OutflowRepo.GetOutflowByID(user, id)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -319,7 +319,7 @@ func (s *OutflowService) DeleteOutflow(c *gin.Context, id uint) error {
 	utils.CompareChanges(outflow.OutflowCategory.Name, "", changes, "outflow")
 	utils.CompareChanges(amountString, "", changes, "amount")
 
-	err = s.OutflowRepo.DropOutflow(tx, *user.PrimaryOrganizationID, id)
+	err = s.OutflowRepo.DropOutflow(tx, user, id)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -349,16 +349,16 @@ func (s *OutflowService) DeleteOutflowCategory(c *gin.Context, id uint) error {
 		return tx.Error
 	}
 
-	OutflowCategory, err := s.OutflowRepo.GetOutflowCategoryByID(*user.PrimaryOrganizationID, id)
+	OutflowCategory, err := s.OutflowRepo.GetOutflowCategoryByID(user, id)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	if err := s.OutflowRepo.CountOutflowsByCategory(*user.PrimaryOrganizationID, id, &CountOutflows); err != nil {
+	if err := s.OutflowRepo.CountOutflowsByCategory(user, id, &CountOutflows); err != nil {
 		return err
 	}
-	if err := s.RecActionsService.ActionRepo.CountReoccurringActionByCategory(*user.PrimaryOrganizationID, "outflow", id, &countActions); err != nil {
+	if err := s.RecActionsService.ActionRepo.CountReoccurringActionByCategory(user, "outflow", id, &countActions); err != nil {
 		return err
 	}
 
@@ -372,7 +372,7 @@ func (s *OutflowService) DeleteOutflowCategory(c *gin.Context, id uint) error {
 
 	utils.CompareChanges(OutflowCategory.Name, "", changes, "category")
 
-	err = s.OutflowRepo.DropOutflowCategory(tx, *user.PrimaryOrganizationID, id)
+	err = s.OutflowRepo.DropOutflowCategory(tx, user, id)
 	if err != nil {
 		tx.Rollback()
 		return err

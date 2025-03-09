@@ -31,7 +31,7 @@ func (s *ReoccurringActionService) FetchAllActionsForCategory(c *gin.Context, ca
 	if err != nil {
 		return nil, err
 	}
-	return s.ActionRepo.FindAllActionsForCategory(user.ID, categoryName)
+	return s.ActionRepo.FindAllActionsForCategory(user, categoryName)
 }
 
 func (s *ReoccurringActionService) DeleteReoccurringAction(c *gin.Context, id uint, categoryName string) error {
@@ -47,7 +47,7 @@ func (s *ReoccurringActionService) DeleteReoccurringAction(c *gin.Context, id ui
 		return tx.Error
 	}
 
-	record, err := s.ActionRepo.GetActionByID(user.ID, id)
+	record, err := s.ActionRepo.GetActionByID(user, id)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -79,7 +79,7 @@ func (s *ReoccurringActionService) DeleteReoccurringAction(c *gin.Context, id ui
 		utils.CompareChanges("", *endDateStr, changes, "end_date")
 	}
 
-	err = s.ActionRepo.DropAction(tx, user.ID, id)
+	err = s.ActionRepo.DropAction(tx, user, id)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -101,7 +101,7 @@ func (s *ReoccurringActionService) FetchAvailableYearsForRecords(c *gin.Context,
 		return nil, err
 	}
 
-	years, err := s.ActionRepo.FindDistinctYearsForRecords(*user.PrimaryOrganizationID, table, dateField)
+	years, err := s.ActionRepo.FindDistinctYearsForRecords(user, table, dateField)
 	if err != nil {
 		return nil, err
 	}

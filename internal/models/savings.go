@@ -4,7 +4,8 @@ import "time"
 
 type SavingsCategory struct {
 	ID              uint       `gorm:"primaryKey" json:"id"`
-	UserID          uint       `gorm:"not null;index" json:"user_id"`
+	OrganizationID  uint       `gorm:"not_null;index" json:"organization_id"`
+	UserID          uint       `gorm:"not null" json:"user_id"`
 	Name            string     `gorm:"type:varchar(100);not null" json:"name"`
 	SavingsType     string     `gorm:"type:enum('fixed', 'variable');not null" json:"savings_type"`
 	Priority        int        `gorm:"default:1" json:"priority"`
@@ -20,7 +21,8 @@ type SavingsCategory struct {
 
 type SavingsAllocation struct {
 	ID                uint            `gorm:"primaryKey" json:"id"`
-	UserID            uint            `gorm:"not null;index" json:"user_id"`
+	OrganizationID    uint            `gorm:"not_null;index" json:"organization_id"`
+	UserID            uint            `gorm:"not null" json:"user_id"`
 	SavingsCategoryID uint            `gorm:"index" json:"savings_category_id"`
 	SavingsCategory   SavingsCategory `gorm:"foreignKey:SavingsCategoryID" json:"savings_category"`
 	Month             time.Time       `gorm:"not null" json:"month"` // YYYY-MM-01 format
@@ -32,7 +34,8 @@ type SavingsAllocation struct {
 
 type SavingsDeduction struct {
 	ID                     uint             `gorm:"primaryKey" json:"id"`
-	UserID                 uint             `gorm:"not null;index" json:"user_id"`
+	OrganizationID         uint             `gorm:"not_null;index" json:"organization_id"`
+	UserID                 uint             `gorm:"not null" json:"user_id"`
 	SavingsCategoryID      uint             `gorm:"index" json:"savings_category_id"`
 	SavingsCategory        SavingsCategory  `gorm:"foreignKey:SavingsCategoryID" json:"savings_category"`
 	DeductionDate          time.Time        `gorm:"not null" json:"deduction_date"`

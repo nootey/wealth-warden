@@ -15,17 +15,17 @@ func NewInflowRepository(db *gorm.DB) *InflowRepository {
 	return &InflowRepository{Db: db}
 }
 
-func (r *InflowRepository) CountInflowsByCategory(orgID, categoryID uint, count *int64) error {
+func (r *InflowRepository) CountInflowsByCategory(user *models.User, categoryID uint, count *int64) error {
 	return r.Db.Model(&models.Inflow{}).
 		Where("inflow_category_id = ?", categoryID).
-		Where("organization_id = ?", orgID).
+		Where("organization_id = ?", *user.PrimaryOrganizationID).
 		Count(count).Error
 }
 
-func (r *InflowRepository) CountInflows(orgID uint, year int) (int64, error) {
+func (r *InflowRepository) CountInflows(user *models.User, year int) (int64, error) {
 	var totalRecords int64
 	err := r.Db.Model(&models.Inflow{}).
-		Where("organization_id = ? AND YEAR(inflow_date) = ?", orgID, year).
+		Where("organization_id = ? AND YEAR(inflow_date) = ?", *user.PrimaryOrganizationID, year).
 		Count(&totalRecords).Error
 	if err != nil {
 		return 0, err
@@ -40,13 +40,13 @@ func (r *InflowRepository) CountDynamicCategoryByID(categoryID uint, count *int6
 		Count(count).Error
 }
 
-func (r *InflowRepository) FindInflows(orgID uint, year, offset, limit int, sortField, sortOrder string) ([]models.Inflow, error) {
+func (r *InflowRepository) FindInflows(user *models.User, year, offset, limit int, sortField, sortOrder string) ([]models.Inflow, error) {
 	var inflows []models.Inflow
 	orderBy := sortField + " " + sortOrder
 
 	err := r.Db.
 		Preload("InflowCategory").
-		Where("organization_id = ? AND YEAR(inflow_date) = ?", orgID, year).
+		Where("organization_id = ? AND YEAR(inflow_date) = ?", *user.PrimaryOrganizationID, year).
 		Order(orderBy).
 		Limit(limit).
 		Offset(offset).
@@ -59,10 +59,10 @@ func (r *InflowRepository) FindInflows(orgID uint, year, offset, limit int, sort
 	return inflows, nil
 }
 
-func (r *InflowRepository) GetInflowByID(orgID, inflowID uint) (*models.Inflow, error) {
+func (r *InflowRepository) GetInflowByID(user *models.User, inflowID uint) (*models.Inflow, error) {
 	var inflow models.Inflow
 	err := r.Db.Preload("InflowCategory").
-		Where("id = ? AND organization_id = ?", inflowID, orgID).
+		Where("id = ? AND organization_id = ?", inflowID, *user.PrimaryOrganizationID).
 		First(&inflow).Error
 	if err != nil {
 		return nil, err
@@ -70,10 +70,10 @@ func (r *InflowRepository) GetInflowByID(orgID, inflowID uint) (*models.Inflow, 
 	return &inflow, nil
 }
 
-func (r *InflowRepository) GetInflowCategoryByID(orgID, inflowCategoryID uint) (*models.InflowCategory, error) {
+func (r *InflowRepository) GetInflowCategoryByID(user *models.User, inflowCategoryID uint) (*models.InflowCategory, error) {
 	var inflowCategory models.InflowCategory
 	err := r.Db.
-		Where("id = ? AND organization_id = ?", inflowCategoryID, orgID).
+		Where("id = ? AND organization_id = ?", inflowCategoryID, *user.PrimaryOrganizationID).
 		First(&inflowCategory).Error
 	if err != nil {
 		return nil, err
@@ -81,10 +81,10 @@ func (r *InflowRepository) GetInflowCategoryByID(orgID, inflowCategoryID uint) (
 	return &inflowCategory, nil
 }
 
-func (r *InflowRepository) GetDynamicCategoryByID(orgID, ID uint) (*models.DynamicCategory, error) {
+func (r *InflowRepository) GetDynamicCategoryByID(user *models.User, ID uint) (*models.DynamicCategory, error) {
 	var record models.DynamicCategory
 	err := r.Db.
-		Where("id = ? AND organization_id = ?", ID, orgID).
+		Where("id = ? AND organization_id = ?", ID, *user.PrimaryOrganizationID).
 		First(&record).Error
 	if err != nil {
 		return nil, err
@@ -92,8 +92,9 @@ func (r *InflowRepository) GetDynamicCategoryByID(orgID, ID uint) (*models.Dynam
 	return &record, nil
 }
 
-func (r *InflowRepository) FindAllInflowsGroupedByMonth(orgID uint, year int) ([]models.InflowSummary, error) {
+func (r *InflowRepository) FindAllInflowsGroupedByMonth(user *models.User, year int) ([]models.InflowSummary, error) {
 	var results []models.InflowSummary
+	orgID := *user.PrimaryOrganizationID
 
 	// Define the recursive CTE for dynamic categories
 	dynamicFlatCTE := `
@@ -241,62 +242,65 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(orgID uint, year int) ([
 	return results, nil
 }
 
-func (r *InflowRepository) GetAllInflowCategories(orgID uint) ([]models.InflowCategory, error) {
+func (r *InflowRepository) GetAllInflowCategories(user *models.User) ([]models.InflowCategory, error) {
 	var inflowCategories []models.InflowCategory
-	result := r.Db.Where("organization_id = ?", orgID).Find(&inflowCategories)
+	result := r.Db.Where("organization_id = ?", *user.PrimaryOrganizationID).Find(&inflowCategories)
 	return inflowCategories, result.Error
 }
 
-func (r *InflowRepository) GetAllDynamicCategories(orgID uint) ([]models.DynamicCategory, error) {
+func (r *InflowRepository) GetAllDynamicCategories(user *models.User) ([]models.DynamicCategory, error) {
 	var records []models.DynamicCategory
 	result := r.Db.Preload("Mappings").
-		Where("organization_id = ?", orgID).
+		Where("organization_id = ?", *user.PrimaryOrganizationID).
 		Find(&records)
 	return records, result.Error
 }
 
-func (r *InflowRepository) InsertInflow(tx *gorm.DB, orgID uint, record *models.Inflow) (uint, error) {
-	record.OrganizationID = orgID
+func (r *InflowRepository) InsertInflow(tx *gorm.DB, user *models.User, record *models.Inflow) (uint, error) {
+	record.OrganizationID = *user.PrimaryOrganizationID
+	record.UserID = user.ID
 	if err := tx.Create(&record).Error; err != nil {
 		return 0, err
 	}
 	return record.ID, nil
 }
 
-func (r *InflowRepository) UpdateInflow(tx *gorm.DB, orgID uint, record *models.Inflow) (uint, error) {
-	record.OrganizationID = orgID
+func (r *InflowRepository) UpdateInflow(tx *gorm.DB, user *models.User, record *models.Inflow) (uint, error) {
+	record.UserID = user.ID
 	if err := tx.Model(&models.Inflow{}).
-		Where("id = ? AND organization_id = ?", record.ID, orgID).
+		Where("id = ? AND organization_id = ?", record.ID, *user.PrimaryOrganizationID).
 		Updates(record).Error; err != nil {
 		return 0, err
 	}
 	return record.ID, nil
 }
 
-func (r *InflowRepository) InsertInflowCategory(tx *gorm.DB, orgID uint, record *models.InflowCategory) error {
+func (r *InflowRepository) InsertInflowCategory(tx *gorm.DB, user *models.User, record *models.InflowCategory) error {
 	var existing models.InflowCategory
-	if err := tx.Where("organization_id = ? AND name = ?", orgID, record.Name).First(&existing).Error; err == nil {
+	if err := tx.Where("organization_id = ? AND name = ?", *user.PrimaryOrganizationID, record.Name).First(&existing).Error; err == nil {
 		return fmt.Errorf("category with this name already exists")
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
 
-	record.OrganizationID = orgID
+	record.OrganizationID = *user.PrimaryOrganizationID
+	record.UserID = user.ID
 	if err := tx.Create(&record).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *InflowRepository) InsertDynamicCategory(tx *gorm.DB, orgID uint, record *models.DynamicCategory) (uint, error) {
+func (r *InflowRepository) InsertDynamicCategory(tx *gorm.DB, user *models.User, record *models.DynamicCategory) (uint, error) {
 	var existing models.DynamicCategory
-	if err := tx.Where("organization_id = ? AND name = ?", orgID, record.Name).First(&existing).Error; err == nil {
+	if err := tx.Where("organization_id = ? AND name = ?", *user.PrimaryOrganizationID, record.Name).First(&existing).Error; err == nil {
 		return 0, fmt.Errorf("category with this name already exists")
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return 0, err
 	}
 
-	record.OrganizationID = orgID
+	record.OrganizationID = *user.PrimaryOrganizationID
+	record.UserID = user.ID
 	if err := tx.Create(&record).Error; err != nil {
 		return 0, err
 	}
@@ -310,22 +314,23 @@ func (r *InflowRepository) InsertDynamicCategoryMapping(tx *gorm.DB, mapping mod
 	return nil
 }
 
-func (r *InflowRepository) UpdateInflowCategory(tx *gorm.DB, orgID uint, record *models.InflowCategory) error {
+func (r *InflowRepository) UpdateInflowCategory(tx *gorm.DB, user *models.User, record *models.InflowCategory) error {
+	record.UserID = user.ID
 	if err := tx.Model(&models.InflowCategory{}).
-		Where("organization_id = ? AND id = ?", orgID, record.ID).
+		Where("organization_id = ? AND id = ?", *user.PrimaryOrganizationID, record.ID).
 		Updates(record).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
-func (r *InflowRepository) DropInflow(tx *gorm.DB, orgID uint, recordID uint) error {
-	return tx.Where("id = ? AND organization_id = ?", recordID, orgID).
+func (r *InflowRepository) DropInflow(tx *gorm.DB, user *models.User, recordID uint) error {
+	return tx.Where("id = ? AND organization_id = ?", recordID, *user.PrimaryOrganizationID).
 		Delete(&models.Inflow{}).Error
 }
 
-func (r *InflowRepository) DropInflowCategory(tx *gorm.DB, orgID uint, recordID uint) error {
-	result := tx.Where("organization_id = ?", orgID).
+func (r *InflowRepository) DropInflowCategory(tx *gorm.DB, user *models.User, recordID uint) error {
+	result := tx.Where("organization_id = ?", *user.PrimaryOrganizationID).
 		Delete(&models.InflowCategory{}, recordID)
 	if result.Error != nil {
 		return result.Error
@@ -333,13 +338,13 @@ func (r *InflowRepository) DropInflowCategory(tx *gorm.DB, orgID uint, recordID 
 	return nil
 }
 
-func (r *InflowRepository) DropDynamicCategory(tx *gorm.DB, orgID uint, recordID uint) error {
+func (r *InflowRepository) DropDynamicCategory(tx *gorm.DB, user *models.User, recordID uint) error {
 	if err := tx.Where("dynamic_category_id = ?", recordID).
 		Delete(&models.DynamicCategoryMapping{}).Error; err != nil {
 		return err
 	}
 
-	result := tx.Where("organization_id = ?", orgID).
+	result := tx.Where("organization_id = ?", *user.PrimaryOrganizationID).
 		Delete(&models.DynamicCategory{}, recordID)
 	if result.Error != nil {
 		return result.Error

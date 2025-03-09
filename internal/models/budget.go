@@ -4,7 +4,8 @@ import "time"
 
 type MonthlyBudget struct {
 	ID                uint64  `gorm:"primaryKey;autoIncrement"`
-	OrganizationID    uint64  `gorm:"not null;index:idx_org_id;uniqueIndex:unique_org_dyn_year_month"`
+	OrganizationID    uint    `gorm:"not_null;index" json:"organization_id"`
+	UserID            uint    `gorm:"not null" json:"user_id"`
 	DynamicCategoryID uint64  `gorm:"not null;uniqueIndex:unique_org_dyn_year_month"`
 	Month             uint8   `gorm:"not null;uniqueIndex:unique_org_dyn_year_month"` // Note: SQL CHECK (month BETWEEN 1 AND 12) must be validated in code.
 	Year              int     `gorm:"not null;uniqueIndex:unique_org_dyn_year_month"`
