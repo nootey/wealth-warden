@@ -24,3 +24,7 @@ type MonthlyBudgetAllocation struct {
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 }
+
+func (MonthlyBudget) TableName() string {
+	return "monthly_budget"
+}

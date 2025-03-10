@@ -6,5 +6,5 @@ import (
 )
 
 func BudgetRoutes(apiGroup *gin.RouterGroup, handler *handlers.BudgetHandler) {
-
+	apiGroup.GET("/current", handler.GetCurrentMonthlyBudget)
 }
