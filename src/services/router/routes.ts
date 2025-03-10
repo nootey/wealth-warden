@@ -22,56 +22,59 @@ const routes = [
         path: '/login',
         name: 'Login',
         component: Login,
+        beforeEnter: [requiresGuest],
     },
     {
         path: '/inflows',
         name: 'Inflows',
         component: InflowsIndex,
-        beforeEnter: [requiresAuth],
+        beforeEnter: [requiresAuth, requiresActiveBudget],
     },
     {
         path: '/Outflows',
         name: 'Outflows',
         component: OutflowsIndex,
-        beforeEnter: [requiresAuth],
+        beforeEnter: [requiresAuth, requiresActiveBudget],
     },
     {
         path: '/investments',
         name: 'Investments',
         component: InvestmentsIndex,
-        beforeEnter: [requiresAuth],
+        beforeEnter: [requiresAuth, requiresActiveBudget],
     },
     {
         path: '/savings',
         name: 'Savings',
         component: SavingsIndex,
-        beforeEnter: [requiresAuth],
+        beforeEnter: [requiresAuth, requiresActiveBudget],
     },
     {
         path: '/debt',
         name: 'Debt',
         component: DebtIndex,
-        beforeEnter: [requiresAuth],
+        beforeEnter: [requiresAuth, requiresActiveBudget],
     },
     {
         path: '/cash',
         name: 'Cash',
         component: CashIndex,
-        beforeEnter: [requiresAuth],
+        beforeEnter: [requiresAuth, requiresActiveBudget],
     },
     {
         path: '/charts',
         name: 'Charts',
         component: ChartingIndex,
-        beforeEnter: [requiresAuth],
+        beforeEnter: [requiresAuth, requiresActiveBudget],
     },
     {
         path: '/logs',
         name: 'Logs',
         component: LoggingHub,
-        beforeEnter: [requiresAuth],
+        beforeEnter: [requiresAuth, requiresActiveBudget],
     },
 ];
+
+
 
 function requiresAuth() {
     const authStore = useAuthStore();
@@ -79,6 +82,24 @@ function requiresAuth() {
         return true;
     } else {
         return { path: '/login' };
+    }
+}
+
+function requiresActiveBudget() {
+    const authStore = useAuthStore();
+    if (authStore.isAuthenticated && authStore.user?.secrets?.budget_initialized) {
+        return true;
+    } else {
+        return { path: '/' };
+    }
+}
+
+function requiresGuest() {
+    const authStore = useAuthStore();
+    if (!authStore.isAuthenticated) {
+        return true;
+    } else {
+        return { path: '/' };
     }
 }
 
