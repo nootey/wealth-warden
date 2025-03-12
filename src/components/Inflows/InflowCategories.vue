@@ -12,6 +12,10 @@ import {useToastStore} from "../../services/stores/toastStore.ts";
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();
 
+const props = defineProps<{
+  restricted: boolean;
+}>();
+
 const inflowCategories = computed(() => inflowStore.inflowCategories);
 const newInflowCategory = ref(initInflowCategory());
 const loading = ref(false);
@@ -58,7 +62,9 @@ async function removeInflowCategory(id: number) {
 }
 
 async function onCellEditComplete(event: any) {
-
+  if(props.restricted) {
+    return;
+  }
   try {
     let response = await inflowStore.updateInflowCategory({
       id: event.data.id,
@@ -77,12 +83,7 @@ async function onCellEditComplete(event: any) {
 
 <template>
   <div class="flex flex-column w-full p-1 gap-4">
-    <div class="flex flex-row p-1 w-full">
-      <h2>
-        Inflow Categories
-      </h2>
-    </div>
-    <div class="flex flex-row p-1 w-full">
+    <div v-if="!restricted" class="flex flex-row p-1 w-full">
         <span>
           These are your inflow categories. Assign as many as you deem necessary. Once assigned to an inflow record, a category can not be deleted.
         </span>
@@ -109,7 +110,8 @@ async function onCellEditComplete(event: any) {
 
     <div class="flex flex-row p-1 w-full">
       <DataTable dataKey="id" :loading="loading" :value="inflowCategories" size="small"
-                 editMode="cell" @cell-edit-complete="onCellEditComplete">
+                 editMode="cell" @cell-edit-complete="onCellEditComplete" sortField="created_at" :sortOrder="1"
+                 paginator :rows="5" :rowsPerPageOptions="props.restricted ? [5] : [5, 10, 25]">
         <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
         <template #loading> <LoadingSpinner></LoadingSpinner> </template>
 
@@ -122,12 +124,12 @@ async function onCellEditComplete(event: any) {
           </template>
         </Column>
 
-        <Column field="name" header="Name">
-          <template #editor="{ data, field }">
-            <InputText size="small" v-model="data[field]" autofocus fluid />
+        <Column field="name" header="Name" :sortable="true">
+          <template v-if="!props.restricted" #editor="{ data, field }">
+            <InputText  size="small" v-model="data[field]" autofocus fluid />
           </template>
         </Column>
-        <Column field="created_at" header="Created">
+        <Column field="created_at" header="Created" :sortable="true">
           <template #body="slotProps">
             {{ dateHelper.formatDate(slotProps.data?.created_at, true) }}
           </template>

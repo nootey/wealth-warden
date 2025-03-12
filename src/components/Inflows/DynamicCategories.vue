@@ -14,6 +14,10 @@ const inflowStore = useInflowStore();
 const outflowStore = useOutflowStore();
 const toastStore = useToastStore();
 
+const props = defineProps<{
+  restricted: boolean;
+}>();
+
 const newDynamicCategory = ref(initDynamicCategory());
 const loading = ref(false);
 
@@ -139,6 +143,9 @@ async function removeDynamicCategory(id: number) {
 }
 
 async function onCellEditComplete(event: any) {
+  if(props.restricted) {
+    return;
+  }
   console.log(event);
   return;
   try {
@@ -176,12 +183,12 @@ const getCategoryName = (relatedId: number, relatedType: string) => {
 <template>
   <div class="flex flex-column w-full p-1 gap-4">
 
-    <div class="flex flex-row p-1 w-full">
+    <div v-if="!restricted" class="flex flex-row p-1 w-full">
         <span>
           These are your custom categories. Each entry represents a difference between the linked categories.
         </span>
     </div>
-    <div class="flex flex-row p-1 w-full">
+    <div v-if="!restricted" class="flex flex-row p-1 w-full">
         <span>
           For example,
           if you assign your "Salary" inflow category as the primary link, and your work-related fixed expenses as the secondary link,

@@ -225,7 +225,7 @@ provide("initData", initData)
   </Dialog>
   <Dialog v-model:visible="addCategoryModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '800px'}" header="Inflow categories">
-    <InflowCategories></InflowCategories>
+    <InflowCategories :restricted="false"></InflowCategories>
   </Dialog>
   <Dialog v-model:visible="addDynamicCategoryModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '800px'}" header="Dynamic categories">
