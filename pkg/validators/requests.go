@@ -74,3 +74,8 @@ type DynamicCategoryMapRequest struct {
 	Category CreateDynamicCategoryRequest        `json:"Category" validate:"required"`
 	Mapping  CreateDynamicCategoryMappingRequest `json:"Mapping" validate:"required"`
 }
+
+type CreateMonthlyBudgetRequest struct {
+	ID                uint `json:"id"`
+	DynamicCategoryID uint `json:"dynamic_category_id" validate:"required,numeric"`
+}

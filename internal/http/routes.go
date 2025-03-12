@@ -48,7 +48,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 	recActionService := services.NewReoccurringActionService(recActionRepo, authService, loggingService)
 	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, inflowRepo)
 	outflowService := services.NewOutflowService(cfg, authService, loggingService, recActionService, outflowRepo)
-	budgetService := services.NewBudgetService(cfg, authService, loggingService, budgetRepo)
+	budgetService := services.NewBudgetService(cfg, authService, loggingService, inflowService, outflowService, budgetRepo)
 	savingsService := services.NewSavingsService(cfg, authService, loggingService, recActionService, savingsRepo)
 
 	return &RouteInitializer{

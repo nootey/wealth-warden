@@ -78,6 +78,22 @@ func (r *UserRepository) UpdateUser(user *models.User) error {
 	return r.DB.Save(user).Error
 }
 
+func (r *UserRepository) UpdateUserSecret(tx *gorm.DB, user *models.User, secretName string, secretValue interface{}) error {
+	updateData := map[string]interface{}{
+		secretName: secretValue,
+	}
+
+	result := tx.Model(&models.UserSecret{}).
+		Where("user_id = ?", user.ID).
+		Updates(updateData)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
 func (r *UserRepository) DeleteUser(id uint) error {
 	return r.DB.Delete(&models.User{}, id).Error
 }

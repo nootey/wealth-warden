@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"gorm.io/gorm"
+	"time"
 	"wealth-warden/internal/models"
 )
 
@@ -38,6 +39,25 @@ func (r *InflowRepository) CountDynamicCategoryByID(categoryID uint, count *int6
 		Where("related_id = ?", categoryID).
 		Where("related_type = ?", "dynamic").
 		Count(count).Error
+}
+
+func (r *InflowRepository) SumInflowsByCategory(user *models.User, categoryID uint, year, month int) (float64, error) {
+	var total float64
+
+	startDate := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	endDate := startDate.AddDate(0, 1, 0) // Moves to the first day of the next month
+
+	err := r.Db.Model(&models.Inflow{}).
+		Where("inflow_category_id = ? AND inflow_date >= ? AND inflow_date < ?", categoryID, startDate, endDate).
+		Where("organization_id = ?", &user.PrimaryOrganizationID).
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&total).Error
+
+	if err != nil {
+		return 0, err
+	}
+
+	return total, nil
 }
 
 func (r *InflowRepository) FindInflows(user *models.User, year, offset, limit int, sortField, sortOrder string) ([]models.Inflow, error) {
@@ -242,18 +262,34 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(user *models.User, year 
 	return results, nil
 }
 
-func (r *InflowRepository) GetAllInflowCategories(user *models.User) ([]models.InflowCategory, error) {
+func (r *InflowRepository) FindAllInflowCategories(user *models.User) ([]models.InflowCategory, error) {
 	var inflowCategories []models.InflowCategory
 	result := r.Db.Where("organization_id = ?", *user.PrimaryOrganizationID).Find(&inflowCategories)
 	return inflowCategories, result.Error
 }
 
-func (r *InflowRepository) GetAllDynamicCategories(user *models.User) ([]models.DynamicCategory, error) {
+func (r *InflowRepository) FindAllDynamicCategories(user *models.User) ([]models.DynamicCategory, error) {
 	var records []models.DynamicCategory
 	result := r.Db.Preload("Mappings").
 		Where("organization_id = ?", *user.PrimaryOrganizationID).
 		Find(&records)
 	return records, result.Error
+}
+
+func (r *InflowRepository) FetchMappingsForDynamicCategory(id uint) ([]models.DynamicCategoryMapping, error) {
+	var records []models.DynamicCategoryMapping
+	result := r.Db.Where("dynamic_category_id = ?", id).
+		Find(&records)
+	return records, result.Error
+}
+
+func (r *InflowRepository) FindDynamicCategoryById(user *models.User, id uint) (*models.DynamicCategory, error) {
+	var record *models.DynamicCategory
+	result := r.Db.Preload("Mappings").
+		Where("id = ?", id).
+		Where("organization_id = ?", *user.PrimaryOrganizationID).
+		First(&record)
+	return record, result.Error
 }
 
 func (r *InflowRepository) InsertInflow(tx *gorm.DB, user *models.User, record *models.Inflow) (uint, error) {

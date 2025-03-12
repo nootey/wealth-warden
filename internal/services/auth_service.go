@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -57,4 +58,26 @@ func (s *AuthService) GetCurrentUser(c *gin.Context, withSecrets bool) (*models.
 	}
 
 	return nil, fmt.Errorf("no refresh token found")
+}
+
+func (s *AuthService) UpdateBudgetInitializedStatus(tx *gorm.DB, user *models.User, budgetStatus bool) error {
+
+	newTx := false
+	if tx == nil {
+		tx = s.UserRepo.DB.Begin()
+		if tx.Error != nil {
+			return tx.Error
+		}
+		newTx = true
+	}
+
+	err := s.UserRepo.UpdateUserSecret(tx, user, "budget_initialized", budgetStatus)
+	if err != nil {
+		return err
+	}
+
+	if newTx {
+		return tx.Commit().Error
+	}
+	return nil
 }

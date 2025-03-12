@@ -3,6 +3,7 @@ package repositories
 import (
 	"errors"
 	"gorm.io/gorm"
+	"time"
 	"wealth-warden/internal/models"
 )
 
@@ -30,6 +31,25 @@ func (r *OutflowRepository) CountOutflows(user *models.User, year int) (int64, e
 		return 0, err
 	}
 	return totalRecords, nil
+}
+
+func (r *OutflowRepository) SumOutflowsByCategory(user *models.User, categoryID uint, year, month int) (float64, error) {
+	var total float64
+
+	startDate := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	endDate := startDate.AddDate(0, 1, 0) // Moves to the first day of the next month
+
+	err := r.Db.Model(&models.Outflow{}).
+		Where("outflow_category_id = ? AND outflow_date >= ? AND outflow_date < ?", categoryID, startDate, endDate).
+		Where("organization_id = ?", &user.PrimaryOrganizationID).
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&total).Error
+
+	if err != nil {
+		return 0, err
+	}
+
+	return total, nil
 }
 
 func (r *OutflowRepository) FindOutflows(user *models.User, year, offset, limit int, sortField, sortOrder string) ([]models.Outflow, error) {
