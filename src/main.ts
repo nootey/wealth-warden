@@ -9,7 +9,8 @@ import PrimeVue from 'primevue/config';
 import Material from '@primevue/themes/material';
 import Tooltip from "primevue/tooltip";
 import {Toast} from "primevue";
-import {ToastService } from "primevue";
+import {ToastService} from "primevue";
+import ConfirmationService from 'primevue/confirmationservice';
 import {Button} from "primevue";
 import {Checkbox} from "primevue";
 import {InputText} from "primevue";
@@ -24,6 +25,9 @@ import {InputNumber} from "primevue";
 import {Paginator} from "primevue";
 import {Dialog} from "primevue";
 import {MultiSelect} from "primevue";
+import {ProgressSpinner} from "primevue";
+import {ConfirmPopup} from "primevue";
+
 
 const app = createApp(App);
 const pinia = createPinia();
@@ -44,6 +48,8 @@ app.component("InputNumber", InputNumber);
 app.component("Paginator", Paginator);
 app.component("Dialog", Dialog);
 app.component("MultiSelect", MultiSelect);
+app.component("ProgressSpinner", ProgressSpinner);
+app.component("ConfirmPopup", ConfirmPopup);
 
 app.use(pinia);
 app.use(router);
@@ -56,6 +62,7 @@ app.use(PrimeVue, {
     }
 });
 app.use(ToastService);
+app.use(ConfirmationService);
 
 app.component('App', App);
 app.mount('#app');

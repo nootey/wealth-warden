@@ -9,8 +9,9 @@ import {useOutflowStore} from "../../services/stores/outflowStore.ts";
 import InflowCategories from "../Inflows/InflowCategories.vue";
 import DynamicCategories from "../Inflows/DynamicCategories.vue";
 import OutflowCategories from "../Outflows/OutflowCategories.vue";
-import vue from "@vitejs/plugin-vue";
 import vueHelper from "../../utils/vueHelper.ts";
+import dateHelper from "../../utils/dateHelper.ts";
+import {useConfirm} from "primevue";
 
 const authStore = useAuthStore();
 const budgetStore = useBudgetStore();
@@ -19,7 +20,11 @@ const inflowStore = useInflowStore();
 const outflowStore = useOutflowStore();
 
 const currentBudget = ref<MonthlyBudget>(null);
+const budgetChanged = ref(false);
+const currentBudgetOriginalCategory = ref(null);
+
 const createNewBudget = ref<MonthlyBudget>(initBudget());
+const createNewAllocation = ref(initBudgetAllocation());
 
 const dynamicCategories = computed(() => inflowStore.dynamicCategories);
 const inflowCategories = computed(() => inflowStore.inflowCategories);
@@ -36,15 +41,30 @@ const mergedCategories = computed(() => {
     }))
   ];
 });
+const budgetAllocations = ref([
+    {"name": "savings"},
+    {"name": "investments"},
+    {"name": "other"},
+])
 
 const filteredDynamicCategories = ref([]);
+const filteredBudgetAllocations = ref([]);
+
+const confirm = useConfirm();
 
 onMounted(async () => {
-  await getCurrentBudget();
-  await inflowStore.getDynamicCategories();
-  await inflowStore.getInflowCategories();
-  await outflowStore.getOutflowCategories();
-})
+  try {
+    await Promise.all([
+      getCurrentBudget(),
+      inflowStore.getDynamicCategories(),
+      inflowStore.getInflowCategories(),
+      outflowStore.getOutflowCategories()
+    ]);
+  } catch (err) {
+    console.error("Error initializing budget:", err);
+  }
+});
+
 
 function initBudget(): MonthlyBudget<string, any> {
   return {
@@ -56,10 +76,23 @@ function initBudget(): MonthlyBudget<string, any> {
   };
 }
 
+function initBudgetAllocation() {
+  return {
+    category: {name: ""},
+    allocation: null,
+  };
+}
+
 async function getCurrentBudget() {
   try {
     let response = await budgetStore.getCurrentBudget();
-    currentBudget.value = response.data;
+    if (response?.data) {
+      currentBudget.value = response.data;
+      currentBudgetOriginalCategory.value = currentBudget.value.dynamic_category;
+    } else {
+      currentBudget.value = null;
+      currentBudgetOriginalCategory.value = null;
+    }
   } catch (err) {
     toastStore.errorResponseToast(err)
   }
@@ -71,6 +104,18 @@ const searchDynamicCategory = (event: any) => {
       filteredDynamicCategories.value = [...dynamicCategories.value];
     } else {
       filteredDynamicCategories.value = dynamicCategories.value.filter((record) => {
+        return record.name.toLowerCase().startsWith(event.query.toLowerCase());
+      });
+    }
+  }, 250);
+}
+
+const searchBudgetAllocation = (event: any) => {
+  setTimeout(() => {
+    if (!event.query.trim().length) {
+      filteredBudgetAllocations.value = [...budgetAllocations.value];
+    } else {
+      filteredBudgetAllocations.value = budgetAllocations.value.filter((record) => {
         return record.name.toLowerCase().startsWith(event.query.toLowerCase());
       });
     }
@@ -101,10 +146,66 @@ async function createBudget() {
   }
 }
 
+function checkCategoryStatus() {
+  if (!currentBudget.value) {
+    return;
+  }
+
+  if(currentBudget.value.dynamic_category != currentBudgetOriginalCategory.value) {
+    budgetChanged.value = true;
+  } else {
+    budgetChanged.value = false;
+  }
+}
+
+const confirmSnapshotUpdate = (event: any) => {
+  confirm.require({
+    target: event.currentTarget,
+    message: 'You are about to update your budget snapshot. \n Are you sure you want to proceed?',
+    icon: 'pi pi-exclamation-triangle',
+    rejectProps: {
+      label: 'Cancel',
+      severity: 'secondary',
+      outlined: true
+    },
+    acceptProps: {
+      label: 'Update'
+    },
+    accept: () => {
+      toastStore.successResponseToast(vueHelper.formatSuccessToast("Update success", "Budget has been updated."));
+    },
+    reject: () => {
+      toastStore.infoResponseToast(vueHelper.formatInfoToast("Update declined", "Nothing has been updated."));
+    }
+  });
+};
+
+const confirmBudgetUpdate = (event: any) => {
+  confirm.require({
+    target: event.currentTarget,
+    message: 'You are about to change this months budget category. \n All allocations for this month will be reset! \n Are you sure you want to proceed?',
+    icon: 'pi pi-exclamation-triangle',
+    rejectProps: {
+      label: 'Cancel',
+      severity: 'secondary',
+      outlined: true
+    },
+    acceptProps: {
+      label: 'Change'
+    },
+    accept: () => {
+      toastStore.successResponseToast(vueHelper.formatSuccessToast("Update success", "Budget has been updated."));
+    },
+    reject: () => {
+      toastStore.infoResponseToast(vueHelper.formatInfoToast("Update declined", "Nothing has been updated."));
+    }
+  });
+};
+
 </script>
 
 <template>
-  <div v-if="!authStore?.user?.secrets?.budget_initialized" class="flex flex-column gap-3 w-full">
+  <div v-if="authStore?.user && !authStore?.user?.secrets?.budget_initialized" class="flex flex-column gap-3 w-full">
     <div> <b>{{ "Create form" }}</b></div>
     <div class="flex flex-row w-full">
       {{ "You haven't initialized your budget yet! Create one with the form below." }}
@@ -188,12 +289,121 @@ async function createBudget() {
       </div>
     </div>
   </div>
-  <div v-else class="flex flex-column gap-3 w-full">
-    <div> <b>{{ "Create form" }}</b></div>
-    <div class="flex flex-row w-full">
-      {{ currentBudget }}
+  <div v-else-if="currentBudget && currentBudget?.dynamic_category" class="flex flex-column gap-3 w-full">
+    <div> <b>{{ "Budget" }}</b></div>
+    <div class="flex flex-row gap-3 align-items-center">
+      <div class="flex flex-column gap-1">
+        <span> <b>{{ "Year" }}</b></span>
+        <div> {{ currentBudget.year}}</div>
+      </div>
+      <div class="flex flex-column gap-1">
+        <span> <b>{{ "Month" }}</b></span>
+        <div> {{ currentBudget.month}}</div>
+      </div>
+      <div class="flex flex-column gap-1">
+        <span> <b>{{ "Updated" }}</b></span>
+        <div> {{ dateHelper.formatDate(currentBudget.updated_at, true)}}</div>
+      </div>
+      <div class="flex flex-row">
+        <div class="flex flex-column gap-1">
+          <span> <b>{{ "Actions" }}</b></span>
+          <div class="flex flex-row gap-2">
+            <div class="flex flex-column">
+              <Button size="small" label="Update snapshot" @click="confirmSnapshotUpdate($event)"></Button>
+            </div>
+            <div v-if="budgetChanged" class="flex flex-column">
+              <Button size="small" label="Update budget" @click="confirmBudgetUpdate($event)"></Button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+    <div class="flex flex-row w-full gap-2">
+      <div class="flex flex-column w-3 gap-1">
+        <span> <b>{{ "Total inflows" }}</b></span>
+        <InputNumber disabled size="small" v-model="currentBudget.total_inflow" mode="currency" currency="EUR" locale="de-DE" autofocus fluid></InputNumber>
+      </div>
+      <div class="flex flex-column w-3 gap-1">
+        <span> <b>{{ "Total outflows" }}</b></span>
+        <InputNumber disabled size="small" v-model="currentBudget.total_outflow" mode="currency" currency="EUR" locale="de-DE" autofocus fluid></InputNumber>
+      </div>
+      <div class="flex flex-column w-3 gap-1">
+        <span> <b>{{ "Effective budget" }}</b></span>
+        <InputNumber disabled size="small" v-model="currentBudget.effective_budget" mode="currency" currency="EUR" locale="de-DE" autofocus fluid></InputNumber>
+      </div>
+      <div class="flex flex-column w-3 gap-1">
+        <span> <b>{{ "Budget snapshot" }}</b></span>
+        <InputNumber disabled size="small" v-model="currentBudget.budget_snapshot" mode="currency" currency="EUR" locale="de-DE" autofocus fluid></InputNumber>
+      </div>
+    </div>
+    <div class="flex flex-row gap-2 w-9">
+      <div class="flex flex-column">
+        <label>Linked dynamic category</label>
+        <AutoComplete class="w-full" size="small" v-model="currentBudget.dynamic_category" :suggestions="filteredDynamicCategories"
+                      @complete="searchDynamicCategory" @change="checkCategoryStatus" option-label="name" placeholder="Select category" dropdown></AutoComplete>
+      </div>
+    </div>
+    <div v-if="currentBudget.dynamic_category" class="flex flex-row w-full">
+      <div class="flex flex-column w-6 gap-1">
+        <span> <b>{{ "Primary links" }}</b></span>
+        <span> {{ "These categories are summed up to create your total inflows record." }}</span>
+        <div v-for="mapping in currentBudget.dynamic_category?.Mappings">
+          <span v-if="mapping.related_type === 'inflow' || mapping.related_type === 'dynamic'">
+            {{ "+ " + mergedCategories.filter(record => record.id === mapping.related_id)[0]["name"] }}
+          </span>
+        </div>
+      </div>
+      <div class="flex flex-column w-6 gap-1">
+        <span> <b>{{ "Secondary links" }}</b></span>
+        <span> {{ "These categories are be summed up to create your total outflows record. They are be deducted from your total inflows to form an effective budget." }}</span>
+        <div v-for="mapping in currentBudget.dynamic_category?.Mappings">
+          <span v-if="mapping.related_type === 'outflow'">
+            {{ "- " + outflowCategories.filter(record => record.id === mapping.related_id)[0]["name"] }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div> <b>{{ "Allocations" }}</b></div>
+    <div class="flex flex-row gap-2 align-items-center">
+      <div class="flex flex-column gap-1">
+            {{ "Define and view your budget allocations. The total value must be lower than the calculated effective budget."}}
+      </div>
+    </div>
+
+    <div class="flex flex-row">
+      <label class="label"> New allocation </label>
+    </div>
+    <div class="flex flex-row gap-2 w-9">
+      <div class="flex flex-column">
+        <label>Name</label>
+        <AutoComplete class="w-full" size="small" v-model="createNewAllocation.category" :suggestions="filteredBudgetAllocations"
+                      @complete="searchBudgetAllocation" option-label="name" placeholder="Select allocation" dropdown></AutoComplete>
+      </div>
+      <div class="flex flex-column">
+        <label>Allocation</label>
+        <InputNumber size="small" v-model="createNewAllocation.allocation" mode="currency" currency="EUR"
+                     locale="de-DE" autofocus fluid placeholder="0,00€"></InputNumber>
+      </div>
+    </div>
+
+    <div class="flex flex-row">
+      <label class="label"> Existing allocations </label>
+    </div>
+    <div class="flex flex-row gap-2 w-9">
+      <div v-if="currentBudget.allocations && Object.keys(currentBudget.allocations).length > 0" class="flex flex-column">
+        <div  v-for="allocation in currentBudget.allocations">
+          {{ allocation }}
+        </div>
+      </div>
+      <div v-else class="flex flex-column">
+        {{ "You haven't allocated any budget yet." }}
+      </div>
+    </div>
+
   </div>
+  <ProgressSpinner v-else animationDuration="1s" strokeWidth="8" style="width:50px;height:50px"/>
+
 </template>
 
 <style scoped>
