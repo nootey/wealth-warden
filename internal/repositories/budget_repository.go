@@ -15,7 +15,10 @@ func NewBudgetRepository(db *gorm.DB) *BudgetRepository {
 
 func (r *BudgetRepository) GetBudgetForMonth(user *models.User, year, month int) (*models.MonthlyBudget, error) {
 	var record *models.MonthlyBudget
-	result := r.Db.Where("organization_id = ? AND year = ? AND month = ?", *user.PrimaryOrganizationID, year, month).Find(&record)
+	result := r.Db.Preload("DynamicCategory.Mappings").
+		Preload("Allocations").
+		Where("organization_id = ? AND year = ? AND month = ?", *user.PrimaryOrganizationID, year, month).
+		Find(&record)
 	return record, result.Error
 }
 
