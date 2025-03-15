@@ -7,6 +7,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/services/shared"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
@@ -16,6 +17,7 @@ type OutflowService struct {
 	AuthService       *AuthService
 	LoggingService    *LoggingService
 	RecActionsService *ReoccurringActionService
+	BudgetInterface   *shared.BudgetInterface
 	Config            *config.Config
 }
 
@@ -24,6 +26,7 @@ func NewOutflowService(
 	authService *AuthService,
 	loggingService *LoggingService,
 	recActionsService *ReoccurringActionService,
+	budgetInterface *shared.BudgetInterface,
 	repo *repositories.OutflowRepository,
 ) *OutflowService {
 	return &OutflowService{
@@ -31,6 +34,7 @@ func NewOutflowService(
 		AuthService:       authService,
 		LoggingService:    loggingService,
 		RecActionsService: recActionsService,
+		BudgetInterface:   budgetInterface,
 		Config:            cfg,
 	}
 }
@@ -115,6 +119,12 @@ func (s *OutflowService) CreateOutflow(c *gin.Context, newRecord *models.Outflow
 		return err
 	}
 
+	err = s.BudgetInterface.UpdateTotalOutflow(tx, user, newRecord.OutflowCategoryID, newRecord.Amount)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "outflow", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
@@ -153,6 +163,12 @@ func (s *OutflowService) UpdateOutflow(c *gin.Context, newRecord *models.Outflow
 	utils.CompareChanges(utils.SafeString(existingRecord.Description), utils.SafeString(newRecord.Description), changes, "description")
 
 	_, err = s.OutflowRepo.UpdateOutflow(tx, user, newRecord)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.BudgetInterface.UpdateTotalOutflow(tx, user, newRecord.OutflowCategoryID, newRecord.Amount)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -214,6 +230,12 @@ func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, newRecord *mod
 	utils.CompareChanges("", strconv.Itoa(newReoccurringRecord.IntervalValue), changes, "interval_value")
 
 	_, err = s.RecActionsService.ActionRepo.InsertReoccurringAction(tx, user, newReoccurringRecord)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.BudgetInterface.UpdateTotalOutflow(tx, user, newRecord.OutflowCategoryID, newRecord.Amount)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -318,6 +340,12 @@ func (s *OutflowService) DeleteOutflow(c *gin.Context, id uint) error {
 
 	utils.CompareChanges(outflow.OutflowCategory.Name, "", changes, "outflow")
 	utils.CompareChanges(amountString, "", changes, "amount")
+
+	err = s.BudgetInterface.UpdateTotalOutflow(tx, user, outflow.OutflowCategoryID, outflow.Amount*-1)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	err = s.OutflowRepo.DropOutflow(tx, user, id)
 	if err != nil {

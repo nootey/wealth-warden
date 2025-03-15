@@ -90,7 +90,7 @@ func (r *InflowRepository) GetInflowByID(user *models.User, inflowID uint) (*mod
 	return &inflow, nil
 }
 
-func (r *InflowRepository) GetInflowCategoryByID(user *models.User, inflowCategoryID uint) (*models.InflowCategory, error) {
+func (r *InflowRepository) FindInflowCategoryByID(user *models.User, inflowCategoryID uint) (*models.InflowCategory, error) {
 	var inflowCategory models.InflowCategory
 	err := r.Db.
 		Where("id = ? AND organization_id = ?", inflowCategoryID, *user.PrimaryOrganizationID).
@@ -101,7 +101,7 @@ func (r *InflowRepository) GetInflowCategoryByID(user *models.User, inflowCatego
 	return &inflowCategory, nil
 }
 
-func (r *InflowRepository) GetDynamicCategoryByID(user *models.User, ID uint) (*models.DynamicCategory, error) {
+func (r *InflowRepository) FindDynamicCategoryByID(user *models.User, ID uint) (*models.DynamicCategory, error) {
 	var record models.DynamicCategory
 	err := r.Db.
 		Where("id = ? AND organization_id = ?", ID, *user.PrimaryOrganizationID).

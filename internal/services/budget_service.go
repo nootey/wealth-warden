@@ -178,7 +178,7 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 	utils.CompareChanges("", effectiveBudget, changes, "effective_budget")
 	utils.CompareChanges("", BudgetSnapshot, changes, "budget_snapshot")
 
-	ID, err := s.BudgetRepo.InsertBudget(tx, user, newRecord)
+	ID, err := s.BudgetRepo.InsertMonthlyBudget(tx, user, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return nil, err

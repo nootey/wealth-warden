@@ -1,29 +1,140 @@
 package shared
 
 import (
+	"errors"
+	"gorm.io/gorm"
+	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 )
 
 type BudgetInterface struct {
+	BudgetRepo  *repositories.BudgetRepository
 	InflowRepo  *repositories.InflowRepository
 	OutflowRepo *repositories.OutflowRepository
 }
 
-func NewBudgetInterface(inflowRepo *repositories.InflowRepository, outflowRepo *repositories.OutflowRepository) *BudgetInterface {
+func NewBudgetInterface(budgetRepo *repositories.BudgetRepository, inflowRepo *repositories.InflowRepository, outflowRepo *repositories.OutflowRepository) *BudgetInterface {
 	return &BudgetInterface{
+		BudgetRepo:  budgetRepo,
 		InflowRepo:  inflowRepo,
 		OutflowRepo: outflowRepo,
 	}
 }
 
-func (b *BudgetInterface) UpdateTotalInflow(user *models.User, year, month int, amount float64) error {
-	// Implement logic for updating inflow in the budget
+func (b *BudgetInterface) FindBudgetByDynamicCategoryID(user *models.User, categoryID uint, year, month int) (*models.MonthlyBudget, error) {
+	var record models.MonthlyBudget
+
+	query := b.BudgetRepo.Db.
+		Where("dynamic_category_id = ? AND organization_id = ? AND year = ? AND month = ?",
+			categoryID, *user.PrimaryOrganizationID, year, month)
+
+	result := query.Find(&record)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &record, nil
+}
+
+func (b *BudgetInterface) findDynamicCategoryByRelatedCategoryID(user *models.User, categoryType string, categoryID uint) (*models.DynamicCategory, error) {
+	var dynamicCategory models.DynamicCategory
+
+	err := b.InflowRepo.Db.
+		Joins("JOIN dynamic_category_mappings ON dynamic_category_mappings.dynamic_category_id = dynamic_categories.id").
+		Where("dynamic_category_mappings.related_id = ? AND dynamic_category_mappings.related_type = ?", categoryID, categoryType).
+		Where("dynamic_categories.organization_id = ?", *user.PrimaryOrganizationID).
+		First(&dynamicCategory).Error
+
+	// If no record is found, return nil without forwarding the error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &dynamicCategory, nil
+}
+
+func (b *BudgetInterface) updateBudget(tx *gorm.DB, user *models.User, dynamicCategoryID uint, category string, amount float64) error {
+	now := time.Now()
+	year, month := now.Year(), int(now.Month())
+
+	budget, err := b.FindBudgetByDynamicCategoryID(user, dynamicCategoryID, year, month)
+	if err != nil {
+		return err
+	}
+
+	if budget == nil {
+		return nil
+	}
+
+	switch category {
+	case "inflow":
+		budget.TotalInflow += amount
+	case "outflow":
+		budget.TotalOutflow += amount
+	default:
+		return errors.New("invalid category type, must be 'inflow' or 'outflow'")
+	}
+
+	budget.EffectiveBudget = budget.TotalInflow - budget.TotalOutflow
+
+	if budget.EffectiveBudget < 0 {
+		return errors.New("effective budget can not be negative. Can not insert/delete this record")
+	}
+
+	if budget.EffectiveBudget < 500 {
+		budget.BudgetSnapshot = budget.EffectiveBudget
+	}
+
+	err = b.BudgetRepo.UpdateMonthlyBudget(tx, user, budget)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (b *BudgetInterface) UpdateTotalOutflow(user *models.User, year, month int, amount float64) error {
-	// Implement logic for updating outflow in the budget
+func (b *BudgetInterface) UpdateTotalInflow(tx *gorm.DB, user *models.User, categoryID uint, amount float64) error {
+
+	category := "inflow"
+	dynamicCategory, err := b.findDynamicCategoryByRelatedCategoryID(user, category, categoryID)
+	if err != nil {
+		return err
+	}
+
+	if dynamicCategory == nil {
+		return nil
+	}
+
+	err = b.updateBudget(tx, user, dynamicCategory.ID, category, amount)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (b *BudgetInterface) UpdateTotalOutflow(tx *gorm.DB, user *models.User, categoryID uint, amount float64) error {
+
+	category := "outflow"
+	dynamicCategory, err := b.findDynamicCategoryByRelatedCategoryID(user, category, categoryID)
+	if err != nil {
+		return err
+	}
+
+	if dynamicCategory == nil {
+		return nil
+	}
+
+	err = b.updateBudget(tx, user, dynamicCategory.ID, category, amount)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

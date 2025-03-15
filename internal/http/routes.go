@@ -9,6 +9,7 @@ import (
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
+	"wealth-warden/internal/services/shared"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
 )
@@ -42,13 +43,14 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 	savingsRepo := repositories.NewSavingsRepository(db)
 
 	// Initialize services
+	budgetInterface := shared.NewBudgetInterface(budgetRepo, inflowRepo, outflowRepo)
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
 	authService := services.NewAuthService(cfg, userRepo, loggingService, webClientMiddleware)
 	userService := services.NewUserService(cfg, userRepo)
 	recActionService := services.NewReoccurringActionService(recActionRepo, authService, loggingService)
-	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, inflowRepo)
-	outflowService := services.NewOutflowService(cfg, authService, loggingService, recActionService, outflowRepo)
-	budgetService := services.NewBudgetService(cfg, authService, loggingService, inflowService, outflowService, budgetRepo)
+	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, budgetInterface, inflowRepo)
+	outflowService := services.NewOutflowService(cfg, authService, loggingService, recActionService, budgetInterface, outflowRepo)
+	budgetService := services.NewBudgetService(cfg, authService, loggingService, budgetInterface, budgetRepo)
 	savingsService := services.NewSavingsService(cfg, authService, loggingService, recActionService, savingsRepo)
 
 	return &RouteInitializer{

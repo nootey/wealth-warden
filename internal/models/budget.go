@@ -12,9 +12,9 @@ type MonthlyBudget struct {
 	Year              int                       `gorm:"not null;uniqueIndex:unique_org_dyn_year_month" json:"year"`
 	TotalInflow       float64                   `gorm:"type:decimal(15,2);not null" json:"total_inflow"`
 	TotalOutflow      float64                   `gorm:"type:decimal(15,2);not null" json:"total_outflow"`
-	EffectiveBudget   float64                   `gorm:"type:decimal(15,2);->;not null" json:"effective_budget"` // computed column: total_inflow - total_outflow
-	BudgetSnapshot    float64                   `gorm:"type:decimal(15,2);->;not null" json:"budget_snapshot"`  // snapshot of effective budget, updated manually instead of via category
-	Allocations       []MonthlyBudgetAllocation `json:"allocations"`                                            // snapshot of effective budget, updated manually instead of via category
+	EffectiveBudget   float64                   `gorm:"type:decimal(15,2);not null" json:"effective_budget"` // computed column: total_inflow - total_outflow
+	BudgetSnapshot    float64                   `gorm:"type:decimal(15,2);not null" json:"budget_snapshot"`  // snapshot of effective budget, updated manually instead of via category
+	Allocations       []MonthlyBudgetAllocation `json:"allocations"`                                         // snapshot of effective budget, updated manually instead of via category
 	CreatedAt         time.Time                 `json:"created_at"`
 	UpdatedAt         time.Time                 `json:"updated_at"`
 }

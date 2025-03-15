@@ -8,6 +8,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/services/shared"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
@@ -17,6 +18,7 @@ type InflowService struct {
 	AuthService       *AuthService
 	LoggingService    *LoggingService
 	RecActionsService *ReoccurringActionService
+	BudgetInterface   *shared.BudgetInterface
 	Config            *config.Config
 }
 
@@ -25,6 +27,7 @@ func NewInflowService(
 	authService *AuthService,
 	loggingService *LoggingService,
 	recActionsService *ReoccurringActionService,
+	budgetInterface *shared.BudgetInterface,
 	repo *repositories.InflowRepository,
 ) *InflowService {
 	return &InflowService{
@@ -32,6 +35,7 @@ func NewInflowService(
 		AuthService:       authService,
 		LoggingService:    loggingService,
 		RecActionsService: recActionsService,
+		BudgetInterface:   budgetInterface,
 		Config:            cfg,
 	}
 }
@@ -133,6 +137,12 @@ func (s *InflowService) CreateInflow(c *gin.Context, newRecord *models.Inflow) e
 		return err
 	}
 
+	err = s.BudgetInterface.UpdateTotalInflow(tx, user, newRecord.InflowCategoryID, newRecord.Amount)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
@@ -171,6 +181,12 @@ func (s *InflowService) UpdateInflow(c *gin.Context, newRecord *models.Inflow) e
 	utils.CompareChanges(utils.SafeString(existingRecord.Description), utils.SafeString(newRecord.Description), changes, "description")
 
 	_, err = s.InflowRepo.UpdateInflow(tx, user, newRecord)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.BudgetInterface.UpdateTotalInflow(tx, user, newRecord.InflowCategoryID, newRecord.Amount)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -232,6 +248,12 @@ func (s *InflowService) CreateReoccurringInflow(c *gin.Context, newRecord *model
 	utils.CompareChanges("", strconv.Itoa(newReoccurringRecord.IntervalValue), changes, "interval_value")
 
 	_, err = s.RecActionsService.ActionRepo.InsertReoccurringAction(tx, user, newReoccurringRecord)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.BudgetInterface.UpdateTotalInflow(tx, user, newRecord.InflowCategoryID, newRecord.Amount)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -360,7 +382,7 @@ func (s *InflowService) UpdateInflowCategory(c *gin.Context, newRecord *models.I
 		return tx.Error
 	}
 
-	existingRecord, err := s.InflowRepo.GetInflowCategoryByID(user, newRecord.ID)
+	existingRecord, err := s.InflowRepo.FindInflowCategoryByID(user, newRecord.ID)
 	if err != nil {
 		return err
 	}
@@ -408,6 +430,12 @@ func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
 	utils.CompareChanges(inflow.InflowCategory.Name, "", changes, "inflow")
 	utils.CompareChanges(amountString, "", changes, "amount")
 
+	err = s.BudgetInterface.UpdateTotalInflow(tx, user, inflow.InflowCategoryID, inflow.Amount*-1)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	err = s.InflowRepo.DropInflow(tx, user, id)
 	if err != nil {
 		tx.Rollback()
@@ -438,7 +466,7 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 		return tx.Error
 	}
 
-	inflowCategory, err := s.InflowRepo.GetInflowCategoryByID(user, id)
+	inflowCategory, err := s.InflowRepo.FindInflowCategoryByID(user, id)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -491,7 +519,7 @@ func (s *InflowService) DeleteDynamicCategory(c *gin.Context, id uint) error {
 		return tx.Error
 	}
 
-	record, err := s.InflowRepo.GetDynamicCategoryByID(user, id)
+	record, err := s.InflowRepo.FindDynamicCategoryByID(user, id)
 	if err != nil {
 		tx.Rollback()
 		return err
