@@ -90,59 +90,6 @@ func (s *InflowService) FetchAllInflowCategories(c *gin.Context) ([]models.Inflo
 	return s.InflowRepo.FindAllInflowCategories(user)
 }
 
-func (s *InflowService) FetchTotalValuesForCategory(user *models.User, categoryID uint, year, month int) (float64, error) {
-	total, err := s.InflowRepo.SumInflowsByCategory(user, categoryID, year, month)
-	if err != nil {
-		return 0, err
-	}
-	return total, nil
-}
-
-func (s *InflowService) FetchTotalValuesForDynamicCategory(outflowService *OutflowService, user *models.User, dynamicCategoryID uint, year, month int) (float64, error) {
-	var total float64
-
-	// Fetch all mappings for this dynamic category
-	mappings, err := s.InflowRepo.FetchMappingsForDynamicCategory(dynamicCategoryID)
-	if err != nil {
-		return 0, err
-	}
-
-	for _, mapping := range mappings {
-		var sum float64
-		switch mapping.RelatedCategoryName {
-		case "inflow":
-			{
-				sum, err = s.FetchTotalValuesForCategory(user, mapping.RelatedCategoryID, year, month)
-				if err != nil {
-					return 0, err
-				}
-			}
-		case "outflow":
-			{
-				outflowSum, err := outflowService.FetchTotalValuesForCategory(user, mapping.RelatedCategoryID, year, month)
-				if err != nil {
-					return 0, err
-				}
-				// Subtract outflows
-				sum -= outflowSum
-			}
-		case "dynamic":
-			{
-				// Recursive call for nested dynamic category
-				dynamicSum, err := s.FetchTotalValuesForDynamicCategory(outflowService, user, mapping.RelatedCategoryID, year, month)
-				if err != nil {
-					return 0, err
-				}
-				sum += dynamicSum
-			}
-		}
-
-		total += sum
-	}
-
-	return total, nil
-}
-
 func (s *InflowService) FetchAllDynamicCategories(c *gin.Context) ([]models.DynamicCategory, error) {
 	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {

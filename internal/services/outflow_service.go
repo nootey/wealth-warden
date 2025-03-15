@@ -89,14 +89,6 @@ func (s *OutflowService) FetchAllOutflowCategories(c *gin.Context) ([]models.Out
 	return s.OutflowRepo.GetAllOutflowCategories(user)
 }
 
-func (s *OutflowService) FetchTotalValuesForCategory(user *models.User, categoryID uint, year, month int) (float64, error) {
-	total, err := s.OutflowRepo.SumOutflowsByCategory(user, categoryID, year, month)
-	if err != nil {
-		return 0, err
-	}
-	return total, nil
-}
-
 func (s *OutflowService) CreateOutflow(c *gin.Context, newRecord *models.Outflow) error {
 
 	user, err := s.AuthService.GetCurrentUser(c, false)

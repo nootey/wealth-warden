@@ -1,11 +1,13 @@
 package services
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"strconv"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/services/shared"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
@@ -15,8 +17,7 @@ type BudgetService struct {
 	AuthService       *AuthService
 	LoggingService    *LoggingService
 	RecActionsService *ReoccurringActionService
-	InflowService     *InflowService
-	OutflowService    *OutflowService
+	BudgetInterface   *shared.BudgetInterface
 	Config            *config.Config
 }
 
@@ -24,17 +25,15 @@ func NewBudgetService(
 	cfg *config.Config,
 	authService *AuthService,
 	loggingService *LoggingService,
-	inflowService *InflowService,
-	outflowService *OutflowService,
+	budgetInterface *shared.BudgetInterface,
 	repo *repositories.BudgetRepository,
 ) *BudgetService {
 	return &BudgetService{
-		BudgetRepo:     repo,
-		AuthService:    authService,
-		LoggingService: loggingService,
-		InflowService:  inflowService,
-		OutflowService: outflowService,
-		Config:         cfg,
+		BudgetRepo:      repo,
+		AuthService:     authService,
+		LoggingService:  loggingService,
+		BudgetInterface: budgetInterface,
+		Config:          cfg,
 	}
 }
 
@@ -81,12 +80,12 @@ func (s *BudgetService) FetchSumsForDynamicCategory(categoryName string, mapping
 			var dynamicSums float64
 
 			if mapping.RelatedCategoryName == "inflow" {
-				inflowSums, err = s.InflowService.FetchTotalValuesForCategory(user, mapping.RelatedCategoryID, year, month)
+				inflowSums, err = s.BudgetInterface.FetchTotalValuesForInflowCategory(user, mapping.RelatedCategoryID, year, month)
 				if err != nil {
 					return 0, err
 				}
 			} else if mapping.RelatedCategoryName == "dynamic" {
-				dynamicSums, err = s.InflowService.FetchTotalValuesForDynamicCategory(s.OutflowService, user, mapping.RelatedCategoryID, year, month)
+				dynamicSums, err = s.BudgetInterface.FetchTotalValuesForDynamicCategory(user, mapping.RelatedCategoryID, year, month)
 				if err != nil {
 					return 0, err
 				}
@@ -99,7 +98,7 @@ func (s *BudgetService) FetchSumsForDynamicCategory(categoryName string, mapping
 			if mapping.RelatedCategoryName == "dynamic" {
 				sum = 0
 			} else {
-				sum, err = s.OutflowService.FetchTotalValuesForCategory(user, mapping.RelatedCategoryID, year, month)
+				sum, err = s.BudgetInterface.FetchTotalValuesForOutflowCategory(user, mapping.RelatedCategoryID, year, month)
 				if err != nil {
 					return 0, err
 				}
@@ -128,7 +127,7 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 	now := time.Now()
 	year, month := now.Year(), int(now.Month())
 
-	category, err := s.InflowService.FetchDynamicCategoryById(c, newRecord.DynamicCategoryID)
+	category, err := s.BudgetInterface.InflowRepo.FindDynamicCategoryById(user, newRecord.DynamicCategoryID)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
