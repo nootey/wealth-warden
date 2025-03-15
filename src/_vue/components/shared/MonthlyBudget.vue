@@ -12,6 +12,9 @@ import OutflowCategories from "../../features/outflows/OutflowCategories.vue";
 import vueHelper from "../../../utils/vueHelper.ts";
 import dateHelper from "../../../utils/dateHelper.ts";
 import {useConfirm} from "primevue";
+import ValidationError from "../validation/ValidationError.vue";
+import {numeric, required} from "@vuelidate/validators";
+import useVuelidate from "@vuelidate/core";
 
 const authStore = useAuthStore();
 const budgetStore = useBudgetStore();
@@ -25,6 +28,26 @@ const currentBudgetOriginalCategory = ref(null);
 
 const createNewBudget = ref<MonthlyBudget>(initBudget());
 const createNewAllocation = ref(initBudgetAllocation());
+
+const rules = {
+  createNewAllocation: {
+    category: {
+      name: {
+        required,
+        $autoDirty: true
+      },
+    },
+    allocation: {
+      required,
+      numeric,
+      minValue: 0,
+      maxValue: 1000000000,
+      $autoDirty: true
+    },
+  },
+};
+
+const v$ = useVuelidate(rules, { createNewAllocation });
 
 const dynamicCategories = computed(() => inflowStore.dynamicCategories);
 const inflowCategories = computed(() => inflowStore.inflowCategories);
@@ -61,7 +84,7 @@ onMounted(async () => {
       outflowStore.getOutflowCategories()
     ]);
   } catch (err) {
-    console.error("Error initializing budget:", err);
+    toastStore.errorResponseToast(err);
   }
 });
 
@@ -146,6 +169,34 @@ async function createBudget() {
   }
 }
 
+async function createNewBudgetAllocation() {
+  const isValidAllocation = await v$.value.createNewAllocation.$validate();
+  if (!isValidAllocation) return true;
+
+  if(!currentBudget.value) {
+    return;
+  }
+
+  try {
+
+    let response = await budgetStore.createNewBudgetAllocation({
+      id: null,
+      monthly_budget_id: currentBudget.value.id,
+      category: createNewAllocation.value.category.name,
+      allocation: createNewAllocation.value.allocation,
+    });
+
+    toastStore.successResponseToast(response);
+    createNewAllocation.value = initBudgetAllocation();
+    v$.value.createNewAllocation.$reset();
+    await getCurrentBudget();
+
+  } catch (err) {
+    toastStore.errorResponseToast(err)
+  }
+
+}
+
 async function updateBudgetSnapshot() {
 
   if(!currentBudget.value) {
@@ -164,6 +215,7 @@ async function updateBudgetSnapshot() {
   }
 
 }
+
 function checkCategoryStatus() {
   if (!currentBudget.value) {
     return;
@@ -179,7 +231,7 @@ function checkCategoryStatus() {
 const confirmSnapshotUpdate = (event: any) => {
   confirm.require({
     target: event.currentTarget,
-    message: 'You are about to update your budget snapshot. \n Are you sure you want to proceed?',
+    message: 'You are about to update your budget snapshot. Are you sure you want to proceed?',
     icon: 'pi pi-exclamation-triangle',
     rejectProps: {
       label: 'Cancel',
@@ -189,8 +241,8 @@ const confirmSnapshotUpdate = (event: any) => {
     acceptProps: {
       label: 'Update'
     },
-    accept: () => {
-      toastStore.successResponseToast(vueHelper.formatSuccessToast("Update success", "Budget has been updated."));
+    accept: async () => {
+      await updateBudgetSnapshot();
     },
     reject: () => {
       toastStore.infoResponseToast(vueHelper.formatInfoToast("Update declined", "Nothing has been updated."));
@@ -363,8 +415,7 @@ const confirmBudgetUpdate = (event: any) => {
     </div>
     <div v-if="currentBudget.dynamic_category" class="flex flex-row w-full">
       <div class="flex flex-column w-6 gap-1">
-        <span> <b>{{ "Primary links" }}</b></span>
-        <span> {{ "These categories are summed up to create your total inflows record." }}</span>
+        <span> <b>{{ "Inflows" }}</b></span>
         <div v-for="mapping in currentBudget.dynamic_category?.Mappings">
           <span v-if="mapping.related_type === 'inflow' || mapping.related_type === 'dynamic'">
             {{ "+ " + mergedCategories.filter(record => record.id === mapping.related_id)[0]["name"] }}
@@ -372,8 +423,7 @@ const confirmBudgetUpdate = (event: any) => {
         </div>
       </div>
       <div class="flex flex-column w-6 gap-1">
-        <span> <b>{{ "Secondary links" }}</b></span>
-        <span> {{ "These categories are be summed up to create your total outflows record. They are be deducted from your total inflows to form an effective budget." }}</span>
+        <span> <b>{{ "Outflows" }}</b></span>
         <div v-for="mapping in currentBudget.dynamic_category?.Mappings">
           <span v-if="mapping.related_type === 'outflow'">
             {{ "- " + outflowCategories.filter(record => record.id === mapping.related_id)[0]["name"] }}
@@ -394,14 +444,24 @@ const confirmBudgetUpdate = (event: any) => {
     </div>
     <div class="flex flex-row gap-2 w-9">
       <div class="flex flex-column">
-        <label>Name</label>
+        <ValidationError :isRequired="true" :message="v$.createNewAllocation.category.name.$errors[0]?.$message">
+          <label>Name</label>
+        </ValidationError>
         <AutoComplete class="w-full" size="small" v-model="createNewAllocation.category" :suggestions="filteredBudgetAllocations"
                       @complete="searchBudgetAllocation" option-label="name" placeholder="Select allocation" dropdown></AutoComplete>
       </div>
       <div class="flex flex-column">
-        <label>Allocation</label>
+        <ValidationError :isRequired="true" :message="v$.createNewAllocation.allocation.$errors[0]?.$message">
+          <label>Allocation</label>
+        </ValidationError>
         <InputNumber size="small" v-model="createNewAllocation.allocation" mode="currency" currency="EUR"
-                     locale="de-DE" autofocus fluid placeholder="0,00€"></InputNumber>
+                     locale="de-DE" placeholder="0,00"></InputNumber>
+      </div>
+      <div class="flex flex-column">
+        <ValidationError :isRequired="false" message="">
+          <label>Actions</label>
+        </ValidationError>
+         <Button size="small" icon="pi pi-cart-plus" @click="createNewBudgetAllocation" />
       </div>
     </div>
 
@@ -410,8 +470,18 @@ const confirmBudgetUpdate = (event: any) => {
     </div>
     <div class="flex flex-row gap-2 w-9">
       <div v-if="currentBudget.allocations && Object.keys(currentBudget.allocations).length > 0" class="flex flex-column">
-        <div  v-for="allocation in currentBudget.allocations">
-          {{ allocation }}
+        <div v-for="allocation in currentBudget.allocations">
+            <div class="flex flex-row gap-2 align-items-center">
+              <div class="flex flex-column">
+                {{ "-" }}
+              </div>
+              <div class="flex flex-column">
+                {{ allocation.category }}
+              </div>
+              <div class="flex flex-column">
+                {{ vueHelper.displayAsCurrency(allocation.total_allocated_value) }}
+              </div>
+            </div>
         </div>
       </div>
       <div v-else class="flex flex-column">

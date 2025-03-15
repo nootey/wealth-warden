@@ -1,6 +1,6 @@
 import {defineStore} from 'pinia';
 import apiClient from "../api/axios_interceptor.ts";
-import type {MonthlyBudget} from "../../models/budgets.ts";
+import type {MonthlyBudget, MonthlyBudgetAllocation} from "../../models/budgets.ts";
 
 export const useBudgetStore = defineStore('budget', {
     state: () => ({
@@ -19,6 +19,14 @@ export const useBudgetStore = defineStore('budget', {
         async createNewBudget(Budget: MonthlyBudget|null) {
             try {
                 return await apiClient.post(`${this.apiPrefix}/create`, Budget);
+            } catch (err) {
+                throw err;
+            }
+        },
+
+        async createNewBudgetAllocation(Allocation: MonthlyBudgetAllocation|null) {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/create-allocation`, Allocation);
             } catch (err) {
                 throw err;
             }

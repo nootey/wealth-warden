@@ -9,3 +9,10 @@ export interface MonthlyBudget {
     effective_budget: number;
     budget_snapshot: number;
 }
+
+export interface MonthlyBudgetAllocation {
+    id: number|null;
+    monthly_budget_id: number;
+    category: string;
+    allocation: number|null;
+}
