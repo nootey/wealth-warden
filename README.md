@@ -19,4 +19,4 @@ Database: MySQL with GORM
 
 ## 📦 Deployment
 
-Check out the [docs](./docs/deployment/index).
+Check out the [docs](./docs/deployment/index.md).
