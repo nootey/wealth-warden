@@ -142,14 +142,19 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 			return nil, err
 		}
 
-		outflowSums, err := s.FetchSumsForDynamicCategory("outflow", &mapping, year, month, user)
-		if err != nil {
-			tx.Rollback()
-			return nil, err
+		// Only sum outflows if it's the first time processing this category
+		var totalOutflow float64
+		if mapping.RelatedCategoryName == "outflow" {
+			outflowSums, err := s.FetchSumsForDynamicCategory("outflow", &mapping, year, month, user)
+			if err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+			totalOutflow += outflowSums
 		}
 
 		sums["inflow"] += inflowSums
-		sums["outflow"] += outflowSums
+		sums["outflow"] += totalOutflow
 	}
 
 	newRecord.Month = month
