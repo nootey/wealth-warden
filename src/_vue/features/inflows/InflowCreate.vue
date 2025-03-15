@@ -1,12 +1,12 @@
 <script setup lang="ts">
 
-import ValidationError from "../Validation/ValidationError.vue";
-import dateHelper from "../../utils/dateHelper.ts";
+import ValidationError from "../../components/validation/ValidationError.vue";
+import dateHelper from "../../../utils/dateHelper.ts";
 import {integer, numeric, required, helpers} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import {computed, inject, ref} from "vue";
-import {useInflowStore} from "../../services/stores/inflowStore.ts";
-import {useToastStore} from "../../services/stores/toastStore.ts";
+import {useInflowStore} from "../../../services/stores/inflowStore.ts";
+import {useToastStore} from "../../../services/stores/toastStore.ts";
 
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();

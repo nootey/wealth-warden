@@ -1,8 +1,8 @@
 <script setup lang="ts">
 
-import vueHelper from "../../utils/vueHelper.ts";
-import ComparativePieChart from "./Charts/ComparativePieChart.vue";
-import type {Statistics} from "../../models/shared.ts";
+import vueHelper from "../../../utils/vueHelper.ts";
+import ComparativePieChart from "./charting/ComparativePieChart.vue";
+import type {Statistics} from "../../../models/shared.ts";
 
 const props = defineProps<{
   basicStats: Statistics[];

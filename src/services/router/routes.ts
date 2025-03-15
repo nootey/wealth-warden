@@ -1,15 +1,15 @@
 import { useAuthStore } from '../stores/authStore.ts';
 
-import DashboardIndex from "../../components/Dashboard/DashboardIndex.vue";
-import InflowsIndex from "../../components/Inflows/InflowsIndex.vue";
-import Login from "../../components/Auth/Login.vue";
-import InvestmentsIndex from "../../components/Investments/InvestmentsIndex.vue";
-import OutflowsIndex from "../../components/Outflows/OutflowsIndex.vue";
-import CashIndex from "../../components/Cash/CashIndex.vue";
-import SavingsIndex from "../../components/Savings/SavingsIndex.vue";
-import DebtIndex from "../../components/Debt/DebtIndex.vue";
-import ChartingIndex from "../../components/Charting/ChartingIndex.vue";
-import LoggingHub from "../../components/Logging/LoggingHub.vue";
+import DashboardIndex from "../../_vue/views/DashboardIndex.vue";
+import InflowsIndex from "../../_vue/views/InflowsIndex.vue";
+import Login from "../../_vue/features/auth/Login.vue";
+import InvestmentsIndex from "../../_vue/views/InvestmentsIndex.vue";
+import OutflowsIndex from "../../_vue/views/OutflowsIndex.vue";
+import CashIndex from "../../_vue/views/CashIndex.vue";
+import SavingsIndex from "../../_vue/views/SavingsIndex.vue";
+import DebtIndex from "../../_vue/views/DebtIndex.vue";
+import ChartingIndex from "../../_vue/views/ChartingIndex.vue";
+import LoggingHub from "../../_vue/views/LoggingHub.vue";
 
 const routes = [
     {
@@ -31,7 +31,7 @@ const routes = [
         beforeEnter: [requiresAuth, requiresActiveBudget],
     },
     {
-        path: '/Outflows',
+        path: '/outflows',
         name: 'Outflows',
         component: OutflowsIndex,
         beforeEnter: [requiresAuth, requiresActiveBudget],

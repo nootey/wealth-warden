@@ -3,10 +3,10 @@ import {ref} from "vue";
 import {required, email } from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import {useRouter} from "vue-router";
-import ValidationError from "../Validation/ValidationError.vue";
-import {useAuthStore} from "../../services/stores/authStore.ts";
-import AuthSkeleton from "./AuthSkeleton.vue";
-import {useToastStore} from "../../services/stores/toastStore.ts";
+import ValidationError from "../../components/validation/ValidationError.vue";
+import {useAuthStore} from "../../../services/stores/authStore.ts";
+import AuthSkeleton from "../../components/auth/AuthSkeleton.vue";
+import {useToastStore} from "../../../services/stores/toastStore.ts";
 
 const authStore = useAuthStore();
 const toastStore = useToastStore()

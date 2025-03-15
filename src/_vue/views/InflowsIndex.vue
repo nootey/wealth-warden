@@ -1,22 +1,22 @@
 <script setup lang="ts">
 import {useInflowStore} from "../../services/stores/inflowStore.ts";
 import {computed, onMounted, provide, ref} from "vue";
-import LoadingSpinner from "../Utils/LoadingSpinner.vue";
+import LoadingSpinner from "../components/ui/LoadingSpinner.vue";
 import {useToastStore} from "../../services/stores/toastStore.ts";
 import dateHelper from "../../utils/dateHelper.ts"
-import ValidationError from "../Validation/ValidationError.vue";
+import ValidationError from "../components/validation/ValidationError.vue";
 
-import InflowCategories from "./InflowCategories.vue";
+import InflowCategories from "../features/inflows/InflowCategories.vue";
 import vueHelper from "../../utils/vueHelper.ts";
 import type {InflowGroup} from '../../models/inflows.ts';
 import type {Statistics} from "../../models/shared.ts";
-import BasicStatDisplay from "../Shared/BasicStatDisplay.vue";
-import DisplayMonthlyDate from "../Shared/DisplayMonthlyDate.vue";
-import InflowCreate from "./InflowCreate.vue";
-import ReoccurringActionsDisplay from "../Shared/ReoccurringActionsDisplay.vue";
+import BasicStatDisplay from "../components/shared/BasicStatDisplay.vue";
+import DisplayMonthlyDate from "../components/shared/DisplayMonthlyDate.vue";
+import InflowCreate from "../features/inflows/InflowCreate.vue";
+import ReoccurringActionsDisplay from "../components/shared/ReoccurringActionsDisplay.vue";
 import {useActionStore} from "../../services/stores/reoccurringActionStore.ts";
-import DynamicCategories from "./DynamicCategories.vue";
-import YearPicker from "../Shared/YearPicker.vue";
+import DynamicCategories from "../features/inflows/DynamicCategories.vue";
+import YearPicker from "../components/shared/YearPicker.vue";
 
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();

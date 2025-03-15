@@ -12,7 +12,7 @@
           <slot></slot>
         </div>
         <div class="flex flex-column w-5 p-2 justify-content-center text-center">
-          <img src="../../assets/images/logo.png" style="width: 100%;"/>
+          <img src="../../../assets/images/logo.png" style="width: 100%;"/>
           <span class="flex flex-column "> {{ "WealthWarden" }}</span>
         </div>
       </div>

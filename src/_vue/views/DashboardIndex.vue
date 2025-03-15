@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import MonthlyBudget from "../Shared/MonthlyBudget.vue";
+import MonthlyBudget from "../components/shared/MonthlyBudget.vue";
 import {useAuthStore} from "../../services/stores/authStore.ts";
 
 const authStore = useAuthStore();

@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import {useAuthStore} from "../../services/stores/authStore.ts";
-import {useBudgetStore} from "../../services/stores/budgetStore.ts";
-import {useToastStore} from "../../services/stores/toastStore.ts";
+import {useAuthStore} from "../../../services/stores/authStore.ts";
+import {useBudgetStore} from "../../../services/stores/budgetStore.ts";
+import {useToastStore} from "../../../services/stores/toastStore.ts";
 import {computed, onMounted, ref} from "vue";
 import type {MonthlyBudget} from "./MonthlyBudget.vue";
-import {useInflowStore} from "../../services/stores/inflowStore.ts";
-import {useOutflowStore} from "../../services/stores/outflowStore.ts";
-import InflowCategories from "../Inflows/InflowCategories.vue";
-import DynamicCategories from "../Inflows/DynamicCategories.vue";
-import OutflowCategories from "../Outflows/OutflowCategories.vue";
-import vueHelper from "../../utils/vueHelper.ts";
-import dateHelper from "../../utils/dateHelper.ts";
+import {useInflowStore} from "../../../services/stores/inflowStore.ts";
+import {useOutflowStore} from "../../../services/stores/outflowStore.ts";
+import InflowCategories from "../../features/inflows/InflowCategories.vue";
+import DynamicCategories from "../../features/inflows/DynamicCategories.vue";
+import OutflowCategories from "../../features/outflows/OutflowCategories.vue";
+import vueHelper from "../../../utils/vueHelper.ts";
+import dateHelper from "../../../utils/dateHelper.ts";
 import {useConfirm} from "primevue";
 
 const authStore = useAuthStore();

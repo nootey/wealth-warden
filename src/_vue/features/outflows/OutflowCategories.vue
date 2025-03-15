@@ -1,14 +1,14 @@
 <script setup lang="ts">
 
-import dateHelper from "../../utils/dateHelper.ts";
-import ValidationError from "../Validation/ValidationError.vue";
-import LoadingSpinner from "../Utils/LoadingSpinner.vue";
+import dateHelper from "../../../utils/dateHelper.ts";
+import ValidationError from "../../components/validation/ValidationError.vue";
+import LoadingSpinner from "../../components/ui/LoadingSpinner.vue";
 import {computed, ref} from "vue";
 import {integer, required} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
-import {useOutflowStore} from "../../services/stores/outflowStore.ts";
-import {useToastStore} from "../../services/stores/toastStore.ts";
-import vueHelper from "../../utils/vueHelper.ts";
+import {useOutflowStore} from "../../../services/stores/outflowStore.ts";
+import {useToastStore} from "../../../services/stores/toastStore.ts";
+import vueHelper from "../../../utils/vueHelper.ts";
 
 const outflowStore = useOutflowStore();
 const toastStore = useToastStore();

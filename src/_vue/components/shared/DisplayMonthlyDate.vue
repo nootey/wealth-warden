@@ -1,7 +1,7 @@
 <script setup lang="ts">
 
-import vueHelper from "../../utils/vueHelper.ts";
-import dateHelper from "../../utils/dateHelper.ts";
+import vueHelper from "../../../utils/vueHelper.ts";
+import dateHelper from "../../../utils/dateHelper.ts";
 import {onMounted} from "vue";
 
 const props = defineProps<{

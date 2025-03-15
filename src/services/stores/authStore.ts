@@ -41,7 +41,7 @@ export const useAuthStore = defineStore('auth', {
 
                 return response.data;
             } catch (error) {
-                console.error('Auth user not found:', error);
+                console.error('auth user not found:', error);
                 await this.logoutUser();
                 throw error;
             }

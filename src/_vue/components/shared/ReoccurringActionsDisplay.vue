@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type {ReoccurringAction} from "../../models/actions.ts";
-import vueHelper from "../../utils/vueHelper.ts";
-import dateHelper from "../../utils/dateHelper.ts";
-import {useActionStore} from "../../services/stores/reoccurringActionStore.ts";
-import {useToastStore} from "../../services/stores/toastStore.ts";
+import type {ReoccurringAction} from "../../../models/actions.ts";
+import vueHelper from "../../../utils/vueHelper.ts";
+import dateHelper from "../../../utils/dateHelper.ts";
+import {useActionStore} from "../../../services/stores/reoccurringActionStore.ts";
+import {useToastStore} from "../../../services/stores/toastStore.ts";
 
 const props = defineProps<{
   categoryItems: ReoccurringAction[];
