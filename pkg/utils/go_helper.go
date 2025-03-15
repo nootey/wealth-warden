@@ -1,6 +1,9 @@
 package utils
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 func SafeString(s *string) string {
 	if s == nil {
@@ -25,4 +28,19 @@ func CleanString(input interface{}) interface{} {
 	default:
 		return input
 	}
+}
+
+func StrToUint(s string) (uint, error) {
+	number, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		return 0, err
+	}
+	uintNumber := uint(number)
+
+	return uintNumber, nil
+}
+
+func UintToStr(u uint) (string, error) {
+	str := strconv.FormatUint(uint64(u), 10)
+	return str, nil
 }

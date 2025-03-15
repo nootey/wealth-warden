@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	"net/http"
-	"strconv"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
@@ -39,12 +38,7 @@ func (h *UserHandler) GetUserById(c *gin.Context) {
 		return
 	}
 
-	parsedID, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		utils.ErrorMessage("param error", "id must be a positive integer", http.StatusBadRequest)(c, err)
-		return
-	}
-	uintID := uint(parsedID)
+	uintID, err := utils.StrToUint(idStr)
 
 	user, err := h.Service.FetchUserByID(uintID)
 	if err != nil {
