@@ -51,3 +51,21 @@ func (h *BudgetHandler) CreateNewMonthlyBudget(c *gin.Context) {
 
 	c.JSON(http.StatusOK, budget)
 }
+func (h *BudgetHandler) UpdateBudgetSnapshot(c *gin.Context) {
+
+	var req struct {
+		ID uint `json:"id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	err := h.Service.UpdateBudgetSnapshot(c, req.ID)
+	if err != nil {
+		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("New budget snapshot has been recorded", "Success", http.StatusOK)(c.Writer, c.Request)
+}

@@ -200,3 +200,49 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 
 	return newRecord, tx.Commit().Error
 }
+func (s *BudgetService) UpdateBudgetSnapshot(c *gin.Context, id uint) error {
+	user, err := s.AuthService.GetCurrentUser(c, false)
+	if err != nil {
+		return err
+	}
+	changes := utils.InitChanges()
+
+	tx := s.BudgetRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	budget, err := s.BudgetRepo.FindBudgetByID(id, user, false)
+	if err != nil {
+		return err
+	}
+
+	existingSnapshot := budget.BudgetSnapshot
+	budget.BudgetSnapshot = budget.EffectiveBudget
+
+	existingSnapshotString := strconv.FormatInt(int64(existingSnapshot), 10)
+	newSnapshotString := strconv.FormatInt(int64(budget.BudgetSnapshot), 10)
+
+	utils.CompareChanges(existingSnapshotString, newSnapshotString, changes, "budget_snapshot")
+
+	if existingSnapshotString != newSnapshotString {
+		yearString := strconv.FormatInt(int64(budget.Year), 10)
+		monthString := strconv.FormatInt(int64(budget.Month), 10)
+		utils.CompareChanges("", monthString, changes, "month")
+		utils.CompareChanges("", yearString, changes, "year")
+	}
+
+	err = s.BudgetRepo.UpdateMonthlyBudget(tx, user, budget)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "monthly_budget", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
