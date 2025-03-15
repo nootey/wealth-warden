@@ -9,7 +9,7 @@ month TINYINT UNSIGNED NOT NULL CHECK (month BETWEEN 1 AND 12),
 year YEAR NOT NULL,
 total_inflow DECIMAL(15,2) NOT NULL, -- Sum of inflows for the period
 total_outflow DECIMAL(15,2) NOT NULL, -- Sum of outflows for the period
-effective_budget DECIMAL(15,2) GENERATED ALWAYS AS (total_inflow - total_outflow) STORED, -- Net result
+effective_budget DECIMAL(15,2),
 budget_snapshot DECIMAL(15,2), -- Snapshot of effective_budget
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
