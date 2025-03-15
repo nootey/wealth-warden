@@ -1,5 +1,5 @@
-import apiClient from './axios';
-import { useAuthStore } from '../authStore.ts';
+import apiClient from './axios.ts';
+import { useAuthStore } from '../stores/authStore.ts';
 
 // Request Interceptor (Optional if you want to add headers globally)
 apiClient.interceptors.request.use((config) => {

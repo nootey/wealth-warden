@@ -1,5 +1,5 @@
 import {defineStore} from "pinia";
-import apiClient from './api/axios_interceptor.ts';
+import apiClient from '../api/axios_interceptor.ts';
 import type {Outflow, OutflowCategory} from "../../models/outflows.ts";
 import type {ReoccurringAction} from "../../models/actions.ts";
 

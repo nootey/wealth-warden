@@ -1,5 +1,5 @@
 import {defineStore} from "pinia";
-import apiClient from "./api/axios_interceptor.ts";
+import apiClient from "../api/axios_interceptor.ts";
 
 export const useLoggingStore = defineStore('logging', {
     state: () => ({

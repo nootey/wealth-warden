@@ -1,5 +1,5 @@
 import {defineStore} from 'pinia';
-import apiClient from "./api/axios_interceptor.ts";
+import apiClient from "../api/axios_interceptor.ts";
 import type {MonthlyBudget} from "../../models/budgets.ts";
 
 export const useBudgetStore = defineStore('budget', {

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import apiClient from './api/axios_interceptor.ts';
+import apiClient from '../api/axios_interceptor.ts';
 import router from "../router";
 import type {AuthForm, User} from '../../models/auth.ts';
 
