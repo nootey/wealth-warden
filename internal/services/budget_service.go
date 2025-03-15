@@ -200,6 +200,61 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 
 	return newRecord, tx.Commit().Error
 }
+
+func (s *BudgetService) CreateMonthlyBudgetAllocation(c *gin.Context, newRecord *models.MonthlyBudgetAllocation) error {
+
+	user, err := s.AuthService.GetCurrentUser(c, false)
+	if err != nil {
+		return err
+	}
+
+	budget, err := s.BudgetRepo.FindBudgetByID(newRecord.MonthlyBudgetID, user, true)
+	if err != nil {
+		return err
+	}
+
+	var totalAllocated float64
+
+	// Sum all allocated values
+	for _, mapping := range budget.Allocations {
+		totalAllocated += mapping.TotalAllocatedValue
+	}
+
+	if (totalAllocated + newRecord.TotalAllocatedValue) > budget.BudgetSnapshot {
+		return errors.New("total budget allocation exceeds effective budget snapshot")
+	}
+
+	changes := utils.InitChanges()
+
+	tx := s.BudgetRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	yearString := strconv.FormatInt(int64(budget.Year), 10)
+	monthString := strconv.FormatInt(int64(budget.Month), 10)
+	allocationString := strconv.FormatInt(int64(newRecord.TotalAllocatedValue), 10)
+
+	utils.CompareChanges("", yearString, changes, "year")
+	utils.CompareChanges("", monthString, changes, "month")
+	utils.CompareChanges("", newRecord.Category, changes, "category")
+	utils.CompareChanges("", allocationString, changes, "allocation")
+
+	err = s.BudgetRepo.InsertMonthlyBudgetAllocation(tx, newRecord)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "monthly_budget_allocation", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
 func (s *BudgetService) UpdateBudgetSnapshot(c *gin.Context, id uint) error {
 	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {

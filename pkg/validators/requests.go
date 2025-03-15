@@ -79,3 +79,10 @@ type CreateMonthlyBudgetRequest struct {
 	ID                uint `json:"id"`
 	DynamicCategoryID uint `json:"dynamic_category_id" validate:"required,numeric"`
 }
+
+type CreateMonthlyBudgetAllocationRequest struct {
+	ID              uint    `json:"id"`
+	MonthlyBudgetID uint    `json:"monthly_budget_id" validate:"required,numeric"`
+	Allocation      float64 `json:"allocation" validate:"required"`
+	Category        string  `json:"category" validate:"required"`
+}

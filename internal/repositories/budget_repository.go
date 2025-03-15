@@ -51,6 +51,13 @@ func (r *BudgetRepository) InsertMonthlyBudget(tx *gorm.DB, user *models.User, r
 	return record.ID, nil
 }
 
+func (r *BudgetRepository) InsertMonthlyBudgetAllocation(tx *gorm.DB, record *models.MonthlyBudgetAllocation) error {
+	if err := tx.Create(&record).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
 func (r *BudgetRepository) UpdateMonthlyBudget(tx *gorm.DB, user *models.User, record *models.MonthlyBudget) error {
 	record.UserID = user.ID
 	fmt.Println(record.ID)
