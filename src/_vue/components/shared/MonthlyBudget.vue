@@ -146,6 +146,24 @@ async function createBudget() {
   }
 }
 
+async function updateBudgetSnapshot() {
+
+  if(!currentBudget.value) {
+    return;
+  }
+
+  try {
+
+    let response = await budgetStore.updateBudgetSnapshot(currentBudget.value.id);
+    await getCurrentBudget();
+    toastStore.successResponseToast(response);
+
+    v$.value.createNewAllocation.$reset();
+  } catch (err) {
+    toastStore.errorResponseToast(err)
+  }
+
+}
 function checkCategoryStatus() {
   if (!currentBudget.value) {
     return;

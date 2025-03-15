@@ -23,5 +23,13 @@ export const useBudgetStore = defineStore('budget', {
                 throw err;
             }
         },
+
+        async updateBudgetSnapshot(id: number) {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/update-snapshot`, {id: id});
+            } catch (err) {
+                throw err;
+            }
+        },
     }
 });
