@@ -85,9 +85,11 @@ function requiresAuth() {
     }
 }
 
-function requiresActiveBudget() {
+async function requiresActiveBudget() {
     const authStore = useAuthStore();
-    if (authStore.isAuthenticated && authStore.user?.secrets?.budget_initialized) {
+    await authStore.waitForUser();
+
+    if (authStore.isAuthenticated && authStore.hasUserInitializedBudget) {
         return true;
     } else {
         return { path: '/' };

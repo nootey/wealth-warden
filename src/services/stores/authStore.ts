@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import apiClient from '../api/axios_interceptor.ts';
 import router from "../router";
 import type {AuthForm, User} from '../../models/auth.ts';
+import {watch} from "vue";
 
 export const useAuthStore = defineStore('auth', {
     state: () => ({
@@ -12,7 +13,7 @@ export const useAuthStore = defineStore('auth', {
     }),
     getters: {
         isAuthenticated: (state) => state.authenticated,
-        hasUserInitializedBudget: (state) => state?.user?.secrets.budget_initialized,
+        hasUserInitializedBudget: (state) => state.user?.secrets.budget_initialized,
         isInitialized: (state) => state.initialized,
     },
     actions: {
@@ -92,6 +93,25 @@ export const useAuthStore = defineStore('auth', {
                 this.setAuthenticated(false);
                 this.setInitialized(null);
             }
-        }
+        },
+
+        async waitForUser(): Promise<User> {
+            // If the user is already loaded, return immediately.
+            if (this.user !== null) return this.user;
+
+            // Otherwise, watch for changes to the user property.
+            return new Promise((resolve) => {
+                const stopWatch = watch(
+                    () => this.user,
+                    (newUser) => {
+                        if (newUser !== null) {
+                            stopWatch(); // Stop watching once user is set.
+                            resolve(newUser);
+                        }
+                    }
+                );
+            });
+        },
+
     },
 });
