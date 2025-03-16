@@ -49,6 +49,8 @@ const rules = {
 
 const v$ = useVuelidate(rules, { createNewAllocation });
 
+const loading_budget = ref(true);
+
 const dynamicCategories = computed(() => inflowStore.dynamicCategories);
 const inflowCategories = computed(() => inflowStore.inflowCategories);
 const outflowCategories = computed(() => outflowStore.outflowCategories);
@@ -109,6 +111,7 @@ function initBudgetAllocation() {
 }
 
 async function getCurrentBudget() {
+  loading_budget.value = true;
   try {
     let response = await budgetStore.getCurrentBudget();
     if (response?.data) {
@@ -118,9 +121,11 @@ async function getCurrentBudget() {
       currentBudget.value = null;
       currentBudgetOriginalCategory.value = null;
     }
-    calculateAvailableBudgetAllocation(currentBudget.value);
+    await calculateAvailableBudgetAllocation(currentBudget.value);
+    loading_budget.value = false;
   } catch (err) {
-    toastStore.errorResponseToast(err)
+    toastStore.errorResponseToast(err);
+    loading_budget.value = false;
   }
 }
 
@@ -375,7 +380,7 @@ const confirmBudgetUpdate = (event: any) => {
       </div>
     </div>
   </div>
-  <div v-else-if="currentBudget && currentBudget?.dynamic_category" class="flex flex-column gap-3 w-full">
+  <div v-else-if="!loading_budget" class="flex flex-column gap-3 w-full">
     <div> <b>{{ "Budget" }}</b></div>
     <div class="flex flex-row gap-3 align-items-center">
       <div class="flex flex-column gap-1">
