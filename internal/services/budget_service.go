@@ -111,6 +111,32 @@ func (s *BudgetService) FetchSumsForDynamicCategory(categoryName string, mapping
 	return sum, nil
 }
 
+func (s *BudgetService) fetchSumsForBudget(category *models.DynamicCategory, user *models.User, year, month int) (map[string]float64, error) {
+	sums := make(map[string]float64)
+
+	for _, mapping := range category.Mappings {
+		inflowSums, err := s.FetchSumsForDynamicCategory("inflow", &mapping, year, month, user)
+		if err != nil {
+			return nil, err
+		}
+
+		// Only sum outflows if it's the first time processing this category
+		var totalOutflow float64
+		if mapping.RelatedCategoryName == "outflow" {
+			outflowSums, err := s.FetchSumsForDynamicCategory("outflow", &mapping, year, month, user)
+			if err != nil {
+				return nil, err
+			}
+			totalOutflow += outflowSums
+		}
+
+		sums["inflow"] += inflowSums
+		sums["outflow"] += totalOutflow
+	}
+
+	return sums, nil
+}
+
 func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.MonthlyBudget) (*models.MonthlyBudget, error) {
 
 	user, err := s.AuthService.GetCurrentUser(c, false)
@@ -133,28 +159,10 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 		return nil, err
 	}
 
-	sums := make(map[string]float64)
-
-	for _, mapping := range category.Mappings {
-		inflowSums, err := s.FetchSumsForDynamicCategory("inflow", &mapping, year, month, user)
-		if err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-
-		// Only sum outflows if it's the first time processing this category
-		var totalOutflow float64
-		if mapping.RelatedCategoryName == "outflow" {
-			outflowSums, err := s.FetchSumsForDynamicCategory("outflow", &mapping, year, month, user)
-			if err != nil {
-				tx.Rollback()
-				return nil, err
-			}
-			totalOutflow += outflowSums
-		}
-
-		sums["inflow"] += inflowSums
-		sums["outflow"] += totalOutflow
+	sums, err := s.fetchSumsForBudget(category, user, year, month)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
 	}
 
 	newRecord.Month = month
