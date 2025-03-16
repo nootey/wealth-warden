@@ -129,7 +129,7 @@ async function getCurrentBudget() {
   }
 }
 
-function calculateAvailableBudgetAllocation(budget: MonthlyBudget|null){
+async function calculateAvailableBudgetAllocation(budget: MonthlyBudget|null){
   if (budget == null ){
     availableBudgetAllocation.value = 0;
     return;
@@ -218,6 +218,26 @@ async function createNewBudgetAllocation() {
 
 }
 
+async function synchronizeBudget() {
+
+  if(!currentBudget.value) {
+    return;
+  }
+
+  loading_budget.value = true;
+
+  try {
+
+    let response = await budgetStore.synchronizeMonthlyBudget();
+    toastStore.successResponseToast(response);
+    await getCurrentBudget();
+
+  } catch (err) {
+    toastStore.errorResponseToast(err)
+  }
+
+}
+
 async function updateBudgetSnapshot() {
 
   if(!currentBudget.value) {
@@ -271,7 +291,7 @@ const confirmSnapshotUpdate = (event: any) => {
   });
 };
 
-const confirmBudgetUpdate = (event: any) => {
+const confirmBudgetCategoryUpdate = (event: any) => {
   confirm.require({
     target: event.currentTarget,
     message: 'You are about to change this months budget category. \n All allocations for this month will be reset! \n Are you sure you want to proceed?',
@@ -402,8 +422,11 @@ const confirmBudgetUpdate = (event: any) => {
             <div class="flex flex-column">
               <Button size="small" label="Update snapshot" @click="confirmSnapshotUpdate($event)"></Button>
             </div>
+            <div class="flex flex-column">
+              <Button size="small" label="Sync budget" @click="synchronizeBudget"></Button>
+            </div>
             <div v-if="budgetChanged" class="flex flex-column">
-              <Button size="small" label="Update budget" @click="confirmBudgetUpdate($event)"></Button>
+              <Button size="small" label="Change linked category" @click="confirmBudgetCategoryUpdate($event)"></Button>
             </div>
           </div>
         </div>

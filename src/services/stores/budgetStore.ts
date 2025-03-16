@@ -8,6 +8,14 @@ export const useBudgetStore = defineStore('budget', {
         current_budget: null
     }),
     actions: {
+        async synchronizeMonthlyBudget() {
+            try {
+                return await apiClient.get(`${this.apiPrefix}/sync`);
+            } catch (error) {
+                throw error;
+            }
+        },
+
         async getCurrentBudget() {
             try {
                 return await apiClient.get(`${this.apiPrefix}/current`);
