@@ -309,3 +309,84 @@ func (s *BudgetService) UpdateBudgetSnapshot(c *gin.Context, id uint) error {
 
 	return tx.Commit().Error
 }
+
+func (s *BudgetService) SynchronizeCurrentMonthlyBudget(c *gin.Context) error {
+
+	user, err := s.AuthService.GetCurrentUser(c, false)
+	if err != nil {
+		return err
+	}
+	changes := utils.InitChanges()
+
+	tx := s.BudgetRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	now := time.Now()
+	year, month := now.Year(), int(now.Month())
+
+	budget, err := s.BudgetRepo.GetBudgetForMonth(user, year, month)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	existingTotalInflows := budget.TotalInflow
+	existingTotalOutflows := budget.TotalOutflow
+	existingEffectiveBudget := budget.EffectiveBudget
+	existingBudgetSnapshot := budget.BudgetSnapshot
+
+	existingTotalInflowsString := strconv.FormatInt(int64(existingTotalInflows), 10)
+	existingTotalOutflowsString := strconv.FormatInt(int64(existingTotalOutflows), 10)
+	existingEffectiveBudgetString := strconv.FormatInt(int64(existingEffectiveBudget), 10)
+	existingBudgetSnapshotString := strconv.FormatInt(int64(existingBudgetSnapshot), 10)
+	yearString := strconv.FormatInt(int64(budget.Year), 10)
+	monthString := strconv.FormatInt(int64(budget.Month), 10)
+
+	sums, err := s.fetchSumsForBudget(&budget.DynamicCategory, user, year, month)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	budget.TotalInflow = sums["inflow"]
+	budget.TotalOutflow = sums["outflow"]
+	budget.EffectiveBudget = budget.TotalInflow - budget.TotalOutflow
+
+	newEffectiveBudget := budget.EffectiveBudget
+
+	if newEffectiveBudget != existingEffectiveBudget {
+
+		budget.BudgetSnapshot = budget.EffectiveBudget
+		newBudgetSnapshot := budget.BudgetSnapshot
+
+		newEffectiveBudgetString := strconv.FormatInt(int64(newEffectiveBudget), 10)
+		newBudgetSnapshotString := strconv.FormatInt(int64(newBudgetSnapshot), 10)
+		newTotalInflowsString := strconv.FormatInt(int64(existingTotalInflows), 10)
+		newTotalOutflowsString := strconv.FormatInt(int64(existingTotalOutflows), 10)
+
+		utils.CompareChanges(existingEffectiveBudgetString, newEffectiveBudgetString, changes, "effective_budget")
+		utils.CompareChanges(existingBudgetSnapshotString, newBudgetSnapshotString, changes, "budget_snapshot")
+		utils.CompareChanges(existingTotalInflowsString, newTotalInflowsString, changes, "total_inflows")
+		utils.CompareChanges(existingTotalOutflowsString, newTotalOutflowsString, changes, "total_outflows")
+		utils.CompareChanges("", monthString, changes, "month")
+		utils.CompareChanges("", yearString, changes, "year")
+
+		err = s.BudgetRepo.UpdateMonthlyBudget(tx, user, budget)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		description := "User has synchronized their monthly budget. Some values were out of sync"
+
+		err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "sync", "monthly_budget", &description, changes, user)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit().Error
+}

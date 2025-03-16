@@ -98,3 +98,14 @@ func (h *BudgetHandler) UpdateBudgetSnapshot(c *gin.Context) {
 
 	utils.SuccessMessage("New budget snapshot has been recorded", "Success", http.StatusOK)(c.Writer, c.Request)
 }
+
+func (h *BudgetHandler) SynchronizeCurrentMonthlyBudget(c *gin.Context) {
+
+	err := h.Service.SynchronizeCurrentMonthlyBudget(c)
+	if err != nil {
+		utils.ErrorMessage("Sync error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("Monthly budget has been synchronized!", "Success", http.StatusOK)(c.Writer, c.Request)
+}

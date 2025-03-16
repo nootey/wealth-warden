@@ -7,6 +7,7 @@ import (
 
 func BudgetRoutes(apiGroup *gin.RouterGroup, handler *handlers.BudgetHandler) {
 	apiGroup.GET("/current", handler.GetCurrentMonthlyBudget)
+	apiGroup.GET("/sync", handler.SynchronizeCurrentMonthlyBudget)
 	apiGroup.POST("/create", handler.CreateNewMonthlyBudget)
 	apiGroup.POST("/create-allocation", handler.CreateNewBudgetAllocation)
 	apiGroup.POST("/update-snapshot", handler.UpdateBudgetSnapshot)
