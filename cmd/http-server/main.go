@@ -87,7 +87,8 @@ func runServer() {
 	cfg := config.LoadConfig()
 	logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
-	dbClient, err := database.ConnectToMySQL(cfg, !cfg.Release)
+	//disableDBLogging := !cfg.Release
+	dbClient, err := database.ConnectToMySQL(cfg, true)
 	if err != nil {
 		log.Fatalf("MySQL Connection Error: %v", err)
 	}
