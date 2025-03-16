@@ -73,6 +73,8 @@ const budgetAllocations = ref([
 const filteredDynamicCategories = ref([]);
 const filteredBudgetAllocations = ref([]);
 
+const availableBudgetAllocation = ref();
+
 const confirm = useConfirm();
 
 onMounted(async () => {
@@ -116,9 +118,23 @@ async function getCurrentBudget() {
       currentBudget.value = null;
       currentBudgetOriginalCategory.value = null;
     }
+    calculateAvailableBudgetAllocation(currentBudget.value);
   } catch (err) {
     toastStore.errorResponseToast(err)
   }
+}
+
+function calculateAvailableBudgetAllocation(budget: MonthlyBudget|null){
+  if (budget == null ){
+    availableBudgetAllocation.value = 0;
+    return;
+  }
+  let sum = 0;
+  budget.allocations.forEach((allocation:any) => {
+    sum += allocation.total_allocated_value;
+  })
+
+  availableBudgetAllocation.value = budget.budget_snapshot - sum;
 }
 
 const searchDynamicCategory = (event: any) => {
@@ -438,6 +454,16 @@ const confirmBudgetUpdate = (event: any) => {
             {{ "Define and view your budget allocations. The total value must be lower than the calculated effective budget."}}
       </div>
     </div>
+    <div class="flex flex-row gap-2 align-items-center">
+      <div class="flex flex-column gap-1">
+        {{ "Available to allocate: "}}
+      </div>
+
+      <div class="flex flex-column gap-1">
+          <b>{{ vueHelper.displayAsCurrency(availableBudgetAllocation) }}</b>
+      </div>
+    </div>
+
 
     <div class="flex flex-row">
       <label class="label"> New allocation </label>
