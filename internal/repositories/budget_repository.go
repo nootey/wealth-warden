@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"fmt"
 	"gorm.io/gorm"
 	"wealth-warden/internal/models"
 )
@@ -60,9 +59,7 @@ func (r *BudgetRepository) InsertMonthlyBudgetAllocation(tx *gorm.DB, record *mo
 
 func (r *BudgetRepository) UpdateMonthlyBudget(tx *gorm.DB, user *models.User, record *models.MonthlyBudget) error {
 	record.UserID = user.ID
-	fmt.Println(record.ID)
-	fmt.Println(record.BudgetSnapshot)
-	fmt.Println(record.EffectiveBudget)
+
 	if err := tx.Model(&models.MonthlyBudget{}).
 		Where("id = ? AND organization_id = ?", record.ID, *user.PrimaryOrganizationID).
 		Updates(record).Error; err != nil {
