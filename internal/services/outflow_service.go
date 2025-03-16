@@ -119,7 +119,7 @@ func (s *OutflowService) CreateOutflow(c *gin.Context, newRecord *models.Outflow
 		return err
 	}
 
-	err = s.BudgetInterface.UpdateTotalOutflow(tx, user, newRecord.OutflowCategoryID, newRecord.Amount)
+	err = s.BudgetInterface.UpdateTotalOutflow(tx, user, newRecord, "create")
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -168,7 +168,7 @@ func (s *OutflowService) UpdateOutflow(c *gin.Context, newRecord *models.Outflow
 		return err
 	}
 
-	err = s.BudgetInterface.UpdateTotalOutflow(tx, user, newRecord.OutflowCategoryID, newRecord.Amount)
+	err = s.BudgetInterface.UpdateTotalOutflow(tx, user, newRecord, "create")
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -235,7 +235,7 @@ func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, newRecord *mod
 		return err
 	}
 
-	err = s.BudgetInterface.UpdateTotalOutflow(tx, user, newRecord.OutflowCategoryID, newRecord.Amount)
+	err = s.BudgetInterface.UpdateTotalOutflow(tx, user, newRecord, "update")
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -341,7 +341,7 @@ func (s *OutflowService) DeleteOutflow(c *gin.Context, id uint) error {
 	utils.CompareChanges(outflow.OutflowCategory.Name, "", changes, "outflow")
 	utils.CompareChanges(amountString, "", changes, "amount")
 
-	err = s.BudgetInterface.UpdateTotalOutflow(tx, user, outflow.OutflowCategoryID, outflow.Amount*-1)
+	err = s.BudgetInterface.UpdateTotalOutflow(tx, user, outflow, "delete")
 	if err != nil {
 		tx.Rollback()
 		return err

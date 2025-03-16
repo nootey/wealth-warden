@@ -137,7 +137,7 @@ func (s *InflowService) CreateInflow(c *gin.Context, newRecord *models.Inflow) e
 		return err
 	}
 
-	err = s.BudgetInterface.UpdateTotalInflow(tx, user, newRecord.InflowCategoryID, newRecord.Amount)
+	err = s.BudgetInterface.UpdateTotalInflow(tx, user, newRecord, "update")
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -186,7 +186,7 @@ func (s *InflowService) UpdateInflow(c *gin.Context, newRecord *models.Inflow) e
 		return err
 	}
 
-	err = s.BudgetInterface.UpdateTotalInflow(tx, user, newRecord.InflowCategoryID, newRecord.Amount)
+	err = s.BudgetInterface.UpdateTotalInflow(tx, user, newRecord, "update")
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -253,7 +253,7 @@ func (s *InflowService) CreateReoccurringInflow(c *gin.Context, newRecord *model
 		return err
 	}
 
-	err = s.BudgetInterface.UpdateTotalInflow(tx, user, newRecord.InflowCategoryID, newRecord.Amount)
+	err = s.BudgetInterface.UpdateTotalInflow(tx, user, newRecord, "create")
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -430,7 +430,7 @@ func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
 	utils.CompareChanges(inflow.InflowCategory.Name, "", changes, "inflow")
 	utils.CompareChanges(amountString, "", changes, "amount")
 
-	err = s.BudgetInterface.UpdateTotalInflow(tx, user, inflow.InflowCategoryID, inflow.Amount*-1)
+	err = s.BudgetInterface.UpdateTotalInflow(tx, user, inflow, "delete")
 	if err != nil {
 		tx.Rollback()
 		return err

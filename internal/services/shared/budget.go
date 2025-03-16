@@ -58,11 +58,15 @@ func (b *BudgetInterface) findDynamicCategoryByRelatedCategoryID(user *models.Us
 	return &dynamicCategory, nil
 }
 
-func (b *BudgetInterface) updateBudget(tx *gorm.DB, user *models.User, dynamicCategoryID uint, category string, amount float64) error {
-	now := time.Now()
-	year, month := now.Year(), int(now.Month())
+func (b *BudgetInterface) updateBudget(tx *gorm.DB, user *models.User, dynamicCategoryID uint, category string, amount float64, date time.Time) error {
 
-	budget, err := b.FindBudgetByDynamicCategoryID(user, dynamicCategoryID, year, month)
+	currentYear, currentMonth := time.Now().Year(), int(time.Now().Month())
+	recordYear, recordMonth := date.Year(), int(date.Month())
+	if recordYear != currentYear || recordMonth != currentMonth {
+		return nil
+	}
+
+	budget, err := b.FindBudgetByDynamicCategoryID(user, dynamicCategoryID, currentYear, currentMonth)
 	if err != nil {
 		return err
 	}
@@ -98,10 +102,10 @@ func (b *BudgetInterface) updateBudget(tx *gorm.DB, user *models.User, dynamicCa
 	return nil
 }
 
-func (b *BudgetInterface) UpdateTotalInflow(tx *gorm.DB, user *models.User, categoryID uint, amount float64) error {
+func (b *BudgetInterface) UpdateTotalInflow(tx *gorm.DB, user *models.User, inflow *models.Inflow, operation string) error {
 
 	category := "inflow"
-	dynamicCategory, err := b.findDynamicCategoryByRelatedCategoryID(user, category, categoryID)
+	dynamicCategory, err := b.findDynamicCategoryByRelatedCategoryID(user, category, inflow.InflowCategoryID)
 	if err != nil {
 		return err
 	}
@@ -110,7 +114,12 @@ func (b *BudgetInterface) UpdateTotalInflow(tx *gorm.DB, user *models.User, cate
 		return nil
 	}
 
-	err = b.updateBudget(tx, user, dynamicCategory.ID, category, amount)
+	amount := inflow.Amount
+	if operation == "delete" {
+		amount *= -1
+	}
+
+	err = b.updateBudget(tx, user, dynamicCategory.ID, category, amount, inflow.InflowDate)
 	if err != nil {
 		return err
 	}
@@ -118,10 +127,10 @@ func (b *BudgetInterface) UpdateTotalInflow(tx *gorm.DB, user *models.User, cate
 	return nil
 }
 
-func (b *BudgetInterface) UpdateTotalOutflow(tx *gorm.DB, user *models.User, categoryID uint, amount float64) error {
+func (b *BudgetInterface) UpdateTotalOutflow(tx *gorm.DB, user *models.User, outflow *models.Outflow, operation string) error {
 
 	category := "outflow"
-	dynamicCategory, err := b.findDynamicCategoryByRelatedCategoryID(user, category, categoryID)
+	dynamicCategory, err := b.findDynamicCategoryByRelatedCategoryID(user, category, outflow.OutflowCategoryID)
 	if err != nil {
 		return err
 	}
@@ -130,7 +139,12 @@ func (b *BudgetInterface) UpdateTotalOutflow(tx *gorm.DB, user *models.User, cat
 		return nil
 	}
 
-	err = b.updateBudget(tx, user, dynamicCategory.ID, category, amount)
+	amount := outflow.Amount
+	if operation == "delete" {
+		amount *= -1
+	}
+
+	err = b.updateBudget(tx, user, dynamicCategory.ID, category, amount, outflow.OutflowDate)
 	if err != nil {
 		return err
 	}
