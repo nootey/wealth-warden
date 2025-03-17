@@ -377,9 +377,13 @@ const confirmBudgetCategoryUpdate = (event: any) => {
         <span> <b>{{ "Primary links" }}</b></span>
         <span> {{ "These categories will be summed up to create your total inflows record." }}</span>
         <div v-for="mapping in createNewBudget.dynamic_category?.Mappings">
-          <span v-if="mapping.related_type === 'inflow' || mapping.related_type === 'dynamic'">
-            {{ "+ " + mergedCategories.filter(record => record.id === mapping.related_id)[0]["name"] }}
-          </span>
+<span v-if="mapping.related_type === 'inflow' || mapping.related_type === 'dynamic'">
+  {{
+    "+ " +
+    (mergedCategories.find(record => record.id === mapping.related_id && record.category_type === mapping.related_type) || {}).name
+  }}
+</span>
+
         </div>
 
         <span> <b>{{ "Secondary links" }}</b></span>
