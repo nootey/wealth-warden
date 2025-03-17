@@ -16,6 +16,8 @@ import OutflowCategories from "../features/outflows/OutflowCategories.vue";
 import OutflowCreate from "../features/outflows/OutflowCreate.vue";
 import YearPicker from "../components/shared/YearPicker.vue";
 
+const dataCount = computed(() => {return outflows.value.length});
+
 const outflowStore = useOutflowStore();
 const toastStore = useToastStore();
 const actionStore = useActionStore();
@@ -99,6 +101,8 @@ async function getData(new_page = null) {
 async function getGroupedData() {
 
   loadingGroupedOutflows.value = true;
+  if(dataCount.value < 1)
+    return;
 
   try {
 
@@ -220,7 +224,7 @@ provide("initData", initData)
   </Dialog>
   <Dialog v-model:visible="addCategoryModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '800px'}" header="Outflow categories">
-    <OutflowCategories></OutflowCategories>
+    <OutflowCategories :restricted="false"></OutflowCategories>
   </Dialog>
 
   <div class="flex w-full p-2">
@@ -265,7 +269,7 @@ provide("initData", initData)
       </div>
 
 
-      <DisplayMonthlyDate :groupedValues="groupedOutflows" />
+      <DisplayMonthlyDate :groupedValues="groupedOutflows" :dataCount="dataCount"/>
 
       <div class="flex flex-row p-1 w-full">
         <h3>
@@ -354,7 +358,7 @@ provide("initData", initData)
         </h3>
       </div>
 
-      <BasicStatDisplay :basicStats="outflowStatistics" :limit="true"/>
+      <BasicStatDisplay :basicStats="outflowStatistics" :limit="true" :dataCount="dataCount"/>
 
       <div class="flex flex-row p-1">
         <h3>

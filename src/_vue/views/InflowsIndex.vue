@@ -32,6 +32,8 @@ const addCategoryModal = ref(false);
 const addDynamicCategoryModal = ref(false);
 const inflowStatistics = ref<Statistics[]>([]);
 
+const dataCount = computed(() => {return inflows.value.length});
+
 const params = computed(() => {
   return {
     rowsPerPage: paginator.value.rowsPerPage,
@@ -101,6 +103,8 @@ async function getData(new_page = null) {
 async function getGroupedData() {
 
   loadingGroupedInflows.value = true;
+  if(dataCount.value < 1)
+    return;
 
   try {
 
@@ -229,7 +233,7 @@ provide("initData", initData)
   </Dialog>
   <Dialog v-model:visible="addDynamicCategoryModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '800px'}" header="Dynamic categories">
-    <DynamicCategories></DynamicCategories>
+    <DynamicCategories :restricted="false"></DynamicCategories>
   </Dialog>
 
   <div class="flex w-full p-2">
@@ -281,7 +285,7 @@ provide("initData", initData)
         </h3>
       </div>
 
-      <DisplayMonthlyDate :groupedValues="groupedInflows" />
+      <DisplayMonthlyDate :groupedValues="groupedInflows" :dataCount="dataCount" />
 
       <div class="flex flex-row p-1 w-full">
         <h3>
@@ -370,7 +374,7 @@ provide("initData", initData)
         </h3>
       </div>
 
-      <BasicStatDisplay :basicStats="inflowStatistics" :limit="false" />
+      <BasicStatDisplay :basicStats="inflowStatistics" :limit="false" :dataCount="dataCount" />
 
       <div class="flex flex-row p-1">
         <h3>

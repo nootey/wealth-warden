@@ -109,16 +109,19 @@ const vueHelper = {
             return acc;
         }, {});
 
-        targetRef.value = Object.values(groupedData).map((group: GroupedItem) => {
-            const monthCount = group.months.size;
-            return {
-                category: group.categoryName,
-                total: group.total,
-                average: group.total / monthCount,
-                spending_limit: group.spendingLimit ?? null,
-                category_type: group.categoryType ?? null
-            };
-        });
+        // Exclude "dynamic" category types
+        targetRef.value = Object.values(groupedData)
+            .filter(group => group.categoryType !== "dynamic")
+            .map((group: GroupedItem) => {
+                const monthCount = group.months.size;
+                return {
+                    category: group.categoryName,
+                    total: group.total,
+                    average: monthCount > 0 ? group.total / monthCount : 0,
+                    spending_limit: group.spendingLimit ?? null,
+                    category_type: group.categoryType ?? null
+                };
+            });
     },
     formatSuccessToast(title: string, msg: string) {
         let message = {

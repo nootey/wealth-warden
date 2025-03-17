@@ -2,18 +2,17 @@
 
 import vueHelper from "../../../utils/vueHelper.ts";
 import dateHelper from "../../../utils/dateHelper.ts";
-import {onMounted} from "vue";
 
 const props = defineProps<{
   groupedValues: any[];
+  dataCount: number;
 }>();
 
 </script>
 
 <template>
   <div class="flex flex-row w-full">
-    <div class="flex flex-column w-full">
-
+    <div v-if="props.dataCount > 0" class="flex flex-column w-full">
       <DataTable :value="vueHelper.pivotedRecords(groupedValues, (item) => item.category_type)" size="small"
                  showGridlines rowGroupMode="subheader" groupRowsBy="category_type" scrollable scrollHeight="550px">
 
@@ -40,6 +39,9 @@ const props = defineProps<{
         </template>
 
       </DataTable>
+    </div>
+    <div v-else class="flex flex-column w-full p-2 gap-2">
+      {{ "No data to display yet"}}
     </div>
   </div>
 </template>
