@@ -390,3 +390,61 @@ func (s *BudgetService) SynchronizeCurrentMonthlyBudget(c *gin.Context) error {
 
 	return tx.Commit().Error
 }
+
+func (s *BudgetService) SynchronizeCurrentMonthlyBudgetSnapshot(c *gin.Context) error {
+
+	user, err := s.AuthService.GetCurrentUser(c, false)
+	if err != nil {
+		return err
+	}
+	changes := utils.InitChanges()
+
+	tx := s.BudgetRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	now := time.Now()
+	year, month := now.Year(), int(now.Month())
+
+	budget, err := s.BudgetRepo.GetBudgetForMonth(user, year, month)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	existingBudgetSnapshot := budget.BudgetSnapshot
+
+	existingBudgetSnapshotString := strconv.FormatInt(int64(existingBudgetSnapshot), 10)
+	yearString := strconv.FormatInt(int64(budget.Year), 10)
+	monthString := strconv.FormatInt(int64(budget.Month), 10)
+
+	budget.BudgetSnapshot = budget.EffectiveBudget
+
+	if existingBudgetSnapshot != budget.BudgetSnapshot {
+
+		newBudgetSnapshot := budget.BudgetSnapshot
+
+		newBudgetSnapshotString := strconv.FormatInt(int64(newBudgetSnapshot), 10)
+
+		utils.CompareChanges(existingBudgetSnapshotString, newBudgetSnapshotString, changes, "budget_snapshot")
+		utils.CompareChanges("", monthString, changes, "month")
+		utils.CompareChanges("", yearString, changes, "year")
+
+		err = s.BudgetRepo.UpdateMonthlyBudget(tx, user, budget)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		description := "User has synchronized their monthly budget snapshot. Some values were out of sync"
+
+		err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "sync", "monthly_budget_snapshot", &description, changes, user)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit().Error
+}
