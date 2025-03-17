@@ -157,7 +157,7 @@ const searchOutflowType = (event: any) => {
                       placeholder="Select type" dropdown @complete="searchOutflowType"></AutoComplete>
       </div>
       <div class="flex flex-column">
-        <ValidationError :isRequired="true" :message="v$.newOutflowCategory.spending_limit.$errors[0]?.$message">
+        <ValidationError :isRequired="false" :message="v$.newOutflowCategory.spending_limit.$errors[0]?.$message">
           <label>Spending limit</label>
         </ValidationError>
         <InputNumber size="small" v-model="newOutflowCategory.spending_limit" mode="currency" currency="EUR" locale="de-DE" autofocus fluid />
