@@ -24,3 +24,7 @@ func CompareChanges(old, new string, obj *Changes, index string) {
 		}
 	}
 }
+
+func (c *Changes) HasChanges() bool {
+	return len(c.New) > 0 || len(c.Old) > 0
+}
