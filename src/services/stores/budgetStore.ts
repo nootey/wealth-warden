@@ -16,6 +16,14 @@ export const useBudgetStore = defineStore('budget', {
             }
         },
 
+        async synchronizeMonthlyBudgetSnapshot() {
+            try {
+                return await apiClient.get(`${this.apiPrefix}/sync-snapshot`);
+            } catch (error) {
+                throw error;
+            }
+        },
+
         async getCurrentBudget() {
             try {
                 return await apiClient.get(`${this.apiPrefix}/current`);
@@ -40,12 +48,13 @@ export const useBudgetStore = defineStore('budget', {
             }
         },
 
-        async updateBudgetSnapshot(id: number) {
+        async updateMonthlyBudget(budgetID: number, field: string, value: any) {
             try {
-                return await apiClient.post(`${this.apiPrefix}/update-snapshot`, {id: id});
+                return await apiClient.post(`${this.apiPrefix}/update`, {budget_id: budgetID, field: field, value: value});
             } catch (err) {
                 throw err;
             }
         },
+
     }
 });

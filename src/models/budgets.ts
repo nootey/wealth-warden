@@ -8,6 +8,7 @@ export interface MonthlyBudget {
     total_outflow: number;
     effective_budget: number;
     budget_snapshot: number;
+    snapshot_threshold: number;
 }
 
 export interface MonthlyBudgetAllocation {

@@ -238,7 +238,7 @@ async function synchronizeBudget() {
 
 }
 
-async function updateBudgetSnapshot() {
+async function updateMonthlyBudget(field: string, value: any) {
 
   if(!currentBudget.value) {
     return;
@@ -246,11 +246,28 @@ async function updateBudgetSnapshot() {
 
   try {
 
-    let response = await budgetStore.updateBudgetSnapshot(currentBudget.value.id);
+    let response = await budgetStore.updateMonthlyBudget(currentBudget.value.id, field, value);
     await getCurrentBudget();
     toastStore.successResponseToast(response);
 
-    v$.value.createNewAllocation.$reset();
+  } catch (err) {
+    toastStore.errorResponseToast(err)
+  }
+
+}
+
+async function syncBudgetSnapshot() {
+
+  if(!currentBudget.value) {
+    return;
+  }
+
+  try {
+
+    let response = await budgetStore.synchronizeMonthlyBudgetSnapshot();
+    await getCurrentBudget();
+    toastStore.successResponseToast(response);
+
   } catch (err) {
     toastStore.errorResponseToast(err)
   }
@@ -269,10 +286,10 @@ function checkCategoryStatus() {
   }
 }
 
-const confirmSnapshotUpdate = (event: any) => {
+const confirmSnapshotSync = (event: any) => {
   confirm.require({
     target: event.currentTarget,
-    message: 'You are about to update your budget snapshot. Are you sure you want to proceed?',
+    message: 'You are about to synchronize your budget snapshot. Are you sure you want to proceed?',
     icon: 'pi pi-exclamation-triangle',
     rejectProps: {
       label: 'Cancel',
@@ -283,10 +300,10 @@ const confirmSnapshotUpdate = (event: any) => {
       label: 'Update'
     },
     accept: async () => {
-      await updateBudgetSnapshot();
+      await syncBudgetSnapshot();
     },
     reject: () => {
-      toastStore.infoResponseToast(vueHelper.formatInfoToast("Update declined", "Nothing has been updated."));
+      toastStore.infoResponseToast(vueHelper.formatInfoToast("Sync declined", "Nothing has been updated."));
     }
   });
 };
@@ -424,10 +441,10 @@ const confirmBudgetCategoryUpdate = (event: any) => {
           <span> <b>{{ "Actions" }}</b></span>
           <div class="flex flex-row gap-2">
             <div class="flex flex-column">
-              <Button size="small" label="Update snapshot" @click="confirmSnapshotUpdate($event)"></Button>
+              <Button size="small" label="Sync budget" @click="synchronizeBudget" v-tooltip="'Recalculate total inflows, outflows and effective budget.'"></Button>
             </div>
             <div class="flex flex-column">
-              <Button size="small" label="Sync budget" @click="synchronizeBudget"></Button>
+              <Button size="small" label="Sync snapshot" @click="confirmSnapshotSync($event)" v-tooltip="'Synchronize snapshot with effective budget.'"></Button>
             </div>
             <div v-if="budgetChanged" class="flex flex-column">
               <Button size="small" label="Change linked category" @click="confirmBudgetCategoryUpdate($event)"></Button>
@@ -437,21 +454,27 @@ const confirmBudgetCategoryUpdate = (event: any) => {
       </div>
     </div>
     <div class="flex flex-row w-full gap-2">
-      <div class="flex flex-column w-3 gap-1">
+      <div class="flex flex-column gap-1">
         <span> <b>{{ "Total inflows" }}</b></span>
         <InputNumber disabled size="small" v-model="currentBudget.total_inflow" mode="currency" currency="EUR" locale="de-DE" autofocus fluid></InputNumber>
       </div>
-      <div class="flex flex-column w-3 gap-1">
+      <div class="flex flex-column gap-1">
         <span> <b>{{ "Total outflows" }}</b></span>
         <InputNumber disabled size="small" v-model="currentBudget.total_outflow" mode="currency" currency="EUR" locale="de-DE" autofocus fluid></InputNumber>
       </div>
-      <div class="flex flex-column w-3 gap-1">
+      <div class="flex flex-column gap-1">
         <span> <b>{{ "Effective budget" }}</b></span>
         <InputNumber disabled size="small" v-model="currentBudget.effective_budget" mode="currency" currency="EUR" locale="de-DE" autofocus fluid></InputNumber>
       </div>
-      <div class="flex flex-column w-3 gap-1">
+      <div class="flex flex-column gap-1">
         <span> <b>{{ "Budget snapshot" }}</b></span>
-        <InputNumber disabled size="small" v-model="currentBudget.budget_snapshot" mode="currency" currency="EUR" locale="de-DE" autofocus fluid></InputNumber>
+        <InputNumber :disabled="currentBudget.effective_budget < 1" size="small" v-model="currentBudget.budget_snapshot" mode="currency" currency="EUR" locale="de-DE"
+                     autofocus fluid @update:modelValue="updateMonthlyBudget('budget_snapshot', currentBudget.budget_snapshot)"></InputNumber>
+      </div>
+      <div class="flex flex-column gap-1">
+        <span> <b>{{ "Snapshot threshold" }}</b></span>
+        <InputNumber size="small" v-model="currentBudget.snapshot_threshold" mode="currency" currency="EUR" locale="de-DE"
+                     autofocus fluid @update:modelValue="updateMonthlyBudget('snapshot_threshold', currentBudget.snapshot_threshold)"></InputNumber>
       </div>
     </div>
     <div class="flex flex-row gap-2 w-9">
