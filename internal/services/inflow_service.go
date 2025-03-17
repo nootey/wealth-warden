@@ -137,7 +137,7 @@ func (s *InflowService) CreateInflow(c *gin.Context, newRecord *models.Inflow) e
 		return err
 	}
 
-	err = s.BudgetInterface.UpdateTotalInflow(tx, user, newRecord, "update", 0)
+	err = s.BudgetInterface.UpdateTotalInflow(tx, user, newRecord, "create", 0)
 	if err != nil {
 		tx.Rollback()
 		return err
