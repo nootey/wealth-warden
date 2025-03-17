@@ -130,7 +130,7 @@ async function getCurrentBudget() {
 }
 
 async function calculateAvailableBudgetAllocation(budget: MonthlyBudget|null){
-  if (budget == null ){
+  if (!budget.allocations){
     availableBudgetAllocation.value = 0;
     return;
   }
