@@ -80,23 +80,48 @@ func (h *BudgetHandler) CreateNewBudgetAllocation(c *gin.Context) {
 	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
-func (h *BudgetHandler) UpdateBudgetSnapshot(c *gin.Context) {
+func (h *BudgetHandler) UpdateMonthlyBudget(c *gin.Context) {
 
-	var req struct {
-		ID uint `json:"id"`
-	}
+	var req validators.UpdateMonthlyBudgetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
 		return
 	}
 
-	err := h.Service.UpdateBudgetSnapshot(c, req.ID)
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(err.Error())(c, nil)
+		return
+	}
+
+	budget := &models.MonthlyBudgetUpdate{
+		ID: req.BudgetID,
+	}
+
+	switch req.Field {
+	case "budget_snapshot":
+		value, ok := req.Value.(float64)
+		if !ok {
+			utils.ErrorMessage("Invalid value type", "Expected a float64", http.StatusBadRequest)(c, nil)
+			return
+		}
+		budget.BudgetSnapshot = &value
+	case "snapshot_threshold":
+		value, ok := req.Value.(float64)
+		if !ok {
+			utils.ErrorMessage("Invalid value type", "Expected a float64", http.StatusBadRequest)(c, nil)
+			return
+		}
+		budget.SnapshotThreshold = &value
+	}
+
+	err := h.Service.UpdateMonthlyBudget(c, budget)
 	if err != nil {
 		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
 
-	utils.SuccessMessage("New budget snapshot has been recorded", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage("Budget has been updated", "Success", http.StatusOK)(c.Writer, c.Request)
 }
 
 func (h *BudgetHandler) SynchronizeCurrentMonthlyBudget(c *gin.Context) {
@@ -109,6 +134,7 @@ func (h *BudgetHandler) SynchronizeCurrentMonthlyBudget(c *gin.Context) {
 
 	utils.SuccessMessage("Monthly budget has been synchronized!", "Success", http.StatusOK)(c.Writer, c.Request)
 }
+
 func (h *BudgetHandler) SynchronizeCurrentMonthlyBudgetSnapshot(c *gin.Context) {
 
 	err := h.Service.SynchronizeCurrentMonthlyBudgetSnapshot(c)

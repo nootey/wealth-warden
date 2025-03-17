@@ -8,22 +8,29 @@ type MonthlyBudget struct {
 	UserID            uint                      `gorm:"not null" json:"user_id"`
 	DynamicCategoryID uint                      `gorm:"not null;uniqueIndex:unique_org_dyn_year_month" json:"dynamic_category_id"`
 	DynamicCategory   DynamicCategory           `gorm:"foreignKey:DynamicCategoryID" json:"dynamic_category"`
-	Month             int                       `gorm:"not null;uniqueIndex:unique_org_dyn_year_month" json:"month"` // Note: SQL CHECK (month BETWEEN 1 AND 12) must be validated in code.
+	Month             int                       `gorm:"not null;uniqueIndex:unique_org_dyn_year_month" json:"month"`
 	Year              int                       `gorm:"not null;uniqueIndex:unique_org_dyn_year_month" json:"year"`
 	TotalInflow       float64                   `gorm:"type:decimal(15,2);not null" json:"total_inflow"`
 	TotalOutflow      float64                   `gorm:"type:decimal(15,2);not null" json:"total_outflow"`
-	EffectiveBudget   float64                   `gorm:"type:decimal(15,2);not null" json:"effective_budget"` // computed column: total_inflow - total_outflow
-	BudgetSnapshot    float64                   `gorm:"type:decimal(15,2);not null" json:"budget_snapshot"`  // snapshot of effective budget, updated manually instead of via category
-	Allocations       []MonthlyBudgetAllocation `json:"allocations"`                                         // snapshot of effective budget, updated manually instead of via category
+	EffectiveBudget   float64                   `gorm:"type:decimal(15,2);not null" json:"effective_budget"`
+	BudgetSnapshot    float64                   `gorm:"type:decimal(15,2);not null" json:"budget_snapshot"`
+	SnapshotThreshold float64                   `gorm:"type:decimal(15,2);not null" json:"snapshot_threshold"`
+	Allocations       []MonthlyBudgetAllocation `json:"allocations"`
 	CreatedAt         time.Time                 `json:"created_at"`
 	UpdatedAt         time.Time                 `json:"updated_at"`
+}
+
+type MonthlyBudgetUpdate struct {
+	ID                uint     `gorm:"primaryKey;autoIncrement" json:"id"`
+	BudgetSnapshot    *float64 `gorm:"type:decimal(15,2);not null" json:"budget_snapshot"`
+	SnapshotThreshold *float64 `gorm:"type:decimal(15,2);not null" json:"snapshot_threshold"`
 }
 
 type MonthlyBudgetAllocation struct {
 	ID                  uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	MonthlyBudgetID     uint      `gorm:"not null;uniqueIndex:unique_mb_category" json:"monthly_budget_id"`
 	Category            string    `gorm:"type:enum('savings','investments','other');not null;uniqueIndex:unique_mb_category" json:"category"`
-	TotalAllocatedValue float64   `gorm:"type:decimal(15,2);not null" json:"total_allocated_value"` // Validate value >= 0 in your application if needed
+	TotalAllocatedValue float64   `gorm:"type:decimal(15,2);not null" json:"total_allocated_value"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
 }

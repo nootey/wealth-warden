@@ -86,3 +86,9 @@ type CreateMonthlyBudgetAllocationRequest struct {
 	Allocation      float64 `json:"allocation" validate:"required"`
 	Category        string  `json:"category" validate:"required"`
 }
+
+type UpdateMonthlyBudgetRequest struct {
+	BudgetID uint        `json:"budget_id" validate:"required,numeric"`
+	Field    string      `json:"field" validate:"required"`
+	Value    interface{} `json:"value" validate:"required"`
+}

@@ -10,7 +10,8 @@ year YEAR NOT NULL,
 total_inflow DECIMAL(15,2) NOT NULL, -- Sum of inflows for the period
 total_outflow DECIMAL(15,2) NOT NULL, -- Sum of outflows for the period
 effective_budget DECIMAL(15,2),
-budget_snapshot DECIMAL(15,2), -- Snapshot of effective_budget
+budget_snapshot DECIMAL(15,2) NOT NULL DEFAULT 0, -- Snapshot of effective_budget
+snapshot_threshold DECIMAL(15,2) NOT NULL DEFAULT 500, -- Threshold for the snapshot auto update
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 FOREIGN KEY (dynamic_category_id) REFERENCES dynamic_categories(id),

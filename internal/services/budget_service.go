@@ -263,7 +263,54 @@ func (s *BudgetService) CreateMonthlyBudgetAllocation(c *gin.Context, newRecord 
 	return tx.Commit().Error
 }
 
-func (s *BudgetService) UpdateBudgetSnapshot(c *gin.Context, id uint) error {
+func (s *BudgetService) handleBudgetAssignErrors(oldBudget *models.MonthlyBudget, newBudget *models.MonthlyBudgetUpdate) error {
+
+	isSnapshotUpdated := newBudget.BudgetSnapshot != nil && *newBudget.BudgetSnapshot != oldBudget.BudgetSnapshot && newBudget.SnapshotThreshold == nil
+	isThresholdUpdated := newBudget.SnapshotThreshold != nil && *newBudget.SnapshotThreshold != oldBudget.SnapshotThreshold && newBudget.BudgetSnapshot == nil
+
+	// Validate BudgetSnapshot if it's being updated
+	if isSnapshotUpdated {
+		if *newBudget.BudgetSnapshot < 1 {
+			return errors.New("snapshot must be a positive number")
+		}
+		if *newBudget.BudgetSnapshot > oldBudget.EffectiveBudget {
+			return errors.New("snapshot cannot be higher than the effective budget")
+		}
+		if *newBudget.BudgetSnapshot < oldBudget.TotalOutflow {
+			return errors.New("snapshot cannot be lower than the total outflows")
+		}
+	}
+
+	// Validate SnapshotThreshold if it's being updated
+	if isThresholdUpdated {
+		if *newBudget.SnapshotThreshold < 1 {
+			return errors.New("threshold must be a positive number")
+		}
+		if *newBudget.SnapshotThreshold > oldBudget.EffectiveBudget {
+			return errors.New("threshold cannot exceed effective budget")
+		}
+		if *newBudget.SnapshotThreshold > oldBudget.BudgetSnapshot && oldBudget.BudgetSnapshot > 0 {
+			return errors.New("threshold cannot exceed budget snapshot")
+		}
+	}
+
+	return nil
+}
+
+func safeIntToString(value *float64) string {
+	if value != nil {
+		return strconv.FormatInt(int64(*value), 10)
+	}
+	return ""
+}
+
+func updateBudgetField(existingValue *float64, newValue *float64) {
+	if newValue != nil {
+		*existingValue = *newValue
+	}
+}
+
+func (s *BudgetService) UpdateMonthlyBudget(c *gin.Context, newBudget *models.MonthlyBudgetUpdate) error {
 	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
@@ -275,27 +322,34 @@ func (s *BudgetService) UpdateBudgetSnapshot(c *gin.Context, id uint) error {
 		return tx.Error
 	}
 
-	budget, err := s.BudgetRepo.FindBudgetByID(id, user, false)
+	existingBudget, err := s.BudgetRepo.FindBudgetByID(newBudget.ID, user, false)
 	if err != nil {
 		return err
 	}
 
-	existingSnapshot := budget.BudgetSnapshot
-	budget.BudgetSnapshot = budget.EffectiveBudget
-
-	existingSnapshotString := strconv.FormatInt(int64(existingSnapshot), 10)
-	newSnapshotString := strconv.FormatInt(int64(budget.BudgetSnapshot), 10)
-
-	utils.CompareChanges(existingSnapshotString, newSnapshotString, changes, "budget_snapshot")
-
-	if existingSnapshotString != newSnapshotString {
-		yearString := strconv.FormatInt(int64(budget.Year), 10)
-		monthString := strconv.FormatInt(int64(budget.Month), 10)
-		utils.CompareChanges("", monthString, changes, "month")
-		utils.CompareChanges("", yearString, changes, "year")
+	err = s.handleBudgetAssignErrors(existingBudget, newBudget)
+	if err != nil {
+		return err
 	}
 
-	err = s.BudgetRepo.UpdateMonthlyBudget(tx, user, budget)
+	existingSnapshotString := strconv.FormatInt(int64(existingBudget.BudgetSnapshot), 10)
+	existingThresholdString := strconv.FormatInt(int64(existingBudget.SnapshotThreshold), 10)
+
+	newSnapshotString := safeIntToString(newBudget.BudgetSnapshot)
+	newThresholdString := safeIntToString(newBudget.SnapshotThreshold)
+
+	utils.CompareChanges(existingSnapshotString, newSnapshotString, changes, "budget_snapshot")
+	utils.CompareChanges(existingThresholdString, newThresholdString, changes, "snapshot_threshold")
+
+	if changes.HasChanges() {
+		utils.CompareChanges("", strconv.Itoa(existingBudget.Month), changes, "month")
+		utils.CompareChanges("", strconv.Itoa(existingBudget.Year), changes, "year")
+	}
+
+	updateBudgetField(&existingBudget.BudgetSnapshot, newBudget.BudgetSnapshot)
+	updateBudgetField(&existingBudget.SnapshotThreshold, newBudget.SnapshotThreshold)
+
+	err = s.BudgetRepo.UpdateMonthlyBudget(tx, user, existingBudget)
 	if err != nil {
 		tx.Rollback()
 		return err

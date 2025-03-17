@@ -85,12 +85,11 @@ func (b *BudgetInterface) updateBudget(tx *gorm.DB, user *models.User, dynamicCa
 	}
 
 	budget.EffectiveBudget = budget.TotalInflow - budget.TotalOutflow
-
 	if budget.EffectiveBudget < 0 {
 		return errors.New("effective budget can not be negative. Can not insert/delete this record")
 	}
 
-	if budget.EffectiveBudget < 500 {
+	if (budget.EffectiveBudget < budget.SnapshotThreshold) || (budget.EffectiveBudget < budget.BudgetSnapshot) {
 		budget.BudgetSnapshot = budget.EffectiveBudget
 	}
 
