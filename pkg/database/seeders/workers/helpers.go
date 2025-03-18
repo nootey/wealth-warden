@@ -1,10 +1,14 @@
 package workers
 
 import (
+	"fmt"
+	"gorm.io/gorm"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"wealth-warden/internal/models"
+	"wealth-warden/internal/repositories"
 )
 
 func LoadSeederCredentials() (map[string]string, error) {
@@ -33,4 +37,21 @@ func LoadSeederCredentials() (map[string]string, error) {
 		creds[key] = value
 	}
 	return creds, nil
+}
+
+func GetUser(db *gorm.DB) (*models.User, error) {
+	creds, err := LoadSeederCredentials()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load seeder credentials: %w", err)
+	}
+	email, ok := creds["SUPER_ADMIN_EMAIL"]
+	if !ok || email == "" {
+		return nil, fmt.Errorf("SUPER_ADMIN_EMAIL not set in seeder credentials")
+	}
+	userRepo := repositories.NewUserRepository(db)
+	user, err := userRepo.GetUserByEmail(email, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch user: %w", err)
+	}
+	return user, nil
 }

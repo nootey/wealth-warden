@@ -26,6 +26,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, seederType string) error {
 			workers.SeedOutflowCategoryTable,
 			workers.SeedOutflowTable,
 			workers.SeedDynamicCategories,
+			workers.SeedMonthlyBudget,
 		}
 	case "basic":
 		seeders = []SeederFunc{
