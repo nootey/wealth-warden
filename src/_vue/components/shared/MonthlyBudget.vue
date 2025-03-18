@@ -330,6 +330,13 @@ const confirmBudgetCategoryUpdate = (event: any) => {
   });
 };
 
+function extractName(mapping: any, categories: any) {
+  let value = categories.filter((record:any) => record.id === mapping.related_id)[0]
+  if(value && typeof value["name"] !== undefined)
+    return value["name"]
+  return ""
+}
+
 </script>
 
 <template>
@@ -489,7 +496,7 @@ const confirmBudgetCategoryUpdate = (event: any) => {
         <span> <b>{{ "Inflows" }}</b></span>
         <div v-for="mapping in currentBudget.dynamic_category?.Mappings">
           <span v-if="mapping.related_type === 'inflow' || mapping.related_type === 'dynamic'">
-            {{ "+ " + mergedCategories.filter(record => record.id === mapping.related_id)[0]["name"] }}
+            {{ "+ " + extractName(mapping, mergedCategories) }}
           </span>
         </div>
       </div>
@@ -497,7 +504,7 @@ const confirmBudgetCategoryUpdate = (event: any) => {
         <span> <b>{{ "Outflows" }}</b></span>
         <div v-for="mapping in currentBudget.dynamic_category?.Mappings">
           <span v-if="mapping.related_type === 'outflow'">
-            {{ "- " + outflowCategories.filter(record => record.id === mapping.related_id)[0]["name"] }}
+            {{ "- " + extractName(mapping, outflowCategories) }}
           </span>
         </div>
       </div>
