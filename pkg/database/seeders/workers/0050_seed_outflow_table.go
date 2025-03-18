@@ -49,6 +49,7 @@ func SeedOutflowTable(ctx context.Context, db *gorm.DB) error {
 			if len(categoryIDs) == 0 {
 				continue
 			}
+			// Insert 20 random outflow records.
 			for i := 0; i < 20; i++ {
 				randomCategory := categoryIDs[rand.Intn(len(categoryIDs))]
 				randomAmount := 10.00 + rand.Float64()*(1000.00-10.00)
@@ -66,6 +67,25 @@ func SeedOutflowTable(ctx context.Context, db *gorm.DB) error {
 				`, orgID, userID, randomCategory, randomAmount, randomDate, description, time.Now(), time.Now()).Error
 				if err != nil {
 					return fmt.Errorf("failed to insert outflow for organization %d: %w", orgID, err)
+				}
+			}
+
+			// Insert one guaranteed record per category for the current month.
+			currentDate := time.Now()
+			guaranteedDate := time.Date(currentYear, currentDate.Month(), currentDate.Day(), 0, 0, 0, 0, time.UTC)
+			for _, categoryID := range categoryIDs {
+				randomAmount := 10.00 + rand.Float64()*(1000.00-10.00)
+				var description *string
+				if rand.Float64() < 0.5 {
+					desc := randomDescriptions[rand.Intn(len(randomDescriptions))]
+					description = &desc
+				}
+				err = tx.Exec(`
+					INSERT INTO outflows (organization_id, user_id, outflow_category_id, amount, outflow_date, description, created_at, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				`, orgID, userID, categoryID, randomAmount, guaranteedDate, description, time.Now(), time.Now()).Error
+				if err != nil {
+					return fmt.Errorf("failed to insert guaranteed outflow record for organization %d, category %d: %w", orgID, categoryID, err)
 				}
 			}
 		}

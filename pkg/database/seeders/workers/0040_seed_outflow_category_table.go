@@ -72,7 +72,7 @@ func SeedOutflowCategoryTable(ctx context.Context, db *gorm.DB) error {
 	variableCategories := []Category{
 		{"Car - gas", 130.00}, {"Car - general", 500.00}, {"Food", 250.00}, {"Health", 250.00},
 		{"Hygiene", 100.00}, {"Socialization", 100.00}, {"Tech", 250.00}, {"Entertainment", 100.00},
-		{"eCommerce", 100.00}, {"Gifts", 300.00}, {"Random", 150.00}, {"SP", 160.00},
+		{"eCommerce", 100.00}, {"Gifts", 300.00}, {"Random", 150.00}, {"SP - Taxes", 160.00},
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
 		if err := insertCategories(ctx, tx, organizationIDs, fixedCategories, "fixed"); err != nil {
@@ -106,7 +106,7 @@ func UnseedOutflowCategoryTable(ctx context.Context, db *gorm.DB) error {
 		{"Rent", 600.00}, {"Utility", 200.00}, {"Car loan", 500.00}, {"Phone plan", 15.00},
 		{"Car - gas", 130.00}, {"Car - general", 500.00}, {"Food", 250.00}, {"Health", 250.00},
 		{"Hygiene", 100.00}, {"Socialization", 100.00}, {"Tech", 250.00}, {"Entertainment", 100.00},
-		{"eCommerce", 100.00}, {"Gifts", 300.00}, {"Random", 150.00},
+		{"eCommerce", 100.00}, {"Gifts", 300.00}, {"Random", 150.00}, {"SP - Taxes", 160.00},
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
 		return deleteCategories(ctx, tx, organizationIDs, categories)

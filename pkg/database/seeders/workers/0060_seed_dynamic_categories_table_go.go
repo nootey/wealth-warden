@@ -43,7 +43,7 @@ func SeedDynamicCategories(ctx context.Context, db *gorm.DB) error {
 			return fmt.Errorf("failed to insert 'True Salary' category: %w", err)
 		}
 		trueSalaryCategoryID := trueSalary.ID
-		inflowCategories := []string{"Salary", "Food and transport", "SP"}
+		inflowCategories := []string{"Salary", "Food and transport", "SP - Taxes"}
 		var inflowCategoryIDs []int64
 		err = tx.Table("inflow_categories").
 			Select("id").
@@ -89,7 +89,7 @@ func SeedDynamicCategories(ctx context.Context, db *gorm.DB) error {
 		var outflowCategoryID int64
 		err = tx.Raw(`
 			SELECT id FROM outflow_categories WHERE organization_id = ? AND name = ?
-		`, orgID, "SP").Scan(&outflowCategoryID).Error
+		`, orgID, "SP - Taxes").Scan(&outflowCategoryID).Error
 		if err == nil {
 			err = tx.Exec(`
 				INSERT INTO dynamic_category_mappings (dynamic_category_id, related_type, related_id, created_at, updated_at)
