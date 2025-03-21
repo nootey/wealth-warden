@@ -17,6 +17,8 @@ import ReoccurringActionsDisplay from "../components/shared/ReoccurringActionsDi
 import {useActionStore} from "../../services/stores/reoccurringActionStore.ts";
 import DynamicCategories from "../features/inflows/DynamicCategories.vue";
 import YearPicker from "../components/shared/YearPicker.vue";
+import ColumnHeader from "../components/shared/ColumnHeader.vue";
+import BaseFilter from "../components/shared/filters/BaseFilter.vue";
 
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();
@@ -34,11 +36,19 @@ const inflowStatistics = ref<Statistics[]>([]);
 
 const dataCount = computed(() => {return inflows.value.length});
 
+const activeFilers = ref([]);
+const filterStorageIndex = ref("inflow-filters");
+const filterObj = ref({});
+const filterType = ref("text");
+const filters = ref(JSON.parse(localStorage.getItem(filterStorageIndex.value)) ?? []);
+const activeFilterColumn = ref(null)
+const filterOverlayRef = ref(null);
+
 const params = computed(() => {
   return {
     rowsPerPage: paginator.value.rowsPerPage,
     sort: sort.value,
-    filters: [],
+    filters: filters.value,
   }
 });
 const rows = ref([10, 25, 50, 100]);
@@ -217,7 +227,97 @@ async function updateYear(newYear: number) {
   await init();
 }
 
-provide("initData", initData)
+function initFilter() {
+  filterObj.value = {
+    parameter: null,
+    operator: 'like',
+    value: null
+  }
+}
+
+function submitFilter(parameter) {
+  if(!filterObj.value.value){
+    vueHelper.formatInfoToast("Invalid value", "Input a filter value");
+    return;
+  }
+
+  filterObj.value.parameter = parameter;
+  addFilter(filterObj.value);
+  getData();
+}
+
+function addFilter(filter, alternate = null) {
+  let new_filter = {
+    parameter: filter.parameter,
+    operator: filter.operator,
+    value: filterType === "text" ? filter.value.trim().replace(/\s+/g, " ") : filter.value,
+  };
+
+  let exists = filters.value.find((object) => {
+    // Compare only the relevant properties
+    return (
+        object.parameter === new_filter.parameter &&
+        object.operator === new_filter.operator &&
+        object.value === new_filter.value
+    );
+  });
+
+  if (exists === undefined) {
+    filters.value.push(new_filter);
+    localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value))
+    if (!alternate) initFilter();
+    filterOverlayRef.value.hide();
+  }
+}
+
+function clearFilters(){
+  filters.value.splice(0);
+  localStorage.removeItem(filterStorageIndex.value);
+  getData();
+}
+
+function removeFilter(index){
+  filters.value.splice(index, 1);
+  localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value))
+  getData();
+}
+
+function switchSort(column) {
+  if (sort.value.field === column) {
+    sort.value.order = vueHelper.toggleSort(sort.value.order);
+  } else {
+    sort.value.order = 1;
+  }
+  sort.value.field = column;
+  getData();
+}
+
+function toggleFilterOverlay(event, column) {
+
+  switch (column) {
+    case "inflow_date": {
+      filterType.value = "date";
+      break;
+    }
+    case "amount": {
+      filterType.value = "number";
+      break;
+    }
+    default: {
+      filterType.value = "text";
+      break;
+    }
+  }
+
+  activeFilterColumn.value = column;
+  filterOverlayRef.value.toggle(event);
+}
+
+provide("initData", initData);
+provide("switchSort", switchSort);
+provide("toggleFilterOverlay", toggleFilterOverlay);
+provide('submitFilter', submitFilter);
+provide('removeFilter', removeFilter);
 
 </script>
 
@@ -235,6 +335,10 @@ provide("initData", initData)
           :modal="true" :style="{width: '800px'}" header="Dynamic categories">
     <DynamicCategories :restricted="false"></DynamicCategories>
   </Dialog>
+  <Popover ref="filterOverlayRef">
+    <BaseFilter :activeColumn="activeFilterColumn"
+                :filter="filterObj" :filters="filters" :filterType="filterType"></BaseFilter>
+  </Popover>
 
   <div class="flex w-full p-2">
     <div class="flex w-9 flex-column p-2 gap-3">
@@ -322,7 +426,10 @@ provide("initData", initData)
             </template>
           </Column>
 
-          <Column v-for="col of inflowColumns" :key="col.field" :field="col.field" :header="col.header" style="width: 25%">
+          <Column v-for="col of inflowColumns" :key="col.field" :field="col.field" style="width: 25%">
+            <template #header>
+              <ColumnHeader :header="col.header" :field="col.field" :sort="sort" :filter="true" :filters="filters"></ColumnHeader>
+            </template>
             <template #body="{ data, field }">
               <template v-if="field === 'amount'">
                 {{ vueHelper.displayAsCurrency(data.amount) }}
