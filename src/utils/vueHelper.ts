@@ -75,7 +75,7 @@ const vueHelper = {
                 return 1;
         }
     },
-    sortIcon(sort: object, field: string) {
+    sortIcon(sort: any, field: string) {
         if (sort.order === -1 && sort.field === field) {
             return 'pi-sort-down';
         }

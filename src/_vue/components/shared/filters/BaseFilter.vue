@@ -77,7 +77,7 @@ const searchOperator = (event: any) => {
     <DatePicker v-if="filterType === 'date'" v-model="filter.value" :disabledDays="[0,6]" :showButtonBar="true"
               :showIcon="true" :showOnFocus="false" :showTime="false" autocomplete="off"
               class="calendar" @dblclick="calendarDoubleClick"
-              @date-select="selectDate" :manualInput="true"
+              @date-select="selectDate" :manualInput="true" :placeholder="'Filter by ' + activeColumn"
               dateFormat="dd.mm.yy" @keydown.enter="selectDate($event, 'enter')"
               @input="checkDateValidity($event)"/>
     <Button label='Apply' @click="addActiveFilter" class="save_button"></Button>
