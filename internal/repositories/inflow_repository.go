@@ -70,7 +70,7 @@ func (r *InflowRepository) SumInflowsByCategory(user *models.User, categoryID ui
 }
 
 func (r *InflowRepository) FindInflows(user *models.User, year, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Inflow, error) {
-	var inflows []models.Inflow
+	var records []models.Inflow
 	orderBy := sortField + " " + sortOrder
 
 	query := r.Db.
@@ -87,12 +87,12 @@ func (r *InflowRepository) FindInflows(user *models.User, year, offset, limit in
 		Order(orderBy).
 		Limit(limit).
 		Offset(offset).
-		Find(&inflows).Error
+		Find(&records).Error
 	if err != nil {
 		return nil, err
 	}
 
-	return inflows, nil
+	return records, nil
 }
 
 func (r *InflowRepository) GetInflowByID(user *models.User, inflowID uint) (*models.Inflow, error) {
