@@ -37,6 +37,10 @@ func mapFilterToColumn(param string) string {
 		return "inflow_categories.name"
 	case "inflow_date":
 		return "DATE(inflow_date)"
+	case "outflow_category":
+		return "outflow_categories.name"
+	case "outflow_date":
+		return "DATE(outflow_date)"
 	default:
 		return param
 	}

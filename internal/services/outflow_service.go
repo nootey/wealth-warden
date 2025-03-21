@@ -55,14 +55,14 @@ func (s *OutflowService) FetchOutflowsPaginated(c *gin.Context, paginationParams
 		year = currentYear // Default to current year if invalid
 	}
 
-	totalRecords, err := s.OutflowRepo.CountOutflows(user, year)
+	totalRecords, err := s.OutflowRepo.CountOutflows(user, year, paginationParams.Filters)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
 
-	outflows, err := s.OutflowRepo.FindOutflows(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder)
+	outflows, err := s.OutflowRepo.FindOutflows(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
 	if err != nil {
 		return nil, 0, err
 	}

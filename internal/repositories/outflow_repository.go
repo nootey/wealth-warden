@@ -5,6 +5,7 @@ import (
 	"gorm.io/gorm"
 	"time"
 	"wealth-warden/internal/models"
+	"wealth-warden/pkg/utils"
 )
 
 type OutflowRepository struct {
@@ -22,11 +23,19 @@ func (r *OutflowRepository) CountOutflowsByCategory(user *models.User, categoryI
 		Count(count).Error
 }
 
-func (r *OutflowRepository) CountOutflows(user *models.User, year int) (int64, error) {
+func (r *OutflowRepository) CountOutflows(user *models.User, year int, filters []utils.Filter) (int64, error) {
 	var totalRecords int64
-	err := r.Db.Model(&models.Outflow{}).
-		Where("organization_id = ? AND YEAR(outflow_date) = ?", *user.PrimaryOrganizationID, year).
-		Count(&totalRecords).Error
+
+	query := r.Db.Model(&models.Outflow{}).
+		Where("outflows.organization_id = ? AND YEAR(outflows.outflow_date) = ?", *user.PrimaryOrganizationID, year)
+
+	if utils.NeedsJoin(filters, "outflow_category") {
+		query = query.Joins("JOIN outflow_categories ON outflow_categories.id = outflows.outflow_category_id")
+	}
+
+	query = utils.ApplyFilters(query, filters)
+
+	err := query.Count(&totalRecords).Error
 	if err != nil {
 		return 0, err
 	}
@@ -52,23 +61,30 @@ func (r *OutflowRepository) SumOutflowsByCategory(user *models.User, categoryID 
 	return total, nil
 }
 
-func (r *OutflowRepository) FindOutflows(user *models.User, year, offset, limit int, sortField, sortOrder string) ([]models.Outflow, error) {
-	var outflows []models.Outflow
+func (r *OutflowRepository) FindOutflows(user *models.User, year, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Outflow, error) {
+	var records []models.Outflow
 	orderBy := sortField + " " + sortOrder
 
-	err := r.Db.
+	query := r.Db.
 		Preload("OutflowCategory").
-		Where("organization_id = ? AND YEAR(outflow_date) = ?", *user.PrimaryOrganizationID, year).
+		Where("outflows.organization_id = ? AND YEAR(outflows.outflow_date) = ?", *user.PrimaryOrganizationID, year)
+
+	if utils.NeedsJoin(filters, "outflow_category") {
+		query = query.Joins("JOIN outflow_categories ON outflow_categories.id = outflows.outflow_category_id")
+	}
+
+	query = utils.ApplyFilters(query, filters)
+
+	err := query.
 		Order(orderBy).
 		Limit(limit).
 		Offset(offset).
-		Find(&outflows).Error
-
+		Find(&records).Error
 	if err != nil {
 		return nil, err
 	}
 
-	return outflows, nil
+	return records, nil
 }
 
 func (r *OutflowRepository) GetOutflowByID(user *models.User, outflowID uint) (*models.Outflow, error) {
