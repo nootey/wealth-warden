@@ -25,3 +25,10 @@ export interface DynamicCategoryMapping {
     secondary_links: object;
     secondary_type: string;
 }
+
+export interface Filter {
+    parameter: string;
+    operator: string;
+    value: string;
+    [key: string]: any; // if there are other dynamic keys like index
+}

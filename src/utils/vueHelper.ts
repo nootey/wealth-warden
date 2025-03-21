@@ -67,6 +67,23 @@ const vueHelper = {
             field: 'created_at'
         };
     },
+    toggleSort(sortValue: number) {
+        switch (sortValue) {
+            case 1:
+                return -1;
+            case -1:
+                return 1;
+        }
+    },
+    sortIcon(sort: object, field: string) {
+        if (sort.order === -1 && sort.field === field) {
+            return 'pi-sort-down';
+        }
+        if (sort.order === 1 && sort.field === field) {
+            return 'pi-sort-up';
+        }
+        return 'pi-sort';
+    },
     calculateGroupedStatistics<T>(
         groupedItems: T[],
         targetRef: { value: { category: string; total: number; average: number; spending_limit: number | null; category_type: string | null }[] },
