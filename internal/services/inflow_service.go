@@ -56,14 +56,14 @@ func (s *InflowService) FetchInflowsPaginated(c *gin.Context, paginationParams u
 		year = currentYear // Default to current year if invalid
 	}
 
-	totalRecords, err := s.InflowRepo.CountInflows(user, year)
+	totalRecords, err := s.InflowRepo.CountInflows(user, year, paginationParams.Filters)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
 
-	inflows, err := s.InflowRepo.FindInflows(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder)
+	inflows, err := s.InflowRepo.FindInflows(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
 	if err != nil {
 		return nil, 0, err
 	}

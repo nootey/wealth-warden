@@ -1,15 +1,23 @@
 package utils
 
 import (
+	"fmt"
 	"net/url"
 	"strconv"
 )
+
+type Filter struct {
+	Parameter string
+	Operator  string
+	Value     string
+}
 
 type PaginationParams struct {
 	PageNumber  int
 	RowsPerPage int
 	SortField   string
 	SortOrder   string
+	Filters     []Filter
 }
 
 func GetPaginationParams(queryParams url.Values) PaginationParams {
@@ -19,7 +27,8 @@ func GetPaginationParams(queryParams url.Values) PaginationParams {
 	rowsPerPage := 10
 	sortField := "created_at"
 	sortOrder := "desc"
-	
+	var filters []Filter
+
 	if pageParam := queryParams.Get("page"); pageParam != "" {
 		if parsedPage, err := strconv.Atoi(pageParam); err == nil {
 			pageNumber = parsedPage
@@ -42,10 +51,29 @@ func GetPaginationParams(queryParams url.Values) PaginationParams {
 		}
 	}
 
+	for i := 0; ; i++ {
+		operator := queryParams.Get(fmt.Sprintf("filters[%d][operator]", i))
+		parameter := queryParams.Get(fmt.Sprintf("filters[%d][parameter]", i))
+		value := queryParams.Get(fmt.Sprintf("filters[%d][value]", i))
+
+		if operator == "" && parameter == "" && value == "" {
+			break
+		}
+
+		if operator != "" && parameter != "" && value != "" {
+			filters = append(filters, Filter{
+				Parameter: parameter,
+				Operator:  operator,
+				Value:     value,
+			})
+		}
+	}
+
 	return PaginationParams{
 		PageNumber:  pageNumber,
 		RowsPerPage: rowsPerPage,
 		SortField:   sortField,
 		SortOrder:   sortOrder,
+		Filters:     filters,
 	}
 }

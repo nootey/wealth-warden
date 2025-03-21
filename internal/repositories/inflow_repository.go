@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 	"time"
 	"wealth-warden/internal/models"
+	"wealth-warden/pkg/utils"
 )
 
 type InflowRepository struct {
@@ -23,11 +24,19 @@ func (r *InflowRepository) CountInflowsByCategory(user *models.User, categoryID 
 		Count(count).Error
 }
 
-func (r *InflowRepository) CountInflows(user *models.User, year int) (int64, error) {
+func (r *InflowRepository) CountInflows(user *models.User, year int, filters []utils.Filter) (int64, error) {
 	var totalRecords int64
-	err := r.Db.Model(&models.Inflow{}).
-		Where("organization_id = ? AND YEAR(inflow_date) = ?", *user.PrimaryOrganizationID, year).
-		Count(&totalRecords).Error
+
+	query := r.Db.Model(&models.Inflow{}).
+		Where("inflows.organization_id = ? AND YEAR(inflows.inflow_date) = ?", *user.PrimaryOrganizationID, year)
+
+	if utils.NeedsJoin(filters, "inflow_category") {
+		query = query.Joins("JOIN inflow_categories ON inflow_categories.id = inflows.inflow_category_id")
+	}
+
+	query = utils.ApplyFilters(query, filters)
+
+	err := query.Count(&totalRecords).Error
 	if err != nil {
 		return 0, err
 	}
@@ -60,18 +69,25 @@ func (r *InflowRepository) SumInflowsByCategory(user *models.User, categoryID ui
 	return total, nil
 }
 
-func (r *InflowRepository) FindInflows(user *models.User, year, offset, limit int, sortField, sortOrder string) ([]models.Inflow, error) {
+func (r *InflowRepository) FindInflows(user *models.User, year, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Inflow, error) {
 	var inflows []models.Inflow
 	orderBy := sortField + " " + sortOrder
 
-	err := r.Db.
+	query := r.Db.
 		Preload("InflowCategory").
-		Where("organization_id = ? AND YEAR(inflow_date) = ?", *user.PrimaryOrganizationID, year).
+		Where("inflows.organization_id = ? AND YEAR(inflows.inflow_date) = ?", *user.PrimaryOrganizationID, year)
+
+	if utils.NeedsJoin(filters, "inflow_category") {
+		query = query.Joins("JOIN inflow_categories ON inflow_categories.id = inflows.inflow_category_id")
+	}
+
+	query = utils.ApplyFilters(query, filters)
+
+	err := query.
 		Order(orderBy).
 		Limit(limit).
 		Offset(offset).
 		Find(&inflows).Error
-
 	if err != nil {
 		return nil, err
 	}
