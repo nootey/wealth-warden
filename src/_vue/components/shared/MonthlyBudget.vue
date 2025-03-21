@@ -463,24 +463,29 @@ function extractName(mapping: any, categories: any) {
     <div class="flex flex-row w-full gap-2">
       <div class="flex flex-column gap-1">
         <span> <b>{{ "Total inflows" }}</b></span>
-        <InputNumber disabled size="small" v-model="currentBudget.total_inflow" mode="currency" currency="EUR" locale="de-DE" autofocus fluid></InputNumber>
+        <InputNumber disabled size="small" v-model="currentBudget.total_inflow" mode="currency" currency="EUR"
+                     locale="de-DE" autofocus fluid></InputNumber>
       </div>
       <div class="flex flex-column gap-1">
         <span> <b>{{ "Total outflows" }}</b></span>
-        <InputNumber disabled size="small" v-model="currentBudget.total_outflow" mode="currency" currency="EUR" locale="de-DE" autofocus fluid></InputNumber>
+        <InputNumber disabled size="small" v-model="currentBudget.total_outflow" mode="currency" currency="EUR"
+                     locale="de-DE" autofocus fluid></InputNumber>
       </div>
       <div class="flex flex-column gap-1">
         <span> <b>{{ "Effective budget" }}</b></span>
-        <InputNumber disabled size="small" v-model="currentBudget.effective_budget" mode="currency" currency="EUR" locale="de-DE" autofocus fluid></InputNumber>
+        <InputNumber disabled size="small" v-model="currentBudget.effective_budget" mode="currency" currency="EUR"
+                     locale="de-DE" autofocus fluid></InputNumber>
       </div>
       <div class="flex flex-column gap-1">
         <span> <b>{{ "Budget snapshot" }}</b></span>
-        <InputNumber :disabled="currentBudget.effective_budget < 1" size="small" v-model="currentBudget.budget_snapshot" mode="currency" currency="EUR" locale="de-DE"
+        <InputNumber :disabled="currentBudget.effective_budget < 1" size="small" v-model="currentBudget.budget_snapshot"
+                     mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"
                      autofocus fluid @update:modelValue="updateMonthlyBudget('budget_snapshot', currentBudget.budget_snapshot)"></InputNumber>
       </div>
       <div class="flex flex-column gap-1">
         <span> <b>{{ "Snapshot threshold" }}</b></span>
-        <InputNumber size="small" v-model="currentBudget.snapshot_threshold" mode="currency" currency="EUR" locale="de-DE"
+        <InputNumber size="small" v-model="currentBudget.snapshot_threshold" mode="currency"
+                     currency="EUR" locale="de-DE" placeholder="0,00 €"
                      autofocus fluid @update:modelValue="updateMonthlyBudget('snapshot_threshold', currentBudget.snapshot_threshold)"></InputNumber>
       </div>
     </div>
@@ -543,7 +548,7 @@ function extractName(mapping: any, categories: any) {
           <label>Allocation</label>
         </ValidationError>
         <InputNumber size="small" v-model="createNewAllocation.allocation" mode="currency" currency="EUR"
-                     locale="de-DE" placeholder="0,00"></InputNumber>
+                     locale="de-DE" placeholder="0,00 €"></InputNumber>
       </div>
       <div class="flex flex-column">
         <ValidationError :isRequired="false" message="">
