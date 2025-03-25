@@ -2,7 +2,7 @@
 
 import ValidationError from "../../components/validation/ValidationError.vue";
 import dateHelper from "../../../utils/dateHelper.ts";
-import {integer, numeric, required, helpers} from "@vuelidate/validators";
+import {integer, numeric, required, helpers, minValue, maxValue} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import {computed, inject, ref} from "vue";
 import {useInflowStore} from "../../../services/stores/inflowStore.ts";
@@ -42,8 +42,8 @@ const inflowRules = {
     amount: {
       required,
       numeric,
-      minValue: 0,
-      maxValue: 1000000000,
+      minValue: minValue(0),
+      maxValue: maxValue(1000000000),
       $autoDirty: true
     },
     inflowCategory: {
@@ -70,8 +70,8 @@ const inflowRules = {
     intervalValue: {
       required,
       integer,
-      minValue: 0,
-      maxValue: 9,
+      minValue: minValue(0),
+      maxValue: maxValue(9),
       $autoDirty: true
     },
     intervalUnit: {

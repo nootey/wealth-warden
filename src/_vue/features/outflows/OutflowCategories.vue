@@ -160,7 +160,8 @@ const searchOutflowType = (event: any) => {
         <ValidationError :isRequired="false" :message="v$.newOutflowCategory.spending_limit.$errors[0]?.$message">
           <label>Spending limit</label>
         </ValidationError>
-        <InputNumber size="small" v-model="newOutflowCategory.spending_limit" mode="currency" currency="EUR" locale="de-DE" autofocus fluid />
+        <InputNumber size="small" v-model="newOutflowCategory.spending_limit" mode="currency"
+                     currency="EUR" locale="de-DE" autofocus fluid placeholder="0,00 €"/>
       </div>
       <div class="flex flex-column">
         <ValidationError :isRequired="false" message="">
