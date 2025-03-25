@@ -63,12 +63,12 @@ func (s *InflowService) FetchInflowsPaginated(c *gin.Context, paginationParams u
 
 	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
 
-	inflows, err := s.InflowRepo.FindInflows(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
+	records, err := s.InflowRepo.FindInflows(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	return inflows, int(totalRecords), nil
+	return records, int(totalRecords), nil
 }
 
 func (s *InflowService) FetchAllInflowsGroupedByMonth(c *gin.Context, yearParam string) ([]models.InflowSummary, error) {

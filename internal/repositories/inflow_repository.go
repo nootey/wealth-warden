@@ -279,9 +279,9 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(user *models.User, year 
 }
 
 func (r *InflowRepository) FindAllInflowCategories(user *models.User) ([]models.InflowCategory, error) {
-	var inflowCategories []models.InflowCategory
-	result := r.Db.Where("organization_id = ?", *user.PrimaryOrganizationID).Find(&inflowCategories)
-	return inflowCategories, result.Error
+	var records []models.InflowCategory
+	result := r.Db.Where("organization_id = ?", *user.PrimaryOrganizationID).Find(&records)
+	return records, result.Error
 }
 
 func (r *InflowRepository) FindAllDynamicCategories(user *models.User) ([]models.DynamicCategory, error) {

@@ -25,7 +25,7 @@ func (h *InflowHandler) GetInflowsPaginated(c *gin.Context) {
 	paginationParams := utils.GetPaginationParams(queryParams)
 	yearParam := queryParams.Get("year")
 
-	inflows, totalRecords, err := h.Service.FetchInflowsPaginated(c, paginationParams, yearParam)
+	records, totalRecords, err := h.Service.FetchInflowsPaginated(c, paginationParams, yearParam)
 	if err != nil {
 		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
@@ -37,7 +37,7 @@ func (h *InflowHandler) GetInflowsPaginated(c *gin.Context) {
 		from = totalRecords
 	}
 
-	to := offset + len(inflows)
+	to := offset + len(records)
 	if to > totalRecords {
 		to = totalRecords
 	}
@@ -48,7 +48,7 @@ func (h *InflowHandler) GetInflowsPaginated(c *gin.Context) {
 		"from":          from,
 		"to":            to,
 		"total_records": totalRecords,
-		"data":          inflows,
+		"data":          records,
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -68,12 +68,12 @@ func (h *InflowHandler) GetAllInflowsGroupedByMonth(c *gin.Context) {
 }
 
 func (h *InflowHandler) GetAllInflowCategories(c *gin.Context) {
-	inflowCategories, err := h.Service.FetchAllInflowCategories(c)
+	categories, err := h.Service.FetchAllInflowCategories(c)
 	if err != nil {
 		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, inflowCategories)
+	c.JSON(http.StatusOK, categories)
 }
 
 func (h *InflowHandler) GetAllDynamicCategories(c *gin.Context) {
