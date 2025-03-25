@@ -6,8 +6,7 @@ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
 organization_id BIGINT UNSIGNED NOT NULL,
 user_id BIGINT UNSIGNED NOT NULL,
 savings_category_id BIGINT UNSIGNED NOT NULL,
-year DATE NOT NULL, -- Track year
-month DATE NOT NULL, -- Track month
+savings_date TIMESTAMP NOT NULL,
 allocated_amount DECIMAL(10,2) NOT NULL, -- How much was saved that month
 adjusted_amount DECIMAL(10,2) DEFAULT NULL, -- Manual user adjustment (if they modify, defaults to match allocated_amount)
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
