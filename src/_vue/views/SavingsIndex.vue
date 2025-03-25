@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import {useToastStore} from "../../services/stores/toastStore.ts";
 import {computed, onMounted, provide, ref} from "vue";
-import type {Statistics} from "../../models/shared.ts";
 import vueHelper from "../../utils/vueHelper.ts";
 import {useSavingsStore} from "../../services/stores/savingsStore.ts";
+import dateHelper from "../../utils/dateHelper.ts";
+import ValidationError from "../components/validation/ValidationError.vue";
+import LoadingSpinner from "../components/ui/LoadingSpinner.vue";
+import ColumnHeader from "../components/shared/ColumnHeader.vue";
+import YearPicker from "../components/shared/YearPicker.vue";
+import BaseFilter from "../components/shared/filters/BaseFilter.vue";
+import SavingsCreate from "../features/savings/SavingsCreate.vue";
+import SavingsCategories from "../features/savings/SavingsCategories.vue";
 
 const savingsStore = useSavingsStore();
 const toastStore = useToastStore();
@@ -221,7 +228,150 @@ provide('removeFilter', removeFilter);
 </script>
 
 <template>
-    {{ "Savings" }}
+  <Dialog v-model:visible="addSavingsModal" :breakpoints="{'801px': '90vw'}"
+          :modal="true" :style="{width: '800px'}" header="Add savings">
+    <SavingsCreate></SavingsCreate>
+  </Dialog>
+  <Dialog v-model:visible="addCategoryModal" :breakpoints="{'801px': '90vw'}"
+          :modal="true" :style="{width: '800px'}" header="Savings categories">
+    <SavingsCategories :restricted="false"></SavingsCategories>
+  </Dialog>
+  <Popover ref="filterOverlayRef">
+    <BaseFilter :activeColumn="activeFilterColumn"
+                :filter="filterObj" :filters="filters" :filterType="filterType"></BaseFilter>
+  </Popover>
+
+  <div class="flex w-full p-2">
+    <div class="flex w-9 flex-column p-2 gap-3">
+
+      <div class="flex flex-row p-1 fap-2 align-items-center">
+        <div class="flex flex-column p-1">
+          Select year:
+        </div>
+        <div>
+          <YearPicker records="savings" :year="savingsStore.currentYear"
+                      :availableYears="savingsStore.savingsYears"  @update:year="updateYear" />
+        </div>
+      </div>
+
+      <div class="flex flex-row p-1">
+        <h3>
+          Manage entries
+        </h3>
+      </div>
+
+      <div class="flex flex-row p-1 w-full gap-2">
+        <div class="flex flex-column w-6 justify-content-center align-items-center">
+          <ValidationError :isRequired="false" message="">
+            <label>Savings</label>
+          </ValidationError>
+          <Button class="w-6" icon="pi pi-file-check" label="Create" @click="manipulateDialog('add-savings', true)"></Button>
+        </div>
+
+        <div class="flex flex-column w-6 justify-content-center align-items-center">
+          <ValidationError :isRequired="false" message="">
+            <label>Savings categories</label>
+          </ValidationError>
+          <Button class="w-6" icon="pi pi-file-arrow-up" label="Manage" @click="manipulateDialog('add-category', true)"></Button>
+        </div>
+
+      </div>
+
+
+      <div class="flex flex-row p-1 w-full">
+        <h3>
+          All savings
+        </h3>
+      </div>
+
+      <div class="flex flex-row gap-2 w-full">
+        <DataTable class="w-full" dataKey="id" :loading="loadingSavingss" :value="savings" size="small"
+                   editMode="cell">
+          <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
+          <template #loading> <LoadingSpinner></LoadingSpinner> </template>
+          <template #footer>
+            <Paginator v-model:first="paginator.from"
+                       v-model:rows="paginator.rowsPerPage"
+                       :rowsPerPageOptions="rows"
+                       :totalRecords="paginator.total"
+                       @page="onPage($event)">
+              <template #end>
+                <div>
+                  {{
+                    "Showing " + paginator.from + " to " + paginator.to + " out of " + paginator.total + " " + "records"
+                  }}
+                </div>
+              </template>
+            </Paginator>
+          </template>
+          <Column header="Actions">
+            <template #body="slotProps">
+              <div class="flex flex-row align-items-center gap-2">
+                <i class="pi pi-trash hover_icon" style="color: var(--accent-primary)"
+                   @click="removeSaving(slotProps.data?.id)"></i>
+              </div>
+            </template>
+          </Column>
+
+          <Column v-for="col of savingsColumns" :key="col.field" :field="col.field" style="width: 25%">
+            <template #header>
+              <ColumnHeader :header="col.header" :field="col.field" :sort="sort" :filter="true" :filters="filters"></ColumnHeader>
+            </template>
+            <template #body="{ data, field }">
+              <template v-if="field === 'amount'">
+                {{ vueHelper.displayAsCurrency(data.amount) }}
+              </template>
+              <template v-else-if="field === 'savings_date'">
+                {{ dateHelper.formatDate(data?.savings_date, true) }}
+              </template>
+              <template v-else-if="field === 'savings_category'">
+                {{ data[field]["name"] }}
+              </template>
+              <template v-else>
+                {{ data[field] }}
+              </template>
+            </template>
+
+            <template #editor="{ data, field }">
+              <template v-if="field === 'amount'">
+                <InputNumber size="small" v-model="data[field]" mode="currency" currency="EUR" locale="de-DE" autofocus fluid />
+              </template>
+              <template v-else-if="field === 'savings_date'">
+                <DatePicker v-model="data[field]" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
+                            style="height: 42px;"/>
+              </template>
+              <template v-else-if="field === 'savings_category'">
+                <AutoComplete size="small" v-model="data[field]" :suggestions="filteredSavingCategories"
+                              @complete="searchSavingsCategory" option-label="name" placeholder="Select category" dropdown></AutoComplete>
+              </template>
+              <template v-else>
+                <InputText size="small" v-model="data[field]" autofocus fluid />
+              </template>
+            </template>
+          </Column>
+
+        </DataTable>
+      </div>
+    </div>
+
+    <div class="flex flex-column w-3 p-2 gap-3" style="border-left: 1px solid var(--text-primary);">
+
+      <div class="flex flex-row p-1">
+        <h2>
+          Statistics
+        </h2>
+      </div>
+
+      <div class="flex flex-row p-1">
+        <h3>
+          Savings
+        </h3>
+      </div>
+
+<!--      <BasicStatDisplay :basicStats="savingsStatistics" :limit="false" :dataCount="dataCount" />-->
+
+    </div>
+  </div>
 </template>
 
 <style scoped>

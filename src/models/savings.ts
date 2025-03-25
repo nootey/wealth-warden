@@ -10,4 +10,7 @@ export interface SavingAllocation {
 export interface SavingsCategory {
     id: number|null;
     name: string;
+    savings_type: string;
+    goal_value: number;
+    interest_rate: number|null;
 }
