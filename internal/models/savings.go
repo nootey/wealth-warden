@@ -3,20 +3,19 @@ package models
 import "time"
 
 type SavingsCategory struct {
-	ID              uint       `gorm:"primaryKey" json:"id"`
-	OrganizationID  uint       `gorm:"not_null;index" json:"organization_id"`
-	UserID          uint       `gorm:"not null" json:"user_id"`
-	Name            string     `gorm:"type:varchar(100);not null" json:"name"`
-	SavingsType     string     `gorm:"type:enum('fixed', 'variable');not null" json:"savings_type"`
-	Priority        int        `gorm:"default:1" json:"priority"`
-	GoalValue       *float64   `gorm:"type:decimal(10,2)" json:"goal_value,omitempty"` // Nullable
-	GoalProgress    float64    `gorm:"type:decimal(10,2);default:0.00" json:"goal_progress"`
-	GoalTimeLimit   *time.Time `json:"goal_time_limit,omitempty"`
-	InterestRate    *float64   `gorm:"type:decimal(5,2)" json:"interest_rate,omitempty"` // Nullable
-	AccruedInterest float64    `gorm:"type:decimal(10,2);default:0.00" json:"accrued_interest"`
-	AccountType     string     `gorm:"type:varchar(128);default:'manual'" json:"account_type"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID              uint      `gorm:"primaryKey" json:"id"`
+	OrganizationID  uint      `gorm:"not_null;index" json:"organization_id"`
+	UserID          uint      `gorm:"not null" json:"user_id"`
+	Name            string    `gorm:"type:varchar(100);not null" json:"name"`
+	SavingsType     string    `gorm:"type:enum('fixed', 'variable');not null" json:"savings_type"`
+	Priority        int       `gorm:"default:1" json:"priority"`
+	GoalValue       *float64  `gorm:"type:decimal(10,2)" json:"goal_value,omitempty"`
+	GoalProgress    float64   `gorm:"type:decimal(10,2);default:0.00" json:"goal_progress"`
+	AccountType     string    `gorm:"type:varchar(128);default:'normal'" json:"account_type"` // normal, interest
+	InterestRate    *float64  `gorm:"type:decimal(5,2)" json:"interest_rate,omitempty"`
+	AccruedInterest float64   `gorm:"type:decimal(10,2);default:0.00" json:"accrued_interest"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type SavingsAllocation struct {

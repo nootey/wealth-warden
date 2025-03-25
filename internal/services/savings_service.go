@@ -72,3 +72,25 @@ func (s *SavingsService) FetchAllSavingsCategories(c *gin.Context) ([]models.Sav
 	}
 	return s.SavingsRepo.FindAllSavingCategories(user)
 }
+
+func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models.SavingsCategory) error {
+
+	//user, err := s.AuthService.GetCurrentUser(c, false)
+	//if err != nil {
+	//	return err
+	//}
+	//changes := utils.InitChanges()
+
+	tx := s.SavingsRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	//err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow_category", nil, changes, user)
+	//if err != nil {
+	//	tx.Rollback()
+	//	return err
+	//}
+
+	return tx.Commit().Error
+}
