@@ -180,19 +180,19 @@ func (r *OutflowRepository) UpdateOutflow(tx *gorm.DB, user *models.User, record
 	return record.ID, nil
 }
 
-func (r *OutflowRepository) InsertOutflowCategory(tx *gorm.DB, user *models.User, outflowCategory *models.OutflowCategory) error {
+func (r *OutflowRepository) InsertOutflowCategory(tx *gorm.DB, user *models.User, record *models.OutflowCategory) error {
 
 	var existing models.OutflowCategory
-	if err := tx.Where("organization_id = ? AND name = ?", *user.PrimaryOrganizationID, outflowCategory.Name).First(&existing).Error; err == nil {
+	if err := tx.Where("organization_id = ? AND name = ?", *user.PrimaryOrganizationID, record.Name).First(&existing).Error; err == nil {
 		return errors.New("category with this name already exists")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
 
 	// Insert new category
-	outflowCategory.OrganizationID = *user.PrimaryOrganizationID
-	outflowCategory.UserID = user.ID
-	if err := tx.Create(&outflowCategory).Error; err != nil {
+	record.OrganizationID = *user.PrimaryOrganizationID
+	record.UserID = user.ID
+	if err := tx.Create(&record).Error; err != nil {
 		return err
 	}
 	return nil

@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"errors"
 	"gorm.io/gorm"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
@@ -63,4 +64,22 @@ func (r *SavingsRepository) CountSavings(user *models.User, year int, filters []
 		return 0, err
 	}
 	return totalRecords, nil
+}
+
+func (r *SavingsRepository) InsertSavingsCategory(tx *gorm.DB, user *models.User, record *models.SavingsCategory) error {
+
+	var existing models.OutflowCategory
+	if err := tx.Where("organization_id = ? AND name = ?", *user.PrimaryOrganizationID, record.Name).First(&existing).Error; err == nil {
+		return errors.New("category with this name already exists")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	// Insert new category
+	record.OrganizationID = *user.PrimaryOrganizationID
+	record.UserID = user.ID
+	if err := tx.Create(&record).Error; err != nil {
+		return err
+	}
+	return nil
 }

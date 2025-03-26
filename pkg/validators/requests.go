@@ -97,7 +97,7 @@ type CreateSavingsCategoryRequest struct {
 	ID           uint     `json:"id"`
 	Name         string   `json:"name" validate:"required,max=100"`
 	SavingsType  string   `json:"savings_type" validate:"required"`
-	GoalValue    *float64 `json:"goal_value" validate:"required"`
+	GoalValue    *float64 `json:"goal_value"`
 	AccountType  string   `json:"account_type" validate:"required"`
 	InterestRate *float64 `json:"interest_rate"`
 }

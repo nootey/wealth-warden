@@ -77,10 +77,11 @@ func (h *SavingsHandler) CreateNewSavingsCategory(c *gin.Context) {
 	}
 
 	record := &models.SavingsCategory{
-		Name:        utils.CleanString(req.Name).(string),
-		SavingsType: req.SavingsType,
-		GoalValue:   req.GoalValue,
-		AccountType: req.AccountType,
+		Name:         utils.CleanString(req.Name).(string),
+		SavingsType:  req.SavingsType,
+		GoalValue:    req.GoalValue,
+		AccountType:  req.AccountType,
+		InterestRate: req.InterestRate,
 	}
 
 	if err := h.Service.CreateSavingsCategory(c, record); err != nil {

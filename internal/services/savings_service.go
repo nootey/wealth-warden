@@ -75,22 +75,42 @@ func (s *SavingsService) FetchAllSavingsCategories(c *gin.Context) ([]models.Sav
 
 func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models.SavingsCategory) error {
 
-	//user, err := s.AuthService.GetCurrentUser(c, false)
-	//if err != nil {
-	//	return err
-	//}
-	//changes := utils.InitChanges()
+	user, err := s.AuthService.GetCurrentUser(c, false)
+	if err != nil {
+		return err
+	}
+	changes := utils.InitChanges()
 
 	tx := s.SavingsRepo.Db.Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
 
-	//err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow_category", nil, changes, user)
-	//if err != nil {
-	//	tx.Rollback()
-	//	return err
-	//}
+	utils.CompareChanges("", newRecord.Name, changes, "category")
+	utils.CompareChanges("", newRecord.SavingsType, changes, "type")
+	utils.CompareChanges("", newRecord.AccountType, changes, "account_type")
+
+	if newRecord.AccountType == "interest" && newRecord.InterestRate != nil {
+		interestString := strconv.FormatFloat(*newRecord.InterestRate, 'f', 2, 64)
+		utils.CompareChanges("", interestString, changes, "interest")
+	}
+
+	if newRecord.GoalValue != nil {
+		goalValueString := strconv.FormatFloat(*newRecord.GoalValue, 'f', 2, 64)
+		utils.CompareChanges("", goalValueString, changes, "goal_value")
+	}
+
+	err = s.SavingsRepo.InsertSavingsCategory(tx, user, newRecord)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_category", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	return tx.Commit().Error
 }

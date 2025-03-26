@@ -8,6 +8,6 @@ import (
 func SavingsRoutes(apiGroup *gin.RouterGroup, handler *handlers.SavingsHandler) {
 	apiGroup.GET("/", handler.GetSavingsPaginated)
 	apiGroup.GET("/categories", handler.GetAllSavingsCategories)
-	apiGroup.GET("/create-category", handler.CreateNewSavingsCategory)
+	apiGroup.POST("/create-category", handler.CreateNewSavingsCategory)
 
 }
