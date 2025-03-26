@@ -96,13 +96,13 @@ func (r *OutflowRepository) GetOutflowByID(user *models.User, outflowID uint) (*
 	return &outflow, nil
 }
 
-func (r *OutflowRepository) GetOutflowCategoryByID(user *models.User, outflowCategoryID uint) (*models.OutflowCategory, error) {
-	var outflowCategory models.OutflowCategory
-	err := r.Db.Where("id = ? AND organization_id = ?", outflowCategoryID, *user.PrimaryOrganizationID).First(&outflowCategory).Error
+func (r *OutflowRepository) GetOutflowCategoryByID(user *models.User, categoryID uint) (*models.OutflowCategory, error) {
+	var record models.OutflowCategory
+	err := r.Db.Where("id = ? AND organization_id = ?", categoryID, *user.PrimaryOrganizationID).First(&record).Error
 	if err != nil {
 		return nil, err
 	}
-	return &outflowCategory, nil
+	return &record, nil
 }
 
 func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(user *models.User, year int) ([]models.OutflowSummary, error) {
