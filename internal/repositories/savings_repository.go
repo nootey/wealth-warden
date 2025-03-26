@@ -68,7 +68,7 @@ func (r *SavingsRepository) CountSavings(user *models.User, year int, filters []
 
 func (r *SavingsRepository) InsertSavingsCategory(tx *gorm.DB, user *models.User, record *models.SavingsCategory) error {
 
-	var existing models.OutflowCategory
+	var existing models.SavingsCategory
 	if err := tx.Where("organization_id = ? AND name = ?", *user.PrimaryOrganizationID, record.Name).First(&existing).Error; err == nil {
 		return errors.New("category with this name already exists")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -79,6 +79,23 @@ func (r *SavingsRepository) InsertSavingsCategory(tx *gorm.DB, user *models.User
 	record.OrganizationID = *user.PrimaryOrganizationID
 	record.UserID = user.ID
 	if err := tx.Create(&record).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *SavingsRepository) GetSavingsCategoryByID(user *models.User, categoryID uint) (*models.SavingsCategory, error) {
+	var record models.SavingsCategory
+	err := r.Db.Where("id = ? AND organization_id = ?", categoryID, *user.PrimaryOrganizationID).First(&record).Error
+	if err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
+func (r *SavingsRepository) UpdateSavingsCategory(tx *gorm.DB, user *models.User, record *models.SavingsCategory) error {
+	record.UserID = user.ID
+	if err := tx.Model(&models.SavingsCategory{}).Where("organization_id = ? AND id = ?", *user.PrimaryOrganizationID, record.ID).Updates(record).Error; err != nil {
 		return err
 	}
 	return nil

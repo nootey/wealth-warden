@@ -78,9 +78,9 @@ func (h *SavingsHandler) CreateNewSavingsCategory(c *gin.Context) {
 
 	record := &models.SavingsCategory{
 		Name:         utils.CleanString(req.Name).(string),
-		SavingsType:  req.SavingsType,
+		SavingsType:  utils.CleanString(req.SavingsType).(string),
 		GoalValue:    req.GoalValue,
-		AccountType:  req.AccountType,
+		AccountType:  utils.CleanString(req.AccountType).(string),
 		InterestRate: req.InterestRate,
 	}
 
@@ -90,4 +90,36 @@ func (h *SavingsHandler) CreateNewSavingsCategory(c *gin.Context) {
 	}
 
 	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+}
+
+func (h *SavingsHandler) UpdateSavingsCategory(c *gin.Context) {
+
+	var req validators.CreateSavingsCategoryRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(err.Error())(c, nil)
+		return
+	}
+
+	record := &models.SavingsCategory{
+		ID:           req.ID,
+		Name:         utils.CleanString(req.Name).(string),
+		SavingsType:  utils.CleanString(req.SavingsType).(string),
+		GoalValue:    req.GoalValue,
+		AccountType:  utils.CleanString(req.AccountType).(string),
+		InterestRate: req.InterestRate,
+	}
+
+	if err := h.Service.UpdateSavingsCategory(c, record); err != nil {
+		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("Record updated", "Success", http.StatusOK)(c.Writer, c.Request)
 }

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"strconv"
 	"time"
@@ -107,6 +108,57 @@ func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models
 	}
 
 	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_category", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func (s *SavingsService) UpdateSavingsCategory(c *gin.Context, newRecord *models.SavingsCategory) error {
+
+	user, err := s.AuthService.GetCurrentUser(c, false)
+	if err != nil {
+		return err
+	}
+	changes := utils.InitChanges()
+
+	tx := s.SavingsRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	existingRecord, err := s.SavingsRepo.GetSavingsCategoryByID(user, newRecord.ID)
+	if err != nil {
+		return err
+	}
+
+	utils.CompareChanges(existingRecord.Name, newRecord.Name, changes, "category")
+	utils.CompareChanges(existingRecord.SavingsType, newRecord.SavingsType, changes, "type")
+	utils.CompareChanges(existingRecord.AccountType, newRecord.AccountType, changes, "account_type")
+
+	if newRecord.AccountType == "interest" && newRecord.InterestRate != nil {
+		existingInterestString := strconv.FormatFloat(*existingRecord.InterestRate, 'f', 2, 64)
+		interestString := strconv.FormatFloat(*newRecord.InterestRate, 'f', 2, 64)
+		utils.CompareChanges(existingInterestString, interestString, changes, "interest")
+	}
+
+	if newRecord.GoalValue != nil {
+		existingGoalValueString := strconv.FormatFloat(*existingRecord.GoalValue, 'f', 2, 64)
+		goalValueString := strconv.FormatFloat(*newRecord.GoalValue, 'f', 2, 64)
+		utils.CompareChanges(existingGoalValueString, goalValueString, changes, "goal_value")
+	}
+
+	err = s.SavingsRepo.UpdateSavingsCategory(tx, user, newRecord)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	description := fmt.Sprintf("Savings category with ID: %d has been updated", newRecord.ID)
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "savings_category", &description, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
