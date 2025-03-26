@@ -59,5 +59,13 @@ export const useSavingsStore = defineStore('savings', {
             }
         },
 
+        async updateSavingsCategory(SavingsCategory: SavingsCategory|null) {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/update-category`, SavingsCategory);
+            } catch (err) {
+                throw err;
+            }
+        },
+
     }
 });

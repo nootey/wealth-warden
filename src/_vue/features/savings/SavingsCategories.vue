@@ -22,7 +22,9 @@ const props = defineProps<{
 const loading = ref(false);
 
 const savingsTypes = ref(["fixed", "variable"]);
+const accountTypes = ref(["normal", "interest"]);
 const filteredSavingsTypes = ref([]);
+const filteredAccountTypes = ref([]);
 
 const categoryColumns = ref([
   { field: 'name', header: 'Name' },
@@ -87,6 +89,18 @@ const searchSavingsTypes = (event: any) => {
   }, 250);
 }
 
+const searchAccountTypes = (event: any) => {
+  setTimeout(() => {
+    if (!event.query.trim().length) {
+      filteredAccountTypes.value = [...accountTypes.value];
+    } else {
+      filteredAccountTypes.value = accountTypes.value.filter((record) => {
+        return record.toLowerCase().startsWith(event.query.toLowerCase());
+      });
+    }
+  }, 250);
+}
+
 function toggleAccountType(event: any){
   hasInterest.value = event;
 }
@@ -133,7 +147,13 @@ async function onCellEditComplete(event: any) {
     let response = await savingsStore.updateSavingsCategory({
       id: event.data.id,
       name: event?.newData?.name,
+      savings_type: event?.newData?.savings_type,
+      goal_value: event?.newData?.goal_value,
+      interest_rate: event?.newData?.interest_rate,
+      account_type: event?.newData?.account_type,
     });
+
+    await savingsStore.getSavingsCategories();
 
     toastStore.infoResponseToast(response);
 
@@ -195,7 +215,7 @@ async function onCellEditComplete(event: any) {
         <ValidationError :isRequired="true" :message="v$.newSavingsCategory.interest_rate.$errors[0]?.$message">
           <label>Interest rate</label>
         </ValidationError>
-        <InputNumber size="small" v-model="newSavingsCategory.interest_rate"   :min="0"
+        <InputNumber size="small" v-model="newSavingsCategory.interest_rate" :min="0"
                      :max="100"
                      :step="0.1"
                      :minFractionDigits="0"
@@ -226,9 +246,6 @@ async function onCellEditComplete(event: any) {
             <template v-if="['goal_value', 'goal_progress'].includes(col.field)">
               {{ vueHelper.displayAsCurrency(data[col.field]) }}
             </template>
-            <template v-else-if="field === 'inflow_date'">
-              {{ dateHelper.formatDate(data?.inflow_date, true) }}
-            </template>
             <template v-else-if="['interest_rate', 'accrued_interest'].includes(col.field)">
               <span v-if="data['account_type'] === 'interest'">{{ field === 'accrued_interest' ? vueHelper.displayAsCurrency(data[field]) : vueHelper.displayAsPercentage(data[field]) }}</span>
               <span v-else> {{ "/" }}</span>
@@ -242,12 +259,22 @@ async function onCellEditComplete(event: any) {
             <template v-if="field === 'goal_value'">
               <InputNumber size="small" v-model="data[field]" mode="currency" currency="EUR" locale="de-DE" autofocus fluid />
             </template>
+            <template v-else-if="field === 'account_type'">
+              <AutoComplete size="small" v-model="data[field]" :suggestions="filteredAccountTypes"
+                            @complete="searchAccountTypes"  placeholder="Select type" dropdown></AutoComplete>
+            </template>
             <template v-else-if="field === 'savings_type'">
               <AutoComplete size="small" v-model="data[field]" :suggestions="filteredSavingsTypes"
                             @complete="searchSavingsTypes"  placeholder="Select type" dropdown></AutoComplete>
             </template>
             <template v-else-if="['interest_rate'].includes(field)">
-              <InputNumber v-if="data['account_type'] === 'interest'" size="small" v-model="data[field]" mode="currency" currency="EUR" locale="de-DE" autofocus fluid />
+              <InputNumber v-if="data['account_type'] === 'interest'" size="small" v-model="data[field]" :min="0"
+                           :max="100"
+                           :step="0.1"
+                           :minFractionDigits="0"
+                           :maxFractionDigits="2"
+                           mode="decimal"
+                           placeholder="0.0" />
               <span v-else>{{ "/" }}</span>
             </template>
             <template v-else>
