@@ -7,6 +7,8 @@ import useVuelidate from "@vuelidate/core";
 import dateHelper from "../../../utils/dateHelper.ts";
 import ValidationError from "../../components/validation/ValidationError.vue";
 import LoadingSpinner from "../../components/ui/LoadingSpinner.vue";
+import vueHelper from "../../../utils/vueHelper.ts";
+import ColumnHeader from "../../components/shared/ColumnHeader.vue";
 
 const savingsStore = useSavingsStore();
 const toastStore = useToastStore();
@@ -21,6 +23,16 @@ const loading = ref(false);
 
 const savingsTypes = ref(["fixed", "variable"]);
 const filteredSavingsTypes = ref([]);
+
+const categoryColumns = ref([
+  { field: 'name', header: 'Name' },
+  { field: 'savings_type', header: 'Savings type' },
+  { field: 'goal_value', header: 'Goal' },
+  { field: 'goal_progress', header: 'Progress' },
+  { field: 'account_type', header: 'Account' },
+  { field: 'interest_rate', header: 'Interest rate' },
+  { field: 'accrued_interest', header: 'Accrued Interest' },
+]);
 
 const isInterestAccount = computed(() => {
   return hasInterest.value;
@@ -83,7 +95,6 @@ async function createNewSavingsCategory() {
 
   v$.value.newSavingsCategory.$touch();
   if (v$.value.newSavingsCategory.$error) return;
-
   try {
     let response = await savingsStore.createSavingsCategory({
       id: null,
@@ -91,6 +102,7 @@ async function createNewSavingsCategory() {
       savings_type: newSavingsCategory.value.savings_type,
       goal_value: newSavingsCategory.value.goal_value,
       interest_rate: newSavingsCategory.value.interest_rate,
+      account_type: hasInterest.value ? "interest" : "normal",
     });
     newSavingsCategory.value = initSavingsCategory();
     toastStore.successResponseToast(response);
@@ -113,6 +125,10 @@ async function onCellEditComplete(event: any) {
   if(props.restricted) {
     return;
   }
+  if (event.field === "interest_rate" && event?.newData?.account_type !== "interest") {
+    return;
+  }
+
   try {
     let response = await savingsStore.updateSavingsCategory({
       id: event.data.id,
@@ -176,10 +192,16 @@ async function onCellEditComplete(event: any) {
 
     <div v-if="hasInterest" class="flex flex-row w-full gap-2 p-1 align-items-center">
       <div class="flex flex-column">
-        <ValidationError :isRequired="false" :message="v$.newSavingsCategory.interest_rate.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.newSavingsCategory.interest_rate.$errors[0]?.$message">
           <label>Interest rate</label>
         </ValidationError>
-        <InputNumber size="small" v-model="newSavingsCategory.interest_rate" inputId="integeronly" :min="0" :max="100" autofocus fluid placeholder="0%" />
+        <InputNumber size="small" v-model="newSavingsCategory.interest_rate"   :min="0"
+                     :max="100"
+                     :step="0.1"
+                     :minFractionDigits="0"
+                     :maxFractionDigits="2"
+                     mode="decimal"
+                     placeholder="0.0" autofocus fluid />
       </div>
     </div>
 
@@ -199,15 +221,38 @@ async function onCellEditComplete(event: any) {
           </template>
         </Column>
 
-        <Column field="name" header="Name" :sortable="true">
-          <template v-if="!props.restricted" #editor="{ data, field }">
-            <InputText  size="small" v-model="data[field]" autofocus fluid />
+        <Column v-for="col of categoryColumns" :key="col.field" :field="col.field" :header="col.header" style="width: 25%">
+          <template #body="{ data, field }">
+            <template v-if="['goal_value', 'goal_progress'].includes(col.field)">
+              {{ vueHelper.displayAsCurrency(data[col.field]) }}
+            </template>
+            <template v-else-if="field === 'inflow_date'">
+              {{ dateHelper.formatDate(data?.inflow_date, true) }}
+            </template>
+            <template v-else-if="['interest_rate', 'accrued_interest'].includes(col.field)">
+              <span v-if="data['account_type'] === 'interest'">{{ field === 'accrued_interest' ? vueHelper.displayAsCurrency(data[field]) : vueHelper.displayAsPercentage(data[field]) }}</span>
+              <span v-else> {{ "/" }}</span>
+            </template>
+            <template v-else>
+              {{ data[field] }}
+            </template>
           </template>
-        </Column>
 
-        <Column field="created_at" header="Created" :sortable="true">
-          <template #body="slotProps">
-            {{ dateHelper.formatDate(slotProps.data?.created_at, true) }}
+          <template v-if="!['goal_progress', 'accrued_interest'].includes(col.field)" #editor="{ data, field }">
+            <template v-if="field === 'goal_value'">
+              <InputNumber size="small" v-model="data[field]" mode="currency" currency="EUR" locale="de-DE" autofocus fluid />
+            </template>
+            <template v-else-if="field === 'savings_type'">
+              <AutoComplete size="small" v-model="data[field]" :suggestions="filteredSavingsTypes"
+                            @complete="searchSavingsTypes"  placeholder="Select type" dropdown></AutoComplete>
+            </template>
+            <template v-else-if="['interest_rate'].includes(field)">
+              <InputNumber v-if="data['account_type'] === 'interest'" size="small" v-model="data[field]" mode="currency" currency="EUR" locale="de-DE" autofocus fluid />
+              <span v-else>{{ "/" }}</span>
+            </template>
+            <template v-else>
+              <InputText size="small" v-model="data[field]" autofocus fluid />
+            </template>
           </template>
         </Column>
       </DataTable>

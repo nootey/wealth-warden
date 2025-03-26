@@ -1,9 +1,9 @@
 export interface SavingAllocation {
     id: number|null;
-    inflow_category_id: number;
-    inflow_category: object;
+    savings_category_id: number;
+    savings_category: object;
     amount: number;
-    inflow_date: any;
+    savings_date: any;
     description: string|null;
 }
 
@@ -13,4 +13,5 @@ export interface SavingsCategory {
     savings_type: string;
     goal_value: number;
     interest_rate: number|null;
+    account_type: string;
 }

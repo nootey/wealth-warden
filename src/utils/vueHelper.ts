@@ -61,6 +61,14 @@ const vueHelper = {
         if (isNaN(num)) return "Invalid Amount"; // Handle invalid cases
         return num.toFixed(2) + " €";
     },
+    displayAsPercentage: (value: number | string | null) => {
+        if (value === null || value === undefined) return null;
+
+        const num = Number(value);
+        if (isNaN(num)) return "Invalid Percentage";
+
+        return num.toFixed(1) + " %";
+    },
     initSort() {
         return {
             order: -1,
