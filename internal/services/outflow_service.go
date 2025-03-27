@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"sort"
 	"strconv"
 	"time"
 	"wealth-warden/internal/models"
@@ -82,7 +83,53 @@ func (s *OutflowService) FetchAllOutflowsGroupedByMonth(c *gin.Context, yearPara
 		year = currentYear
 	}
 
-	return s.OutflowRepo.FindAllOutflowsGroupedByMonth(user, year)
+	var summaries []models.OutflowSummary
+
+	total, err := s.OutflowRepo.FindTotalForGroupedOutflows(user, year)
+	if err != nil {
+		return nil, err
+	}
+	summaries = append(summaries, total...)
+
+	categorized, err := s.OutflowRepo.FetchGroupedOutflowsByCategoryAndMonth(user, year)
+	if err != nil {
+		return nil, err
+	}
+	summaries = append(summaries, categorized...)
+
+	sort.SliceStable(summaries, func(i, j int) bool {
+		a, b := summaries[i], summaries[j]
+
+		typeRank := map[string]int{
+			"fixed":    0,
+			"variable": 1,
+		}
+
+		// Compare category types (fixed before variable)
+		if typeRank[a.CategoryType] != typeRank[b.CategoryType] {
+			return typeRank[a.CategoryType] < typeRank[b.CategoryType]
+		}
+
+		// Inside "fixed" category, ensure "Total" (category_id == 0) comes first
+		if a.CategoryType == "fixed" && b.CategoryType == "fixed" {
+			if a.CategoryID == 0 && b.CategoryID != 0 {
+				return true
+			}
+			if b.CategoryID == 0 && a.CategoryID != 0 {
+				return false
+			}
+		}
+
+		// Sort by category ID
+		if a.CategoryID != b.CategoryID {
+			return a.CategoryID < b.CategoryID
+		}
+
+		// And by month
+		return a.Month < b.Month
+	})
+
+	return summaries, nil
 }
 
 func (s *OutflowService) FetchAllOutflowCategories(c *gin.Context) ([]models.OutflowCategory, error) {

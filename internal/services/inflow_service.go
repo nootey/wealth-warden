@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"sort"
 	"strconv"
 	"time"
 	"wealth-warden/internal/models"
@@ -38,6 +39,16 @@ func NewInflowService(
 		BudgetInterface:   budgetInterface,
 		Config:            cfg,
 	}
+}
+
+type LinkInfo struct {
+	ID   uint   `json:"id"`
+	Name string `json:"name"`
+}
+
+func keysFromSlice(links []LinkInfo) string {
+	jsonData, _ := json.Marshal(links)
+	return string(jsonData)
 }
 
 func (s *InflowService) FetchInflowsPaginated(c *gin.Context, paginationParams utils.PaginationParams, yearParam string) ([]models.Inflow, int, error) {
@@ -83,7 +94,38 @@ func (s *InflowService) FetchAllInflowsGroupedByMonth(c *gin.Context, yearParam 
 		year = currentYear
 	}
 
-	return s.InflowRepo.FindAllInflowsGroupedByMonth(user, year)
+	var summaries []models.InflowSummary
+	total, err := s.InflowRepo.FindTotalForGroupedInflows(user, year)
+	if err != nil {
+		return nil, err
+	}
+	summaries = append(summaries, total...)
+
+	static, err := s.InflowRepo.FindInflowsGroupedByStaticCategoryAndMonth(user, year)
+	if err != nil {
+		return nil, err
+	}
+	summaries = append(summaries, static...)
+
+	dynamic, err := s.InflowRepo.FindInflowsGroupedByDynamicCategoryAndMonth(user, year)
+	if err != nil {
+		return nil, err
+	}
+	summaries = append(summaries, dynamic...)
+
+	sort.SliceStable(summaries, func(i, j int) bool {
+		a, b := summaries[i], summaries[j]
+		typeRank := map[string]int{"static": 0, "dynamic": 1}
+		if typeRank[a.CategoryType] != typeRank[b.CategoryType] {
+			return typeRank[a.CategoryType] < typeRank[b.CategoryType]
+		}
+		if a.CategoryID != b.CategoryID {
+			return a.CategoryID < b.CategoryID
+		}
+		return a.Month < b.Month
+	})
+
+	return summaries, nil
 }
 
 func (s *InflowService) FetchAllInflowCategories(c *gin.Context) ([]models.InflowCategory, error) {
@@ -298,16 +340,6 @@ func (s *InflowService) CreateInflowCategory(c *gin.Context, newRecord *models.I
 	}
 
 	return tx.Commit().Error
-}
-
-type LinkInfo struct {
-	ID   uint   `json:"id"`
-	Name string `json:"name"`
-}
-
-func keysFromSlice(links []LinkInfo) string {
-	jsonData, _ := json.Marshal(links)
-	return string(jsonData)
 }
 
 func (s *InflowService) CreateDynamicCategoryWithMappings(c *gin.Context, category *models.DynamicCategory, mappings []models.DynamicCategoryMapping) error {

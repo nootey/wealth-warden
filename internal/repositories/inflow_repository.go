@@ -128,11 +128,10 @@ func (r *InflowRepository) FindDynamicCategoryByID(user *models.User, ID uint) (
 	return &record, nil
 }
 
-func (r *InflowRepository) FindAllInflowsGroupedByMonth(user *models.User, year int) ([]models.InflowSummary, error) {
+func (r *InflowRepository) FindInflowsGroupedByDynamicCategoryAndMonth(user *models.User, year int) ([]models.InflowSummary, error) {
 	var results []models.InflowSummary
 	orgID := *user.PrimaryOrganizationID
 
-	// Define the recursive CTE for dynamic categories
 	dynamicFlatCTE := `
 	WITH RECURSIVE dynamic_flat AS (
 	    SELECT
@@ -164,23 +163,6 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(user *models.User, year 
 	)
 	`
 
-	// Query for static inflow categories
-	staticInflowsQuery := `
-	    SELECT
-	        MONTH(i.inflow_date) AS month,
-	        ic.id AS category_id,
-	        ic.name AS category_name,
-	        SUM(i.amount) AS total_amount,
-	        'static' AS category_type
-	    FROM inflows i
-	    JOIN inflow_categories ic ON i.inflow_category_id = ic.id
-	    WHERE i.deleted_at IS NULL
-	      AND i.organization_id = ?
-	      AND YEAR(i.inflow_date) = ?
-	    GROUP BY ic.id, ic.name, MONTH(i.inflow_date)
-	`
-
-	// Query for dynamic category calculations
 	dynamicCategoriesQuery := `
 	    SELECT
 	        m.month,
@@ -227,55 +209,46 @@ func (r *InflowRepository) FindAllInflowsGroupedByMonth(user *models.User, year 
 	    GROUP BY m.month, dc.id, dc.name
 	`
 
-	// Query for the "Total" row for static inflows only
-	totalRowQuery := `
-	    SELECT
-	        MONTH(i.inflow_date) AS month,
-	        0 AS category_id,
-	        'Total' AS category_name,
-	        SUM(i.amount) AS total_amount,
-	        'static' AS category_type
-	    FROM inflows i
-	    JOIN inflow_categories ic ON i.inflow_category_id = ic.id
-	    WHERE i.deleted_at IS NULL
-	      AND i.organization_id = ?
-	      AND YEAR(i.inflow_date) = ?
-	    GROUP BY MONTH(i.inflow_date)
-	`
+	finalQuery := dynamicFlatCTE + dynamicCategoriesQuery
 
-	// Combine all the fragments into the final query
-	finalQuery := dynamicFlatCTE + `
-	SELECT * FROM (
-	    ` + staticInflowsQuery + `
-	    UNION ALL
-	    ` + dynamicCategoriesQuery + `
-	    UNION ALL
-	    ` + totalRowQuery + `
-	) AS combined
-	ORDER BY 
-	    (CASE category_type WHEN 'static' THEN 0 WHEN 'dynamic' THEN 1 ELSE 2 END), 
-	    category_id,
-	    month;
-	`
-
-	// Execute the final query with the required parameters
 	err := r.Db.Raw(finalQuery,
-		// staticInflowsQuery
 		orgID, year,
-		// dynamicCategoriesQuery: first subquery
 		orgID, year,
-		// dynamicCategoriesQuery: second subquery
-		orgID, year,
-		// dynamicCategoriesQuery: dc filter
 		orgID,
-		// totalRowQuery
-		orgID, year,
 	).Scan(&results).Error
+
+	return results, err
+}
+
+func (r *InflowRepository) FindTotalForGroupedInflows(user *models.User, year int) ([]models.InflowSummary, error) {
+	var total []models.InflowSummary
+	err := r.Db.
+		Model(&models.Inflow{}).
+		Select("MONTH(inflow_date) AS month, 0 AS category_id, 'Total' AS category_name, SUM(amount) AS total_amount, 'static' AS category_type").
+		Where("organization_id = ? AND YEAR(inflow_date) = ? AND deleted_at IS NULL", *user.PrimaryOrganizationID, year).
+		Group("MONTH(inflow_date)").
+		Scan(&total).Error
 	if err != nil {
 		return nil, err
 	}
 
-	return results, nil
+	return total, nil
+}
+
+func (r *InflowRepository) FindInflowsGroupedByStaticCategoryAndMonth(user *models.User, year int) ([]models.InflowSummary, error) {
+	var static []models.InflowSummary
+	err := r.Db.
+		Model(&models.Inflow{}).
+		Select("MONTH(inflow_date) AS month, inflow_category_id AS category_id, inflow_categories.name AS category_name, SUM(amount) AS total_amount, 'static' AS category_type").
+		Joins("JOIN inflow_categories ON inflow_categories.id = inflows.inflow_category_id").
+		Where("inflows.organization_id = ? AND YEAR(inflow_date) = ? AND inflows.deleted_at IS NULL", *user.PrimaryOrganizationID, year).
+		Group("inflow_category_id, inflow_categories.name, MONTH(inflow_date)").
+		Scan(&static).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return static, nil
 }
 
 func (r *InflowRepository) FindAllInflowCategories(user *models.User) ([]models.InflowCategory, error) {

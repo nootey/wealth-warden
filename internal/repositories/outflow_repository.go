@@ -105,54 +105,44 @@ func (r *OutflowRepository) GetOutflowCategoryByID(user *models.User, categoryID
 	return &record, nil
 }
 
-func (r *OutflowRepository) FindAllOutflowsGroupedByMonth(user *models.User, year int) ([]models.OutflowSummary, error) {
-	var results []models.OutflowSummary
-	orgID := *user.PrimaryOrganizationID
-	err := r.Db.Raw(`
-        SELECT * FROM (
-            -- Regular category rows
-            SELECT
-                MONTH(o.outflow_date) AS month,
-                oc.id AS category_id,
-                oc.name AS category_name,
-                SUM(o.amount) AS total_amount,
-                oc.spending_limit AS spending_limit,
-                oc.outflow_type AS category_type
-            FROM outflows o
-            JOIN outflow_categories oc ON o.outflow_category_id = oc.id
-            WHERE o.deleted_at IS NULL
-              AND o.organization_id = ?
-              AND YEAR(o.outflow_date) = ?
-            GROUP BY oc.id, oc.name, month, oc.spending_limit, category_type
-
-            UNION ALL
-
-            -- "Total" row for each month (sums all categories)
-            SELECT
-                MONTH(o.outflow_date) AS month,
-                0 AS category_id,
-                'Total' AS category_name,
-                SUM(o.amount) AS total_amount,
-                NULL AS spending_limit,
-                NULL AS category_type
-            FROM outflows o
-            WHERE o.deleted_at IS NULL
-              AND o.organization_id = ?
-              AND YEAR(o.outflow_date) = ?
-            GROUP BY MONTH(o.outflow_date)
-        ) AS combined
-        ORDER BY 
-            (CASE WHEN category_name = 'Total' THEN 0 ELSE 1 END),
-            category_type,
-            category_name,
-            month
-    `, orgID, year, orgID, year).Scan(&results).Error
-
+func (r *OutflowRepository) FindTotalForGroupedOutflows(user *models.User, year int) ([]models.OutflowSummary, error) {
+	var total []models.OutflowSummary
+	err := r.Db.
+		Model(&models.Outflow{}).
+		Select("MONTH(outflow_date) AS month, 0 AS category_id, 'Total' AS category_name, SUM(amount) AS total_amount, 'fixed' AS category_type").
+		Where("organization_id = ? AND YEAR(outflow_date) = ? AND deleted_at IS NULL", *user.PrimaryOrganizationID, year).
+		Group("MONTH(outflow_date)").
+		Scan(&total).Error
 	if err != nil {
 		return nil, err
 	}
 
-	return results, nil
+	return total, nil
+}
+
+func (r *OutflowRepository) FetchGroupedOutflowsByCategoryAndMonth(user *models.User, year int) ([]models.OutflowSummary, error) {
+	var results []models.OutflowSummary
+	orgID := *user.PrimaryOrganizationID
+
+	err := r.Db.
+		Table("outflows o").
+		Select(`
+			MONTH(o.outflow_date) as month,
+			oc.id as category_id,
+			oc.name as category_name,
+			oc.outflow_type as category_type,
+			SUM(o.amount) as total_amount,
+			oc.spending_limit
+		`).
+		Joins("JOIN outflow_categories oc ON o.outflow_category_id = oc.id").
+		Where("o.deleted_at IS NULL").
+		Where("o.organization_id = ?", orgID).
+		Where("YEAR(o.outflow_date) = ?", year).
+		Group("MONTH(o.outflow_date), oc.id, oc.name, oc.outflow_type, oc.spending_limit").
+		Order("month, category_type, category_name").
+		Scan(&results).Error
+
+	return results, err
 }
 
 func (r *OutflowRepository) GetAllOutflowCategories(user *models.User) ([]models.OutflowCategory, error) {
