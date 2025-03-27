@@ -146,7 +146,7 @@ async function removeInflow(id: number) {
   try {
     let response = await inflowStore.deleteInflow(id);
     toastStore.successResponseToast(response);
-    await getData();
+    await initData();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
