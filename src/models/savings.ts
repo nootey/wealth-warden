@@ -2,9 +2,8 @@ export interface SavingAllocation {
     id: number|null;
     savings_category_id: number;
     savings_category: object;
-    amount: number;
+    allocated_amount: number;
     savings_date: any;
-    description: string|null;
 }
 
 export interface SavingsCategory {
