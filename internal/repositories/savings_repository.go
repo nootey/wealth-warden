@@ -66,6 +66,16 @@ func (r *SavingsRepository) CountSavings(user *models.User, year int, filters []
 	return totalRecords, nil
 }
 
+func (r *SavingsRepository) InsertSavingsAllocation(tx *gorm.DB, user *models.User, record *models.SavingsAllocation) error {
+
+	record.OrganizationID = *user.PrimaryOrganizationID
+	record.UserID = user.ID
+	if err := tx.Create(&record).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
 func (r *SavingsRepository) InsertSavingsCategory(tx *gorm.DB, user *models.User, record *models.SavingsCategory) error {
 
 	var existing models.SavingsCategory

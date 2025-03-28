@@ -61,6 +61,36 @@ func (h *SavingsHandler) GetAllSavingsCategories(c *gin.Context) {
 	c.JSON(http.StatusOK, categories)
 }
 
+func (h *SavingsHandler) CreateNewSavingsAllocation(c *gin.Context) {
+
+	var req validators.CreateSavingsAllocationRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(err.Error())(c, nil)
+		return
+	}
+
+	record := &models.SavingsAllocation{
+		ID:                req.ID,
+		SavingsCategoryID: req.SavingsCategoryID,
+		AllocatedAmount:   req.AllocatedAmount,
+		SavingsDate:       req.SavingsDate,
+	}
+
+	if err := h.Service.CreateSavingsAllocation(c, record); err != nil {
+		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+}
+
 func (h *SavingsHandler) CreateNewSavingsCategory(c *gin.Context) {
 
 	var req validators.CreateSavingsCategoryRequest

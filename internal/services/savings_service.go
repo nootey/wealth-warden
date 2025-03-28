@@ -74,6 +74,43 @@ func (s *SavingsService) FetchAllSavingsCategories(c *gin.Context) ([]models.Sav
 	return s.SavingsRepo.FindAllSavingCategories(user)
 }
 
+func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *models.SavingsAllocation) error {
+
+	user, err := s.AuthService.GetCurrentUser(c, false)
+	if err != nil {
+		return err
+	}
+	changes := utils.InitChanges()
+
+	tx := s.SavingsRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	allocatedAmountString := strconv.FormatFloat(newRecord.AllocatedAmount, 'f', 2, 64)
+	savingsDateStr := newRecord.SavingsDate.UTC().Format(time.RFC3339)
+
+	utils.CompareChanges("", newRecord.SavingsCategory.Name, changes, "category")
+	utils.CompareChanges("", allocatedAmountString, changes, "allocated_amount")
+	utils.CompareChanges("", savingsDateStr, changes, "savings_date")
+
+	newRecord.AdjustedAmount = &newRecord.AllocatedAmount
+
+	err = s.SavingsRepo.InsertSavingsAllocation(tx, user, newRecord)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_allocation", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
 func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models.SavingsCategory) error {
 
 	user, err := s.AuthService.GetCurrentUser(c, false)
