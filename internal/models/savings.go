@@ -9,7 +9,7 @@ type SavingsCategory struct {
 	Name            string    `gorm:"type:varchar(100);not null" json:"name"`
 	SavingsType     string    `gorm:"type:enum('fixed', 'variable');not null" json:"savings_type"`
 	Priority        int       `gorm:"default:1" json:"priority"`
-	GoalValue       *float64  `gorm:"type:decimal(10,2)" json:"goal_value,omitempty"`
+	GoalTarget      *float64  `gorm:"type:decimal(10,2)" json:"goal_target,omitempty"`
 	GoalProgress    float64   `gorm:"type:decimal(10,2);default:0.00" json:"goal_progress"`
 	AccountType     string    `gorm:"type:varchar(128);default:'normal'" json:"account_type"` // normal, interest
 	InterestRate    *float64  `gorm:"type:decimal(5,2)" json:"interest_rate,omitempty"`
@@ -24,7 +24,7 @@ type SavingsAllocation struct {
 	UserID            uint            `gorm:"not null" json:"user_id"`
 	SavingsCategoryID uint            `gorm:"index" json:"savings_category_id"`
 	SavingsCategory   SavingsCategory `gorm:"foreignKey:SavingsCategoryID" json:"savings_category"`
-	SavingsDate       time.Time       `gorm:"not null" json:"saving_date"`
+	SavingsDate       time.Time       `gorm:"not null" json:"savings_date"`
 	AllocatedAmount   float64         `gorm:"type:decimal(10,2);not null" json:"allocated_amount"`
 	AdjustedAmount    *float64        `gorm:"type:decimal(10,2)" json:"adjusted_amount,omitempty"`
 	CreatedAt         time.Time       `json:"created_at"`

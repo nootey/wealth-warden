@@ -133,9 +133,9 @@ func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models
 		utils.CompareChanges("", interestString, changes, "interest")
 	}
 
-	if newRecord.GoalValue != nil {
-		goalValueString := strconv.FormatFloat(*newRecord.GoalValue, 'f', 2, 64)
-		utils.CompareChanges("", goalValueString, changes, "goal_value")
+	if newRecord.GoalTarget != nil {
+		goalTargetString := strconv.FormatFloat(*newRecord.GoalTarget, 'f', 2, 64)
+		utils.CompareChanges("", goalTargetString, changes, "goal_target")
 	}
 
 	err = s.SavingsRepo.InsertSavingsCategory(tx, user, newRecord)
@@ -181,10 +181,10 @@ func (s *SavingsService) UpdateSavingsCategory(c *gin.Context, newRecord *models
 		utils.CompareChanges(existingInterestString, interestString, changes, "interest")
 	}
 
-	if newRecord.GoalValue != nil {
-		existingGoalValueString := strconv.FormatFloat(*existingRecord.GoalValue, 'f', 2, 64)
-		goalValueString := strconv.FormatFloat(*newRecord.GoalValue, 'f', 2, 64)
-		utils.CompareChanges(existingGoalValueString, goalValueString, changes, "goal_value")
+	if newRecord.GoalTarget != nil {
+		existingGoalTargetString := strconv.FormatFloat(*existingRecord.GoalTarget, 'f', 2, 64)
+		goalTargetString := strconv.FormatFloat(*newRecord.GoalTarget, 'f', 2, 64)
+		utils.CompareChanges(existingGoalTargetString, goalTargetString, changes, "goal_target")
 	}
 
 	err = s.SavingsRepo.UpdateSavingsCategory(tx, user, newRecord)

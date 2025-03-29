@@ -109,7 +109,7 @@ func (h *SavingsHandler) CreateNewSavingsCategory(c *gin.Context) {
 	record := &models.SavingsCategory{
 		Name:         utils.CleanString(req.Name).(string),
 		SavingsType:  utils.CleanString(req.SavingsType).(string),
-		GoalValue:    req.GoalValue,
+		GoalTarget:   req.GoalTarget,
 		AccountType:  utils.CleanString(req.AccountType).(string),
 		InterestRate: req.InterestRate,
 	}
@@ -141,7 +141,7 @@ func (h *SavingsHandler) UpdateSavingsCategory(c *gin.Context) {
 		ID:           req.ID,
 		Name:         utils.CleanString(req.Name).(string),
 		SavingsType:  utils.CleanString(req.SavingsType).(string),
-		GoalValue:    req.GoalValue,
+		GoalTarget:   req.GoalTarget,
 		AccountType:  utils.CleanString(req.AccountType).(string),
 		InterestRate: req.InterestRate,
 	}

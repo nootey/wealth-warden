@@ -7,7 +7,7 @@ user_id BIGINT UNSIGNED NOT NULL,
 name VARCHAR(100) NOT NULL,
 savings_type ENUM('fixed', 'variable') NOT NULL,
 priority INT DEFAULT 1,
-goal_value DECIMAL(10,2) DEFAULT NULL, -- Target savings goal
+goal_target DECIMAL(10,2) DEFAULT NULL, -- Target savings goal
 goal_progress DECIMAL(10,2) DEFAULT 0.00, -- Tracks progress toward goal
 account_type VARCHAR(128) DEFAULT 'normal', -- Type of account (normal, interest)
 interest_rate DECIMAL(5,2) DEFAULT NULL, -- Interest rate for this savings account
