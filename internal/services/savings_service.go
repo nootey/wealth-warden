@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"sort"
 	"strconv"
 	"time"
 	"wealth-warden/internal/models"
@@ -156,6 +157,12 @@ func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *mode
 	newRecord.AdjustedAmount = &newRecord.AllocatedAmount
 
 	err = s.SavingsRepo.InsertSavingsAllocation(tx, user, newRecord)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.SavingsRepo.UpdateCategoryGoalProgress(tx, user, newRecord, 1)
 	if err != nil {
 		tx.Rollback()
 		return err

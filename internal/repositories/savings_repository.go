@@ -143,13 +143,23 @@ func (r *SavingsRepository) InsertSavingsCategory(tx *gorm.DB, user *models.User
 	return nil
 }
 
-func (r *SavingsRepository) GetSavingsCategoryByID(user *models.User, categoryID uint) (*models.SavingsCategory, error) {
-	var record models.SavingsCategory
-	err := r.Db.Where("id = ? AND organization_id = ?", categoryID, *user.PrimaryOrganizationID).First(&record).Error
+func (r *SavingsRepository) UpdateCategoryGoalProgress(tx *gorm.DB, user *models.User, record *models.SavingsAllocation, modifier int) error {
+
+	category, err := r.GetSavingsCategoryByID(user, record.SavingsCategoryID)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &record, nil
+
+	category.UserID = user.ID
+	category.GoalProgress += (*record.AdjustedAmount) * float64(modifier)
+
+	if err := tx.Model(&models.SavingsCategory{}).
+		Where("organization_id = ? AND id = ?", *user.PrimaryOrganizationID, category.ID).
+		Update("goal_progress", category.GoalProgress).Error; err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *SavingsRepository) UpdateSavingsCategory(tx *gorm.DB, user *models.User, record *models.SavingsCategory) error {
