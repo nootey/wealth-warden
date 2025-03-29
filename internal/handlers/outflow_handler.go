@@ -58,12 +58,12 @@ func (h *OutflowHandler) GetAllOutflowsGroupedByMonth(c *gin.Context) {
 	queryParams := c.Request.URL.Query()
 	yearParam := queryParams.Get("year")
 
-	outflows, err := h.Service.FetchAllOutflowsGroupedByMonth(c, yearParam)
+	records, err := h.Service.FetchAllOutflowsGroupedByMonth(c, yearParam)
 	if err != nil {
 		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, outflows)
+	c.JSON(http.StatusOK, records)
 }
 
 func (h *OutflowHandler) GetAllOutflowCategories(c *gin.Context) {
