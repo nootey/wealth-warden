@@ -66,6 +66,65 @@ func (s *SavingsService) FetchSavingsPaginated(c *gin.Context, paginationParams 
 	return records, int(totalRecords), nil
 }
 
+func (s *SavingsService) FetchAllSavingsGroupedByMonth(c *gin.Context, yearParam string) ([]models.SavingsSummary, error) {
+	user, err := s.AuthService.GetCurrentUser(c, false)
+	if err != nil {
+		return nil, err
+	}
+
+	currentYear := time.Now().Year()
+	year, err := strconv.Atoi(yearParam)
+	if err != nil || year > currentYear || year < 2000 {
+		year = currentYear
+	}
+
+	var summaries []models.SavingsSummary
+
+	total, err := s.SavingsRepo.FindTotalForGroupedSavings(user, year)
+	if err != nil {
+		return nil, err
+	}
+	summaries = append(summaries, total...)
+
+	categorized, err := s.SavingsRepo.FetchGroupedSavingsByCategoryAndMonth(user, year)
+	if err != nil {
+		return nil, err
+	}
+	summaries = append(summaries, categorized...)
+
+	sort.SliceStable(summaries, func(i, j int) bool {
+		a, b := summaries[i], summaries[j]
+
+		typeRank := map[string]int{
+			"fixed":    0,
+			"variable": 1,
+		}
+
+		// Compare category types (fixed before variable)
+		if typeRank[a.CategoryType] != typeRank[b.CategoryType] {
+			return typeRank[a.CategoryType] < typeRank[b.CategoryType]
+		}
+
+		// Inside "fixed" category, ensure "Total" (category_id == 0) comes first
+		if a.CategoryType == "fixed" && b.CategoryType == "fixed" {
+			if a.CategoryID == 0 && b.CategoryID != 0 {
+				return true
+			}
+			if b.CategoryID == 0 && a.CategoryID != 0 {
+				return false
+			}
+		}
+
+		if a.CategoryID != b.CategoryID {
+			return a.CategoryID < b.CategoryID
+		}
+
+		return a.Month < b.Month
+	})
+
+	return summaries, nil
+}
+
 func (s *SavingsService) FetchAllSavingsCategories(c *gin.Context) ([]models.SavingsCategory, error) {
 	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {

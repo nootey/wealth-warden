@@ -2,6 +2,17 @@ package models
 
 import "time"
 
+type SavingsSummary struct {
+	Month        int      `json:"month"`
+	CategoryID   uint     `json:"category_id" gorm:"column:category_id"`
+	CategoryName string   `json:"category_name" gorm:"column:category_name"`
+	CategoryType string   `json:"category_type" gorm:"column:category_type"`
+	TotalAmount  float64  `json:"total_amount" gorm:"column:total_amount"`
+	GoalProgress *float64 `json:"goal_progress"`
+	GoalTarget   *float64 `json:"goal_target"`
+	GoalSpent    *float64 `json:"goal_spent"`
+}
+
 type SavingsCategory struct {
 	ID              uint      `gorm:"primaryKey" json:"id"`
 	OrganizationID  uint      `gorm:"not_null;index" json:"organization_id"`

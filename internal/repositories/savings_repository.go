@@ -47,6 +47,55 @@ func (r *SavingsRepository) FindSavings(user *models.User, year, offset, limit i
 	return records, nil
 }
 
+func (r *SavingsRepository) FindTotalForGroupedSavings(user *models.User, year int) ([]models.SavingsSummary, error) {
+	var total []models.SavingsSummary
+	err := r.Db.
+		Model(&models.SavingsAllocation{}).
+		Select("MONTH(savings_date) AS month, 0 AS category_id, 'Total' AS category_name, SUM(adjusted_amount) AS total_amount, 'fixed' AS category_type").
+		Where("organization_id = ? AND YEAR(savings_date) = ?", *user.PrimaryOrganizationID, year).
+		Group("MONTH(savings_date)").
+		Scan(&total).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return total, nil
+}
+
+func (r *SavingsRepository) FetchGroupedSavingsByCategoryAndMonth(user *models.User, year int) ([]models.SavingsSummary, error) {
+	var results []models.SavingsSummary
+	orgID := *user.PrimaryOrganizationID
+
+	err := r.Db.
+		Table("savings_allocations s").
+		Select(`
+			MONTH(s.savings_date) as month,
+			sc.id as category_id,
+			sc.name as category_name,
+			sc.savings_type as category_type,
+			SUM(s.adjusted_amount) as total_amount,
+			sc.goal_progress as goal_progress,
+			sc.goal_target as goal_target
+		`).
+		Joins("JOIN savings_categories sc ON s.savings_category_id = sc.id").
+		Where("s.organization_id = ?", orgID).
+		Where("YEAR(s.savings_date) = ?", year).
+		Group("MONTH(s.savings_date), sc.id, sc.name, sc.savings_type, sc.goal_progress, sc.goal_target").
+		Order("month, category_type, category_name").
+		Scan(&results).Error
+
+	return results, err
+}
+
+func (r *SavingsRepository) GetSavingsCategoryByID(user *models.User, categoryID uint) (*models.SavingsCategory, error) {
+	var record models.SavingsCategory
+	err := r.Db.Where("id = ? AND organization_id = ?", categoryID, *user.PrimaryOrganizationID).First(&record).Error
+	if err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
 func (r *SavingsRepository) CountSavings(user *models.User, year int, filters []utils.Filter) (int64, error) {
 	var totalRecords int64
 

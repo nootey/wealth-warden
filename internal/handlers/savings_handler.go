@@ -52,6 +52,19 @@ func (h *SavingsHandler) GetSavingsPaginated(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (h *SavingsHandler) GetAllSavingsGroupedByMonth(c *gin.Context) {
+
+	queryParams := c.Request.URL.Query()
+	yearParam := queryParams.Get("year")
+
+	records, err := h.Service.FetchAllSavingsGroupedByMonth(c, yearParam)
+	if err != nil {
+		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, records)
+}
+
 func (h *SavingsHandler) GetAllSavingsCategories(c *gin.Context) {
 	categories, err := h.Service.FetchAllSavingsCategories(c)
 	if err != nil {
