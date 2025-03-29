@@ -49,6 +49,16 @@ export const useSavingsStore = defineStore('savings', {
             }
         },
 
+        async getAllGroupedSavings(year: number) {
+            try {
+
+                return await apiClient.get(`${this.apiPrefix}/grouped-by-month`, {params: {year: year}});
+
+            } catch (err) {
+                throw err;
+            }
+        },
+
         async createSavingsAllocation(Allocation: SavingAllocation|null) {
             try {
                 return await apiClient.post(`${this.apiPrefix}/create`, Allocation);

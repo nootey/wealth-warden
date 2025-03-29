@@ -11,16 +11,22 @@ import YearPicker from "../components/shared/YearPicker.vue";
 import BaseFilter from "../components/shared/filters/BaseFilter.vue";
 import SavingsCreate from "../features/savings/SavingsCreate.vue";
 import SavingsCategories from "../features/savings/SavingsCategories.vue";
+import type {SavingsGroup, SavingsStatistics} from "../../models/savings.ts";
+import DisplayMonthlyDate from "../components/shared/DisplayMonthlyDate.vue";
+import SavingsStatDisplay from "../features/savings/SavingsStatDisplay.vue";
 
 const savingsStore = useSavingsStore();
 const toastStore = useToastStore();
 
-const loadingSavingss = ref(true);
+const loadingSavings = ref(true);
+const loadingGroupedSavings = ref(true);
 const savings = ref([]);
+const groupedSavings = ref<SavingsGroup[]>([]);
 
-const addSavingsModal = ref(false);
+const addSavingsAllocationModal = ref(false);
+const addSavingsDeductionModal = ref(false);
 const addCategoryModal = ref(false);
-
+const savingsStatistics = ref<SavingsStatistics[]>([]);
 
 const dataCount = computed(() => {return savings.value.length});
 
@@ -52,6 +58,7 @@ const sort = ref(vueHelper.initSort());
 
 const savingsColumns = ref([
   { field: 'savings_category', header: 'Category' },
+  { field: 'adjusted_amount', header: 'Amount' },
   { field: 'savings_date', header: 'Date' },
 ]);
 
@@ -64,6 +71,7 @@ onMounted(async () => {
 
 async function initData() {
   await getData();
+  await getGroupedData();
   await savingsStore.getSavingsYears();
 }
 
@@ -75,7 +83,7 @@ async function init() {
 
 async function getData(new_page = null) {
 
-  loadingSavingss.value = true;
+  loadingSavings.value = true;
   if(new_page)
     page.value = new_page;
 
@@ -88,10 +96,92 @@ async function getData(new_page = null) {
     paginator.value.total = paginationResponse.total_records;
     paginator.value.to = paginationResponse.to;
     paginator.value.from = paginationResponse.from;
-    loadingSavingss.value = false;
+    loadingSavings.value = false;
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
+}
+
+async function getGroupedData() {
+
+  loadingGroupedSavings.value = true;
+  if(dataCount.value < 1)
+    return;
+
+  try {
+
+    let response = await savingsStore.getAllGroupedSavings(savingsStore.currentYear);
+    groupedSavings.value = response.data;
+    loadingGroupedSavings.value = false;
+    calculateSavingsStatistics(
+        groupedSavings.value,
+        savingsStatistics,
+        item => item.category_id,
+        item => item.category_name,
+        item => (item as any).goal_progress,
+        item => (item as any).goal_target,
+        item => (item as any).goal_spent,
+    );
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
+function calculateSavingsStatistics<T>(
+    groupedItems: T[],
+    targetRef: { value: { category: string; goal_progress: number | null; goal_target: number | null; goal_spent: number | null }[] },
+    getCategoryId: (item: T) => number,
+    getCategoryName: (item: T) => string,
+    getGoalProgress?: (item: T) => number | null,
+    getGoalTarget?: (item: T) => number | null,
+    getGoalSpent?: (item: T) => number | null,
+): void {
+  if (!groupedItems || groupedItems.length === 0) {
+    return;
+  }
+
+  const filteredItems = groupedItems.filter(item => getCategoryName(item) !== "Total");
+
+  // Group data by category
+  const groupedData = filteredItems.reduce<Record<string, {
+    categoryName: string;
+    goalProgress: number;
+    goalTarget: number;
+    goalSpent: number;
+  }>>((acc, curr) => {
+    const category_id = getCategoryId(curr);
+    const category_name = getCategoryName(curr);
+    const key = `${category_id}`;
+
+    if (!acc[key]) {
+      acc[key] = {
+        categoryName: category_name,
+        goalProgress: getGoalProgress ? getGoalProgress(curr) ?? 0 : 0,
+        goalTarget: getGoalTarget ? getGoalTarget(curr) ?? 0 : 0,
+        goalSpent: getGoalSpent ? getGoalSpent(curr) ?? 0 : 0,
+      };
+    }
+
+    return acc;
+  }, {});
+
+  // Map the grouped data to an array of rows
+  const rows = Object.values(groupedData).map(group => ({
+    category: group.categoryName,
+    goal_progress: group.goalProgress,
+    goal_target: group.goalTarget,
+    goal_spent: group.goalSpent,
+  }));
+
+  // Calculate the total for each numeric column across all rows
+  const totalRow = {
+    category: "Total",
+    goal_progress: rows.reduce((sum, row) => sum + (row.goal_progress ?? 0), 0),
+    goal_target: rows.reduce((sum, row) => sum + (row.goal_target ?? 0), 0),
+    goal_spent: rows.reduce((sum, row) => sum + (row.goal_spent ?? 0), 0),
+  };
+
+  targetRef.value = [totalRow, ...rows];
 }
 
 async function onPage(event: any) {
@@ -102,8 +192,12 @@ async function onPage(event: any) {
 
 function manipulateDialog(modal: string, value: boolean) {
   switch (modal) {
-    case 'add-savings': {
-      addSavingsModal.value = value;
+    case 'add-allocation': {
+      addSavingsAllocationModal.value = value;
+      break;
+    }
+    case 'add-deduction': {
+      addSavingsDeductionModal.value = value;
       break;
     }
     case 'add-category': {
@@ -228,7 +322,7 @@ provide('removeFilter', removeFilter);
 </script>
 
 <template>
-  <Dialog v-model:visible="addSavingsModal" :breakpoints="{'801px': '90vw'}"
+  <Dialog v-model:visible="addSavingsAllocationModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '800px'}" header="Add savings">
     <SavingsCreate></SavingsCreate>
   </Dialog>
@@ -242,7 +336,7 @@ provide('removeFilter', removeFilter);
   </Popover>
 
   <div class="flex w-full p-2">
-    <div class="flex w-9 flex-column p-2 gap-3">
+    <div class="flex w-8 flex-column p-2 gap-3">
 
       <div class="flex flex-row p-1 fap-2 align-items-center">
         <div class="flex flex-column p-1">
@@ -263,19 +357,35 @@ provide('removeFilter', removeFilter);
       <div class="flex flex-row p-1 w-full gap-2">
         <div class="flex flex-column w-6 justify-content-center align-items-center">
           <ValidationError :isRequired="false" message="">
-            <label>Savings</label>
+            <label>Allocations</label>
           </ValidationError>
-          <Button class="w-6" icon="pi pi-file-check" label="Create" @click="manipulateDialog('add-savings', true)"></Button>
+          <Button class="w-6" icon="pi pi-file-check" label="Create" @click="manipulateDialog('add-allocation', true)"></Button>
         </div>
 
         <div class="flex flex-column w-6 justify-content-center align-items-center">
           <ValidationError :isRequired="false" message="">
-            <label>Savings categories</label>
+            <label>Deductions</label>
+          </ValidationError>
+          <Button class="w-6" icon="pi pi-file" label="Create" @click="manipulateDialog('add-deduction', true)"></Button>
+        </div>
+
+        <div class="flex flex-column w-6 justify-content-center align-items-center">
+          <ValidationError :isRequired="false" message="">
+            <label>Categories</label>
           </ValidationError>
           <Button class="w-6" icon="pi pi-file-arrow-up" label="Manage" @click="manipulateDialog('add-category', true)"></Button>
         </div>
 
       </div>
+
+      <div class="flex flex-row p-1">
+        <h3>
+          Savings by month
+        </h3>
+      </div>
+
+
+      <DisplayMonthlyDate :groupedValues="groupedSavings" :dataCount="dataCount"/>
 
 
       <div class="flex flex-row p-1 w-full">
@@ -285,7 +395,7 @@ provide('removeFilter', removeFilter);
       </div>
 
       <div class="flex flex-row gap-2 w-full">
-        <DataTable class="w-full" dataKey="id" :loading="loadingSavingss" :value="savings" size="small"
+        <DataTable class="w-full" dataKey="id" :loading="loadingSavings" :value="savings" size="small"
                    editMode="cell">
           <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
           <template #loading> <LoadingSpinner></LoadingSpinner> </template>
@@ -318,8 +428,8 @@ provide('removeFilter', removeFilter);
               <ColumnHeader :header="col.header" :field="col.field" :sort="sort" :filter="true" :filters="filters"></ColumnHeader>
             </template>
             <template #body="{ data, field }">
-              <template v-if="field === 'amount'">
-                {{ vueHelper.displayAsCurrency(data.amount) }}
+              <template v-if="field === 'adjusted_amount'">
+                {{ vueHelper.displayAsCurrency(data.adjusted_amount) }}
               </template>
               <template v-else-if="field === 'savings_date'">
                 {{ dateHelper.formatDate(data?.savings_date, true) }}
@@ -354,7 +464,7 @@ provide('removeFilter', removeFilter);
       </div>
     </div>
 
-    <div class="flex flex-column w-3 p-2 gap-3" style="border-left: 1px solid var(--text-primary);">
+    <div class="flex flex-column w-4 p-2 gap-3" style="border-left: 1px solid var(--text-primary);">
 
       <div class="flex flex-row p-1">
         <h2>
@@ -368,7 +478,7 @@ provide('removeFilter', removeFilter);
         </h3>
       </div>
 
-<!--      <BasicStatDisplay :basicStats="savingsStatistics" :limit="false" :dataCount="dataCount" />-->
+      <SavingsStatDisplay :savingsStats="savingsStatistics" :dataCount="dataCount" />
 
     </div>
   </div>

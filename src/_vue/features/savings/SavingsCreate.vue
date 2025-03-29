@@ -46,11 +46,11 @@ function initSavingsAllocation(): Record<string, any> {
   };
 }
 
-async function createNewSavingsAllocation(): Promise<void> {
+async function createNewSavingsAllocation() {
 
   const isValidSavingsAllocation = await v$.value.newSavingsAllocation.$validate();
   if (!isValidSavingsAllocation)
-    return true;
+    return;
 
   try {
     let savings_date = dateHelper.mergeDateWithCurrentTime(newSavingsAllocation.value.savingsDate, "Europe/Ljubljana");
@@ -58,7 +58,7 @@ async function createNewSavingsAllocation(): Promise<void> {
       id: null,
       savings_category_id: newSavingsAllocation.value.savingsCategory.id,
       savings_category: newSavingsAllocation.value.savingsCategory,
-      allocated_amount: newSavingsAllocation.value.amount,
+      allocated_amount: newSavingsAllocation.value.allocated_amount,
       savings_date: savings_date,
     });
 

@@ -29,8 +29,7 @@ const filteredAccountTypes = ref([]);
 const categoryColumns = ref([
   { field: 'name', header: 'Name' },
   { field: 'savings_type', header: 'Savings type' },
-  { field: 'goal_value', header: 'Goal' },
-  { field: 'goal_progress', header: 'Progress' },
+  { field: 'goal_target', header: 'Goal' },
   { field: 'account_type', header: 'Account' },
   { field: 'interest_rate', header: 'Interest rate' },
   { field: 'accrued_interest', header: 'Accrued Interest' },
@@ -50,7 +49,7 @@ const rules = {
       required,
       $autoDirty: true
     },
-    goal_value: {
+    goal_target: {
       numeric,
       minValue: minValue(0),
       maxValue: maxValue(10000000),
@@ -72,7 +71,7 @@ function initSavingsCategory():object {
   return {
     name: null,
     savings_type: null,
-    goal_value: null,
+    goal_target: null,
     interest_rate: null,
   }
 }
@@ -114,7 +113,7 @@ async function createNewSavingsCategory() {
       id: null,
       name: newSavingsCategory.value.name,
       savings_type: newSavingsCategory.value.savings_type,
-      goal_value: newSavingsCategory.value.goal_value,
+      goal_target: newSavingsCategory.value.goal_target,
       interest_rate: newSavingsCategory.value.interest_rate,
       account_type: hasInterest.value ? "interest" : "normal",
     });
@@ -148,7 +147,7 @@ async function onCellEditComplete(event: any) {
       id: event.data.id,
       name: event?.newData?.name,
       savings_type: event?.newData?.savings_type,
-      goal_value: event?.newData?.goal_value,
+      goal_target: event?.newData?.goal_target,
       interest_rate: event?.newData?.interest_rate,
       account_type: event?.newData?.account_type,
     });
@@ -191,10 +190,10 @@ async function onCellEditComplete(event: any) {
                       placeholder="Select type" dropdown @complete="searchSavingsTypes"></AutoComplete>
       </div>
       <div class="flex flex-column">
-        <ValidationError :isRequired="false" :message="v$.newSavingsCategory.goal_value.$errors[0]?.$message">
+        <ValidationError :isRequired="false" :message="v$.newSavingsCategory.goal_target.$errors[0]?.$message">
           <label>Goal value</label>
         </ValidationError>
-        <InputNumber size="small" v-model="newSavingsCategory.goal_value" mode="currency" currency="EUR"
+        <InputNumber size="small" v-model="newSavingsCategory.goal_target" mode="currency" currency="EUR"
                      locale="de-DE" autofocus fluid placeholder="0,00 €" />
       </div>
       <div class="flex flex-column">
@@ -243,7 +242,7 @@ async function onCellEditComplete(event: any) {
 
         <Column v-for="col of categoryColumns" :key="col.field" :field="col.field" :header="col.header" style="width: 25%">
           <template #body="{ data, field }">
-            <template v-if="['goal_value', 'goal_progress'].includes(col.field)">
+            <template v-if="['goal_target'].includes(col.field)">
               {{ vueHelper.displayAsCurrency(data[col.field]) }}
             </template>
             <template v-else-if="['interest_rate', 'accrued_interest'].includes(col.field)">
@@ -255,8 +254,8 @@ async function onCellEditComplete(event: any) {
             </template>
           </template>
 
-          <template v-if="!['goal_progress', 'accrued_interest'].includes(col.field)" #editor="{ data, field }">
-            <template v-if="field === 'goal_value'">
+          <template v-if="!['accrued_interest'].includes(col.field)" #editor="{ data, field }">
+            <template v-if="field === 'goal_target'">
               <InputNumber size="small" v-model="data[field]" mode="currency" currency="EUR" locale="de-DE" autofocus fluid />
             </template>
             <template v-else-if="field === 'account_type'">
