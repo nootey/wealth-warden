@@ -1,6 +1,6 @@
 import {defineStore} from "pinia";
 import apiClient from '../api/axios_interceptor.ts';
-import type {SavingAllocation, SavingsCategory} from "../../models/savings.ts";
+import type {SavingAllocation, SavingsDeduction, SavingsCategory} from "../../models/savings.ts";
 
 export const useSavingsStore = defineStore('savings', {
     state: () => ({
@@ -61,7 +61,15 @@ export const useSavingsStore = defineStore('savings', {
 
         async createSavingsAllocation(Allocation: SavingAllocation|null) {
             try {
-                return await apiClient.post(`${this.apiPrefix}/create`, Allocation);
+                return await apiClient.post(`${this.apiPrefix}/create-allocation`, Allocation);
+            } catch (err) {
+                throw err;
+            }
+        },
+
+        async createSavingsDeduction(Deduction: SavingsDeduction|null) {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/create-deduction`, Deduction);
             } catch (err) {
                 throw err;
             }

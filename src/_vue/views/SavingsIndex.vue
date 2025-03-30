@@ -14,6 +14,7 @@ import SavingsCategories from "../features/savings/SavingsCategories.vue";
 import type {SavingsGroup, SavingsStatistics} from "../../models/savings.ts";
 import DisplayMonthlyDate from "../components/shared/DisplayMonthlyDate.vue";
 import SavingsStatDisplay from "../features/savings/SavingsStatDisplay.vue";
+import SavingsDeductionsCreate from "../features/savings/SavingsDeductionsCreate.vue";
 
 const savingsStore = useSavingsStore();
 const toastStore = useToastStore();
@@ -323,8 +324,12 @@ provide('removeFilter', removeFilter);
 
 <template>
   <Dialog v-model:visible="addSavingsAllocationModal" :breakpoints="{'801px': '90vw'}"
-          :modal="true" :style="{width: '800px'}" header="Add savings">
-    <SavingsCreate></SavingsCreate>
+          :modal="true" :style="{width: '800px'}" header="Add allocation">
+    <SavingsAllocationsCreate></SavingsAllocationsCreate>
+  </Dialog>
+  <Dialog v-model:visible="addSavingsDeductionModal" :breakpoints="{'801px': '90vw'}"
+          :modal="true" :style="{width: '800px'}" header="Add deduction">
+    <SavingsDeductionsCreate></SavingsDeductionsCreate>
   </Dialog>
   <Dialog v-model:visible="addCategoryModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '800px'}" header="Savings categories">
@@ -359,14 +364,14 @@ provide('removeFilter', removeFilter);
           <ValidationError :isRequired="false" message="">
             <label>Allocations</label>
           </ValidationError>
-          <Button class="w-6" icon="pi pi-file-check" label="Create" @click="manipulateDialog('add-allocation', true)"></Button>
+          <Button class="w-6" icon="pi pi-file-check" label="Add" @click="manipulateDialog('add-allocation', true)"></Button>
         </div>
 
         <div class="flex flex-column w-6 justify-content-center align-items-center">
           <ValidationError :isRequired="false" message="">
             <label>Deductions</label>
           </ValidationError>
-          <Button class="w-6" icon="pi pi-file" label="Create" @click="manipulateDialog('add-deduction', true)"></Button>
+          <Button class="w-6" icon="pi pi-file" label="Add" @click="manipulateDialog('add-deduction', true)"></Button>
         </div>
 
         <div class="flex flex-column w-6 justify-content-center align-items-center">

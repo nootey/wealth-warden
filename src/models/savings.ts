@@ -5,6 +5,14 @@ export interface SavingAllocation {
     allocated_amount: number;
     allocation_date: any;
 }
+
+export interface SavingsDeduction {
+    id: number|null;
+    savings_category_id: number;
+    savings_category: object;
+    amount: number;
+    deduction_date: any;
+    reason: string|null;
 }
 
 export interface SavingsCategory {
