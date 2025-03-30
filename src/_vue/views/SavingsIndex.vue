@@ -143,30 +143,29 @@ function calculateSavingsStatistics<T>(
 
   const filteredItems = groupedItems.filter(item => getCategoryName(item) !== "Total");
 
-  // Group data by category
   const groupedData = filteredItems.reduce<Record<string, {
     categoryName: string;
     goalProgress: number;
     goalTarget: number;
     goalSpent: number;
   }>>((acc, curr) => {
-    const category_id = getCategoryId(curr);
-    const category_name = getCategoryName(curr);
-    const key = `${category_id}`;
+    const categoryId = getCategoryId(curr);
+    const key = `${categoryId}`;
 
     if (!acc[key]) {
       acc[key] = {
-        categoryName: category_name,
+        categoryName: getCategoryName(curr),
         goalProgress: getGoalProgress ? getGoalProgress(curr) ?? 0 : 0,
         goalTarget: getGoalTarget ? getGoalTarget(curr) ?? 0 : 0,
         goalSpent: getGoalSpent ? getGoalSpent(curr) ?? 0 : 0,
       };
+    } else {
+      acc[key].goalSpent += getGoalSpent ? getGoalSpent(curr) ?? 0 : 0;
     }
 
     return acc;
   }, {});
 
-  // Map the grouped data to an array of rows
   const rows = Object.values(groupedData).map(group => ({
     category: group.categoryName,
     goal_progress: group.goalProgress,
@@ -174,7 +173,6 @@ function calculateSavingsStatistics<T>(
     goal_spent: group.goalSpent,
   }));
 
-  // Calculate the total for each numeric column across all rows
   const totalRow = {
     category: "Total",
     goal_progress: rows.reduce((sum, row) => sum + (row.goal_progress ?? 0), 0),
