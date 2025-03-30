@@ -162,7 +162,7 @@ func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *mode
 		return err
 	}
 
-	err = s.SavingsRepo.UpdateCategoryGoalProgress(tx, user, newRecord, 1)
+	err = s.SavingsRepo.UpdateCategoryGoalProgress(tx, user, newRecord.SavingsCategoryID, newRecord.AllocatedAmount, 1)
 	if err != nil {
 		tx.Rollback()
 		return err
