@@ -97,7 +97,7 @@ type CreateSavingsCategoryRequest struct {
 	ID           uint     `json:"id"`
 	Name         string   `json:"name" validate:"required,max=100"`
 	SavingsType  string   `json:"savings_type" validate:"required"`
-	GoalTarget   *float64 `json:"goal_value"`
+	GoalTarget   *float64 `json:"goal_target"`
 	AccountType  string   `json:"account_type" validate:"required"`
 	InterestRate *float64 `json:"interest_rate"`
 }
@@ -106,5 +106,13 @@ type CreateSavingsAllocationRequest struct {
 	ID                uint      `json:"id"`
 	SavingsCategoryID uint      `json:"savings_category_id" validate:"required,numeric"`
 	AllocatedAmount   float64   `json:"allocated_amount"`
-	SavingsDate       time.Time `json:"savings_date" validate:"required"`
+	AllocationDate    time.Time `json:"allocation_date" validate:"required"`
+}
+
+type CreateSavingsDeductionRequest struct {
+	ID                uint      `json:"id"`
+	SavingsCategoryID uint      `json:"savings_category_id" validate:"required,numeric"`
+	Amount            float64   `json:"amount"`
+	DeductionDate     time.Time `json:"deduction_date" validate:"required"`
+	Reason            *string   `json:"reason"`
 }
