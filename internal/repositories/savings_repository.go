@@ -125,6 +125,16 @@ func (r *SavingsRepository) InsertSavingsAllocation(tx *gorm.DB, user *models.Us
 	return nil
 }
 
+func (r *SavingsRepository) InsertSavingsDeduction(tx *gorm.DB, user *models.User, record *models.SavingsDeduction) error {
+
+	record.OrganizationID = *user.PrimaryOrganizationID
+	record.UserID = user.ID
+	if err := tx.Create(&record).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
 func (r *SavingsRepository) InsertSavingsCategory(tx *gorm.DB, user *models.User, record *models.SavingsCategory) error {
 
 	var existing models.SavingsCategory

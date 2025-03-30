@@ -177,6 +177,48 @@ func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *mode
 	return tx.Commit().Error
 }
 
+func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *models.SavingsDeduction) error {
+
+	user, err := s.AuthService.GetCurrentUser(c, false)
+	if err != nil {
+		return err
+	}
+	changes := utils.InitChanges()
+
+	tx := s.SavingsRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	amountString := strconv.FormatFloat(newRecord.Amount, 'f', 2, 64)
+	dateStr := newRecord.DeductionDate.UTC().Format(time.RFC3339)
+
+	utils.CompareChanges("", newRecord.SavingsCategory.Name, changes, "category")
+	utils.CompareChanges("", amountString, changes, "amount")
+	utils.CompareChanges("", dateStr, changes, "deduction_date")
+	utils.CompareChanges("", utils.SafeString(newRecord.Reason), changes, "reason")
+
+	err = s.SavingsRepo.InsertSavingsDeduction(tx, user, newRecord)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.SavingsRepo.UpdateCategoryGoalProgress(tx, user, newRecord.SavingsCategoryID, newRecord.Amount, -1)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_deduction", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
 func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models.SavingsCategory) error {
 
 	user, err := s.AuthService.GetCurrentUser(c, false)

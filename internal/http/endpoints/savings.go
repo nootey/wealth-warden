@@ -9,8 +9,9 @@ func SavingsRoutes(apiGroup *gin.RouterGroup, handler *handlers.SavingsHandler) 
 	apiGroup.GET("/", handler.GetSavingsPaginated)
 	apiGroup.GET("/grouped-by-month", handler.GetAllSavingsGroupedByMonth)
 	apiGroup.GET("/categories", handler.GetAllSavingsCategories)
+	apiGroup.POST("/create-allocation", handler.CreateNewSavingsAllocation)
+	apiGroup.POST("/create-deduction", handler.CreateNewSavingsDeduction)
 	apiGroup.POST("/create-category", handler.CreateNewSavingsCategory)
-	apiGroup.POST("/create", handler.CreateNewSavingsAllocation)
 	apiGroup.POST("/update-category", handler.UpdateSavingsCategory)
 
 }

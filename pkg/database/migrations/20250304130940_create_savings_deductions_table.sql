@@ -7,8 +7,7 @@ user_id BIGINT UNSIGNED NOT NULL,
 savings_category_id BIGINT UNSIGNED NOT NULL,
 deduction_date DATE NOT NULL,
 amount DECIMAL(10,2) NOT NULL,
-reason TEXT DEFAULT NULL, -- Optional: Reason for withdrawal
-reassigned_to_category_id BIGINT UNSIGNED DEFAULT NULL, -- If reassigned to another category
+reason VARCHAR(255),
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
