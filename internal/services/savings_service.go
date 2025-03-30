@@ -36,35 +36,91 @@ func NewSavingsService(
 	}
 }
 
-func (s *SavingsService) FetchSavingsPaginated(c *gin.Context, paginationParams utils.PaginationParams, yearParam string) ([]models.SavingsAllocation, int, error) {
-
+func (s *SavingsService) FetchSavingsPaginated(c *gin.Context, paginationParams utils.PaginationParams, yearParam string) ([]models.Savings, int, error) {
 	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Get the current year
 	currentYear := time.Now().Year()
-
-	// Convert yearParam to integer
 	year, err := strconv.Atoi(yearParam)
-	if err != nil || year > currentYear || year < 2000 { // Ensure year is valid
-		year = currentYear // Default to current year if invalid
+	if err != nil || year > currentYear || year < 2000 {
+		year = currentYear
 	}
 
-	totalRecords, err := s.SavingsRepo.CountSavings(user, year, paginationParams.Filters)
+	// Get total counts first
+	allocationCount, err := s.SavingsRepo.CountAllocations(user, year, paginationParams.Filters)
+	if err != nil {
+		return nil, 0, err
+	}
+	deductionCount, err := s.SavingsRepo.CountDeductions(user, year, paginationParams.Filters)
+	if err != nil {
+		return nil, 0, err
+	}
+	totalCount := int(allocationCount + deductionCount)
+
+	allocations, err := s.SavingsRepo.FindSavingsAllocations(user, year, 0, totalCount, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
+	if err != nil {
+		return nil, 0, err
+	}
+	deductions, err := s.SavingsRepo.FindSavingsDeductions(user, year, 0, totalCount, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
-
-	records, err := s.SavingsRepo.FindSavings(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
-	if err != nil {
-		return nil, 0, err
+	var unified []models.Savings
+	for _, alloc := range allocations {
+		entry := models.Savings{
+			ID:                alloc.ID,
+			OrganizationID:    alloc.OrganizationID,
+			UserID:            alloc.UserID,
+			SavingsCategoryID: alloc.SavingsCategoryID,
+			SavingsCategory:   alloc.SavingsCategory,
+			SavingsDate:       alloc.AllocationDate,
+			Amount:            alloc.AllocatedAmount,
+			AdjustedAmount:    alloc.AdjustedAmount,
+			Reason:            nil,
+			Type:              "allocation",
+		}
+		unified = append(unified, entry)
 	}
 
-	return records, int(totalRecords), nil
+	for _, deduct := range deductions {
+		entry := models.Savings{
+			ID:                deduct.ID,
+			OrganizationID:    deduct.OrganizationID,
+			UserID:            deduct.UserID,
+			SavingsCategoryID: deduct.SavingsCategoryID,
+			SavingsCategory:   deduct.SavingsCategory,
+			SavingsDate:       deduct.DeductionDate,
+			Amount:            deduct.Amount,
+			AdjustedAmount:    nil,
+			Reason:            deduct.Reason,
+			Type:              "deduction",
+		}
+		unified = append(unified, entry)
+	}
+
+	sort.Slice(unified, func(i, j int) bool {
+		if paginationParams.SortOrder == "asc" {
+			return unified[i].SavingsDate.Before(unified[j].SavingsDate)
+		}
+		return unified[i].SavingsDate.After(unified[j].SavingsDate)
+	})
+
+	// Paginate manually
+	start := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
+	end := start + paginationParams.RowsPerPage
+	if start > len(unified) {
+		return []models.Savings{}, totalCount, nil
+	}
+	if end > len(unified) {
+		end = len(unified)
+	}
+
+	paginated := unified[start:end]
+
+	return paginated, totalCount, nil
 }
 
 func (s *SavingsService) FetchAllSavingsGroupedByMonth(c *gin.Context, yearParam string) ([]models.SavingsSummary, error) {

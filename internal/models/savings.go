@@ -55,6 +55,19 @@ type SavingsDeduction struct {
 	UpdatedAt         time.Time       `json:"updated_at"`
 }
 
+type Savings struct {
+	ID                uint            `json:"id"`
+	OrganizationID    uint            `json:"organization_id"`
+	UserID            uint            `json:"user_id"`
+	SavingsCategoryID uint            `json:"savings_category_id"`
+	SavingsCategory   SavingsCategory `json:"savings_category"`
+	SavingsDate       time.Time       `json:"savings_date"`
+	Amount            float64         `json:"amount"`
+	AdjustedAmount    *float64        `json:"adjusted_amount,omitempty"` // Only for allocations
+	Reason            *string         `json:"reason,omitempty"`          // Only for deductions
+	Type              string          `json:"type"`                      // "allocation" or "deduction"
+}
+
 type SavingsBalance struct {
 	ID                uint            `gorm:"primaryKey" json:"id"`
 	UserID            uint            `gorm:"not null;index" json:"user_id"`
