@@ -147,12 +147,12 @@ func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *mode
 		return tx.Error
 	}
 
-	allocatedAmountString := strconv.FormatFloat(newRecord.AllocatedAmount, 'f', 2, 64)
-	savingsDateStr := newRecord.SavingsDate.UTC().Format(time.RFC3339)
+	amountString := strconv.FormatFloat(newRecord.AllocatedAmount, 'f', 2, 64)
+	dateStr := newRecord.AllocationDate.UTC().Format(time.RFC3339)
 
 	utils.CompareChanges("", newRecord.SavingsCategory.Name, changes, "category")
-	utils.CompareChanges("", allocatedAmountString, changes, "allocated_amount")
-	utils.CompareChanges("", savingsDateStr, changes, "savings_date")
+	utils.CompareChanges("", amountString, changes, "amount")
+	utils.CompareChanges("", dateStr, changes, "allocation_date")
 
 	newRecord.AdjustedAmount = &newRecord.AllocatedAmount
 

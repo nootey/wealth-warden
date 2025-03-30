@@ -27,7 +27,7 @@ func (r *SavingsRepository) FindSavings(user *models.User, year, offset, limit i
 
 	query := r.Db.
 		Preload("SavingsCategory").
-		Where("savings_allocations.organization_id = ? AND YEAR(savings_allocations.savings_date) = ?", *user.PrimaryOrganizationID, year)
+		Where("savings_allocations.organization_id = ? AND YEAR(savings_allocations.allocation_date) = ?", *user.PrimaryOrganizationID, year)
 
 	if utils.NeedsJoin(filters, "savings_category") {
 		query = query.Joins("JOIN savings_categories ON savings_categories.id = savings_allocations.savings_category_id")
@@ -51,9 +51,9 @@ func (r *SavingsRepository) FindTotalForGroupedSavings(user *models.User, year i
 	var total []models.SavingsSummary
 	err := r.Db.
 		Model(&models.SavingsAllocation{}).
-		Select("MONTH(savings_date) AS month, 0 AS category_id, 'Total' AS category_name, SUM(adjusted_amount) AS total_amount, 'fixed' AS category_type").
-		Where("organization_id = ? AND YEAR(savings_date) = ?", *user.PrimaryOrganizationID, year).
-		Group("MONTH(savings_date)").
+		Select("MONTH(allocation_date) AS month, 0 AS category_id, 'Total' AS category_name, SUM(adjusted_amount) AS total_amount, 'fixed' AS category_type").
+		Where("organization_id = ? AND YEAR(allocation_date) = ?", *user.PrimaryOrganizationID, year).
+		Group("MONTH(allocation_date)").
 		Scan(&total).Error
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (r *SavingsRepository) FetchGroupedSavingsByCategoryAndMonth(user *models.U
 	err := r.Db.
 		Table("savings_allocations s").
 		Select(`
-			MONTH(s.savings_date) as month,
+			MONTH(s.allocation_date) as month,
 			sc.id as category_id,
 			sc.name as category_name,
 			sc.savings_type as category_type,
@@ -79,8 +79,8 @@ func (r *SavingsRepository) FetchGroupedSavingsByCategoryAndMonth(user *models.U
 		`).
 		Joins("JOIN savings_categories sc ON s.savings_category_id = sc.id").
 		Where("s.organization_id = ?", orgID).
-		Where("YEAR(s.savings_date) = ?", year).
-		Group("MONTH(s.savings_date), sc.id, sc.name, sc.savings_type, sc.goal_progress, sc.goal_target").
+		Where("YEAR(s.allocation_date) = ?", year).
+		Group("MONTH(s.allocation_date), sc.id, sc.name, sc.savings_type, sc.goal_progress, sc.goal_target").
 		Order("month, category_type, category_name").
 		Scan(&results).Error
 
@@ -100,7 +100,7 @@ func (r *SavingsRepository) CountSavings(user *models.User, year int, filters []
 	var totalRecords int64
 
 	query := r.Db.Model(&models.SavingsAllocation{}).
-		Where("savings_allocations.organization_id = ? AND YEAR(savings_allocations.savings_date) = ?", *user.PrimaryOrganizationID, year)
+		Where("savings_allocations.organization_id = ? AND YEAR(savings_allocations.allocation_date) = ?", *user.PrimaryOrganizationID, year)
 
 	if utils.NeedsJoin(filters, "savings_category") {
 		query = query.Joins("JOIN savings_categories ON savings_categories.id = savings_allocations.savings_category_id")

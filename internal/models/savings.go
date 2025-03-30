@@ -35,7 +35,7 @@ type SavingsAllocation struct {
 	UserID            uint            `gorm:"not null" json:"user_id"`
 	SavingsCategoryID uint            `gorm:"index" json:"savings_category_id"`
 	SavingsCategory   SavingsCategory `gorm:"foreignKey:SavingsCategoryID" json:"savings_category"`
-	SavingsDate       time.Time       `gorm:"not null" json:"savings_date"`
+	AllocationDate    time.Time       `gorm:"not null" json:"allocation_date"`
 	AllocatedAmount   float64         `gorm:"type:decimal(10,2);not null" json:"allocated_amount"`
 	AdjustedAmount    *float64        `gorm:"type:decimal(10,2)" json:"adjusted_amount,omitempty"`
 	CreatedAt         time.Time       `json:"created_at"`

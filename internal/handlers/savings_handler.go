@@ -93,7 +93,7 @@ func (h *SavingsHandler) CreateNewSavingsAllocation(c *gin.Context) {
 		ID:                req.ID,
 		SavingsCategoryID: req.SavingsCategoryID,
 		AllocatedAmount:   req.AllocatedAmount,
-		SavingsDate:       req.SavingsDate,
+		AllocationDate:    req.AllocationDate,
 	}
 
 	if err := h.Service.CreateSavingsAllocation(c, record); err != nil {
