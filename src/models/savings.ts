@@ -3,7 +3,8 @@ export interface SavingAllocation {
     savings_category_id: number;
     savings_category: object;
     allocated_amount: number;
-    savings_date: any;
+    allocation_date: any;
+}
 }
 
 export interface SavingsCategory {

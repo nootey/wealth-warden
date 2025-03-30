@@ -9,7 +9,7 @@ import LoadingSpinner from "../components/ui/LoadingSpinner.vue";
 import ColumnHeader from "../components/shared/ColumnHeader.vue";
 import YearPicker from "../components/shared/YearPicker.vue";
 import BaseFilter from "../components/shared/filters/BaseFilter.vue";
-import SavingsCreate from "../features/savings/SavingsCreate.vue";
+import SavingsAllocationsCreate from "../features/savings/SavingsAllocationsCreate.vue";
 import SavingsCategories from "../features/savings/SavingsCategories.vue";
 import type {SavingsGroup, SavingsStatistics} from "../../models/savings.ts";
 import DisplayMonthlyDate from "../components/shared/DisplayMonthlyDate.vue";
@@ -59,7 +59,7 @@ const sort = ref(vueHelper.initSort());
 const savingsColumns = ref([
   { field: 'savings_category', header: 'Category' },
   { field: 'adjusted_amount', header: 'Amount' },
-  { field: 'savings_date', header: 'Date' },
+  { field: 'allocation_date', header: 'Date' },
 ]);
 
 const savingsCategories = computed(() => savingsStore.savingsCategories);
@@ -295,7 +295,7 @@ function switchSort(column) {
 function toggleFilterOverlay(event, column) {
 
   switch (column) {
-    case "savings_date": {
+    case "allocation_date": {
       filterType.value = "date";
       break;
     }
@@ -431,8 +431,8 @@ provide('removeFilter', removeFilter);
               <template v-if="field === 'adjusted_amount'">
                 {{ vueHelper.displayAsCurrency(data.adjusted_amount) }}
               </template>
-              <template v-else-if="field === 'savings_date'">
-                {{ dateHelper.formatDate(data?.savings_date, true) }}
+              <template v-else-if="field === 'allocation_date'">
+                {{ dateHelper.formatDate(data?.allocation_date, true) }}
               </template>
               <template v-else-if="field === 'savings_category'">
                 {{ data[field]["name"] }}
@@ -446,7 +446,7 @@ provide('removeFilter', removeFilter);
               <template v-if="field === 'amount'">
                 <InputNumber size="small" v-model="data[field]" mode="currency" currency="EUR" locale="de-DE" autofocus fluid />
               </template>
-              <template v-else-if="field === 'savings_date'">
+              <template v-else-if="field === 'allocation_date'">
                 <DatePicker v-model="data[field]" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
                             style="height: 42px;"/>
               </template>

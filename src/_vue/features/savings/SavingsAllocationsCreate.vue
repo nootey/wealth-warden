@@ -3,7 +3,7 @@ import {useSavingsStore} from "../../../services/stores/savingsStore.ts";
 import {useToastStore} from "../../../services/stores/toastStore.ts";
 import {computed, inject, ref} from "vue";
 import dateHelper from "../../../utils/dateHelper.ts";
-import {helpers, integer, maxValue, minValue, numeric, required} from "@vuelidate/validators";
+import {maxValue, minValue, numeric, required} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import ValidationError from "../../components/validation/ValidationError.vue";
 
@@ -29,7 +29,7 @@ const rules = {
       required,
       $autoDirty: true
     },
-    savingsDate: {
+    allocationDate: {
       required,
       $autoDirty: true
     },
@@ -42,7 +42,7 @@ function initSavingsAllocation(): Record<string, any> {
   return {
     allocated_amount: null,
     savingsCategory: [],
-    savingsDate: dateHelper.formatDate(new Date(), true),
+    allocationDate: dateHelper.formatDate(new Date(), true),
   };
 }
 
@@ -53,13 +53,13 @@ async function createNewSavingsAllocation() {
     return;
 
   try {
-    let savings_date = dateHelper.mergeDateWithCurrentTime(newSavingsAllocation.value.savingsDate, "Europe/Ljubljana");
+    let allocation_date = dateHelper.mergeDateWithCurrentTime(newSavingsAllocation.value.allocationDate, "Europe/Ljubljana");
     let response = await savingsStore.createSavingsAllocation({
       id: null,
       savings_category_id: newSavingsAllocation.value.savingsCategory.id,
       savings_category: newSavingsAllocation.value.savingsCategory,
       allocated_amount: newSavingsAllocation.value.allocated_amount,
-      savings_date: savings_date,
+      allocation_date: allocation_date,
     });
 
     newSavingsAllocation.value = initSavingsAllocation();
@@ -126,10 +126,10 @@ const searchSavingsCategory = (event: any) => {
       </div>
 
       <div class="flex flex-column">
-        <ValidationError :isRequired="true" :message="v$.newSavingsAllocation.savingsDate.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.newSavingsAllocation.allocationDate.$errors[0]?.$message">
           <label>Date</label>
         </ValidationError>
-        <DatePicker v-model="newSavingsAllocation.savingsDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
+        <DatePicker v-model="newSavingsAllocation.allocationDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
                     style="height: 42px;"/>
       </div>
 

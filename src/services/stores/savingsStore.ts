@@ -14,7 +14,7 @@ export const useSavingsStore = defineStore('savings', {
         async getSavingsYears() {
             try {
                 const response = await apiClient.get("reoccurring/available-record-years", {
-                    params: {table: "savings_allocations", field: "savings_date"}});
+                    params: {table: "savings_allocations", field: "allocation_date"}});
                 this.savingsYears = response.data;
             } catch (err) {
                 throw err;
