@@ -74,7 +74,7 @@ const searchOperator = (event: any) => {
                class="p-column-filter" @keydown.enter="addActiveFilter" @input="formatSearchText"/>
     <InputNumber v-if="filterType === 'number'" size="small" v-model="filter.value" mode="currency" currency="EUR"
                  locale="de-DE" placeholder="0,00 €"></InputNumber>
-    <DatePicker v-if="filterType === 'date'" v-model="filter.value" :disabledDays="[0,6]" :showButtonBar="true"
+    <DatePicker v-if="filterType === 'date'" v-model="filter.value" :showButtonBar="true"
               :showIcon="true" :showOnFocus="false" :showTime="false" autocomplete="off"
               class="calendar" @dblclick="calendarDoubleClick"
               @date-select="selectDate" :manualInput="true" :placeholder="'Filter by ' + activeColumn"
