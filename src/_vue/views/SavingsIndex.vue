@@ -170,6 +170,7 @@ function calculateSavingsStatistics<T>(
         goalSpent: getGoalSpent ? getGoalSpent(curr) ?? 0 : 0,
       };
     } else {
+      acc[key].goalProgress += getGoalProgress ? getGoalProgress(curr) ?? 0 : 0;
       acc[key].goalSpent += getGoalSpent ? getGoalSpent(curr) ?? 0 : 0;
     }
 
