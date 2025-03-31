@@ -40,14 +40,17 @@ func GetPaginationParams(queryParams url.Values) PaginationParams {
 			rowsPerPage = parsedRowsPerPage
 		}
 	}
-
-	if sortFieldParam := queryParams.Get("sort_field"); sortFieldParam != "" {
+	if sortFieldParam := queryParams.Get("sort[field]"); sortFieldParam != "" {
 		sortField = sortFieldParam
 	}
 
-	if sortOrderParam := queryParams.Get("sort_order"); sortOrderParam != "" {
+	if sortOrderParam := queryParams.Get("sort[order]"); sortOrderParam != "" {
 		if sortOrderParam == "asc" || sortOrderParam == "desc" {
 			sortOrder = sortOrderParam
+		} else if sortOrderParam == "1" {
+			sortOrder = "asc"
+		} else if sortOrderParam == "-1" {
+			sortOrder = "desc"
 		}
 	}
 
