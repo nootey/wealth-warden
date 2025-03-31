@@ -29,8 +29,9 @@ func (r *OutflowRepository) CountOutflows(user *models.User, year int, filters [
 	query := r.Db.Model(&models.Outflow{}).
 		Where("outflows.organization_id = ? AND YEAR(outflows.outflow_date) = ?", *user.PrimaryOrganizationID, year)
 
-	if utils.NeedsJoin(filters, "outflow_category") {
-		query = query.Joins("JOIN outflow_categories ON outflow_categories.id = outflows.outflow_category_id")
+	joins := utils.GetRequiredJoins(filters)
+	for _, join := range joins {
+		query = query.Joins(join)
 	}
 
 	query = utils.ApplyFilters(query, filters)
@@ -63,14 +64,16 @@ func (r *OutflowRepository) SumOutflowsByCategory(user *models.User, categoryID 
 
 func (r *OutflowRepository) FindOutflows(user *models.User, year, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Outflow, error) {
 	var records []models.Outflow
-	orderBy := sortField + " " + sortOrder
 
 	query := r.Db.
 		Preload("OutflowCategory").
 		Where("outflows.organization_id = ? AND YEAR(outflows.outflow_date) = ?", *user.PrimaryOrganizationID, year)
 
-	if utils.NeedsJoin(filters, "outflow_category") {
-		query = query.Joins("JOIN outflow_categories ON outflow_categories.id = outflows.outflow_category_id")
+	joins := utils.GetRequiredJoins(filters)
+	orderBy := utils.ConstructOrderByClause(&joins, sortField, sortOrder)
+
+	for _, join := range joins {
+		query = query.Joins(join)
 	}
 
 	query = utils.ApplyFilters(query, filters)

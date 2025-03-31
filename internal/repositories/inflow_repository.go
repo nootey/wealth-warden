@@ -30,8 +30,9 @@ func (r *InflowRepository) CountInflows(user *models.User, year int, filters []u
 	query := r.Db.Model(&models.Inflow{}).
 		Where("inflows.organization_id = ? AND YEAR(inflows.inflow_date) = ?", *user.PrimaryOrganizationID, year)
 
-	if utils.NeedsJoin(filters, "inflow_category") {
-		query = query.Joins("JOIN inflow_categories ON inflow_categories.id = inflows.inflow_category_id")
+	joins := utils.GetRequiredJoins(filters)
+	for _, join := range joins {
+		query = query.Joins(join)
 	}
 
 	query = utils.ApplyFilters(query, filters)
@@ -70,15 +71,18 @@ func (r *InflowRepository) SumInflowsByCategory(user *models.User, categoryID ui
 }
 
 func (r *InflowRepository) FindInflows(user *models.User, year, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Inflow, error) {
+
 	var records []models.Inflow
-	orderBy := sortField + " " + sortOrder
 
 	query := r.Db.
 		Preload("InflowCategory").
 		Where("inflows.organization_id = ? AND YEAR(inflows.inflow_date) = ?", *user.PrimaryOrganizationID, year)
 
-	if utils.NeedsJoin(filters, "inflow_category") {
-		query = query.Joins("JOIN inflow_categories ON inflow_categories.id = inflows.inflow_category_id")
+	joins := utils.GetRequiredJoins(filters)
+	orderBy := utils.ConstructOrderByClause(&joins, sortField, sortOrder)
+
+	for _, join := range joins {
+		query = query.Joins(join)
 	}
 
 	query = utils.ApplyFilters(query, filters)
