@@ -133,14 +133,14 @@ func (r *SavingsRepository) FetchGroupedSavingsByCategoryAndMonth(user *models.U
 	err := r.Db.
 		Table("savings_allocations s").
 		Select(`
-			MONTH(s.allocation_date) as month,
-			sc.id as category_id,
-			sc.name as category_name,
-			sc.savings_type as category_type,
-			SUM(s.adjusted_amount) as total_amount,
-			GREATEST(sc.goal_progress - MAX(COALESCE(d.deduction_sum, 0)), 0) as goal_progress,
-			sc.goal_target as goal_target,
-			MAX(COALESCE(d.deduction_sum, 0)) as goal_spent
+			MONTH(s.allocation_date) AS month,
+			sc.id AS category_id,
+			sc.name AS category_name,
+			sc.savings_type AS category_type,
+			SUM(s.adjusted_amount) AS total_amount,
+			GREATEST(SUM(s.adjusted_amount) - MAX(COALESCE(d.deduction_sum, 0)), 0) AS goal_progress,
+			sc.goal_target AS goal_target,
+			MAX(COALESCE(d.deduction_sum, 0)) AS goal_spent
 		`).
 		Joins("JOIN savings_categories sc ON s.savings_category_id = sc.id").
 		Joins("LEFT JOIN (SELECT savings_category_id, MONTH(deduction_date) as month, SUM(amount) as deduction_sum FROM savings_deductions WHERE organization_id = ? AND YEAR(deduction_date) = ? GROUP BY savings_category_id, MONTH(deduction_date)) d ON d.savings_category_id = s.savings_category_id AND d.month = MONTH(s.allocation_date)", orgID, year).
