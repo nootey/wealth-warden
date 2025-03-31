@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import type {Statistics} from "../../../models/shared.ts";
 import vueHelper from "../../../utils/vueHelper.ts";
-import ComparativePieChart from "../../components/shared/charting/ComparativePieChart.vue";
 
 const props = defineProps<{
-  savingsStats: Statistics[];
+  savingsStats: any;
   dataCount: number
 }>();
 </script>
@@ -22,6 +20,11 @@ const props = defineProps<{
         <Column field="goal_target" header="Target" style="max-width: 2rem;">
           <template #body="slotProps">
             {{ vueHelper.displayAsCurrency(slotProps.data.goal_target) }}
+          </template>
+        </Column>
+        <Column field="goal_remaining" header="Remaining" style="max-width: 2rem;">
+          <template #body="slotProps">
+            {{ vueHelper.displayAsCurrency(slotProps.data.goal_remaining) }}
           </template>
         </Column>
         <Column field="goal_spent" header="Spent" style="max-width: 2rem;">

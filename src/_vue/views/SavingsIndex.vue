@@ -132,7 +132,15 @@ async function getGroupedData() {
 
 function calculateSavingsStatistics<T>(
     groupedItems: T[],
-    targetRef: { value: { category: string; goal_progress: number | null; goal_target: number | null; goal_spent: number | null }[] },
+    targetRef: {
+      value: {
+        category: string;
+        goal_progress: number | null;
+        goal_target: number | null;
+        goal_spent: number | null;
+        goal_remaining: number | null;
+      }[]
+    },
     getCategoryId: (item: T) => number,
     getCategoryName: (item: T) => string,
     getGoalProgress?: (item: T) => number | null,
@@ -168,18 +176,24 @@ function calculateSavingsStatistics<T>(
     return acc;
   }, {});
 
-  const rows = Object.values(groupedData).map(group => ({
-    category: group.categoryName,
-    goal_progress: group.goalProgress,
-    goal_target: group.goalTarget,
-    goal_spent: group.goalSpent,
-  }));
+  const rows = Object.values(groupedData).map(group => {
+    const goalRemaining = group.goalTarget - group.goalProgress;
+
+    return {
+      category: group.categoryName,
+      goal_progress: group.goalProgress,
+      goal_target: group.goalTarget,
+      goal_spent: group.goalSpent,
+      goal_remaining: goalRemaining,
+    };
+  });
 
   const totalRow = {
     category: "Total",
     goal_progress: rows.reduce((sum, row) => sum + (row.goal_progress ?? 0), 0),
     goal_target: rows.reduce((sum, row) => sum + (row.goal_target ?? 0), 0),
     goal_spent: rows.reduce((sum, row) => sum + (row.goal_spent ?? 0), 0),
+    goal_remaining: rows.reduce((sum, row) => sum + ((row.goal_target ?? 0) - (row.goal_progress ?? 0)), 0),
   };
 
   targetRef.value = [totalRow, ...rows];
