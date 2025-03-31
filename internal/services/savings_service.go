@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"sort"
@@ -253,6 +254,25 @@ func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *model
 	utils.CompareChanges("", amountString, changes, "amount")
 	utils.CompareChanges("", dateStr, changes, "deduction_date")
 	utils.CompareChanges("", utils.SafeString(newRecord.Reason), changes, "reason")
+
+	allocationTotal, err := s.SavingsRepo.FindTotalForAllocationsForCategory(user, newRecord.SavingsCategoryID, newRecord.DeductionDate.Year())
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	deductionTotal, err := s.SavingsRepo.FindTotalForDeductionsForCategory(user, newRecord.SavingsCategoryID, newRecord.DeductionDate.Year())
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	availableTotal := allocationTotal - deductionTotal
+
+	if availableTotal-newRecord.Amount <= 0 {
+		tx.Rollback()
+		return errors.New(fmt.Sprintf("deduction amount is greater than the total of allocations, max value: %.2f", availableTotal))
+	}
 
 	err = s.SavingsRepo.InsertSavingsDeduction(tx, user, newRecord)
 	if err != nil {

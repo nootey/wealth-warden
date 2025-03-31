@@ -59,6 +59,34 @@ func (r *SavingsRepository) FindAllSavingCategories(user *models.User) ([]models
 	return records, result.Error
 }
 
+func (r *SavingsRepository) FindTotalForAllocationsForCategory(user *models.User, categoryID uint, year int) (float64, error) {
+	var total float64
+
+	err := r.Db.
+		Table("savings_allocations").
+		Select("COALESCE(SUM(adjusted_amount), 0)").
+		Where("organization_id = ?", *user.PrimaryOrganizationID).
+		Where("savings_category_id = ?", categoryID).
+		Where("YEAR(allocation_date) = ?", year).
+		Scan(&total).Error
+
+	return total, err
+}
+
+func (r *SavingsRepository) FindTotalForDeductionsForCategory(user *models.User, categoryID uint, year int) (float64, error) {
+	var total float64
+
+	err := r.Db.
+		Table("savings_deductions").
+		Select("COALESCE(SUM(amount), 0)").
+		Where("organization_id = ?", *user.PrimaryOrganizationID).
+		Where("savings_category_id = ?", categoryID).
+		Where("YEAR(deduction_date) = ?", year).
+		Scan(&total).Error
+
+	return total, err
+}
+
 func (r *SavingsRepository) FindSavingsAllocations(user *models.User, year, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.SavingsAllocation, error) {
 	var records []models.SavingsAllocation
 	orderBy := sortField + " " + sortOrder
