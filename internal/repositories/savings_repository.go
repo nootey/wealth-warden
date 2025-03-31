@@ -138,7 +138,7 @@ func (r *SavingsRepository) FetchGroupedSavingsByCategoryAndMonth(user *models.U
 			sc.name as category_name,
 			sc.savings_type as category_type,
 			SUM(s.adjusted_amount) as total_amount,
-			sc.goal_progress as goal_progress,
+			GREATEST(sc.goal_progress - MAX(COALESCE(d.deduction_sum, 0)), 0) as goal_progress,
 			sc.goal_target as goal_target,
 			MAX(COALESCE(d.deduction_sum, 0)) as goal_spent
 		`).
