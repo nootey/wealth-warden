@@ -58,11 +58,11 @@ const page = ref(1);
 const sort = ref(vueHelper.initSort());
 
 const savingsColumns = ref([
-  { field: 'type', header: 'Type' },
+  { field: 'transaction_type', header: 'Type' },
   { field: 'savings_category', header: 'Category' },
   { field: 'adjusted_amount', header: 'Amount' },
-  { field: 'savings_date', header: 'Date' },
-  { field: 'reason', header: 'Reason' },
+  { field: 'transaction_date', header: 'Date' },
+  { field: 'description', header: 'Description' },
 ]);
 
 const savingsCategories = computed(() => savingsStore.savingsCategories);
@@ -311,11 +311,11 @@ function switchSort(column) {
 function toggleFilterOverlay(event, column) {
 
   switch (column) {
-    case "allocation_date": {
+    case "transaction_date": {
       filterType.value = "date";
       break;
     }
-    case "amount": {
+    case "adjusted_amount": {
       filterType.value = "number";
       break;
     }
@@ -356,7 +356,7 @@ provide('removeFilter', removeFilter);
   </Popover>
 
   <div class="flex w-full p-2">
-    <div class="flex w-8 flex-column p-2 gap-3">
+    <div class="flex w-9 flex-column p-2 gap-3">
 
       <div class="flex flex-row p-1 fap-2 align-items-center">
         <div class="flex flex-column p-1">
@@ -449,10 +449,10 @@ provide('removeFilter', removeFilter);
             </template>
             <template #body="{ data, field }">
               <template v-if="field === 'adjusted_amount'">
-                {{ vueHelper.displayAsCurrency(data.amount) }}
+                {{ vueHelper.displayAsCurrency(data.adjusted_amount) }}
               </template>
-              <template v-else-if="field === 'savings_date'">
-                {{ dateHelper.formatDate(data?.savings_date, true) }}
+              <template v-else-if="field === 'transaction_date'">
+                {{ dateHelper.formatDate(data?.transaction_date, true) }}
               </template>
               <template v-else-if="field === 'savings_category'">
                 {{ data[field]["name"] }}
@@ -463,10 +463,10 @@ provide('removeFilter', removeFilter);
             </template>
 
             <template #editor="{ data, field }">
-              <template v-if="field === 'amount'">
+              <template v-if="field === 'adjusted_amount'">
                 <InputNumber size="small" v-model="data[field]" mode="currency" currency="EUR" locale="de-DE" autofocus fluid />
               </template>
-              <template v-else-if="field === 'savings_date'">
+              <template v-else-if="field === 'transaction_date'">
                 <DatePicker v-model="data[field]" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
                             style="height: 42px;"/>
               </template>
@@ -484,7 +484,7 @@ provide('removeFilter', removeFilter);
       </div>
     </div>
 
-    <div class="flex flex-column w-4 p-2 gap-3" style="border-left: 1px solid var(--text-primary);">
+    <div class="flex flex-column w-3 p-2 gap-3" style="border-left: 1px solid var(--text-primary);">
 
       <div class="flex flex-row p-1">
         <h2>

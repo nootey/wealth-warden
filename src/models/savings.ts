@@ -1,18 +1,11 @@
-export interface SavingAllocation {
+export interface SavingsTransaction {
     id: number|null;
     savings_category_id: number;
     savings_category: object;
+    transaction_type: string
     allocated_amount: number;
-    allocation_date: any;
-}
-
-export interface SavingsDeduction {
-    id: number|null;
-    savings_category_id: number;
-    savings_category: object;
-    amount: number;
-    deduction_date: any;
-    reason: string|null;
+    transaction_date: any;
+    description: string|null;
 }
 
 export interface SavingsCategory {
@@ -30,13 +23,6 @@ export interface SavingsGroup {
     category_id: number;
     category_name: string;
     category_type: string;
-}
-
-export interface GroupedSavingsItem {
-    categoryName: string;
-    goalProgress: number | null;
-    goalTarget: number | null;
-    goalSpent: number | null;
 }
 
 export interface SavingsStatistics {

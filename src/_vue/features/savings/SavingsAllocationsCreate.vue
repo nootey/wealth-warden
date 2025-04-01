@@ -29,10 +29,13 @@ const rules = {
       required,
       $autoDirty: true
     },
-    allocationDate: {
+    transactionDate: {
       required,
       $autoDirty: true
     },
+    description: {
+      $autoDirty: true
+    }
   },
 };
 
@@ -42,7 +45,8 @@ function initSavingsAllocation(): Record<string, any> {
   return {
     allocated_amount: null,
     savingsCategory: [],
-    allocationDate: dateHelper.formatDate(new Date(), true),
+    transactionDate: dateHelper.formatDate(new Date(), true),
+    description: null
   };
 }
 
@@ -53,13 +57,15 @@ async function createNewSavingsAllocation() {
     return;
 
   try {
-    let allocation_date = dateHelper.mergeDateWithCurrentTime(newSavingsAllocation.value.allocationDate, "Europe/Ljubljana");
+    let transaction_date = dateHelper.mergeDateWithCurrentTime(newSavingsAllocation.value.transactionDate, "Europe/Ljubljana");
     let response = await savingsStore.createSavingsAllocation({
       id: null,
+      transaction_type: "allocation",
       savings_category_id: newSavingsAllocation.value.savingsCategory.id,
       savings_category: newSavingsAllocation.value.savingsCategory,
       allocated_amount: newSavingsAllocation.value.allocated_amount,
-      allocation_date: allocation_date,
+      transaction_date: transaction_date,
+      description: newSavingsAllocation.value.description,
     });
 
     newSavingsAllocation.value = initSavingsAllocation();
@@ -126,10 +132,10 @@ const searchSavingsCategory = (event: any) => {
       </div>
 
       <div class="flex flex-column">
-        <ValidationError :isRequired="true" :message="v$.newSavingsAllocation.allocationDate.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.newSavingsAllocation.transactionDate.$errors[0]?.$message">
           <label>Date</label>
         </ValidationError>
-        <DatePicker v-model="newSavingsAllocation.allocationDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
+        <DatePicker v-model="newSavingsAllocation.transactionDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
                     style="height: 42px;"/>
       </div>
 
@@ -138,6 +144,15 @@ const searchSavingsCategory = (event: any) => {
           <label>Submit</label>
         </ValidationError>
         <Button icon="pi pi-cart-plus" @click="createNewSavingsAllocation" style="height: 42px;" />
+      </div>
+    </div>
+
+    <div class="flex flex-row w-full gap-2 p-1 align-items-center">
+      <div class="flex flex-column w-full">
+        <ValidationError :isRequired="false" :message="v$.newSavingsAllocation.description.$errors[0]?.$message">
+          <label>Description</label>
+        </ValidationError>
+        <InputText size="small" v-model="newSavingsAllocation.description"></InputText>
       </div>
     </div>
 

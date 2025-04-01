@@ -18,7 +18,7 @@ const initData = inject<((new_page?: number | null) => Promise<void>) | null>("i
 
 const rules = {
   newSavingsDeduction: {
-    amount: {
+    allocated_amount: {
       required,
       numeric,
       minValue: minValue(0),
@@ -29,11 +29,11 @@ const rules = {
       required,
       $autoDirty: true
     },
-    deductionDate: {
+    transactionDate: {
       required,
       $autoDirty: true
     },
-    reason: {
+    description: {
       $autoDirty: true
     }
   },
@@ -43,10 +43,10 @@ const v$ = useVuelidate(rules, { newSavingsDeduction });
 
 function initSavingsDeduction(): Record<string, any> {
   return {
-    amount: null,
+    allocated_amount: null,
     savingsCategory: [],
-    deductionDate: dateHelper.formatDate(new Date(), true),
-    reason: null,
+    transactionDate: dateHelper.formatDate(new Date(), true),
+    description: null,
   };
 }
 
@@ -57,14 +57,15 @@ async function createNewSavingsDeduction() {
     return;
 
   try {
-    let deduction_date = dateHelper.mergeDateWithCurrentTime(newSavingsDeduction.value.deductionDate, "Europe/Ljubljana");
+    let transaction_date = dateHelper.mergeDateWithCurrentTime(newSavingsDeduction.value.transactionDate, "Europe/Ljubljana");
     let response = await savingsStore.createSavingsDeduction({
       id: null,
+      transaction_type: "deduction",
       savings_category_id: newSavingsDeduction.value.savingsCategory.id,
       savings_category: newSavingsDeduction.value.savingsCategory,
-      amount: newSavingsDeduction.value.amount,
-      deduction_date: deduction_date,
-      reason: newSavingsDeduction.value.reason,
+      allocated_amount: newSavingsDeduction.value.allocated_amount,
+      transaction_date: transaction_date,
+      description: newSavingsDeduction.value.description,
     });
 
     newSavingsDeduction.value = initSavingsDeduction();
@@ -119,22 +120,22 @@ const searchSavingsCategory = (event: any) => {
       </div>
 
       <div class="flex flex-column">
-        <ValidationError :isRequired="true" :message="v$.newSavingsDeduction.amount.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.newSavingsDeduction.allocated_amount.$errors[0]?.$message">
           <label>Amount</label>
         </ValidationError>
         <InputGroup>
           <InputGroupAddon>
             <i class="pi pi-wallet"></i>
           </InputGroupAddon>
-          <InputNumber size="small" v-model="newSavingsDeduction.amount" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00"></InputNumber>
+          <InputNumber size="small" v-model="newSavingsDeduction.allocated_amount" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00"></InputNumber>
         </InputGroup>
       </div>
 
       <div class="flex flex-column">
-        <ValidationError :isRequired="true" :message="v$.newSavingsDeduction.deductionDate.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.newSavingsDeduction.transactionDate.$errors[0]?.$message">
           <label>Date</label>
         </ValidationError>
-        <DatePicker v-model="newSavingsDeduction.deductionDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
+        <DatePicker v-model="newSavingsDeduction.transactionDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"
                     style="height: 42px;"/>
       </div>
       <div class="flex flex-column">
@@ -147,10 +148,10 @@ const searchSavingsCategory = (event: any) => {
 
     <div class="flex flex-row w-full gap-2 p-1 align-items-center">
       <div class="flex flex-column w-full">
-        <ValidationError :isRequired="false" :message="v$.newSavingsDeduction.reason.$errors[0]?.$message">
+        <ValidationError :isRequired="false" :message="v$.newSavingsDeduction.description.$errors[0]?.$message">
           <label>Reason</label>
         </ValidationError>
-        <InputText size="small" v-model="newSavingsDeduction.reason"></InputText>
+        <InputText size="small" v-model="newSavingsDeduction.description"></InputText>
       </div>
     </div>
 
