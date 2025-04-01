@@ -15,33 +15,15 @@ func NewSavingsRepository(db *gorm.DB) *SavingsRepository {
 	return &SavingsRepository{Db: db}
 }
 
-func (r *SavingsRepository) CountAllocations(user *models.User, year int, filters []utils.Filter) (int64, error) {
+func (r *SavingsRepository) CountSavingsTransactions(user *models.User, year int, filters []utils.Filter) (int64, error) {
 	var totalRecords int64
 
-	query := r.Db.Model(&models.SavingsAllocation{}).
-		Where("savings_allocations.organization_id = ? AND YEAR(savings_allocations.allocation_date) = ?", *user.PrimaryOrganizationID, year)
+	query := r.Db.Model(&models.SavingsTransaction{}).
+		Where("savings_transactions.organization_id = ? AND YEAR(savings_transactions.transaction_date) = ?", *user.PrimaryOrganizationID, year)
 
-	if utils.NeedsJoin(filters, "savings_category") {
-		query = query.Joins("JOIN savings_categories ON savings_categories.id = savings_allocations.savings_category_id")
-	}
-
-	query = utils.ApplyFilters(query, filters)
-
-	err := query.Count(&totalRecords).Error
-	if err != nil {
-		return 0, err
-	}
-	return totalRecords, nil
-}
-
-func (r *SavingsRepository) CountDeductions(user *models.User, year int, filters []utils.Filter) (int64, error) {
-	var totalRecords int64
-
-	query := r.Db.Model(&models.SavingsDeduction{}).
-		Where("savings_deductions.organization_id = ? AND YEAR(savings_deductions.deduction_date) = ?", *user.PrimaryOrganizationID, year)
-
-	if utils.NeedsJoin(filters, "savings_category") {
-		query = query.Joins("JOIN savings_categories ON savings_categories.id = savings_deductions.savings_category_id")
+	joins := utils.GetRequiredJoins(filters)
+	for _, join := range joins {
+		query = query.Joins(join)
 	}
 
 	query = utils.ApplyFilters(query, filters)
@@ -59,70 +41,33 @@ func (r *SavingsRepository) FindAllSavingCategories(user *models.User) ([]models
 	return records, result.Error
 }
 
-func (r *SavingsRepository) FindTotalForAllocationsForCategory(user *models.User, categoryID uint, year int) (float64, error) {
+func (r *SavingsRepository) FindTotalForTransactionForCategory(user *models.User, transaction string, categoryID uint, year int) (float64, error) {
 	var total float64
 
 	err := r.Db.
-		Table("savings_allocations").
+		Table("savings_transactions").
 		Select("COALESCE(SUM(adjusted_amount), 0)").
+		Where("transaction_type =?", transaction).
 		Where("organization_id = ?", *user.PrimaryOrganizationID).
 		Where("savings_category_id = ?", categoryID).
-		Where("YEAR(allocation_date) = ?", year).
+		Where("YEAR(transaction_date) = ?", year).
 		Scan(&total).Error
 
 	return total, err
 }
 
-func (r *SavingsRepository) FindTotalForDeductionsForCategory(user *models.User, categoryID uint, year int) (float64, error) {
-	var total float64
-
-	err := r.Db.
-		Table("savings_deductions").
-		Select("COALESCE(SUM(amount), 0)").
-		Where("organization_id = ?", *user.PrimaryOrganizationID).
-		Where("savings_category_id = ?", categoryID).
-		Where("YEAR(deduction_date) = ?", year).
-		Scan(&total).Error
-
-	return total, err
-}
-
-func (r *SavingsRepository) FindSavingsAllocations(user *models.User, year, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.SavingsAllocation, error) {
-	var records []models.SavingsAllocation
-	orderBy := sortField + " " + sortOrder
+func (r *SavingsRepository) FindSavingsTransactions(user *models.User, year, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.SavingsTransaction, error) {
+	var records []models.SavingsTransaction
 
 	query := r.Db.
 		Preload("SavingsCategory").
-		Where("savings_allocations.organization_id = ? AND YEAR(savings_allocations.allocation_date) = ?", *user.PrimaryOrganizationID, year)
+		Where("savings_transactions.organization_id = ? AND YEAR(savings_transactions.transaction_date) = ?", *user.PrimaryOrganizationID, year)
 
-	if utils.NeedsJoin(filters, "savings_category") {
-		query = query.Joins("JOIN savings_categories ON savings_categories.id = savings_allocations.savings_category_id")
-	}
+	joins := utils.GetRequiredJoins(filters)
+	orderBy := utils.ConstructOrderByClause(&joins, sortField, sortOrder)
 
-	query = utils.ApplyFilters(query, filters)
-
-	err := query.
-		Order(orderBy).
-		Limit(limit).
-		Offset(offset).
-		Find(&records).Error
-	if err != nil {
-		return nil, err
-	}
-
-	return records, nil
-}
-
-func (r *SavingsRepository) FindSavingsDeductions(user *models.User, year, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.SavingsDeduction, error) {
-	var records []models.SavingsDeduction
-	orderBy := sortField + " " + sortOrder
-
-	query := r.Db.
-		Preload("SavingsCategory").
-		Where("savings_deductions.organization_id = ? AND YEAR(savings_deductions.deduction_date) = ?", *user.PrimaryOrganizationID, year)
-
-	if utils.NeedsJoin(filters, "savings_category") {
-		query = query.Joins("JOIN savings_categories ON savings_categories.id = savings_deductions.savings_category_id")
+	for _, join := range joins {
+		query = query.Joins(join)
 	}
 
 	query = utils.ApplyFilters(query, filters)
@@ -142,10 +87,10 @@ func (r *SavingsRepository) FindSavingsDeductions(user *models.User, year, offse
 func (r *SavingsRepository) FindTotalForGroupedSavings(user *models.User, year int) ([]models.SavingsSummary, error) {
 	var total []models.SavingsSummary
 	err := r.Db.
-		Model(&models.SavingsAllocation{}).
-		Select("MONTH(allocation_date) AS month, 0 AS category_id, 'Total' AS category_name, SUM(adjusted_amount) AS total_amount, 'fixed' AS category_type").
-		Where("organization_id = ? AND YEAR(allocation_date) = ?", *user.PrimaryOrganizationID, year).
-		Group("MONTH(allocation_date)").
+		Model(&models.SavingsTransaction{}).
+		Select("MONTH(transaction_date) AS month, 0 AS category_id, 'Total' AS category_name, SUM(adjusted_amount) AS total_amount, 'fixed' AS category_type").
+		Where("organization_id = ? AND YEAR(transaction_date) = ?", *user.PrimaryOrganizationID, year).
+		Group("MONTH(transaction_date)").
 		Scan(&total).Error
 	if err != nil {
 		return nil, err
@@ -159,24 +104,27 @@ func (r *SavingsRepository) FetchGroupedSavingsByCategoryAndMonth(user *models.U
 	orgID := *user.PrimaryOrganizationID
 
 	err := r.Db.
-		Table("savings_allocations s").
+		Table("savings_transactions s").
 		Select(`
-			MONTH(s.allocation_date) AS month,
+			MONTH(s.transaction_date) AS month,
 			sc.id AS category_id,
 			sc.name AS category_name,
 			sc.savings_type AS category_type,
-			SUM(s.adjusted_amount) AS total_amount,
-			GREATEST(SUM(s.adjusted_amount) - MAX(COALESCE(d.deduction_sum, 0)), 0) AS goal_progress,
-			sc.goal_target AS goal_target,
-			MAX(COALESCE(d.deduction_sum, 0)) AS goal_spent
+			COALESCE(SUM(CASE WHEN s.transaction_type = 'allocation' THEN s.adjusted_amount ELSE 0 END), 0) AS total_allocated,
+			COALESCE(SUM(CASE WHEN s.transaction_type = 'deduction' THEN s.adjusted_amount ELSE 0 END), 0) AS total_deducted,
+			GREATEST(
+				COALESCE(SUM(CASE WHEN s.transaction_type = 'allocation' THEN s.adjusted_amount ELSE 0 END), 0) -
+				COALESCE(SUM(CASE WHEN s.transaction_type = 'deduction' THEN s.adjusted_amount ELSE 0 END), 0), 
+			0) AS goal_progress,
+			sc.goal_target AS goal_target
 		`).
 		Joins("JOIN savings_categories sc ON s.savings_category_id = sc.id").
-		Joins("LEFT JOIN (SELECT savings_category_id, MONTH(deduction_date) as month, SUM(amount) as deduction_sum FROM savings_deductions WHERE organization_id = ? AND YEAR(deduction_date) = ? GROUP BY savings_category_id, MONTH(deduction_date)) d ON d.savings_category_id = s.savings_category_id AND d.month = MONTH(s.allocation_date)", orgID, year).
 		Where("s.organization_id = ?", orgID).
-		Where("YEAR(s.allocation_date) = ?", year).
-		Group("MONTH(s.allocation_date), sc.id, sc.name, sc.savings_type, sc.goal_progress, sc.goal_target").
+		Where("YEAR(s.transaction_date) = ?", year).
+		Group("MONTH(s.transaction_date), sc.id, sc.name, sc.savings_type, sc.goal_target").
 		Order("month, category_type, category_name").
 		Scan(&results).Error
+
 	return results, err
 }
 
@@ -189,7 +137,7 @@ func (r *SavingsRepository) GetSavingsCategoryByID(user *models.User, categoryID
 	return &record, nil
 }
 
-func (r *SavingsRepository) InsertSavingsAllocation(tx *gorm.DB, user *models.User, record *models.SavingsAllocation) error {
+func (r *SavingsRepository) InsertSavingsAllocation(tx *gorm.DB, user *models.User, record *models.SavingsTransaction) error {
 
 	record.OrganizationID = *user.PrimaryOrganizationID
 	record.UserID = user.ID
@@ -199,7 +147,7 @@ func (r *SavingsRepository) InsertSavingsAllocation(tx *gorm.DB, user *models.Us
 	return nil
 }
 
-func (r *SavingsRepository) InsertSavingsDeduction(tx *gorm.DB, user *models.User, record *models.SavingsDeduction) error {
+func (r *SavingsRepository) InsertSavingsDeduction(tx *gorm.DB, user *models.User, record *models.SavingsTransaction) error {
 
 	record.OrganizationID = *user.PrimaryOrganizationID
 	record.UserID = user.ID

@@ -102,17 +102,11 @@ type CreateSavingsCategoryRequest struct {
 	InterestRate *float64 `json:"interest_rate"`
 }
 
-type CreateSavingsAllocationRequest struct {
+type CreateSavingsTransactionRequest struct {
 	ID                uint      `json:"id"`
 	SavingsCategoryID uint      `json:"savings_category_id" validate:"required,numeric"`
 	AllocatedAmount   float64   `json:"allocated_amount"`
-	AllocationDate    time.Time `json:"allocation_date" validate:"required"`
-}
-
-type CreateSavingsDeductionRequest struct {
-	ID                uint      `json:"id"`
-	SavingsCategoryID uint      `json:"savings_category_id" validate:"required,numeric"`
-	Amount            float64   `json:"amount"`
-	DeductionDate     time.Time `json:"deduction_date" validate:"required"`
-	Reason            *string   `json:"reason"`
+	TransactionType   string    `json:"transaction_type" validate:"required"`
+	TransactionDate   time.Time `json:"transaction_date" validate:"required"`
+	Description       *string   `json:"description"`
 }

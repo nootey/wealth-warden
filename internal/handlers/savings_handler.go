@@ -76,7 +76,7 @@ func (h *SavingsHandler) GetAllSavingsCategories(c *gin.Context) {
 
 func (h *SavingsHandler) CreateNewSavingsAllocation(c *gin.Context) {
 
-	var req validators.CreateSavingsAllocationRequest
+	var req validators.CreateSavingsTransactionRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
@@ -89,11 +89,12 @@ func (h *SavingsHandler) CreateNewSavingsAllocation(c *gin.Context) {
 		return
 	}
 
-	record := &models.SavingsAllocation{
+	record := &models.SavingsTransaction{
 		ID:                req.ID,
 		SavingsCategoryID: req.SavingsCategoryID,
 		AllocatedAmount:   req.AllocatedAmount,
-		AllocationDate:    req.AllocationDate,
+		TransactionDate:   req.TransactionDate,
+		TransactionType:   req.TransactionType,
 	}
 
 	if err := h.Service.CreateSavingsAllocation(c, record); err != nil {
@@ -106,7 +107,7 @@ func (h *SavingsHandler) CreateNewSavingsAllocation(c *gin.Context) {
 
 func (h *SavingsHandler) CreateNewSavingsDeduction(c *gin.Context) {
 
-	var req validators.CreateSavingsDeductionRequest
+	var req validators.CreateSavingsTransactionRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
@@ -119,12 +120,12 @@ func (h *SavingsHandler) CreateNewSavingsDeduction(c *gin.Context) {
 		return
 	}
 
-	record := &models.SavingsDeduction{
+	record := &models.SavingsTransaction{
 		ID:                req.ID,
 		SavingsCategoryID: req.SavingsCategoryID,
-		Amount:            req.Amount,
-		DeductionDate:     req.DeductionDate,
-		Reason:            req.Reason,
+		AllocatedAmount:   req.AllocatedAmount,
+		TransactionDate:   req.TransactionDate,
+		TransactionType:   req.TransactionType,
 	}
 
 	if err := h.Service.CreateSavingsDeduction(c, record); err != nil {

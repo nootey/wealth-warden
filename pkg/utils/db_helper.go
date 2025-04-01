@@ -15,6 +15,8 @@ var FieldMap = map[string]FieldMetadata{
 	"inflow_date":      {Column: "DATE(inflows.inflow_date)"},
 	"outflow_category": {Column: "outflow_categories.name", Join: "LEFT JOIN outflow_categories ON outflow_categories.id = outflows.outflow_category_id"},
 	"outflow_date":     {Column: "DATE(inflows.outflow_date)"},
+	"transaction_date": {Column: "DATE(savings_transactions.transaction_date)"},
+	"savings_category": {Column: "savings_categories.name", Join: "LEFT JOIN savings_categories ON savings_categories.id = savings_transactions.savings_category_id"},
 }
 
 func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {

@@ -37,91 +37,32 @@ func NewSavingsService(
 	}
 }
 
-func (s *SavingsService) FetchSavingsPaginated(c *gin.Context, paginationParams utils.PaginationParams, yearParam string) ([]models.Savings, int, error) {
+func (s *SavingsService) FetchSavingsPaginated(c *gin.Context, paginationParams utils.PaginationParams, yearParam string) ([]models.SavingsTransaction, int, error) {
 	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	currentYear := time.Now().Year()
+
 	year, err := strconv.Atoi(yearParam)
 	if err != nil || year > currentYear || year < 2000 {
 		year = currentYear
 	}
 
-	// Get total counts first
-	allocationCount, err := s.SavingsRepo.CountAllocations(user, year, paginationParams.Filters)
-	if err != nil {
-		return nil, 0, err
-	}
-	deductionCount, err := s.SavingsRepo.CountDeductions(user, year, paginationParams.Filters)
-	if err != nil {
-		return nil, 0, err
-	}
-	totalCount := int(allocationCount + deductionCount)
-
-	allocations, err := s.SavingsRepo.FindSavingsAllocations(user, year, 0, totalCount, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
-	if err != nil {
-		return nil, 0, err
-	}
-	deductions, err := s.SavingsRepo.FindSavingsDeductions(user, year, 0, totalCount, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
+	totalRecords, err := s.SavingsRepo.CountSavingsTransactions(user, year, paginationParams.Filters)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	var unified []models.Savings
-	for _, alloc := range allocations {
-		entry := models.Savings{
-			ID:                alloc.ID,
-			OrganizationID:    alloc.OrganizationID,
-			UserID:            alloc.UserID,
-			SavingsCategoryID: alloc.SavingsCategoryID,
-			SavingsCategory:   alloc.SavingsCategory,
-			SavingsDate:       alloc.AllocationDate,
-			Amount:            alloc.AllocatedAmount,
-			AdjustedAmount:    alloc.AdjustedAmount,
-			Reason:            nil,
-			Type:              "allocation",
-		}
-		unified = append(unified, entry)
+	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
+
+	outflows, err := s.SavingsRepo.FindSavingsTransactions(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
+	if err != nil {
+		return nil, 0, err
 	}
 
-	for _, deduct := range deductions {
-		entry := models.Savings{
-			ID:                deduct.ID,
-			OrganizationID:    deduct.OrganizationID,
-			UserID:            deduct.UserID,
-			SavingsCategoryID: deduct.SavingsCategoryID,
-			SavingsCategory:   deduct.SavingsCategory,
-			SavingsDate:       deduct.DeductionDate,
-			Amount:            deduct.Amount,
-			AdjustedAmount:    nil,
-			Reason:            deduct.Reason,
-			Type:              "deduction",
-		}
-		unified = append(unified, entry)
-	}
-
-	sort.Slice(unified, func(i, j int) bool {
-		if paginationParams.SortOrder == "asc" {
-			return unified[i].SavingsDate.Before(unified[j].SavingsDate)
-		}
-		return unified[i].SavingsDate.After(unified[j].SavingsDate)
-	})
-
-	// Paginate manually
-	start := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
-	end := start + paginationParams.RowsPerPage
-	if start > len(unified) {
-		return []models.Savings{}, totalCount, nil
-	}
-	if end > len(unified) {
-		end = len(unified)
-	}
-
-	paginated := unified[start:end]
-
-	return paginated, totalCount, nil
+	return outflows, int(totalRecords), nil
 }
 
 func (s *SavingsService) FetchAllSavingsGroupedByMonth(c *gin.Context, yearParam string) ([]models.SavingsSummary, error) {
@@ -191,7 +132,7 @@ func (s *SavingsService) FetchAllSavingsCategories(c *gin.Context) ([]models.Sav
 	return s.SavingsRepo.FindAllSavingCategories(user)
 }
 
-func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *models.SavingsAllocation) error {
+func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *models.SavingsTransaction) error {
 
 	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
@@ -205,13 +146,13 @@ func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *mode
 	}
 
 	amountString := strconv.FormatFloat(newRecord.AllocatedAmount, 'f', 2, 64)
-	dateStr := newRecord.AllocationDate.UTC().Format(time.RFC3339)
+	dateStr := newRecord.TransactionDate.UTC().Format(time.RFC3339)
 
 	utils.CompareChanges("", newRecord.SavingsCategory.Name, changes, "category")
 	utils.CompareChanges("", amountString, changes, "amount")
 	utils.CompareChanges("", dateStr, changes, "allocation_date")
 
-	newRecord.AdjustedAmount = &newRecord.AllocatedAmount
+	newRecord.AdjustedAmount = newRecord.AllocatedAmount
 
 	err = s.SavingsRepo.InsertSavingsAllocation(tx, user, newRecord)
 	if err != nil {
@@ -234,7 +175,7 @@ func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *mode
 	return tx.Commit().Error
 }
 
-func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *models.SavingsDeduction) error {
+func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *models.SavingsTransaction) error {
 
 	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
@@ -247,21 +188,21 @@ func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *model
 		return tx.Error
 	}
 
-	amountString := strconv.FormatFloat(newRecord.Amount, 'f', 2, 64)
-	dateStr := newRecord.DeductionDate.UTC().Format(time.RFC3339)
+	amountString := strconv.FormatFloat(newRecord.AllocatedAmount, 'f', 2, 64)
+	dateStr := newRecord.TransactionDate.UTC().Format(time.RFC3339)
 
 	utils.CompareChanges("", newRecord.SavingsCategory.Name, changes, "category")
 	utils.CompareChanges("", amountString, changes, "amount")
 	utils.CompareChanges("", dateStr, changes, "deduction_date")
-	utils.CompareChanges("", utils.SafeString(newRecord.Reason), changes, "reason")
+	utils.CompareChanges("", utils.SafeString(newRecord.Description), changes, "reason")
 
-	allocationTotal, err := s.SavingsRepo.FindTotalForAllocationsForCategory(user, newRecord.SavingsCategoryID, newRecord.DeductionDate.Year())
+	allocationTotal, err := s.SavingsRepo.FindTotalForTransactionForCategory(user, "allocation", newRecord.SavingsCategoryID, newRecord.TransactionDate.Year())
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	deductionTotal, err := s.SavingsRepo.FindTotalForDeductionsForCategory(user, newRecord.SavingsCategoryID, newRecord.DeductionDate.Year())
+	deductionTotal, err := s.SavingsRepo.FindTotalForTransactionForCategory(user, "deduction", newRecord.SavingsCategoryID, newRecord.TransactionDate.Year())
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -269,10 +210,12 @@ func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *model
 
 	availableTotal := allocationTotal - deductionTotal
 
-	if availableTotal-newRecord.Amount <= 0 {
+	if availableTotal-newRecord.AllocatedAmount <= 0 {
 		tx.Rollback()
 		return errors.New(fmt.Sprintf("deduction amount is greater than the total of allocations, max value: %.2f", availableTotal))
 	}
+
+	newRecord.AdjustedAmount = newRecord.AllocatedAmount
 
 	err = s.SavingsRepo.InsertSavingsDeduction(tx, user, newRecord)
 	if err != nil {
@@ -280,7 +223,7 @@ func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *model
 		return err
 	}
 
-	err = s.SavingsRepo.UpdateCategoryGoalProgress(tx, user, newRecord.SavingsCategoryID, newRecord.Amount, -1)
+	err = s.SavingsRepo.UpdateCategoryGoalProgress(tx, user, newRecord.SavingsCategoryID, newRecord.AdjustedAmount, -1)
 	if err != nil {
 		tx.Rollback()
 		return err
