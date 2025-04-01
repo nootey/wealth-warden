@@ -29,57 +29,17 @@ type SavingsCategory struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
-type SavingsAllocation struct {
+type SavingsTransaction struct {
 	ID                uint            `gorm:"primaryKey" json:"id"`
 	OrganizationID    uint            `gorm:"not_null;index" json:"organization_id"`
-	UserID            uint            `gorm:"not null" json:"user_id"`
+	UserID            uint            `gorm:"not_null" json:"user_id"`
 	SavingsCategoryID uint            `gorm:"index" json:"savings_category_id"`
 	SavingsCategory   SavingsCategory `gorm:"foreignKey:SavingsCategoryID" json:"savings_category"`
-	AllocationDate    time.Time       `gorm:"not null" json:"allocation_date"`
-	AllocatedAmount   float64         `gorm:"type:decimal(10,2);not null" json:"allocated_amount"`
-	AdjustedAmount    *float64        `gorm:"type:decimal(10,2)" json:"adjusted_amount,omitempty"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-}
-
-type SavingsDeduction struct {
-	ID                uint            `gorm:"primaryKey" json:"id"`
-	OrganizationID    uint            `gorm:"not_null;index" json:"organization_id"`
-	UserID            uint            `gorm:"not null" json:"user_id"`
-	SavingsCategoryID uint            `gorm:"index" json:"savings_category_id"`
-	SavingsCategory   SavingsCategory `gorm:"foreignKey:SavingsCategoryID" json:"savings_category"`
-	DeductionDate     time.Time       `gorm:"not null" json:"deduction_date"`
-	Amount            float64         `gorm:"type:decimal(10,2);not null" json:"amount"`
-	Reason            *string         `json:"reason,omitempty"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-}
-
-type Savings struct {
-	ID                uint            `json:"id"`
-	OrganizationID    uint            `json:"organization_id"`
-	UserID            uint            `json:"user_id"`
-	SavingsCategoryID uint            `json:"savings_category_id"`
-	SavingsCategory   SavingsCategory `json:"savings_category"`
-	SavingsDate       time.Time       `json:"savings_date"`
-	Amount            float64         `json:"amount"`
-	AdjustedAmount    *float64        `json:"adjusted_amount,omitempty"` // Only for allocations
-	Reason            *string         `json:"reason,omitempty"`          // Only for deductions
-	Type              string          `json:"type"`                      // "allocation" or "deduction"
-}
-
-type SavingsBalance struct {
-	ID                uint            `gorm:"primaryKey" json:"id"`
-	UserID            uint            `gorm:"not null;index" json:"user_id"`
-	SavingsCategoryID uint            `gorm:"index" json:"savings_category_id"`
-	SavingsCategory   SavingsCategory `gorm:"foreignKey:SavingsCategoryID" json:"savings_category"`
-	Year              int             `gorm:"not null" json:"year"`
-	TotalSaved        float64         `gorm:"type:decimal(10,2);default:0.00" json:"total_saved"`
-	TotalUsed         float64         `gorm:"type:decimal(10,2);default:0.00" json:"total_used"`
-	InterestEarned    float64         `gorm:"type:decimal(10,2);default:0.00" json:"interest_earned"`
-	ReassignedAmount  float64         `gorm:"type:decimal(10,2);default:0.00" json:"reassigned_amount"`
-	Balance           float64         `gorm:"type:decimal(10,2);default:0.00" json:"balance"`
-	LastUpdated       *time.Time      `json:"last_updated,omitempty"`
+	TransactionType   string          `gorm:"type:varchar(24);not null;enum('allocation','deduction')" json:"transaction_type"`
+	TransactionDate   time.Time       `gorm:"not null" json:"transaction_date"`
+	AllocatedAmount   float64         `gorm:"type:decimal(10,2)" json:"allocated_amount"`
+	AdjustedAmount    float64         `gorm:"type:decimal(10,2)" json:"adjusted_amount"`
+	Description       *string         `gorm:"type:varchar(255);not null" json:"description,omitempty"`
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
 }
