@@ -27,12 +27,14 @@ type MonthlyBudgetUpdate struct {
 }
 
 type MonthlyBudgetAllocation struct {
-	ID                  uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	MonthlyBudgetID     uint      `gorm:"not null;uniqueIndex:unique_mb_category" json:"monthly_budget_id"`
-	Category            string    `gorm:"type:enum('savings','investments','other');not null;uniqueIndex:unique_mb_category" json:"category"`
-	TotalAllocatedValue float64   `gorm:"type:decimal(15,2);not null" json:"total_allocated_value"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
+	ID              uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	MonthlyBudgetID uint      `gorm:"not null;uniqueIndex:unique_mb_category" json:"monthly_budget_id"`
+	Category        string    `gorm:"type:enum('savings','investments','other');not null;uniqueIndex:unique_mb_category" json:"category"`
+	AllocatedValue  float64   `gorm:"type:decimal(15,2);not null" json:"allocated_value"`
+	UsedValue       *float64  `gorm:"type:decimal(15,2)" json:"used_value"`
+	ValueMethod     string    `gorm:"type:enum('percentile', 'absolute');not null" json:"value_method"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 func (MonthlyBudget) TableName() string {

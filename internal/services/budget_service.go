@@ -225,10 +225,10 @@ func (s *BudgetService) CreateMonthlyBudgetAllocation(c *gin.Context, newRecord 
 
 	// Sum all allocated values
 	for _, mapping := range budget.Allocations {
-		totalAllocated += mapping.TotalAllocatedValue
+		totalAllocated += mapping.AllocatedValue
 	}
 
-	if (totalAllocated + newRecord.TotalAllocatedValue) > budget.BudgetSnapshot {
+	if (totalAllocated + newRecord.AllocatedValue) > budget.BudgetSnapshot {
 		return errors.New("total budget allocation exceeds effective budget snapshot")
 	}
 
@@ -241,7 +241,7 @@ func (s *BudgetService) CreateMonthlyBudgetAllocation(c *gin.Context, newRecord 
 
 	yearString := strconv.FormatInt(int64(budget.Year), 10)
 	monthString := strconv.FormatInt(int64(budget.Month), 10)
-	allocationString := strconv.FormatInt(int64(newRecord.TotalAllocatedValue), 10)
+	allocationString := strconv.FormatInt(int64(newRecord.AllocatedValue), 10)
 
 	utils.CompareChanges("", yearString, changes, "year")
 	utils.CompareChanges("", monthString, changes, "month")
