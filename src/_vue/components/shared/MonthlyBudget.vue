@@ -136,7 +136,7 @@ async function calculateAvailableBudgetAllocation(budget: MonthlyBudget|null){
   }
   let sum = 0;
   budget.allocations.forEach((allocation:any) => {
-    sum += allocation.total_allocated_value;
+    sum += allocation.allocated_value;
   })
 
   availableBudgetAllocation.value = budget.budget_snapshot - sum;
@@ -543,6 +543,14 @@ function extractName(mapping: any, categories: any) {
         <AutoComplete class="w-full" size="small" v-model="createNewAllocation.category" :suggestions="filteredBudgetAllocations"
                       @complete="searchBudgetAllocation" option-label="name" placeholder="Select allocation" dropdown></AutoComplete>
       </div>
+
+      <div class="flex flex-column">
+        <ValidationError :isRequired="false" :message="null">
+          <label>Value</label>
+        </ValidationError>
+        <SelectButton v-model="value" :options="['absolute', 'percentage']" />
+      </div>
+
       <div class="flex flex-column">
         <ValidationError :isRequired="true" :message="v$.createNewAllocation.allocation.$errors[0]?.$message">
           <label>Allocation</label>
@@ -550,6 +558,7 @@ function extractName(mapping: any, categories: any) {
         <InputNumber size="small" v-model="createNewAllocation.allocation" mode="currency" currency="EUR"
                      locale="de-DE" placeholder="0,00 €"></InputNumber>
       </div>
+
       <div class="flex flex-column">
         <ValidationError :isRequired="false" message="">
           <label>Actions</label>
@@ -572,7 +581,7 @@ function extractName(mapping: any, categories: any) {
                 {{ allocation.category }}
               </div>
               <div class="flex flex-column">
-                {{ vueHelper.displayAsCurrency(allocation.total_allocated_value) }}
+                {{ vueHelper.displayAsCurrency(allocation.allocated_value) }}
               </div>
             </div>
         </div>

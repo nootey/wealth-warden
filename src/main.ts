@@ -28,6 +28,7 @@ import {MultiSelect} from "primevue";
 import {ProgressSpinner} from "primevue";
 import {ConfirmPopup} from "primevue";
 import {Popover} from "primevue";
+import {SelectButton} from "primevue";
 
 
 const app = createApp(App);
@@ -52,6 +53,7 @@ app.component("MultiSelect", MultiSelect);
 app.component("ProgressSpinner", ProgressSpinner);
 app.component("ConfirmPopup", ConfirmPopup);
 app.component("Popover", Popover);
+app.component("SelectButton", SelectButton);
 
 app.use(pinia);
 app.use(router);
