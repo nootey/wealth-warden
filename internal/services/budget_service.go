@@ -454,13 +454,9 @@ func (s *BudgetService) SynchronizeCurrentMonthlyBudget(c *gin.Context) error {
 		budget.EffectiveBudget = 0.0
 	}
 
-	fmt.Println(budget.EffectiveBudget)
-
 	newEffectiveBudget := budget.EffectiveBudget
 
 	if newEffectiveBudget != existingEffectiveBudget {
-
-		fmt.Println("hello")
 
 		budget.BudgetSnapshot = budget.EffectiveBudget
 		newBudgetSnapshot := budget.BudgetSnapshot
