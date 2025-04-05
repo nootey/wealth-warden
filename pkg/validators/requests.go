@@ -81,10 +81,13 @@ type CreateMonthlyBudgetRequest struct {
 }
 
 type CreateMonthlyBudgetAllocationRequest struct {
-	ID              uint    `json:"id"`
-	MonthlyBudgetID uint    `json:"monthly_budget_id" validate:"required,numeric"`
-	Allocation      float64 `json:"allocation" validate:"required"`
-	Category        string  `json:"category" validate:"required"`
+	ID              uint     `json:"id"`
+	MonthlyBudgetID uint     `json:"monthly_budget_id" validate:"required,numeric"`
+	Method          string   `json:"method" validate:"required"`
+	Allocation      float64  `json:"allocation" validate:"required"`
+	AllocatedValue  float64  `json:"allocated_value" validate:"required"`
+	UsedValue       *float64 `json:"used_value"`
+	Category        string   `json:"category" validate:"required"`
 }
 
 type UpdateMonthlyBudgetRequest struct {

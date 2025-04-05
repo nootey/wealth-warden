@@ -67,7 +67,9 @@ func (h *BudgetHandler) CreateNewBudgetAllocation(c *gin.Context) {
 
 	budgetAllocReq := &models.MonthlyBudgetAllocation{
 		MonthlyBudgetID: req.MonthlyBudgetID,
-		AllocatedValue:  req.Allocation,
+		Method:          req.Method,
+		Allocation:      req.Allocation,
+		AllocatedValue:  req.AllocatedValue,
 		Category:        req.Category,
 	}
 

@@ -30,9 +30,10 @@ type MonthlyBudgetAllocation struct {
 	ID              uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	MonthlyBudgetID uint      `gorm:"not null;uniqueIndex:unique_mb_category" json:"monthly_budget_id"`
 	Category        string    `gorm:"type:enum('savings','investments','other');not null;uniqueIndex:unique_mb_category" json:"category"`
+	Method          string    `gorm:"type:enum('percentile', 'absolute');not null" json:"method"`
+	Allocation      float64   `gorm:"type:decimal(15,2);not null" json:"allocation"`
 	AllocatedValue  float64   `gorm:"type:decimal(15,2);not null" json:"allocated_value"`
 	UsedValue       *float64  `gorm:"type:decimal(15,2)" json:"used_value"`
-	ValueMethod     string    `gorm:"type:enum('percentile', 'absolute');not null" json:"value_method"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }

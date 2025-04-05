@@ -223,13 +223,17 @@ func (s *BudgetService) CreateMonthlyBudgetAllocation(c *gin.Context, newRecord 
 
 	var totalAllocated float64
 
-	// Sum all allocated values
 	for _, mapping := range budget.Allocations {
 		totalAllocated += mapping.AllocatedValue
 	}
 
-	if (totalAllocated + newRecord.AllocatedValue) > budget.BudgetSnapshot {
-		return errors.New("total budget allocation exceeds effective budget snapshot")
+	remaining := budget.BudgetSnapshot - totalAllocated
+
+	if newRecord.AllocatedValue > remaining {
+		return fmt.Errorf(
+			"total budget allocation exceeds effective budget snapshot. "+
+				"Max allowed allocation: €%.2f", remaining,
+		)
 	}
 
 	changes := utils.InitChanges()
@@ -241,12 +245,15 @@ func (s *BudgetService) CreateMonthlyBudgetAllocation(c *gin.Context, newRecord 
 
 	yearString := strconv.FormatInt(int64(budget.Year), 10)
 	monthString := strconv.FormatInt(int64(budget.Month), 10)
-	allocationString := strconv.FormatInt(int64(newRecord.AllocatedValue), 10)
+	allocationString := strconv.FormatInt(int64(newRecord.Allocation), 10)
+	allocatedValueString := strconv.FormatInt(int64(newRecord.AllocatedValue), 10)
 
 	utils.CompareChanges("", yearString, changes, "year")
 	utils.CompareChanges("", monthString, changes, "month")
 	utils.CompareChanges("", newRecord.Category, changes, "category")
+	utils.CompareChanges("", newRecord.Method, changes, "method")
 	utils.CompareChanges("", allocationString, changes, "allocation")
+	utils.CompareChanges("", allocatedValueString, changes, "allocated_value")
 
 	err = s.BudgetRepo.InsertMonthlyBudgetAllocation(tx, newRecord)
 	if err != nil {
