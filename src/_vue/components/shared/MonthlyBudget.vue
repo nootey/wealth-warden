@@ -2,8 +2,8 @@
 import {useAuthStore} from "../../../services/stores/authStore.ts";
 import {useBudgetStore} from "../../../services/stores/budgetStore.ts";
 import {useToastStore} from "../../../services/stores/toastStore.ts";
-import {computed, onMounted, ref} from "vue";
-import type {MonthlyBudget} from "./MonthlyBudget.vue";
+import {computed, onMounted, ref, watch} from "vue";
+import type {MonthlyBudget} from "../../../models/budgets.ts"
 import {useInflowStore} from "../../../services/stores/inflowStore.ts";
 import {useOutflowStore} from "../../../services/stores/outflowStore.ts";
 import InflowCategories from "../../features/inflows/InflowCategories.vue";
@@ -37,11 +37,22 @@ const rules = {
         $autoDirty: true
       },
     },
+    method:{
+      required,
+      $autoDirty: true
+    },
     allocation: {
       required,
       numeric,
       minValue: 0,
       maxValue: 1000000000,
+      $autoDirty: true
+    },
+    allocated_value:{
+      required,
+      $autoDirty: true
+    },
+    used_value:{
       $autoDirty: true
     },
   },
@@ -92,12 +103,31 @@ onMounted(async () => {
   }
 });
 
+watch(
+    () => [createNewAllocation.value.method, createNewAllocation.value.allocation],
+    ([method, allocation]) => {
+      if (allocation == null) {
+        createNewAllocation.value.allocated_value = 0;
+        return;
+      }
 
+      if (method === 'absolute') {
+        createNewAllocation.value.allocated_value = allocation;
+      } else if (method === 'percentage') {
+        if(createNewAllocation.value.allocation > 100)
+          createNewAllocation.value.allocation = 100;
+        createNewAllocation.value.allocated_value = (allocation/100) * availableBudgetAllocation.value;
+      }
+    },
+    { immediate: true } // runs initially too
+);
 function initBudget(): MonthlyBudget<string, any> {
   return {
     dynamic_category: null,
     total_inflow: null,
     total_outflow: null,
+    budget_inflow: null,
+    budget_outflow: null,
     effective_budget: null,
     budget_snapshot: null,
   };
@@ -106,7 +136,10 @@ function initBudget(): MonthlyBudget<string, any> {
 function initBudgetAllocation() {
   return {
     category: {name: ""},
+    method: "absolute",
     allocation: null,
+    allocated_value: 0,
+    used_value: null,
   };
 }
 
@@ -179,8 +212,11 @@ async function createBudget() {
       year: 0,
       total_inflow: 0,
       total_outflow: 0,
+      budget_inflow: 0,
+      budget_outflow: 0,
       effective_budget: 0,
       budget_snapshot: 0,
+      snapshot_threshold: 500,
     });
     currentBudget.value = response.data;
     toastStore.successResponseToast(vueHelper.formatSuccessToast("Create success", "Budget has been created."));
@@ -204,7 +240,10 @@ async function createNewBudgetAllocation() {
       id: null,
       monthly_budget_id: currentBudget.value.id,
       category: createNewAllocation.value.category.name,
+      method: createNewAllocation.value.method,
       allocation: createNewAllocation.value.allocation,
+      allocated_value: createNewAllocation.value.allocated_value,
+      used_value: null,
     });
 
     toastStore.successResponseToast(response);
@@ -472,6 +511,16 @@ function extractName(mapping: any, categories: any) {
                      locale="de-DE" autofocus fluid></InputNumber>
       </div>
       <div class="flex flex-column gap-1">
+        <span> <b>{{ "Budget inflows" }}</b></span>
+        <InputNumber disabled size="small" v-model="currentBudget.budget_inflow" mode="currency" currency="EUR"
+                     locale="de-DE" autofocus fluid></InputNumber>
+      </div>
+      <div class="flex flex-column gap-1">
+        <span> <b>{{ "Budget outflows" }}</b></span>
+        <InputNumber disabled size="small" v-model="currentBudget.budget_outflow" mode="currency" currency="EUR"
+                     locale="de-DE" autofocus fluid></InputNumber>
+      </div>
+      <div class="flex flex-column gap-1">
         <span> <b>{{ "Effective budget" }}</b></span>
         <InputNumber disabled size="small" v-model="currentBudget.effective_budget" mode="currency" currency="EUR"
                      locale="de-DE" autofocus fluid></InputNumber>
@@ -548,14 +597,29 @@ function extractName(mapping: any, categories: any) {
         <ValidationError :isRequired="false" :message="null">
           <label>Value</label>
         </ValidationError>
-        <SelectButton v-model="value" :options="['absolute', 'percentage']" />
+        <SelectButton v-model="createNewAllocation.method" size="small" :options="['absolute', 'percentage']" />
       </div>
 
       <div class="flex flex-column">
         <ValidationError :isRequired="true" :message="v$.createNewAllocation.allocation.$errors[0]?.$message">
           <label>Allocation</label>
         </ValidationError>
-        <InputNumber size="small" v-model="createNewAllocation.allocation" mode="currency" currency="EUR"
+        <InputNumber v-if="createNewAllocation.method === 'absolute'" size="small" v-model="createNewAllocation.allocation" mode="currency" currency="EUR"
+                     locale="de-DE" placeholder="0,00 €"></InputNumber>
+        <InputNumber v-if="createNewAllocation.method === 'percentage'" size="small" v-model="createNewAllocation.allocation" :min="0"
+                     :max="100"
+                     :step="0.1"
+                     :minFractionDigits="0"
+                     :maxFractionDigits="2"
+                     mode="decimal"
+                     placeholder="0.0" autofocus fluid></InputNumber>
+      </div>
+
+      <div v-if="createNewAllocation.allocated_value > 0" class="flex flex-column">
+        <ValidationError :isRequired="true" :message="v$.createNewAllocation.allocation.$errors[0]?.$message">
+          <label>Allocated value</label>
+        </ValidationError>
+        <InputNumber disabled size="small" v-model="createNewAllocation.allocated_value" mode="currency" currency="EUR"
                      locale="de-DE" placeholder="0,00 €"></InputNumber>
       </div>
 
