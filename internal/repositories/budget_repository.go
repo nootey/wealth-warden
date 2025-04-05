@@ -62,8 +62,16 @@ func (r *BudgetRepository) UpdateMonthlyBudget(tx *gorm.DB, user *models.User, r
 
 	if err := tx.Model(&models.MonthlyBudget{}).
 		Where("id = ? AND organization_id = ?", record.ID, *user.PrimaryOrganizationID).
-		Updates(record).Error; err != nil {
+		Updates(map[string]interface{}{
+			"total_inflow":     record.TotalInflow,
+			"total_outflow":    record.TotalOutflow,
+			"budget_inflow":    record.BudgetInflow,
+			"budget_outflow":   record.BudgetOutflow,
+			"effective_budget": record.EffectiveBudget,
+			"budget_snapshot":  record.BudgetSnapshot,
+		}).Error; err != nil {
 		return err
 	}
+
 	return nil
 }

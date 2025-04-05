@@ -55,10 +55,29 @@ func (r *InflowRepository) SumInflowsByCategory(user *models.User, categoryID ui
 	var total float64
 
 	startDate := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
-	endDate := startDate.AddDate(0, 1, 0) // Moves to the first day of the next month
+	endDate := startDate.AddDate(0, 1, 0)
 
 	err := r.Db.Model(&models.Inflow{}).
 		Where("inflow_category_id = ? AND inflow_date >= ? AND inflow_date < ?", categoryID, startDate, endDate).
+		Where("organization_id = ?", &user.PrimaryOrganizationID).
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&total).Error
+
+	if err != nil {
+		return 0, err
+	}
+
+	return total, nil
+}
+
+func (r *InflowRepository) SumInflowsByMonth(user *models.User, year, month int) (float64, error) {
+	var total float64
+
+	startDate := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	endDate := startDate.AddDate(0, 1, 0)
+
+	err := r.Db.Model(&models.Inflow{}).
+		Where("inflow_date >= ? AND inflow_date < ?", startDate, endDate).
 		Where("organization_id = ?", &user.PrimaryOrganizationID).
 		Select("COALESCE(SUM(amount), 0)").
 		Scan(&total).Error

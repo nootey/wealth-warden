@@ -12,6 +12,8 @@ type MonthlyBudget struct {
 	Year              int                       `gorm:"not null;uniqueIndex:unique_org_dyn_year_month" json:"year"`
 	TotalInflow       float64                   `gorm:"type:decimal(15,2);not null" json:"total_inflow"`
 	TotalOutflow      float64                   `gorm:"type:decimal(15,2);not null" json:"total_outflow"`
+	BudgetInflow      float64                   `gorm:"type:decimal(15,2);not null" json:"budget_inflow"`
+	BudgetOutflow     float64                   `gorm:"type:decimal(15,2);not null" json:"budget_outflow"`
 	EffectiveBudget   float64                   `gorm:"type:decimal(15,2);not null" json:"effective_budget"`
 	BudgetSnapshot    float64                   `gorm:"type:decimal(15,2);not null" json:"budget_snapshot"`
 	SnapshotThreshold float64                   `gorm:"type:decimal(15,2);not null" json:"snapshot_threshold"`

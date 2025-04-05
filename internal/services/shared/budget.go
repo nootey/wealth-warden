@@ -77,14 +77,14 @@ func (b *BudgetInterface) updateBudget(tx *gorm.DB, user *models.User, dynamicCa
 
 	switch category {
 	case "inflow":
-		budget.TotalInflow += amount
+		budget.BudgetInflow += amount
 	case "outflow":
-		budget.TotalOutflow += amount
+		budget.BudgetOutflow += amount
 	default:
 		return errors.New("invalid category type, must be 'inflow' or 'outflow'")
 	}
 
-	budget.EffectiveBudget = budget.TotalInflow - budget.TotalOutflow
+	budget.EffectiveBudget = budget.BudgetInflow - budget.BudgetOutflow
 	if budget.EffectiveBudget < 0 {
 		return errors.New("effective budget can not be negative. Can not insert/delete this record")
 	}

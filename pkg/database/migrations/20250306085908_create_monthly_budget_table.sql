@@ -7,8 +7,10 @@ user_id BIGINT UNSIGNED NOT NULL,
 dynamic_category_id BIGINT UNSIGNED NOT NULL, -- References a specific dynamic category
 month TINYINT UNSIGNED NOT NULL CHECK (month BETWEEN 1 AND 12),
 year YEAR NOT NULL,
-total_inflow DECIMAL(15,2) NOT NULL, -- Sum of inflows for the period
-total_outflow DECIMAL(15,2) NOT NULL, -- Sum of outflows for the period
+total_inflow DECIMAL(15,2) NOT NULL, -- Sum of total inflows for the period
+total_outflow DECIMAL(15,2) NOT NULL, -- Sum of total outflows for the period
+budget_inflow DECIMAL(15,2) NOT NULL, -- Sum of budget inflows for the period
+budget_outflow DECIMAL(15,2) NOT NULL, -- Sum of budget outflows for the period
 effective_budget DECIMAL(15,2),
 budget_snapshot DECIMAL(15,2) NOT NULL DEFAULT 0, -- Snapshot of effective_budget
 snapshot_threshold DECIMAL(15,2) NOT NULL DEFAULT 500, -- Threshold for the snapshot auto update

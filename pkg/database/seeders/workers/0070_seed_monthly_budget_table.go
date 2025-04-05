@@ -100,14 +100,25 @@ func SeedMonthlyBudget(ctx context.Context, db *gorm.DB) error {
 		sums["outflow"] += totalOutflow
 	}
 
+	sums["total_inflows"], err = inflowRepo.SumInflowsByMonth(user, year, month)
+	if err != nil {
+		return err
+	}
+	sums["total_outflows"], err = outflowRepo.SumOutflowsByMonth(user, year, month)
+	if err != nil {
+		return err
+	}
+
 	monthlyBudget := models.MonthlyBudget{
 		OrganizationID:    *user.PrimaryOrganizationID,
 		UserID:            user.ID,
 		DynamicCategoryID: trueSalaryCategory.ID,
 		Month:             month,
 		Year:              year,
-		TotalInflow:       sums["inflow"],
-		TotalOutflow:      sums["outflow"],
+		TotalInflow:       sums["total_inflows"],
+		TotalOutflow:      sums["total_outflows"],
+		BudgetInflow:      sums["inflow"],
+		BudgetOutflow:     sums["outflow"],
 		EffectiveBudget:   sums["inflow"] - sums["outflow"],
 		BudgetSnapshot:    sums["inflow"] - sums["outflow"],
 		SnapshotThreshold: 500,

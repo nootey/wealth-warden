@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"strconv"
 	"time"
@@ -115,24 +116,36 @@ func (s *BudgetService) fetchSumsForBudget(category *models.DynamicCategory, use
 	sums := make(map[string]float64)
 
 	for _, mapping := range category.Mappings {
-		inflowSums, err := s.FetchSumsForDynamicCategory("inflow", &mapping, year, month, user)
+		budgetInflowSums, err := s.FetchSumsForDynamicCategory("inflow", &mapping, year, month, user)
 		if err != nil {
 			return nil, err
 		}
 
 		// Only sum outflows if it's the first time processing this category
-		var totalOutflow float64
+		var totalBudgetOutflow float64
 		if mapping.RelatedCategoryName == "outflow" {
-			outflowSums, err := s.FetchSumsForDynamicCategory("outflow", &mapping, year, month, user)
+			budgetOutflowSums, err := s.FetchSumsForDynamicCategory("outflow", &mapping, year, month, user)
 			if err != nil {
 				return nil, err
 			}
-			totalOutflow += outflowSums
+			totalBudgetOutflow += budgetOutflowSums
 		}
 
-		sums["inflow"] += inflowSums
-		sums["outflow"] += totalOutflow
+		sums["budget_inflows"] += budgetInflowSums
+		sums["budget_outflows"] += totalBudgetOutflow
 	}
+
+	totalInflows, err := s.BudgetInterface.InflowRepo.SumInflowsByMonth(user, year, month)
+	if err != nil {
+		return nil, err
+	}
+	sums["total_inflows"] = totalInflows
+
+	totalOutflows, err := s.BudgetInterface.OutflowRepo.SumOutflowsByMonth(user, year, month)
+	if err != nil {
+		return nil, err
+	}
+	sums["total_outflows"] = totalOutflows
 
 	return sums, nil
 }
@@ -167,8 +180,10 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 
 	newRecord.Month = month
 	newRecord.Year = year
-	newRecord.TotalInflow = sums["inflow"]
-	newRecord.TotalOutflow = sums["outflow"]
+	newRecord.TotalInflow = sums["total_inflows"]
+	newRecord.TotalOutflow = sums["total_outflows"]
+	newRecord.BudgetInflow = sums["budget_inflows"]
+	newRecord.BudgetOutflow = sums["budget_outflows"]
 	newRecord.EffectiveBudget = newRecord.TotalInflow - newRecord.TotalOutflow
 	newRecord.BudgetSnapshot = newRecord.TotalInflow - newRecord.TotalOutflow
 
@@ -176,6 +191,8 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 	monthString := strconv.FormatInt(int64(month), 10)
 	totalInflow := strconv.FormatInt(int64(newRecord.TotalInflow), 10)
 	totalOutflow := strconv.FormatInt(int64(newRecord.TotalOutflow), 10)
+	budgetInflow := strconv.FormatInt(int64(newRecord.BudgetInflow), 10)
+	budgetOutflow := strconv.FormatInt(int64(newRecord.BudgetOutflow), 10)
 	effectiveBudget := strconv.FormatInt(int64(newRecord.EffectiveBudget), 10)
 	BudgetSnapshot := strconv.FormatInt(int64(newRecord.BudgetSnapshot), 10)
 
@@ -183,6 +200,8 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 	utils.CompareChanges("", monthString, changes, "month")
 	utils.CompareChanges("", totalInflow, changes, "total_inflow")
 	utils.CompareChanges("", totalOutflow, changes, "total_outflow")
+	utils.CompareChanges("", budgetInflow, changes, "budget_inflow")
+	utils.CompareChanges("", budgetOutflow, changes, "budget_outflow")
 	utils.CompareChanges("", effectiveBudget, changes, "effective_budget")
 	utils.CompareChanges("", BudgetSnapshot, changes, "budget_snapshot")
 
@@ -339,6 +358,16 @@ func (s *BudgetService) UpdateMonthlyBudget(c *gin.Context, newBudget *models.Mo
 		return err
 	}
 
+	if newBudget.BudgetSnapshot != nil && *newBudget.BudgetSnapshot < 0 {
+		zero := 0.0
+		newBudget.BudgetSnapshot = &zero
+	}
+
+	if newBudget.SnapshotThreshold != nil && *newBudget.SnapshotThreshold < 0 {
+		zero := 0.0
+		newBudget.SnapshotThreshold = &zero
+	}
+
 	existingSnapshotString := strconv.FormatInt(int64(existingBudget.BudgetSnapshot), 10)
 	existingThresholdString := strconv.FormatInt(int64(existingBudget.SnapshotThreshold), 10)
 
@@ -395,11 +424,15 @@ func (s *BudgetService) SynchronizeCurrentMonthlyBudget(c *gin.Context) error {
 
 	existingTotalInflows := budget.TotalInflow
 	existingTotalOutflows := budget.TotalOutflow
+	existingBudgetInflows := budget.TotalInflow
+	existingBudgetOutflows := budget.TotalOutflow
 	existingEffectiveBudget := budget.EffectiveBudget
 	existingBudgetSnapshot := budget.BudgetSnapshot
 
 	existingTotalInflowsString := strconv.FormatInt(int64(existingTotalInflows), 10)
 	existingTotalOutflowsString := strconv.FormatInt(int64(existingTotalOutflows), 10)
+	existingBudgetInflowsString := strconv.FormatInt(int64(existingBudgetInflows), 10)
+	existingBudgetOutflowsString := strconv.FormatInt(int64(existingBudgetOutflows), 10)
 	existingEffectiveBudgetString := strconv.FormatInt(int64(existingEffectiveBudget), 10)
 	existingBudgetSnapshotString := strconv.FormatInt(int64(existingBudgetSnapshot), 10)
 	yearString := strconv.FormatInt(int64(budget.Year), 10)
@@ -411,26 +444,40 @@ func (s *BudgetService) SynchronizeCurrentMonthlyBudget(c *gin.Context) error {
 		return err
 	}
 
-	budget.TotalInflow = sums["inflow"]
-	budget.TotalOutflow = sums["outflow"]
+	budget.TotalInflow = sums["total_inflows"]
+	budget.TotalOutflow = sums["total_outflows"]
+	budget.BudgetInflow = sums["budget_inflows"]
+	budget.BudgetOutflow = sums["budget_outflows"]
 	budget.EffectiveBudget = budget.TotalInflow - budget.TotalOutflow
+
+	if budget.EffectiveBudget < 0 {
+		budget.EffectiveBudget = 0.0
+	}
+
+	fmt.Println(budget.EffectiveBudget)
 
 	newEffectiveBudget := budget.EffectiveBudget
 
 	if newEffectiveBudget != existingEffectiveBudget {
+
+		fmt.Println("hello")
 
 		budget.BudgetSnapshot = budget.EffectiveBudget
 		newBudgetSnapshot := budget.BudgetSnapshot
 
 		newEffectiveBudgetString := strconv.FormatInt(int64(newEffectiveBudget), 10)
 		newBudgetSnapshotString := strconv.FormatInt(int64(newBudgetSnapshot), 10)
-		newTotalInflowsString := strconv.FormatInt(int64(existingTotalInflows), 10)
-		newTotalOutflowsString := strconv.FormatInt(int64(existingTotalOutflows), 10)
+		newTotalInflowsString := strconv.FormatInt(int64(budget.TotalInflow), 10)
+		newTotalOutflowsString := strconv.FormatInt(int64(budget.TotalOutflow), 10)
+		newBudgetInflowsString := strconv.FormatInt(int64(budget.BudgetInflow), 10)
+		newBudgetOutflowsString := strconv.FormatInt(int64(budget.BudgetOutflow), 10)
 
 		utils.CompareChanges(existingEffectiveBudgetString, newEffectiveBudgetString, changes, "effective_budget")
 		utils.CompareChanges(existingBudgetSnapshotString, newBudgetSnapshotString, changes, "budget_snapshot")
 		utils.CompareChanges(existingTotalInflowsString, newTotalInflowsString, changes, "total_inflows")
 		utils.CompareChanges(existingTotalOutflowsString, newTotalOutflowsString, changes, "total_outflows")
+		utils.CompareChanges(existingBudgetInflowsString, newBudgetInflowsString, changes, "budget_inflows")
+		utils.CompareChanges(existingBudgetOutflowsString, newBudgetOutflowsString, changes, "budget_outflows")
 		utils.CompareChanges("", monthString, changes, "month")
 		utils.CompareChanges("", yearString, changes, "year")
 
