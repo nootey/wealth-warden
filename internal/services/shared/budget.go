@@ -55,15 +55,13 @@ func (b *BudgetInterface) findBudgetForUser(user *models.User, year, month int) 
 }
 
 func (b *BudgetInterface) findDynamicCategoryByRelatedCategoryID(user *models.User, categoryType string, categoryID uint) (*models.DynamicCategory, error) {
-	var dynamicCategory models.DynamicCategory
+	visited := make(map[uint]bool)
 
+	var dynamicCategory models.DynamicCategory
 	err := b.InflowRepo.Db.
 		Joins("JOIN dynamic_category_mappings ON dynamic_category_mappings.dynamic_category_id = dynamic_categories.id").
-		Where("dynamic_category_mappings.related_id = ? AND dynamic_category_mappings.related_type = ?", categoryID, categoryType).
-		Where("dynamic_categories.organization_id = ?", *user.PrimaryOrganizationID).
+		Where("organization_id = ? AND dynamic_category_mappings.related_id = ? AND dynamic_category_mappings.related_type = ?", *user.PrimaryOrganizationID, categoryID, categoryType).
 		First(&dynamicCategory).Error
-
-	// If no record is found, return nil without forwarding the error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -71,7 +69,38 @@ func (b *BudgetInterface) findDynamicCategoryByRelatedCategoryID(user *models.Us
 		return nil, err
 	}
 
-	return &dynamicCategory, nil
+	// Traverse higher-level mappings until none is found.
+	for {
+		if visited[dynamicCategory.ID] {
+			return nil, errors.New("circular dynamic category mapping detected")
+		}
+		visited[dynamicCategory.ID] = true
+
+		var higherMapping models.DynamicCategoryMapping
+		err = b.InflowRepo.Db.
+			Where("related_id = ? AND related_type = ?", dynamicCategory.ID, "dynamic").
+			First(&higherMapping).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// No higher mapping found: return the current (highest) dynamic category.
+				return &dynamicCategory, nil
+			}
+			return nil, err
+		}
+
+		// Load the higher-level dynamic category using the mapping found.
+		nextCategory, err := b.InflowRepo.FindDynamicCategoryByID(user, higherMapping.DynamicCategoryID)
+		if err != nil {
+			return nil, err
+		}
+		if nextCategory == nil {
+			// If the next category is nil, return the current one.
+			return &dynamicCategory, nil
+		}
+
+		// Set dynamicCategory to the higher-level category and continue loop.
+		dynamicCategory = *nextCategory
+	}
 }
 
 func (b *BudgetInterface) updateBudget(tx *gorm.DB, user *models.User, dynamicCategoryID uint, category string, amount float64, date time.Time) error {
