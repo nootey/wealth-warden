@@ -5,8 +5,16 @@ import type {MonthlyBudget, MonthlyBudgetAllocation} from "../../models/budgets.
 export const useBudgetStore = defineStore('budget', {
     state: () => ({
         apiPrefix: "budget",
-        current_budget: null
+        current_budget: null as any
     }),
+    getters: {
+        getAllocationByIndex: (state) => (index: string) => {
+            if (!state.current_budget || !state.current_budget.allocations) return null;
+            return state.current_budget.allocations.find(
+                (allocation: any) => allocation.category === index
+            );
+        }
+    },
     actions: {
         async synchronizeMonthlyBudget() {
             try {
@@ -25,10 +33,15 @@ export const useBudgetStore = defineStore('budget', {
         },
 
         async getCurrentBudget() {
+            if (this.current_budget !== null) return this.current_budget
+
             try {
-                return await apiClient.get(`${this.apiPrefix}/current`);
+                const response = await apiClient.get(`${this.apiPrefix}/current`)
+                this.current_budget = response.data
+                return this.current_budget
             } catch (error) {
-                throw error;
+                console.error('Failed to fetch current budget:', error)
+                throw error
             }
         },
 

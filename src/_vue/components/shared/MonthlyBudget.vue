@@ -22,7 +22,7 @@ const toastStore = useToastStore();
 const inflowStore = useInflowStore();
 const outflowStore = useOutflowStore();
 
-const currentBudget = ref<MonthlyBudget>(null);
+const currentBudget = computed(() => budgetStore.current_budget);
 const budgetChanged = ref(false);
 const currentBudgetOriginalCategory = ref(null);
 

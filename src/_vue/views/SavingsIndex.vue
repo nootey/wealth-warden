@@ -17,9 +17,11 @@ import SavingsStatDisplay from "../features/savings/SavingsStatDisplay.vue";
 import SavingsDeductionsCreate from "../features/savings/SavingsDeductionsCreate.vue";
 import ActionRow from "../components/shared/ActionRow.vue";
 import ActiveFilters from "../components/shared/filters/ActiveFilters.vue";
+import {useBudgetStore} from "../../services/stores/budgetStore.ts";
 
 const savingsStore = useSavingsStore();
 const toastStore = useToastStore();
+const budgetStore = useBudgetStore();
 
 const loadingSavings = ref(true);
 const loadingGroupedSavings = ref(true);
@@ -32,6 +34,7 @@ const addCategoryModal = ref(false);
 const savingsStatistics = ref<SavingsStatistics[]>([]);
 
 const dataCount = computed(() => {return savings.value.length});
+const activeAllocation = computed(() => {return budgetStore.getAllocationByIndex("savings")});
 
 const activeFilers = ref([]);
 const filterStorageIndex = ref("savings-filters");
@@ -331,6 +334,10 @@ function toggleFilterOverlay(event, column) {
   filterOverlayRef.value.toggle(event);
 }
 
+onMounted(async () => {
+  await budgetStore.getCurrentBudget();
+})
+
 provide("initData", initData);
 provide("switchSort", switchSort);
 provide("toggleFilterOverlay", toggleFilterOverlay);
@@ -364,6 +371,19 @@ provide('removeFilter', removeFilter);
         <template #yearPicker>
           <YearPicker records="savings" :year="savingsStore.currentYear"
                       :availableYears="savingsStore.savingsYears"  @update:year="updateYear" />
+        </template>
+        <template #allocation>
+            <div class="flex flex row w-full gap-1 align-items-center">
+              <div class="flex-column">
+                {{ "Method: " + activeAllocation?.method }}
+              </div>
+              <div class="flex-column" v-if="activeAllocation?.method === 'percentage'">
+                {{ "Allocation: " + vueHelper.displayAsPercentage(activeAllocation?.allocation) }}
+              </div>
+              <div class="flex-column">
+                {{ "Value: " + vueHelper.displayAsCurrency(activeAllocation?.allocated_value) }}
+              </div>
+            </div>
         </template>
         <template #activeFilters>
           <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
