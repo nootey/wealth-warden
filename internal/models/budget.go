@@ -17,7 +17,7 @@ type MonthlyBudget struct {
 	EffectiveBudget   float64                   `gorm:"type:decimal(15,2);not null" json:"effective_budget"`
 	BudgetSnapshot    float64                   `gorm:"type:decimal(15,2);not null" json:"budget_snapshot"`
 	SnapshotThreshold float64                   `gorm:"type:decimal(15,2);not null" json:"snapshot_threshold"`
-	Allocations       []MonthlyBudgetAllocation `json:"allocations"`
+	Allocations       []MonthlyBudgetAllocation `gorm:"foreignKey:MonthlyBudgetID" json:"allocations"`
 	CreatedAt         time.Time                 `json:"created_at"`
 	UpdatedAt         time.Time                 `json:"updated_at"`
 }
@@ -30,7 +30,7 @@ type MonthlyBudgetUpdate struct {
 
 type MonthlyBudgetAllocation struct {
 	ID              uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	MonthlyBudgetID uint      `gorm:"not null;uniqueIndex:unique_mb_category" json:"monthly_budget_id"`
+	MonthlyBudgetID uint      `gorm:"not null;index" json:"monthly_budget_id"`
 	Category        string    `gorm:"type:enum('savings','investments','other');not null;uniqueIndex:unique_mb_category" json:"category"`
 	Method          string    `gorm:"type:enum('percentile', 'absolute');not null" json:"method"`
 	Allocation      float64   `gorm:"type:decimal(15,2);not null" json:"allocation"`

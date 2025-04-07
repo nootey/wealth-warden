@@ -26,6 +26,7 @@ func (b *BudgetInterface) FindBudgetByDynamicCategoryID(user *models.User, categ
 	var record models.MonthlyBudget
 
 	query := b.BudgetRepo.Db.
+		Preload("Allocations", "method = ?", "percentage").
 		Where("dynamic_category_id = ? AND organization_id = ? AND year = ? AND month = ?",
 			categoryID, *user.PrimaryOrganizationID, year, month)
 
@@ -159,8 +160,15 @@ func (b *BudgetInterface) updateBudget(tx *gorm.DB, user *models.User, dynamicCa
 			return errors.New("effective budget can not be negative. Can not insert/delete this record")
 		}
 
-		if (budget.EffectiveBudget < budget.SnapshotThreshold) || (budget.EffectiveBudget < budget.BudgetSnapshot) {
+		if (budget.BudgetSnapshot == 0 && budget.EffectiveBudget > 0) ||
+			budget.EffectiveBudget < budget.SnapshotThreshold ||
+			budget.EffectiveBudget < budget.BudgetSnapshot {
 			budget.BudgetSnapshot = budget.EffectiveBudget
+		}
+
+		err = b.BudgetRepo.RecalculatePercentileAllocations(tx, budget)
+		if err != nil {
+			return err
 		}
 	}
 
