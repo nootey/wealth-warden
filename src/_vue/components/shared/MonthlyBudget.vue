@@ -172,7 +172,7 @@ async function calculateAvailableBudgetAllocation(budget: MonthlyBudget|null){
     sum += allocation.allocated_value;
   })
 
-  availableBudgetAllocation.value = budget.budget_snapshot - sum;
+  availableBudgetAllocation.value = (budget.budget_snapshot - sum) > 0 ? (budget.budget_snapshot - sum) : 0;
 }
 
 const searchDynamicCategory = (event: any) => {
@@ -642,10 +642,16 @@ function extractName(mapping: any, categories: any) {
                 {{ "-" }}
               </div>
               <div class="flex flex-column">
-                {{ allocation.category }}
+                {{ "Category: " + allocation.category }}
               </div>
               <div class="flex flex-column">
-                {{ vueHelper.displayAsCurrency(allocation.allocated_value) }}
+                {{ "Method: " + allocation.method }}
+              </div>
+              <div class="flex flex-column">
+                {{ "Allocated: " +  vueHelper.displayAsCurrency(allocation.allocated_value) }}
+              </div>
+              <div class="flex flex-column">
+                {{ "Used: " + (vueHelper.displayAsCurrency(allocation.used_value) ?? 0.00 + " €") }}
               </div>
             </div>
         </div>
