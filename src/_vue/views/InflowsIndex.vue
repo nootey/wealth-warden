@@ -19,6 +19,8 @@ import DynamicCategories from "../features/inflows/DynamicCategories.vue";
 import YearPicker from "../components/shared/YearPicker.vue";
 import ColumnHeader from "../components/shared/ColumnHeader.vue";
 import BaseFilter from "../components/shared/filters/BaseFilter.vue";
+import ActionRow from "../components/shared/ActionRow.vue";
+import ActiveFilters from "../components/shared/filters/ActiveFilters.vue";
 
 const inflowStore = useInflowStore();
 const toastStore = useToastStore();
@@ -343,16 +345,16 @@ provide('removeFilter', removeFilter);
   <div class="flex w-full p-2">
     <div class="flex w-9 flex-column p-2 gap-3">
 
-      <div class="flex flex-row p-1 fap-2 align-items-center">
-        <div class="flex flex-column p-1">
-          Select year:
-        </div>
-        <div>
+      <ActionRow>
+        <template #yearPicker>
           <YearPicker records="inflows" :year="inflowStore.currentYear"
-                          :availableYears="inflowStore.inflowYears"  @update:year="updateYear" />
-        </div>
-      </div>
-
+                      :availableYears="inflowStore.inflowYears"  @update:year="updateYear" />
+        </template>
+        <template #activeFilters>
+          <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
+        </template>
+      </ActionRow>
+      
       <div class="flex flex-row p-1">
         <h3>
           Manage entries

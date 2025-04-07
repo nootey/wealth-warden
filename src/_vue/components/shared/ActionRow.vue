@@ -19,7 +19,7 @@ const slots = useSlots()
 
     <div class="flex flex-column p-1" v-if="slots.activeFilters">
       Active filters:
-      <div style="max-width: 100px;">
+      <div>
         <slot name="activeFilters"></slot>
       </div>
     </div>

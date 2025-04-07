@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {inject, ref} from "vue";
+import {inject, ref, watch} from "vue";
 import type {Filter} from "../../../../models/shared.ts";
 
 const props = defineProps<{
@@ -10,7 +10,13 @@ const props = defineProps<{
 const removeFilter = inject<(index: number) => void>("removeFilter");
 const filters = ref([]);
 
-initFilters()
+watch(
+    () => props.activeFilters,
+    () => {
+      initFilters();
+    },
+    { immediate: true, deep: true }
+);
 
 function initFilters() {
   // Start by setting the filters to active filters as per props

@@ -17,6 +17,8 @@ import OutflowCreate from "../features/outflows/OutflowCreate.vue";
 import YearPicker from "../components/shared/YearPicker.vue";
 import BaseFilter from "../components/shared/filters/BaseFilter.vue";
 import ColumnHeader from "../components/shared/ColumnHeader.vue";
+import ActionRow from "../components/shared/ActionRow.vue";
+import ActiveFilters from "../components/shared/filters/ActiveFilters.vue";
 
 const dataCount = computed(() => {return outflows.value.length});
 
@@ -334,15 +336,15 @@ provide('removeFilter', removeFilter);
   <div class="flex w-full p-2">
     <div class="flex w-9 flex-column p-2 gap-3">
 
-      <div class="flex flex-row p-1 fap-2 align-items-center">
-        <div class="flex flex-column p-1">
-          Select year:
-        </div>
-        <div>
+      <ActionRow>
+        <template #yearPicker>
           <YearPicker records="outflows" :year="outflowStore.currentYear"
                       :availableYears="outflowStore.outflowYears"  @update:year="updateYear" />
-        </div>
-      </div>
+        </template>
+        <template #activeFilters>
+          <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
+        </template>
+      </ActionRow>
 
       <div class="flex flex-row p-1">
         <h3>
