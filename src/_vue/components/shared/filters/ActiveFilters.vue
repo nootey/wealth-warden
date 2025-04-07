@@ -34,7 +34,7 @@ function clearFilter(filter: Filter & { index: number }, index: number): void
   initFilters()
 }
 
-function calcMadWidth(type: any){
+function calcMaxWidth(type: any){
   let width = 10;
   switch(type){
     case "parameter": {
@@ -61,9 +61,9 @@ function calcMadWidth(type: any){
     <div class="flex flex-column w-full">
       <div v-for="(filter, index) in filters" class="flex flex-row gap-2 align-items-center w-full">
         <div class="flex flex-row align-items-center gap-5 w-full">
-          <span class="truncate-text" v-tooltip="filter.parameter" :style="{ maxWidth: calcMadWidth('parameter') }">{{ filter.parameter }}</span>
-          <small class="truncate-text" v-tooltip="filter.operator" :style="{ maxWidth: calcMadWidth('operator') }">{{ filter.operator}}</small>
-          <span class="truncate-text" v-tooltip="filter.value" :style="{ maxWidth: calcMadWidth('value') }">{{ filter.value}}</span>
+          <span class="truncate-text" v-tooltip="filter.parameter" :style="{ maxWidth: calcMaxWidth('parameter') }">{{ filter.parameter }}</span>
+          <small class="truncate-text" v-tooltip="filter.operator" :style="{ maxWidth: calcMaxWidth('operator') }">{{ filter.operator}}</small>
+          <span class="truncate-text" v-tooltip="filter.value" :style="{ maxWidth: calcMaxWidth('value') }">{{ filter.value}}</span>
           <i class="pi pi-times hover_icon" @click="clearFilter(filter, index)" style="color: red;"></i>
         </div>
       </div>

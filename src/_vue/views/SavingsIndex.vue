@@ -15,6 +15,8 @@ import type {SavingsGroup, SavingsStatistics} from "../../models/savings.ts";
 import DisplayMonthlyDate from "../components/shared/DisplayMonthlyDate.vue";
 import SavingsStatDisplay from "../features/savings/SavingsStatDisplay.vue";
 import SavingsDeductionsCreate from "../features/savings/SavingsDeductionsCreate.vue";
+import ActionRow from "../components/shared/ActionRow.vue";
+import ActiveFilters from "../components/shared/filters/ActiveFilters.vue";
 
 const savingsStore = useSavingsStore();
 const toastStore = useToastStore();
@@ -358,15 +360,15 @@ provide('removeFilter', removeFilter);
   <div class="flex w-full p-2">
     <div class="flex w-9 flex-column p-2 gap-3">
 
-      <div class="flex flex-row p-1 fap-2 align-items-center">
-        <div class="flex flex-column p-1">
-          Select year:
-        </div>
-        <div>
+      <ActionRow>
+        <template #yearPicker>
           <YearPicker records="savings" :year="savingsStore.currentYear"
                       :availableYears="savingsStore.savingsYears"  @update:year="updateYear" />
-        </div>
-      </div>
+        </template>
+        <template #activeFilters>
+          <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
+        </template>
+      </ActionRow>
 
       <div class="flex flex-row p-1">
         <h3>
