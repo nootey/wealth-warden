@@ -37,10 +37,30 @@ func (r *ReoccurringActionsRepository) FindDistinctYearsForRecords(user *models.
 
 func (r *ReoccurringActionsRepository) FindAllActionsForCategory(user *models.User, categoryName string) ([]models.RecurringAction, error) {
 	var actions []models.RecurringAction
-	result := r.Db.
-		Where("organization_id = ?", *user.PrimaryOrganizationID).
-		Where("category_type = ?", categoryName).Find(&actions)
-	return actions, result.Error
+
+	// 1. Get all matching actions
+	err := r.Db.
+		Where("organization_id = ? AND category_type = ?", *user.PrimaryOrganizationID, categoryName).
+		Find(&actions).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. For each action, fetch the linked category record by table name
+	for i, action := range actions {
+		var linkedCategory map[string]interface{}
+		query := fmt.Sprintf("SELECT * FROM %s WHERE id = ?", categoryName)
+
+		// Scan the result into a map
+		err := r.Db.Raw(query, action.CategoryID).Scan(&linkedCategory).Error
+		if err != nil {
+			// Don't break the whole list if one category is missing
+			continue
+		}
+		actions[i].LinkedCategory = linkedCategory
+	}
+
+	return actions, nil
 }
 
 func (r *ReoccurringActionsRepository) GetActionByID(user *models.User, recordID uint) (*models.RecurringAction, error) {

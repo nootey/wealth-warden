@@ -106,9 +106,10 @@ type CreateSavingsCategoryRequest struct {
 }
 
 type SavingsCategoryRequest struct {
-	Category   CreateSavingsCategoryRequest   `json:"category" validate:"required"`
-	RecAction  CreateReoccurringActionRequest `json:"reoccurring_action" validate:"required"`
-	Allocation float64                        `json:"allocated_amount" validate:"numeric,min=0,gte=0"`
+	Category      CreateSavingsCategoryRequest   `json:"category" validate:"required"`
+	RecAction     CreateReoccurringActionRequest `json:"reoccurring_action" validate:"required"`
+	IsReoccurring *bool                          `json:"is_reoccurring" validate:"required"`
+	Allocation    float64                        `json:"allocated_amount" validate:"numeric,min=0,gte=0"`
 }
 
 type CreateSavingsTransactionRequest struct {

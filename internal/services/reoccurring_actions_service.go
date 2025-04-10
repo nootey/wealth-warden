@@ -105,7 +105,7 @@ func (s *ReoccurringActionService) FetchAvailableYearsForRecords(c *gin.Context,
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if len(years) == 0 {
 		year := time.Now().Year()
 		years = append(years, year)

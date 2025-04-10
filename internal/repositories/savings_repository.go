@@ -157,22 +157,22 @@ func (r *SavingsRepository) InsertSavingsDeduction(tx *gorm.DB, user *models.Use
 	return nil
 }
 
-func (r *SavingsRepository) InsertSavingsCategory(tx *gorm.DB, user *models.User, record *models.SavingsCategory) error {
+func (r *SavingsRepository) InsertSavingsCategory(tx *gorm.DB, user *models.User, record *models.SavingsCategory) (uint, error) {
 
 	var existing models.SavingsCategory
 	if err := tx.Where("organization_id = ? AND name = ?", *user.PrimaryOrganizationID, record.Name).First(&existing).Error; err == nil {
-		return errors.New("category with this name already exists")
+		return 0, errors.New("category with this name already exists")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return err
+		return 0, err
 	}
 
 	// Insert new category
 	record.OrganizationID = *user.PrimaryOrganizationID
 	record.UserID = user.ID
 	if err := tx.Create(&record).Error; err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return record.ID, nil
 }
 
 func (r *SavingsRepository) UpdateCategoryGoalProgress(tx *gorm.DB, user *models.User, categoryID uint, amount float64, modifier int) error {

@@ -238,7 +238,7 @@ func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *model
 	return tx.Commit().Error
 }
 
-func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models.SavingsCategory) error {
+func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models.SavingsCategory, newReoccurringRecord *models.RecurringAction) error {
 
 	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
@@ -265,10 +265,41 @@ func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models
 		utils.CompareChanges("", goalTargetString, changes, "goal_target")
 	}
 
-	err = s.SavingsRepo.InsertSavingsCategory(tx, user, newRecord)
+	ID, err := s.SavingsRepo.InsertSavingsCategory(tx, user, newRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
+	}
+
+	if newReoccurringRecord != nil {
+
+		newReoccurringRecord.ID = ID
+
+		startDateStr := newReoccurringRecord.StartDate.UTC().Format(time.RFC3339)
+		var endDateStr *string
+		if newReoccurringRecord.EndDate != nil {
+			formatted := newReoccurringRecord.EndDate.UTC().Format(time.RFC3339)
+			endDateStr = &formatted
+		} else {
+			endDateStr = nil
+		}
+
+		if endDateStr != nil {
+			utils.CompareChanges("", *endDateStr, changes, "end_date")
+		}
+
+		amountString := strconv.FormatFloat(newReoccurringRecord.Amount, 'f', 2, 64)
+		utils.CompareChanges("", amountString, changes, "allocated_amount")
+		utils.CompareChanges("", startDateStr, changes, "start_date")
+		utils.CompareChanges("", newReoccurringRecord.CategoryType, changes, "category")
+		utils.CompareChanges("", newReoccurringRecord.IntervalUnit, changes, "interval_unit")
+		utils.CompareChanges("", strconv.Itoa(newReoccurringRecord.IntervalValue), changes, "interval_value")
+
+		_, err = s.RecActionsService.ActionRepo.InsertReoccurringAction(tx, user, newReoccurringRecord)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_category", nil, changes, user)

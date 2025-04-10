@@ -154,8 +154,6 @@ func (h *SavingsHandler) CreateNewSavingsCategory(c *gin.Context) {
 		return
 	}
 
-	fmt.Println(req)
-
 	record := &models.SavingsCategory{
 		Name:         utils.CleanString(req.Category.Name).(string),
 		SavingsType:  utils.CleanString(req.Category.SavingsType).(string),
@@ -164,26 +162,28 @@ func (h *SavingsHandler) CreateNewSavingsCategory(c *gin.Context) {
 		InterestRate: req.Category.InterestRate,
 	}
 
-	var endDate *time.Time
-	if req.RecAction.EndDate != nil {
-		endDate = req.RecAction.EndDate
-	} else {
-		endDate = nil
+	var recRecord *models.RecurringAction
+
+	if *req.IsReoccurring {
+		var endDate *time.Time
+		if req.RecAction.EndDate != nil {
+			endDate = req.RecAction.EndDate
+		} else {
+			endDate = nil
+		}
+
+		recRecord = &models.RecurringAction{
+			CategoryID:    req.Category.ID,
+			CategoryType:  req.RecAction.Category,
+			Amount:        req.Allocation,
+			StartDate:     req.RecAction.StartDate,
+			EndDate:       endDate,
+			IntervalUnit:  req.RecAction.IntervalUnit,
+			IntervalValue: req.RecAction.IntervalValue,
+		}
 	}
 
-	recRecord := &models.RecurringAction{
-		CategoryID:    req.Category.ID,
-		CategoryType:  req.RecAction.Category,
-		Amount:        req.Allocation,
-		StartDate:     req.RecAction.StartDate,
-		EndDate:       endDate,
-		IntervalUnit:  req.RecAction.IntervalUnit,
-		IntervalValue: req.RecAction.IntervalValue,
-	}
-
-	fmt.Println(recRecord)
-
-	if err := h.Service.CreateSavingsCategory(c, record); err != nil {
+	if err := h.Service.CreateSavingsCategory(c, record, recRecord); err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
 		return
 	}
