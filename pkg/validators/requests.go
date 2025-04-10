@@ -105,6 +105,12 @@ type CreateSavingsCategoryRequest struct {
 	InterestRate *float64 `json:"interest_rate"`
 }
 
+type SavingsCategoryRequest struct {
+	Category   CreateSavingsCategoryRequest   `json:"category" validate:"required"`
+	RecAction  CreateReoccurringActionRequest `json:"reoccurring_action" validate:"required"`
+	Allocation float64                        `json:"allocated_amount" validate:"numeric,min=0,gte=0"`
+}
+
 type CreateSavingsTransactionRequest struct {
 	ID                uint      `json:"id"`
 	SavingsCategoryID uint      `json:"savings_category_id" validate:"required,numeric"`

@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
@@ -138,7 +140,8 @@ func (h *SavingsHandler) CreateNewSavingsDeduction(c *gin.Context) {
 
 func (h *SavingsHandler) CreateNewSavingsCategory(c *gin.Context) {
 
-	var req validators.CreateSavingsCategoryRequest
+	var req validators.SavingsCategoryRequest
+	fmt.Println(req)
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
@@ -151,13 +154,34 @@ func (h *SavingsHandler) CreateNewSavingsCategory(c *gin.Context) {
 		return
 	}
 
+	fmt.Println(req)
+
 	record := &models.SavingsCategory{
-		Name:         utils.CleanString(req.Name).(string),
-		SavingsType:  utils.CleanString(req.SavingsType).(string),
-		GoalTarget:   req.GoalTarget,
-		AccountType:  utils.CleanString(req.AccountType).(string),
-		InterestRate: req.InterestRate,
+		Name:         utils.CleanString(req.Category.Name).(string),
+		SavingsType:  utils.CleanString(req.Category.SavingsType).(string),
+		GoalTarget:   req.Category.GoalTarget,
+		AccountType:  utils.CleanString(req.Category.AccountType).(string),
+		InterestRate: req.Category.InterestRate,
 	}
+
+	var endDate *time.Time
+	if req.RecAction.EndDate != nil {
+		endDate = req.RecAction.EndDate
+	} else {
+		endDate = nil
+	}
+
+	recRecord := &models.RecurringAction{
+		CategoryID:    req.Category.ID,
+		CategoryType:  req.RecAction.Category,
+		Amount:        req.Allocation,
+		StartDate:     req.RecAction.StartDate,
+		EndDate:       endDate,
+		IntervalUnit:  req.RecAction.IntervalUnit,
+		IntervalValue: req.RecAction.IntervalValue,
+	}
+
+	fmt.Println(recRecord)
 
 	if err := h.Service.CreateSavingsCategory(c, record); err != nil {
 		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
