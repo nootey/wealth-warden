@@ -84,7 +84,7 @@ async function initData() {
 async function init() {
   await initData();
   await outflowStore.getOutflowCategories();
-  await actionStore.getAllActionsForCategory("outflow");
+  await actionStore.getAllActionsForCategory("outflow_categories");
   sort.value = vueHelper.initSort();
 }
 
@@ -210,7 +210,7 @@ async function onCellEditComplete(event: any) {
 async function handleEmit(emitType: any) {
   switch (emitType) {
     case 'insertRecAction': {
-      await actionStore.getAllActionsForCategory("outflow");
+      await actionStore.getAllActionsForCategory("outflow_categories");
       break;
     }
     default: {

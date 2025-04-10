@@ -87,7 +87,7 @@ async function initData() {
 async function init() {
   await initData();
   await inflowStore.getInflowCategories();
-  await actionStore.getAllActionsForCategory("inflow");
+  await actionStore.getAllActionsForCategory("inflow_categories");
   sort.value = vueHelper.initSort();
 }
 
@@ -215,7 +215,7 @@ async function onCellEditComplete(event: any) {
 async function handleEmit(emitType: any) {
   switch (emitType) {
     case 'insertRecAction': {
-      await actionStore.getAllActionsForCategory("inflow");
+      await actionStore.getAllActionsForCategory("inflow_categories");
       break;
     }
     default: {
@@ -354,7 +354,7 @@ provide('removeFilter', removeFilter);
           <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
         </template>
       </ActionRow>
-      
+
       <div class="flex flex-row p-1">
         <h3>
           Manage entries

@@ -37,7 +37,7 @@ async function removeAction(id: number) {
             </div>
           </template>
         </Column>
-        <Column field="category_type" header="Category"></Column>
+        <Column field="linked_category.name" header="Category"></Column>
         <Column field="amount" header="Amount">
           <template #body="slotProps">
             {{ vueHelper.displayAsCurrency(slotProps.data.amount)}}
