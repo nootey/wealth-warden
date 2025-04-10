@@ -1,6 +1,7 @@
 import {defineStore} from "pinia";
 import apiClient from '../api/axios_interceptor.ts';
 import type {SavingsTransaction, SavingsCategory} from "../../models/savings.ts";
+import type {ReoccurringAction} from "../../models/actions.ts";
 
 export const useSavingsStore = defineStore('savings', {
     state: () => ({
@@ -75,9 +76,13 @@ export const useSavingsStore = defineStore('savings', {
             }
         },
 
-        async createSavingsCategory(SavingsCategory: SavingsCategory|null) {
+        async createSavingsCategory(SavingsCategory: SavingsCategory|null, RecAction: ReoccurringAction|null, Allocation: number) {
             try {
-                const response = await apiClient.post(`${this.apiPrefix}/create-category`, SavingsCategory);
+                const response = await apiClient.post(`${this.apiPrefix}/create-category`, {
+                    category: SavingsCategory,
+                    reoccurring_action: RecAction,
+                    allocated_amount: Allocation
+                });
                 await this.getSavingsCategories();
                 return response;
             } catch (err) {

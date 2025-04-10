@@ -1,23 +1,25 @@
 <script setup lang="ts">
 import {useSavingsStore} from "../../../services/stores/savingsStore.ts";
 import {useToastStore} from "../../../services/stores/toastStore.ts";
-import {computed, ref} from "vue";
-import {numeric, required, requiredIf, minValue, maxValue} from "@vuelidate/validators";
+import {computed, ref, watch} from "vue";
+import {numeric, required, requiredIf, minValue, maxValue, helpers, integer} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import dateHelper from "../../../utils/dateHelper.ts";
 import ValidationError from "../../components/validation/ValidationError.vue";
 import LoadingSpinner from "../../components/ui/LoadingSpinner.vue";
 import vueHelper from "../../../utils/vueHelper.ts";
-import ColumnHeader from "../../components/shared/ColumnHeader.vue";
 
 const savingsStore = useSavingsStore();
 const toastStore = useToastStore();
 const savingsCategories = computed(() => savingsStore.savingsCategories);
 const newSavingsCategory = ref(initSavingsCategory());
+const newReoccurringRecord = ref(initSavingsCategory(true));
 const hasInterest = ref(false);
+const newAllocation = ref(initAllocation());
 
 const props = defineProps<{
   restricted: boolean;
+  availableAllocation: any;
 }>();
 const loading = ref(false);
 
@@ -25,6 +27,14 @@ const savingsTypes = ref(["fixed", "variable"]);
 const accountTypes = ref(["normal", "interest"]);
 const filteredSavingsTypes = ref([]);
 const filteredAccountTypes = ref([]);
+
+const reoccurrenceUnits = ref([
+  {name: "Days"},
+  {name: "Weeks"},
+  {name: "Months"},
+  {name: "Year"},
+])
+const filteredReoccurrenceUnits = ref([]);
 
 const categoryColumns = ref([
   { field: 'name', header: 'Name' },
@@ -38,6 +48,11 @@ const categoryColumns = ref([
 const isInterestAccount = computed(() => {
   return hasInterest.value;
 });
+
+const isEndDateValid = (value: string | null) => {
+  if (!value) return true; // Allow null values
+  return new Date(value) > new Date(newReoccurringRecord.value?.startDate);
+};
 
 const rules = {
   newSavingsCategory: {
@@ -62,17 +77,96 @@ const rules = {
       requiredIfRef: requiredIf(isInterestAccount),
       $autoDirty: true,
     },
+  },
+  newReoccurringRecord: {
+    startDate: {
+      required,
+      $autoDirty: true
+    },
+    endDate: {
+      $autoDirty: true,
+      isEndDateValid: helpers.withMessage('End date must be higher than starting date.', isEndDateValid),
+    },
+    intervalValue: {
+      required,
+      integer,
+      minValue: minValue(0),
+      maxValue: maxValue(9),
+      $autoDirty: true
+    },
+    intervalUnit: {
+      required,
+      $autoDirty: true
+    },
+  },
+  newAllocation: {
+    method:{
+      $autoDirty: true
+    },
+    allocation: {
+      numeric,
+      minValue: 0,
+      maxValue: 1000000000,
+      $autoDirty: true
+    },
+    allocated_value:{
+      required,
+      $autoDirty: true
+    },
   }
 }
 
-const v$ = useVuelidate(rules, {newSavingsCategory});
+const v$ = useVuelidate(rules, {newSavingsCategory, newReoccurringRecord, newAllocation});
 
-function initSavingsCategory():object {
+watch(
+    () => [newAllocation.value.method, newAllocation.value.allocation],
+    ([method, allocation]) => {
+      if (allocation == null) {
+
+        newAllocation.value.allocated_value = 0;
+        return;
+      }
+
+      if (method === 'absolute') {
+        newAllocation.value.allocated_value = allocation;
+      } else if (method === 'percentage') {
+
+        if(newAllocation.value.allocation > 100)
+          newAllocation.value.allocation = 100;
+        newAllocation.value.allocated_value = (allocation/100) * (props.availableAllocation?.allocated_value ?? 0);
+      }
+    },
+    { immediate: true } // runs initially too
+);
+
+function initSavingsCategory(isReoccurring: boolean = false):object {
+
+  if (isReoccurring) {
+    return {
+      startDate: dateHelper.formatDate(new Date(), true),
+      endDate: null,
+      intervalValue: 1,
+      intervalUnit: {name: "Months"},
+      description: null,
+    };
+  }
+
   return {
     name: null,
     savings_type: null,
     goal_target: null,
     interest_rate: null,
+    method: "percentage",
+    allocation: null,
+    allocated_value: null,
+  }
+}
+
+function initAllocation(){
+  return {
+    method: "percentage",
+    allocation: 0,
+    allocated_value: 0,
   }
 }
 
@@ -104,11 +198,36 @@ function toggleAccountType(event: any){
   hasInterest.value = event;
 }
 
+async function validateForm(){
+  let isValidReoccurring = true;
+  const isValidCategory = await v$.value.newSavingsCategory.$validate();
+
+  if (newSavingsCategory.value.savings_type === "fixed") {
+    isValidReoccurring = await v$.value.newReoccurringRecord.$validate();
+  }
+
+  if (!isValidReoccurring) return true;
+  return !isValidCategory;
+
+}
+
 async function createNewSavingsCategory() {
 
-  v$.value.newSavingsCategory.$touch();
-  if (v$.value.newSavingsCategory.$error) return;
+  if (await validateForm()) return;
+
   try {
+
+    let start_date = dateHelper.mergeDateWithCurrentTime(newReoccurringRecord.value.start_date, "Europe/Ljubljana");
+    let end_date = newReoccurringRecord.value.end_date ? dateHelper.mergeDateWithCurrentTime(newReoccurringRecord.value.end_date, "Europe/Ljubljana") : null;
+
+    let reoccurring_action = {
+      category_type: "savings",
+      start_date: start_date,
+      end_date: end_date,
+      interval_unit: newReoccurringRecord.value.intervalUnit.name,
+      interval_value: newReoccurringRecord.value.intervalValue
+    }
+
     let response = await savingsStore.createSavingsCategory({
       id: null,
       name: newSavingsCategory.value.name,
@@ -116,7 +235,10 @@ async function createNewSavingsCategory() {
       goal_target: newSavingsCategory.value.goal_target,
       interest_rate: newSavingsCategory.value.interest_rate,
       account_type: hasInterest.value ? "interest" : "normal",
-    });
+    },
+        reoccurring_action,
+        newAllocation.value.allocated_value ?? 0
+    )
     newSavingsCategory.value = initSavingsCategory();
     toastStore.successResponseToast(response);
     v$.value.newSavingsCategory.$reset();
@@ -161,6 +283,19 @@ async function onCellEditComplete(event: any) {
   }
 
 }
+
+const searchReoccurrenceUnit = (event: any) => {
+  setTimeout(() => {
+    if (!event.query.trim().length) {
+      filteredReoccurrenceUnits.value = [...reoccurrenceUnits.value];
+    } else {
+      filteredReoccurrenceUnits.value = reoccurrenceUnits.value.filter((item) => {
+        return item.name.toLowerCase().startsWith(event.query.toLowerCase());
+      });
+    }
+  }, 250);
+}
+
 </script>
 
 <template>
@@ -196,11 +331,75 @@ async function onCellEditComplete(event: any) {
         <InputNumber size="small" v-model="newSavingsCategory.goal_target" mode="currency" currency="EUR"
                      locale="de-DE" autofocus fluid placeholder="0,00 €" />
       </div>
+
       <div class="flex flex-column">
         <ValidationError :isRequired="false" message="">
           <label>Submit</label>
         </ValidationError>
         <Button icon="pi pi-cart-plus" @click="createNewSavingsCategory" style="height: 42px;" />
+      </div>
+    </div>
+
+    <div v-if="newSavingsCategory.savings_type === 'fixed'" class="flex flex-row w-full gap-2">
+      <div class="flex flex-column">
+        <ValidationError :isRequired="false" :message="null">
+          <label>Value</label>
+        </ValidationError>
+        <SelectButton v-model="newAllocation.method" size="small" :options="['absolute', 'percentage']" />
+      </div>
+
+      <div class="flex flex-column">
+        <ValidationError :isRequired="true" :message="v$.newAllocation.allocation.$errors[0]?.$message">
+          <label>Allocation</label>
+        </ValidationError>
+        <InputNumber v-if="newAllocation.method === 'absolute'" size="small" v-model="newAllocation.allocation" mode="currency" currency="EUR"
+                     locale="de-DE" placeholder="0,00 €"></InputNumber>
+        <InputNumber v-if="newAllocation.method === 'percentage'" size="small" v-model="newAllocation.allocation" :min="0"
+                     :max="100"
+                     :step="0.1"
+                     :minFractionDigits="0"
+                     :maxFractionDigits="2"
+                     mode="decimal"
+                     placeholder="0.0" autofocus fluid></InputNumber>
+      </div>
+
+      <div v-if="newAllocation.allocated_value > 0" class="flex flex-column">
+        <ValidationError :isRequired="true" :message="v$.newAllocation.allocation.$errors[0]?.$message">
+          <label>Allocated value</label>
+        </ValidationError>
+        <InputNumber disabled size="small" v-model="newAllocation.allocated_value" mode="currency" currency="EUR"
+                     locale="de-DE" placeholder="0,00 €"></InputNumber>
+      </div>
+    </div>
+    
+    <div v-if="newSavingsCategory.savings_type === 'fixed'" class="flex flex-row w-full gap-2">
+      <div class="flex flex-column">
+        <ValidationError :isRequired="true" :message="v$.newReoccurringRecord.startDate.$errors[0]?.$message">
+          <label>Start date</label>
+        </ValidationError>
+        <DatePicker size="small" v-model="newReoccurringRecord.startDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"/>
+      </div>
+
+      <div class="flex flex-column">
+        <ValidationError :isRequired="false" :message="v$.newReoccurringRecord.endDate.$errors[0]?.$message">
+          <label>End date</label>
+        </ValidationError>
+        <DatePicker size="small" v-model="newReoccurringRecord.endDate" date-format="dd/mm/yy" showIcon fluid iconDisplay="input"/>
+      </div>
+
+      <div class="flex flex-column">
+        <ValidationError :isRequired="true" :message="v$.newReoccurringRecord.intervalValue.$errors[0]?.$message">
+          <label>Frequency</label>
+        </ValidationError>
+        <InputNumber size="small" v-model="newReoccurringRecord.intervalValue" inputId="integeronly" fluid placeholder="1"></InputNumber>
+      </div>
+
+      <div class="flex flex-column">
+        <ValidationError :isRequired="true" :message="v$.newReoccurringRecord.intervalUnit.$errors[0]?.$message">
+          <label>Unit</label>
+        </ValidationError>
+        <AutoComplete size="small" v-model="newReoccurringRecord.intervalUnit" :suggestions="filteredReoccurrenceUnits"
+                        @complete="searchReoccurrenceUnit" option-label="name" placeholder="Select unit of reoccurrence" dropdown></AutoComplete>
       </div>
     </div>
 

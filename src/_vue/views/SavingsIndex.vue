@@ -34,7 +34,7 @@ const addCategoryModal = ref(false);
 const savingsStatistics = ref<SavingsStatistics[]>([]);
 
 const dataCount = computed(() => {return savings.value.length});
-const activeAllocation = computed(() => {return budgetStore.getAllocationByIndex("savings")});
+const activeAllocation = computed(() => {return budgetStore.getAllocationByIndex("savings") || 0});
 
 const activeFilers = ref([]);
 const filterStorageIndex = ref("savings-filters");
@@ -357,7 +357,7 @@ provide('removeFilter', removeFilter);
   </Dialog>
   <Dialog v-model:visible="addCategoryModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '800px'}" header="Savings categories">
-    <SavingsCategories :restricted="false"></SavingsCategories>
+    <SavingsCategories :restricted="false" :availableAllocation="activeAllocation"></SavingsCategories>
   </Dialog>
   <Popover ref="filterOverlayRef">
     <BaseFilter :activeColumn="activeFilterColumn"
