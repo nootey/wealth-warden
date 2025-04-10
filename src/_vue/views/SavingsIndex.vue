@@ -18,10 +18,13 @@ import SavingsDeductionsCreate from "../features/savings/SavingsDeductionsCreate
 import ActionRow from "../components/shared/ActionRow.vue";
 import ActiveFilters from "../components/shared/filters/ActiveFilters.vue";
 import {useBudgetStore} from "../../services/stores/budgetStore.ts";
+import ReoccurringActionsDisplay from "../components/shared/ReoccurringActionsDisplay.vue";
+import {useActionStore} from "../../services/stores/reoccurringActionStore.ts";
 
 const savingsStore = useSavingsStore();
 const toastStore = useToastStore();
 const budgetStore = useBudgetStore();
+const actionStore = useActionStore();
 
 const loadingSavings = ref(true);
 const loadingGroupedSavings = ref(true);
@@ -75,6 +78,7 @@ const filteredSavingCategories = ref([]);
 
 onMounted(async () => {
   await init();
+  await actionStore.getAllActionsForCategory("savings_categories");
 });
 
 async function initData() {
@@ -203,6 +207,18 @@ function calculateSavingsStatistics<T>(
   };
 
   targetRef.value = [totalRow, ...rows];
+}
+
+async function handleEmit(emitType: any) {
+  switch (emitType) {
+    case 'insertRecAction': {
+      await actionStore.getAllActionsForCategory("savings_categories");
+      break;
+    }
+    default: {
+      break;
+    }
+  }
 }
 
 async function onPage(event: any) {
@@ -357,7 +373,7 @@ provide('removeFilter', removeFilter);
   </Dialog>
   <Dialog v-model:visible="addCategoryModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '800px'}" header="Savings categories">
-    <SavingsCategories :restricted="false" :availableAllocation="activeAllocation"></SavingsCategories>
+    <SavingsCategories @insertReoccurringActionEvent="handleEmit('insertRecAction')" :restricted="false" :availableAllocation="activeAllocation"></SavingsCategories>
   </Dialog>
   <Popover ref="filterOverlayRef">
     <BaseFilter :activeColumn="activeFilterColumn"
@@ -521,6 +537,14 @@ provide('removeFilter', removeFilter);
       </div>
 
       <SavingsStatDisplay :savingsStats="savingsStatistics" :dataCount="dataCount" />
+
+      <div class="flex flex-row p-1">
+        <h3>
+          Reoccurring
+        </h3>
+      </div>
+
+      <ReoccurringActionsDisplay categoryName="savings" :categoryItems="actionStore.reoccurringActions" />
 
     </div>
   </div>

@@ -76,10 +76,11 @@ export const useSavingsStore = defineStore('savings', {
             }
         },
 
-        async createSavingsCategory(SavingsCategory: SavingsCategory|null, RecAction: ReoccurringAction|null, Allocation: number) {
+        async createSavingsCategory(SavingsCategory: SavingsCategory|null, IsReoccurring: boolean, RecAction: ReoccurringAction|null, Allocation: number) {
             try {
                 const response = await apiClient.post(`${this.apiPrefix}/create-category`, {
                     category: SavingsCategory,
+                    is_reoccurring: IsReoccurring,
                     reoccurring_action: RecAction,
                     allocated_amount: Allocation
                 });

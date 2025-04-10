@@ -15,12 +15,18 @@ const savingsCategories = computed(() => savingsStore.savingsCategories);
 const newSavingsCategory = ref(initSavingsCategory());
 const newReoccurringRecord = ref(initSavingsCategory(true));
 const hasInterest = ref(false);
+const isReoccurring = ref(false);
 const newAllocation = ref(initAllocation());
 
 const props = defineProps<{
   restricted: boolean;
   availableAllocation: any;
 }>();
+
+const emit = defineEmits<{
+  (event: 'insertReoccurringActionEvent'): void;
+}>();
+
 const loading = ref(false);
 
 const savingsTypes = ref(["fixed", "variable"]);
@@ -198,6 +204,10 @@ function toggleAccountType(event: any){
   hasInterest.value = event;
 }
 
+function toggleReoccurrence(event: any){
+  isReoccurring.value = event;
+}
+
 async function validateForm(){
   let isValidReoccurring = true;
   const isValidCategory = await v$.value.newSavingsCategory.$validate();
@@ -221,7 +231,7 @@ async function createNewSavingsCategory() {
     let end_date = newReoccurringRecord.value.end_date ? dateHelper.mergeDateWithCurrentTime(newReoccurringRecord.value.end_date, "Europe/Ljubljana") : null;
 
     let reoccurring_action = {
-      category_type: "savings",
+      category_type: "savings_category",
       start_date: start_date,
       end_date: end_date,
       interval_unit: newReoccurringRecord.value.intervalUnit.name,
@@ -236,10 +246,12 @@ async function createNewSavingsCategory() {
       interest_rate: newSavingsCategory.value.interest_rate,
       account_type: hasInterest.value ? "interest" : "normal",
     },
+        newSavingsCategory.value.savings_type === "fixed" || isReoccurring.value,
         reoccurring_action,
         newAllocation.value.allocated_value ?? 0
     )
     newSavingsCategory.value = initSavingsCategory();
+    emit("insertReoccurringActionEvent");
     toastStore.successResponseToast(response);
     v$.value.newSavingsCategory.$reset();
   } catch (error) {
@@ -340,7 +352,7 @@ const searchReoccurrenceUnit = (event: any) => {
       </div>
     </div>
 
-    <div v-if="newSavingsCategory.savings_type === 'fixed'" class="flex flex-row w-full gap-2">
+    <div v-if="newSavingsCategory.savings_type === 'fixed' || isReoccurring" class="flex flex-row w-full gap-2">
       <div class="flex flex-column">
         <ValidationError :isRequired="false" :message="null">
           <label>Value</label>
@@ -372,7 +384,7 @@ const searchReoccurrenceUnit = (event: any) => {
       </div>
     </div>
     
-    <div v-if="newSavingsCategory.savings_type === 'fixed'" class="flex flex-row w-full gap-2">
+    <div v-if="newSavingsCategory.savings_type === 'fixed' || isReoccurring" class="flex flex-row w-full gap-2">
       <div class="flex flex-column">
         <ValidationError :isRequired="true" :message="v$.newReoccurringRecord.startDate.$errors[0]?.$message">
           <label>Start date</label>
@@ -403,9 +415,21 @@ const searchReoccurrenceUnit = (event: any) => {
       </div>
     </div>
 
+
     <div class="flex flex-row w-full gap-2 p-1 align-items-center">
-      <span>Interest account?</span>
-      <Checkbox :value="hasInterest" @update:modelValue="toggleAccountType" binary />
+
+      <div class="flex flex-column gap-2 align-items-center">
+        <div class="flex flex-row w-full gap-2 p-1 align-items-center">
+          <span>Interest account?</span>
+          <Checkbox :value="hasInterest" @update:modelValue="toggleAccountType" binary />
+        </div>
+      </div>
+      <div class="flex flex-column gap-2 align-items-center">
+        <div v-if="newSavingsCategory.savings_type !== 'fixed'" class="flex flex-row w-full gap-2 p-1 align-items-center">
+          <span>Make reoccurring?</span>
+          <Checkbox :value="isReoccurring" @update:modelValue="toggleReoccurrence" binary />
+        </div>
+      </div>
     </div>
 
     <div v-if="hasInterest" class="flex flex-row w-full gap-2 p-1 align-items-center">
