@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"time"
@@ -141,7 +140,6 @@ func (h *SavingsHandler) CreateNewSavingsDeduction(c *gin.Context) {
 func (h *SavingsHandler) CreateNewSavingsCategory(c *gin.Context) {
 
 	var req validators.SavingsCategoryRequest
-	fmt.Println(req)
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
@@ -221,4 +219,26 @@ func (h *SavingsHandler) UpdateSavingsCategory(c *gin.Context) {
 	}
 
 	utils.SuccessMessage("Record updated", "Success", http.StatusOK)(c.Writer, c.Request)
+}
+
+func (h *SavingsHandler) DeleteSavingsCategory(c *gin.Context) {
+
+	var requestBody struct {
+		ID uint `json:"id"`
+	}
+
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		utils.ErrorMessage("Invalid request body", "Error", http.StatusBadRequest)(c, err)
+		return
+	}
+
+	id := requestBody.ID
+
+	err := h.Service.DeleteSavingsCategory(c, id)
+	if err != nil {
+		utils.ErrorMessage("Error occurred", err.Error(), http.StatusBadRequest)(c, err)
+		return
+	}
+
+	utils.SuccessMessage("Record has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
 }

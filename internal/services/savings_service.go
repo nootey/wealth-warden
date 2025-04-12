@@ -361,3 +361,65 @@ func (s *SavingsService) UpdateSavingsCategory(c *gin.Context, newRecord *models
 
 	return tx.Commit().Error
 }
+
+func (s *SavingsService) DeleteSavingsCategory(c *gin.Context, id uint) error {
+
+	user, err := s.AuthService.GetCurrentUser(c, false)
+	if err != nil {
+		return err
+	}
+	changes := utils.InitChanges()
+
+	tx := s.SavingsRepo.Db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	record, err := s.SavingsRepo.GetSavingsCategoryByID(user, id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	utils.CompareChanges(record.SavingsType, "", changes, "savings_type")
+	utils.CompareChanges(record.AccountType, "", changes, "account_type")
+
+	recRecord, err := s.RecActionsService.ActionRepo.GetActionByRelatedCategory(tx, user, record.ID, "savings_categories")
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			recRecord = nil
+		} else {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	if recRecord != nil {
+
+		err = s.RecActionsService.DeleteReoccurringAction(c, recRecord.ID, "savings_categories")
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		err = s.BudgetInterface.UpdateAllocation(tx, user, recRecord, "savings", "delete", 0)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	err = s.SavingsRepo.DropSavingsCategory(tx, user, id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "savings_category", nil, changes, user)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}

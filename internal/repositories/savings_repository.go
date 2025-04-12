@@ -201,3 +201,7 @@ func (r *SavingsRepository) UpdateSavingsCategory(tx *gorm.DB, user *models.User
 	}
 	return nil
 }
+
+func (r *SavingsRepository) DropSavingsCategory(tx *gorm.DB, user *models.User, recordID uint) error {
+	return tx.Where("id = ? AND organization_id = ?", recordID, *user.PrimaryOrganizationID).Delete(&models.SavingsCategory{}).Error
+}

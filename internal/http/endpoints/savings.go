@@ -13,5 +13,6 @@ func SavingsRoutes(apiGroup *gin.RouterGroup, handler *handlers.SavingsHandler) 
 	apiGroup.POST("/create-deduction", handler.CreateNewSavingsDeduction)
 	apiGroup.POST("/create-category", handler.CreateNewSavingsCategory)
 	apiGroup.POST("/update-category", handler.UpdateSavingsCategory)
+	apiGroup.POST("/delete-category", handler.DeleteSavingsCategory)
 
 }
