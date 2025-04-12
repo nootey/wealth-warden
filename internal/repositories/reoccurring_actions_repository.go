@@ -72,6 +72,15 @@ func (r *ReoccurringActionsRepository) GetActionByID(user *models.User, recordID
 	return &record, nil
 }
 
+func (r *ReoccurringActionsRepository) GetActionByRelatedCategory(tx *gorm.DB, user *models.User, categoryID uint, categoryType string) (*models.RecurringAction, error) {
+	var record models.RecurringAction
+	err := tx.Where("category_id = ? AND category_type = ? AND organization_id = ?", categoryID, categoryType, *user.PrimaryOrganizationID).First(&record).Error
+	if err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
 func (r *ReoccurringActionsRepository) InsertReoccurringAction(tx *gorm.DB, user *models.User, reoccurringAction *models.RecurringAction) (uint, error) {
 	reoccurringAction.OrganizationID = *user.PrimaryOrganizationID
 	reoccurringAction.UserID = user.ID
