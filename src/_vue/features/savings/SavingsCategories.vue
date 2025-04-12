@@ -14,9 +14,9 @@ const toastStore = useToastStore();
 const savingsCategories = computed(() => savingsStore.savingsCategories);
 const newSavingsCategory = ref(initSavingsCategory());
 const newReoccurringRecord = ref(initSavingsCategory(true));
+const newAllocation = ref(initAllocation());
 const hasInterest = ref(false);
 const isReoccurring = ref(false);
-const newAllocation = ref(initAllocation());
 
 const props = defineProps<{
   restricted: boolean;
@@ -24,7 +24,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (event: 'insertReoccurringActionEvent'): void;
+  (event: 'reoccurringActionEvent'): void;
+  (event: 'updateAllocatedAmount'): void;
 }>();
 
 const loading = ref(false);
@@ -55,9 +56,25 @@ const isInterestAccount = computed(() => {
   return hasInterest.value;
 });
 
+const availableToAllocate = computed(() => {
+  const allocation = props.availableAllocation;
+
+  if (!allocation) return 0;
+
+  const allocated = Number(allocation.allocated_value) || 0;
+  const used = Number(allocation.used_value) || 0;
+
+  return Math.max(allocated - used, 0);
+});
+
 const isEndDateValid = (value: string | null) => {
   if (!value) return true; // Allow null values
   return new Date(value) > new Date(newReoccurringRecord.value?.startDate);
+};
+
+const isAllocationValid = (value: number) => {
+  if (value === 0) return true; // Allow 0 values before init
+  return value < availableToAllocate.value;
 };
 
 const rules = {
@@ -117,6 +134,9 @@ const rules = {
     },
     allocated_value:{
       required,
+      numeric,
+      minValue: 0,
+      maxValue: helpers.withMessage('Max value exceeds available allocation.', isAllocationValid),
       $autoDirty: true
     },
   }
@@ -128,7 +148,6 @@ watch(
     () => [newAllocation.value.method, newAllocation.value.allocation],
     ([method, allocation]) => {
       if (allocation == null) {
-
         newAllocation.value.allocated_value = 0;
         return;
       }
@@ -136,14 +155,27 @@ watch(
       if (method === 'absolute') {
         newAllocation.value.allocated_value = allocation;
       } else if (method === 'percentage') {
+        if (allocation > 100) allocation = 100;
+        newAllocation.value.allocation = allocation;
 
-        if(newAllocation.value.allocation > 100)
-          newAllocation.value.allocation = 100;
-        newAllocation.value.allocated_value = (allocation/100) * (props.availableAllocation?.allocated_value ?? 0);
+        const totalAllocated = props.availableAllocation?.allocated_value ?? 0;
+        const totalUsed = props.availableAllocation?.used_value ?? 0;
+        const remaining = Math.max(totalAllocated - totalUsed, 0);
+
+        newAllocation.value.allocated_value = (allocation / 100) * remaining;
       }
     },
-    { immediate: true } // runs initially too
+    { immediate: true }
 );
+
+async function init() {
+  newSavingsCategory.value = initSavingsCategory();
+  newReoccurringRecord.value = initSavingsCategory(true);
+  newAllocation.value = initAllocation();
+  isReoccurring.value = false;
+  hasInterest.value = false;
+  await savingsStore.getSavingsCategories();
+}
 
 function initSavingsCategory(isReoccurring: boolean = false):object {
 
@@ -200,14 +232,6 @@ const searchAccountTypes = (event: any) => {
   }, 250);
 }
 
-function toggleAccountType(event: any){
-  hasInterest.value = event;
-}
-
-function toggleReoccurrence(event: any){
-  isReoccurring.value = event;
-}
-
 async function validateForm(){
   let isValidReoccurring = true;
   const isValidCategory = await v$.value.newSavingsCategory.$validate();
@@ -231,7 +255,7 @@ async function createNewSavingsCategory() {
     let end_date = newReoccurringRecord.value.end_date ? dateHelper.mergeDateWithCurrentTime(newReoccurringRecord.value.end_date, "Europe/Ljubljana") : null;
 
     let reoccurring_action = {
-      category_type: "savings_category",
+      category_type: "savings_categories",
       start_date: start_date,
       end_date: end_date,
       interval_unit: newReoccurringRecord.value.intervalUnit.name,
@@ -250,9 +274,12 @@ async function createNewSavingsCategory() {
         reoccurring_action,
         newAllocation.value.allocated_value ?? 0
     )
-    newSavingsCategory.value = initSavingsCategory();
-    emit("insertReoccurringActionEvent");
+
+
+    emit("reoccurringActionEvent");
+    emit("updateAllocatedAmount");
     toastStore.successResponseToast(response);
+    init();
     v$.value.newSavingsCategory.$reset();
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -262,7 +289,10 @@ async function createNewSavingsCategory() {
 async function removeSavingsCategory(id: number) {
   try {
     let response = await savingsStore.deleteSavingsCategory(id);
+    emit("reoccurringActionEvent");
+    emit("updateAllocatedAmount");
     toastStore.successResponseToast(response);
+    init();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -353,9 +383,18 @@ const searchReoccurrenceUnit = (event: any) => {
     </div>
 
     <div v-if="newSavingsCategory.savings_type === 'fixed' || isReoccurring" class="flex flex-row w-full gap-2">
+
       <div class="flex flex-column">
         <ValidationError :isRequired="false" :message="null">
-          <label>Value</label>
+          <label>Available</label>
+        </ValidationError>
+        <InputNumber disabled size="small" v-model="availableToAllocate" mode="currency" currency="EUR"
+                     locale="de-DE" placeholder="0,00 €"></InputNumber>
+      </div>
+
+      <div class="flex flex-column">
+        <ValidationError :isRequired="false" :message="null">
+          <label>Method</label>
         </ValidationError>
         <SelectButton v-model="newAllocation.method" size="small" :options="['absolute', 'percentage']" />
       </div>
@@ -376,7 +415,7 @@ const searchReoccurrenceUnit = (event: any) => {
       </div>
 
       <div v-if="newAllocation.allocated_value > 0" class="flex flex-column">
-        <ValidationError :isRequired="true" :message="v$.newAllocation.allocation.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.newAllocation.allocated_value.$errors[0]?.$message">
           <label>Allocated value</label>
         </ValidationError>
         <InputNumber disabled size="small" v-model="newAllocation.allocated_value" mode="currency" currency="EUR"
@@ -421,13 +460,13 @@ const searchReoccurrenceUnit = (event: any) => {
       <div class="flex flex-column gap-2 align-items-center">
         <div class="flex flex-row w-full gap-2 p-1 align-items-center">
           <span>Interest account?</span>
-          <Checkbox :value="hasInterest" @update:modelValue="toggleAccountType" binary />
+          <Checkbox v-model="hasInterest" binary />
         </div>
       </div>
       <div class="flex flex-column gap-2 align-items-center">
         <div v-if="newSavingsCategory.savings_type !== 'fixed'" class="flex flex-row w-full gap-2 p-1 align-items-center">
           <span>Make reoccurring?</span>
-          <Checkbox :value="isReoccurring" @update:modelValue="toggleReoccurrence" binary />
+          <Checkbox v-model="isReoccurring" binary />
         </div>
       </div>
     </div>

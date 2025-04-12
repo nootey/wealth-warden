@@ -211,8 +211,12 @@ function calculateSavingsStatistics<T>(
 
 async function handleEmit(emitType: any) {
   switch (emitType) {
-    case 'insertRecAction': {
+    case 'handleRecAction': {
       await actionStore.getAllActionsForCategory("savings_categories");
+      break;
+    }
+    case 'updateAllocation': {
+      await budgetStore.getCurrentBudget();
       break;
     }
     default: {
@@ -373,7 +377,7 @@ provide('removeFilter', removeFilter);
   </Dialog>
   <Dialog v-model:visible="addCategoryModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '800px'}" header="Savings categories">
-    <SavingsCategories @insertReoccurringActionEvent="handleEmit('insertRecAction')" :restricted="false" :availableAllocation="activeAllocation"></SavingsCategories>
+    <SavingsCategories @reoccurringActionEvent="handleEmit('handleRecAction')" @updateAllocatedAmount="handleEmit('updateAllocation')" :restricted="false" :availableAllocation="activeAllocation"></SavingsCategories>
   </Dialog>
   <Popover ref="filterOverlayRef">
     <BaseFilter :activeColumn="activeFilterColumn"
@@ -394,10 +398,10 @@ provide('removeFilter', removeFilter);
                 {{ "Method: " + activeAllocation?.method }}
               </div>
               <div class="flex-column" v-if="activeAllocation?.method === 'percentage'">
-                {{ "Allocation: " + vueHelper.displayAsPercentage(activeAllocation?.allocation) }}
+                {{ "Allocation: " + vueHelper.displayAsPercentage(activeAllocation?.allocation ) }}
               </div>
               <div class="flex-column">
-                {{ "Value: " + vueHelper.displayAsCurrency(activeAllocation?.allocated_value) }}
+                {{ "Value: " + vueHelper.displayAsCurrency(activeAllocation?.allocated_value - activeAllocation?.used_value) }}
               </div>
             </div>
         </template>
@@ -544,7 +548,7 @@ provide('removeFilter', removeFilter);
         </h3>
       </div>
 
-      <ReoccurringActionsDisplay categoryName="savings" :categoryItems="actionStore.reoccurringActions" />
+      <ReoccurringActionsDisplay categoryName="savings_categories" :categoryItems="actionStore.reoccurringActions" :preventDelete="true"/>
 
     </div>
   </div>

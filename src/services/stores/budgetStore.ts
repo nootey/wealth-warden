@@ -1,11 +1,12 @@
 import {defineStore} from 'pinia';
 import apiClient from "../api/axios_interceptor.ts";
 import type {MonthlyBudget, MonthlyBudgetAllocation} from "../../models/budgets.ts";
+import {reactive} from "vue";
 
 export const useBudgetStore = defineStore('budget', {
     state: () => ({
         apiPrefix: "budget",
-        current_budget: null as any
+        current_budget: reactive({} as MonthlyBudget)
     }),
     getters: {
         getAllocationByIndex: (state) => (index: string) => {
@@ -33,12 +34,10 @@ export const useBudgetStore = defineStore('budget', {
         },
 
         async getCurrentBudget() {
-            if (this.current_budget !== null) return this.current_budget
-
             try {
-                const response = await apiClient.get(`${this.apiPrefix}/current`)
-                this.current_budget = response.data
-                return this.current_budget
+                const response = await apiClient.get(`${this.apiPrefix}/current`);
+                this.current_budget = reactive(response.data);
+                return response.data
             } catch (error) {
                 console.error('Failed to fetch current budget:', error)
                 throw error

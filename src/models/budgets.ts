@@ -11,6 +11,7 @@ export interface MonthlyBudget {
     effective_budget: number;
     budget_snapshot: number;
     snapshot_threshold: number;
+    allocations?: MonthlyBudgetAllocation[];
 }
 
 export interface MonthlyBudgetAllocation {

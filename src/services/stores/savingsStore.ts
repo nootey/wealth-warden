@@ -98,6 +98,13 @@ export const useSavingsStore = defineStore('savings', {
                 throw err;
             }
         },
+        async deleteSavingsCategory(id: number) {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/delete-category`, {id: id});
+            } catch (err) {
+                throw err;
+            }
+        },
 
     }
 });
