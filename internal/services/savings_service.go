@@ -4,11 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"sort"
 	"strconv"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/services/shared"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
@@ -18,6 +20,7 @@ type SavingsService struct {
 	AuthService       *AuthService
 	LoggingService    *LoggingService
 	RecActionsService *ReoccurringActionService
+	BudgetInterface   *shared.BudgetInterface
 	Config            *config.Config
 }
 
@@ -26,6 +29,7 @@ func NewSavingsService(
 	authService *AuthService,
 	loggingService *LoggingService,
 	recActionsService *ReoccurringActionService,
+	budgetInterface *shared.BudgetInterface,
 	repo *repositories.SavingsRepository,
 ) *SavingsService {
 	return &SavingsService{
@@ -33,6 +37,7 @@ func NewSavingsService(
 		AuthService:       authService,
 		LoggingService:    loggingService,
 		RecActionsService: recActionsService,
+		BudgetInterface:   budgetInterface,
 		Config:            cfg,
 	}
 }
@@ -296,6 +301,12 @@ func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models
 		utils.CompareChanges("", strconv.Itoa(newReoccurringRecord.IntervalValue), changes, "interval_value")
 
 		_, err = s.RecActionsService.ActionRepo.InsertReoccurringAction(tx, user, newReoccurringRecord)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		err = s.BudgetInterface.UpdateAllocation(tx, user, newReoccurringRecord, "savings", "create", 0)
 		if err != nil {
 			tx.Rollback()
 			return err

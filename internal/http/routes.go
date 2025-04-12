@@ -51,7 +51,7 @@ func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *R
 	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, budgetInterface, inflowRepo)
 	outflowService := services.NewOutflowService(cfg, authService, loggingService, recActionService, budgetInterface, outflowRepo)
 	budgetService := services.NewBudgetService(cfg, authService, loggingService, budgetInterface, budgetRepo)
-	savingsService := services.NewSavingsService(cfg, authService, loggingService, recActionService, savingsRepo)
+	savingsService := services.NewSavingsService(cfg, authService, loggingService, recActionService, budgetInterface, savingsRepo)
 
 	return &RouteInitializer{
 		Router:                   router,

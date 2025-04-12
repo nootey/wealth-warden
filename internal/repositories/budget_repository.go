@@ -80,16 +80,16 @@ func (r *BudgetRepository) UpdateMonthlyBudget(tx *gorm.DB, user *models.User, r
 func (r *BudgetRepository) RecalculatePercentileAllocations(tx *gorm.DB, budget *models.MonthlyBudget) error {
 	for i := range budget.Allocations {
 		allocation := &budget.Allocations[i]
-		fmt.Println(allocation)
 		if allocation.Method == "percentage" {
-			fmt.Println(allocation.AllocatedValue)
 			allocation.AllocatedValue = budget.BudgetSnapshot * (allocation.Allocation / 100.0)
-			fmt.Println(allocation.AllocatedValue)
 			if err := tx.Model(&models.MonthlyBudgetAllocation{}).
 				Where("id = ?", allocation.ID).
 				Update("allocated_value", allocation.AllocatedValue).Error; err != nil {
 				return fmt.Errorf("failed to update allocation ID %d: %w", allocation.ID, err)
 			}
+		}
+		if *allocation.UsedValue > allocation.AllocatedValue {
+			return fmt.Errorf("failed to update allocation, used value exceeds allocated value")
 		}
 	}
 

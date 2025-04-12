@@ -2,6 +2,7 @@ package shared
 
 import (
 	"errors"
+	"fmt"
 	"gorm.io/gorm"
 	"time"
 	"wealth-warden/internal/models"
@@ -26,7 +27,7 @@ func (b *BudgetInterface) FindBudgetByDynamicCategoryID(user *models.User, categ
 	var record models.MonthlyBudget
 
 	query := b.BudgetRepo.Db.
-		Preload("Allocations", "method = ?", "percentage").
+		Preload("Allocations").
 		Where("dynamic_category_id = ? AND organization_id = ? AND year = ? AND month = ?",
 			categoryID, *user.PrimaryOrganizationID, year, month)
 
@@ -39,12 +40,16 @@ func (b *BudgetInterface) FindBudgetByDynamicCategoryID(user *models.User, categ
 	return &record, nil
 }
 
-func (b *BudgetInterface) findBudgetForUser(user *models.User, year, month int) (*models.MonthlyBudget, error) {
+func (b *BudgetInterface) findBudgetForUser(user *models.User, year, month int, withAllocations bool) (*models.MonthlyBudget, error) {
 	var record models.MonthlyBudget
 
 	query := b.BudgetRepo.Db.
 		Where("organization_id = ? AND year = ? AND month = ?",
 			*user.PrimaryOrganizationID, year, month)
+
+	if withAllocations {
+		query = query.Preload("Allocations")
+	}
 
 	result := query.Find(&record)
 
@@ -116,7 +121,7 @@ func (b *BudgetInterface) updateBudget(tx *gorm.DB, user *models.User, dynamicCa
 	var err error
 
 	if dynamicCategoryID == 0 {
-		budget, err = b.findBudgetForUser(user, currentYear, currentMonth)
+		budget, err = b.findBudgetForUser(user, currentYear, currentMonth, false)
 		if err != nil {
 			return err
 		}
@@ -243,6 +248,49 @@ func (b *BudgetInterface) UpdateTotalOutflow(tx *gorm.DB, user *models.User, out
 	err = b.updateBudget(tx, user, categoryID, category, amount, outflow.OutflowDate)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (b *BudgetInterface) UpdateAllocation(tx *gorm.DB, user *models.User, reoccurringRecord *models.RecurringAction, category, operation string, amountDifference float64) error {
+
+	var amount float64
+	switch operation {
+	case "update":
+		amount = amountDifference
+	case "delete":
+		amount = reoccurringRecord.Amount * -1
+	default:
+		amount = reoccurringRecord.Amount
+	}
+
+	currentYear, currentMonth := time.Now().Year(), int(time.Now().Month())
+	recordYear, recordMonth := reoccurringRecord.StartDate.Year(), int(reoccurringRecord.StartDate.Month())
+	if recordYear != currentYear || recordMonth != currentMonth {
+		return nil
+	}
+
+	budget, err := b.findBudgetForUser(user, currentYear, currentMonth, true)
+	if err != nil {
+		return err
+	}
+
+	for i := range budget.Allocations {
+		allocation := &budget.Allocations[i]
+		if allocation.Category == category {
+			var currentUsed float64
+			if allocation.UsedValue != nil {
+				currentUsed = *allocation.UsedValue
+			}
+			newValue := currentUsed + amount
+
+			if err := tx.Model(&models.MonthlyBudgetAllocation{}).
+				Where("id = ?", allocation.ID).
+				Update("used_value", newValue).Error; err != nil {
+				return fmt.Errorf("failed to update allocation ID %d: %w", allocation.ID, err)
+			}
+		}
 	}
 
 	return nil
