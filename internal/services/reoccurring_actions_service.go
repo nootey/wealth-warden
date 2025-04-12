@@ -47,8 +47,18 @@ func (s *ReoccurringActionService) DeleteReoccurringAction(c *gin.Context, id ui
 		return tx.Error
 	}
 
+	preventDelete := map[string]bool{
+		"savings_categories": true,
+	}
+
 	record, err := s.ActionRepo.GetActionByID(user, id)
 	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if preventDelete[categoryName] {
+		err = fmt.Errorf("reoccurring action cannot be deleted for category: %s", categoryName)
 		tx.Rollback()
 		return err
 	}
