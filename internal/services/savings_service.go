@@ -278,7 +278,7 @@ func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models
 
 	if newReoccurringRecord != nil {
 
-		newReoccurringRecord.ID = ID
+		newReoccurringRecord.CategoryID = ID
 
 		startDateStr := newReoccurringRecord.StartDate.UTC().Format(time.RFC3339)
 		var endDateStr *string
