@@ -475,7 +475,8 @@ provide('removeFilter', removeFilter);
         </h3>
       </div>
 
-      <ReoccurringActionsDisplay categoryName="outflow" :categoryItems="actionStore.reoccurringActions" />
+      <ReoccurringActionsDisplay categoryName="outflow" :categoryItems="actionStore.reoccurringActions"
+                                 :preventDelete="false"/>
     </div>
   </div>
 </template>

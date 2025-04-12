@@ -8,6 +8,7 @@ import {useToastStore} from "../../../services/stores/toastStore.ts";
 const props = defineProps<{
   categoryItems: ReoccurringAction[];
   categoryName: string;
+  preventDelete: boolean;
 }>();
 
 const actionStore = useActionStore();
@@ -32,7 +33,7 @@ async function removeAction(id: number) {
         <Column header="Actions">
           <template #body="slotProps">
             <div class="flex flex-row align-items-center gap-2">
-              <i class="pi pi-trash hover_icon" style="color: var(--accent-primary)"
+              <i v-if="!preventDelete" class="pi pi-trash hover_icon" style="color: var(--accent-primary)"
                  @click="removeAction(slotProps.data?.id)"></i>
             </div>
           </template>
