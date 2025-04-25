@@ -13,7 +13,7 @@ goose -dir .\pkg\database\migrations\ create create_{table}_table sql
 
 Run the migrations with the following command:
 ```go 
-go run cmd/http-server/main.go migrate {type}
+go run ./cmd/http-server migrate {type}
 ```
 
 You can use the following options:
@@ -37,7 +37,7 @@ func SeederName(ctx context.Context, db *gorm.DB) {
 
 Run the seeders with the following command:
 ```go 
-go run cmd/http-server/main.go seed {type}
+go run ./cmd/http-server seed {type}
 ```
 You can use the following options:
 - basic -> runs the basic seeders for a fresh rollout

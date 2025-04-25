@@ -27,7 +27,7 @@ func (h *InflowHandler) GetInflowsPaginated(c *gin.Context) {
 
 	records, totalRecords, err := h.Service.FetchInflowsPaginated(c, paginationParams, yearParam)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
@@ -61,7 +61,7 @@ func (h *InflowHandler) GetAllInflowsGroupedByMonth(c *gin.Context) {
 
 	inflows, err := h.Service.FetchAllInflowsGroupedByMonth(c, yearParam)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, inflows)
@@ -70,7 +70,7 @@ func (h *InflowHandler) GetAllInflowsGroupedByMonth(c *gin.Context) {
 func (h *InflowHandler) GetAllInflowCategories(c *gin.Context) {
 	categories, err := h.Service.FetchAllInflowCategories(c)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, categories)
@@ -79,7 +79,7 @@ func (h *InflowHandler) GetAllInflowCategories(c *gin.Context) {
 func (h *InflowHandler) GetAllDynamicCategories(c *gin.Context) {
 	records, err := h.Service.FetchAllDynamicCategories(c)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -90,13 +90,13 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 	var req validators.CreateInflowRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -108,11 +108,11 @@ func (h *InflowHandler) CreateNewInflow(c *gin.Context) {
 	}
 
 	if err := h.Service.CreateInflow(c, inflow); err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
 
 func (h *InflowHandler) UpdateInflow(c *gin.Context) {
@@ -120,13 +120,13 @@ func (h *InflowHandler) UpdateInflow(c *gin.Context) {
 	var req validators.CreateInflowRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -139,11 +139,11 @@ func (h *InflowHandler) UpdateInflow(c *gin.Context) {
 	}
 
 	if err := h.Service.UpdateInflow(c, inflow); err != nil {
-		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record updated", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
 }
 
 func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
@@ -151,13 +151,13 @@ func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
 	var req validators.ReoccurringInflowRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -185,11 +185,11 @@ func (h *InflowHandler) CreateNewReoccurringInflow(c *gin.Context) {
 	}
 
 	if err := h.Service.CreateReoccurringInflow(c, inflow, recInflow); err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
 
 func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
@@ -197,13 +197,13 @@ func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
 	var req validators.CreateInflowCategoryRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -212,11 +212,11 @@ func (h *InflowHandler) CreateNewInflowCategory(c *gin.Context) {
 	}
 
 	if err := h.Service.CreateInflowCategory(c, inflowCategory); err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
 
 func (h *InflowHandler) CreateNewDynamicCategory(c *gin.Context) {
@@ -224,19 +224,19 @@ func (h *InflowHandler) CreateNewDynamicCategory(c *gin.Context) {
 	var req validators.DynamicCategoryMapRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	if len(req.Mapping.SecondaryLinks) > 0 && req.Mapping.SecondaryType == "" {
 		err := errors.New("secondary type is required if secondary links are provided")
-		utils.ErrorMessage("Validation error", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Validation error", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -269,11 +269,11 @@ func (h *InflowHandler) CreateNewDynamicCategory(c *gin.Context) {
 
 	err := h.Service.CreateDynamicCategoryWithMappings(c, record, mappings)
 	if err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
 
 func (h *InflowHandler) UpdateInflowCategory(c *gin.Context) {
@@ -281,13 +281,13 @@ func (h *InflowHandler) UpdateInflowCategory(c *gin.Context) {
 	var req validators.CreateInflowCategoryRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -297,11 +297,11 @@ func (h *InflowHandler) UpdateInflowCategory(c *gin.Context) {
 	}
 
 	if err := h.Service.UpdateInflowCategory(c, inflowCategory); err != nil {
-		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record updated", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
 }
 
 func (h *InflowHandler) DeleteInflow(c *gin.Context) {
@@ -311,7 +311,8 @@ func (h *InflowHandler) DeleteInflow(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		utils.ErrorMessage("Invalid request body", "Error", http.StatusBadRequest)(c, err)
+		err := errors.New("invalid request body")
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
@@ -319,11 +320,11 @@ func (h *InflowHandler) DeleteInflow(c *gin.Context) {
 
 	err := h.Service.DeleteInflow(c, id)
 	if err != nil {
-		utils.ErrorMessage("Error occurred", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
-	utils.SuccessMessage("Record has been deleted.", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record has been deleted.", "Success", http.StatusOK)
 }
 
 func (h *InflowHandler) DeleteInflowCategory(c *gin.Context) {
@@ -333,7 +334,8 @@ func (h *InflowHandler) DeleteInflowCategory(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		utils.ErrorMessage("Invalid request body", "Error", http.StatusBadRequest)(c, err)
+		err := errors.New("invalid request body")
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
@@ -341,11 +343,11 @@ func (h *InflowHandler) DeleteInflowCategory(c *gin.Context) {
 
 	err := h.Service.DeleteInflowCategory(c, id)
 	if err != nil {
-		utils.ErrorMessage("Error occurred", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
-	utils.SuccessMessage("Record has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record has been deleted", "Success", http.StatusOK)
 }
 
 func (h *InflowHandler) DeleteDynamicCategory(c *gin.Context) {
@@ -355,7 +357,8 @@ func (h *InflowHandler) DeleteDynamicCategory(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		utils.ErrorMessage("Invalid request body", "Error", http.StatusBadRequest)(c, err)
+		err := errors.New("invalid request body")
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
@@ -363,9 +366,9 @@ func (h *InflowHandler) DeleteDynamicCategory(c *gin.Context) {
 
 	err := h.Service.DeleteDynamicCategory(c, id)
 	if err != nil {
-		utils.ErrorMessage("Error occurred", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
-	utils.SuccessMessage("Record has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record has been deleted", "Success", http.StatusOK)
 }

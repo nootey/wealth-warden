@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
@@ -26,7 +27,7 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 	var loginForm models.LoginForm
 	if err := c.ShouldBindJSON(&loginForm); err != nil {
-		utils.ErrorMessage("Error occurred", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
@@ -39,11 +40,11 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 		logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "fail", "login", nil, &loginIP, &userAgent, nil, changes, &description)
 		if logErr != nil {
-			utils.ErrorMessage("Error occurred", logErr.Error(), http.StatusBadRequest)(c, logErr)
+			utils.ErrorMessage(c, "Error occurred", logErr.Error(), http.StatusBadRequest, logErr)
 			return
 		}
 
-		utils.ErrorMessage("Error occurred", "Incorrect credentials", http.StatusUnauthorized)(c, nil)
+		utils.ErrorMessage(c, "Error occurred", logErr.Error(), http.StatusUnauthorized, logErr)
 		return
 	}
 
@@ -56,23 +57,24 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 		logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "fail", "login", nil, &loginIP, &userAgent, nil, changes, &description)
 		if logErr != nil {
-			utils.ErrorMessage("Error occurred", logErr.Error(), http.StatusBadRequest)(c, logErr)
+			utils.ErrorMessage(c, "Error occurred", logErr.Error(), http.StatusBadRequest, logErr)
 			return
 		}
 
-		utils.ErrorMessage("Error occurred", "Incorrect credentials", http.StatusUnauthorized)(c, err)
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusUnauthorized, err)
 		return
 	}
 
 	user, _ := h.Service.UserRepo.GetUserByEmail(loginForm.Email, false)
 	if user == nil {
-		utils.ErrorMessage("Error occurred", "Data unavailable", http.StatusInternalServerError)(c, nil)
+		err = errors.New("user data unavailable")
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
 	accessToken, refreshToken, err := h.Service.WebClientMiddleware.GenerateLoginTokens(user.ID, loginForm.RememberMe)
 	if err != nil {
-		utils.ErrorMessage("Authentication error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Authentication error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
@@ -94,7 +96,7 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 	logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "success", "login", nil, &loginIP, &userAgent, nil, nil, nil)
 	if logErr != nil {
-		utils.ErrorMessage("Error occurred", logErr.Error(), http.StatusBadRequest)(c, logErr)
+		utils.ErrorMessage(c, "Error occurred", logErr.Error(), http.StatusBadRequest, logErr)
 		return
 	}
 
@@ -103,7 +105,7 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 	c.SetCookie("access", accessToken, 60*15, "/", h.Service.Config.WebClientDomain, h.Service.Config.Release, true)
 	c.SetCookie("refresh", refreshToken, expiresAt, "/", h.Service.Config.WebClientDomain, h.Service.Config.Release, true)
 
-	utils.SuccessMessage("200", "Logged in", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "200", "Logged in", http.StatusOK)
 }
 
 func (h *AuthHandler) GetAuthUser(c *gin.Context) {
@@ -116,7 +118,7 @@ func (h *AuthHandler) GetAuthUser(c *gin.Context) {
 
 	user, err := h.Service.GetCurrentUser(c, includeSecrets)
 	if err != nil {
-		utils.ErrorMessage("Error occurred", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
@@ -126,5 +128,5 @@ func (h *AuthHandler) GetAuthUser(c *gin.Context) {
 func (h *AuthHandler) LogoutUser(c *gin.Context) {
 	c.SetCookie("access", "", -1, "/", h.Service.Config.WebClientDomain, h.Service.Config.Release, true)
 	c.SetCookie("refresh", "", -1, "/", h.Service.Config.WebClientDomain, h.Service.Config.Release, true)
-	utils.SuccessMessage("", "Logged out", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "", "Logged out", http.StatusOK)
 }

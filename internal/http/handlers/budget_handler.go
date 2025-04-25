@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"wealth-warden/internal/models"
@@ -20,7 +21,7 @@ func NewBudgetHandler(service *services.BudgetService) *BudgetHandler {
 func (h *BudgetHandler) GetCurrentMonthlyBudget(c *gin.Context) {
 	record, err := h.Service.GetCurrentMonthlyBudget(c)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, record)
@@ -29,13 +30,13 @@ func (h *BudgetHandler) GetCurrentMonthlyBudget(c *gin.Context) {
 func (h *BudgetHandler) CreateNewMonthlyBudget(c *gin.Context) {
 	var req validators.CreateMonthlyBudgetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -45,7 +46,7 @@ func (h *BudgetHandler) CreateNewMonthlyBudget(c *gin.Context) {
 
 	budget, err := h.Service.CreateMonthlyBudget(c, budgetReq)
 	if err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
@@ -55,13 +56,13 @@ func (h *BudgetHandler) CreateNewMonthlyBudget(c *gin.Context) {
 func (h *BudgetHandler) CreateNewBudgetAllocation(c *gin.Context) {
 	var req validators.CreateMonthlyBudgetAllocationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -75,24 +76,24 @@ func (h *BudgetHandler) CreateNewBudgetAllocation(c *gin.Context) {
 
 	err := h.Service.CreateMonthlyBudgetAllocation(c, budgetAllocReq)
 	if err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
 
 func (h *BudgetHandler) UpdateMonthlyBudget(c *gin.Context) {
 
 	var req validators.UpdateMonthlyBudgetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -104,14 +105,16 @@ func (h *BudgetHandler) UpdateMonthlyBudget(c *gin.Context) {
 	case "budget_snapshot":
 		value, ok := req.Value.(float64)
 		if !ok {
-			utils.ErrorMessage("Invalid value type", "Expected a float64", http.StatusBadRequest)(c, nil)
+			err := errors.New("expected a float64")
+			utils.ErrorMessage(c, "Invalid value type", err.Error(), http.StatusBadRequest, err)
 			return
 		}
 		budget.BudgetSnapshot = &value
 	case "snapshot_threshold":
 		value, ok := req.Value.(float64)
 		if !ok {
-			utils.ErrorMessage("Invalid value type", "Expected a float64", http.StatusBadRequest)(c, nil)
+			err := errors.New("expected a float64")
+			utils.ErrorMessage(c, "Invalid value type", err.Error(), http.StatusBadRequest, err)
 			return
 		}
 		budget.SnapshotThreshold = &value
@@ -119,31 +122,31 @@ func (h *BudgetHandler) UpdateMonthlyBudget(c *gin.Context) {
 
 	err := h.Service.UpdateMonthlyBudget(c, budget)
 	if err != nil {
-		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Budget has been updated", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Budget has been updated", "Success", http.StatusOK)
 }
 
 func (h *BudgetHandler) SynchronizeCurrentMonthlyBudget(c *gin.Context) {
 
 	err := h.Service.SynchronizeCurrentMonthlyBudget(c)
 	if err != nil {
-		utils.ErrorMessage("Sync error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Sync error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Monthly budget has been synchronized!", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Monthly budget has been synchronized!", "Success", http.StatusOK)
 }
 
 func (h *BudgetHandler) SynchronizeCurrentMonthlyBudgetSnapshot(c *gin.Context) {
 
 	err := h.Service.SynchronizeCurrentMonthlyBudgetSnapshot(c)
 	if err != nil {
-		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("New budget snapshot has been recorded", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "New budget snapshot has been recorded", "Success", http.StatusOK)
 }
