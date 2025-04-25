@@ -4,7 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"wealth-warden/internal/bootstrap"
-	"wealth-warden/internal/handlers"
+	httpHandlers "wealth-warden/internal/http/handlers"
 	"wealth-warden/internal/http/v1"
 )
 
@@ -33,14 +33,14 @@ func (r *RouteInitializerHTTP) InitEndpoints() {
 
 func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 
-	authHandler := handlers.NewAuthHandler(r.Container.AuthService)
-	userHandler := handlers.NewUserHandler(r.Container.UserService)
-	inflowHandler := handlers.NewInflowHandler(r.Container.InflowService)
-	outflowHandler := handlers.NewOutflowHandler(r.Container.OutflowService)
-	loggingHandler := handlers.NewLoggingHandler(r.Container.LoggingService)
-	recActionHandler := handlers.NewReoccurringActionHandler(r.Container.ReoccurringActionService)
-	budgetHandler := handlers.NewBudgetHandler(r.Container.BudgetService)
-	savingsHandler := handlers.NewSavingsHandler(r.Container.SavingsService)
+	authHandler := httpHandlers.NewAuthHandler(r.Container.AuthService)
+	userHandler := httpHandlers.NewUserHandler(r.Container.UserService)
+	inflowHandler := httpHandlers.NewInflowHandler(r.Container.InflowService)
+	outflowHandler := httpHandlers.NewOutflowHandler(r.Container.OutflowService)
+	loggingHandler := httpHandlers.NewLoggingHandler(r.Container.LoggingService)
+	recActionHandler := httpHandlers.NewReoccurringActionHandler(r.Container.ReoccurringActionService)
+	budgetHandler := httpHandlers.NewBudgetHandler(r.Container.BudgetService)
+	savingsHandler := httpHandlers.NewSavingsHandler(r.Container.SavingsService)
 
 	// Protected routes
 	authGroup := _v1.Group("/", r.Container.AuthService.WebClientMiddleware.WebClientAuthentication())
