@@ -33,6 +33,7 @@ type Config struct {
 	JwtWebClientAccess   string
 	JwtWebClientRefresh  string
 	JwtWebClientEncodeID string
+	Host                 string
 }
 
 // loadSecrets reads the secrets from the .env.secret file.
@@ -168,6 +169,12 @@ func LoadConfig() *Config {
 		log.Fatalf("Invalid release mode: %v", err)
 	}
 
+	host := envMap["HOST"]
+	if host == "" {
+		log.Println("Host not defined in environment variables, using global fallback ...")
+		host = "0.0.0.0"
+	}
+
 	return &Config{
 		Release:              release,
 		WebClientDomain:      envMap["WEB_CLIENT_DOMAIN"],
@@ -182,5 +189,6 @@ func LoadConfig() *Config {
 		JwtWebClientAccess:   envMap["JWT_WEB_CLIENT_ACCESS"],
 		JwtWebClientRefresh:  envMap["JWT_WEB_CLIENT_REFRESH"],
 		JwtWebClientEncodeID: envMap["JWT_WEB_CLIENT_ENCODE_ID"],
+		Host:                 host,
 	}
 }
