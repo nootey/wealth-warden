@@ -6,6 +6,9 @@ import (
 	"github.com/gin-contrib/cors"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
+	healthcheck "github.com/tavsec/gin-healthcheck"
+	"github.com/tavsec/gin-healthcheck/checks"
+	"github.com/tavsec/gin-healthcheck/config"
 	"go.uber.org/zap"
 	"net/http"
 	"time"
@@ -76,6 +79,14 @@ func NewRouter(container *bootstrap.Container) *gin.Engine {
 		r = gin.Default()
 		domainProtocol = "http://"
 	}
+
+	sqlDB, err := container.DB.DB()
+	if err != nil {
+		panic(err)
+	}
+
+	sqlCheck := checks.SqlCheck{Sql: sqlDB}
+	healthcheck.New(r, config.DefaultConfig(), []checks.Check{sqlCheck})
 
 	// Setup CORS
 	corsConfig := cors.DefaultConfig()
