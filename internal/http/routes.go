@@ -5,30 +5,33 @@ import (
 	"net/http"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/handlers"
-	"wealth-warden/internal/http/endpoints"
-	"wealth-warden/pkg/database"
+	"wealth-warden/internal/http/v1"
 )
 
-type RouteInitializer struct {
+type RouteInitializerHTTP struct {
 	Router    *gin.Engine
 	Container *bootstrap.Container
 }
 
-func NewRouteInitializerHTTP(r *gin.Engine, container *bootstrap.Container) *RouteInitializer {
+func NewRouteInitializerHTTP(r *gin.Engine, container *bootstrap.Container) *RouteInitializerHTTP {
 
-	return &RouteInitializer{
+	return &RouteInitializerHTTP{
 		Router:    r,
 		Container: container,
 	}
 }
 
-func (r *RouteInitializer) InitEndpoints() {
-	apiPrefixV1 := "/api/v1"
+func (r *RouteInitializerHTTP) InitEndpoints() {
+	api := r.Router.Group("/api")
+
+	// Version 1
+	_v1 := api.Group("/v1")
 
 	r.Router.GET("/", rootHandler)
-	r.Router.GET(apiPrefixV1+"/health", func(c *gin.Context) {
-		healthCheck(c)
-	})
+	r.initV1Routes(_v1)
+}
+
+func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 
 	authHandler := handlers.NewAuthHandler(r.Container.AuthService)
 	userHandler := handlers.NewUserHandler(r.Container.UserService)
@@ -40,69 +43,41 @@ func (r *RouteInitializer) InitEndpoints() {
 	savingsHandler := handlers.NewSavingsHandler(r.Container.SavingsService)
 
 	// Protected routes
-	authGroup := r.Router.Group(apiPrefixV1, r.Container.AuthService.WebClientMiddleware.WebClientAuthentication())
+	authGroup := _v1.Group("/", r.Container.AuthService.WebClientMiddleware.WebClientAuthentication())
 	{
 		authRoutes := authGroup.Group("/auth")
-		endpoints.AuthRoutes(authRoutes, authHandler)
+		v1.AuthRoutes(authRoutes, authHandler)
 
 		userRoutes := authGroup.Group("/users")
-		endpoints.UserRoutes(userRoutes, userHandler)
+		v1.UserRoutes(userRoutes, userHandler)
 
 		inflowRoutes := authGroup.Group("/inflows")
-		endpoints.InflowRoutes(inflowRoutes, inflowHandler)
+		v1.InflowRoutes(inflowRoutes, inflowHandler)
 
 		outflowRoutes := authGroup.Group("/outflows")
-		endpoints.OutflowRoutes(outflowRoutes, outflowHandler)
+		v1.OutflowRoutes(outflowRoutes, outflowHandler)
 
 		loggingRoutes := authGroup.Group("/logs")
-		endpoints.LoggingRoutes(loggingRoutes, loggingHandler)
+		v1.LoggingRoutes(loggingRoutes, loggingHandler)
 
 		reoccurringRoutes := authGroup.Group("/reoccurring")
-		endpoints.RecActionRoutes(reoccurringRoutes, recActionHandler)
+		v1.RecActionRoutes(reoccurringRoutes, recActionHandler)
 
 		budgetRoutes := authGroup.Group("/budget")
-		endpoints.BudgetRoutes(budgetRoutes, budgetHandler)
+		v1.BudgetRoutes(budgetRoutes, budgetHandler)
 
 		savingsRoutes := authGroup.Group("/savings")
-		endpoints.SavingsRoutes(savingsRoutes, savingsHandler)
+		v1.SavingsRoutes(savingsRoutes, savingsHandler)
 	}
 
 	// Public routes
-	publicGroup := r.Router.Group(apiPrefixV1)
+	publicGroup := _v1.Group("")
 	{
 		publicAuthRoutes := publicGroup.Group("/auth")
-		endpoints.PublicAuthRoutes(publicAuthRoutes, authHandler)
+		v1.PublicAuthRoutes(publicAuthRoutes, authHandler)
 	}
 }
 
-// Root handler for basic server check
 func rootHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Wealth Warden server is running!"})
-}
-
-// Health check handler function
-func healthCheck(c *gin.Context) {
-	httpHealthStatus := "healthy"
-	dbStatus := "healthy"
-
-	// Check database connection
-	err := database.PingMysqlDatabase()
-	if err != nil {
-		dbStatus = "unhealthy"
-		httpHealthStatus = "degraded"
-	}
-
-	statusCode := http.StatusOK
-	if httpHealthStatus == "degraded" {
-		statusCode = http.StatusServiceUnavailable
-	}
-
-	c.JSON(statusCode, gin.H{
-		"status": gin.H{
-			"api": gin.H{"http": httpHealthStatus},
-			"services": gin.H{
-				"database": gin.H{"mysql": dbStatus},
-			},
-		},
-	})
 }
