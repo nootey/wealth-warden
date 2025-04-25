@@ -3,7 +3,7 @@ default: run
 
 # Run the server using the rootCmd
 run:
-	go run cmd/http-server/main.go
+	go run ./cmd/http-server server
 
 # Build the binary
 build:
@@ -11,11 +11,11 @@ build:
 
 # Run database migrations
 migrate:
-	go run cmd/http-server/main.go migrate $(type)
+	go run ./cmd/http-server migrate $(type)
 
 # Seed essential tables
 seed:
-	go run cmd/http-server/main.go seed $(type)
+	go run ./cmd/http-server seed $(type)
 
 # Clean up binaries
 clean:
