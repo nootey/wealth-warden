@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"time"
@@ -26,7 +27,7 @@ func (h *OutflowHandler) GetOutflowsPaginated(c *gin.Context) {
 
 	outflows, totalRecords, err := h.Service.FetchOutflowsPaginated(c, paginationParams, yearParam)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
@@ -60,7 +61,7 @@ func (h *OutflowHandler) GetAllOutflowsGroupedByMonth(c *gin.Context) {
 
 	records, err := h.Service.FetchAllOutflowsGroupedByMonth(c, yearParam)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -69,7 +70,7 @@ func (h *OutflowHandler) GetAllOutflowsGroupedByMonth(c *gin.Context) {
 func (h *OutflowHandler) GetAllOutflowCategories(c *gin.Context) {
 	outflowCategories, err := h.Service.FetchAllOutflowCategories(c)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, outflowCategories)
@@ -80,13 +81,13 @@ func (h *OutflowHandler) CreateNewOutflow(c *gin.Context) {
 	var req validators.CreateOutflowRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -98,11 +99,11 @@ func (h *OutflowHandler) CreateNewOutflow(c *gin.Context) {
 	}
 
 	if err := h.Service.CreateOutflow(c, outflow); err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
 
 func (h *OutflowHandler) UpdateOutflow(c *gin.Context) {
@@ -110,13 +111,13 @@ func (h *OutflowHandler) UpdateOutflow(c *gin.Context) {
 	var req validators.CreateOutflowRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -129,11 +130,11 @@ func (h *OutflowHandler) UpdateOutflow(c *gin.Context) {
 	}
 
 	if err := h.Service.UpdateOutflow(c, record); err != nil {
-		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record updated", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
 }
 
 func (h *OutflowHandler) CreateNewReoccurringOutflow(c *gin.Context) {
@@ -141,13 +142,13 @@ func (h *OutflowHandler) CreateNewReoccurringOutflow(c *gin.Context) {
 	var req validators.ReoccurringOutflowRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -175,11 +176,11 @@ func (h *OutflowHandler) CreateNewReoccurringOutflow(c *gin.Context) {
 	}
 
 	if err := h.Service.CreateReoccurringOutflow(c, record, recRecord); err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
 
 func (h *OutflowHandler) CreateNewOutflowCategory(c *gin.Context) {
@@ -187,13 +188,13 @@ func (h *OutflowHandler) CreateNewOutflowCategory(c *gin.Context) {
 	var req validators.CreateOutflowCategoryRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -204,11 +205,11 @@ func (h *OutflowHandler) CreateNewOutflowCategory(c *gin.Context) {
 	}
 
 	if err := h.Service.CreateOutflowCategory(c, record); err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
 
 func (h *OutflowHandler) UpdateOutflowCategory(c *gin.Context) {
@@ -216,13 +217,13 @@ func (h *OutflowHandler) UpdateOutflowCategory(c *gin.Context) {
 	var req validators.CreateOutflowCategoryRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -234,11 +235,11 @@ func (h *OutflowHandler) UpdateOutflowCategory(c *gin.Context) {
 	}
 
 	if err := h.Service.UpdateOutflowCategory(c, record); err != nil {
-		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record updated", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
 }
 
 func (h *OutflowHandler) DeleteOutflow(c *gin.Context) {
@@ -248,7 +249,8 @@ func (h *OutflowHandler) DeleteOutflow(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		utils.ErrorMessage("Invalid request body", "Error", http.StatusBadRequest)(c, err)
+		err := errors.New("invalid request body")
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
@@ -256,11 +258,11 @@ func (h *OutflowHandler) DeleteOutflow(c *gin.Context) {
 
 	err := h.Service.DeleteOutflow(c, id)
 	if err != nil {
-		utils.ErrorMessage("Error occurred", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
-	utils.SuccessMessage("Record has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record has been deleted", "Success", http.StatusOK)
 }
 
 func (h *OutflowHandler) DeleteOutflowCategory(c *gin.Context) {
@@ -270,7 +272,8 @@ func (h *OutflowHandler) DeleteOutflowCategory(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		utils.ErrorMessage("Invalid request body", "Error", http.StatusBadRequest)(c, err)
+		err := errors.New("invalid request body")
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
@@ -278,9 +281,9 @@ func (h *OutflowHandler) DeleteOutflowCategory(c *gin.Context) {
 
 	err := h.Service.DeleteOutflowCategory(c, id)
 	if err != nil {
-		utils.ErrorMessage("Error occurred", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
-	utils.SuccessMessage("Record has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record has been deleted", "Success", http.StatusOK)
 }

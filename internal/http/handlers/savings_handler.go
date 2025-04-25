@@ -26,7 +26,7 @@ func (h *SavingsHandler) GetSavingsPaginated(c *gin.Context) {
 
 	records, totalRecords, err := h.Service.FetchSavingsPaginated(c, paginationParams, yearParam)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
@@ -60,7 +60,7 @@ func (h *SavingsHandler) GetAllSavingsGroupedByMonth(c *gin.Context) {
 
 	records, err := h.Service.FetchAllSavingsGroupedByMonth(c, yearParam)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -69,7 +69,7 @@ func (h *SavingsHandler) GetAllSavingsGroupedByMonth(c *gin.Context) {
 func (h *SavingsHandler) GetAllSavingsCategories(c *gin.Context) {
 	categories, err := h.Service.FetchAllSavingsCategories(c)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, categories)
@@ -80,13 +80,13 @@ func (h *SavingsHandler) CreateNewSavingsAllocation(c *gin.Context) {
 	var req validators.CreateSavingsTransactionRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -99,11 +99,11 @@ func (h *SavingsHandler) CreateNewSavingsAllocation(c *gin.Context) {
 	}
 
 	if err := h.Service.CreateSavingsAllocation(c, record); err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
 
 func (h *SavingsHandler) CreateNewSavingsDeduction(c *gin.Context) {
@@ -111,13 +111,13 @@ func (h *SavingsHandler) CreateNewSavingsDeduction(c *gin.Context) {
 	var req validators.CreateSavingsTransactionRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -130,11 +130,11 @@ func (h *SavingsHandler) CreateNewSavingsDeduction(c *gin.Context) {
 	}
 
 	if err := h.Service.CreateSavingsDeduction(c, record); err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
 
 func (h *SavingsHandler) CreateNewSavingsCategory(c *gin.Context) {
@@ -142,13 +142,13 @@ func (h *SavingsHandler) CreateNewSavingsCategory(c *gin.Context) {
 	var req validators.SavingsCategoryRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -182,11 +182,11 @@ func (h *SavingsHandler) CreateNewSavingsCategory(c *gin.Context) {
 	}
 
 	if err := h.Service.CreateSavingsCategory(c, record, recRecord); err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record created", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
 
 func (h *SavingsHandler) UpdateSavingsCategory(c *gin.Context) {
@@ -194,13 +194,13 @@ func (h *SavingsHandler) UpdateSavingsCategory(c *gin.Context) {
 	var req validators.CreateSavingsCategoryRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage("Invalid JSON", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
 	validator := validators.NewValidator()
 	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(err.Error())(c, nil)
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -214,11 +214,11 @@ func (h *SavingsHandler) UpdateSavingsCategory(c *gin.Context) {
 	}
 
 	if err := h.Service.UpdateSavingsCategory(c, record); err != nil {
-		utils.ErrorMessage("Update error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage("Record updated", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
 }
 
 func (h *SavingsHandler) DeleteSavingsCategory(c *gin.Context) {
@@ -228,7 +228,7 @@ func (h *SavingsHandler) DeleteSavingsCategory(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		utils.ErrorMessage("Invalid request body", "Error", http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid request body", "Error", http.StatusBadRequest, err)
 		return
 	}
 
@@ -236,9 +236,9 @@ func (h *SavingsHandler) DeleteSavingsCategory(c *gin.Context) {
 
 	err := h.Service.DeleteSavingsCategory(c, id)
 	if err != nil {
-		utils.ErrorMessage("Error occurred", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
-	utils.SuccessMessage("Record has been deleted", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record has been deleted", "Success", http.StatusOK)
 }

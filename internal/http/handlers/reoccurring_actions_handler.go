@@ -23,13 +23,13 @@ func (h *ReoccurringActionHandler) GetAllActionsForCategory(c *gin.Context) {
 	categoryName := c.Query("categoryName")
 	if categoryName == "" {
 		err := errors.New("invalid category provided")
-		utils.ErrorMessage("Request error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Request error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
 	actions, err := h.Service.FetchAllActionsForCategory(c, categoryName)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, actions)
@@ -43,17 +43,17 @@ func (h *ReoccurringActionHandler) DeleteReoccurringAction(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
-		utils.ErrorMessage("Invalid request body", "Error", http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Invalid request body", "Error", http.StatusBadRequest, err)
 		return
 	}
 
 	err := h.Service.DeleteReoccurringAction(c, requestBody.ID, requestBody.CategoryName)
 	if err != nil {
-		utils.ErrorMessage("Error occurred", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
-	utils.SuccessMessage("Record has been deleted.", "Success", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, "Record has been deleted.", "Success", http.StatusOK)
 }
 
 func (h *ReoccurringActionHandler) GetAvailableRecordYears(c *gin.Context) {
@@ -63,7 +63,7 @@ func (h *ReoccurringActionHandler) GetAvailableRecordYears(c *gin.Context) {
 
 	availableYears, err := h.Service.FetchAvailableYearsForRecords(c, table, field)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 

@@ -31,7 +31,7 @@ func (h *LoggingHandler) GetPaginatedLogs(c *gin.Context, tableName string, filt
 
 	logs, totalRecords, err := h.Service.FetchPaginatedLogs(c, tableName, paginationParams, filters)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve logs", "details": err.Error()})
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 

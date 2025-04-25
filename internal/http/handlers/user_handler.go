@@ -22,7 +22,7 @@ func NewUserHandler(userService *services.UserService) *UserHandler {
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	users, err := h.Service.GetAllUsers()
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"users": users})
@@ -34,7 +34,7 @@ func (h *UserHandler) GetUserById(c *gin.Context) {
 
 	if idStr == "" {
 		err := errors.New("invalid id provided")
-		utils.ErrorMessage("param error", err.Error(), http.StatusBadRequest)(c, err)
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
@@ -42,7 +42,7 @@ func (h *UserHandler) GetUserById(c *gin.Context) {
 
 	user, err := h.Service.FetchUserByID(uintID)
 	if err != nil {
-		utils.ErrorMessage("Fetch error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": user})
@@ -52,15 +52,15 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	var user models.User
 
 	if err := c.ShouldBindJSON(&user); err != nil {
-		utils.ErrorMessage("Json bind error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Json bind error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
 	err := h.Service.CreateUser(&user)
 	if err != nil {
-		utils.ErrorMessage("Create error", err.Error(), http.StatusInternalServerError)(c, err)
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage(user.Email, "User created successfully", http.StatusOK)(c.Writer, c.Request)
+	utils.SuccessMessage(c, user.Email, "User created successfully", http.StatusOK)
 }
