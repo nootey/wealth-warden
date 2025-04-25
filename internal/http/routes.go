@@ -2,69 +2,23 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"net/http"
+	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/handlers"
 	"wealth-warden/internal/http/endpoints"
-	"wealth-warden/internal/middleware"
-	"wealth-warden/internal/repositories"
-	"wealth-warden/internal/services"
-	"wealth-warden/internal/services/shared"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
 )
 
 type RouteInitializer struct {
-	Router                   *gin.Engine
-	Config                   *config.Config
-	DB                       *gorm.DB
-	AuthService              *services.AuthService
-	UserService              *services.UserService
-	InflowService            *services.InflowService
-	OutflowService           *services.OutflowService
-	LoggingService           *services.LoggingService
-	ReoccurringActionService *services.ReoccurringActionService
-	BudgetService            *services.BudgetService
-	SavingsService           *services.SavingsService
+	Router    *gin.Engine
+	Container *bootstrap.Container
 }
 
-func NewRouteInitializer(router *gin.Engine, cfg *config.Config, db *gorm.DB) *RouteInitializer {
-
-	// Initialize middleware
-	webClientMiddleware := middleware.NewWebClientMiddleware(cfg)
-
-	// Initialize repositories
-	loggingRepo := repositories.NewLoggingRepository(db)
-	userRepo := repositories.NewUserRepository(db)
-	recActionRepo := repositories.NewReoccurringActionsRepository(db)
-	inflowRepo := repositories.NewInflowRepository(db)
-	outflowRepo := repositories.NewOutflowRepository(db)
-	budgetRepo := repositories.NewBudgetRepository(db)
-	savingsRepo := repositories.NewSavingsRepository(db)
-
-	// Initialize services
-	budgetInterface := shared.NewBudgetInterface(budgetRepo, inflowRepo, outflowRepo)
-	loggingService := services.NewLoggingService(cfg, loggingRepo)
-	authService := services.NewAuthService(cfg, userRepo, loggingService, webClientMiddleware)
-	userService := services.NewUserService(cfg, userRepo)
-	recActionService := services.NewReoccurringActionService(recActionRepo, authService, loggingService)
-	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, budgetInterface, inflowRepo)
-	outflowService := services.NewOutflowService(cfg, authService, loggingService, recActionService, budgetInterface, outflowRepo)
-	budgetService := services.NewBudgetService(cfg, authService, loggingService, budgetInterface, budgetRepo)
-	savingsService := services.NewSavingsService(cfg, authService, loggingService, recActionService, budgetInterface, savingsRepo)
+func NewRouteInitializerHTTP(r *gin.Engine, container *bootstrap.Container) *RouteInitializer {
 
 	return &RouteInitializer{
-		Router:                   router,
-		Config:                   cfg,
-		DB:                       db,
-		AuthService:              authService,
-		UserService:              userService,
-		InflowService:            inflowService,
-		OutflowService:           outflowService,
-		LoggingService:           loggingService,
-		ReoccurringActionService: recActionService,
-		BudgetService:            budgetService,
-		SavingsService:           savingsService,
+		Router:    r,
+		Container: container,
 	}
 }
 
@@ -76,17 +30,17 @@ func (r *RouteInitializer) InitEndpoints() {
 		healthCheck(c)
 	})
 
-	authHandler := handlers.NewAuthHandler(r.AuthService)
-	userHandler := handlers.NewUserHandler(r.UserService)
-	inflowHandler := handlers.NewInflowHandler(r.InflowService)
-	outflowHandler := handlers.NewOutflowHandler(r.OutflowService)
-	loggingHandler := handlers.NewLoggingHandler(r.LoggingService)
-	recActionHandler := handlers.NewReoccurringActionHandler(r.ReoccurringActionService)
-	budgetHandler := handlers.NewBudgetHandler(r.BudgetService)
-	savingsHandler := handlers.NewSavingsHandler(r.SavingsService)
+	authHandler := handlers.NewAuthHandler(r.Container.AuthService)
+	userHandler := handlers.NewUserHandler(r.Container.UserService)
+	inflowHandler := handlers.NewInflowHandler(r.Container.InflowService)
+	outflowHandler := handlers.NewOutflowHandler(r.Container.OutflowService)
+	loggingHandler := handlers.NewLoggingHandler(r.Container.LoggingService)
+	recActionHandler := handlers.NewReoccurringActionHandler(r.Container.ReoccurringActionService)
+	budgetHandler := handlers.NewBudgetHandler(r.Container.BudgetService)
+	savingsHandler := handlers.NewSavingsHandler(r.Container.SavingsService)
 
 	// Protected routes
-	authGroup := r.Router.Group(apiPrefixV1, r.AuthService.WebClientMiddleware.WebClientAuthentication())
+	authGroup := r.Router.Group(apiPrefixV1, r.Container.AuthService.WebClientMiddleware.WebClientAuthentication())
 	{
 		authRoutes := authGroup.Group("/auth")
 		endpoints.AuthRoutes(authRoutes, authHandler)

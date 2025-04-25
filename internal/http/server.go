@@ -7,10 +7,9 @@ import (
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 	"net/http"
 	"time"
-	"wealth-warden/pkg/config"
+	"wealth-warden/internal/bootstrap"
 )
 
 type Server struct {
@@ -19,23 +18,25 @@ type Server struct {
 	logger *zap.Logger
 }
 
-func NewServer(cfg *config.Config, logger *zap.Logger, dbClient *gorm.DB) *Server {
-	// Create a Router and attach middleware
-	router := NewRouter(cfg, dbClient)
+func NewServer(container *bootstrap.Container, logger *zap.Logger) *Server {
+
+	router := NewRouter(container)
+
+	addr := container.Config.Host + ":" + container.Config.HttpServerPort
 
 	return &Server{
 		Router: router,
-		logger: logger.Named("http-server"),
+		logger: logger,
 		server: &http.Server{
-			Addr: ":" + cfg.HttpServerPort,
+			Addr: addr,
 		},
 	}
 }
 
 func (s *Server) Start() {
+
 	s.logger.Info("Starting the server")
 
-	// Attach recovery & log middleware
 	s.Router.Use(ginzap.Ginzap(s.logger, time.RFC3339, true), ginzap.RecoveryWithZap(s.logger, true))
 
 	s.server.Handler = s.Router.Handler()
@@ -61,38 +62,36 @@ func (s *Server) Shutdown() error {
 	return nil
 }
 
-func NewRouter(cfg *config.Config, dbClient *gorm.DB) *gin.Engine {
+func NewRouter(container *bootstrap.Container) *gin.Engine {
 
-	var router *gin.Engine
+	var r *gin.Engine
 	var domainProtocol string
 
-	if cfg.Release {
+	if container.Config.Release {
 		gin.SetMode(gin.ReleaseMode)
-		router = gin.New()
+		r = gin.New()
 		domainProtocol = "https://"
 
 	} else {
-		router = gin.Default()
+		r = gin.Default()
 		domainProtocol = "http://"
 	}
 
 	// Setup CORS
 	corsConfig := cors.DefaultConfig()
 	corsConfig.AllowOrigins = []string{
-		domainProtocol + cfg.WebClientDomain,
-		domainProtocol + cfg.WebClientDomain + ":" + cfg.WebClientPort,
+		domainProtocol + container.Config.WebClientDomain,
+		domainProtocol + container.Config.WebClientDomain + ":" + container.Config.WebClientPort,
 	}
 	corsConfig.AllowMethods = []string{"GET", "POST", "OPTIONS"}
 	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "wealth-warden-client"}
 	corsConfig.AllowCredentials = true
-	router.Use(cors.New(corsConfig))
+	r.Use(cors.New(corsConfig))
 
-	// Global middlewares
-	router.Use(gin.Recovery())
-	
-	// Create RouteInitializer and initialize endpoints
-	routeInitializer := NewRouteInitializer(router, cfg, dbClient)
+	r.Use(gin.Recovery())
+
+	routeInitializer := NewRouteInitializerHTTP(r, container)
 	routeInitializer.InitEndpoints()
 
-	return router
+	return r
 }
