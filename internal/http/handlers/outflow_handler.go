@@ -21,34 +21,19 @@ func NewOutflowHandler(service *services.OutflowService) *OutflowHandler {
 
 func (h *OutflowHandler) GetOutflowsPaginated(c *gin.Context) {
 
-	queryParams := c.Request.URL.Query()
-	paginationParams := utils.GetPaginationParams(queryParams)
-	yearParam := queryParams.Get("year")
-
-	outflows, totalRecords, err := h.Service.FetchOutflowsPaginated(c, paginationParams, yearParam)
+	records, paginator, err := h.Service.FetchOutflowsPaginated(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
-	from := offset + 1
-	if from > totalRecords {
-		from = totalRecords
-	}
-
-	to := offset + len(outflows)
-	if to > totalRecords {
-		to = totalRecords
-	}
-
 	response := gin.H{
-		"current_page":  paginationParams.PageNumber,
-		"rows_per_page": paginationParams.RowsPerPage,
-		"from":          from,
-		"to":            to,
-		"total_records": totalRecords,
-		"data":          outflows,
+		"current_page":  paginator.CurrentPage,
+		"rows_per_page": paginator.RowsPerPage,
+		"from":          paginator.From,
+		"to":            paginator.To,
+		"total_records": paginator.TotalRecords,
+		"data":          records,
 	}
 
 	c.JSON(http.StatusOK, response)

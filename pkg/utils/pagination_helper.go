@@ -6,6 +6,14 @@ import (
 	"strconv"
 )
 
+type Paginator struct {
+	CurrentPage  int `json:"current_page"`
+	RowsPerPage  int `json:"rows_per_page"`
+	TotalRecords int `json:"total_records"`
+	From         int `json:"from"`
+	To           int `json:"to"`
+}
+
 type Filter struct {
 	Parameter string
 	Operator  string

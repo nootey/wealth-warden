@@ -40,12 +40,16 @@ func NewOutflowService(
 	}
 }
 
-func (s *OutflowService) FetchOutflowsPaginated(c *gin.Context, paginationParams utils.PaginationParams, yearParam string) ([]models.Outflow, int, error) {
+func (s *OutflowService) FetchOutflowsPaginated(c *gin.Context) ([]models.Outflow, *utils.Paginator, error) {
 
 	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
+
+	queryParams := c.Request.URL.Query()
+	paginationParams := utils.GetPaginationParams(queryParams)
+	yearParam := queryParams.Get("year")
 
 	// Get the current year
 	currentYear := time.Now().Year()
@@ -58,17 +62,34 @@ func (s *OutflowService) FetchOutflowsPaginated(c *gin.Context, paginationParams
 
 	totalRecords, err := s.OutflowRepo.CountOutflows(user, year, paginationParams.Filters)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 
 	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
-
-	outflows, err := s.OutflowRepo.FindOutflows(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
+	records, err := s.OutflowRepo.FindOutflows(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 
-	return outflows, int(totalRecords), nil
+	from := offset + 1
+	if from > int(totalRecords) {
+		from = int(totalRecords)
+	}
+
+	to := offset + len(records)
+	if to > int(totalRecords) {
+		to = int(totalRecords)
+	}
+
+	paginator := &utils.Paginator{
+		CurrentPage:  paginationParams.PageNumber,
+		RowsPerPage:  paginationParams.RowsPerPage,
+		TotalRecords: int(totalRecords),
+		From:         from,
+		To:           to,
+	}
+
+	return records, paginator, nil
 }
 
 func (s *OutflowService) FetchAllOutflowsGroupedByMonth(c *gin.Context, yearParam string) ([]models.OutflowSummary, error) {

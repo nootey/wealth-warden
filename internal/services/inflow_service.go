@@ -51,12 +51,16 @@ func keysFromSlice(links []LinkInfo) string {
 	return string(jsonData)
 }
 
-func (s *InflowService) FetchInflowsPaginated(c *gin.Context, paginationParams utils.PaginationParams, yearParam string) ([]models.Inflow, int, error) {
+func (s *InflowService) FetchInflowsPaginated(c *gin.Context) ([]models.Inflow, *utils.Paginator, error) {
 
 	user, err := s.AuthService.GetCurrentUser(c, false)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
+
+	queryParams := c.Request.URL.Query()
+	paginationParams := utils.GetPaginationParams(queryParams)
+	yearParam := queryParams.Get("year")
 
 	// Get the current year
 	currentYear := time.Now().Year()
@@ -69,17 +73,34 @@ func (s *InflowService) FetchInflowsPaginated(c *gin.Context, paginationParams u
 
 	totalRecords, err := s.InflowRepo.CountInflows(user, year, paginationParams.Filters)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 
 	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
-
 	records, err := s.InflowRepo.FindInflows(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 
-	return records, int(totalRecords), nil
+	from := offset + 1
+	if from > int(totalRecords) {
+		from = int(totalRecords)
+	}
+
+	to := offset + len(records)
+	if to > int(totalRecords) {
+		to = int(totalRecords)
+	}
+
+	paginator := &utils.Paginator{
+		CurrentPage:  paginationParams.PageNumber,
+		RowsPerPage:  paginationParams.RowsPerPage,
+		TotalRecords: int(totalRecords),
+		From:         from,
+		To:           to,
+	}
+
+	return records, paginator, nil
 }
 
 func (s *InflowService) FetchAllInflowsGroupedByMonth(c *gin.Context, yearParam string) ([]models.InflowSummary, error) {

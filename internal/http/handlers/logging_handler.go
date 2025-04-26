@@ -19,33 +19,19 @@ func NewLoggingHandler(service *services.LoggingService) *LoggingHandler {
 
 func (h *LoggingHandler) GetPaginatedLogs(c *gin.Context, tableName string) {
 
-	queryParams := c.Request.URL.Query()
-	paginationParams := utils.GetPaginationParams(queryParams)
-
-	logs, totalRecords, err := h.Service.FetchPaginatedLogs(c, tableName, paginationParams)
+	records, paginator, err := h.Service.FetchPaginatedLogs(c, tableName)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
-	from := offset + 1
-	if from > totalRecords {
-		from = totalRecords
-	}
-
-	to := offset + len(logs)
-	if to > totalRecords {
-		to = totalRecords
-	}
-
 	response := gin.H{
-		"current_page":  paginationParams.PageNumber,
-		"rows_per_page": paginationParams.RowsPerPage,
-		"from":          from,
-		"to":            to,
-		"total_records": totalRecords,
-		"data":          logs,
+		"current_page":  paginator.CurrentPage,
+		"rows_per_page": paginator.RowsPerPage,
+		"from":          paginator.From,
+		"to":            paginator.To,
+		"total_records": paginator.TotalRecords,
+		"data":          records,
 	}
 
 	c.JSON(http.StatusOK, response)

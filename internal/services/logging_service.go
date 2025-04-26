@@ -19,17 +19,18 @@ func NewLoggingService(cfg *config.Config, repo *repositories.LoggingRepository)
 	}
 }
 
-func (s *LoggingService) FetchPaginatedLogs(c *gin.Context, tableName string, paginationParams utils.PaginationParams) ([]map[string]interface{}, int, error) {
+func (s *LoggingService) FetchPaginatedLogs(c *gin.Context, tableName string) ([]map[string]interface{}, *utils.Paginator, error) {
 
 	queryParams := c.Request.URL.Query()
+	paginationParams := utils.GetPaginationParams(queryParams)
 
-	filters := make(map[string]interface{})
 	fieldMappings := map[string]string{
 		"categories": "category",
 		"events":     "event",
 		"causers":    "causer_id",
 	}
 
+	filters := make(map[string]interface{})
 	for queryField, dbField := range fieldMappings {
 		if values, ok := queryParams[queryField+"[]"]; ok {
 			if len(values) > 0 {
@@ -44,17 +45,34 @@ func (s *LoggingService) FetchPaginatedLogs(c *gin.Context, tableName string, pa
 
 	totalRecords, err := s.LoggingRepo.CountLogs(tableName, filters)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 
 	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
-
 	logs, err := s.LoggingRepo.FindLogs(tableName, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, filters)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 
-	return logs, int(totalRecords), nil
+	from := offset + 1
+	if from > int(totalRecords) {
+		from = int(totalRecords)
+	}
+
+	to := offset + len(logs)
+	if to > int(totalRecords) {
+		to = int(totalRecords)
+	}
+
+	paginator := &utils.Paginator{
+		CurrentPage:  paginationParams.PageNumber,
+		RowsPerPage:  paginationParams.RowsPerPage,
+		TotalRecords: int(totalRecords),
+		From:         from,
+		To:           to,
+	}
+
+	return logs, paginator, nil
 }
 
 func (s *LoggingService) FetchActivityLogFilterData(c *gin.Context, activityIndex string) (map[string]interface{}, error) {
