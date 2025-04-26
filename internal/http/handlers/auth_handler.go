@@ -27,6 +27,22 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 	var loginForm models.LoginForm
 	if err := c.ShouldBindJSON(&loginForm); err != nil {
+
+		changes := utils.InitChanges()
+		description := "tried logging in via form data"
+		service := utils.DetermineServiceSource(userAgent)
+
+		utils.CompareChanges("", service, changes, "service")
+		utils.CompareChanges("", loginForm.Email, changes, "email")
+		utils.CompareChanges("", utils.SafeString(&loginIP), changes, "ip_address")
+		utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
+
+		logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "fail", "login", nil, changes, &description)
+		if logErr != nil {
+			utils.ErrorMessage(c, "Error occurred", logErr.Error(), http.StatusBadRequest, logErr)
+			return
+		}
+
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
@@ -72,6 +88,7 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 			return
 		}
 
+		err := errors.New("invalid credentials")
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusUnauthorized, err)
 		return
 	}
@@ -95,15 +112,6 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 	} else {
 		expiresAt = 3600 * 24
 	}
-
-	//if user.ValidatedAt.IsZero() {
-	//	utils.SuccessMessage("401", "Logged in", http.StatusOK)(c.Writer, c.Request)
-	//	return
-	//}
-	//
-	//if secrets.IPLog == false {
-	//	loginIP = ""
-	//}
 
 	changes := utils.InitChanges()
 	service := utils.DetermineServiceSource(userAgent)
