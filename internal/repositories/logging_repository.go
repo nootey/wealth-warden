@@ -161,9 +161,6 @@ func (r *LoggingRepository) InsertAccessLog(
 	tx *gorm.DB,
 	status string,
 	event string,
-	service *string,
-	ip *string,
-	userAgent *string,
 	causer *models.User,
 	payload *utils.Changes,
 	description *string,
@@ -177,9 +174,6 @@ func (r *LoggingRepository) InsertAccessLog(
 	doc := models.AccessLog{
 		Event:       event,
 		Status:      status,
-		Service:     service,
-		IPAddress:   ip,
-		UserAgent:   userAgent,
 		Description: description,
 	}
 

@@ -36,15 +36,21 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 		changes := utils.InitChanges()
 		description := "user does not exist"
-		utils.CompareChanges("", loginForm.Email, changes, "email")
+		service := utils.DetermineServiceSource(userAgent)
 
-		logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "fail", "login", nil, &loginIP, &userAgent, nil, changes, &description)
+		utils.CompareChanges("", service, changes, "service")
+		utils.CompareChanges("", loginForm.Email, changes, "email")
+		utils.CompareChanges("", utils.SafeString(&loginIP), changes, "ip_address")
+		utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
+
+		logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "fail", "login", nil, changes, &description)
 		if logErr != nil {
 			utils.ErrorMessage(c, "Error occurred", logErr.Error(), http.StatusBadRequest, logErr)
 			return
 		}
 
-		utils.ErrorMessage(c, "Error occurred", logErr.Error(), http.StatusUnauthorized, logErr)
+		err := errors.New("invalid credentials")
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusUnauthorized, err)
 		return
 	}
 
@@ -53,9 +59,14 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 		changes := utils.InitChanges()
 		description := "incorrect password"
-		utils.CompareChanges("", loginForm.Email, changes, "email")
+		service := utils.DetermineServiceSource(userAgent)
 
-		logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "fail", "login", nil, &loginIP, &userAgent, nil, changes, &description)
+		utils.CompareChanges("", service, changes, "service")
+		utils.CompareChanges("", loginForm.Email, changes, "email")
+		utils.CompareChanges("", utils.SafeString(&loginIP), changes, "ip_address")
+		utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
+
+		logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "fail", "login", nil, changes, &description)
 		if logErr != nil {
 			utils.ErrorMessage(c, "Error occurred", logErr.Error(), http.StatusBadRequest, logErr)
 			return
@@ -94,7 +105,14 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 	//	loginIP = ""
 	//}
 
-	logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "success", "login", nil, &loginIP, &userAgent, nil, nil, nil)
+	changes := utils.InitChanges()
+	service := utils.DetermineServiceSource(userAgent)
+
+	utils.CompareChanges("", service, changes, "service")
+	utils.CompareChanges("", utils.SafeString(&loginIP), changes, "ip_address")
+	utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
+
+	logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "success", "login", user, changes, nil)
 	if logErr != nil {
 		utils.ErrorMessage(c, "Error occurred", logErr.Error(), http.StatusBadRequest, logErr)
 		return

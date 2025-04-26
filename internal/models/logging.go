@@ -9,9 +9,6 @@ type AccessLog struct {
 	ID          uint           `gorm:"primaryKey;autoIncrement" json:"id"`
 	Status      string         `gorm:"type:varchar(255);not null" json:"status"`
 	Event       string         `gorm:"type:varchar(255);not null" json:"event"`
-	Service     *string        `gorm:"type:varchar(255)" json:"service,omitempty"`
-	IPAddress   *string        `gorm:"type:varchar(45)" json:"ip_address,omitempty"`
-	UserAgent   *string        `gorm:"type:text" json:"user_agent,omitempty"`
 	CauserID    *uint          `gorm:"index" json:"causer_id,omitempty"`
 	Description *string        `gorm:"type:text" json:"description,omitempty"`
 	Metadata    datatypes.JSON `gorm:"type:json" json:"metadata,omitempty"`
