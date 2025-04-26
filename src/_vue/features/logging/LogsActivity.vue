@@ -8,6 +8,9 @@ import ColumnHeader from "../../components/shared/ColumnHeader.vue";
 import dateHelper from "../../../utils/dateHelper.ts";
 import IconDisplay from "../../components/shared/IconDisplay.vue";
 import MultiSelectFilter from "../../components/shared/filters/MultiSelectFilter.vue";
+import dayjs from "dayjs";
+import ActionRow from "../../components/shared/ActionRow.vue";
+import DateTimePicker from "../../components/shared/DateTimePicker.vue";
 
 const toastStore = useToastStore();
 const loggingStore = useLoggingStore();
@@ -48,6 +51,14 @@ const selectedCausers = ref([]);
 const availableCategories = ref([]);
 const selectedCategories = ref([]);
 
+const datetimePickerRef = ref(null);
+const selectedDatetimeStart = computed(() => {
+  return dayjs(datetimePickerRef.value?.datetimeRange[0]).format('YYYY-MM-DD HH:mm');
+});
+const selectedDatetimeEnd = computed(() => {
+  return dayjs(datetimePickerRef.value?.datetimeRange[1]).format('YYYY-MM-DD HH:mm');
+});
+
 function toggleFilterOverlayPanel(event: any, field: string) {
   switch (field) {
     case "category":
@@ -74,6 +85,7 @@ function toggleFilterOverlayPanel(event: any, field: string) {
 
 
 onMounted(async () => {
+  datetimePickerRef.value?.lastTwoMonths();
   await init();
 });
 
@@ -95,7 +107,7 @@ async function getFilterData(){
   }
 }
 
-async function getData(new_page = null) {
+async function getData(new_page: number|null = null) {
 
   loadingLogs.value = true;
   if(new_page)
@@ -110,8 +122,8 @@ async function getData(new_page = null) {
       "categories[]": selectedCategories.value,
       "causers[]": causers,
       "events[]": selectedEvents.value,
-      // date_start: selectedDatetimeStart.value,
-      // date_end: selectedDatetimeEnd.value,
+      date_start: selectedDatetimeStart.value,
+      date_stop: selectedDatetimeEnd.value
     };
 
     let paginationResponse = await loggingStore.getLogsPaginated(
@@ -164,9 +176,12 @@ provide("toggleFilterOverlay", null);
     <div class="flex w-9 flex-column p-2 gap-3">
 
       <div class="flex flex-row p-1 w-full">
-        <h3>
-          Activity logs 2025
-        </h3>
+        <ActionRow>
+          <template #dateTimePicker>
+            <DateTimePicker ref="datetimePickerRef"></DateTimePicker>
+            <Button class="p-button accent-button" style="border-radius: 20px;" icon="pi pi-search-plus" @click="getData(1)"></Button>
+          </template>
+        </ActionRow>
       </div>
 
       <div class="flex flex-row gap-2 w-full">

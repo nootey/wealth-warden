@@ -12,6 +12,13 @@ const slots = useSlots()
       <slot name="yearPicker"></slot>
     </div>
 
+    <div class="flex flex-column p-1" v-if="slots.dateTimePicker">
+      Select time range:
+      <div class="flex flex-row gap-1 align-items-center">
+        <slot name="dateTimePicker"></slot>
+      </div>
+    </div>
+
     <div class="flex flex-column p-1" v-if="slots.allocation">
       Allocation:
       <slot name="allocation"></slot>
