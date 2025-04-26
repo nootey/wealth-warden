@@ -107,7 +107,7 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 			if err == nil {
 				for _, u := range users {
 					causers = append(causers, map[string]interface{}{
-						"_id":      u.ID,
+						"id":       u.ID,
 						"username": u.Username,
 					})
 				}
