@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"wealth-warden/internal/services"
@@ -18,33 +17,12 @@ func NewLoggingHandler(service *services.LoggingService) *LoggingHandler {
 	}
 }
 
-func (h *LoggingHandler) GetPaginatedLogs(c *gin.Context, tableName string, filterFields []string) {
-	queryParams := c.Request.URL.Query()
+func (h *LoggingHandler) GetPaginatedLogs(c *gin.Context, tableName string) {
 
+	queryParams := c.Request.URL.Query()
 	paginationParams := utils.GetPaginationParams(queryParams)
 
-	filters := make(map[string]interface{})
-	fmt.Println(queryParams)
-
-	// Directly parse filters
-	for _, field := range filterFields {
-		// Check if multiple values exist (e.g., events[]=a&events[]=b)
-		if values, ok := queryParams[field+"[]"]; ok {
-			// If multiple values (array), use them directly
-			if len(values) > 0 {
-				filters[field] = values
-			}
-		} else if values, ok := queryParams[field]; ok {
-			// If single value
-			if len(values) > 0 {
-				filters[field] = values[0]
-			}
-		}
-	}
-
-	fmt.Println(filters)
-
-	logs, totalRecords, err := h.Service.FetchPaginatedLogs(c, tableName, paginationParams, filters)
+	logs, totalRecords, err := h.Service.FetchPaginatedLogs(c, tableName, paginationParams)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -73,16 +51,16 @@ func (h *LoggingHandler) GetPaginatedLogs(c *gin.Context, tableName string, filt
 	c.JSON(http.StatusOK, response)
 }
 
-func (h *LoggingHandler) GetAccessLogs(c *gin.Context) {
-	h.GetPaginatedLogs(c, "access_logs", []string{"event", "service", "status", "ip_address", "causer_id"})
+func (h *LoggingHandler) GetActivityLogs(c *gin.Context) {
+	h.GetPaginatedLogs(c, "activity_logs")
 }
 
-func (h *LoggingHandler) GetActivityLogs(c *gin.Context) {
-	h.GetPaginatedLogs(c, "activity_logs", []string{"event", "category", "causer_id"})
+func (h *LoggingHandler) GetAccessLogs(c *gin.Context) {
+	h.GetPaginatedLogs(c, "access_logs")
 }
 
 func (h *LoggingHandler) GetNotificationLogs(c *gin.Context) {
-	h.GetPaginatedLogs(c, "notification_logs", []string{"user_id", "type", "status", "destination"})
+	h.GetPaginatedLogs(c, "notification_logs")
 }
 
 func (h *LoggingHandler) GetActivityLogFilterData(c *gin.Context) {

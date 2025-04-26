@@ -19,7 +19,28 @@ func NewLoggingService(cfg *config.Config, repo *repositories.LoggingRepository)
 	}
 }
 
-func (s *LoggingService) FetchPaginatedLogs(c *gin.Context, tableName string, paginationParams utils.PaginationParams, filters map[string]interface{}) ([]map[string]interface{}, int, error) {
+func (s *LoggingService) FetchPaginatedLogs(c *gin.Context, tableName string, paginationParams utils.PaginationParams) ([]map[string]interface{}, int, error) {
+
+	queryParams := c.Request.URL.Query()
+
+	filters := make(map[string]interface{})
+	fieldMappings := map[string]string{
+		"categories": "category",
+		"events":     "event",
+		"causers":    "causer_id",
+	}
+
+	for queryField, dbField := range fieldMappings {
+		if values, ok := queryParams[queryField+"[]"]; ok {
+			if len(values) > 0 {
+				filters[dbField] = values
+			}
+		} else if values, ok := queryParams[queryField]; ok {
+			if len(values) > 0 {
+				filters[dbField] = values[0]
+			}
+		}
+	}
 
 	totalRecords, err := s.LoggingRepo.CountLogs(tableName, filters)
 	if err != nil {
