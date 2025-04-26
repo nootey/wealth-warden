@@ -220,6 +220,11 @@ const vueHelper = {
             + " => " +
             (this.isEmpty(item.newVal) ? "DELETED" : item.newVal);
     },
+    displayCauserFromId(causerId, availableCausers) {
+        if (!causerId || !availableCausers) return '';
+        const causer = availableCausers.find(c => c.id === causerId);
+        return causer ? causer.username : "Deleted user";
+    }
 
 };
 

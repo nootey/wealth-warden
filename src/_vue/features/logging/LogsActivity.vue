@@ -115,7 +115,9 @@ async function getData(new_page: number|null = null) {
 
   try {
 
-    let causers = selectedCausers.value.map(causer => causer.id);
+    let causers = selectedCausers.value
+        .map(causer => causer.id)
+        .filter(id => id !== null && id !== undefined);
 
     let payload = {
       ...params.value,
@@ -263,7 +265,7 @@ provide("toggleFilterOverlay", null);
             </template>
             <template #body="slotProps">
             <span v-if="slotProps.data?.causer_id">
-              {{ slotProps.data.causer_id  }}
+              {{ vueHelper.displayCauserFromId(slotProps.data.causer_id, availableCausers) }}
             </span>
             </template>
           </Column>
