@@ -19,7 +19,10 @@ watch(localSelectedValues, (newVal) => {
         :options="availableValues"
         placeholder="Select filter">
       <template #option="slotProps">
-        {{ optionLabel !== "" ? slotProps.option[optionLabel] : slotProps.option}}
+        {{ optionLabel !== "" ?
+          (toUppercase ? slotProps.option[optionLabel].toUpperCase() : slotProps.option[optionLabel]) :
+          (toUppercase ? slotProps.option.toUpperCase() : slotProps.option)
+        }}
       </template>
     </MultiSelect>
 

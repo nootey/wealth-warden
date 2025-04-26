@@ -54,11 +54,13 @@ function toggleFilterOverlayPanel(event: any, field: string) {
       availableValues.value = availableCategories.value;
       selectedValues.value = selectedCategories;
       displayValueAsUppercase.value = true;
+      optionLabel.value = ""
       break;
     case "event":
       availableValues.value = availableEvents.value;
       selectedValues.value = selectedEvents;
       displayValueAsUppercase.value = true;
+      optionLabel.value = ""
       break;
     case "causer":
       availableValues.value = availableCausers.value;
@@ -155,7 +157,7 @@ provide("toggleFilterOverlay", null);
 
     <Popover ref="filterOverlayRef">
       <MultiSelectFilter :availableValues="availableValues" :selectedValues="selectedValues"
-                         :optionLabel="optionLabel" :toUppercase="displayValueAsUppercase"
+                         :optionLabel="optionLabel" :toUppercase="displayValueAsUppercase ?? false"
                          @getData="getData" />
     </Popover>
 

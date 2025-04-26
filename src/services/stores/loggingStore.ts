@@ -14,8 +14,6 @@ export const useLoggingStore = defineStore('logging', {
                     page: page,
                 };
 
-                console.log(queryParams);
-
                 const response = await apiClient.get(`${this.apiPrefix}/${logType}`, {
                     params: queryParams,
                 });
