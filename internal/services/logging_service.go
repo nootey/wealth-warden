@@ -43,6 +43,13 @@ func (s *LoggingService) FetchPaginatedLogs(c *gin.Context, tableName string) ([
 		}
 	}
 
+	dateStart := queryParams.Get("date_start")
+	dateStop := queryParams.Get("date_stop")
+
+	if dateStart != "" && dateStop != "" {
+		filters["date_range"] = []string{dateStart, dateStop}
+	}
+
 	totalRecords, err := s.LoggingRepo.CountLogs(tableName, filters)
 	if err != nil {
 		return nil, nil, err

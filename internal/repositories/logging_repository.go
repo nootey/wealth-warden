@@ -16,25 +16,37 @@ func NewLoggingRepository(db *gorm.DB) *LoggingRepository {
 	return &LoggingRepository{db: db}
 }
 
+func (r *LoggingRepository) filterLogs(query *gorm.DB, filters map[string]interface{}) *gorm.DB {
+	for key, value := range filters {
+		switch key {
+		case "date_range":
+			if v, ok := value.([]string); ok && len(v) == 2 {
+				query = query.Where("created_at BETWEEN ? AND ?", v[0], v[1])
+			}
+		default:
+			switch v := value.(type) {
+			case []string:
+				if len(v) > 0 {
+					query = query.Where(key+" IN ?", v)
+				}
+			case []int:
+				if len(v) > 0 {
+					query = query.Where(key+" IN ?", v)
+				}
+			default:
+				query = query.Where(key+" = ?", value)
+			}
+		}
+	}
+
+	return query
+}
+
 func (r *LoggingRepository) CountLogs(tableName string, filters map[string]interface{}) (int64, error) {
 	var totalRecords int64
 
 	query := r.db.Table(tableName)
-
-	for key, value := range filters {
-		switch v := value.(type) {
-		case []string:
-			if len(v) > 0 {
-				query = query.Where(key+" IN ?", v)
-			}
-		case []int:
-			if len(v) > 0 {
-				query = query.Where(key+" IN ?", v)
-			}
-		default:
-			query = query.Where(key+" = ?", value)
-		}
-	}
+	query = r.filterLogs(query, filters)
 
 	err := query.Count(&totalRecords).Error
 	if err != nil {
@@ -48,21 +60,7 @@ func (r *LoggingRepository) FindLogs(tableName string, offset, limit int, sortFi
 	orderBy := sortField + " " + sortOrder
 
 	query := r.db.Table(tableName)
-
-	for key, value := range filters {
-		switch v := value.(type) {
-		case []string:
-			if len(v) > 0 {
-				query = query.Where(key+" IN ?", v)
-			}
-		case []int:
-			if len(v) > 0 {
-				query = query.Where(key+" IN ?", v)
-			}
-		default:
-			query = query.Where(key+" = ?", value)
-		}
-	}
+	query = r.filterLogs(query, filters)
 
 	err := query.Order(orderBy).Limit(limit).Offset(offset).Find(&logs).Error
 	if err != nil {
