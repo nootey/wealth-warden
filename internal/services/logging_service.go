@@ -35,3 +35,7 @@ func (s *LoggingService) FetchPaginatedLogs(c *gin.Context, tableName string, pa
 
 	return logs, int(totalRecords), nil
 }
+
+func (s *LoggingService) FetchActivityLogFilterData(c *gin.Context, activityIndex string) (map[string]interface{}, error) {
+	return s.LoggingRepo.FindActivityLogFilterData(activityIndex)
+}

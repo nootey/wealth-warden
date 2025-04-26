@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"encoding/json"
+	"fmt"
 	"gorm.io/gorm"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
@@ -17,7 +18,24 @@ func NewLoggingRepository(db *gorm.DB) *LoggingRepository {
 
 func (r *LoggingRepository) CountLogs(tableName string, filters map[string]interface{}) (int64, error) {
 	var totalRecords int64
-	query := r.db.Table(tableName).Where(filters)
+
+	query := r.db.Table(tableName)
+
+	for key, value := range filters {
+		switch v := value.(type) {
+		case []string:
+			if len(v) > 0 {
+				query = query.Where(key+" IN ?", v)
+			}
+		case []int:
+			if len(v) > 0 {
+				query = query.Where(key+" IN ?", v)
+			}
+		default:
+			query = query.Where(key+" = ?", value)
+		}
+	}
+
 	err := query.Count(&totalRecords).Error
 	if err != nil {
 		return 0, err
@@ -29,13 +47,78 @@ func (r *LoggingRepository) FindLogs(tableName string, offset, limit int, sortFi
 	var logs []map[string]interface{}
 	orderBy := sortField + " " + sortOrder
 
-	query := r.db.Table(tableName).Where(filters).Order(orderBy).Limit(limit).Offset(offset)
-	err := query.Find(&logs).Error
+	query := r.db.Table(tableName)
+
+	for key, value := range filters {
+		switch v := value.(type) {
+		case []string:
+			if len(v) > 0 {
+				query = query.Where(key+" IN ?", v)
+			}
+		case []int:
+			if len(v) > 0 {
+				query = query.Where(key+" IN ?", v)
+			}
+		default:
+			query = query.Where(key+" = ?", value)
+		}
+	}
+
+	err := query.Order(orderBy).Limit(limit).Offset(offset).Find(&logs).Error
 	if err != nil {
 		return nil, err
 	}
 
 	return logs, nil
+}
+
+func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map[string]interface{}, error) {
+	response := make(map[string]interface{})
+
+	var tableName string
+	switch activityIndex {
+	case "activity":
+		tableName = "activity_logs"
+	case "access":
+		tableName = "access_logs"
+	default:
+		return nil, fmt.Errorf("invalid activity index")
+	}
+
+	db := r.db.Table(tableName)
+
+	// Fetch Events
+	var events []string
+	if err := db.Distinct("event").Pluck("event", &events).Error; err == nil {
+		response["events"] = events
+	}
+
+	// Fetch Categories
+	var categories []string
+	if err := db.Distinct("category").Pluck("category", &categories).Error; err == nil {
+		response["categories"] = categories
+	}
+
+	// Fetch Causers
+	var causerIDs []uint
+	if err := db.Distinct("causer_id").Pluck("causer_id", &causerIDs).Error; err == nil {
+		var causers []map[string]interface{}
+		if len(causerIDs) > 0 {
+			var users []models.User
+			err := r.db.Where("id IN ? AND deleted_at IS NULL", causerIDs).Find(&users).Error
+			if err == nil {
+				for _, u := range users {
+					causers = append(causers, map[string]interface{}{
+						"_id":      u.ID,
+						"username": u.Username,
+					})
+				}
+			}
+		}
+		response["causers"] = causers
+	}
+
+	return response, nil
 }
 
 func (r *LoggingRepository) InsertActivityLog(
