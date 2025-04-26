@@ -19,27 +19,17 @@ func NewLoggingService(cfg *config.Config, repo *repositories.LoggingRepository)
 	}
 }
 
-func (s *LoggingService) FetchPaginatedLogs(c *gin.Context, tableName string) ([]map[string]interface{}, *utils.Paginator, error) {
+func (s *LoggingService) FetchPaginatedLogs(c *gin.Context, tableName string, fieldMappings map[string]string) ([]map[string]interface{}, *utils.Paginator, error) {
 
 	queryParams := c.Request.URL.Query()
 	paginationParams := utils.GetPaginationParams(queryParams)
 
-	fieldMappings := map[string]string{
-		"categories": "category",
-		"events":     "event",
-		"causers":    "causer_id",
-	}
-
 	filters := make(map[string]interface{})
 	for queryField, dbField := range fieldMappings {
-		if values, ok := queryParams[queryField+"[]"]; ok {
-			if len(values) > 0 {
-				filters[dbField] = values
-			}
-		} else if values, ok := queryParams[queryField]; ok {
-			if len(values) > 0 {
-				filters[dbField] = values[0]
-			}
+		if values, ok := queryParams[queryField+"[]"]; ok && len(values) > 0 {
+			filters[dbField] = values
+		} else if values, ok := queryParams[queryField]; ok && len(values) > 0 {
+			filters[dbField] = values
 		}
 	}
 
