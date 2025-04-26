@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"gorm.io/gorm"
@@ -45,7 +46,7 @@ func (r *LoggingRepository) filterLogs(query *gorm.DB, filters map[string]interf
 func (r *LoggingRepository) CountLogs(tableName string, filters map[string]interface{}) (int64, error) {
 	var totalRecords int64
 
-	query := r.db.Table(tableName)
+	query := r.db.Table(tableName).Select("*")
 	query = r.filterLogs(query, filters)
 
 	err := query.Count(&totalRecords).Error
@@ -59,7 +60,7 @@ func (r *LoggingRepository) FindLogs(tableName string, offset, limit int, sortFi
 	var logs []map[string]interface{}
 	orderBy := sortField + " " + sortOrder
 
-	query := r.db.Table(tableName)
+	query := r.db.Table(tableName).Select("*")
 	query = r.filterLogs(query, filters)
 
 	err := query.Order(orderBy).Limit(limit).Offset(offset).Find(&logs).Error
@@ -85,21 +86,34 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 
 	db := r.db.Table(tableName)
 
-	// Fetch Events
 	var events []string
 	if err := db.Distinct("event").Pluck("event", &events).Error; err == nil {
 		response["events"] = events
 	}
 
-	// Fetch Categories
-	var categories []string
-	if err := db.Distinct("category").Pluck("category", &categories).Error; err == nil {
-		response["categories"] = categories
+	if activityIndex == "activity" {
+		var categories []string
+		if err := db.Distinct("category").Pluck("category", &categories).Error; err == nil {
+			response["categories"] = categories
+		}
 	}
 
-	// Fetch Causers
-	var causerIDs []uint
-	if err := db.Distinct("causer_id").Pluck("causer_id", &causerIDs).Error; err == nil {
+	if activityIndex == "access" {
+		var states []string
+		if err := db.Distinct("status").Pluck("status", &states).Error; err == nil {
+			response["states"] = states
+		}
+	}
+
+	var rawCauserIDs []sql.NullInt64
+	if err := db.Distinct("causer_id").Pluck("causer_id", &rawCauserIDs).Error; err == nil {
+		var causerIDs []uint
+		for _, id := range rawCauserIDs {
+			if id.Valid {
+				causerIDs = append(causerIDs, uint(id.Int64))
+			}
+		}
+
 		var causers []map[string]interface{}
 		if len(causerIDs) > 0 {
 			var users []models.User
@@ -114,6 +128,8 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 			}
 		}
 		response["causers"] = causers
+	} else {
+		fmt.Println(err)
 	}
 
 	return response, nil
