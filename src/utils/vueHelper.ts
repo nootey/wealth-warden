@@ -48,8 +48,6 @@ const vueHelper = {
 
         return [...totalRows, ...otherRows];
     },
-
-
     getValidationClass: (state: ValidationObject | null | undefined, errorClass: string) => {
         return {
             [errorClass]: !!state?.$error,
@@ -189,7 +187,39 @@ const vueHelper = {
         message['response']['data']['messages']['error'].push(msg);
         return message;
     },
+    formatChanges(payload: any) {
+        if (payload === "[]") return null;
+        if (payload) {
+            let newValues = JSON.parse(payload).new;
+            let oldValues = JSON.parse(payload).old ?? null;
+            let finalOutput = [];
 
+            let properties = new Set([...Object.keys(newValues), ...Object.keys(oldValues)]);
+
+            properties.forEach(property => {
+                let change = {
+                    prop: property,
+                    oldVal: oldValues ? oldValues[property] : null,
+                    newVal: newValues[property]
+                };
+                if (change.oldVal !== change.newVal) {
+                    finalOutput.push(change);
+                }
+            });
+
+            return finalOutput;
+        }
+        return null;
+    },
+    isEmpty(value){
+        return (value == null || value.length === 0 || value === ' ');
+    },
+    formatValue(item){
+        if(this.isEmpty(item.oldVal) && this.isEmpty(item.newVal)) return "NULL";
+        return (this.isEmpty(item.oldVal) ? "NEW" : item.oldVal)
+            + " => " +
+            (this.isEmpty(item.newVal) ? "DELETED" : item.newVal);
+    },
 
 };
 

@@ -6,10 +6,35 @@ export const useLoggingStore = defineStore('logging', {
         apiPrefix: "logs",
     }),
     actions: {
-        async getActivityLogs() {
+        async getLogsPaginated(logType: string, params: object, page: number) {
             try {
-                const response = await apiClient.get('/get-activity-logs');
+
+                const queryParams = {
+                    ...params,
+                    page: page,
+                };
+
+                console.log(queryParams);
+
+                const response = await apiClient.get(`${this.apiPrefix}/${logType}`, {
+                    params: queryParams,
+                });
+
                 return response.data;
+
+            } catch (err) {
+                throw err;
+            }
+        },
+        async getFilterData(index: string) {
+            try {
+
+                const response = await apiClient.get(`${this.apiPrefix}/filter-data`, {
+                    params: {index: index},
+                });
+
+                return response.data;
+
             } catch (err) {
                 throw err;
             }
