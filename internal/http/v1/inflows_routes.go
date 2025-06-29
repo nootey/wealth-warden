@@ -6,7 +6,7 @@ import (
 )
 
 func InflowRoutes(apiGroup *gin.RouterGroup, handler *handlers.InflowHandler) {
-	apiGroup.GET("/", handler.GetInflowsPaginated)
+	apiGroup.GET("", handler.GetInflowsPaginated)
 	apiGroup.GET("/grouped-by-month", handler.GetAllInflowsGroupedByMonth)
 	apiGroup.GET("/categories", handler.GetAllInflowCategories)
 	apiGroup.GET("/dynamic-categories", handler.GetAllDynamicCategories)

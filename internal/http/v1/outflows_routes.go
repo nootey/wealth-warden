@@ -6,7 +6,7 @@ import (
 )
 
 func OutflowRoutes(apiGroup *gin.RouterGroup, handler *handlers.OutflowHandler) {
-	apiGroup.GET("/", handler.GetOutflowsPaginated)
+	apiGroup.GET("", handler.GetOutflowsPaginated)
 	apiGroup.GET("/grouped-by-month", handler.GetAllOutflowsGroupedByMonth)
 	apiGroup.GET("/categories", handler.GetAllOutflowCategories)
 	apiGroup.POST("/create", handler.CreateNewOutflow)
