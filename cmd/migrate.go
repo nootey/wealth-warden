@@ -17,25 +17,19 @@ var migrateCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 
-		//ctx := cmd.Context()
-		//logger := ctx.Value("logger").(*zap.Logger)
+		ctx := cmd.Context()
+		logger := ctx.Value("logger").(*zap.Logger)
 		migrationType := "help"
 
 		if len(args) > 0 {
 			migrationType = args[0]
 		}
 
-		return runMigrations(migrationType)
+		return runMigrations(migrationType, logger)
 	},
 }
 
-func runMigrations(migrationType string) error {
-
-	logger, err := zap.NewProduction()
-	if err != nil {
-		return fmt.Errorf("failed to initialize logger: %w", err)
-	}
-	defer logger.Sync()
+func runMigrations(migrationType string, logger *zap.Logger) error {
 
 	logger.Info("Starting database migrations")
 

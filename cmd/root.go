@@ -4,6 +4,8 @@ import (
 	"context"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"wealth-warden/pkg/config"
+	logging "wealth-warden/pkg/logger"
 )
 
 var rootCmd = &cobra.Command{
@@ -20,10 +22,13 @@ func init() {
 
 func Execute() {
 
-	//cfg := config.LoadConfig()
-	logger, _ := zap.NewProduction()
+	// Load config
+	cfg := config.LoadConfig()
 
+	// Define logger and pass it into cobra commands
+	logger := logging.InitLogger(cfg.Release)
 	defer logger.Sync()
+
 	rootCmd.SetContext(context.WithValue(context.Background(), "logger", logger))
 
 	if err := rootCmd.Execute(); err != nil {

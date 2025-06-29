@@ -16,15 +16,15 @@ var seedCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 
-		//ctx := cmd.Context()
-		//logger := ctx.Value("logger").(*zap.Logger)
+		ctx := cmd.Context()
+		logger := ctx.Value("logger").(*zap.Logger)
 		seedType := "help"
 
 		if len(args) > 0 {
 			seedType = args[0]
 		}
 
-		return runSeeders(seedType)
+		return runSeeders(seedType, logger)
 	},
 }
 
@@ -38,13 +38,7 @@ func isValidSeedType(seedType string) bool {
 	return validSeedTypes[seedType]
 }
 
-func runSeeders(seedType string) error {
-
-	logger, err := zap.NewProduction()
-	if err != nil {
-		return fmt.Errorf("failed to initialize logger: %w", err)
-	}
-	defer logger.Sync()
+func runSeeders(seedType string, logger *zap.Logger) error {
 
 	if !isValidSeedType(seedType) {
 		return fmt.Errorf("invalid seed type: %s", seedType)
