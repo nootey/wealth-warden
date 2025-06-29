@@ -7,19 +7,25 @@ import (
 )
 
 type UserService struct {
-	UserRepo *repositories.UserRepository
-	Config   *config.Config
+	Config *config.Config
+	Ctx    *DefaultServiceContext
+	Repo   *repositories.UserRepository
 }
 
-func NewUserService(cfg *config.Config, userRepo *repositories.UserRepository) *UserService {
+func NewUserService(
+	cfg *config.Config,
+	ctx *DefaultServiceContext,
+	repo *repositories.UserRepository,
+) *UserService {
 	return &UserService{
-		UserRepo: userRepo,
-		Config:   cfg,
+		Ctx:    ctx,
+		Config: cfg,
+		Repo:   repo,
 	}
 }
 
 func (s *UserService) GetAllUsers() ([]models.User, error) {
-	users, err := s.UserRepo.GetAllUsers()
+	users, err := s.Repo.GetAllUsers()
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +34,7 @@ func (s *UserService) GetAllUsers() ([]models.User, error) {
 }
 
 func (s *UserService) FetchUserByID(ID uint) (*models.User, error) {
-	record, err := s.UserRepo.GetUserByID(ID, false)
+	record, err := s.Repo.GetUserByID(ID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +43,7 @@ func (s *UserService) FetchUserByID(ID uint) (*models.User, error) {
 }
 
 func (s *UserService) CreateUser(user *models.User) error {
-	err := s.UserRepo.CreateUser(user)
+	err := s.Repo.CreateUser(user)
 	if err != nil {
 		return err
 	}

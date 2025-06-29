@@ -36,8 +36,8 @@ func (rt *ServerRuntime) Run(context context.Context) error {
 	defer database.DisconnectMySQL()
 	rt.Logger.Info("Successfully connected to the database")
 
-	container := bootstrap.NewContainer(rt.Config, dbClient)
 	httpLogger := rt.Logger.Named("http").With(zap.String("component", "HTTP"))
+	container := bootstrap.NewContainer(rt.Config, dbClient, httpLogger)
 	httpServer := http.NewServer(container, httpLogger)
 	go httpServer.Start()
 

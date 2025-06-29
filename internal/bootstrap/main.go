@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/repositories"
@@ -23,7 +24,7 @@ type Container struct {
 	SavingsService           *services.SavingsService
 }
 
-func NewContainer(cfg *config.Config, db *gorm.DB) *Container {
+func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Container {
 
 	// Initialize middleware
 	webClientMiddleware := middleware.NewWebClientMiddleware(cfg)
@@ -41,12 +42,19 @@ func NewContainer(cfg *config.Config, db *gorm.DB) *Container {
 	budgetInterface := shared.NewBudgetInterface(budgetRepo, inflowRepo, outflowRepo)
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
 	authService := services.NewAuthService(cfg, userRepo, loggingService, webClientMiddleware)
-	userService := services.NewUserService(cfg, userRepo)
-	recActionService := services.NewReoccurringActionService(recActionRepo, authService, loggingService)
-	inflowService := services.NewInflowService(cfg, authService, loggingService, recActionService, budgetInterface, inflowRepo)
-	outflowService := services.NewOutflowService(cfg, authService, loggingService, recActionService, budgetInterface, outflowRepo)
-	budgetService := services.NewBudgetService(cfg, authService, loggingService, budgetInterface, budgetRepo)
-	savingsService := services.NewSavingsService(cfg, authService, loggingService, recActionService, budgetInterface, savingsRepo)
+
+	ctx := &services.DefaultServiceContext{
+		LoggingService: loggingService,
+		AuthService:    authService,
+		Logger:         logger,
+	}
+
+	userService := services.NewUserService(cfg, ctx, userRepo)
+	recActionService := services.NewReoccurringActionService(cfg, ctx, recActionRepo)
+	inflowService := services.NewInflowService(cfg, ctx, inflowRepo, recActionService, budgetInterface)
+	outflowService := services.NewOutflowService(cfg, ctx, outflowRepo, recActionService, budgetInterface)
+	budgetService := services.NewBudgetService(cfg, ctx, budgetRepo, budgetInterface)
+	savingsService := services.NewSavingsService(cfg, ctx, savingsRepo, budgetInterface, recActionService)
 
 	return &Container{
 		Config:                   cfg,

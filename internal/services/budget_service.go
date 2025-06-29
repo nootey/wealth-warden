@@ -14,27 +14,26 @@ import (
 )
 
 type BudgetService struct {
+	Config            *config.Config
+	Ctx               *DefaultServiceContext
 	BudgetRepo        *repositories.BudgetRepository
 	AuthService       *AuthService
 	LoggingService    *LoggingService
 	RecActionsService *ReoccurringActionService
 	BudgetInterface   *shared.BudgetInterface
-	Config            *config.Config
 }
 
 func NewBudgetService(
 	cfg *config.Config,
-	authService *AuthService,
-	loggingService *LoggingService,
-	budgetInterface *shared.BudgetInterface,
+	ctx *DefaultServiceContext,
 	repo *repositories.BudgetRepository,
+	budgetInterface *shared.BudgetInterface,
 ) *BudgetService {
 	return &BudgetService{
-		BudgetRepo:      repo,
-		AuthService:     authService,
-		LoggingService:  loggingService,
-		BudgetInterface: budgetInterface,
+		Ctx:             ctx,
 		Config:          cfg,
+		BudgetRepo:      repo,
+		BudgetInterface: budgetInterface,
 	}
 }
 

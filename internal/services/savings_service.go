@@ -16,34 +16,31 @@ import (
 )
 
 type SavingsService struct {
+	Config            *config.Config
+	Ctx               *DefaultServiceContext
 	SavingsRepo       *repositories.SavingsRepository
-	AuthService       *AuthService
-	LoggingService    *LoggingService
 	RecActionsService *ReoccurringActionService
 	BudgetInterface   *shared.BudgetInterface
-	Config            *config.Config
 }
 
 func NewSavingsService(
 	cfg *config.Config,
-	authService *AuthService,
-	loggingService *LoggingService,
-	recActionsService *ReoccurringActionService,
-	budgetInterface *shared.BudgetInterface,
+	ctx *DefaultServiceContext,
 	repo *repositories.SavingsRepository,
+	budgetInterface *shared.BudgetInterface,
+	recActionsService *ReoccurringActionService,
 ) *SavingsService {
 	return &SavingsService{
+		Ctx:               ctx,
+		Config:            cfg,
 		SavingsRepo:       repo,
-		AuthService:       authService,
-		LoggingService:    loggingService,
 		RecActionsService: recActionsService,
 		BudgetInterface:   budgetInterface,
-		Config:            cfg,
 	}
 }
 
 func (s *SavingsService) FetchSavingsPaginated(c *gin.Context) ([]models.SavingsTransaction, *utils.Paginator, error) {
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -91,7 +88,7 @@ func (s *SavingsService) FetchSavingsPaginated(c *gin.Context) ([]models.Savings
 }
 
 func (s *SavingsService) FetchAllSavingsGroupedByMonth(c *gin.Context, yearParam string) ([]models.SavingsSummary, error) {
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +147,7 @@ func (s *SavingsService) FetchAllSavingsGroupedByMonth(c *gin.Context, yearParam
 }
 
 func (s *SavingsService) FetchAllSavingsCategories(c *gin.Context) ([]models.SavingsCategory, error) {
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +156,7 @@ func (s *SavingsService) FetchAllSavingsCategories(c *gin.Context) ([]models.Sav
 
 func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *models.SavingsTransaction) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -191,7 +188,7 @@ func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *mode
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_allocation", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_allocation", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -202,7 +199,7 @@ func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *mode
 
 func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *models.SavingsTransaction) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -254,7 +251,7 @@ func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *model
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_deduction", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_deduction", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -265,7 +262,7 @@ func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *model
 
 func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models.SavingsCategory, newReoccurringRecord *models.RecurringAction) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -320,7 +317,7 @@ func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models
 		utils.CompareChanges("", newReoccurringRecord.IntervalUnit, changes, "interval_unit")
 		utils.CompareChanges("", strconv.Itoa(newReoccurringRecord.IntervalValue), changes, "interval_value")
 
-		_, err = s.RecActionsService.ActionRepo.InsertReoccurringAction(tx, user, newReoccurringRecord)
+		_, err = s.RecActionsService.Repo.InsertReoccurringAction(tx, user, newReoccurringRecord)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -333,7 +330,7 @@ func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models
 		}
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_category", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_category", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -344,7 +341,7 @@ func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models
 
 func (s *SavingsService) UpdateSavingsCategory(c *gin.Context, newRecord *models.SavingsCategory) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -384,7 +381,7 @@ func (s *SavingsService) UpdateSavingsCategory(c *gin.Context, newRecord *models
 
 	description := fmt.Sprintf("Savings category with ID: %d has been updated", newRecord.ID)
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "savings_category", &description, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "savings_category", &description, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -395,7 +392,7 @@ func (s *SavingsService) UpdateSavingsCategory(c *gin.Context, newRecord *models
 
 func (s *SavingsService) DeleteSavingsCategory(c *gin.Context, id uint) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -415,7 +412,7 @@ func (s *SavingsService) DeleteSavingsCategory(c *gin.Context, id uint) error {
 	utils.CompareChanges(record.SavingsType, "", changes, "savings_type")
 	utils.CompareChanges(record.AccountType, "", changes, "account_type")
 
-	recRecord, err := s.RecActionsService.ActionRepo.GetActionByRelatedCategory(tx, user, record.ID, "savings_categories")
+	recRecord, err := s.RecActionsService.Repo.GetActionByRelatedCategory(tx, user, record.ID, "savings_categories")
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			recRecord = nil
@@ -446,7 +443,7 @@ func (s *SavingsService) DeleteSavingsCategory(c *gin.Context, id uint) error {
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "savings_category", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "savings_category", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err

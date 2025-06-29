@@ -15,29 +15,26 @@ import (
 )
 
 type InflowService struct {
+	Config            *config.Config
+	Ctx               *DefaultServiceContext
 	InflowRepo        *repositories.InflowRepository
-	AuthService       *AuthService
-	LoggingService    *LoggingService
 	RecActionsService *ReoccurringActionService
 	BudgetInterface   *shared.BudgetInterface
-	Config            *config.Config
 }
 
 func NewInflowService(
 	cfg *config.Config,
-	authService *AuthService,
-	loggingService *LoggingService,
+	ctx *DefaultServiceContext,
+	repo *repositories.InflowRepository,
 	recActionsService *ReoccurringActionService,
 	budgetInterface *shared.BudgetInterface,
-	repo *repositories.InflowRepository,
 ) *InflowService {
 	return &InflowService{
+		Ctx:               ctx,
+		Config:            cfg,
 		InflowRepo:        repo,
-		AuthService:       authService,
-		LoggingService:    loggingService,
 		RecActionsService: recActionsService,
 		BudgetInterface:   budgetInterface,
-		Config:            cfg,
 	}
 }
 
@@ -53,7 +50,7 @@ func keysFromSlice(links []LinkInfo) string {
 
 func (s *InflowService) FetchInflowsPaginated(c *gin.Context) ([]models.Inflow, *utils.Paginator, error) {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -104,7 +101,7 @@ func (s *InflowService) FetchInflowsPaginated(c *gin.Context) ([]models.Inflow, 
 }
 
 func (s *InflowService) FetchAllInflowsGroupedByMonth(c *gin.Context, yearParam string) ([]models.InflowSummary, error) {
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +147,7 @@ func (s *InflowService) FetchAllInflowsGroupedByMonth(c *gin.Context, yearParam 
 }
 
 func (s *InflowService) FetchAllInflowCategories(c *gin.Context) ([]models.InflowCategory, error) {
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +155,7 @@ func (s *InflowService) FetchAllInflowCategories(c *gin.Context) ([]models.Inflo
 }
 
 func (s *InflowService) FetchAllDynamicCategories(c *gin.Context) ([]models.DynamicCategory, error) {
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +163,7 @@ func (s *InflowService) FetchAllDynamicCategories(c *gin.Context) ([]models.Dyna
 }
 
 func (s *InflowService) FetchDynamicCategoryById(c *gin.Context, id uint) (*models.DynamicCategory, error) {
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +172,7 @@ func (s *InflowService) FetchDynamicCategoryById(c *gin.Context, id uint) (*mode
 
 func (s *InflowService) CreateInflow(c *gin.Context, newRecord *models.Inflow) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -206,7 +203,7 @@ func (s *InflowService) CreateInflow(c *gin.Context, newRecord *models.Inflow) e
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -217,7 +214,7 @@ func (s *InflowService) CreateInflow(c *gin.Context, newRecord *models.Inflow) e
 
 func (s *InflowService) UpdateInflow(c *gin.Context, newRecord *models.Inflow) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -259,7 +256,7 @@ func (s *InflowService) UpdateInflow(c *gin.Context, newRecord *models.Inflow) e
 
 	description := fmt.Sprintf("Updated record with ID: %d", newRecord.ID)
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "inflow", &description, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "inflow", &description, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -270,7 +267,7 @@ func (s *InflowService) UpdateInflow(c *gin.Context, newRecord *models.Inflow) e
 
 func (s *InflowService) CreateReoccurringInflow(c *gin.Context, newRecord *models.Inflow, newReoccurringRecord *models.RecurringAction) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -312,7 +309,7 @@ func (s *InflowService) CreateReoccurringInflow(c *gin.Context, newRecord *model
 	utils.CompareChanges("", newReoccurringRecord.IntervalUnit, changes, "interval_unit")
 	utils.CompareChanges("", strconv.Itoa(newReoccurringRecord.IntervalValue), changes, "interval_value")
 
-	_, err = s.RecActionsService.ActionRepo.InsertReoccurringAction(tx, user, newReoccurringRecord)
+	_, err = s.RecActionsService.Repo.InsertReoccurringAction(tx, user, newReoccurringRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -324,7 +321,7 @@ func (s *InflowService) CreateReoccurringInflow(c *gin.Context, newRecord *model
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "reoccurring-inflow", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "reoccurring-inflow", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -335,7 +332,7 @@ func (s *InflowService) CreateReoccurringInflow(c *gin.Context, newRecord *model
 
 func (s *InflowService) CreateInflowCategory(c *gin.Context, newRecord *models.InflowCategory) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -354,7 +351,7 @@ func (s *InflowService) CreateInflowCategory(c *gin.Context, newRecord *models.I
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow_category", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow_category", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -365,7 +362,7 @@ func (s *InflowService) CreateInflowCategory(c *gin.Context, newRecord *models.I
 
 func (s *InflowService) CreateDynamicCategoryWithMappings(c *gin.Context, category *models.DynamicCategory, mappings []models.DynamicCategoryMapping) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -415,7 +412,7 @@ func (s *InflowService) CreateDynamicCategoryWithMappings(c *gin.Context, catego
 	utils.CompareChanges("", primaryLinksJSON, changes, "primary_links")
 	utils.CompareChanges("", secondaryLinksJSON, changes, "secondary_links")
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "dynamic_category", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "dynamic_category", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -426,7 +423,7 @@ func (s *InflowService) CreateDynamicCategoryWithMappings(c *gin.Context, catego
 
 func (s *InflowService) UpdateInflowCategory(c *gin.Context, newRecord *models.InflowCategory) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -452,7 +449,7 @@ func (s *InflowService) UpdateInflowCategory(c *gin.Context, newRecord *models.I
 
 	description := fmt.Sprintf("Inflow category with ID: %d has been updated", newRecord.ID)
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "inflow_category", &description, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "inflow_category", &description, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -463,7 +460,7 @@ func (s *InflowService) UpdateInflowCategory(c *gin.Context, newRecord *models.I
 
 func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -497,7 +494,7 @@ func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "inflow", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "inflow", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -508,7 +505,7 @@ func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
 
 func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -530,7 +527,7 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 	if err := s.InflowRepo.CountInflowsByCategory(user, id, &countInflows); err != nil {
 		return err
 	}
-	if err := s.RecActionsService.ActionRepo.CountReoccurringActionByCategory(user, "inflow", id, &countActions); err != nil {
+	if err := s.RecActionsService.Repo.CountReoccurringActionByCategory(user, "inflow", id, &countActions); err != nil {
 		return err
 	}
 
@@ -550,7 +547,7 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "inflow_category", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "inflow_category", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -561,7 +558,7 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 
 func (s *InflowService) DeleteDynamicCategory(c *gin.Context, id uint) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -596,7 +593,7 @@ func (s *InflowService) DeleteDynamicCategory(c *gin.Context, id uint) error {
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "dynamic_category", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "dynamic_category", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err

@@ -14,29 +14,28 @@ import (
 )
 
 type OutflowService struct {
+	Config            *config.Config
+	Ctx               *DefaultServiceContext
 	OutflowRepo       *repositories.OutflowRepository
 	AuthService       *AuthService
 	LoggingService    *LoggingService
 	RecActionsService *ReoccurringActionService
 	BudgetInterface   *shared.BudgetInterface
-	Config            *config.Config
 }
 
 func NewOutflowService(
 	cfg *config.Config,
-	authService *AuthService,
-	loggingService *LoggingService,
+	ctx *DefaultServiceContext,
+	repo *repositories.OutflowRepository,
 	recActionsService *ReoccurringActionService,
 	budgetInterface *shared.BudgetInterface,
-	repo *repositories.OutflowRepository,
 ) *OutflowService {
 	return &OutflowService{
+		Ctx:               ctx,
+		Config:            cfg,
 		OutflowRepo:       repo,
-		AuthService:       authService,
-		LoggingService:    loggingService,
 		RecActionsService: recActionsService,
 		BudgetInterface:   budgetInterface,
-		Config:            cfg,
 	}
 }
 
@@ -299,7 +298,7 @@ func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, newRecord *mod
 	utils.CompareChanges("", newReoccurringRecord.IntervalUnit, changes, "interval_unit")
 	utils.CompareChanges("", strconv.Itoa(newReoccurringRecord.IntervalValue), changes, "interval_value")
 
-	_, err = s.RecActionsService.ActionRepo.InsertReoccurringAction(tx, user, newReoccurringRecord)
+	_, err = s.RecActionsService.Repo.InsertReoccurringAction(tx, user, newReoccurringRecord)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -456,7 +455,7 @@ func (s *OutflowService) DeleteOutflowCategory(c *gin.Context, id uint) error {
 	if err := s.OutflowRepo.CountOutflowsByCategory(user, id, &CountOutflows); err != nil {
 		return err
 	}
-	if err := s.RecActionsService.ActionRepo.CountReoccurringActionByCategory(user, "outflow", id, &countActions); err != nil {
+	if err := s.RecActionsService.Repo.CountReoccurringActionByCategory(user, "outflow", id, &countActions); err != nil {
 		return err
 	}
 

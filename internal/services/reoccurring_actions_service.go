@@ -8,41 +8,46 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
 type ReoccurringActionService struct {
-	ActionRepo     *repositories.ReoccurringActionsRepository
-	AuthService    *AuthService
-	LoggingService *LoggingService
+	Config *config.Config
+	Ctx    *DefaultServiceContext
+	Repo   *repositories.ReoccurringActionsRepository
 }
 
-func NewReoccurringActionService(repo *repositories.ReoccurringActionsRepository, authService *AuthService, loggingService *LoggingService) *ReoccurringActionService {
+func NewReoccurringActionService(
+	cfg *config.Config,
+	ctx *DefaultServiceContext,
+	repo *repositories.ReoccurringActionsRepository,
+) *ReoccurringActionService {
 	return &ReoccurringActionService{
-		ActionRepo:     repo,
-		AuthService:    authService,
-		LoggingService: loggingService,
+		Ctx:    ctx,
+		Config: cfg,
+		Repo:   repo,
 	}
 }
 
 func (s *ReoccurringActionService) FetchAllActionsForCategory(c *gin.Context, categoryName string) ([]models.RecurringAction, error) {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
-	return s.ActionRepo.FindAllActionsForCategory(user, categoryName)
+	return s.Repo.FindAllActionsForCategory(user, categoryName)
 }
 
 func (s *ReoccurringActionService) DeleteReoccurringAction(c *gin.Context, id uint, categoryName string) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
 	changes := utils.InitChanges()
 
-	tx := s.ActionRepo.Db.Begin()
+	tx := s.Repo.Db.Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
@@ -51,7 +56,7 @@ func (s *ReoccurringActionService) DeleteReoccurringAction(c *gin.Context, id ui
 		"savings_categories": true,
 	}
 
-	record, err := s.ActionRepo.GetActionByID(user, id)
+	record, err := s.Repo.GetActionByID(user, id)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -89,13 +94,13 @@ func (s *ReoccurringActionService) DeleteReoccurringAction(c *gin.Context, id ui
 		utils.CompareChanges("", *endDateStr, changes, "end_date")
 	}
 
-	err = s.ActionRepo.DropAction(tx, user, id)
+	err = s.Repo.DropAction(tx, user, id)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "reoccurring_action", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "reoccurring_action", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -106,12 +111,12 @@ func (s *ReoccurringActionService) DeleteReoccurringAction(c *gin.Context, id ui
 
 func (s *ReoccurringActionService) FetchAvailableYearsForRecords(c *gin.Context, table, dateField string) ([]int, error) {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
 
-	years, err := s.ActionRepo.FindDistinctYearsForRecords(user, table, dateField)
+	years, err := s.Repo.FindDistinctYearsForRecords(user, table, dateField)
 	if err != nil {
 		return nil, err
 	}
