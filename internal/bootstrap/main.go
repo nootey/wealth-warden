@@ -22,6 +22,7 @@ type Container struct {
 	ReoccurringActionService *services.ReoccurringActionService
 	BudgetService            *services.BudgetService
 	SavingsService           *services.SavingsService
+	InvestmentsService       *services.InvestmentsService
 }
 
 func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Container {
@@ -37,6 +38,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Containe
 	outflowRepo := repositories.NewOutflowRepository(db)
 	budgetRepo := repositories.NewBudgetRepository(db)
 	savingsRepo := repositories.NewSavingsRepository(db)
+	investmentsRepo := repositories.NewInvestmentsRepository(db)
 
 	// Initialize services
 	budgetInterface := shared.NewBudgetInterface(budgetRepo, inflowRepo, outflowRepo)
@@ -55,6 +57,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Containe
 	outflowService := services.NewOutflowService(cfg, ctx, outflowRepo, recActionService, budgetInterface)
 	budgetService := services.NewBudgetService(cfg, ctx, budgetRepo, budgetInterface)
 	savingsService := services.NewSavingsService(cfg, ctx, savingsRepo, budgetInterface, recActionService)
+	investmentsService := services.NewInvestmentsService(cfg, ctx, investmentsRepo, recActionService)
 
 	return &Container{
 		Config:                   cfg,
@@ -68,5 +71,6 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Containe
 		ReoccurringActionService: recActionService,
 		BudgetService:            budgetService,
 		SavingsService:           savingsService,
+		InvestmentsService:       investmentsService,
 	}
 }

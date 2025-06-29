@@ -41,6 +41,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 	recActionHandler := httpHandlers.NewReoccurringActionHandler(r.Container.ReoccurringActionService)
 	budgetHandler := httpHandlers.NewBudgetHandler(r.Container.BudgetService)
 	savingsHandler := httpHandlers.NewSavingsHandler(r.Container.SavingsService)
+	investmentsHandler := httpHandlers.NewInvestmentHandler(r.Container.InvestmentsService)
 
 	// Protected routes
 	authGroup := _v1.Group("/", r.Container.AuthService.WebClientMiddleware.WebClientAuthentication())
@@ -68,6 +69,9 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 
 		savingsRoutes := authGroup.Group("/savings")
 		v1.SavingsRoutes(savingsRoutes, savingsHandler)
+
+		investmentRoutes := authGroup.Group("/investments")
+		v1.InvestmentsRoutes(investmentRoutes, investmentsHandler)
 	}
 
 	// Public routes
