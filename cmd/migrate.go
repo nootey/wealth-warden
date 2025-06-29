@@ -16,6 +16,9 @@ var migrateCmd = &cobra.Command{
 	Short: "Run database migrations",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		//ctx := cmd.Context()
+		//logger := ctx.Value("logger").(*zap.Logger)
 		migrationType := "help"
 
 		if len(args) > 0 {

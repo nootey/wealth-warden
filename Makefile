@@ -3,20 +3,18 @@ default: run
 
 # Run the server using the rootCmd
 run:
-	go run ./cmd/http-server server
-
-# Build the binary
-build:
-	go build -o cmd/build/wealth-warden cmd/http-server/main.go
+	go run ./cmd http
 
 # Run database migrations
 migrate:
-	go run ./cmd/http-server migrate $(type)
+	go run ./cmd migrate $(type)
 
 # Seed essential tables
 seed:
-	go run ./cmd/http-server seed $(type)
+	go run ./cmd seed $(type)
 
-# Clean up binaries
-clean:
-	rm -f ./cmd/build/wealth-warden
+# Perform first time setup.
+bootstrap:
+	@echo "Tidying Go modules and installing tools..."
+	go mod tidy
+	@echo "Bootstrap complete."
