@@ -16,7 +16,7 @@ func LoadSeederCredentials() (map[string]string, error) {
 	if err != nil {
 		log.Fatalf("Error loading secrets: %v", err)
 	}
-	path := filepath.Join(wd, "pkg", "config", ".seeder.credentials")
+	path := filepath.Join(wd, ".seeder.credentials")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
