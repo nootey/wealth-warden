@@ -41,7 +41,7 @@ func NewOutflowService(
 
 func (s *OutflowService) FetchOutflowsPaginated(c *gin.Context) ([]models.Outflow, *utils.Paginator, error) {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -92,7 +92,7 @@ func (s *OutflowService) FetchOutflowsPaginated(c *gin.Context) ([]models.Outflo
 }
 
 func (s *OutflowService) FetchAllOutflowsGroupedByMonth(c *gin.Context, yearParam string) ([]models.OutflowSummary, error) {
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +153,7 @@ func (s *OutflowService) FetchAllOutflowsGroupedByMonth(c *gin.Context, yearPara
 }
 
 func (s *OutflowService) FetchAllOutflowCategories(c *gin.Context) ([]models.OutflowCategory, error) {
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +162,7 @@ func (s *OutflowService) FetchAllOutflowCategories(c *gin.Context) ([]models.Out
 
 func (s *OutflowService) CreateOutflow(c *gin.Context, newRecord *models.Outflow) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func (s *OutflowService) CreateOutflow(c *gin.Context, newRecord *models.Outflow
 
 func (s *OutflowService) UpdateOutflow(c *gin.Context, newRecord *models.Outflow) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -256,7 +256,7 @@ func (s *OutflowService) UpdateOutflow(c *gin.Context, newRecord *models.Outflow
 
 func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, newRecord *models.Outflow, newReoccurringRecord *models.RecurringAction) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -321,7 +321,7 @@ func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, newRecord *mod
 
 func (s *OutflowService) CreateOutflowCategory(c *gin.Context, newRecord *models.OutflowCategory) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -351,7 +351,7 @@ func (s *OutflowService) CreateOutflowCategory(c *gin.Context, newRecord *models
 
 func (s *OutflowService) UpdateOutflowCategory(c *gin.Context, newRecord *models.OutflowCategory) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -388,7 +388,7 @@ func (s *OutflowService) UpdateOutflowCategory(c *gin.Context, newRecord *models
 
 func (s *OutflowService) DeleteOutflow(c *gin.Context, id uint) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -433,7 +433,7 @@ func (s *OutflowService) DeleteOutflow(c *gin.Context, id uint) error {
 
 func (s *OutflowService) DeleteOutflowCategory(c *gin.Context, id uint) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}

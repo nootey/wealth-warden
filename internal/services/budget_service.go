@@ -38,7 +38,7 @@ func NewBudgetService(
 }
 
 func (s *BudgetService) GetCurrentMonthlyBudget(c *gin.Context) (*models.MonthlyBudget, error) {
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func (s *BudgetService) fetchSumsForBudget(category *models.DynamicCategory, use
 
 func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.MonthlyBudget) (*models.MonthlyBudget, error) {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +229,7 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 
 func (s *BudgetService) CreateMonthlyBudgetAllocation(c *gin.Context, newRecord *models.MonthlyBudgetAllocation) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -336,7 +336,7 @@ func updateBudgetField(existingValue *float64, newValue *float64) {
 }
 
 func (s *BudgetService) UpdateMonthlyBudget(c *gin.Context, newBudget *models.MonthlyBudgetUpdate) error {
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -401,7 +401,7 @@ func (s *BudgetService) UpdateMonthlyBudget(c *gin.Context, newBudget *models.Mo
 
 func (s *BudgetService) SynchronizeCurrentMonthlyBudget(c *gin.Context) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -496,7 +496,7 @@ func (s *BudgetService) SynchronizeCurrentMonthlyBudget(c *gin.Context) error {
 
 func (s *BudgetService) SynchronizeCurrentMonthlyBudgetSnapshot(c *gin.Context) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
