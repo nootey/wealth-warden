@@ -43,7 +43,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Containe
 	// Initialize services
 	budgetInterface := shared.NewBudgetInterface(budgetRepo, inflowRepo, outflowRepo)
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
-	authService := services.NewAuthService(cfg, userRepo, loggingService, webClientMiddleware)
+	authService := services.NewAuthService(cfg, logger, userRepo, loggingService, webClientMiddleware)
 
 	ctx := &services.DefaultServiceContext{
 		LoggingService: loggingService,

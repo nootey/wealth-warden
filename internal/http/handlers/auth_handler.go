@@ -1,9 +1,7 @@
 package handlers
 
 import (
-	"errors"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
@@ -25,104 +23,15 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 	loginIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
-	var loginForm models.LoginForm
-	if err := c.ShouldBindJSON(&loginForm); err != nil {
-
-		changes := utils.InitChanges()
-		description := "tried logging in via form data"
-		service := utils.DetermineServiceSource(userAgent)
-
-		utils.CompareChanges("", service, changes, "service")
-		utils.CompareChanges("", loginForm.Email, changes, "email")
-		utils.CompareChanges("", utils.SafeString(&loginIP), changes, "ip_address")
-		utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
-
-		logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "fail", "login", nil, changes, &description)
-		if logErr != nil {
-			utils.ErrorMessage(c, "Error occurred", logErr.Error(), http.StatusBadRequest, logErr)
-			return
-		}
-
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
+	var form models.LoginForm
+	if err := c.ShouldBindJSON(&form); err != nil {
+		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
-	userPassword, _ := h.Service.UserRepo.GetPasswordByEmail(loginForm.Email)
-	if userPassword == "" {
-
-		changes := utils.InitChanges()
-		description := "user does not exist"
-		service := utils.DetermineServiceSource(userAgent)
-
-		utils.CompareChanges("", service, changes, "service")
-		utils.CompareChanges("", loginForm.Email, changes, "email")
-		utils.CompareChanges("", utils.SafeString(&loginIP), changes, "ip_address")
-		utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
-
-		logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "fail", "login", nil, changes, &description)
-		if logErr != nil {
-			utils.ErrorMessage(c, "Error occurred", logErr.Error(), http.StatusBadRequest, logErr)
-			return
-		}
-
-		err := errors.New("invalid credentials")
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
-
-	err := bcrypt.CompareHashAndPassword([]byte(userPassword), []byte(loginForm.Password))
+	accessToken, refreshToken, expiresAt, err := h.Service.LoginUser(form.Email, form.Password, userAgent, loginIP, form.RememberMe)
 	if err != nil {
-
-		changes := utils.InitChanges()
-		description := "incorrect password"
-		service := utils.DetermineServiceSource(userAgent)
-
-		utils.CompareChanges("", service, changes, "service")
-		utils.CompareChanges("", loginForm.Email, changes, "email")
-		utils.CompareChanges("", utils.SafeString(&loginIP), changes, "ip_address")
-		utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
-
-		logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "fail", "login", nil, changes, &description)
-		if logErr != nil {
-			utils.ErrorMessage(c, "Error occurred", logErr.Error(), http.StatusBadRequest, logErr)
-			return
-		}
-
-		err := errors.New("invalid credentials")
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
-
-	user, _ := h.Service.UserRepo.GetUserByEmail(loginForm.Email, false)
-	if user == nil {
-		err = errors.New("user data unavailable")
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-
-	accessToken, refreshToken, err := h.Service.WebClientMiddleware.GenerateLoginTokens(user.ID, loginForm.RememberMe)
-	if err != nil {
-		utils.ErrorMessage(c, "Authentication error", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-
-	var expiresAt int
-	if loginForm.RememberMe {
-		expiresAt = 3600 * 24 * 14
-	} else {
-		expiresAt = 3600 * 24
-	}
-
-	changes := utils.InitChanges()
-	service := utils.DetermineServiceSource(userAgent)
-
-	utils.CompareChanges("", service, changes, "service")
-	utils.CompareChanges("", utils.SafeString(&loginIP), changes, "ip_address")
-	utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
-
-	logErr := h.Service.LoggingService.LoggingRepo.InsertAccessLog(nil, "success", "login", user, changes, nil)
-	if logErr != nil {
-		utils.ErrorMessage(c, "Error occurred", logErr.Error(), http.StatusBadRequest, logErr)
+		utils.ErrorMessage(c, "Login failed", err.Error(), http.StatusUnauthorized, err)
 		return
 	}
 
