@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"strconv"
 	"time"
 	"wealth-warden/internal/models"
@@ -100,13 +101,18 @@ func (s *ReoccurringActionService) DeleteReoccurringAction(c *gin.Context, id ui
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "reoccurring_action", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "delete", "reoccurring_action", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *ReoccurringActionService) FetchAvailableYearsForRecords(c *gin.Context, table, dateField string) ([]int, error) {

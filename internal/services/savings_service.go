@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"sort"
 	"strconv"
@@ -188,13 +189,18 @@ func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *mode
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_allocation", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "savings_allocation", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *models.SavingsTransaction) error {
@@ -251,13 +257,18 @@ func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *model
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_deduction", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "savings_deduction", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models.SavingsCategory, newReoccurringRecord *models.RecurringAction) error {
@@ -330,13 +341,18 @@ func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models
 		}
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "savings_category", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "savings_category", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *SavingsService) UpdateSavingsCategory(c *gin.Context, newRecord *models.SavingsCategory) error {
@@ -379,15 +395,19 @@ func (s *SavingsService) UpdateSavingsCategory(c *gin.Context, newRecord *models
 		return err
 	}
 
-	description := fmt.Sprintf("Savings category with ID: %d has been updated", newRecord.ID)
-
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "savings_category", &description, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	description := fmt.Sprintf("Savings category with ID: %d has been updated", newRecord.ID)
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "update", "savings_category", &description, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *SavingsService) DeleteSavingsCategory(c *gin.Context, id uint) error {
@@ -443,11 +463,16 @@ func (s *SavingsService) DeleteSavingsCategory(c *gin.Context, id uint) error {
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "savings_category", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "delete", "savings_category", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }

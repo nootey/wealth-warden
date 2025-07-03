@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"sort"
 	"strconv"
 	"time"
@@ -190,13 +191,18 @@ func (s *OutflowService) CreateOutflow(c *gin.Context, newRecord *models.Outflow
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "outflow", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "outflow", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *OutflowService) UpdateOutflow(c *gin.Context, newRecord *models.Outflow) error {
@@ -241,15 +247,19 @@ func (s *OutflowService) UpdateOutflow(c *gin.Context, newRecord *models.Outflow
 		return err
 	}
 
-	description := fmt.Sprintf("Updated record with ID: %d", newRecord.ID)
-
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "outflow", &description, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	description := fmt.Sprintf("Updated record with ID: %d", newRecord.ID)
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "update", "outflow", &description, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, newRecord *models.Outflow, newReoccurringRecord *models.RecurringAction) error {
@@ -308,13 +318,18 @@ func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, newRecord *mod
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "reoccurring-outflow", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "reoccurring_outflow", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *OutflowService) CreateOutflowCategory(c *gin.Context, newRecord *models.OutflowCategory) error {
@@ -338,13 +353,18 @@ func (s *OutflowService) CreateOutflowCategory(c *gin.Context, newRecord *models
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "outflow_category", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "outflow_category", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *OutflowService) UpdateOutflowCategory(c *gin.Context, newRecord *models.OutflowCategory) error {
@@ -375,13 +395,18 @@ func (s *OutflowService) UpdateOutflowCategory(c *gin.Context, newRecord *models
 
 	description := fmt.Sprintf("Outflow category with ID: %d has been updated", newRecord.ID)
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "outflow_category", &description, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "update", "outflow_category", &description, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *OutflowService) DeleteOutflow(c *gin.Context, id uint) error {
@@ -420,13 +445,18 @@ func (s *OutflowService) DeleteOutflow(c *gin.Context, id uint) error {
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "outflow", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "delete", "outflow", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *OutflowService) DeleteOutflowCategory(c *gin.Context, id uint) error {
@@ -473,11 +503,16 @@ func (s *OutflowService) DeleteOutflowCategory(c *gin.Context, id uint) error {
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "outflow_category", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "delete", "outflow_category", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }

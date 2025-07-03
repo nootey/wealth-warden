@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"strconv"
 	"time"
 	"wealth-warden/internal/models"
@@ -208,12 +209,6 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 		return nil, err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "monthly_budget", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
 	newRecord.ID = ID
 
 	err = s.Ctx.AuthService.UpdateBudgetInitializedStatus(tx, user, true)
@@ -222,7 +217,18 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 		return nil, err
 	}
 
-	return newRecord, tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "monthly_budget", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return newRecord, nil
 }
 
 func (s *BudgetService) CreateMonthlyBudgetAllocation(c *gin.Context, newRecord *models.MonthlyBudgetAllocation) error {
@@ -277,13 +283,18 @@ func (s *BudgetService) CreateMonthlyBudgetAllocation(c *gin.Context, newRecord 
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "monthly_budget_allocation", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "monthly_budget_allocation", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *BudgetService) handleBudgetAssignErrors(oldBudget *models.MonthlyBudget, newBudget *models.MonthlyBudgetUpdate) error {
@@ -388,13 +399,18 @@ func (s *BudgetService) UpdateMonthlyBudget(c *gin.Context, newBudget *models.Mo
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "monthly_budget", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "update", "monthly_budget", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *BudgetService) SynchronizeCurrentMonthlyBudget(c *gin.Context) error {
@@ -480,16 +496,25 @@ func (s *BudgetService) SynchronizeCurrentMonthlyBudget(c *gin.Context) error {
 			return err
 		}
 
-		description := "User has synchronized their monthly budget. Some values were out of sync"
-
-		err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "sync", "monthly_budget", &description, changes, user)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
 	}
 
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	if newEffectiveBudget != existingEffectiveBudget {
+
+		description := "User has synchronized their monthly budget. Some values were out of sync"
+
+		go func(changes *utils.Changes, user *models.User) {
+			err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "sync", "monthly_budget", &description, changes, user)
+			if err != nil {
+				s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+			}
+		}(changes, user)
+	}
+
+	return nil
 }
 
 func (s *BudgetService) SynchronizeCurrentMonthlyBudgetSnapshot(c *gin.Context) error {
@@ -538,13 +563,20 @@ func (s *BudgetService) SynchronizeCurrentMonthlyBudgetSnapshot(c *gin.Context) 
 			return err
 		}
 
-		description := "User has synchronized their monthly budget snapshot. Some values were out of sync"
-
-		err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "sync", "monthly_budget_snapshot", &description, changes, user)
-		if err != nil {
-			tx.Rollback()
+		if err := tx.Commit().Error; err != nil {
 			return err
 		}
+
+		description := "User has synchronized their monthly budget snapshot. Some values were out of sync"
+
+		go func(changes *utils.Changes, user *models.User) {
+			err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "sync", "monthly_budget_snapshot", &description, changes, user)
+			if err != nil {
+				s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+			}
+		}(changes, user)
+
+		return nil
 	}
 
 	return tx.Commit().Error

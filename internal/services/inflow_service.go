@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"sort"
 	"strconv"
 	"time"
@@ -203,13 +204,18 @@ func (s *InflowService) CreateInflow(c *gin.Context, newRecord *models.Inflow) e
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "inflow", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *InflowService) UpdateInflow(c *gin.Context, newRecord *models.Inflow) error {
@@ -256,13 +262,18 @@ func (s *InflowService) UpdateInflow(c *gin.Context, newRecord *models.Inflow) e
 
 	description := fmt.Sprintf("Updated record with ID: %d", newRecord.ID)
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "inflow", &description, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "update", "inflow", &description, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *InflowService) CreateReoccurringInflow(c *gin.Context, newRecord *models.Inflow, newReoccurringRecord *models.RecurringAction) error {
@@ -321,13 +332,18 @@ func (s *InflowService) CreateReoccurringInflow(c *gin.Context, newRecord *model
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "reoccurring-inflow", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "reoccurring_inflow", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *InflowService) CreateInflowCategory(c *gin.Context, newRecord *models.InflowCategory) error {
@@ -351,13 +367,18 @@ func (s *InflowService) CreateInflowCategory(c *gin.Context, newRecord *models.I
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "inflow_category", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "inflow_category", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *InflowService) CreateDynamicCategoryWithMappings(c *gin.Context, category *models.DynamicCategory, mappings []models.DynamicCategoryMapping) error {
@@ -412,13 +433,18 @@ func (s *InflowService) CreateDynamicCategoryWithMappings(c *gin.Context, catego
 	utils.CompareChanges("", primaryLinksJSON, changes, "primary_links")
 	utils.CompareChanges("", secondaryLinksJSON, changes, "secondary_links")
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "dynamic_category", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "dynamic_category", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *InflowService) UpdateInflowCategory(c *gin.Context, newRecord *models.InflowCategory) error {
@@ -449,13 +475,18 @@ func (s *InflowService) UpdateInflowCategory(c *gin.Context, newRecord *models.I
 
 	description := fmt.Sprintf("Inflow category with ID: %d has been updated", newRecord.ID)
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "inflow_category", &description, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changes *utils.Changes, user *models.User) {
+		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "update", "inflow_category", &description, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
@@ -494,13 +525,18 @@ func (s *InflowService) DeleteInflow(c *gin.Context, id uint) error {
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "inflow", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changesCopy *utils.Changes, userCopy *models.User) {
+		err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "inflow", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
@@ -547,13 +583,18 @@ func (s *InflowService) DeleteInflowCategory(c *gin.Context, id uint) error {
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "inflow_category", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changesCopy *utils.Changes, userCopy *models.User) {
+		err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "inflow_category", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
 
 func (s *InflowService) DeleteDynamicCategory(c *gin.Context, id uint) error {
@@ -593,11 +634,16 @@ func (s *InflowService) DeleteDynamicCategory(c *gin.Context, id uint) error {
 		return err
 	}
 
-	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "dynamic_category", nil, changes, user)
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	return tx.Commit().Error
+	go func(changesCopy *utils.Changes, userCopy *models.User) {
+		err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "dynamic_category", nil, changes, user)
+		if err != nil {
+			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
+		}
+	}(changes, user)
+
+	return nil
 }
