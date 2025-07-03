@@ -32,7 +32,7 @@ export const useInflowStore = defineStore('inflow', {
                     page: page,
                 };
 
-                const response = await apiClient.get(`${this.apiPrefix}/`, {
+                const response = await apiClient.get(`${this.apiPrefix}`, {
                     params: queryParams,
                 });
 

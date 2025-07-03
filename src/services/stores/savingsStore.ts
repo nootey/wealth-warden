@@ -30,7 +30,7 @@ export const useSavingsStore = defineStore('savings', {
                     page: page,
                 };
 
-                const response = await apiClient.get(`${this.apiPrefix}/`, {
+                const response = await apiClient.get(`${this.apiPrefix}`, {
                     params: queryParams,
                 });
 
