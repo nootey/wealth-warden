@@ -17,8 +17,6 @@ type OutflowService struct {
 	Config            *config.Config
 	Ctx               *DefaultServiceContext
 	OutflowRepo       *repositories.OutflowRepository
-	AuthService       *AuthService
-	LoggingService    *LoggingService
 	RecActionsService *ReoccurringActionService
 	BudgetInterface   *shared.BudgetInterface
 }
@@ -192,7 +190,7 @@ func (s *OutflowService) CreateOutflow(c *gin.Context, newRecord *models.Outflow
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "outflow", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "outflow", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -245,7 +243,7 @@ func (s *OutflowService) UpdateOutflow(c *gin.Context, newRecord *models.Outflow
 
 	description := fmt.Sprintf("Updated record with ID: %d", newRecord.ID)
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "outflow", &description, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "outflow", &description, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -310,7 +308,7 @@ func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, newRecord *mod
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "reoccurring-outflow", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "reoccurring-outflow", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -340,7 +338,7 @@ func (s *OutflowService) CreateOutflowCategory(c *gin.Context, newRecord *models
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "outflow_category", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "outflow_category", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -377,7 +375,7 @@ func (s *OutflowService) UpdateOutflowCategory(c *gin.Context, newRecord *models
 
 	description := fmt.Sprintf("Outflow category with ID: %d has been updated", newRecord.ID)
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "outflow_category", &description, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "outflow_category", &description, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -422,7 +420,7 @@ func (s *OutflowService) DeleteOutflow(c *gin.Context, id uint) error {
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "outflow", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "outflow", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -475,7 +473,7 @@ func (s *OutflowService) DeleteOutflowCategory(c *gin.Context, id uint) error {
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "outflow_category", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "delete", "outflow_category", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
