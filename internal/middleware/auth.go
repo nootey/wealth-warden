@@ -39,18 +39,6 @@ func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
 
-		//if webClientIdentifier := c.GetHeader("wealth-warden-client"); webClientIdentifier != "true" {
-		//	c.Next()
-		//	return
-		//}
-
-		// Skip JWT authentication in development mode
-		// TODO: REMOVE THIS AFTER DEVELOPMENT
-		if m.config.Release == false {
-			c.Next()
-			return
-		}
-
 		accessToken, accessError := c.Cookie("access")
 		if accessError != nil {
 

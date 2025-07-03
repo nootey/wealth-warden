@@ -17,8 +17,6 @@ type BudgetService struct {
 	Config            *config.Config
 	Ctx               *DefaultServiceContext
 	BudgetRepo        *repositories.BudgetRepository
-	AuthService       *AuthService
-	LoggingService    *LoggingService
 	RecActionsService *ReoccurringActionService
 	BudgetInterface   *shared.BudgetInterface
 }
@@ -38,7 +36,7 @@ func NewBudgetService(
 }
 
 func (s *BudgetService) GetCurrentMonthlyBudget(c *gin.Context) (*models.MonthlyBudget, error) {
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +149,7 @@ func (s *BudgetService) fetchSumsForBudget(category *models.DynamicCategory, use
 
 func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.MonthlyBudget) (*models.MonthlyBudget, error) {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +208,7 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 		return nil, err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "monthly_budget", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "monthly_budget", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -218,7 +216,7 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 
 	newRecord.ID = ID
 
-	err = s.AuthService.UpdateBudgetInitializedStatus(tx, user, true)
+	err = s.Ctx.AuthService.UpdateBudgetInitializedStatus(tx, user, true)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -229,7 +227,7 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 
 func (s *BudgetService) CreateMonthlyBudgetAllocation(c *gin.Context, newRecord *models.MonthlyBudgetAllocation) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -279,7 +277,7 @@ func (s *BudgetService) CreateMonthlyBudgetAllocation(c *gin.Context, newRecord 
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "monthly_budget_allocation", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "create", "monthly_budget_allocation", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -336,7 +334,7 @@ func updateBudgetField(existingValue *float64, newValue *float64) {
 }
 
 func (s *BudgetService) UpdateMonthlyBudget(c *gin.Context, newBudget *models.MonthlyBudgetUpdate) error {
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -390,7 +388,7 @@ func (s *BudgetService) UpdateMonthlyBudget(c *gin.Context, newBudget *models.Mo
 		return err
 	}
 
-	err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "monthly_budget", nil, changes, user)
+	err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "update", "monthly_budget", nil, changes, user)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -401,7 +399,7 @@ func (s *BudgetService) UpdateMonthlyBudget(c *gin.Context, newBudget *models.Mo
 
 func (s *BudgetService) SynchronizeCurrentMonthlyBudget(c *gin.Context) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -484,7 +482,7 @@ func (s *BudgetService) SynchronizeCurrentMonthlyBudget(c *gin.Context) error {
 
 		description := "User has synchronized their monthly budget. Some values were out of sync"
 
-		err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "sync", "monthly_budget", &description, changes, user)
+		err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "sync", "monthly_budget", &description, changes, user)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -496,7 +494,7 @@ func (s *BudgetService) SynchronizeCurrentMonthlyBudget(c *gin.Context) error {
 
 func (s *BudgetService) SynchronizeCurrentMonthlyBudgetSnapshot(c *gin.Context) error {
 
-	user, err := s.AuthService.GetCurrentUser(c, false)
+	user, err := s.Ctx.AuthService.GetCurrentUser(c, false)
 	if err != nil {
 		return err
 	}
@@ -542,7 +540,7 @@ func (s *BudgetService) SynchronizeCurrentMonthlyBudgetSnapshot(c *gin.Context) 
 
 		description := "User has synchronized their monthly budget snapshot. Some values were out of sync"
 
-		err = s.LoggingService.LoggingRepo.InsertActivityLog(tx, "sync", "monthly_budget_snapshot", &description, changes, user)
+		err = s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(tx, "sync", "monthly_budget_snapshot", &description, changes, user)
 		if err != nil {
 			tx.Rollback()
 			return err
