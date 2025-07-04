@@ -3,10 +3,10 @@ package services
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"sort"
 	"strconv"
 	"time"
+	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services/shared"
@@ -194,12 +194,18 @@ func (s *OutflowService) CreateOutflow(c *gin.Context, newRecord *models.Outflow
 		return err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "outflow", nil, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "outflow",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -251,12 +257,19 @@ func (s *OutflowService) UpdateOutflow(c *gin.Context, newRecord *models.Outflow
 	}
 
 	description := fmt.Sprintf("Updated record with ID: %d", newRecord.ID)
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "update", "outflow", &description, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "update",
+		Category:    "outflow",
+		Description: &description,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -321,12 +334,18 @@ func (s *OutflowService) CreateReoccurringOutflow(c *gin.Context, newRecord *mod
 		return err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "reoccurring_outflow", nil, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "reoccurring_outflow",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -356,12 +375,18 @@ func (s *OutflowService) CreateOutflowCategory(c *gin.Context, newRecord *models
 		return err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "outflow_category", nil, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "outflow_category",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -392,18 +417,24 @@ func (s *OutflowService) UpdateOutflowCategory(c *gin.Context, newRecord *models
 		return err
 	}
 
-	description := fmt.Sprintf("Outflow category with ID: %d has been updated", newRecord.ID)
-
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "update", "outflow_category", &description, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	description := fmt.Sprintf("Outflow category with ID: %d has been updated", newRecord.ID)
+
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "update",
+		Category:    "outflow_category",
+		Description: &description,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -448,12 +479,18 @@ func (s *OutflowService) DeleteOutflow(c *gin.Context, id uint) error {
 		return err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "delete", "outflow", nil, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "delete",
+		Category:    "outflow",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -506,12 +543,18 @@ func (s *OutflowService) DeleteOutflowCategory(c *gin.Context, id uint) error {
 		return err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "delete", "outflow_category", nil, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "delete",
+		Category:    "outflow_category",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

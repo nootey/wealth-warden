@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"strconv"
 	"time"
+	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services/shared"
@@ -220,12 +220,18 @@ func (s *BudgetService) CreateMonthlyBudget(c *gin.Context, newRecord *models.Mo
 		return nil, err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "monthly_budget", nil, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "monthly_budget",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	return newRecord, nil
 }
@@ -286,12 +292,18 @@ func (s *BudgetService) CreateMonthlyBudgetAllocation(c *gin.Context, newRecord 
 		return err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "monthly_budget_allocation", nil, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "monthly_budget_allocation",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -402,12 +414,18 @@ func (s *BudgetService) UpdateMonthlyBudget(c *gin.Context, newBudget *models.Mo
 		return err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "update", "monthly_budget", nil, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "update",
+		Category:    "monthly_budget",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -505,12 +523,18 @@ func (s *BudgetService) SynchronizeCurrentMonthlyBudget(c *gin.Context) error {
 
 		description := "User has synchronized their monthly budget. Some values were out of sync"
 
-		go func(changes *utils.Changes, user *models.User) {
-			err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "sync", "monthly_budget", &description, changes, user)
-			if err != nil {
-				s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-			}
-		}(changes, user)
+		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+			Logger:      s.Ctx.Logger,
+			Event:       "sync",
+			Category:    "monthly_budget",
+			Description: &description,
+			Payload:     changes,
+			Causer:      user,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -568,12 +592,18 @@ func (s *BudgetService) SynchronizeCurrentMonthlyBudgetSnapshot(c *gin.Context) 
 
 		description := "User has synchronized their monthly budget snapshot. Some values were out of sync"
 
-		go func(changes *utils.Changes, user *models.User) {
-			err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "sync", "monthly_budget_snapshot", &description, changes, user)
-			if err != nil {
-				s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-			}
-		}(changes, user)
+		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+			Logger:      s.Ctx.Logger,
+			Event:       "sync",
+			Category:    "monthly_budget_snapshot",
+			Description: &description,
+			Payload:     changes,
+			Causer:      user,
+		})
+		if err != nil {
+			return err
+		}
 
 		return nil
 	}

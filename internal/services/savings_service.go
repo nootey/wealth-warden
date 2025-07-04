@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"sort"
 	"strconv"
 	"time"
+	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services/shared"
@@ -192,12 +192,18 @@ func (s *SavingsService) CreateSavingsAllocation(c *gin.Context, newRecord *mode
 		return err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "savings_allocation", nil, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "savings_allocation",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -260,12 +266,18 @@ func (s *SavingsService) CreateSavingsDeduction(c *gin.Context, newRecord *model
 		return err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "savings_deduction", nil, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "savings_deduction",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -344,12 +356,18 @@ func (s *SavingsService) CreateSavingsCategory(c *gin.Context, newRecord *models
 		return err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "savings_category", nil, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "savings_category",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -399,12 +417,18 @@ func (s *SavingsService) UpdateSavingsCategory(c *gin.Context, newRecord *models
 	}
 
 	description := fmt.Sprintf("Savings category with ID: %d has been updated", newRecord.ID)
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "update", "savings_category", &description, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "update",
+		Category:    "savings_category",
+		Description: &description,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -466,12 +490,18 @@ func (s *SavingsService) DeleteSavingsCategory(c *gin.Context, id uint) error {
 		return err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "delete", "savings_category", nil, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "delete",
+		Category:    "savings_category",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

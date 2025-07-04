@@ -177,9 +177,9 @@ func (r *LoggingRepository) InsertAccessLog(
 	tx *gorm.DB,
 	status string,
 	event string,
-	causer *models.User,
-	payload *utils.Changes,
 	description *string,
+	payload *utils.Changes,
+	causer *models.User,
 ) error {
 
 	db := tx

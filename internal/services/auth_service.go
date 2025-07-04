@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -19,6 +20,7 @@ type AuthService struct {
 	UserRepo            *repositories.UserRepository
 	loggingService      *LoggingService
 	WebClientMiddleware *middleware.WebClientMiddleware
+	jobDispatcher       jobs.JobDispatcher
 }
 
 func NewAuthService(
@@ -27,6 +29,7 @@ func NewAuthService(
 	userRepo *repositories.UserRepository,
 	loggingService *LoggingService,
 	webClientMiddleware *middleware.WebClientMiddleware,
+	jobDispatcher jobs.JobDispatcher,
 ) *AuthService {
 	return &AuthService{
 		Config:              cfg,
@@ -34,23 +37,34 @@ func NewAuthService(
 		UserRepo:            userRepo,
 		loggingService:      loggingService,
 		WebClientMiddleware: webClientMiddleware,
+		jobDispatcher:       jobDispatcher,
 	}
 }
 
-func (s *AuthService) logLoginAttempt(email, userAgent, ip, status string, description *string, user *models.User) {
-	go func(email, userAgent, ip, status string, description *string, user *models.User) {
-		changes := utils.InitChanges()
-		service := utils.DetermineServiceSource(userAgent)
+func (s *AuthService) logLoginAttempt(email, userAgent, ip, status string, description *string, user *models.User) error {
 
-		utils.CompareChanges("", service, changes, "service")
-		utils.CompareChanges("", email, changes, "email")
-		utils.CompareChanges("", utils.SafeString(&ip), changes, "ip_address")
-		utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
+	changes := utils.InitChanges()
+	service := utils.DetermineServiceSource(userAgent)
 
-		if err := s.loggingService.LoggingRepo.InsertAccessLog(nil, status, "login", user, changes, description); err != nil {
-			s.logger.Error("failed to insert access log", zap.Error(err))
-		}
-	}(email, userAgent, ip, status, description, user)
+	utils.CompareChanges("", service, changes, "service")
+	utils.CompareChanges("", email, changes, "email")
+	utils.CompareChanges("", utils.SafeString(&ip), changes, "ip_address")
+	utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
+
+	err := s.jobDispatcher.Dispatch(&jobs.AccessLogJob{
+		LoggingRepo: s.loggingService.LoggingRepo,
+		Logger:      s.logger,
+		Event:       "login",
+		Status:      status,
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberMe bool) (string, string, int, error) {
@@ -58,7 +72,10 @@ func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberM
 	userPassword, _ := s.UserRepo.GetPasswordByEmail(email)
 	if userPassword == "" {
 		desc := "user does not exist"
-		s.logLoginAttempt(email, userAgent, ip, "fail", &desc, nil)
+		logErr := s.logLoginAttempt(email, userAgent, ip, "fail", &desc, nil)
+		if logErr != nil {
+			return "", "", 0, logErr
+		}
 
 		err := errors.New("invalid credentials")
 		return "", "", 0, err
@@ -67,7 +84,10 @@ func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberM
 	err := bcrypt.CompareHashAndPassword([]byte(userPassword), []byte(password))
 	if err != nil {
 		desc := "incorrect_password"
-		s.logLoginAttempt(email, userAgent, ip, "fail", &desc, nil)
+		logErr := s.logLoginAttempt(email, userAgent, ip, "fail", &desc, nil)
+		if logErr != nil {
+			return "", "", 0, logErr
+		}
 
 		err := errors.New("invalid credentials")
 		return "", "", 0, err
@@ -91,7 +111,10 @@ func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberM
 		expiresAt = 3600 * 24
 	}
 
-	s.logLoginAttempt(email, userAgent, ip, "success", nil, user)
+	logErr := s.logLoginAttempt(email, userAgent, ip, "success", nil, user)
+	if logErr != nil {
+		return "", "", 0, logErr
+	}
 
 	return accessToken, refreshToken, expiresAt, nil
 }
