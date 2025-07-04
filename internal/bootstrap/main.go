@@ -29,7 +29,7 @@ type Container struct {
 func NewContainer(cfg *models.Config, db *gorm.DB, logger *zap.Logger) *Container {
 
 	// Initialize middleware
-	webClientMiddleware := middleware.NewWebClientMiddleware(cfg)
+	webClientMiddleware := middleware.NewWebClientMiddleware(cfg, logger)
 
 	// Initialize job queue system (In-Memory)
 	// Can later be swapped to Redis/Kafka with zero change to service layer

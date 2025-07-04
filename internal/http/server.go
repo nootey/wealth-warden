@@ -23,7 +23,7 @@ type Server struct {
 
 func NewServer(container *bootstrap.Container, logger *zap.Logger) *Server {
 
-	router := NewRouter(container)
+	router := NewRouter(container, logger)
 
 	addr := container.Config.Host + ":" + container.Config.HttpServer.Port
 
@@ -39,8 +39,6 @@ func NewServer(container *bootstrap.Container, logger *zap.Logger) *Server {
 func (s *Server) Start() {
 
 	s.logger.Info("Starting the server")
-
-	s.Router.Use(ginzap.Ginzap(s.logger, time.RFC3339, true), ginzap.RecoveryWithZap(s.logger, true))
 
 	s.server.Handler = s.Router.Handler()
 
@@ -65,7 +63,7 @@ func (s *Server) Shutdown() error {
 	return nil
 }
 
-func NewRouter(container *bootstrap.Container) *gin.Engine {
+func NewRouter(container *bootstrap.Container, logger *zap.Logger) *gin.Engine {
 
 	var r *gin.Engine
 	var domainProtocol string
@@ -99,7 +97,11 @@ func NewRouter(container *bootstrap.Container) *gin.Engine {
 	corsConfig.AllowCredentials = true
 	r.Use(cors.New(corsConfig))
 
-	r.Use(gin.Recovery())
+	// Register custom logger middleware BEFORE recovery
+	r.Use(container.Middleware.ErrorLogger())
+
+	// Gin's recovery (to handle panics)
+	r.Use(ginzap.RecoveryWithZap(logger, true))
 
 	routeInitializer := NewRouteInitializerHTTP(r, container)
 	routeInitializer.InitEndpoints()

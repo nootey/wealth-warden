@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"strconv"
@@ -27,11 +28,13 @@ type WebClientUserClaim struct {
 
 type WebClientMiddleware struct {
 	config *models.Config
+	logger *zap.Logger
 }
 
-func NewWebClientMiddleware(cfg *models.Config) *WebClientMiddleware {
+func NewWebClientMiddleware(cfg *models.Config, logger *zap.Logger) *WebClientMiddleware {
 	return &WebClientMiddleware{
 		config: cfg,
+		logger: logger,
 	}
 }
 
@@ -224,6 +227,7 @@ func (m *WebClientMiddleware) GenerateToken(tokenType string, expiration time.Ti
 
 	return signedToken, nil
 }
+
 func (m *WebClientMiddleware) GenerateLoginTokens(userID uint, rememberMe bool) (string, string, error) {
 
 	var expiresAt time.Time
@@ -281,4 +285,23 @@ func (m *WebClientMiddleware) DecodeWebClientToken(tokenString string, cookieTyp
 	}
 
 	return nil, nil
+}
+
+func (m *WebClientMiddleware) ErrorLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next() // Process request
+
+		// After request
+		if len(c.Errors) > 0 {
+			for _, err := range c.Errors {
+				m.logger.Info("HTTP error",
+					zap.String("method", c.Request.Method),
+					zap.String("path", c.Request.URL.Path),
+					zap.String("client_ip", c.ClientIP()),
+					zap.Int("status_code", c.Writer.Status()),
+					zap.Error(err),
+				)
+			}
+		}
+	}
 }

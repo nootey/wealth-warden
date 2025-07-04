@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"github.com/gin-gonic/gin"
 )
 
@@ -30,9 +29,12 @@ func SuccessMessage(c *gin.Context, message, title string, code int) {
 }
 
 func ErrorMessage(c *gin.Context, title, message string, code int, err error) {
+
+	// Append the error to the context and let the gin middleware log it.
 	if err != nil {
-		PrintError(err)
+		c.Error(err)
 	}
+
 	response := APIResponse{
 		Title:   title,
 		Message: message,
@@ -43,8 +45,4 @@ func ErrorMessage(c *gin.Context, title, message string, code int, err error) {
 
 func ValidationFailed(c *gin.Context, message string, err error) {
 	ErrorMessage(c, "Validation Failed", message, 422, err)
-}
-
-func PrintError(err error) {
-	fmt.Println("\033[31m" + err.Error() + "\033[0m")
 }
