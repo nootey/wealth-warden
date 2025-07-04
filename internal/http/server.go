@@ -92,7 +92,7 @@ func NewRouter(container *bootstrap.Container) *gin.Engine {
 	corsConfig := cors.DefaultConfig()
 	corsConfig.AllowOrigins = []string{
 		domainProtocol + container.Config.WebClient.Domain,
-		domainProtocol + container.Config.WebClient.Domain + ":" + container.Config.WebClient.Domain,
+		domainProtocol + container.Config.WebClient.Domain + ":" + container.Config.WebClient.Port,
 	}
 	corsConfig.AllowMethods = []string{"GET", "POST", "OPTIONS"}
 	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "wealth-warden-client"}
