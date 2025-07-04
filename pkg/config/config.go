@@ -22,7 +22,6 @@ func LoadConfig(configPath *string) (*models.Config, error) {
 	// Load environment variables from .env file
 	if err := godotenv.Load(); err != nil {
 		return nil, errors.New("no .env file found")
-
 	}
 
 	// Load YAML config via Viper
@@ -54,7 +53,7 @@ func LoadConfig(configPath *string) (*models.Config, error) {
 func loadEnvSecrets(cfg *models.Config) {
 	cfg.MySQL.User = os.Getenv("MYSQL_USER")
 	cfg.MySQL.Password = os.Getenv("MYSQL_PASSWORD")
-	cfg.MySQL.Database = os.Getenv("DATABASE")
+	cfg.MySQL.Database = os.Getenv("MYSQL_DATABASE")
 
 	if host := os.Getenv("HOST"); host != "" {
 		cfg.MySQL.Host = host
