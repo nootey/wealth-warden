@@ -1,64 +1,74 @@
 package config
 
 import (
+	"errors"
 	"github.com/joho/godotenv"
-	"log"
+	"github.com/spf13/viper"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
+	"wealth-warden/internal/models"
 )
 
-type Config struct {
-	Release              bool
-	WebClientDomain      string
-	WebClientPort        string
-	HttpServerPort       string
-	MySQLHost            string
-	MySQLUser            string
-	MySQLPassword        string
-	MySQLPort            int
-	MySQLDatabase        string
-	JwtWebClientAccess   string
-	JwtWebClientRefresh  string
-	JwtWebClientEncodeID string
-	Host                 string
+func LoadConfig(configPath *string) (*models.Config, error) {
+
+	// Default config path
+	if configPath == nil {
+		path := filepath.Join("pkg", "config")
+		configPath = &path
+	}
+
+	// Load environment variables from .env file
+	if err := godotenv.Load(); err != nil {
+		return nil, errors.New("no .env file found")
+
+	}
+
+	// Load YAML config via Viper
+	viper.SetConfigName("settings")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(*configPath)
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+
+	if err := viper.ReadInConfig(); err != nil {
+		return nil, err
+	}
+
+	var cfg models.Config
+	if err := viper.Unmarshal(&cfg); err != nil {
+		return nil, err
+	}
+
+	// Load sensitive info from environment
+	loadEnvSecrets(&cfg)
+
+	if err := ValidateConfig(&cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
 }
 
-func LoadConfig() *Config {
+func loadEnvSecrets(cfg *models.Config) {
+	cfg.MySQL.User = os.Getenv("MYSQL_USER")
+	cfg.MySQL.Password = os.Getenv("MYSQL_PASSWORD")
+	cfg.MySQL.Database = os.Getenv("DATABASE")
 
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+	if host := os.Getenv("HOST"); host != "" {
+		cfg.MySQL.Host = host
 	}
 
-	mysqlPort, err := strconv.Atoi(os.Getenv("MYSQL_PORT"))
-	if err != nil {
-		log.Fatalf("Invalid MySQL port: %v", err)
+	if portStr := os.Getenv("MYSQL_PORT"); portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil {
+			cfg.MySQL.Port = port
+		}
 	}
 
-	release, err := strconv.ParseBool(os.Getenv("RELEASE"))
-	if err != nil {
-		log.Fatalf("Invalid release mode: %v", err)
-	}
-
-	host := os.Getenv("HOST")
-	if host == "" {
-		log.Println("Host not defined in environment variables, using global fallback ...")
-		host = "0.0.0.0"
-	}
-
-	return &Config{
-		Release:              release,
-		WebClientDomain:      os.Getenv("WEB_CLIENT_DOMAIN"),
-		WebClientPort:        os.Getenv("WEB_CLIENT_PORT"),
-		HttpServerPort:       os.Getenv("HTTP_SERVER_PORT"),
-		MySQLHost:            os.Getenv("MYSQL_HOST"),
-		MySQLUser:            os.Getenv("MYSQL_USER"),
-		MySQLPassword:        os.Getenv("MYSQL_PASSWORD"),
-		MySQLPort:            mysqlPort,
-		MySQLDatabase:        os.Getenv("MYSQL_DATABASE"),
-		JwtWebClientAccess:   os.Getenv("JWT_WEB_CLIENT_ACCESS"),
-		JwtWebClientRefresh:  os.Getenv("JWT_WEB_CLIENT_REFRESH"),
-		JwtWebClientEncodeID: os.Getenv("JWT_WEB_CLIENT_ENCODE_ID"),
-		Host:                 host,
+	cfg.JWT = models.JWTConfig{
+		WebClientAccess:   os.Getenv("JWT_WEB_CLIENT_ACCESS"),
+		WebClientRefresh:  os.Getenv("JWT_WEB_CLIENT_REFRESH"),
+		WebClientEncodeID: os.Getenv("JWT_WEB_CLIENT_ENCODE_ID"),
 	}
 }
