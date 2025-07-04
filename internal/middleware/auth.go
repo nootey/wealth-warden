@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-	"wealth-warden/pkg/config"
+	"wealth-warden/internal/models"
 )
 
 var (
@@ -26,10 +26,10 @@ type WebClientUserClaim struct {
 }
 
 type WebClientMiddleware struct {
-	config *config.Config
+	config *models.Config
 }
 
-func NewWebClientMiddleware(cfg *config.Config) *WebClientMiddleware {
+func NewWebClientMiddleware(cfg *models.Config) *WebClientMiddleware {
 	return &WebClientMiddleware{
 		config: cfg,
 	}
@@ -92,7 +92,6 @@ func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 
 func (m *WebClientMiddleware) refreshAccessToken(c *gin.Context, refreshClaims *WebClientUserClaim) error {
 
-	cfg := config.LoadConfig()
 	userId, err := m.DecodeWebClientUserID(refreshClaims.UserID)
 	if err != nil {
 		return err
@@ -104,13 +103,13 @@ func (m *WebClientMiddleware) refreshAccessToken(c *gin.Context, refreshClaims *
 	}
 
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("access", accessToken, 60*15, "/", cfg.WebClientDomain, cfg.Release, true)
+	c.SetCookie("access", accessToken, 60*15, "/", m.config.WebClient.Domain, m.config.Release, true)
 
 	return nil
 }
 
 func (m *WebClientMiddleware) encodeWebClientUserID(userID uint) (string, error) {
-	key := m.config.JwtWebClientEncodeID
+	key := m.config.JWT.WebClientEncodeID
 	if len(key) != 32 {
 		return "", fmt.Errorf("encryption key must be 32 bytes long for AES-256")
 	}
@@ -140,7 +139,7 @@ func (m *WebClientMiddleware) encodeWebClientUserID(userID uint) (string, error)
 }
 
 func (m *WebClientMiddleware) DecodeWebClientUserID(encodedString string) (uint, error) {
-	key := m.config.JwtWebClientEncodeID
+	key := m.config.JWT.WebClientEncodeID
 	if len(key) != 32 {
 		return 0, fmt.Errorf("encryption key must be 32 bytes long for AES-256")
 	}
@@ -193,9 +192,9 @@ func (m *WebClientMiddleware) GenerateToken(tokenType string, expiration time.Ti
 	// Select the appropriate JWT secret based on token type
 	switch tokenType {
 	case "access":
-		jwtKey = []byte(m.config.JwtWebClientAccess)
+		jwtKey = []byte(m.config.JWT.WebClientAccess)
 	case "refresh":
-		jwtKey = []byte(m.config.JwtWebClientRefresh)
+		jwtKey = []byte(m.config.JWT.WebClientRefresh)
 	default:
 		return "", fmt.Errorf("unsupported token type: %s", tokenType)
 	}
@@ -252,9 +251,9 @@ func (m *WebClientMiddleware) DecodeWebClientToken(tokenString string, cookieTyp
 
 	switch cookieType {
 	case "access":
-		secret = m.config.JwtWebClientAccess
+		secret = m.config.JWT.WebClientAccess
 	case "refresh":
-		secret = m.config.JwtWebClientRefresh
+		secret = m.config.JWT.WebClientRefresh
 	default:
 		return nil, fmt.Errorf("unknown cookieType: %s", cookieType)
 	}

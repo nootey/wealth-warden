@@ -8,16 +8,16 @@ import (
 	"syscall"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/http"
-	"wealth-warden/pkg/config"
+	"wealth-warden/internal/models"
 	"wealth-warden/pkg/database"
 )
 
 type ServerRuntime struct {
 	Logger *zap.Logger
-	Config *config.Config
+	Config *models.Config
 }
 
-func NewServerRuntime(cfg *config.Config, logger *zap.Logger) *ServerRuntime {
+func NewServerRuntime(cfg *models.Config, logger *zap.Logger) *ServerRuntime {
 	return &ServerRuntime{
 		Config: cfg,
 		Logger: logger,

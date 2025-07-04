@@ -2,17 +2,17 @@ package services
 
 import (
 	"github.com/gin-gonic/gin"
+	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
 type LoggingService struct {
 	LoggingRepo *repositories.LoggingRepository
-	Config      *config.Config
+	Config      *models.Config
 }
 
-func NewLoggingService(cfg *config.Config, repo *repositories.LoggingRepository) *LoggingService {
+func NewLoggingService(cfg *models.Config, repo *repositories.LoggingRepository) *LoggingService {
 	return &LoggingService{
 		LoggingRepo: repo,
 		Config:      cfg,

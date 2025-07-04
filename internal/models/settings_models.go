@@ -1,7 +1,7 @@
 package models
 
 type Config struct {
-	Release    bool             `mapstructure:"release"  validate:"required"`
+	Release    bool             `mapstructure:"release"`
 	WebClient  WebClientConfig  `mapstructure:"web_client"`
 	HttpServer HttpServerConfig `mapstructure:"http_server"`
 	Host       string           `mapstructure:"host"`

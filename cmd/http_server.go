@@ -15,10 +15,14 @@ var httpServerCmd = &cobra.Command{
 		ctx := cmd.Context()
 		logger := ctx.Value("logger").(*zap.Logger)
 
-		cfg := config.LoadConfig()
+		cfg, err := config.LoadConfig(nil)
+		if err != nil {
+			logger.Fatal("Failed to load configuration: ", zap.Error(err))
+		}
+
 		logger.Info("Configuration loaded",
-			zap.String("port", cfg.HttpServerPort),
-			zap.String("database", cfg.MySQLDatabase),
+			zap.String("port", cfg.HttpServer.Port),
+			zap.String("database", cfg.MySQL.Database),
 			zap.Bool("release", cfg.Release),
 		)
 

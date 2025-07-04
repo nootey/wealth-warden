@@ -47,7 +47,10 @@ func runSeeders(seedType string, logger *zap.Logger) error {
 	logger.Info("Starting database seeding")
 
 	// Load Configuration
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig(nil)
+	if err != nil {
+		logger.Fatal("Failed to load configuration: ", zap.Error(err))
+	}
 	logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
 	// Connect to MySQL using GORM

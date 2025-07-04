@@ -33,7 +33,10 @@ func runMigrations(migrationType string, logger *zap.Logger) error {
 
 	logger.Info("Starting database migrations")
 
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig(nil)
+	if err != nil {
+		logger.Fatal("Failed to load configuration: ", zap.Error(err))
+	}
 	logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
 	// Ensure the database exists before migrating

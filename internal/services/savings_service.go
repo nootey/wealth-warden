@@ -12,12 +12,11 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services/shared"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
 type SavingsService struct {
-	Config            *config.Config
+	Config            *models.Config
 	Ctx               *DefaultServiceContext
 	SavingsRepo       *repositories.SavingsRepository
 	RecActionsService *ReoccurringActionService
@@ -25,7 +24,7 @@ type SavingsService struct {
 }
 
 func NewSavingsService(
-	cfg *config.Config,
+	cfg *models.Config,
 	ctx *DefaultServiceContext,
 	repo *repositories.SavingsRepository,
 	budgetInterface *shared.BudgetInterface,

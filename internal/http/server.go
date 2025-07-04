@@ -25,7 +25,7 @@ func NewServer(container *bootstrap.Container, logger *zap.Logger) *Server {
 
 	router := NewRouter(container)
 
-	addr := container.Config.Host + ":" + container.Config.HttpServerPort
+	addr := container.Config.Host + ":" + container.Config.HttpServer.Port
 
 	return &Server{
 		Router: router,
@@ -91,8 +91,8 @@ func NewRouter(container *bootstrap.Container) *gin.Engine {
 	// Setup CORS
 	corsConfig := cors.DefaultConfig()
 	corsConfig.AllowOrigins = []string{
-		domainProtocol + container.Config.WebClientDomain,
-		domainProtocol + container.Config.WebClientDomain + ":" + container.Config.WebClientPort,
+		domainProtocol + container.Config.WebClient.Domain,
+		domainProtocol + container.Config.WebClient.Domain + ":" + container.Config.WebClient.Domain,
 	}
 	corsConfig.AllowMethods = []string{"GET", "POST", "OPTIONS"}
 	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "wealth-warden-client"}

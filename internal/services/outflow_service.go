@@ -10,12 +10,11 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services/shared"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
 type OutflowService struct {
-	Config            *config.Config
+	Config            *models.Config
 	Ctx               *DefaultServiceContext
 	OutflowRepo       *repositories.OutflowRepository
 	RecActionsService *ReoccurringActionService
@@ -23,7 +22,7 @@ type OutflowService struct {
 }
 
 func NewOutflowService(
-	cfg *config.Config,
+	cfg *models.Config,
 	ctx *DefaultServiceContext,
 	repo *repositories.OutflowRepository,
 	recActionsService *ReoccurringActionService,

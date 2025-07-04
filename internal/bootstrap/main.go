@@ -5,14 +5,14 @@ import (
 	"gorm.io/gorm"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/middleware"
+	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/services/shared"
-	"wealth-warden/pkg/config"
 )
 
 type Container struct {
-	Config                   *config.Config
+	Config                   *models.Config
 	DB                       *gorm.DB
 	Middleware               *middleware.WebClientMiddleware
 	AuthService              *services.AuthService
@@ -26,7 +26,7 @@ type Container struct {
 	InvestmentsService       *services.InvestmentsService
 }
 
-func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Container {
+func NewContainer(cfg *models.Config, db *gorm.DB, logger *zap.Logger) *Container {
 
 	// Initialize middleware
 	webClientMiddleware := middleware.NewWebClientMiddleware(cfg)

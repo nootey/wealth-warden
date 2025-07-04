@@ -37,8 +37,8 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 	// Set cookies and return success message as in your original function
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("access", accessToken, 60*15, "/", h.Service.Config.WebClientDomain, h.Service.Config.Release, true)
-	c.SetCookie("refresh", refreshToken, expiresAt, "/", h.Service.Config.WebClientDomain, h.Service.Config.Release, true)
+	c.SetCookie("access", accessToken, 60*15, "/", h.Service.Config.WebClient.Domain, h.Service.Config.Release, true)
+	c.SetCookie("refresh", refreshToken, expiresAt, "/", h.Service.Config.WebClient.Domain, h.Service.Config.Release, true)
 
 	utils.SuccessMessage(c, "200", "Logged in", http.StatusOK)
 }
@@ -61,7 +61,7 @@ func (h *AuthHandler) GetAuthUser(c *gin.Context) {
 }
 
 func (h *AuthHandler) LogoutUser(c *gin.Context) {
-	c.SetCookie("access", "", -1, "/", h.Service.Config.WebClientDomain, h.Service.Config.Release, true)
-	c.SetCookie("refresh", "", -1, "/", h.Service.Config.WebClientDomain, h.Service.Config.Release, true)
+	c.SetCookie("access", "", -1, "/", h.Service.Config.WebClient.Domain, h.Service.Config.Release, true)
+	c.SetCookie("refresh", "", -1, "/", h.Service.Config.WebClient.Domain, h.Service.Config.Release, true)
 	utils.SuccessMessage(c, "", "Logged out", http.StatusOK)
 }

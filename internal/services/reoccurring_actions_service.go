@@ -9,18 +9,17 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
 type ReoccurringActionService struct {
-	Config *config.Config
+	Config *models.Config
 	Ctx    *DefaultServiceContext
 	Repo   *repositories.ReoccurringActionsRepository
 }
 
 func NewReoccurringActionService(
-	cfg *config.Config,
+	cfg *models.Config,
 	ctx *DefaultServiceContext,
 	repo *repositories.ReoccurringActionsRepository,
 ) *ReoccurringActionService {

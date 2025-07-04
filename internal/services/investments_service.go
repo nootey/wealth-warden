@@ -1,19 +1,19 @@
 package services
 
 import (
+	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 )
 
 type InvestmentsService struct {
-	Config            *config.Config
+	Config            *models.Config
 	Ctx               *DefaultServiceContext
 	InvestmentRepo    *repositories.InvestmentsRepository
 	RecActionsService *ReoccurringActionService
 }
 
 func NewInvestmentsService(
-	cfg *config.Config,
+	cfg *models.Config,
 	ctx *DefaultServiceContext,
 	repo *repositories.InvestmentsRepository,
 	recActionsService *ReoccurringActionService,

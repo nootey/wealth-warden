@@ -10,12 +10,11 @@ import (
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
 type AuthService struct {
-	Config              *config.Config
+	Config              *models.Config
 	logger              *zap.Logger
 	UserRepo            *repositories.UserRepository
 	loggingService      *LoggingService
@@ -23,7 +22,7 @@ type AuthService struct {
 }
 
 func NewAuthService(
-	cfg *config.Config,
+	cfg *models.Config,
 	logger *zap.Logger,
 	userRepo *repositories.UserRepository,
 	loggingService *LoggingService,

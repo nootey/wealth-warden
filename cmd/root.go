@@ -23,7 +23,10 @@ func init() {
 func Execute() {
 
 	// Load config
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig(nil)
+	if err != nil {
+		panic("Failed to load configuration: " + err.Error())
+	}
 
 	// Define logger and pass it into cobra commands
 	logger := logging.InitLogger(cfg.Release)
