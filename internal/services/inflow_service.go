@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"time"
+	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services/shared"
@@ -208,12 +209,18 @@ func (s *InflowService) CreateInflow(c *gin.Context, newRecord *models.Inflow) e
 		return err
 	}
 
-	go func(changes *utils.Changes, user *models.User) {
-		err := s.Ctx.LoggingService.LoggingRepo.InsertActivityLog(nil, "create", "inflow", nil, changes, user)
-		if err != nil {
-			s.Ctx.Logger.Error("failed to insert activity log: %v", zap.Error(err))
-		}
-	}(changes, user)
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "inflow",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

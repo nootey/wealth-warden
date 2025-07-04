@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
@@ -30,6 +31,11 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Containe
 	// Initialize middleware
 	webClientMiddleware := middleware.NewWebClientMiddleware(cfg)
 
+	// Initialize job queue system (In-Memory)
+	// Can later be swapped to Redis/Kafka with zero change to service layer
+	jobQueue := jobs.NewJobQueue(1, 25)
+	jobDispatcher := &jobs.InMemoryDispatcher{Queue: jobQueue}
+
 	// Initialize repositories
 	loggingRepo := repositories.NewLoggingRepository(db)
 	userRepo := repositories.NewUserRepository(db)
@@ -49,6 +55,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Containe
 		LoggingService: loggingService,
 		AuthService:    authService,
 		Logger:         logger,
+		JobDispatcher:  jobDispatcher,
 	}
 
 	userService := services.NewUserService(cfg, ctx, userRepo)
