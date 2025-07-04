@@ -32,7 +32,10 @@ func Execute() {
 	logger := logging.InitLogger(cfg.Release)
 	defer logger.Sync()
 
-	rootCmd.SetContext(context.WithValue(context.Background(), "logger", logger))
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, "logger", logger)
+	ctx = context.WithValue(ctx, "config", cfg)
+	rootCmd.SetContext(ctx)
 
 	if err := rootCmd.Execute(); err != nil {
 		logger.Fatal("Failed to execute root command", zap.Error(err))

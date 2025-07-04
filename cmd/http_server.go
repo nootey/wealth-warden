@@ -3,8 +3,8 @@ package main
 import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"wealth-warden/internal/models"
 	"wealth-warden/internal/runtime"
-	"wealth-warden/pkg/config"
 )
 
 var httpServerCmd = &cobra.Command{
@@ -14,11 +14,7 @@ var httpServerCmd = &cobra.Command{
 
 		ctx := cmd.Context()
 		logger := ctx.Value("logger").(*zap.Logger)
-
-		cfg, err := config.LoadConfig(nil)
-		if err != nil {
-			logger.Fatal("Failed to load configuration: ", zap.Error(err))
-		}
+		cfg := ctx.Value("config").(*models.Config)
 
 		logger.Info("Configuration loaded",
 			zap.String("port", cfg.HttpServer.Port),
