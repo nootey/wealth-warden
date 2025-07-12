@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import {computed, onMounted} from 'vue';
 import { useAuthStore } from './services/stores/authStore.ts';
+import { useThemeStore } from './services/stores/themeStore.ts';
 import Sidebar from "./Sidebar.vue";
 
 const authStore = useAuthStore();
+const themeStore = useThemeStore();
+
+themeStore.initializeTheme();
 
 const authenticated = computed(() => authStore.isAuthenticated);
 const initialized = computed(() => authStore.isInitialized);
