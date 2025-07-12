@@ -1,0 +1,36 @@
+services:
+  db:
+    image: mysql:latest
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql:/var/lib/mysql
+    networks:
+      - wealth-warden
+
+  app:
+    build:
+      context: ../..
+      dockerfile: ./build/Dockerfile
+    command: ["http"]
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "2000:2000"
+    volumes:
+      - ../../logs:/app/logs
+      - ../../pkg/config/environment.yaml:/app/pkg/config/environment.yaml
+      - ../../.seeder.credentials:/app/.seeder.credentials
+    networks:
+      - wealth-warden
+
+volumes:
+  mysql:
+
+networks:
+  wealth-warden:
+    external: true
