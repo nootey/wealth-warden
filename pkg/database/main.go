@@ -80,7 +80,7 @@ func DisconnectMySQL() error {
 
 func ConnectWithoutDB(cfg *models.Config) (*gorm.DB, error) {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/?charset=utf8mb4&parseTime=True&loc=Local",
-		cfg.MySQL.User, cfg.MySQL.Password, cfg.MySQL.Port, cfg.MySQL.Database)
+		cfg.MySQL.User, cfg.MySQL.Password, cfg.MySQL.Host, cfg.MySQL.Port)
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -125,7 +125,7 @@ func EnsureDatabaseExists(cfg *models.Config) error {
 	// If the database doesn't exist, create it
 	if exists == 0 {
 		log.Printf("Database '%s' does not exist, creating it...", cfg.MySQL.Database)
-		createQuery := fmt.Sprintf("CREATE DATABASE %s CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", cfg.MySQL.Database)
+		createQuery := fmt.Sprintf("CREATE DATABASE `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", cfg.MySQL.Database)
 		if err := db.Exec(createQuery).Error; err != nil {
 			return fmt.Errorf("failed to create database: %w", err)
 		}

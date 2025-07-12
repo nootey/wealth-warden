@@ -19,15 +19,15 @@ type HttpServerConfig struct {
 }
 
 type MySQLConfig struct {
-	Host     string `validate:"required,hostname|ip"`
-	Port     int    `validate:"required"`
-	Database string `validate:"required"`
-	User     string `validate:"required"`
-	Password string `validate:"required"`
+	Host     string `mapstructure:"host" validate:"required,hostname|ip"`
+	Port     int    `mapstructure:"port" validate:"required"`
+	Database string `mapstructure:"db" validate:"required"`
+	User     string `mapstructure:"user" validate:"required"`
+	Password string `mapstructure:"password" validate:"required"`
 }
 
 type JWTConfig struct {
-	WebClientAccess   string `validate:"required"`
-	WebClientRefresh  string `validate:"required"`
-	WebClientEncodeID string `validate:"required"`
+	WebClientAccess   string `mapstructure:"web_client_access" validate:"required"`
+	WebClientRefresh  string `mapstructure:"web_client_refresh" validate:"required"`
+	WebClientEncodeID string `mapstructure:"web_client_encode_id" validate:"required"`
 }

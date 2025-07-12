@@ -26,4 +26,4 @@ go.work.sum
 .seeder.credentials
 .idea
 /logs
-/pkg/config/settings.yaml
+/pkg/config/environment.yaml
