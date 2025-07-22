@@ -23,13 +23,13 @@ const budget_initialized = computed(() => authStore.hasUserInitializedBudget);
 
 const menuItems: MenuItem[] = [
   { to: "/", icon: "pi-home", text: "Dashboard", requireBudgetInit: false},
-  { to: "/inflows", icon: "pi-arrow-circle-up", text: "inflows", requireBudgetInit: true},
-  { to: "/outflows", icon: "pi-arrow-circle-down", text: "outflows", requireBudgetInit: true},
+  { to: "/inflows", icon: "pi-arrow-circle-up", text: "Inflows", requireBudgetInit: true},
+  { to: "/outflows", icon: "pi-arrow-circle-down", text: "Outflows", requireBudgetInit: true},
   { to: "/investments", icon: "pi-chart-line", text: "Investments", requireBudgetInit: true},
   { to: "/savings", icon: "pi-database", text: "Savings", requireBudgetInit: true},
   { to: "/debt", icon: "pi-ban", text: "Debt", requireBudgetInit: true},
   { to: "/cash", icon: "pi-dollar", text: "Cash", requireBudgetInit: true},
-  { to: "/charts", icon: "pi-chart-scatter", text: "charting", requireBudgetInit: true},
+  { to: "/charts", icon: "pi-chart-scatter", text: "Charting", requireBudgetInit: true},
   { to: "/logs", icon: "pi-address-book", text: "Logging", requireBudgetInit: true},
 ];
 
@@ -76,7 +76,7 @@ const filteredMenuItems = computed(() => menuItems.filter(item => !item.requireB
       </div>
       <div class="sidebar-item" @click="authStore.logoutUser()">
         <i class="sidebar-icon pi pi-sign-out"></i>
-        <span class="text">Theme</span>
+        <span class="text">Sign out</span>
       </div>
 
     </div>
