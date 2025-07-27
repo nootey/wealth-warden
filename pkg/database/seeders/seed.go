@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"runtime"
 	"time"
-	"wealth-warden/pkg/database/seeders/workers"
 )
 
 type SeederFunc func(ctx context.Context, db *gorm.DB) error
@@ -17,22 +16,9 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, seederType string) error {
 
 	switch seederType {
 	case "full":
-		seeders = []SeederFunc{
-			workers.SeedRolesAndPermissions,
-			workers.SeedSuperAdmin,
-			workers.SeedMember,
-			workers.SeedInflowCategoryTable,
-			workers.SeedInflowTable,
-			workers.SeedOutflowCategoryTable,
-			workers.SeedOutflowTable,
-			workers.SeedDynamicCategories,
-			workers.SeedMonthlyBudget,
-		}
+		seeders = []SeederFunc{}
 	case "basic":
-		seeders = []SeederFunc{
-			workers.SeedRolesAndPermissions,
-			workers.SeedSuperAdmin,
-		}
+		seeders = []SeederFunc{}
 	default:
 		return fmt.Errorf("unknown seeder type: %s", seederType)
 	}

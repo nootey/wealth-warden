@@ -8,22 +8,15 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
-	"wealth-warden/internal/services/shared"
 )
 
 type Container struct {
-	Config                   *models.Config
-	DB                       *gorm.DB
-	Middleware               *middleware.WebClientMiddleware
-	AuthService              *services.AuthService
-	UserService              *services.UserService
-	InflowService            *services.InflowService
-	OutflowService           *services.OutflowService
-	LoggingService           *services.LoggingService
-	ReoccurringActionService *services.ReoccurringActionService
-	BudgetService            *services.BudgetService
-	SavingsService           *services.SavingsService
-	InvestmentsService       *services.InvestmentsService
+	Config         *models.Config
+	DB             *gorm.DB
+	Middleware     *middleware.WebClientMiddleware
+	AuthService    *services.AuthService
+	UserService    *services.UserService
+	LoggingService *services.LoggingService
 }
 
 func NewContainer(cfg *models.Config, db *gorm.DB, logger *zap.Logger) *Container {
@@ -39,15 +32,8 @@ func NewContainer(cfg *models.Config, db *gorm.DB, logger *zap.Logger) *Containe
 	// Initialize repositories
 	loggingRepo := repositories.NewLoggingRepository(db)
 	userRepo := repositories.NewUserRepository(db)
-	recActionRepo := repositories.NewReoccurringActionsRepository(db)
-	inflowRepo := repositories.NewInflowRepository(db)
-	outflowRepo := repositories.NewOutflowRepository(db)
-	budgetRepo := repositories.NewBudgetRepository(db)
-	savingsRepo := repositories.NewSavingsRepository(db)
-	investmentsRepo := repositories.NewInvestmentsRepository(db)
 
 	// Initialize services
-	budgetInterface := shared.NewBudgetInterface(budgetRepo, inflowRepo, outflowRepo)
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
 	authService := services.NewAuthService(cfg, logger, userRepo, loggingService, webClientMiddleware, jobDispatcher)
 
@@ -59,25 +45,13 @@ func NewContainer(cfg *models.Config, db *gorm.DB, logger *zap.Logger) *Containe
 	}
 
 	userService := services.NewUserService(cfg, ctx, userRepo)
-	recActionService := services.NewReoccurringActionService(cfg, ctx, recActionRepo)
-	inflowService := services.NewInflowService(cfg, ctx, inflowRepo, recActionService, budgetInterface)
-	outflowService := services.NewOutflowService(cfg, ctx, outflowRepo, recActionService, budgetInterface)
-	budgetService := services.NewBudgetService(cfg, ctx, budgetRepo, budgetInterface)
-	savingsService := services.NewSavingsService(cfg, ctx, savingsRepo, budgetInterface, recActionService)
-	investmentsService := services.NewInvestmentsService(cfg, ctx, investmentsRepo, recActionService)
 
 	return &Container{
-		Config:                   cfg,
-		DB:                       db,
-		Middleware:               webClientMiddleware,
-		AuthService:              authService,
-		UserService:              userService,
-		InflowService:            inflowService,
-		OutflowService:           outflowService,
-		LoggingService:           loggingService,
-		ReoccurringActionService: recActionService,
-		BudgetService:            budgetService,
-		SavingsService:           savingsService,
-		InvestmentsService:       investmentsService,
+		Config:         cfg,
+		DB:             db,
+		Middleware:     webClientMiddleware,
+		AuthService:    authService,
+		UserService:    userService,
+		LoggingService: loggingService,
 	}
 }

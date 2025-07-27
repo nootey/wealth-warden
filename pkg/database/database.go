@@ -89,19 +89,6 @@ func ConnectWithoutDB(cfg *models.Config) (*gorm.DB, error) {
 	return db, nil
 }
 
-func PingMysqlDatabase() error {
-	if mysqlDB == nil {
-		return fmt.Errorf("database connection is nil")
-	}
-
-	sqlDB, err := mysqlDB.DB()
-	if err != nil {
-		return fmt.Errorf("failed to get database instance: %v", err)
-	}
-
-	return sqlDB.Ping()
-}
-
 // EnsureDatabaseExists checks if the database exists, and if not, it creates it.
 func EnsureDatabaseExists(cfg *models.Config) error {
 	// Connect to MySQL without specifying a database

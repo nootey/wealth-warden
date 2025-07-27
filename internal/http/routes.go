@@ -35,13 +35,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 
 	authHandler := httpHandlers.NewAuthHandler(r.Container.AuthService)
 	userHandler := httpHandlers.NewUserHandler(r.Container.UserService)
-	inflowHandler := httpHandlers.NewInflowHandler(r.Container.InflowService)
-	outflowHandler := httpHandlers.NewOutflowHandler(r.Container.OutflowService)
 	loggingHandler := httpHandlers.NewLoggingHandler(r.Container.LoggingService)
-	recActionHandler := httpHandlers.NewReoccurringActionHandler(r.Container.ReoccurringActionService)
-	budgetHandler := httpHandlers.NewBudgetHandler(r.Container.BudgetService)
-	savingsHandler := httpHandlers.NewSavingsHandler(r.Container.SavingsService)
-	investmentsHandler := httpHandlers.NewInvestmentHandler(r.Container.InvestmentsService)
 
 	// Protected routes
 	authGroup := _v1.Group("/", r.Container.AuthService.WebClientMiddleware.WebClientAuthentication())
@@ -52,26 +46,9 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 		userRoutes := authGroup.Group("/users")
 		v1.UserRoutes(userRoutes, userHandler)
 
-		inflowRoutes := authGroup.Group("/inflows")
-		v1.InflowRoutes(inflowRoutes, inflowHandler)
-
-		outflowRoutes := authGroup.Group("/outflows")
-		v1.OutflowRoutes(outflowRoutes, outflowHandler)
-
 		loggingRoutes := authGroup.Group("/logs")
 		v1.LoggingRoutes(loggingRoutes, loggingHandler)
 
-		reoccurringRoutes := authGroup.Group("/reoccurring")
-		v1.RecActionRoutes(reoccurringRoutes, recActionHandler)
-
-		budgetRoutes := authGroup.Group("/budget")
-		v1.BudgetRoutes(budgetRoutes, budgetHandler)
-
-		savingsRoutes := authGroup.Group("/savings")
-		v1.SavingsRoutes(savingsRoutes, savingsHandler)
-
-		investmentRoutes := authGroup.Group("/investments")
-		v1.InvestmentsRoutes(investmentRoutes, investmentsHandler)
 	}
 
 	// Public routes
