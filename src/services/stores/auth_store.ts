@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import apiClient from '../api/axios_interceptor.ts';
 import router from "../router";
-import type {AuthForm, User} from '../../models/auth.ts';
+import type {AuthForm, User} from '../../models/auth_models.ts';
 import {watch} from "vue";
 
 export const useAuthStore = defineStore('auth', {
@@ -13,7 +13,6 @@ export const useAuthStore = defineStore('auth', {
     }),
     getters: {
         isAuthenticated: (state) => state.authenticated,
-        hasUserInitializedBudget: (state) => state.user?.secrets.budget_initialized,
         isInitialized: (state) => state.initialized,
     },
     actions: {

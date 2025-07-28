@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import LoadingSpinner from "../../components/ui/LoadingSpinner.vue";
+import LoadingSpinner from "../../components/base/LoadingSpinner.vue";
 import {computed, onMounted, provide, ref} from "vue";
 import vueHelper from "../../../utils/vueHelper.ts";
-import {useToastStore} from "../../../services/stores/toastStore.ts";
-import {useLoggingStore} from "../../../services/stores/loggingStore.ts";
-import ColumnHeader from "../../components/shared/ColumnHeader.vue";
+import {useToastStore} from "../../../services/stores/toast_store.ts";
+import {useLoggingStore} from "../../../services/stores/logging_store.ts";
+import ColumnHeader from "../../components/base/ColumnHeader.vue";
 import dateHelper from "../../../utils/dateHelper.ts";
-import IconDisplay from "../../components/shared/IconDisplay.vue";
-import MultiSelectFilter from "../../components/shared/filters/MultiSelectFilter.vue";
+import IconDisplay from "../../components/base/IconDisplay.vue";
+import MultiSelectFilter from "../../components/filters/MultiSelectFilter.vue";
 import dayjs from "dayjs";
-import ActionRow from "../../components/shared/ActionRow.vue";
-import DateTimePicker from "../../components/shared/DateTimePicker.vue";
+import ActionRow from "../../components/layout/ActionRow.vue";
+import DateTimePicker from "../../components/base/DateTimePicker.vue";
 
 const toastStore = useToastStore();
 const loggingStore = useLoggingStore();

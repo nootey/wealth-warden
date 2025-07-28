@@ -4,9 +4,9 @@ import {required, email } from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import {useRouter} from "vue-router";
 import ValidationError from "../../components/validation/ValidationError.vue";
-import {useAuthStore} from "../../../services/stores/authStore.ts";
-import AuthSkeleton from "../../components/auth/AuthSkeleton.vue";
-import {useToastStore} from "../../../services/stores/toastStore.ts";
+import {useAuthStore} from "../../../services/stores/auth_store.ts";
+import AuthSkeleton from "../../components/forms/AuthSkeleton.vue";
+import {useToastStore} from "../../../services/stores/toast_store.ts";
 
 const authStore = useAuthStore();
 const toastStore = useToastStore()

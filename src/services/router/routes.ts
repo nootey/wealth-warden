@@ -1,21 +1,14 @@
-import { useAuthStore } from '../stores/authStore.ts';
+import { useAuthStore } from '../stores/auth_store.ts';
 
-import DashboardIndex from "../../_vue/views/DashboardIndex.vue";
-import InflowsIndex from "../../_vue/views/InflowsIndex.vue";
+import DashboardPage from "../../_vue/pages/DashboardPage.vue";
 import Login from "../../_vue/features/auth/Login.vue";
-import InvestmentsIndex from "../../_vue/views/InvestmentsIndex.vue";
-import OutflowsIndex from "../../_vue/views/OutflowsIndex.vue";
-import CashIndex from "../../_vue/views/CashIndex.vue";
-import SavingsIndex from "../../_vue/views/SavingsIndex.vue";
-import DebtIndex from "../../_vue/views/DebtIndex.vue";
-import ChartingIndex from "../../_vue/views/ChartingIndex.vue";
-import LoggingHub from "../../_vue/views/LoggingHub.vue";
+import LoggingHub from "../../_vue/pages/LoggingHub.vue";
 
 const routes = [
     {
         path: '/',
         name: 'Dashboard',
-        component: DashboardIndex,
+        component: DashboardPage,
         beforeEnter: [requiresAuth],
     },
     {
@@ -25,52 +18,10 @@ const routes = [
         beforeEnter: [requiresGuest],
     },
     {
-        path: '/inflows',
-        name: 'Inflows',
-        component: InflowsIndex,
-        beforeEnter: [requiresAuth, requiresActiveBudget],
-    },
-    {
-        path: '/outflows',
-        name: 'Outflows',
-        component: OutflowsIndex,
-        beforeEnter: [requiresAuth, requiresActiveBudget],
-    },
-    {
-        path: '/investments',
-        name: 'Investments',
-        component: InvestmentsIndex,
-        beforeEnter: [requiresAuth, requiresActiveBudget],
-    },
-    {
-        path: '/savings',
-        name: 'Savings',
-        component: SavingsIndex,
-        beforeEnter: [requiresAuth, requiresActiveBudget],
-    },
-    {
-        path: '/debt',
-        name: 'Debt',
-        component: DebtIndex,
-        beforeEnter: [requiresAuth, requiresActiveBudget],
-    },
-    {
-        path: '/cash',
-        name: 'Cash',
-        component: CashIndex,
-        beforeEnter: [requiresAuth, requiresActiveBudget],
-    },
-    {
-        path: '/charts',
-        name: 'Charts',
-        component: ChartingIndex,
-        beforeEnter: [requiresAuth, requiresActiveBudget],
-    },
-    {
         path: '/logs',
         name: 'Logs',
         component: LoggingHub,
-        beforeEnter: [requiresAuth, requiresActiveBudget],
+        beforeEnter: [requiresAuth],
     },
 ];
 
@@ -82,17 +33,6 @@ function requiresAuth() {
         return true;
     } else {
         return { path: '/login' };
-    }
-}
-
-async function requiresActiveBudget() {
-    const authStore = useAuthStore();
-    await authStore.waitForUser();
-
-    if (authStore.isAuthenticated && authStore.hasUserInitializedBudget) {
-        return true;
-    } else {
-        return { path: '/' };
     }
 }
 

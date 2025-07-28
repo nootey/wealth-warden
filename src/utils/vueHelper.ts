@@ -1,4 +1,4 @@
-import type {GroupedItem} from "../models/shared.ts";
+import type {GroupedItem} from "../models/shared_models.ts";
 
 interface ValidationObject {
     $error: boolean;

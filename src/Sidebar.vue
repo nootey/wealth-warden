@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {computed, ref} from "vue";
-import { useThemeStore } from './services/stores/themeStore.ts';
-import { useAuthStore } from './services/stores/authStore.ts';
+import { useThemeStore } from './services/stores/theme_store.ts';
+import { useAuthStore } from './services/stores/auth_store.ts';
 
 const sidebarExpanded = ref(false);
 const darkModeActive = ref(false);
@@ -16,24 +16,12 @@ interface MenuItem {
   to: string;
   icon: string;
   text: string;
-  requireBudgetInit: boolean;
 }
 
-const budget_initialized = computed(() => authStore.hasUserInitializedBudget);
-
 const menuItems: MenuItem[] = [
-  { to: "/", icon: "pi-home", text: "Dashboard", requireBudgetInit: false},
-  { to: "/inflows", icon: "pi-arrow-circle-up", text: "Inflows", requireBudgetInit: true},
-  { to: "/outflows", icon: "pi-arrow-circle-down", text: "Outflows", requireBudgetInit: true},
-  { to: "/investments", icon: "pi-chart-line", text: "Investments", requireBudgetInit: true},
-  { to: "/savings", icon: "pi-database", text: "Savings", requireBudgetInit: true},
-  { to: "/debt", icon: "pi-ban", text: "Debt", requireBudgetInit: true},
-  { to: "/cash", icon: "pi-dollar", text: "Cash", requireBudgetInit: true},
-  { to: "/charts", icon: "pi-chart-scatter", text: "Charting", requireBudgetInit: true},
-  { to: "/logs", icon: "pi-address-book", text: "Logging", requireBudgetInit: true},
+  { to: "/", icon: "pi-home", text: "Dashboard"},
+  { to: "/logs", icon: "pi-address-book", text: "Logging"},
 ];
-
-const filteredMenuItems = computed(() => menuItems.filter(item => !item.requireBudgetInit || budget_initialized.value));
 
 
 </script>
@@ -53,7 +41,7 @@ const filteredMenuItems = computed(() => menuItems.filter(item => !item.requireB
     <h3>Menu</h3>
     <div class="menu">
       <router-link
-          v-for="(item, index) in filteredMenuItems"
+          v-for="(item, index) in menuItems"
           :key="index"
           :to="item.to"
           class="sidebar-item"
