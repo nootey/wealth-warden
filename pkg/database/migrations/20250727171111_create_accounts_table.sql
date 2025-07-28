@@ -1,26 +1,36 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE accounts (
-id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-user_id BIGINT UNSIGNED NOT NULL,
-name VARCHAR(150) NOT NULL,
-subtype VARCHAR(100),
-classification VARCHAR(20) GENERATED ALWAYS AS (
-    CASE
-        WHEN subtype IN ('loan', 'credit_card', 'liability') THEN 'liability'
-        ELSE 'asset'
-        END
-    ) STORED,
-currency CHAR(3)       NOT NULL DEFAULT 'EUR',
-created_at TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
-updated_at TIMESTAMP   DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-UNIQUE (user_id, name),
-INDEX idx_accounts_user (user_id)
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    subtype VARCHAR(100),
+
+    classification VARCHAR(20) GENERATED ALWAYS AS (
+              CASE
+                  WHEN subtype IN ('loan', 'credit_card', 'liability') THEN 'liability'
+                  ELSE 'asset'
+                  END
+              ) STORED,
+
+    currency CHAR(3) NOT NULL DEFAULT 'EUR',
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_accounts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT uq_accounts_user_name UNIQUE (user_id, name)
 );
+
+CREATE INDEX idx_accounts_user ON accounts(user_id);
+
+CREATE TRIGGER set_accounts_updated_at
+    BEFORE UPDATE ON accounts
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+DROP TRIGGER IF EXISTS set_accounts_updated_at ON accounts;
 DROP TABLE IF EXISTS accounts;
 -- +goose StatementEnd

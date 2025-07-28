@@ -3,12 +3,13 @@ package workers
 import (
 	"context"
 	"fmt"
+	"go.uber.org/zap"
 	"time"
 
 	"gorm.io/gorm"
 )
 
-func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB) error {
+func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 
 	type roleDef struct {
 		Name string
@@ -180,7 +181,10 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB) error {
 				if err != nil {
 					return fmt.Errorf("error inserting role_permission for %s -> %s: %w", rolePerm.Role, perm, err)
 				}
-				fmt.Printf("Assigned permission: %s to role: %s\n", perm, rolePerm.Role)
+				logger.Info("Assigned permission to role",
+					zap.String("permission", perm),
+					zap.String("role", rolePerm.Role),
+				)
 			}
 		}
 	}

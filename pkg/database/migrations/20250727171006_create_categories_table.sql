@@ -1,21 +1,35 @@
 -- +goose Up
 -- +goose StatementBegin
+CREATE TYPE category_classification AS ENUM ('income', 'expense', 'savings', 'investment');
+-- +goose StatementEnd
+
+-- +goose StatementBegin
 CREATE TABLE categories (
-id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-user_id BIGINT UNSIGNED NOT NULL,
-name VARCHAR(100) NOT NULL,
-classification ENUM('income', 'expense','savings','investment') NOT NULL DEFAULT 'expense',
-parent_id BIGINT UNSIGNED NULL,     -- for nesting
-created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-FOREIGN KEY (user_id)    REFERENCES users(id)      ON DELETE CASCADE,
-FOREIGN KEY (parent_id)  REFERENCES categories(id)  ON DELETE SET NULL,
-UNIQUE (user_id, name, classification),
-INDEX idx_categories_user_class (user_id, classification)
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    classification category_classification NOT NULL DEFAULT 'expense',
+    parent_id BIGINT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_categories_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL,
+    CONSTRAINT uq_categories_user_name_class UNIQUE (user_id, name, classification),
+    CONSTRAINT no_self_reference CHECK (id IS DISTINCT FROM parent_id)
 );
+
+CREATE INDEX idx_categories_user_class ON categories(user_id, classification);
+
+CREATE TRIGGER set_categories_updated_at
+    BEFORE UPDATE ON categories
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+DROP TRIGGER IF EXISTS set_categories_updated_at ON categories;
 DROP TABLE IF EXISTS categories;
+DROP TYPE IF EXISTS category_classification;
 -- +goose StatementEnd

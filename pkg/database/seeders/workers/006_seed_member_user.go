@@ -3,13 +3,14 @@ package workers
 import (
 	"context"
 	"fmt"
+	"go.uber.org/zap"
 	"time"
 	"wealth-warden/pkg/utils"
 
 	"gorm.io/gorm"
 )
 
-func SeedMemberUser(ctx context.Context, db *gorm.DB) error {
+func SeedMemberUser(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 
 	creds, err := LoadSeederCredentials()
 	if err != nil {

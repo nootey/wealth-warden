@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"log"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
 	"wealth-warden/pkg/database/seeders"
@@ -19,12 +20,14 @@ var seedCmd = &cobra.Command{
 		ctx := cmd.Context()
 		logger := ctx.Value("logger").(*zap.Logger)
 		seedType := "help"
+		cfg := ctx.Value("config").(*config.Config)
+		logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
 		if len(args) > 0 {
 			seedType = args[0]
 		}
 
-		return runSeeders(seedType, logger)
+		return runSeeders(seedType, cfg, logger)
 	},
 }
 
@@ -38,7 +41,7 @@ func isValidSeedType(seedType string) bool {
 	return validSeedTypes[seedType]
 }
 
-func runSeeders(seedType string, logger *zap.Logger) error {
+func runSeeders(seedType string, cfg *config.Config, logger *zap.Logger) error {
 
 	if !isValidSeedType(seedType) {
 		return fmt.Errorf("invalid seed type: %s", seedType)
@@ -46,28 +49,21 @@ func runSeeders(seedType string, logger *zap.Logger) error {
 
 	logger.Info("Starting database seeding")
 
-	// Load Configuration
-	cfg, err := config.LoadConfig(nil)
+	gormDB, err := database.ConnectToPostgres(cfg)
 	if err != nil {
-		logger.Fatal("Failed to load configuration: ", zap.Error(err))
+		log.Fatalf("Failed to connect to Postgres: %v", err)
 	}
-	logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
-	// Connect to MySQL using GORM
-	gormDB, err := database.ConnectToMySQL(cfg, true)
-	if err != nil {
-		return fmt.Errorf("failed to connect to MySQL: %v", err)
-	}
 	ctx := context.Background()
 
 	switch seedType {
 	case "full":
-		err = seeders.SeedDatabase(ctx, gormDB, "full")
+		err = seeders.SeedDatabase(ctx, gormDB, logger, "full")
 		if err != nil {
 			return fmt.Errorf("failed to seed database: %v", err)
 		}
 	case "basic":
-		err = seeders.SeedDatabase(ctx, gormDB, "basic")
+		err = seeders.SeedDatabase(ctx, gormDB, logger, "basic")
 		if err != nil {
 			return fmt.Errorf("failed to seed database: %v", err)
 		}

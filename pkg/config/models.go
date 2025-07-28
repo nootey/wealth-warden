@@ -5,7 +5,7 @@ type Config struct {
 	WebClient  WebClientConfig  `mapstructure:"web_client"`
 	HttpServer HttpServerConfig `mapstructure:"http_server"`
 	Host       string           `mapstructure:"host"`
-	MySQL      MySQLConfig      `mapstructure:"mysql"`
+	Postgres   PostgresConfig   `mapstructure:"postgres"`
 	JWT        JWTConfig
 }
 
@@ -18,7 +18,7 @@ type HttpServerConfig struct {
 	Port string `mapstructure:"port"  validate:"required"`
 }
 
-type MySQLConfig struct {
+type PostgresConfig struct {
 	Host     string `mapstructure:"host" validate:"required,hostname|ip"`
 	Port     int    `mapstructure:"port" validate:"required"`
 	Database string `mapstructure:"db" validate:"required"`

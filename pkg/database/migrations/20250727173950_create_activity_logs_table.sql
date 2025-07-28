@@ -1,25 +1,31 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE activity_logs (
-id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-event       VARCHAR(255) NOT NULL COMMENT 'Log event.',
-category    VARCHAR(255) NOT NULL COMMENT 'Log category.',
-description TEXT NULL COMMENT 'Log description.',
-metadata     JSON NULL COMMENT 'Payload of the log.',
-causer_id  BIGINT UNSIGNED NULL COMMENT 'Causer logged.',
-created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'Date of creation.',
-updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Date of update.',
-
-INDEX idx_event (event),
-INDEX idx_category (category),
-INDEX idx_subject_id (causer_id),
-
-FOREIGN KEY (causer_id) REFERENCES users(id) ON DELETE SET NULL
+    id          BIGSERIAL PRIMARY KEY,
+    event       VARCHAR(255) NOT NULL,
+    category    VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    metadata    JSONB NULL,
+    causer_id   BIGINT NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ DEFAULT NOW(),
+    FOREIGN KEY (causer_id) REFERENCES users(id) ON DELETE SET NULL
 );
--- +goose StatementEnd
 
+-- Indexes
+CREATE INDEX idal_event ON activity_logs (event, created_at);
+CREATE INDEX idal_category ON activity_logs (category, created_at);
+CREATE INDEX idal_causer_id ON activity_logs (causer_id, created_at);
+CREATE INDEX idal_created_at ON activity_logs (created_at);
+
+CREATE TRIGGER set_activity_logs_updated_at
+    BEFORE UPDATE ON activity_logs
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+-- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+DROP TRIGGER IF EXISTS set_activity_logs_updated_at ON activity_logs;
 DROP TABLE IF EXISTS activity_logs;
 -- +goose StatementEnd

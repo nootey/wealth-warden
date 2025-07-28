@@ -3,7 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"log"
@@ -13,131 +13,154 @@ import (
 )
 
 var (
-	mysqlDB *gorm.DB
-	once    sync.Once
+	postgresDB *gorm.DB
+	once       sync.Once
 )
 
-// ConnectToMySQL initializes a singleton GORM connection to MySQL.
-func ConnectToMySQL(cfg *config.Config, disableLogging bool) (*gorm.DB, error) {
-	var err error
-
-	once.Do(func() {
-		hosts := []string{cfg.MySQL.Host, "localhost", "mysql"}
-		logLevel := logger.Info
-		if disableLogging {
-			logLevel = logger.Silent
-		}
-
-		for _, host := range hosts {
-			dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-				cfg.MySQL.User, cfg.MySQL.Password, host, cfg.MySQL.Port, cfg.MySQL.Database)
-
-			mysqlDB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
-				Logger: logger.Default.LogMode(logLevel),
-			})
-			if err != nil {
-				log.Printf("Failed to connect to MySQL at %s: %v", host, err)
-				continue
-			}
-
-			sqlDB, err := mysqlDB.DB()
-			if err != nil {
-				log.Printf("Failed to get mysql database instance: %v", err)
-				continue
-			}
-
-			// Ping the database to check if the connection is alive
-			sqlDB.SetConnMaxLifetime(time.Minute * 5)
-			sqlDB.SetMaxIdleConns(10)
-			sqlDB.SetMaxOpenConns(100)
-
-			if err := sqlDB.Ping(); err != nil {
-				log.Printf("Could not ping MySQL at %s: %v", host, err)
-				continue
-			}
-
-			log.Printf("Connected to MySQL at %s", host)
-			return
-		}
-
-		err = fmt.Errorf("failed to connect to any MySQL host")
-	})
-
-	return mysqlDB, err
+func ConnectToPostgres(cfg *config.Config) (*gorm.DB, error) {
+	return ConnectToDatabase(cfg, cfg.Postgres.Database)
 }
 
-// DisconnectMySQL closes the database connection.
-func DisconnectMySQL() error {
-	if mysqlDB == nil {
+func ConnectToMaintenance(cfg *config.Config) (*gorm.DB, error) {
+	return ConnectToDatabase(cfg, "postgres")
+}
+
+func ConnectToDatabase(cfg *config.Config, targetDB string) (*gorm.DB, error) {
+	// Remove the once.Do caching if you need different connections for different targets.
+	hosts := []string{cfg.Postgres.Host, "localhost", "samples"}
+	logLevel := logger.Info
+	if !cfg.Release {
+		logLevel = logger.Silent
+	}
+
+	var lastErr error
+	for _, host := range hosts {
+		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=UTC",
+			host, cfg.Postgres.User, cfg.Postgres.Password, targetDB, cfg.Postgres.Port)
+
+		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+			Logger: logger.Default.LogMode(logLevel),
+		})
+		if err != nil {
+			log.Printf("Failed to connect to database at %s: %v", host, err)
+			lastErr = err
+			continue
+		}
+
+		sqlDB, err := db.DB()
+		if err != nil {
+			log.Printf("Failed to get raw DB instance: %v", err)
+			lastErr = err
+			continue
+		}
+
+		// Set connection pooling and check connectivity.
+		sqlDB.SetConnMaxLifetime(time.Minute * 5)
+		sqlDB.SetMaxIdleConns(10)
+		sqlDB.SetMaxOpenConns(100)
+
+		if err := sqlDB.Ping(); err != nil {
+			log.Printf("Could not ping database at %s: %v", host, err)
+			lastErr = err
+			continue
+		}
+
+		log.Printf("Connected to database at %s", host)
+		return db, nil
+	}
+
+	return nil, fmt.Errorf("failed to connect to any host: %v", lastErr)
+}
+
+func DisconnectPostgres() error {
+	if postgresDB == nil {
 		return nil
 	}
-	sqlDB, err := mysqlDB.DB()
+	sqlDB, err := postgresDB.DB()
 	if err != nil {
 		return err
 	}
 	return sqlDB.Close()
 }
 
-func ConnectWithoutDB(cfg *config.Config) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/?charset=utf8mb4&parseTime=True&loc=Local",
-		cfg.MySQL.User, cfg.MySQL.Password, cfg.MySQL.Host, cfg.MySQL.Port)
+func PingPostgresDatabase() error {
+	if postgresDB == nil {
+		return fmt.Errorf("database connection is nil")
+	}
 
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	sqlDB, err := postgresDB.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get database instance: %v", err)
+	}
+
+	return sqlDB.Ping()
+}
+
+func ConnectWithoutDB(cfg *config.Config) (*gorm.DB, error) {
+	dsn := fmt.Sprintf("host=%s user=%s password=%s port=%d sslmode=disable TimeZone=UTC dbname=postgres",
+		cfg.Postgres.Host, cfg.Postgres.User, cfg.Postgres.Password, cfg.Postgres.Port)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}
 	return db, nil
 }
 
-// EnsureDatabaseExists checks if the database exists, and if not, it creates it.
 func EnsureDatabaseExists(cfg *config.Config) error {
-	// Connect to MySQL without specifying a database
+	// Connect without specifying the target database.
 	db, err := ConnectWithoutDB(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to connect to MySQL server: %w", err)
+		return fmt.Errorf("failed to connect to PostgresDB server: %w", err)
 	}
-	defer func() {
-		sqlDB, _ := db.DB()
-		sqlDB.Close()
-	}()
+	// Ensure the connection is closed after use.
+	sqlDB, _ := db.DB()
+	defer sqlDB.Close()
 
-	// Check if the database exists
+	// Check if the target database exists by querying pg_database.
 	var exists int
-	checkQuery := fmt.Sprintf("SELECT COUNT(*) FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '%s'", cfg.MySQL.Database)
+	checkQuery := fmt.Sprintf("SELECT COUNT(*) FROM pg_database WHERE datname = '%s'", cfg.Postgres.Database)
 	err = db.Raw(checkQuery).Scan(&exists).Error
 	if err != nil {
 		return fmt.Errorf("error checking if database exists: %w", err)
 	}
 
-	// If the database doesn't exist, create it
+	// If the database doesn't exist, create it.
 	if exists == 0 {
-		log.Printf("Database '%s' does not exist, creating it...", cfg.MySQL.Database)
-		createQuery := fmt.Sprintf("CREATE DATABASE `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", cfg.MySQL.Database)
+		log.Printf("Database '%s' does not exist, creating it...", cfg.Postgres.Database)
+		createQuery := fmt.Sprintf("CREATE DATABASE %s WITH ENCODING 'UTF8'", cfg.Postgres.Database)
 		if err := db.Exec(createQuery).Error; err != nil {
 			return fmt.Errorf("failed to create database: %w", err)
 		}
-		log.Printf("Database '%s' created successfully", cfg.MySQL.Database)
+		log.Printf("Database '%s' created successfully", cfg.Postgres.Database)
 	} else {
-		log.Printf("Database '%s' already exists", cfg.MySQL.Database)
+		log.Printf("Database '%s' already exists", cfg.Postgres.Database)
 	}
 
 	return nil
 }
 
 func DropAndRecreateDatabase(db *sql.DB, cfg *config.Config) error {
-	// Drop the database
-	if _, err := db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`;", cfg.MySQL.Database)); err != nil {
-		return fmt.Errorf("failed to drop database: %w", err)
+	dbName := cfg.Postgres.Database
+
+	// Terminate all active connections to the target database.
+	terminateQuery := fmt.Sprintf(
+		"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '%s' AND pid <> pg_backend_pid();",
+		dbName,
+	)
+	if _, err := db.Exec(terminateQuery); err != nil {
+		return fmt.Errorf("failed to terminate connections to database %s: %w", dbName, err)
 	}
 
-	// Recreate the database
-	if _, err := db.Exec(fmt.Sprintf("CREATE DATABASE `%s`;", cfg.MySQL.Database)); err != nil {
-		return fmt.Errorf("failed to create database: %w", err)
+	// Drop the database if it exists.
+	dropQuery := fmt.Sprintf("DROP DATABASE IF EXISTS \"%s\";", dbName)
+	if _, err := db.Exec(dropQuery); err != nil {
+		return fmt.Errorf("failed to drop database %s: %w", dbName, err)
 	}
 
-	// Re-select the newly created database.
-	if _, err := db.Exec(fmt.Sprintf("USE `%s`;", cfg.MySQL.Database)); err != nil {
-		return fmt.Errorf("failed to select database: %w", err)
+	// Create the database.
+	createQuery := fmt.Sprintf("CREATE DATABASE \"%s\";", dbName)
+	if _, err := db.Exec(createQuery); err != nil {
+		return fmt.Errorf("failed to create database %s: %w", dbName, err)
 	}
 
 	return nil

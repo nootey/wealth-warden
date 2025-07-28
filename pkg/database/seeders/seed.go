@@ -3,6 +3,7 @@ package seeders
 import (
 	"context"
 	"fmt"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"reflect"
 	"runtime"
@@ -10,9 +11,9 @@ import (
 	"wealth-warden/pkg/database/seeders/workers"
 )
 
-type SeederFunc func(ctx context.Context, db *gorm.DB) error
+type SeederFunc func(ctx context.Context, db *gorm.DB, logger *zap.Logger) error
 
-func SeedDatabase(ctx context.Context, db *gorm.DB, seederType string) error {
+func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, seederType string) error {
 	var seeders []SeederFunc
 
 	switch seederType {
@@ -38,12 +39,17 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, seederType string) error {
 			seederName := getFunctionName(seeder)
 
 			// Run the seeder
-			if err := seeder(ctx, tx); err != nil {
+			if err := seeder(ctx, tx, logger); err != nil {
 				return fmt.Errorf("seeder %s failed: %w", seederName, err)
 			}
 
 			// Print status
-			fmt.Printf("%s OK %s\n", time.Now().Format("2006/01/02 15:04:05"), seederName)
+			logger.Info("Seeder completed",
+				zap.String("timestamp", time.Now().Format("2006/01/02 15:04:05")),
+				zap.String("status", "OK"),
+				zap.String("seeder", seederName),
+			)
+
 		}
 		return nil
 	})
@@ -52,7 +58,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, seederType string) error {
 		return fmt.Errorf("failed to run seeders: %w", err)
 	}
 
-	fmt.Println("Database seeding completed successfully.")
+	logger.Info("Database seeding completed successfully.")
 	return nil
 }
 

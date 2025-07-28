@@ -28,12 +28,12 @@ func (rt *ServerRuntime) Run(context context.Context) error {
 	ctx, stop := signal.NotifyContext(context, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	dbClient, err := database.ConnectToMySQL(rt.Config, true)
+	dbClient, err := database.ConnectToPostgres(rt.Config)
 	if err != nil {
 		rt.Logger.Error("Database connection failed", zap.Error(err))
 		return fmt.Errorf("database connection failed: %w", err)
 	}
-	defer database.DisconnectMySQL()
+	defer database.DisconnectPostgres()
 	rt.Logger.Info("Successfully connected to the database")
 
 	httpLogger := rt.Logger.Named("http").With(zap.String("component", "HTTP"))

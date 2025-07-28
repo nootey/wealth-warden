@@ -18,7 +18,7 @@ var httpServerCmd = &cobra.Command{
 
 		logger.Info("Configuration loaded",
 			zap.String("port", cfg.HttpServer.Port),
-			zap.String("database", cfg.MySQL.Database),
+			zap.String("database", cfg.Postgres.Database),
 			zap.Bool("release", cfg.Release),
 		)
 

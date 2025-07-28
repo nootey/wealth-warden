@@ -19,45 +19,38 @@ var migrateCmd = &cobra.Command{
 
 		ctx := cmd.Context()
 		logger := ctx.Value("logger").(*zap.Logger)
+		cfg := ctx.Value("config").(*config.Config)
 		migrationType := "help"
 
 		if len(args) > 0 {
 			migrationType = args[0]
 		}
 
-		return runMigrations(migrationType, logger)
+		return runMigrations(migrationType, cfg, logger)
 	},
 }
 
-func runMigrations(migrationType string, logger *zap.Logger) error {
+func runMigrations(migrationType string, cfg *config.Config, logger *zap.Logger) error {
 
 	logger.Info("Starting database migrations")
-
-	cfg, err := config.LoadConfig(nil)
-	if err != nil {
-		logger.Fatal("Failed to load configuration: ", zap.Error(err))
-	}
-	logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
 	// Ensure the database exists before migrating
 	if err := database.EnsureDatabaseExists(cfg); err != nil {
 		return fmt.Errorf("database check failed: %v", err)
 	}
 
-	// Connect to MySQL using GORM
-	gormDB, err := database.ConnectToMySQL(cfg, true)
+	gormDB, err := database.ConnectToPostgres(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to connect to MySQL: %v", err)
+		return fmt.Errorf("failed to connect to Postgres: %v", err)
 	}
 
-	// Get the raw *sql.DB from GORM
 	sqlDB, err := gormDB.DB()
 	if err != nil {
 		return fmt.Errorf("failed to get raw SQL DB: %v", err)
 	}
 
 	migrationsDir := "./pkg/database/migrations"
-	goose.SetDialect("mysql")
+	goose.SetDialect("postgres")
 
 	switch migrationType {
 	case "up":
@@ -74,16 +67,39 @@ func runMigrations(migrationType string, logger *zap.Logger) error {
 		}
 	case "fresh", "fresh-seed-full", "fresh-seed-basic":
 
+		// Close the current connection because it connects to the target database.
+		sqlDB.Close()
+
+		// Connect to a maintenance database (like "postgres").
+		mDB, err := database.ConnectToMaintenance(cfg)
+		if err != nil {
+			return fmt.Errorf("failed to connect to maintenance database: %v", err)
+		}
+		mSqlDB, err := mDB.DB()
+		if err != nil {
+			return fmt.Errorf("failed to get raw SQL DB for maintenance: %v", err)
+		}
+
 		// Drop all tables explicitly.
-		if err := database.DropAndRecreateDatabase(sqlDB, cfg); err != nil {
+		if err := database.DropAndRecreateDatabase(mSqlDB, cfg); err != nil {
 			return fmt.Errorf("failed to recreate database: %v", err)
+		}
+		mSqlDB.Close() // Close the maintenance connection.
+
+		// Reconnect to the newly created target database.
+		gormDB, err = database.ConnectToPostgres(cfg)
+		if err != nil {
+			return fmt.Errorf("failed to reconnect to Postgres: %v", err)
+		}
+		sqlDB, err = gormDB.DB()
+		if err != nil {
+			return fmt.Errorf("failed to get raw SQL DB after reconnection: %v", err)
 		}
 
 		// Then, run migrations.
 		if err := goose.Up(sqlDB, migrationsDir); err != nil {
 			return fmt.Errorf("failed to apply fresh migrations: %v", err)
 		}
-
 		// If seeding is required, run the seeder.
 		if migrationType == "fresh-seed-full" || migrationType == "fresh-seed-basic" {
 			seedType := "full"
@@ -91,7 +107,7 @@ func runMigrations(migrationType string, logger *zap.Logger) error {
 				seedType = "basic"
 			}
 			ctx := context.Background()
-			if err := seeders.SeedDatabase(ctx, gormDB, seedType); err != nil {
+			if err := seeders.SeedDatabase(ctx, gormDB, logger, seedType); err != nil {
 				return fmt.Errorf("failed to seed database: %v", err)
 			}
 		}
