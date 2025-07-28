@@ -7,7 +7,7 @@ account_id BIGINT UNSIGNED NOT NULL,
 category_id BIGINT UNSIGNED NULL,
 transaction_type ENUM('increase','decrease','adjustment','transfer') NOT NULL DEFAULT 'decrease',
 amount DECIMAL(19,4) NOT NULL,
-currency CHAR(3)       NOT NULL DEFAULT 'USD',
+currency CHAR(3)       NOT NULL DEFAULT 'EUR',
 txn_date DATE          NOT NULL,
 description VARCHAR(255),
 reference_id BIGINT UNSIGNED NULL,  -- for linking transfers

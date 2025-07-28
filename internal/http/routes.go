@@ -36,6 +36,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 	authHandler := httpHandlers.NewAuthHandler(r.Container.AuthService)
 	userHandler := httpHandlers.NewUserHandler(r.Container.UserService)
 	loggingHandler := httpHandlers.NewLoggingHandler(r.Container.LoggingService)
+	transactionHandler := httpHandlers.NewTransactionHandler(r.Container.TransactionService)
 
 	// Protected routes
 	authGroup := _v1.Group("/", r.Container.AuthService.WebClientMiddleware.WebClientAuthentication())
@@ -48,6 +49,9 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 
 		loggingRoutes := authGroup.Group("/logs")
 		v1.LoggingRoutes(loggingRoutes, loggingHandler)
+
+		transactionRoutes := authGroup.Group("/transactions")
+		v1.TransactionRoutes(transactionRoutes, transactionHandler)
 
 	}
 
