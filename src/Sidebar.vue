@@ -77,7 +77,7 @@ const menuItems: MenuItem[] = [
           "
           :style="{
             backgroundColor: $route.path === item.to ? 'var(--background-primary)' : 'transparent',
-            color: $route.path === item.to ? 'var(--accent-primary)' : 'var(--text-primary)'
+            color: $route.path === item.to ? '#2563eb' : 'var(--text-primary)'
           }"
         >
           <i :class="['pi', item.icon]" style="

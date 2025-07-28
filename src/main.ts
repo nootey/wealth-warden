@@ -30,7 +30,6 @@ import {ConfirmPopup} from "primevue";
 import {Popover} from "primevue";
 import {SelectButton} from "primevue";
 
-
 const app = createApp(App);
 const pinia = createPinia();
 
@@ -61,7 +60,9 @@ app.use(PrimeVue, {
     theme: {
         preset: Material,
         options: {
+            prefix: 'p',
             darkModeSelector: '.my-app-dark',
+            cssLayer: false
         }
     }
 });

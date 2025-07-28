@@ -1,21 +1,51 @@
 @import 'material-icons/iconfont/material-icons.css';
 @import 'primeicons/primeicons.css';
 
-
 :root {
-  --background-primary: var(--p-gray-50);
-  --background-secondary: var(--p-slate-200);
-  --text-primary: var(--p-neutral-950);
-  --accent-primary: var(--p-blue-600);
-  --border-color: var(--p-slate-200);
+  /* Override Material preset primary colors to blue */
+  --p-primary-50: #eff6ff !important;
+  --p-primary-100: #dbeafe !important;
+  --p-primary-200: #bfdbfe !important;
+  --p-primary-300: #93c5fd !important;
+  --p-primary-400: #60a5fa !important;
+  --p-primary-500: #3b82f6 !important;
+  --p-primary-600: #2563eb !important;
+  --p-primary-700: #1d4ed8 !important;
+  --p-primary-800: #1e40af !important;
+  --p-primary-900: #1e3a8a !important;
+  --p-primary-950: #172554 !important;
+
+  /* Light mode colors using Material preset variables */
+  --background-primary: var(--p-surface-0);
+  --background-secondary: var(--p-surface-100);
+  --text-primary: var(--p-surface-950);
+  --accent-primary: var(--p-primary-600);
+  --border-color: var(--p-surface-200);
   --sidebar-width: 300px;
 }
 
 .my-app-dark {
-  --background-primary: var(--p-gray-950);    /* or any other dark-friendly value */
-  --background-secondary: var(--p-slate-800);
-  --text-primary: var(--p-neutral-100);
-  --accent-primary: var(--p-blue-400);
+  /* Dark mode colors using Material preset variables */
+  --background-primary: var(--p-surface-950);
+  --background-secondary: var(--p-surface-800);
+  --text-primary: var(--p-surface-50);
+  --accent-primary: var(--p-primary-400);
+  --border-color: var(--p-surface-700);
+}
+
+/* Force override for any remaining green colors */
+html {
+  --p-primary-50: #eff6ff !important;
+  --p-primary-100: #dbeafe !important;
+  --p-primary-200: #bfdbfe !important;
+  --p-primary-300: #93c5fd !important;
+  --p-primary-400: #60a5fa !important;
+  --p-primary-500: #3b82f6 !important;
+  --p-primary-600: #2563eb !important;
+  --p-primary-700: #1d4ed8 !important;
+  --p-primary-800: #1e40af !important;
+  --p-primary-900: #1e3a8a !important;
+  --p-primary-950: #172554 !important;
 }
 
 * {
