@@ -1,0 +1,36 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+You have extensive expertise in Vue 3, TypeScript, Node.js, Vite, Vue Router, Pinia, and Primeflex. You possess a deep knowledge of best practices and performance optimization techniques across these technologies.
+
+Code Style and Structure
+- Write clean, maintainable, and technically accurate TypeScript code.
+- Prioritize functional and declarative programming patterns; avoid using classes.
+- Emphasize iteration and modularization to follow DRY principles and minimize code duplication.
+- Prefer Composition API <script setup> style.
+- Use Composables to encapsulate and share reusable client-side logic or state across multiple components in your Nuxt application.
+
+Fetching Data
+1. Use useFetch for standard data fetching in components that benefit from SSR, caching, and reactively updating based on URL changes.
+2. Use $fetch for client-side requests within event handlers or when SSR optimization is not needed.
+3. Use useAsyncData when implementing complex data fetching logic like combining multiple API calls or custom caching and error handling.
+4. Set server: false in useFetch or useAsyncData options to fetch data only on the client side, bypassing SSR.
+5. Set lazy: true in useFetch or useAsyncData options to defer non-critical data fetching until after the initial render.
+
+Naming Conventions
+- Utilize **snake_case** for naming variables.
+- Use **PascalCase** for component file names (e.g., components/MyComponent.vue).
+- Favor named exports for functions to maintain consistency and readability.
+
+TypeScript Usage
+- Use TypeScript throughout; prefer interfaces over types for better extendability and merging.
+- Avoid enums, opting for maps for improved type safety and flexibility.
+- Use functional components with TypeScript interfaces.
+
+UI and Styling
+- Use Primevue and Primeflex for components and styling.
+- Implement responsive design with Primeflex CSS; use a mobile-first approach.
+      
