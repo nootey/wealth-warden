@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useThemeStore } from './services/stores/theme_store.ts';
 import { useAuthStore } from './services/stores/auth_store.ts';
+import { ref, computed } from 'vue';
 
 const themeStore = useThemeStore();
 const authStore = useAuthStore();
@@ -15,6 +16,25 @@ const menuItems: MenuItem[] = [
   { to: "/", icon: "pi-home", text: "Home"},
   { to: "/logs", icon: "pi-address-book", text: "Logging"},
 ];
+
+// User data (placeholders for now)
+const user = {
+  name: "Janez Novak",
+  email: "poiskusni@gmail.com"
+};
+
+const profileMenuRef = ref<any>(null);
+
+// Check if we're on mobile
+const isMobile = computed(() => {
+  return window.innerWidth <= 768;
+});
+
+function toggleProfileMenu(event: any) {
+  if (profileMenuRef.value) {
+    profileMenuRef.value.toggle(event);
+  }
+}
 
 </script>
 
@@ -95,59 +115,133 @@ const menuItems: MenuItem[] = [
       </div>
     </div>
 
-    <!-- Bottom Actions -->
+    <!-- User Menu Popover -->
     <div class="menu bottom-menu" style="
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
       margin-top: auto;
     ">
-      <!-- Theme Button -->
-      <div style="
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 0.5rem 0.25rem;
-        border-radius: 12px;
-        transition: all 0.2s ease;
-        cursor: pointer;
-        color: var(--text-secondary);
-      " @click="themeStore.toggleDarkMode()">
-        <i class="pi" :class="themeStore.darkModeActive ? 'pi-sun' : 'pi-moon'" style="
-          font-size: 1.1rem;
-          margin-bottom: 0.25rem;
+      <div 
+        id="user-menu-trigger"
+        style="
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 0.5rem 0.25rem;
+          border-radius: 12px;
           transition: all 0.2s ease;
-        "></i>
-        <span style="
-          font-size: 0.65rem;
-          font-weight: 500;
-          text-align: center;
-        ">Theme</span>
-      </div>
-      
-      <!-- Sign Out Button -->
-      <div style="
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 0.5rem 0.25rem;
-        border-radius: 12px;
-        transition: all 0.2s ease;
-        cursor: pointer;
-        color: var(--text-secondary);
-      " @click="authStore.logoutUser()">
-        <i class="pi pi-sign-out" style="
-          font-size: 1.1rem;
+          cursor: pointer;
+          color: var(--text-secondary);
+        " 
+        @click="toggleProfileMenu($event)"
+      >
+        <div style="
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
           margin-bottom: 0.25rem;
-          transition: all 0.2s ease;
-        "></i>
-        <span style="
-          font-size: 0.65rem;
-          font-weight: 500;
-          text-align: center;
-        ">Sign out</span>
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: white;
+        ">
+          {{ user.name.split(' ').map(n => n[0]).join('') }}
+        </div>
       </div>
     </div>
+
+    <!-- Popover Menu -->
+    <Popover ref="profileMenuRef" :position="isMobile ? 'top' : 'right'">
+      <div style="padding: 1rem;">
+        <!-- User Info -->
+        <div style="
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding-bottom: 1rem;
+          border-bottom: 1px solid var(--border-color);
+          margin-bottom: 0.75rem;
+        ">
+          <div style="
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: white;
+          ">
+            {{ user.name.split(' ').map(n => n[0]).join('') }}
+          </div>
+          <div>
+            <div style="
+              font-weight: 600;
+              color: var(--text-primary);
+              margin-bottom: 0.25rem;
+            ">{{ user.name }}</div>
+            <div style="
+              font-size: 0.875rem;
+              color: var(--text-secondary);
+            ">{{ user.email }}</div>
+          </div>
+        </div>
+
+        <!-- Menu Items -->
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <!-- Settings -->
+          <div style="
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-primary);
+          ">
+            <i class="pi pi-cog" style="font-size: 1rem;"></i>
+            <span style="font-size: 0.875rem;">Settings</span>
+          </div>
+
+          <!-- Theme Toggle -->
+          <div style="
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-primary);
+          " @click="themeStore.toggleDarkMode()">
+            <i class="pi" :class="themeStore.darkModeActive ? 'pi-sun' : 'pi-moon'" style="font-size: 1rem;"></i>
+            <span style="font-size: 0.875rem;">Theme</span>
+          </div>
+
+          <!-- Sign Out -->
+          <div style="
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #ef4444;
+          " @click="authStore.logoutUser()">
+            <i class="pi pi-sign-out" style="font-size: 1rem;"></i>
+            <span style="font-size: 0.875rem;">Sign out</span>
+          </div>
+        </div>
+      </div>
+    </Popover>
   </aside>
 </template>
 
