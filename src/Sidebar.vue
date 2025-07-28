@@ -73,11 +73,11 @@ const menuItems: MenuItem[] = [
             padding: 0.5rem 0.25rem;
             border-radius: 12px;
             transition: all 0.2s ease;
-            color: var(--text-primary);
+            color: var(--text-secondary);
           "
           :style="{
             backgroundColor: $route.path === item.to ? 'var(--background-primary)' : 'transparent',
-            color: $route.path === item.to ? '#2563eb' : 'var(--text-primary)'
+            color: $route.path === item.to ? 'var(--text-primary)' : 'var(--text-secondary)'
           }"
         >
           <i :class="['pi', item.icon]" style="
@@ -111,7 +111,7 @@ const menuItems: MenuItem[] = [
         border-radius: 12px;
         transition: all 0.2s ease;
         cursor: pointer;
-        color: var(--text-primary);
+        color: var(--text-secondary);
       " @click="themeStore.toggleDarkMode()">
         <i class="pi" :class="themeStore.darkModeActive ? 'pi-sun' : 'pi-moon'" style="
           font-size: 1.1rem;
@@ -134,7 +134,7 @@ const menuItems: MenuItem[] = [
         border-radius: 12px;
         transition: all 0.2s ease;
         cursor: pointer;
-        color: var(--text-primary);
+        color: var(--text-secondary);
       " @click="authStore.logoutUser()">
         <i class="pi pi-sign-out" style="
           font-size: 1.1rem;
@@ -164,7 +164,7 @@ aside .menu div:hover {
 /* Active state for router links */
 .router-link-exact-active {
   background-color: var(--background-primary) !important;
-  color: var(--accent-primary) !important;
+  color: var(--text-primary) !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
