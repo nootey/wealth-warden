@@ -3,15 +3,14 @@ package models
 import "time"
 
 type Role struct {
-	ID                uint               `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name              string             `gorm:"unique;not null;size:75" json:"name"`
-	IsGlobal          bool               `gorm:"not null" json:"is_global"`
-	Description       string             `gorm:"size:255" json:"description"`
-	CreatedAt         time.Time          `json:"created_at"`
-	UpdatedAt         time.Time          `json:"updated_at"`
-	Users             []User             `gorm:"foreignKey:RoleID" json:"-"`
-	OrganizationUsers []OrganizationUser `gorm:"foreignKey:RoleID" json:"-"`
-	RolePermissions   []RolePermission   `gorm:"foreignKey:RoleID" json:"-"`
+	ID              uint             `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name            string           `gorm:"unique;not null;size:75" json:"name"`
+	IsGlobal        bool             `gorm:"not null" json:"is_global"`
+	Description     string           `gorm:"size:255" json:"description"`
+	CreatedAt       time.Time        `json:"created_at"`
+	UpdatedAt       time.Time        `json:"updated_at"`
+	Users           []User           `gorm:"foreignKey:RoleID" json:"-"`
+	RolePermissions []RolePermission `gorm:"foreignKey:RoleID" json:"-"`
 }
 
 type Permission struct {
