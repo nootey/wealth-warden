@@ -65,7 +65,13 @@ export const useAuthStore = defineStore('auth', {
             this.user = null;
             this.setAuthenticated(false);
             this.setInitialized(null);
+            
+            const darkModeActive = localStorage.getItem('darkModeActive');
             localStorage.clear();
+            if (darkModeActive !== null) {
+                localStorage.setItem('darkModeActive', darkModeActive);
+            }
+            
             sessionStorage.clear();
             router.push("/login").then()
         },
