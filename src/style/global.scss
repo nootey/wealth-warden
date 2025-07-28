@@ -2,25 +2,13 @@
 @import 'primeicons/primeicons.css';
 
 :root {
-  /* Override Material preset primary colors to blue */
-  --p-primary-50: #eff6ff !important;
-  --p-primary-100: #dbeafe !important;
-  --p-primary-200: #bfdbfe !important;
-  --p-primary-300: #93c5fd !important;
-  --p-primary-400: #60a5fa !important;
-  --p-primary-500: #3b82f6 !important;
-  --p-primary-600: #2563eb !important;
-  --p-primary-700: #1d4ed8 !important;
-  --p-primary-800: #1e40af !important;
-  --p-primary-900: #1e3a8a !important;
-  --p-primary-950: #172554 !important;
-
   /* Light mode colors using Material preset variables */
   --background-primary: var(--p-surface-0);
   --background-secondary: var(--p-surface-100);
   --text-primary: var(--p-surface-950);
   --text-secondary: var(--p-surface-600);
-  --accent-primary: var(--p-primary-600);
+  --accent-primary: var(--p-primary-700);
+  --accent-secondary: var(--p-primary-900);
   --border-color: var(--p-surface-200);
   --sidebar-width: 300px;
 }
@@ -30,24 +18,25 @@
   --background-primary: var(--p-surface-950);
   --background-secondary: var(--p-surface-800);
   --text-primary: var(--p-surface-50);
-  --text-secondary: var(--p-surface-400);
-  --accent-primary: var(--p-primary-400);
+  --text-secondary: var(--p-surface-300);
+  --accent-primary: var(--p-primary-300);
+  --accent-secondary: var(--p-primary-500);
   --border-color: var(--p-surface-700);
 }
 
-/* Force override for any remaining green colors */
+/* Force override */
 html {
-  --p-primary-50: #eff6ff !important;
-  --p-primary-100: #dbeafe !important;
-  --p-primary-200: #bfdbfe !important;
-  --p-primary-300: #93c5fd !important;
-  --p-primary-400: #60a5fa !important;
-  --p-primary-500: #3b82f6 !important;
-  --p-primary-600: #2563eb !important;
-  --p-primary-700: #1d4ed8 !important;
-  --p-primary-800: #1e40af !important;
-  --p-primary-900: #1e3a8a !important;
-  --p-primary-950: #172554 !important;
+  --p-primary-50: var(--p-indigo-50) !important;
+  --p-primary-100: var(--p-indigo-100) !important;
+  --p-primary-200: var(--p-indigo-200) !important;
+  --p-primary-300: var(--p-indigo-300) !important;
+  --p-primary-400: var(--p-indigo-400) !important;
+  --p-primary-500: var(--p-indigo-500) !important;
+  --p-primary-600: var(--p-indigo-600) !important;
+  --p-primary-700: var(--p-indigo-700) !important;
+  --p-primary-800: var(--p-indigo-800) !important;
+  --p-primary-900: var(--p-indigo-900) !important;
+  --p-primary-950: var(--p-indigo-950) !important;
 }
 
 * {
