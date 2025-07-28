@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { useThemeStore } from './services/stores/theme_store.ts';
-import { useAuthStore } from './services/stores/auth_store.ts';
-import { ref, computed } from 'vue';
+import {useThemeStore} from './services/stores/theme_store.ts';
+import {useAuthStore} from './services/stores/auth_store.ts';
+import {ref} from 'vue';
 
 const themeStore = useThemeStore();
 const authStore = useAuthStore();
@@ -13,22 +13,16 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
-  { to: "/", icon: "pi-home", text: "Home"},
-  { to: "/logs", icon: "pi-address-book", text: "Logging"},
+  {to: "/", icon: "pi-home", text: "Home"},
+  {to: "/logs", icon: "pi-address-book", text: "Logging"},
 ];
 
-// User data (placeholders for now)
 const user = {
   name: "Janez Novak",
   email: "poiskusni@gmail.com"
 };
 
 const profileMenuRef = ref<any>(null);
-
-// Check if we're on mobile
-const isMobile = computed(() => {
-  return window.innerWidth <= 768;
-});
 
 function toggleProfileMenu(event: any) {
   if (profileMenuRef.value) {
@@ -47,16 +41,13 @@ function toggleProfileMenu(event: any) {
     overflow: hidden;
     padding: 1rem 0.5rem;
     background-color: var(--background-secondary);
-    color: var(--text-primary);
-  ">
-    <!-- Logo Section - Hidden on mobile -->
+    color: var(--text-primary);">
     <div class="logo-section" style="
       display: flex;
       align-items: center;
       justify-content: center;
       margin-bottom: 2rem;
-      padding: 0.5rem;
-    ">
+      padding: 0.5rem;">
       <div style="
         width: 32px;
         height: 32px;
@@ -65,27 +56,23 @@ function toggleProfileMenu(event: any) {
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-      ">
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);">
         <i class="pi pi-wallet" style="
           font-size: 1rem;
-          color: white;
-        "></i>
+          color: white;" />
       </div>
     </div>
 
-    <!-- Navigation Menu -->
     <div style="flex: 1;">
       <div class="menu navigation-menu" style="
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
-      ">
+        gap: 0.75rem;">
         <router-link
-          v-for="(item, index) in menuItems"
-          :key="index"
-          :to="item.to"
-          style="
+            v-for="(item, index) in menuItems"
+            :key="index"
+            :to="item.to"
+            style="
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -93,13 +80,10 @@ function toggleProfileMenu(event: any) {
             padding: 0.5rem 0.25rem;
             border-radius: 12px;
             transition: all 0.2s ease;
-            color: var(--text-secondary);
-          "
-          :style="{
+            color: var(--text-secondary);"
+            :style="{
             backgroundColor: $route.path === item.to ? 'var(--background-primary)' : 'transparent',
-            color: $route.path === item.to ? 'var(--text-primary)' : 'var(--text-secondary)'
-          }"
-        >
+            color: $route.path === item.to ? 'var(--text-primary)' : 'var(--text-secondary)'}">
           <i :class="['pi', item.icon]" style="
             font-size: 1.1rem;
             margin-bottom: 0.25rem;
@@ -109,22 +93,20 @@ function toggleProfileMenu(event: any) {
             font-size: 0.65rem;
             font-weight: 500;
             text-align: center;
-            line-height: 1.1;
-          ">{{ item.text }}</span>
+            line-height: 1.1;">
+            {{ item.text }}</span>
         </router-link>
       </div>
     </div>
 
-    <!-- User Menu Popover -->
     <div class="menu bottom-menu" style="
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
-      margin-top: auto;
-    ">
-      <div 
-        id="user-menu-trigger"
-        style="
+      margin-top: auto;">
+      <div
+          id="user-menu-trigger"
+          style="
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -132,10 +114,8 @@ function toggleProfileMenu(event: any) {
           border-radius: 12px;
           transition: all 0.2s ease;
           cursor: pointer;
-          color: var(--text-secondary);
-        " 
-        @click="toggleProfileMenu($event)"
-      >
+          color: var(--text-secondary);"
+          @click="toggleProfileMenu($event)">
         <div style="
           width: 32px;
           height: 32px;
@@ -147,25 +127,21 @@ function toggleProfileMenu(event: any) {
           margin-bottom: 0.25rem;
           font-size: 0.75rem;
           font-weight: 600;
-          color: white;
-        ">
+          color: white;">
           {{ user.name.split(' ').map(n => n[0]).join('') }}
         </div>
       </div>
     </div>
 
-    <!-- Popover Menu -->
-    <Popover ref="profileMenuRef" :position="isMobile ? 'top' : 'right'">
+    <Popover ref="profileMenuRef">
       <div style="padding: 1rem;">
-        <!-- User Info -->
         <div style="
           display: flex;
           align-items: center;
           gap: 0.75rem;
           padding-bottom: 1rem;
           border-bottom: 1px solid var(--border-color);
-          margin-bottom: 0.75rem;
-        ">
+          margin-bottom: 0.75rem;">
           <div style="
             width: 40px;
             height: 40px;
@@ -176,26 +152,23 @@ function toggleProfileMenu(event: any) {
             justify-content: center;
             font-size: 0.875rem;
             font-weight: 600;
-            color: white;
-          ">
+            color: white;">
             {{ user.name.split(' ').map(n => n[0]).join('') }}
           </div>
           <div>
             <div style="
               font-weight: 600;
               color: var(--text-primary);
-              margin-bottom: 0.25rem;
-            ">{{ user.name }}</div>
+              margin-bottom: 0.25rem;">{{ user.name }}
+            </div>
             <div style="
               font-size: 0.875rem;
-              color: var(--text-secondary);
-            ">{{ user.email }}</div>
+              color: var(--text-secondary);">{{ user.email }}
+            </div>
           </div>
         </div>
 
-        <!-- Menu Items -->
         <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-          <!-- Settings -->
           <div style="
             display: flex;
             align-items: center;
@@ -204,13 +177,11 @@ function toggleProfileMenu(event: any) {
             border-radius: 8px;
             cursor: pointer;
             transition: all 0.2s ease;
-            color: var(--text-primary);
-          ">
+            color: var(--text-primary);">
             <i class="pi pi-cog" style="font-size: 1rem;"></i>
             <span style="font-size: 0.875rem;">Settings</span>
           </div>
 
-          <!-- Theme Toggle -->
           <div style="
             display: flex;
             align-items: center;
@@ -219,13 +190,11 @@ function toggleProfileMenu(event: any) {
             border-radius: 8px;
             cursor: pointer;
             transition: all 0.2s ease;
-            color: var(--text-primary);
-          " @click="themeStore.toggleDarkMode()">
+            color: var(--text-primary);" @click="themeStore.toggleDarkMode()">
             <i class="pi" :class="themeStore.darkModeActive ? 'pi-sun' : 'pi-moon'" style="font-size: 1rem;"></i>
             <span style="font-size: 0.875rem;">Theme</span>
           </div>
 
-          <!-- Sign Out -->
           <div style="
             display: flex;
             align-items: center;
@@ -234,8 +203,7 @@ function toggleProfileMenu(event: any) {
             border-radius: 8px;
             cursor: pointer;
             transition: all 0.2s ease;
-            color: #ef4444;
-          " @click="authStore.logoutUser()">
+            color: #ef4444;" @click="authStore.logoutUser()">
             <i class="pi pi-sign-out" style="font-size: 1rem;"></i>
             <span style="font-size: 0.875rem;">Sign out</span>
           </div>
@@ -247,7 +215,6 @@ function toggleProfileMenu(event: any) {
 
 <style scoped lang="scss">
 
-/* Hover effects for navigation items */
 aside .menu a:hover,
 aside .menu div:hover {
   background-color: var(--background-primary) !important;
@@ -255,14 +222,12 @@ aside .menu div:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Active state for router links */
 .router-link-exact-active {
   background-color: var(--background-primary) !important;
   color: var(--text-primary) !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Mobile responsive design */
 @media (max-width: 768px) {
   aside {
     position: fixed !important;
@@ -279,12 +244,10 @@ aside .menu div:hover {
     z-index: 1000;
   }
 
-  /* Hide only logo on mobile */
   .logo-section {
     display: none !important;
   }
 
-  /* Convert all menus to horizontal layout */
   aside .menu {
     flex-direction: row !important;
     justify-content: space-around !important;
