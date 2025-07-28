@@ -64,26 +64,27 @@ function toggleProfileMenu(event: any) {
     </div>
 
     <div style="flex: 1;">
-      <div class="menu navigation-menu" style="
+      <div class="menu" style="
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;">
+        gap: 0.75rem;
+        height: 100%;">
         <router-link
             v-for="(item, index) in menuItems"
             :key="index"
             :to="item.to"
             style="
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-decoration: none;
-            padding: 0.5rem 0.25rem;
-            border-radius: 12px;
-            transition: all 0.2s ease;
-            color: var(--text-secondary);"
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              text-decoration: none;
+              padding: 0.5rem 0.25rem;
+              border-radius: 12px;
+              transition: all 0.2s ease;
+              color: var(--text-secondary);"
             :style="{
-            backgroundColor: $route.path === item.to ? 'var(--background-primary)' : 'transparent',
-            color: $route.path === item.to ? 'var(--text-primary)' : 'var(--text-secondary)'}">
+              backgroundColor: $route.path === item.to ? 'var(--background-primary)' : 'transparent',
+              color: $route.path === item.to ? 'var(--text-primary)' : 'var(--text-secondary)'}">
           <i :class="['pi', item.icon]" style="
             font-size: 1.1rem;
             margin-bottom: 0.25rem;
@@ -96,39 +97,35 @@ function toggleProfileMenu(event: any) {
             line-height: 1.1;">
             {{ item.text }}</span>
         </router-link>
-      </div>
-    </div>
-
-    <div class="menu bottom-menu" style="
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-      margin-top: auto;">
-      <div
-          id="user-menu-trigger"
-          style="
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 0.5rem 0.25rem;
-          border-radius: 12px;
-          transition: all 0.2s ease;
-          cursor: pointer;
-          color: var(--text-secondary);"
-          @click="toggleProfileMenu($event)">
-        <div style="
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 0.25rem;
-          font-size: 0.75rem;
-          font-weight: 600;
-          color: white;">
-          {{ user.name.split(' ').map(n => n[0]).join('') }}
+        
+        <!-- Profile Menu Item (will be in same row on mobile) -->
+        <div
+            id="user-menu-trigger"
+            style="
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              padding: 0.5rem 0.25rem;
+              border-radius: 12px;
+              transition: all 0.2s ease;
+              cursor: pointer;
+              color: var(--text-secondary);
+              margin-top: auto;"
+            @click="toggleProfileMenu($event)">
+          <div style="
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;">
+            {{ user.name.split(' ').map(n => n[0]).join('') }}
+          </div>
         </div>
       </div>
     </div>
@@ -248,6 +245,7 @@ aside .menu div:hover {
     display: none !important;
   }
 
+  /* Convert all menus to horizontal layout */
   aside .menu {
     flex-direction: row !important;
     justify-content: space-around !important;
@@ -259,6 +257,7 @@ aside .menu div:hover {
     flex: 1 !important;
     max-width: 80px !important;
     padding: 0.5rem 0.25rem !important;
+    margin-top: 0 !important;
   }
 }
 </style>
