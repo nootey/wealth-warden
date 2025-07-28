@@ -14,9 +14,9 @@ import (
 func LoadSeederCredentials() (map[string]string, error) {
 	wd, err := os.Getwd()
 	if err != nil {
-		log.Fatalf("Error loading secrets: %v", err)
+		log.Fatalf("Error loading working directory: %v", err)
 	}
-	path := filepath.Join(wd, ".seeder.credentials")
+	path := filepath.Join(wd, "pkg", "config", "configurable", ".seeder.credentials")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

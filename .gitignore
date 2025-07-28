@@ -23,7 +23,7 @@ go.work.sum
 
 # env file
 .env
-.seeder.credentials
+pkg/config/configurable/.seeder.credentials
 .idea
 /logs
 /pkg/config/configurable/environment.yaml
