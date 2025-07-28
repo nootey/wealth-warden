@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import {useThemeStore} from './services/stores/theme_store.ts';
 import {useAuthStore} from './services/stores/auth_store.ts';
+import {storeToRefs} from "pinia";
 import {ref} from 'vue';
 
 const themeStore = useThemeStore();
 const authStore = useAuthStore();
+const { user } = storeToRefs(authStore);
 
 interface MenuItem {
   to: string;
@@ -16,11 +18,6 @@ const menuItems: MenuItem[] = [
   {to: "/", icon: "pi-home", text: "Home"},
   {to: "/logs", icon: "pi-address-book", text: "Logging"},
 ];
-
-const user = {
-  name: "Janez Novak",
-  email: "poiskusni@gmail.com"
-};
 
 const profileMenuRef = ref<any>(null);
 
@@ -97,8 +94,7 @@ function toggleProfileMenu(event: any) {
             line-height: 1.1;">
             {{ item.text }}</span>
         </router-link>
-        
-        <!-- Profile Menu Item (will be in same row on mobile) -->
+
         <div
             id="user-menu-trigger"
             style="
@@ -124,7 +120,7 @@ function toggleProfileMenu(event: any) {
             font-size: 0.75rem;
             font-weight: 600;
             color: white;">
-            {{ user.name.split(' ').map(n => n[0]).join('') }}
+            {{ user?.display_name.split(' ').map(n => n[0]).join('') }}
           </div>
         </div>
       </div>
@@ -150,23 +146,24 @@ function toggleProfileMenu(event: any) {
             font-size: 0.875rem;
             font-weight: 600;
             color: white;">
-            {{ user.name.split(' ').map(n => n[0]).join('') }}
+            {{ user?.display_name.split(' ').map(n => n[0]).join('') }}
           </div>
           <div>
             <div style="
               font-weight: 600;
               color: var(--text-primary);
-              margin-bottom: 0.25rem;">{{ user.name }}
+              margin-bottom: 0.25rem;">{{ user?.display_name }}
             </div>
             <div style="
               font-size: 0.875rem;
-              color: var(--text-secondary);">{{ user.email }}
+              color: var(--text-secondary);">{{ user?.email }}
             </div>
           </div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-          <div style="
+
+          <div id="profileMenuItem" style="
             display: flex;
             align-items: center;
             gap: 0.75rem;
@@ -179,7 +176,7 @@ function toggleProfileMenu(event: any) {
             <span style="font-size: 0.875rem;">Settings</span>
           </div>
 
-          <div style="
+          <div id="profileMenuItem" style="
             display: flex;
             align-items: center;
             gap: 0.75rem;
@@ -192,7 +189,7 @@ function toggleProfileMenu(event: any) {
             <span style="font-size: 0.875rem;">Theme</span>
           </div>
 
-          <div style="
+          <div id="profileMenuItem" style="
             display: flex;
             align-items: center;
             gap: 0.75rem;
@@ -204,6 +201,7 @@ function toggleProfileMenu(event: any) {
             <i class="pi pi-sign-out" style="font-size: 1rem;"></i>
             <span style="font-size: 0.875rem;">Sign out</span>
           </div>
+
         </div>
       </div>
     </Popover>
@@ -223,6 +221,10 @@ aside .menu div:hover {
   background-color: var(--background-primary) !important;
   color: var(--text-primary) !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#profileMenuItem:hover {
+  background-color: var(--background-primary);
 }
 
 @media (max-width: 768px) {

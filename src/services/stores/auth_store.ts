@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import apiClient from '../api/axios_interceptor.ts';
 import router from "../router";
-import type {AuthForm, User} from '../../models/auth_models.ts';
+import type {AuthForm} from '../../models/auth_models.ts';
+import type {User} from '../../models/user_models.ts';
 import {watch} from "vue";
 
 export const useAuthStore = defineStore('auth', {
