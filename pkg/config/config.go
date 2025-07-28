@@ -3,10 +3,9 @@ package config
 import (
 	"github.com/spf13/viper"
 	"path/filepath"
-	"wealth-warden/internal/models"
 )
 
-func LoadConfig(configPath *string) (*models.Config, error) {
+func LoadConfig(configPath *string) (*Config, error) {
 
 	// Default config path
 	if configPath == nil {
@@ -15,7 +14,7 @@ func LoadConfig(configPath *string) (*models.Config, error) {
 	}
 
 	// Load YAML config via Viper
-	viper.SetConfigName("environment")
+	viper.SetConfigName(filepath.Join("configurable", "environment"))
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(*configPath)
 
@@ -23,7 +22,7 @@ func LoadConfig(configPath *string) (*models.Config, error) {
 		return nil, err
 	}
 
-	var cfg models.Config
+	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}

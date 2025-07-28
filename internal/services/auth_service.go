@@ -6,16 +6,16 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
 type AuthService struct {
-	Config              *models.Config
+	Config              *config.Config
 	logger              *zap.Logger
 	UserRepo            *repositories.UserRepository
 	loggingService      *LoggingService
@@ -24,7 +24,7 @@ type AuthService struct {
 }
 
 func NewAuthService(
-	cfg *models.Config,
+	cfg *config.Config,
 	logger *zap.Logger,
 	userRepo *repositories.UserRepository,
 	loggingService *LoggingService,
@@ -93,7 +93,7 @@ func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberM
 		return "", "", 0, err
 	}
 
-	user, _ := s.UserRepo.GetUserByEmail(email, false)
+	user, _ := s.UserRepo.GetUserByEmail(email)
 	if user == nil {
 		err = errors.New("user data unavailable")
 		return "", "", 0, err
@@ -137,7 +137,7 @@ func (s *AuthService) GetCurrentUser(c *gin.Context, withSecrets bool) (*models.
 			return nil, fmt.Errorf("failed to decode user ID: %v", decodeErr)
 		}
 
-		user, repoError := s.UserRepo.GetUserByID(userId, withSecrets)
+		user, repoError := s.UserRepo.GetUserByID(userId)
 		if repoError != nil {
 			return nil, fmt.Errorf("failed to get user from repository: %v", repoError)
 		}

@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-	"wealth-warden/internal/models"
+	"wealth-warden/pkg/config"
 )
 
 var (
@@ -27,11 +27,11 @@ type WebClientUserClaim struct {
 }
 
 type WebClientMiddleware struct {
-	config *models.Config
+	config *config.Config
 	logger *zap.Logger
 }
 
-func NewWebClientMiddleware(cfg *models.Config, logger *zap.Logger) *WebClientMiddleware {
+func NewWebClientMiddleware(cfg *config.Config, logger *zap.Logger) *WebClientMiddleware {
 	return &WebClientMiddleware{
 		config: cfg,
 		logger: logger,

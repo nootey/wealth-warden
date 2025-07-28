@@ -5,21 +5,22 @@ import (
 	"gorm.io/gorm"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/middleware"
-	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/config"
 )
 
 type Container struct {
-	Config         *models.Config
-	DB             *gorm.DB
-	Middleware     *middleware.WebClientMiddleware
-	AuthService    *services.AuthService
-	UserService    *services.UserService
-	LoggingService *services.LoggingService
+	Config             *config.Config
+	DB                 *gorm.DB
+	Middleware         *middleware.WebClientMiddleware
+	AuthService        *services.AuthService
+	UserService        *services.UserService
+	LoggingService     *services.LoggingService
+	TransactionService *services.TransactionService
 }
 
-func NewContainer(cfg *models.Config, db *gorm.DB, logger *zap.Logger) *Container {
+func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Container {
 
 	// Initialize middleware
 	webClientMiddleware := middleware.NewWebClientMiddleware(cfg, logger)
@@ -32,6 +33,7 @@ func NewContainer(cfg *models.Config, db *gorm.DB, logger *zap.Logger) *Containe
 	// Initialize repositories
 	loggingRepo := repositories.NewLoggingRepository(db)
 	userRepo := repositories.NewUserRepository(db)
+	transactionRepo := repositories.NewTransactionRepository(db)
 
 	// Initialize services
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
@@ -45,13 +47,15 @@ func NewContainer(cfg *models.Config, db *gorm.DB, logger *zap.Logger) *Containe
 	}
 
 	userService := services.NewUserService(cfg, ctx, userRepo)
+	transactionService := services.NewTransactionService(cfg, ctx, transactionRepo)
 
 	return &Container{
-		Config:         cfg,
-		DB:             db,
-		Middleware:     webClientMiddleware,
-		AuthService:    authService,
-		UserService:    userService,
-		LoggingService: loggingService,
+		Config:             cfg,
+		DB:                 db,
+		Middleware:         webClientMiddleware,
+		AuthService:        authService,
+		UserService:        userService,
+		LoggingService:     loggingService,
+		TransactionService: transactionService,
 	}
 }

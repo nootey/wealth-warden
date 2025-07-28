@@ -9,7 +9,7 @@ import (
 	"log"
 	"sync"
 	"time"
-	"wealth-warden/internal/models"
+	"wealth-warden/pkg/config"
 )
 
 var (
@@ -18,7 +18,7 @@ var (
 )
 
 // ConnectToMySQL initializes a singleton GORM connection to MySQL.
-func ConnectToMySQL(cfg *models.Config, disableLogging bool) (*gorm.DB, error) {
+func ConnectToMySQL(cfg *config.Config, disableLogging bool) (*gorm.DB, error) {
 	var err error
 
 	once.Do(func() {
@@ -78,7 +78,7 @@ func DisconnectMySQL() error {
 	return sqlDB.Close()
 }
 
-func ConnectWithoutDB(cfg *models.Config) (*gorm.DB, error) {
+func ConnectWithoutDB(cfg *config.Config) (*gorm.DB, error) {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/?charset=utf8mb4&parseTime=True&loc=Local",
 		cfg.MySQL.User, cfg.MySQL.Password, cfg.MySQL.Host, cfg.MySQL.Port)
 
@@ -90,7 +90,7 @@ func ConnectWithoutDB(cfg *models.Config) (*gorm.DB, error) {
 }
 
 // EnsureDatabaseExists checks if the database exists, and if not, it creates it.
-func EnsureDatabaseExists(cfg *models.Config) error {
+func EnsureDatabaseExists(cfg *config.Config) error {
 	// Connect to MySQL without specifying a database
 	db, err := ConnectWithoutDB(cfg)
 	if err != nil {
@@ -124,7 +124,7 @@ func EnsureDatabaseExists(cfg *models.Config) error {
 	return nil
 }
 
-func DropAndRecreateDatabase(db *sql.DB, cfg *models.Config) error {
+func DropAndRecreateDatabase(db *sql.DB, cfg *config.Config) error {
 	// Drop the database
 	if _, err := db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS `%s`;", cfg.MySQL.Database)); err != nil {
 		return fmt.Errorf("failed to drop database: %w", err)
