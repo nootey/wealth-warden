@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"github.com/gin-gonic/gin"
+	"net/http"
 	"wealth-warden/internal/services"
 )
 
@@ -12,4 +14,8 @@ func NewTransactionHandler(service *services.TransactionService) *TransactionHan
 	return &TransactionHandler{
 		Service: service,
 	}
+}
+
+func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{})
 }

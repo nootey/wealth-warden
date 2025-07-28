@@ -6,5 +6,5 @@ import (
 )
 
 func TransactionRoutes(apiGroup *gin.RouterGroup, handler *handlers.TransactionHandler) {
-
+	apiGroup.GET("", handler.GetTransactionsPaginated)
 }
