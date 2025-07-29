@@ -16,6 +16,8 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   {to: "/", icon: "pi-home", text: "Home"},
+  {to: "/accounts", icon: "pi-hashtag", text: "Accounts"},
+  {to: "/transactions", icon: "pi-credit-card", text: "Transactions"},
   {to: "/logs", icon: "pi-address-book", text: "Logging"},
 ];
 

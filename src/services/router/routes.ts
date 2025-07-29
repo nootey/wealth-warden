@@ -3,6 +3,8 @@ import { useAuthStore } from '../stores/auth_store.ts';
 import DashboardPage from "../../_vue/pages/DashboardPage.vue";
 import Login from "../../_vue/features/auth/Login.vue";
 import LoggingHub from "../../_vue/pages/LoggingHub.vue";
+import TransactionsPage from "../../_vue/pages/TransactionsPage.vue";
+import AccountsPage from "../../_vue/pages/AccountsPage.vue";
 
 const routes = [
     {
@@ -16,6 +18,18 @@ const routes = [
         name: 'Login',
         component: Login,
         beforeEnter: [requiresGuest],
+    },
+    {
+        path: '/accounts',
+        name: 'Accounts',
+        component: AccountsPage,
+        beforeEnter: [requiresAuth],
+    },
+    {
+        path: '/transactions',
+        name: 'Transactions',
+        component: TransactionsPage,
+        beforeEnter: [requiresAuth],
     },
     {
         path: '/logs',

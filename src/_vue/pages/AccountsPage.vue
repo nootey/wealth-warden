@@ -1,7 +1,4 @@
 <script setup lang="ts">
-import {useAuthStore} from "../../services/stores/auth_store.ts";
-
-const authStore = useAuthStore();
 
 </script>
 
@@ -9,12 +6,13 @@ const authStore = useAuthStore();
   <main>
     <div class="flex flex-column w-100 gap-3 justify-content-center align-items-center">
 
-      <div class="main-item flex flex-column justify-content-center gap-1">
-        <div style="font-weight: bold;">WealthWarden </div>
-        <br>
-        <div> Welcome back {{ authStore?.user?.display_name }} </div>
-        <div>{{ "Here's what's happening with your finances." }} </div>
+      <div class="main-item flex flex-row justify-content-between">
+        <div style="font-weight: bold;">Accounts</div>
+        <Button label="New Account" icon="pi pi-plus"
+                style="background-color: var(--text-primary); color: var(--background-primary);
+                border: none; border-radius: 6px; font-size: 0.875rem; padding: 0.5rem 1rem;"></Button>
       </div>
+
 
     </div>
   </main>
