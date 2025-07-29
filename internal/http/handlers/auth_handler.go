@@ -44,14 +44,7 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 }
 
 func (h *AuthHandler) GetAuthUser(c *gin.Context) {
-	queryParams := c.Request.URL.Query()
-	withSecrets := queryParams.Get("withSecrets")
-	includeSecrets := false
-	if withSecrets == "true" {
-		includeSecrets = true
-	}
-
-	user, err := h.Service.GetCurrentUser(c, includeSecrets)
+	user, err := h.Service.GetCurrentUser(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return

@@ -119,7 +119,7 @@ func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberM
 	return accessToken, refreshToken, expiresAt, nil
 }
 
-func (s *AuthService) GetCurrentUser(c *gin.Context, withSecrets bool) (*models.User, error) {
+func (s *AuthService) GetCurrentUser(c *gin.Context) (*models.User, error) {
 
 	refreshToken, err := c.Cookie("refresh")
 	if err != nil {
