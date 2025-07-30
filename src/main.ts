@@ -1,5 +1,5 @@
-import './style/global.scss'
 import '../node_modules/primeflex/primeflex.css';
+import './style/global.scss'
 
 import { createApp } from 'vue'
 import App from './App.vue'
@@ -68,6 +68,8 @@ app.use(PrimeVue, {
 });
 app.use(ToastService);
 app.use(ConfirmationService);
+
+
 
 app.component('App', App);
 app.mount('#app');

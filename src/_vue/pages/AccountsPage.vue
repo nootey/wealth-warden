@@ -1,16 +1,58 @@
 <script setup lang="ts">
 
+import InsertAccount from "../components/forms/InsertAccount.vue";
+import {onMounted, ref} from "vue";
+import {useAccountStore} from "../../services/stores/account_store.ts";
+
+const account_store = useAccountStore();
+
+const addAccountModal = ref(false);
+
+onMounted(async () => {
+  await account_store.getAccountTypes();
+})
+
+function manipulateDialog(modal: string, value: boolean) {
+  switch (modal) {
+    case 'add-account': {
+      addAccountModal.value = value;
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+}
+
+async function handleEmit(emitType: any) {
+  switch (emitType) {
+    case 'insert-account': {
+      console.log("hello there")
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+}
+
+
 </script>
 
 <template>
+
   <main>
+
+    <Dialog v-model:visible="addAccountModal" :breakpoints="{'801px': '90vw'}"
+            :modal="true" :style="{width: '500px'}" header="Add account">
+      <InsertAccount entity="account" @insertAccount="handleEmit('insert-account')"></InsertAccount>
+    </Dialog>
+
     <div class="flex flex-column w-100 gap-3 justify-content-center align-items-center">
 
       <div class="main-item flex flex-row justify-content-between">
         <div style="font-weight: bold;">Accounts</div>
-        <Button label="New Account" icon="pi pi-plus"
-                style="background-color: var(--text-primary); color: var(--background-primary);
-                border: none; border-radius: 6px; font-size: 0.875rem; padding: 0.5rem 1rem;"></Button>
+        <Button class="main-button" label="New Account" icon="pi pi-plus" @click="manipulateDialog('add-account', true)"></Button>
       </div>
 
 
