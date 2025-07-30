@@ -17,6 +17,7 @@ type Container struct {
 	AuthService        *services.AuthService
 	UserService        *services.UserService
 	LoggingService     *services.LoggingService
+	AccountService     *services.AccountService
 	TransactionService *services.TransactionService
 }
 
@@ -33,6 +34,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Containe
 	// Initialize repositories
 	loggingRepo := repositories.NewLoggingRepository(db)
 	userRepo := repositories.NewUserRepository(db)
+	accountRepo := repositories.NewAccountRepository(db)
 	transactionRepo := repositories.NewTransactionRepository(db)
 
 	// Initialize services
@@ -47,6 +49,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Containe
 	}
 
 	userService := services.NewUserService(cfg, ctx, userRepo)
+	accountService := services.NewAccountService(cfg, ctx, accountRepo)
 	transactionService := services.NewTransactionService(cfg, ctx, transactionRepo)
 
 	return &Container{
@@ -56,6 +59,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Containe
 		AuthService:        authService,
 		UserService:        userService,
 		LoggingService:     loggingService,
+		AccountService:     accountService,
 		TransactionService: transactionService,
 	}
 }
