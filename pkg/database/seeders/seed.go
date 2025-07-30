@@ -22,11 +22,13 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, seederTy
 			workers.SeedRolesAndPermissions,
 			workers.SeedRootUser,
 			workers.SeedMemberUser,
+			workers.SeedAccountTypes,
 		}
 	case "basic":
 		seeders = []SeederFunc{
 			workers.SeedRolesAndPermissions,
 			workers.SeedRootUser,
+			workers.SeedAccountTypes,
 		}
 	default:
 		return fmt.Errorf("unknown seeder type: %s", seederType)

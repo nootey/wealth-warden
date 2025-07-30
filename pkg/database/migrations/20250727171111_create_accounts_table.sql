@@ -1,23 +1,17 @@
 -- +goose Up
 -- +goose StatementBegin
+
 CREATE TABLE accounts (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
     name VARCHAR(150) NOT NULL,
-    subtype VARCHAR(100),
-
-    classification VARCHAR(20) GENERATED ALWAYS AS (
-              CASE
-                  WHEN subtype IN ('loan', 'credit_card', 'liability') THEN 'liability'
-                  ELSE 'asset'
-                  END
-              ) STORED,
-
+    account_type_id BIGINT NOT NULL,
     currency CHAR(3) NOT NULL DEFAULT 'EUR',
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_accounts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_accounts_account_type FOREIGN KEY (account_type_id) REFERENCES account_types(id),
     CONSTRAINT uq_accounts_user_name UNIQUE (user_id, name)
 );
 
