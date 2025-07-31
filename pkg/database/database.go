@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"log"
+	"os"
 	"sync"
 	"time"
 	"wealth-warden/pkg/config"
@@ -26,50 +27,53 @@ func ConnectToMaintenance(cfg *config.Config) (*gorm.DB, error) {
 }
 
 func ConnectToDatabase(cfg *config.Config, targetDB string) (*gorm.DB, error) {
-	// Remove the once.Do caching if you need different connections for different targets.
-	hosts := []string{cfg.Postgres.Host, "localhost", "samples"}
-	logLevel := logger.Info
-	if !cfg.Release {
+
+	var logLevel logger.LogLevel
+	if cfg.Release {
 		logLevel = logger.Silent
+	} else {
+		logLevel = logger.Info
 	}
 
-	var lastErr error
-	for _, host := range hosts {
-		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=UTC",
-			host, cfg.Postgres.User, cfg.Postgres.Password, targetDB, cfg.Postgres.Port)
+	host := cfg.Postgres.Host
 
-		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-			Logger: logger.Default.LogMode(logLevel),
-		})
-		if err != nil {
-			log.Printf("Failed to connect to database at %s: %v", host, err)
-			lastErr = err
-			continue
-		}
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=UTC",
+		host, cfg.Postgres.User, cfg.Postgres.Password, targetDB, cfg.Postgres.Port)
 
-		sqlDB, err := db.DB()
-		if err != nil {
-			log.Printf("Failed to get raw DB instance: %v", err)
-			lastErr = err
-			continue
-		}
-
-		// Set connection pooling and check connectivity.
-		sqlDB.SetConnMaxLifetime(time.Minute * 5)
-		sqlDB.SetMaxIdleConns(10)
-		sqlDB.SetMaxOpenConns(100)
-
-		if err := sqlDB.Ping(); err != nil {
-			log.Printf("Could not ping database at %s: %v", host, err)
-			lastErr = err
-			continue
-		}
-
-		log.Printf("Connected to database at %s", host)
-		return db, nil
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags),
+			logger.Config{
+				SlowThreshold:             200 * time.Millisecond,
+				LogLevel:                  logLevel,
+				IgnoreRecordNotFoundError: true,
+				Colorful:                  true,
+			},
+		),
+	})
+	if err != nil {
+		log.Printf("Failed to connect to database at %s: %v", host, err)
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("failed to connect to any host: %v", lastErr)
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Printf("Failed to get raw DB instance: %v", err)
+		return nil, err
+	}
+
+	// Set connection pooling and check connectivity.
+	sqlDB.SetConnMaxLifetime(time.Minute * 5)
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+
+	if err := sqlDB.Ping(); err != nil {
+		log.Printf("Could not ping database at %s: %v", host, err)
+		return nil, err
+	}
+
+	log.Printf("Connected to database at %s", host)
+	return db, nil
 }
 
 func DisconnectPostgres() error {
