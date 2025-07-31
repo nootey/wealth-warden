@@ -18,3 +18,17 @@ func (r *AccountRepository) FindAllAccountTypes(user *models.User) ([]models.Acc
 	result := r.DB.Find(&records)
 	return records, result.Error
 }
+
+func (r *AccountRepository) InsertAccount(tx *gorm.DB, newRecord *models.Account) (uint, error) {
+	if err := tx.Create(&newRecord).Error; err != nil {
+		return 0, err
+	}
+	return newRecord.ID, nil
+}
+
+func (r *AccountRepository) InsertBalance(tx *gorm.DB, newRecord *models.Balance) (uint, error) {
+	if err := tx.Create(&newRecord).Error; err != nil {
+		return 0, err
+	}
+	return newRecord.ID, nil
+}
