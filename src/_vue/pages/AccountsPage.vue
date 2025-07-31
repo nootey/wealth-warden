@@ -138,35 +138,27 @@ async function handleEmit(emitType: any) {
 </script>
 
 <template>
+  <Dialog v-model:visible="addAccountModal" :breakpoints="{'801px': '90vw'}"
+          :modal="true" :style="{width: '500px'}" header="Add account">
+    <InsertAccount entity="account" @insertAccount="handleEmit('insertAccount')"></InsertAccount>
+  </Dialog>
+  <main style="display: flex;flex-direction: column;height: 100vh;width: 100%;padding: 1rem;justify-content: center;align-items: center;">
 
-  <main>
+    <div style="flex: 0 0 auto;display: flex;justify-content: space-between;align-items: center;padding: 1rem;border-top-right-radius: 8px;
+        border-top-left-radius: 8px;border: 1px solid var(--border-color);background: var(--background-secondary);max-width: 1000px;width: 100%;">
 
-    <Dialog v-model:visible="addAccountModal" :breakpoints="{'801px': '90vw'}"
-            :modal="true" :style="{width: '500px'}" header="Add account">
-      <InsertAccount entity="account" @insertAccount="handleEmit('insertAccount')"></InsertAccount>
-    </Dialog>
+      <div style="font-weight: bold;">Accounts</div>
+      <Button class="main-button" label="New Account" icon="pi pi-plus" @click="manipulateDialog('add-account', true)"/>
+    </div>
 
-    <div class="flex flex-column w-100 gap-3 justify-content-center align-items-center">
-
-      <div class="main-item flex flex-row justify-content-between">
-        <div style="font-weight: bold;">Accounts</div>
-        <Button class="main-button" label="New Account" icon="pi pi-plus" @click="manipulateDialog('add-account', true)"></Button>
-      </div>
-
-      <div class="flex flex-column main-item w-full">
+    <div style="flex: 1 1 auto;overflow-y: auto;padding: 1rem;border-bottom-right-radius: 8px;border-bottom-left-radius: 8px;
+        border: 1px solid var(--border-color);background: var(--background-secondary);max-width: 1000px;width: 100%; ">
 
         <div v-for="[type, group] in groupedAccounts" :key="type"
-             style="margin-bottom:1.5rem;
-              background:var(--background-primary);
-              border-radius:8px;
-              padding:1rem; width: 100%;">
+             style="margin-bottom:1.5rem;background:var(--background-primary);border-radius:8px;padding:1rem; width: 100%;">
 
-          <div style="display:flex;
-                justify-content:space-between;
-                align-items:center;
-                padding-bottom:0.5rem;
-                border-bottom:1px solid var(--border-color);
-                margin-bottom:0.5rem;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:0.5rem;
+              border-bottom:1px solid var(--border-color);margin-bottom:0.5rem;">
             <div style="font-size:0.875rem; color:var(--text-secondary);">
               {{ vueHelper.formatString(type) }} · {{ group.length }}
             </div>
@@ -175,21 +167,14 @@ async function handleEmit(emitType: any) {
             </div>
           </div>
 
-          <div v-for="account in group" :key="account.id"
-               style="display:flex;
-                align-items:center;
-                justify-content:space-between;
-                padding:0.5rem;
-                border:1px solid var(--border-color);
-                border-radius:8px;
-                margin-top:0.5rem;
-                background:var(--background-secondary);">
+          <div v-for="account in group" :key="account.id" style="display:flex;align-items:center;justify-content:space-between;
+                padding:0.5rem;border:1px solid var(--border-color);border-radius:8px;margin-top:0.5rem;background:var(--background-secondary);">
 
             <div style="display:flex; align-items:center;">
               <div :style="{
                     width: '32px',
                     height: '32px',
-                    border: '2px solid',
+                    border: '1px solid',
                     borderColor:       logoColor(account.account_type.type).fg,
                     borderRadius: '50%',
                     background:  logoColor(account.account_type.type).bg,
@@ -217,7 +202,6 @@ async function handleEmit(emitType: any) {
 
           </div>
         </div>
-      </div>
 
 
     </div>
@@ -225,12 +209,5 @@ async function handleEmit(emitType: any) {
 </template>
 
 <style scoped>
-.main-item {
-  width: 100%;
-  max-width: 1000px;
-  align-items: center;
-  padding: 1rem;
-  border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--background-secondary)
-}
 
 </style>
