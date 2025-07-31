@@ -159,6 +159,8 @@ async function createNewRecord() {
 
     toast_store.successResponseToast(response);
 
+    emit("insertAccount")
+
   } catch (error) {
     toast_store.errorResponseToast(error);
   }
