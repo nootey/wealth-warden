@@ -1,7 +1,7 @@
 <script setup lang="ts">
 
 import ValidationError from "../../components/validation/ValidationError.vue";
-import {required} from "@vuelidate/validators";
+import {numeric, required, minValue, maxValue} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
@@ -12,7 +12,7 @@ const shared_store = useSharedStore();
 const account_store = useAccountStore();
 const toast_store = useToastStore();
 
-const NewRecord = ref(initData(false));
+const newRecord = ref(initData(false));
 const selectedClassification = ref("Asset");
 
 const accountTypes = computed(() => account_store.accountTypes);
@@ -25,7 +25,7 @@ const uniqueAccountTypes = computed(() => {
   const types = filtered.map(account => account.type);
   return [...new Set(types)];
 });
-const selectedType = computed(() => NewRecord.value.account_type.type);
+const selectedType = computed(() => newRecord.value.account_type.type);
 const selectedSubtype = ref(null);
 
 const uniqueAccountSubtypes = computed(() => {
@@ -44,13 +44,13 @@ const filteredAccountTypes = ref([]);
 const filteredSubtypeOptions = ref([]);
 
 watch(selectedSubtype, (newVal) => {
-  NewRecord.value.account_type.subtype = newVal?.name ?? '';
+  newRecord.value.account_type.subtype = newVal ?? '';
 });
 
 watch(selectedClassification, () => {
-  NewRecord.value.account_type.type = "";
+  newRecord.value.account_type.type = "";
   selectedSubtype.value = null;
-  NewRecord.value.account_type.subtype = "";
+  newRecord.value.account_type.subtype = "";
 });
 
 const searchAccountType = (event: any) => {
@@ -68,13 +68,10 @@ const searchAccountType = (event: any) => {
 const searchSubtype = (event: any) => {
   setTimeout(() => {
     if (!event.query.trim().length) {
-      filteredSubtypeOptions.value = [...uniqueAccountSubtypes.value.map(s => ({ name: s }))];
+      filteredSubtypeOptions.value = [...uniqueAccountSubtypes.value];
     } else {
       filteredSubtypeOptions.value = uniqueAccountSubtypes.value
-          .filter(subtype =>
-              subtype.toLowerCase().startsWith(event.query.toLowerCase())
-          )
-          .map(s => ({ name: s }));
+          .filter(subtype => subtype.toLowerCase().startsWith(event.query.toLowerCase()));
     }
   }, 250);
 };
@@ -84,7 +81,7 @@ const emit = defineEmits<{
 }>();
 
 const rules = {
-  NewRecord: {
+  newRecord: {
     name: {
       required,
       $autoDirty: true
@@ -103,10 +100,17 @@ const rules = {
         $autoDirty: true
       },
     },
+    balance: {
+      required,
+      numeric,
+      minValue: minValue(0),
+      maxValue: maxValue(1000000000),
+      $autoDirty: true
+    }
   },
 };
 
-const v$ = useVuelidate(rules, { NewRecord });
+const v$ = useVuelidate(rules, { newRecord });
 
 function initData(isReoccurring: boolean = false): Record<string, any> {
 
@@ -117,44 +121,41 @@ function initData(isReoccurring: boolean = false): Record<string, any> {
       subtype: "",
       classification: "",
     },
+    balance: null,
   };
 }
 
-async function validateRecord(reoccurring = false) {
-  const isValidInflow = await v$.value.NewRecord.$validate();
-  let isValidReoccurring = true;
-
-  if (reoccurring) {
-    isValidReoccurring = await v$.value?.newReoccurringRecord.$validate();
-  }
-
-  if (!isValidReoccurring) return true;
-  if (!isValidInflow) return true;
-
-  return false;
+async function isRecordValid() {
+  const isValid = await v$.value.newRecord.$validate();
+  if (!isValid) return false;
+  return true;
 }
 
 async function createNewRecord() {
 
-  if (await validateRecord(false)) return;
+  if (await isRecordValid()) return;
 
-  NewRecord.value.subtype = selectedSubtype.value?.name ?? "";
-  NewRecord.value.classification = accountTypes.value.find(
-      acc => acc.type === selectedType.value?.name && acc.subtype === selectedSubtype.value?.name
-  )?.classification ?? "";
+  newRecord.value.subtype = selectedSubtype.value ?? "";
+  const currentAccType = accountTypes.value.find(
+      acc => acc.type === selectedType.value && acc.subtype === selectedSubtype.value
+  );
+  newRecord.value.classification = currentAccType.classification;
+  newRecord.value.account_type_id = currentAccType.id;
 
   try {
     let response = await shared_store.createRecord(
       "accounts",
       {
-        id: null,
-        name: NewRecord.value.name,
-        subtype: NewRecord.value.subtype,
-        classification: NewRecord.value.classification,
+        account_type_id: newRecord.value.account_type_id,
+        name: newRecord.value.name,
+        type: newRecord.value.account_type.type,
+        subtype: newRecord.value.subtype,
+        classification: newRecord.value.classification,
+        balance: newRecord.value.balance,
     });
 
-    NewRecord.value = initData(false);
-    v$.value.NewRecord.$reset();
+    newRecord.value = initData(false);
+    v$.value.newRecord.$reset();
 
     toast_store.successResponseToast(response);
 
@@ -178,31 +179,38 @@ async function createNewRecord() {
 
     <div class="flex flex-row gap-2 w-full">
       <div class="flex flex-column w-full">
-        <ValidationError :isRequired="true" :message="v$.NewRecord.name.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.newRecord.name.$errors[0]?.$message">
           <label>Name</label>
         </ValidationError>
-        <InputText size="small" v-model="NewRecord.name"></InputText>
+        <InputText size="small" v-model="newRecord.name"></InputText>
       </div>
+    </div>
+
+    <div class="flex flex-column">
+      <ValidationError :isRequired="true" :message="v$.newRecord.balance.$errors[0]?.$message">
+        <label>Current balance</label>
+      </ValidationError>
+      <InputNumber size="small" v-model="newRecord.balance" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00"></InputNumber>
     </div>
 
     <div class="flex flex-row gap-2 w-full">
       <div class="flex flex-column w-full">
-        <ValidationError :isRequired="true" :message="v$.NewRecord.account_type.type.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.newRecord.account_type.type.$errors[0]?.$message">
           <label>Type</label>
         </ValidationError>
-        <AutoComplete size="small" v-model="NewRecord.account_type.type" :suggestions="filteredAccountTypes"
+        <AutoComplete size="small" v-model="newRecord.account_type.type" :suggestions="filteredAccountTypes"
                       @complete="searchAccountType" placeholder="Select type" dropdown></AutoComplete>
       </div>
     </div>
 
     <div class="flex flex-row gap-2 w-full">
       <div class="flex flex-column w-full">
-        <ValidationError :isRequired="true" :message="v$.NewRecord.account_type.subtype.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.newRecord.account_type.subtype.$errors[0]?.$message">
           <label>Subtype</label>
         </ValidationError>
         <AutoComplete
             size="small" v-model="selectedSubtype" :suggestions="filteredSubtypeOptions"
-            @complete="searchSubtype" :disabled="!selectedType" option-label="name" placeholder="Select subtype" dropdown />
+            @complete="searchSubtype" :disabled="!selectedType" placeholder="Select subtype" dropdown />
       </div>
     </div>
 
