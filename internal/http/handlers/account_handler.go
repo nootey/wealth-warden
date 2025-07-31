@@ -19,6 +19,26 @@ func NewAccountHandler(service *services.AccountService) *AccountHandler {
 	}
 }
 
+func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
+
+	records, paginator, err := h.Service.FetchAccountsPaginated(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	response := gin.H{
+		"current_page":  paginator.CurrentPage,
+		"rows_per_page": paginator.RowsPerPage,
+		"from":          paginator.From,
+		"to":            paginator.To,
+		"total_records": paginator.TotalRecords,
+		"data":          records,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
 	records, err := h.Service.FetchAllAccountTypes(c)
 	if err != nil {

@@ -5,13 +5,15 @@ import "time"
 const DefaultCurrency = "eur"
 
 type Account struct {
-	ID            uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID        uint      `gorm:"not null;index:idx_accounts_user" json:"user_id"`
-	Name          string    `gorm:"type:varchar(150);not null" json:"name" validate:"required"`
-	AccountTypeID uint      `gorm:"not null" json:"account_type_id" validate:"required"`
-	Currency      string    `gorm:"type:char(4);not null;default:'EUR'" json:"currency" validate:"required"`
-	CreatedAt     time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt     time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID            uint        `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID        uint        `gorm:"not null;index:idx_accounts_user" json:"user_id"`
+	Name          string      `gorm:"type:varchar(150);not null" json:"name" validate:"required"`
+	AccountTypeID uint        `gorm:"not null" json:"account_type_id" validate:"required"`
+	AccountType   AccountType `json:"account_type"`
+	Balance       Balance     `json:"balance"`
+	Currency      string      `gorm:"type:char(4);not null;default:'EUR'" json:"currency" validate:"required"`
+	CreatedAt     time.Time   `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt     time.Time   `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type AccountType struct {
