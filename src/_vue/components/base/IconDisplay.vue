@@ -3,7 +3,7 @@ import {ref} from "vue";
 
 defineProps(['event']);
 
-const properties = ref({
+const properties = ref<any>({
   event: {
     'login': { icon: 'pi pi-unlock' },
     'register': { icon: 'pi pi-user-plus' },

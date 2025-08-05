@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import {useSlots} from "vue";
+import { useSlots } from 'vue';
+import type { Slots } from 'vue';
 
-const slots = useSlots()
+const slots: Slots = useSlots();
 </script>
 
 <template>

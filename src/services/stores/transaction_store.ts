@@ -4,6 +4,7 @@ import apiClient from "../api/axios_interceptor.ts";
 export const useTransactionStore = defineStore('transaction', {
     state: () => ({
         apiPrefix: "transactions",
+        currentYear: new Date().getFullYear(),
     }),
     getters: {
     },

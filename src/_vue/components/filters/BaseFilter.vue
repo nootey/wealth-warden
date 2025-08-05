@@ -2,23 +2,25 @@
 import {inject, ref} from "vue";
 import dayjs from "dayjs";
 import ActiveFilters from "./ActiveFilters.vue";
+import type {FilterObj, Operator} from "../../../models/shared_models.ts";
 
 const props = defineProps(['filterType', 'activeColumn', 'filter', 'filters']);
-const submitFilter = inject('submitFilter');
+type SubmitFilter = (column: string) => void;
+const submitFilter = inject<SubmitFilter>('submitFilter', () => {});
 
 const filter_is_active = ref(false);
 const operators = ref([
   {name: 'contains', value: 'like'},
   {name: 'equals', value: '='},
 ]);
-const filteredOperators = ref([]);
+const filteredOperators = ref<Operator[]>([]);
 
 props.filter.operator = props.filterType === "date" ? "equals" : "contains";
 checkActiveFilter();
 
 function checkActiveFilter() {
 
-  props.filters.some((filter) => {
+  props.filters.some((filter: FilterObj) => {
     if (filter.parameter === props.activeColumn) {
       filter_is_active.value = true;
     }
@@ -34,7 +36,12 @@ function addActiveFilter() {
   submitFilter(props.activeColumn)
 }
 
-function selectDate(value: string | Date, enter: boolean | null = null): void {
+function selectDate(value: string | Date | Event, enter: string | null = null): void {
+
+  if (value instanceof Event) {
+    return;
+  }
+
   props.filter.value = dayjs(value).format('YYYY-MM-DD');
   if (enter) {
     submitFilter(props.activeColumn);
@@ -46,7 +53,7 @@ function calendarDoubleClick(): void {
   props.filter.value = dayjs(today).format('YYYY-MM-DD');
 }
 
-function checkDateValidity(event: Event): void {
+function checkDateValidity(): void {
   const testDate = dayjs(props.filter.value);
   if (testDate.isValid()) {
     props.filter.value = testDate.format('YYYY-MM-DD');
@@ -79,7 +86,7 @@ const searchOperator = (event: any) => {
               class="calendar" @dblclick="calendarDoubleClick"
               @date-select="selectDate" :manualInput="true" :placeholder="'Filter by ' + activeColumn"
               dateFormat="dd.mm.yy" @keydown.enter="selectDate($event, 'enter')"
-              @input="checkDateValidity($event)"/>
+              @input="checkDateValidity()"/>
     <Button label='Apply' @click="addActiveFilter" class="save_button"></Button>
     <div class="flex flex-row w-100 align-items-center justify-content-center">
       <ActiveFilters :activeFilters="filters" :show-only-active="true" :active-filter="activeColumn"></ActiveFilters>

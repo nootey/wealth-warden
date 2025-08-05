@@ -4,8 +4,8 @@ import vueHelper from "../../../utils/vueHelper.ts";
 
 const props = defineProps(['header', 'field', 'sort', 'filter', 'filters', 'active_filter_col']);
 
-const switchSort = inject('switchSort');
-const toggleFilterOverlay = inject('toggleFilterOverlay');
+const switchSort = inject<(column: string) => void>('switchSort', () => {});
+const toggleFilterOverlay = inject<(event: Event, field: string) => void>('toggleFilterOverlay', () => {});
 
 function isFilterActive(field: string): boolean {
   const activeFilters = new Set<string>();

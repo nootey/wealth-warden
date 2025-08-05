@@ -74,14 +74,14 @@ function lastTwoMonths() {
   timeRange.value = [setMinTime(startDate), setMaxTime(endDate)];
 }
 
-function setMinTime(date) {
+function setMinTime(date: Date) {
   date.setHours(0);
   date.setMinutes(0);
   date.setSeconds(0);
   return date;
 }
 
-function setMaxTime(date) {
+function setMaxTime(date: Date) {
   date.setHours(23);
   date.setMinutes(59);
   date.setSeconds(0);

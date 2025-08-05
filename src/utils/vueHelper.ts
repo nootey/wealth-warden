@@ -2,6 +2,17 @@ interface ValidationObject {
     $error: boolean;
 }
 
+type Change = {
+    prop: string;
+    oldVal: any;
+    newVal: any;
+};
+
+type Causer = {
+    id: number;
+    username: string;
+};
+
 const vueHelper = {
     formatString: (value: string) => {
         if (!value) return "";
@@ -37,11 +48,13 @@ const vueHelper = {
             field: 'created_at'
         };
     },
-    toggleSort(sortValue: number) {
+    toggleSort(sortValue: number): number {
         switch (sortValue) {
             case 1:
                 return -1;
             case -1:
+                return 1;
+            default:
                 return 1;
         }
     },
@@ -100,7 +113,7 @@ const vueHelper = {
         if (payload) {
             let newValues = JSON.parse(payload).new;
             let oldValues = JSON.parse(payload).old ?? null;
-            let finalOutput = [];
+            let finalOutput: Change[] = [];
 
             let properties = new Set([...Object.keys(newValues), ...Object.keys(oldValues)]);
 
@@ -119,16 +132,17 @@ const vueHelper = {
         }
         return null;
     },
-    isEmpty(value){
+    isEmpty(value: any){
         return (value == null || value.length === 0 || value === ' ');
     },
-    formatValue(item){
+    formatValue(item: any){
         if(this.isEmpty(item.oldVal) && this.isEmpty(item.newVal)) return "NULL";
         return (this.isEmpty(item.oldVal) ? "NEW" : item.oldVal)
             + " => " +
             (this.isEmpty(item.newVal) ? "DELETED" : item.newVal);
     },
-    displayCauserFromId(causerId, availableCausers) {
+    displayCauserFromId(causerId: number | null, availableCausers: Causer[]) {
+
         if (!causerId || !availableCausers) return '';
         const causer = availableCausers.find(c => c.id === causerId);
         return causer ? causer.username : "Deleted user";

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 
 import InsertAccount from "../components/forms/InsertAccount.vue";
-import {computed, onMounted, provide, ref} from "vue";
+import {computed, onMounted, ref} from "vue";
 import {useAccountStore} from "../../services/stores/account_store.ts";
 import vueHelper from "../../utils/vueHelper.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import {useSharedStore} from "../../services/stores/shared_store.ts";
+import type {Account} from "../../models/account_models.ts";
 
 const account_store = useAccountStore();
 const shared_store = useSharedStore();
@@ -21,7 +22,7 @@ onMounted(async () => {
 })
 
 const loadingAccounts = ref(true);
-const accounts = ref([]);
+const accounts = ref<Account[]>([]);
 
 const params = computed(() => {
   return {
@@ -57,7 +58,7 @@ const typeColors: Record<string, { bg: string; fg: string }> = {
 const logoColor = (type: string) =>
     typeColors[type] ?? { bg: "#444", fg: "#222" };
 
-const typeMap = {};
+const typeMap: Record<string, string> = {};
 account_store.accountTypes.forEach(t => {
   typeMap[t.type] = t.classification;
 });
@@ -107,7 +108,7 @@ const groupedAccounts = computed(() => {
       });
 });
 
-const groupTotal = (group) =>
+const groupTotal = (group: Account[]) =>
     group.reduce((sum, acc) => sum + (acc.balance.end_balance || 0), 0);
 
 function manipulateDialog(modal: string, value: boolean) {
@@ -167,7 +168,7 @@ async function handleEmit(emitType: any) {
             </div>
           </div>
 
-          <div v-for="account in group" :key="account.id" style="display:flex;align-items:center;justify-content:space-between;
+          <div v-for="(account, i) in group" :key="account.id ?? i" style="display:flex;align-items:center;justify-content:space-between;
                 padding:0.5rem;border:1px solid var(--border-color);border-radius:8px;margin-top:0.5rem;background:var(--background-secondary);">
 
             <div style="display:flex; align-items:center;">

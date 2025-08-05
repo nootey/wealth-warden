@@ -8,15 +8,16 @@ import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useAccountStore} from "../../../services/stores/account_store.ts";
 import {computed, ref, watch} from "vue";
 import vueHelper from "../../../utils/vueHelper.ts"
+import type {Account, AccountType} from "../../../models/account_models.ts"
 
 const shared_store = useSharedStore();
 const account_store = useAccountStore();
 const toast_store = useToastStore();
 
-const newRecord = ref(initData(false));
+const newRecord = ref<Account>(initData());
 const selectedClassification = ref("Asset");
 
-const accountTypes = computed(() => account_store.accountTypes);
+const accountTypes = computed<AccountType[]>(() => account_store.accountTypes);
 
 const uniqueAccountTypes = computed(() => {
   const filtered = accountTypes.value.filter(account =>
@@ -27,7 +28,7 @@ const uniqueAccountTypes = computed(() => {
   return [...new Set(types)];
 });
 const selectedType = computed(() => newRecord.value.account_type.type);
-const selectedSubtype = ref(null);
+const selectedSubtype = ref<string | null>(null);
 
 const uniqueAccountSubtypes = computed(() => {
   if (!selectedType.value) return [];
@@ -41,8 +42,8 @@ const uniqueAccountSubtypes = computed(() => {
   return [...new Set(subtypes)];
 });
 
-const filteredAccountTypes = ref([]);
-const filteredSubtypeOptions = ref([]);
+const filteredAccountTypes = ref<string[]>([]);
+const filteredSubtypeOptions = ref<string[]>([]);
 
 watch(selectedSubtype, (newVal) => {
   newRecord.value.account_type.subtype = newVal ?? '';
@@ -62,13 +63,13 @@ const formattedTypeModel = computed({
 });
 
 const formattedSubtypeModel = computed({
-  get: () => vueHelper.formatString(selectedSubtype.value),
+  get: () => vueHelper.formatString(selectedSubtype.value ?? ""),
   set: (val: string) => {
     selectedSubtype.value = val;
   },
 });
 
-const searchAccountType = (event: any) => {
+const searchAccountType = (event: { query: string }) => {
   setTimeout(() => {
     if (!event.query.trim().length) {
       filteredAccountTypes.value = [...uniqueAccountTypes.value];
@@ -80,7 +81,7 @@ const searchAccountType = (event: any) => {
   }, 250);
 }
 
-const searchSubtype = (event: any) => {
+const searchSubtype = (event: { query: string }) => {
   setTimeout(() => {
     if (!event.query.trim().length) {
       filteredSubtypeOptions.value = [...uniqueAccountSubtypes.value];
@@ -110,33 +111,39 @@ const rules = {
         required,
         $autoDirty: true
       },
-      classification: {
+    },
+    balance: {
+      start_balance: {
         required,
+        numeric,
+        minValue: minValue(0),
+        maxValue: maxValue(1000000000),
         $autoDirty: true
       },
     },
-    balance: {
-      required,
-      numeric,
-      minValue: minValue(0),
-      maxValue: maxValue(1000000000),
-      $autoDirty: true
-    }
   },
 };
 
 const v$ = useVuelidate(rules, { newRecord });
 
-function initData(isReoccurring: boolean = false): Record<string, any> {
+function initData(): Account {
 
   return {
+    id: null,
     name: "",
     account_type: {
+      id: null,
+      name: "",
       type: "",
       subtype: "",
       classification: "",
     },
-    balance: null,
+    balance: {
+      id: null,
+      start_balance: null,
+      end_balance: null,
+      as_of: null,
+    },
   };
 }
 
@@ -150,26 +157,32 @@ async function createNewRecord() {
 
   if (!await isRecordValid()) return;
 
-  newRecord.value.subtype = selectedSubtype.value ?? "";
   const currentAccType = accountTypes.value.find(
       acc => acc.type === selectedType.value && acc.subtype === selectedSubtype.value
   );
-  newRecord.value.classification = currentAccType.classification;
-  newRecord.value.account_type_id = currentAccType.id;
+
+  if (!currentAccType) {
+    toast_store.errorResponseToast("Account type not found!");
+    return;
+  }
+
+  newRecord.value.account_type.subtype = selectedSubtype.value ?? "";
+  newRecord.value.account_type.classification = currentAccType?.classification;
 
   try {
     let response = await shared_store.createRecord(
       "accounts",
-      {
-        account_type_id: newRecord.value.account_type_id,
-        name: newRecord.value.name,
-        type: newRecord.value.account_type.type,
-        subtype: newRecord.value.subtype,
-        classification: newRecord.value.classification,
-        balance: newRecord.value.balance,
-    });
+        {
+          account_type_id: currentAccType.id,
+          name: newRecord.value.name,
+          type: newRecord.value.account_type.type,
+          subtype: newRecord.value.account_type.subtype,
+          classification: newRecord.value.account_type.classification,
+          balance: newRecord.value.balance.start_balance,
+        }
+        );
 
-    newRecord.value = initData(false);
+    newRecord.value = initData();
     v$.value.newRecord.$reset();
 
     toast_store.successResponseToast(response);
@@ -193,7 +206,7 @@ async function createNewRecord() {
     </div>
 
 
-    <div class="flex flex-roww-full">
+    <div class="flex flex-row w-full">
       <div class="flex flex-column w-full">
         <ValidationError :isRequired="true" :message="v$.newRecord.name.$errors[0]?.$message">
           <label>Name</label>
@@ -206,7 +219,7 @@ async function createNewRecord() {
       <ValidationError :isRequired="true" :message="v$.newRecord.balance.$errors[0]?.$message">
         <label>Current balance</label>
       </ValidationError>
-      <InputNumber size="small" v-model="newRecord.balance" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00"></InputNumber>
+      <InputNumber size="small" v-model="newRecord.balance.start_balance" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00"></InputNumber>
     </div>
 
     <div class="flex flex-row w-full">

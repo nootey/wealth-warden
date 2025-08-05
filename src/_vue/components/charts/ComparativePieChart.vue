@@ -36,7 +36,7 @@ const generateColors = (count: number) => {
 };
 
 watch(
-    () => [props.values, props.labels],
+    [() => props.values, () => props.labels],
     ([newValues, newLabels]) => {
       chartData.value = {
         labels: newLabels,

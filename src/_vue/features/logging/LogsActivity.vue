@@ -11,6 +11,7 @@ import MultiSelectFilter from "../../components/filters/MultiSelectFilter.vue";
 import dayjs from "dayjs";
 import ActionRow from "../../components/layout/ActionRow.vue";
 import DateTimePicker from "../../components/base/DateTimePicker.vue";
+import type { Causer, FilterValue } from "../../../models/logging_models";
 
 const toastStore = useToastStore();
 const loggingStore = useLoggingStore();
@@ -36,22 +37,22 @@ const page = ref(1);
 const sort = ref(vueHelper.initSort());
 const expandedRows = ref([]);
 
-const filterOverlayRef = ref(null);
+const filterOverlayRef = ref<any>(null);
 const loadingFilterData = ref(false);
 
-const availableValues = ref([]);
-const selectedValues = ref([]);
+const availableValues = ref<FilterValue[]>([]);
+const selectedValues = ref<FilterValue[]>([]);
 const optionLabel = ref("");
 const displayValueAsUppercase = ref(true);
 
-const availableEvents = ref([]);
-const selectedEvents = ref([]);
-const availableCausers = ref([]);
-const selectedCausers = ref([]);
-const availableCategories = ref([]);
-const selectedCategories = ref([]);
+const availableEvents = ref<string[]>([]);
+const selectedEvents = ref<string[]>([]);
+const availableCategories = ref<string[]>([]);
+const selectedCategories = ref<string[]>([]);
+const availableCausers = ref<Causer[]>([]);
+const selectedCausers = ref<Causer[]>([]);
 
-const datetimePickerRef = ref(null);
+const datetimePickerRef = ref<any>(null);
 const selectedDatetimeStart = computed(() => {
   return dayjs(datetimePickerRef.value?.datetimeRange[0]).format('YYYY-MM-DD HH:mm');
 });
@@ -63,24 +64,24 @@ function toggleFilterOverlayPanel(event: any, field: string) {
   switch (field) {
     case "category":
       availableValues.value = availableCategories.value;
-      selectedValues.value = selectedCategories;
+      selectedValues.value = [...selectedCategories.value];
       displayValueAsUppercase.value = true;
-      optionLabel.value = ""
+      optionLabel.value = "";
       break;
     case "event":
       availableValues.value = availableEvents.value;
-      selectedValues.value = selectedEvents;
+      selectedValues.value = [...selectedEvents.value];
       displayValueAsUppercase.value = true;
-      optionLabel.value = ""
+      optionLabel.value = "";
       break;
     case "causer":
       availableValues.value = availableCausers.value;
-      selectedValues.value = selectedCausers;
+      selectedValues.value = [...selectedCausers.value];
       displayValueAsUppercase.value = false;
-      optionLabel.value = "username"
+      optionLabel.value = "username";
       break;
   }
-  filterOverlayRef.value.toggle(event)
+  filterOverlayRef.value.toggle(event);
 }
 
 

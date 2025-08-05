@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import {inject, ref, watch} from "vue";
-import type {Filter} from "../../../../models/shared.ts";
+import type {FilterObj} from "../../../models/shared_models.ts";
 
 const props = defineProps<{
-  activeFilters: Filter[];
+  activeFilters: FilterObj[];
   showOnlyActive: boolean;
   activeFilter: string;
 }>();
-const removeFilter = inject<(index: number) => void>("removeFilter");
-const filters = ref([]);
+const removeFilter = inject<(index: number) => void>("removeFilter", () => {});
+const filters = ref<FilterObj[]>([]);
 
 watch(
     () => props.activeFilters,
@@ -30,14 +30,13 @@ function initFilters() {
   }
 }
 
-function clearFilter(filter: Filter & { index: number }, index: number): void
-{
+function clearFilter(index: number): void {
   if (props.showOnlyActive) {
-    removeFilter(filter.index);
+    removeFilter && removeFilter(index);
   } else {
-    removeFilter(index);
+    removeFilter && removeFilter(index);
   }
-  initFilters()
+  initFilters();
 }
 
 function calcMaxWidth(type: any){
@@ -70,7 +69,7 @@ function calcMaxWidth(type: any){
           <span class="truncate-text" v-tooltip="filter.parameter" :style="{ maxWidth: calcMaxWidth('parameter') }">{{ filter.parameter }}</span>
           <small class="truncate-text" v-tooltip="filter.operator" :style="{ maxWidth: calcMaxWidth('operator') }">{{ filter.operator}}</small>
           <span class="truncate-text" v-tooltip="filter.value" :style="{ maxWidth: calcMaxWidth('value') }">{{ filter.value}}</span>
-          <i class="pi pi-times hover_icon" @click="clearFilter(filter, index)" style="color: red;"></i>
+          <i class="pi pi-times hover_icon" @click="clearFilter(index)" style="color: red;"></i>
         </div>
       </div>
     </div>

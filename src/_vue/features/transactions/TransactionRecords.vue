@@ -9,6 +9,7 @@ import BaseFilter from "../../components/filters/BaseFilter.vue";
 import ActionRow from "../../components/layout/ActionRow.vue";
 import ActiveFilters from "../../components/filters/ActiveFilters.vue";
 import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
+import type {FilterObj, SortObj} from "../../../models/shared_models.ts";
 
 const toast_store = useToastStore();
 const transaction_store = useTransactionStore();
@@ -16,15 +17,19 @@ const transaction_store = useTransactionStore();
 const loading_records = ref(true);
 const records = ref([]);
 
-const data_count = computed(() => {return records.value.length});
-
-const activeFilers = ref([]);
+// const data_count = computed(() => {return records.value.length});
+//
+// const activeFilers = ref([]);
 const filterStorageIndex = ref("transaction-filters");
-const filterObj = ref({});
+const filterObj = ref<FilterObj>({
+  parameter: null,
+  operator: 'like',
+  value: null
+});
 const filterType = ref("text");
-const filters = ref(JSON.parse(localStorage.getItem(filterStorageIndex.value)) ?? []);
-const activeFilterColumn = ref(null)
-const filterOverlayRef = ref(null);
+const filters = ref(JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "") ?? []);
+const activeFilterColumn = ref<String|null>(null)
+const filterOverlayRef = ref<any>(null);
 
 const params = computed(() => {
   return {
@@ -42,7 +47,7 @@ const paginator = ref({
   rowsPerPage: default_rows.value
 });
 const page = ref(1);
-const sort = ref(vueHelper.initSort());
+const sort = ref<SortObj>(vueHelper.initSort());
 
 const inflowColumns = ref([
   { field: 'inflow_category', header: 'Category' },
@@ -94,28 +99,29 @@ async function onPage(event: any) {
 
 async function removeInflow(id: number) {
   try {
-    toast_store.successResponseToast(response);
+    console.log(id)
+    // toast_store.successResponseToast(response);
     await initData();
   } catch (error) {
     toast_store.errorResponseToast(error);
   }
 }
 
-function manipulateDialog(modal: string, value: boolean) {
-  switch (modal) {
-    case 'add-inflow': {
-      addInflowModal.value = value;
-      break;
-    }
-    case 'add-category': {
-      addCategoryModal.value = value;
-      break;
-    }
-    default: {
-      break;
-    }
-  }
-}
+// function manipulateDialog(modal: string, value: boolean) {
+//   switch (modal) {
+//     case 'add-inflow': {
+//       addInflowModal.value = value;
+//       break;
+//     }
+//     case 'add-category': {
+//       addCategoryModal.value = value;
+//       break;
+//     }
+//     default: {
+//       break;
+//     }
+//   }
+// }
 
 
 // async function updateYear(newYear: number) {
@@ -131,7 +137,7 @@ function initFilter() {
   }
 }
 
-function submitFilter(parameter) {
+function submitFilter(parameter: string) {
   if(!filterObj.value.value){
     vueHelper.formatInfoToast("Invalid value", "Input a filter value");
     return;
@@ -142,14 +148,14 @@ function submitFilter(parameter) {
   getData();
 }
 
-function addFilter(filter, alternate = null) {
+function addFilter(filter: FilterObj, alternate = null) {
   let new_filter = {
     parameter: filter.parameter,
     operator: filter.operator,
-    value: filterType === "text" ? filter.value.trim().replace(/\s+/g, " ") : filter.value,
+    value: filterType.value === "text" ? filter.value.trim().replace(/\s+/g, " ") : filter.value,
   };
 
-  let exists = filters.value.find((object) => {
+  let exists = filters.value.find((object: FilterObj) => {
     // Compare only the relevant properties
     return (
         object.parameter === new_filter.parameter &&
@@ -166,19 +172,19 @@ function addFilter(filter, alternate = null) {
   }
 }
 
-function clearFilters(){
-  filters.value.splice(0);
-  localStorage.removeItem(filterStorageIndex.value);
-  getData();
-}
+// function clearFilters(){
+//   filters.value.splice(0);
+//   localStorage.removeItem(filterStorageIndex.value);
+//   getData();
+// }
 
-function removeFilter(index){
+function removeFilter(index: number){
   filters.value.splice(index, 1);
   localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value))
   getData();
 }
 
-function switchSort(column) {
+function switchSort(column:string) {
   if (sort.value.field === column) {
     sort.value.order = vueHelper.toggleSort(sort.value.order);
   } else {
@@ -188,7 +194,7 @@ function switchSort(column) {
   getData();
 }
 
-function toggleFilterOverlay(event, column) {
+function toggleFilterOverlay(event: any, column: string) {
 
   switch (column) {
     case "inflow_date": {
