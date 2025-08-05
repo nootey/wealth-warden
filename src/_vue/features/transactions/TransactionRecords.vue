@@ -27,7 +27,7 @@ const filterObj = ref<FilterObj>({
   value: null
 });
 const filterType = ref("text");
-const filters = ref(JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "") ?? []);
+const filters = ref(JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "[]"));
 const activeFilterColumn = ref<String|null>(null)
 const filterOverlayRef = ref<any>(null);
 
