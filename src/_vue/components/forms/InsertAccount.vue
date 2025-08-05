@@ -148,7 +148,7 @@ async function isRecordValid() {
 
 async function createNewRecord() {
 
-  if (await isRecordValid()) return;
+  if (!await isRecordValid()) return;
 
   newRecord.value.subtype = selectedSubtype.value ?? "";
   const currentAccType = accountTypes.value.find(
