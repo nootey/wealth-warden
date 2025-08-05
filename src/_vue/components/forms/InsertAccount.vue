@@ -7,6 +7,7 @@ import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useAccountStore} from "../../../services/stores/account_store.ts";
 import {computed, ref, watch} from "vue";
+import vueHelper from "../../../utils/vueHelper.ts"
 
 const shared_store = useSharedStore();
 const account_store = useAccountStore();
@@ -51,6 +52,20 @@ watch(selectedClassification, () => {
   newRecord.value.account_type.type = "";
   selectedSubtype.value = null;
   newRecord.value.account_type.subtype = "";
+});
+
+const formattedTypeModel = computed({
+  get: () => vueHelper.formatString(newRecord.value.account_type.type),
+  set: (val: string) => {
+    newRecord.value.account_type.type = val;
+  },
+});
+
+const formattedSubtypeModel = computed({
+  get: () => vueHelper.formatString(selectedSubtype.value),
+  set: (val: string) => {
+    selectedSubtype.value = val;
+  },
 });
 
 const searchAccountType = (event: any) => {
@@ -166,7 +181,6 @@ async function createNewRecord() {
   }
 }
 
-
 </script>
 
 <template>
@@ -200,8 +214,14 @@ async function createNewRecord() {
         <ValidationError :isRequired="true" :message="v$.newRecord.account_type.type.$errors[0]?.$message">
           <label>Type</label>
         </ValidationError>
-        <AutoComplete size="small" v-model="newRecord.account_type.type" :suggestions="filteredAccountTypes"
-                      @complete="searchAccountType" placeholder="Select type" dropdown></AutoComplete>
+        <AutoComplete size="small" v-model="formattedTypeModel" :suggestions="filteredAccountTypes"
+                      @complete="searchAccountType" placeholder="Select type" dropdown>
+          <template #option="slotProps">
+            <div class="flex items-center">
+              {{ vueHelper.formatString(slotProps.option)}}
+            </div>
+          </template>
+        </AutoComplete>
       </div>
     </div>
 
@@ -211,8 +231,14 @@ async function createNewRecord() {
           <label>Subtype</label>
         </ValidationError>
         <AutoComplete
-            size="small" v-model="selectedSubtype" :suggestions="filteredSubtypeOptions"
-            @complete="searchSubtype" :disabled="!selectedType" placeholder="Select subtype" dropdown />
+            size="small" v-model="formattedSubtypeModel" :suggestions="filteredSubtypeOptions"
+            @complete="searchSubtype" :disabled="!selectedType" placeholder="Select subtype" dropdown>
+          <template #option="slotProps">
+            <div class="flex items-center">
+              {{ vueHelper.formatString(slotProps.option)}}
+            </div>
+          </template>
+        </AutoComplete>
       </div>
     </div>
 
