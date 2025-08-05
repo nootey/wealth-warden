@@ -138,7 +138,7 @@ async function handleEmit(emitType: any) {
 </script>
 
 <template>
-  <Dialog v-model:visible="addAccountModal" :breakpoints="{'801px': '90vw'}"
+  <Dialog class="rounded-dialog" v-model:visible="addAccountModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '500px'}" header="Add account">
     <InsertAccount entity="account" @insertAccount="handleEmit('insertAccount')"></InsertAccount>
   </Dialog>

@@ -170,16 +170,16 @@ async function createNewRecord() {
 </script>
 
 <template>
-  <div class="flex flex-column gap-4 p-1">
+  <div class="flex flex-column gap-3 p-1">
 
-    <div class="flex flex-row gap-2 w-full justify-content-center">
+    <div class="flex flex-row w-full justify-content-center">
       <div class="flex flex-column w-50">
         <SelectButton style="font-size: 0.875rem;" size="small" v-model="selectedClassification" :options="['Asset', 'Liability']" />
       </div>
     </div>
 
 
-    <div class="flex flex-row gap-2 w-full">
+    <div class="flex flex-roww-full">
       <div class="flex flex-column w-full">
         <ValidationError :isRequired="true" :message="v$.newRecord.name.$errors[0]?.$message">
           <label>Name</label>
@@ -188,15 +188,15 @@ async function createNewRecord() {
       </div>
     </div>
 
-    <div class="flex flex-column">
+    <div class="flex flex-column gap-1">
       <ValidationError :isRequired="true" :message="v$.newRecord.balance.$errors[0]?.$message">
         <label>Current balance</label>
       </ValidationError>
       <InputNumber size="small" v-model="newRecord.balance" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00"></InputNumber>
     </div>
 
-    <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-column w-full">
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError :isRequired="true" :message="v$.newRecord.account_type.type.$errors[0]?.$message">
           <label>Type</label>
         </ValidationError>
@@ -206,7 +206,7 @@ async function createNewRecord() {
     </div>
 
     <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-column w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError :isRequired="true" :message="v$.newRecord.account_type.subtype.$errors[0]?.$message">
           <label>Subtype</label>
         </ValidationError>
@@ -218,7 +218,7 @@ async function createNewRecord() {
 
     <div class="flex flex-row gap-2 w-full">
       <div class="flex flex-column w-full">
-        <Button class="main-button" icon="pi pi-cart-plus" label="Create account" @click="createNewRecord" style="height: 42px;" />
+        <Button class="main-button" label="Create account" @click="createNewRecord" style="height: 42px;" />
       </div>
     </div>
 
