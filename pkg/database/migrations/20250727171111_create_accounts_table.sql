@@ -12,7 +12,7 @@ CREATE TABLE accounts (
 
     CONSTRAINT fk_accounts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_accounts_account_type FOREIGN KEY (account_type_id) REFERENCES account_types(id),
-    CONSTRAINT uq_accounts_user_name UNIQUE (user_id, name)
+    CONSTRAINT uq_accounts_name UNIQUE (user_id, name)
 );
 
 CREATE INDEX idx_accounts_user ON accounts(user_id);
