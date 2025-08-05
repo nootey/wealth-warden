@@ -29,11 +29,12 @@ func ConnectToMaintenance(cfg *config.Config) (*gorm.DB, error) {
 func ConnectToDatabase(cfg *config.Config, targetDB string) (*gorm.DB, error) {
 
 	var logLevel logger.LogLevel
-	if cfg.Release {
-		logLevel = logger.Silent
-	} else {
-		logLevel = logger.Info
-	}
+	//if cfg.Release {
+	//	logLevel = logger.Silent
+	//} else {
+	//	logLevel = logger.Info
+	//}
+	logLevel = logger.Silent
 
 	host := cfg.Postgres.Host
 
