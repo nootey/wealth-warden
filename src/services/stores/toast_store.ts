@@ -44,11 +44,11 @@ export const useToastStore = defineStore('toast', () => {
     };
 
     const successResponseToast = (response: any) => {
-        if (response.data) {
+        if (response) {
             toast.add({
                 severity: 'success',
-                summary: response.data.title,
-                detail: response.data.message,
+                summary: response && response.data ? response.data.title : response.title,
+                detail: response && response.data ? response.data.message : response.message,
                 life: 3000
             });
         }
