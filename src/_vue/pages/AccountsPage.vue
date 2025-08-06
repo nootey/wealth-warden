@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-import InsertAccount from "../components/forms/InsertAccount.vue";
+import AddAccount from "../components/forms/AddAccount.vue";
 import {computed, onMounted, ref} from "vue";
 import {useAccountStore} from "../../services/stores/account_store.ts";
 import vueHelper from "../../utils/vueHelper.ts";
@@ -113,7 +113,7 @@ const groupTotal = (group: Account[]) =>
 
 function manipulateDialog(modal: string, value: boolean) {
   switch (modal) {
-    case 'add-account': {
+    case 'addAccount': {
       addAccountModal.value = value;
       break;
     }
@@ -125,7 +125,7 @@ function manipulateDialog(modal: string, value: boolean) {
 
 async function handleEmit(emitType: any) {
   switch (emitType) {
-    case 'insertAccount': {
+    case 'addAccount': {
       addAccountModal.value = false;
       await getData();
       break;
@@ -141,15 +141,18 @@ async function handleEmit(emitType: any) {
 <template>
   <Dialog class="rounded-dialog" v-model:visible="addAccountModal" :breakpoints="{'801px': '90vw'}"
           :modal="true" :style="{width: '500px'}" header="Add account">
-    <InsertAccount entity="account" @insertAccount="handleEmit('insertAccount')"></InsertAccount>
+    <AddAccount entity="account" @addAccount="handleEmit('addAccount')"></AddAccount>
   </Dialog>
+
   <main style="display: flex;flex-direction: column;height: 100vh;width: 100%;padding: 1rem;justify-content: center;align-items: center;">
 
-    <div style="flex: 0 0 auto;display: flex;justify-content: space-between;align-items: center;padding: 1rem;border-top-right-radius: 8px;
-        border-top-left-radius: 8px;border: 1px solid var(--border-color);background: var(--background-secondary);max-width: 1000px;width: 100%;">
-
+    <div class="flex flex-row justify-content-between align-items-center p-3"
+         style="border-top-right-radius: 8px; border-top-left-radius: 8px;
+         border: 1px solid var(--border-color);background: var(--background-secondary);
+         max-width: 1000px;width: 100%;">
+      
       <div style="font-weight: bold;">Accounts</div>
-      <Button class="main-button" label="New Account" icon="pi pi-plus" @click="manipulateDialog('add-account', true)"/>
+      <Button class="main-button" label="New Account" icon="pi pi-plus" @click="manipulateDialog('addAccount', true)"/>
     </div>
 
     <div style="flex: 1 1 auto;overflow-y: auto;padding: 1rem;border-bottom-right-radius: 8px;border-bottom-left-radius: 8px;

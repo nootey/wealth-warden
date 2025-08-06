@@ -93,7 +93,7 @@ const searchSubtype = (event: { query: string }) => {
 };
 
 const emit = defineEmits<{
-  (event: 'insertAccount'): void;
+  (event: 'addAccount'): void;
 }>();
 
 const rules = {
@@ -187,7 +187,7 @@ async function createNewRecord() {
 
     toast_store.successResponseToast(response);
 
-    emit("insertAccount")
+    emit("addAccount")
 
   } catch (error) {
     toast_store.errorResponseToast(error);
