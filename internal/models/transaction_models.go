@@ -16,3 +16,13 @@ type Transaction struct {
 	CreatedAt       time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt       time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
+
+type Category struct {
+	ID             uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID         *uint     `gorm:"index:idx_categories_user_class" json:"user_id"`
+	Name           string    `gorm:"type:varchar(100);not null" json:"name"`
+	Classification string    `gorm:"type:enum('income','expense','savings','investment');not null;default:'expense';index:idx_categories_user_class" json:"classification"`
+	ParentID       *uint     `gorm:"index" json:"parent_id,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}

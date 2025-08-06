@@ -6,7 +6,7 @@ CREATE TYPE category_classification AS ENUM ('income', 'expense', 'savings', 'in
 -- +goose StatementBegin
 CREATE TABLE categories (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
+    user_id BIGINT,
     name VARCHAR(100) NOT NULL,
     classification category_classification NOT NULL DEFAULT 'expense',
     parent_id BIGINT NULL,
