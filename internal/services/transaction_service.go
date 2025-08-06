@@ -1,8 +1,13 @@
 package services
 
 import (
+	"github.com/gin-gonic/gin"
+	"strconv"
+	"time"
+	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
+	"wealth-warden/pkg/utils"
 )
 
 type TransactionService struct {
@@ -21,4 +26,7 @@ func NewTransactionService(
 		Config: cfg,
 		Repo:   repo,
 	}
+}
+func (s *TransactionService) FetchAllCategories(c *gin.Context) ([]models.Category, error) {
+	return s.Repo.FindAllCategories(nil)
 }
