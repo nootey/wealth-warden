@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/utils"
 )
 
 type TransactionHandler struct {
@@ -17,7 +18,24 @@ func NewTransactionHandler(service *services.TransactionService) *TransactionHan
 }
 
 func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{})
+	records, paginator, err := h.Service.FetchTransactionsPaginated(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	response := gin.H{
+		"current_page":  paginator.CurrentPage,
+		"rows_per_page": paginator.RowsPerPage,
+		"from":          paginator.From,
+		"to":            paginator.To,
+		"total_records": paginator.TotalRecords,
+		"data":          records,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 func (h *TransactionHandler) GetCategories(c *gin.Context) {
 	records, err := h.Service.FetchAllCategories(c)
 	if err != nil {
