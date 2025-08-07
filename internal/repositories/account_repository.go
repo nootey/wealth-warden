@@ -64,6 +64,12 @@ func (r *AccountRepository) CountAccounts(user *models.User, year int, filters [
 	return totalRecords, nil
 }
 
+func (r *AccountRepository) FindAllAccounts(user *models.User) ([]models.Account, error) {
+	var records []models.Account
+	result := r.DB.Find(&records).Where("accounts.user_id = ?", user.ID)
+	return records, result.Error
+}
+
 func (r *AccountRepository) FindAllAccountTypes(user *models.User) ([]models.AccountType, error) {
 	var records []models.AccountType
 	result := r.DB.Find(&records)

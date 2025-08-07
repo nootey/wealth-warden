@@ -7,6 +7,7 @@ import (
 
 func AccountRoutes(apiGroup *gin.RouterGroup, handler *handlers.AccountHandler) {
 	apiGroup.GET("", handler.GetAccountsPaginated)
+	apiGroup.GET("/all", handler.GetAllAccounts)
 	apiGroup.GET("/types", handler.GetAccountTypes)
 	apiGroup.POST("", handler.InsertAccount)
 }
