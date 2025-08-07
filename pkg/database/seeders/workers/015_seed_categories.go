@@ -16,12 +16,12 @@ func SeedCategories(ctx context.Context, db *gorm.DB, logger *zap.Logger) error 
 		Children       []string
 	}{
 		{
-			Name:           "Inflow",
+			Name:           "Income",
 			Classification: "income",
 			Children:       []string{"Salary", "Food and transport", "Bonus", "Side hustle", "Annual allowance", "Refunds", "Other"},
 		},
 		{
-			Name:           "Outflow",
+			Name:           "Expense",
 			Classification: "expense",
 			Children: []string{"Car - transportation", "Car - general", "Health", "Hygiene", "Entertainment",
 				"Fees", "Food", "Rent", "Utilities", "Ecommerce", "Tech", "Clothes", "Gifts", "Other"},
