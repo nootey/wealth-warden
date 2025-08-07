@@ -2,28 +2,55 @@
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
-import {computed, ref} from "vue";
+import {computed, onMounted, ref} from "vue";
 import type {Category, Transaction} from "../../../models/transaction_models.ts";
 import {maxValue, minValue, numeric, required} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
+import ValidationError from "../validation/ValidationError.vue";
+import {useAccountStore} from "../../../services/stores/account_store.ts";
+import type {Account} from "../../../models/account_models.ts";
+import dayjs from "dayjs";
 
 const shared_store = useSharedStore();
 const toast_store = useToastStore();
 const transactionStore = useTransactionStore();
+const accountStore = useAccountStore();
+
+const accounts = ref<Account[]>([]);
+
+onMounted(async () => {
+  await getAccounts();
+})
 
 const newRecord = ref<Transaction>(initData());
 const allCategories = computed<Category[]>(() => transactionStore.categories);
-const parentCategories = allCategories.value.filter((category) => category.parent_id == null);
+// const parentCategories = allCategories.value.filter((category) => category.parent_id == null);
+const parentCategories = allCategories.value.filter((category) => (category.name == "Expense") || category.name == "Income");
+
+const selectedParentCategory = ref<Category | null>(
+    parentCategories.find(cat => cat.name === "Expense") || null
+);
+const availableCategories = computed<Category[]>(() => {
+  return allCategories.value.filter(
+      (category) => category.parent_id === selectedParentCategory.value?.id
+  );
+});
+
+const filteredCategories = ref<Category[]>([]);
+const filteredAccounts = ref<Account[]>([]);
 
 const rules = {
   newRecord: {
-    account_id: {
-      required,
-      $autoDirty: true
+    category: {
+        name: {
+          $autoDirty: true
+        }
     },
-    category_id: {
+    account: {
+      name: {
         required,
         $autoDirty: true
+      }
     },
     transaction_type: {
         required,
@@ -31,14 +58,16 @@ const rules = {
     },
     amount: {
       required,
-      $autoDirty: true,
+      numeric,
+      minValue: minValue(0),
+      maxValue: maxValue(1000000000),
+      $autoDirty: true
     },
     txn_date: {
       required,
       $autoDirty: true,
     },
     description: {
-      required,
       $autoDirty: true,
     }
   },
@@ -50,15 +79,47 @@ const emit = defineEmits<{
   (event: 'addTransaction'): void;
 }>();
 
+async function getAccounts() {
+  try {
+    const response = await accountStore.getAllAccounts();
+    accounts.value = response.data;
+  } catch (e) {
+    toast_store.errorResponseToast(e)
+  }
+}
+
 function initData(): Transaction {
 
   return {
     id: null,
     account_id: null,
     category_id: null,
+    category: {
+      id: null,
+      name: "",
+      classification: "",
+      parent_id: null,
+    },
+    account: {
+      id: null,
+      name: "",
+      account_type: {
+        id: null,
+        name: "",
+        type: "",
+        subtype: "",
+        classification: "",
+      },
+      balance: {
+        id: null,
+        as_of: null,
+        start_balance: null,
+        end_balance: null,
+      }
+    },
     transaction_type: "Expense",
     amount: null,
-    txn_date: null,
+    txn_date: dayjs().toDate(),
     description: null,
   };
 }
@@ -93,17 +154,112 @@ async function createNewRecord() {
   }
 }
 
+function updateSelectedParentCategory($event: any) {
+  if ($event) {
+    selectedParentCategory.value = $event;
+    newRecord.value.category = null;
+    filteredCategories.value = [];
+  }
+}
+
+const searchCategory = (event: { query: string }) => {
+  setTimeout(() => {
+    if (!event.query.trim().length) {
+      filteredCategories.value = [...availableCategories.value];
+    } else {
+      filteredCategories.value = availableCategories.value.filter((record) => {
+        return record.name.toLowerCase().startsWith(event.query.toLowerCase());
+      });
+    }
+  }, 250);
+}
+
+const searchAccount = (event: { query: string }) => {
+  setTimeout(() => {
+    if (!event.query.trim().length) {
+      filteredAccounts.value = [...accounts.value];
+    } else {
+      filteredAccounts.value = accounts.value.filter((record) => {
+        return record.name.toLowerCase().startsWith(event.query.toLowerCase());
+      });
+    }
+  }, 250);
+}
+
 </script>
 
 <template>
 
   <div class="flex flex-column gap-3 p-1">
+
     <div class="flex flex-row w-full justify-content-center">
       <div class="flex flex-column w-50">
-        <SelectButton style="font-size: 0.875rem;" size="small" v-model="newRecord.transaction_type"
-                      :options="parentCategories" optionLabel="name" />
+        <SelectButton style="font-size: 0.875rem;" size="small"
+                      v-model="selectedParentCategory"
+                      :options="parentCategories" optionLabel="name"
+                      @update:modelValue="updateSelectedParentCategory($event)" />
       </div>
     </div>
+
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError :isRequired="true" :message="v$.newRecord.account.name.$errors[0]?.$message">
+          <label>Account</label>
+        </ValidationError>
+        <AutoComplete size="small" v-model="newRecord.account" :suggestions="filteredAccounts"
+                      @complete="searchAccount" optionLabel="name"
+                      placeholder="Select account" dropdown>
+        </AutoComplete>
+      </div>
+    </div>
+
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError :isRequired="true" :message="v$.newRecord.amount.$errors[0]?.$message">
+          <label>Amount</label>
+        </ValidationError>
+        <InputNumber size="small" v-model="newRecord.amount" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
+      </div>
+    </div>
+
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError :isRequired="false" :message="v$.newRecord.category.name.$errors[0]?.$message">
+            <label>Category</label>
+        </ValidationError>
+        <AutoComplete size="small" v-model="newRecord.category" :suggestions="filteredCategories"
+                      @complete="searchCategory" optionLabel="name"
+                      placeholder="Select category" dropdown>
+        </AutoComplete>
+      </div>
+    </div>
+
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError :isRequired="true" :message="v$.newRecord.txn_date.$errors[0]?.$message">
+            <label>Date</label>
+        </ValidationError>
+        <DatePicker v-model="newRecord.txn_date" date-format="dd/mm/yy"
+                    showIcon fluid iconDisplay="input"
+                    size="small"/>
+      </div>
+    </div>
+
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError :isRequired="false" :message="v$.newRecord.description.$errors[0]?.$message">
+          <label>Description</label>
+        </ValidationError>
+        <InputText size="small" v-model="newRecord.description" placeholder="Describe transaction"></InputText>
+      </div>
+    </div>
+
+    <div class="flex flex-row gap-2 w-full">
+      <div class="flex flex-column w-full">
+        <Button class="main-button" label="Add transaction" @click="createNewRecord" style="height: 42px;" />
+      </div>
+    </div>
+
   </div>
 
 </template>

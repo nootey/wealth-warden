@@ -219,7 +219,7 @@ async function createNewRecord() {
       <ValidationError :isRequired="true" :message="v$.newRecord.balance.$errors[0]?.$message">
         <label>Current balance</label>
       </ValidationError>
-      <InputNumber size="small" v-model="newRecord.balance.start_balance" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00"></InputNumber>
+      <InputNumber size="small" v-model="newRecord.balance.start_balance" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
     </div>
 
     <div class="flex flex-row w-full">
