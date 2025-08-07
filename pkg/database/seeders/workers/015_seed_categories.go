@@ -26,16 +26,6 @@ func SeedCategories(ctx context.Context, db *gorm.DB, logger *zap.Logger) error 
 			Children: []string{"Car - transportation", "Car - general", "Health", "Hygiene", "Entertainment",
 				"Fees", "Food", "Rent", "Utilities", "Ecommerce", "Tech", "Clothes", "Gifts", "Other"},
 		},
-		{
-			Name:           "Savings",
-			Classification: "savings",
-			Children:       []string{"House", "Car", "Health", "Tech", "Vacation", "Other"},
-		},
-		{
-			Name:           "Investments",
-			Classification: "investment",
-			Children:       []string{"Crypto", "ETF", "Stocks", "Bonds", "Hard metals", "Other"},
-		},
 	}
 
 	for _, mainCat := range mainCategories {
