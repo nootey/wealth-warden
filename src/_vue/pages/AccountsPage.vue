@@ -111,6 +111,16 @@ const groupedAccounts = computed(() => {
 const groupTotal = (group: Account[]) =>
     group.reduce((sum, acc) => sum + (acc.balance.end_balance || 0), 0);
 
+const totals = computed(() => {
+  const vals = accounts.value.map(a => a?.balance?.end_balance ?? 0);
+
+  const total    = vals.reduce((s, v) => s + v, 0);
+  const positive = vals.reduce((s, v) => (v > 0 ? s + v : s), 0);
+  const negative = vals.reduce((s, v) => (v < 0 ? s + v : s), 0);
+
+  return { total, positive, negative };
+});
+
 function manipulateDialog(modal: string, value: boolean) {
   switch (modal) {
     case 'addAccount': {
@@ -153,6 +163,27 @@ async function handleEmit(emitType: any) {
       
       <div style="font-weight: bold;">Accounts</div>
       <Button class="main-button" label="New Account" icon="pi pi-plus" @click="manipulateDialog('addAccount', true)"/>
+    </div>
+
+    <div style="display:flex;gap:0.75rem;max-width:1000px;width:100%;padding:0.75rem 0;">
+      <div style="flex:1;border:1px solid var(--border-color);border-radius:8px;padding:0.75rem;background:var(--background-secondary);">
+        <div style="font-size:0.75rem;color:var(--text-secondary);">Total</div>
+        <div style="font-weight:bold;">
+          {{ vueHelper.displayAsCurrency(totals.total) }}
+        </div>
+      </div>
+      <div style="flex:1;border:1px solid var(--border-color);border-radius:8px;padding:0.75rem;background:var(--background-secondary);">
+        <div style="font-size:0.75rem;color:var(--text-secondary);">Positive</div>
+        <div style="font-weight:bold;color:green">
+          {{ vueHelper.displayAsCurrency(totals.positive) }}
+        </div>
+      </div>
+      <div style="flex:1;border:1px solid var(--border-color);border-radius:8px;padding:0.75rem;background:var(--background-secondary);">
+        <div style="font-size:0.75rem;color:var(--text-secondary);">Negative</div>
+        <div style="font-weight:bold;color:red">
+          {{ vueHelper.displayAsCurrency(totals.negative) }}
+        </div>
+      </div>
     </div>
 
     <div style="flex: 1 1 auto;overflow-y: auto;padding: 1rem;border-bottom-right-radius: 8px;border-bottom-left-radius: 8px;

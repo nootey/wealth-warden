@@ -29,10 +29,15 @@ const vueHelper = {
         }
     },
     displayAsCurrency: (amount: number|string|null) => {
+        // Hardcode for EU region for now
         if (amount === null || amount === undefined) return null;
-        let num = Number(amount);  // Ensure it's a number
-        if (isNaN(num)) return "Invalid Amount"; // Handle invalid cases
-        return num.toFixed(2) + " €";
+        let num = Number(amount);
+        if (isNaN(num)) return "Invalid Amount";
+
+        return num.toLocaleString("de-DE", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }) + "€";
     },
     displayAsPercentage: (value: number | string | null) => {
         if (value === null || value === undefined) return null;
