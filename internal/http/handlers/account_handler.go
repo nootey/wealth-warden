@@ -61,7 +61,7 @@ func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
 
 func (h *AccountHandler) InsertAccount(c *gin.Context) {
 
-	var record *models.CreateAccountRequest
+	var record *models.AccountCreateReq
 
 	if err := c.ShouldBindJSON(&record); err != nil {
 		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)

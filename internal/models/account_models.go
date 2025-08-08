@@ -17,7 +17,7 @@ type Account struct {
 }
 
 type AccountType struct {
-	ID             uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	ID             uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	Type           string    `gorm:"type:varchar(150);not null" json:"type" validate:"required"`
 	Subtype        *string   `gorm:"type:varchar(100)" json:"subtype" validate:"required"`
 	Classification string    `gorm:"->;type:varchar(20)" json:"classification" validate:"required"`
@@ -42,7 +42,7 @@ type Balance struct {
 	UpdatedAt       time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
-type CreateAccountRequest struct {
+type AccountCreateReq struct {
 	Name           string  `json:"name" validate:"required"`
 	AccountTypeID  uint    `json:"account_type_id" validate:"required"`
 	Type           string  `json:"type" validate:"required"`

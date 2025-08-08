@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"strconv"
 	"time"
@@ -94,7 +95,7 @@ func (s *AccountService) FetchAllAccountTypes(c *gin.Context) ([]models.AccountT
 	return s.Repo.FindAllAccountTypes(nil)
 }
 
-func (s *AccountService) InsertAccount(c *gin.Context, newRecord *models.CreateAccountRequest) error {
+func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountCreateReq) error {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
 	if err != nil {
@@ -102,7 +103,7 @@ func (s *AccountService) InsertAccount(c *gin.Context, newRecord *models.CreateA
 	}
 	changes := utils.InitChanges()
 
-	if newRecord.Balance < 0 {
+	if req.Balance < 0 {
 		return errors.New("initial balance cannot be negative")
 	}
 
@@ -111,28 +112,30 @@ func (s *AccountService) InsertAccount(c *gin.Context, newRecord *models.CreateA
 		return tx.Error
 	}
 
-	// Always rollback unless explicitly committed
 	defer func() {
-		if r := recover(); r != nil {
+		if p := recover(); p != nil {
 			tx.Rollback()
-			panic(r)
-		} else if tx.Error == nil {
-			tx.Rollback()
+			panic(p)
 		}
 	}()
 
+	accType, err := s.Repo.FindAccountTypeByID(req.AccountTypeID)
+	if err != nil {
+		return fmt.Errorf("can't find account_type for given id %w", err)
+	}
+	
 	account := &models.Account{
-		Name:          newRecord.Name,
+		Name:          req.Name,
 		Currency:      models.DefaultCurrency,
-		AccountTypeID: newRecord.AccountTypeID,
+		AccountTypeID: accType.ID,
 		UserID:        user.ID,
 	}
 
-	balanceAmountString := strconv.FormatFloat(newRecord.Balance, 'f', 2, 64)
+	balanceAmountString := strconv.FormatFloat(req.Balance, 'f', 2, 64)
 
 	utils.CompareChanges("", account.Name, changes, "name")
-	utils.CompareChanges("", newRecord.Type, changes, "account_type")
-	utils.CompareChanges("", newRecord.Subtype, changes, "account_subtype")
+	utils.CompareChanges("", accType.Type, changes, "account_type")
+	utils.CompareChanges("", utils.SafeString(accType.Subtype), changes, "account_subtype")
 	utils.CompareChanges("", account.Currency, changes, "currency")
 	utils.CompareChanges("", balanceAmountString, changes, "current_balance")
 
@@ -145,7 +148,7 @@ func (s *AccountService) InsertAccount(c *gin.Context, newRecord *models.CreateA
 	balance := &models.Balance{
 		AccountID:    accountID,
 		Currency:     models.DefaultCurrency,
-		StartBalance: newRecord.Balance,
+		StartBalance: req.Balance,
 		AsOf:         time.Now(),
 	}
 

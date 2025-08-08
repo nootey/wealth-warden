@@ -76,6 +76,18 @@ func (r *AccountRepository) FindAllAccountTypes(user *models.User) ([]models.Acc
 	return records, result.Error
 }
 
+func (r *AccountRepository) FindAccountByID(ID, userID uint) (models.Account, error) {
+	var record models.Account
+	result := r.DB.Where("id = ? AND user_id = ?", ID, userID).First(&record)
+	return record, result.Error
+}
+
+func (r *AccountRepository) FindAccountTypeByID(ID uint) (models.AccountType, error) {
+	var record models.AccountType
+	result := r.DB.Where("id = ?", ID).First(&record)
+	return record, result.Error
+}
+
 func (r *AccountRepository) InsertAccount(tx *gorm.DB, newRecord *models.Account) (uint, error) {
 	if err := tx.Create(&newRecord).Error; err != nil {
 		return 0, err
