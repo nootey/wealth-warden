@@ -15,81 +15,45 @@ const account_store = useAccountStore();
 const toast_store = useToastStore();
 
 const newRecord = ref<Account>(initData());
-const selectedClassification = ref("Asset");
+
+const selectedClassification = ref<"Asset" | "Liability">("Asset");
+const selectedType = ref<string>("");
+const selectedSubtype = ref<string>("");
 
 const accountTypes = computed<AccountType[]>(() => account_store.accountTypes);
 
-const uniqueAccountTypes = computed(() => {
-  const filtered = accountTypes.value.filter(account =>
-      account.classification.toLowerCase() === selectedClassification.value.toLowerCase()
+// Unique type options for chosen classification
+const typeOptions = computed<string[]>(() => {
+  const filtered = accountTypes.value.filter(
+      a => a.classification.toLowerCase() === selectedClassification.value.toLowerCase()
   );
-
-  const types = filtered.map(account => account.type);
-  return [...new Set(types)];
+  return [...new Set(filtered.map(a => a.type))];
 });
-const selectedType = computed(() => newRecord.value.account_type.type);
-const selectedSubtype = ref<string | null>(null);
 
-const uniqueAccountSubtypes = computed(() => {
+// Unique subtype options for chosen type + classification
+const subtypeOptions = computed<string[]>(() => {
   if (!selectedType.value) return [];
-
-  const filtered = accountTypes.value.filter(account =>
-      account.type === selectedType.value &&
-      account.classification.toLowerCase() === selectedClassification.value.toLowerCase()
+  const filtered = accountTypes.value.filter(
+      a =>
+          a.classification.toLowerCase() === selectedClassification.value.toLowerCase() &&
+          a.type === selectedType.value
   );
-
-  const subtypes = filtered.map(account => account.subtype);
-  return [...new Set(subtypes)];
+  return [...new Set(filtered.map(a => a.subtype))];
 });
 
 const filteredAccountTypes = ref<string[]>([]);
 const filteredSubtypeOptions = ref<string[]>([]);
 
-watch(selectedSubtype, (newVal) => {
-  newRecord.value.account_type.subtype = newVal ?? '';
-});
-
-watch(selectedClassification, () => {
-  newRecord.value.account_type.type = "";
-  selectedSubtype.value = null;
-  newRecord.value.account_type.subtype = "";
-});
-
-const formattedTypeModel = computed({
-  get: () => vueHelper.formatString(newRecord.value.account_type.type),
-  set: (val: string) => {
-    newRecord.value.account_type.type = val;
-  },
-});
-
-const formattedSubtypeModel = computed({
-  get: () => vueHelper.formatString(selectedSubtype.value ?? ""),
-  set: (val: string) => {
-    selectedSubtype.value = val;
-  },
-});
-
 const searchAccountType = (event: { query: string }) => {
-  setTimeout(() => {
-    if (!event.query.trim().length) {
-      filteredAccountTypes.value = [...uniqueAccountTypes.value];
-    } else {
-      filteredAccountTypes.value = uniqueAccountTypes.value.filter((record) => {
-        return record.toLowerCase().startsWith(event.query.toLowerCase());
-      });
-    }
-  }, 250);
-}
+  const q = event.query.trim().toLowerCase();
+  const all = typeOptions.value;
+  filteredAccountTypes.value = !q ? [...all] : all.filter(t => t.toLowerCase().startsWith(q));
+};
 
 const searchSubtype = (event: { query: string }) => {
-  setTimeout(() => {
-    if (!event.query.trim().length) {
-      filteredSubtypeOptions.value = [...uniqueAccountSubtypes.value];
-    } else {
-      filteredSubtypeOptions.value = uniqueAccountSubtypes.value
-          .filter(subtype => subtype.toLowerCase().startsWith(event.query.toLowerCase()));
-    }
-  }, 250);
+  const q = event.query.trim().toLowerCase();
+  const all = subtypeOptions.value;
+  filteredSubtypeOptions.value = !q ? [...all] : all.filter(s => s.toLowerCase().startsWith(q));
 };
 
 const emit = defineEmits<{
@@ -126,6 +90,60 @@ const rules = {
 
 const v$ = useVuelidate(rules, { newRecord });
 
+// Format selected types
+const formattedTypeModel = computed({
+  get: () => vueHelper.formatString(selectedType.value),
+  set: (val: string) => {
+    selectedType.value = val;
+  },
+});
+
+const formattedSubtypeModel = computed({
+  get: () => vueHelper.formatString(selectedSubtype.value ?? ""),
+  set: (val: string) => {
+    selectedSubtype.value = val;
+  },
+});
+
+// Keep classification in the account_type, reset selections
+watch(selectedClassification, (cls) => {
+  selectedType.value = "";
+  selectedSubtype.value = "";
+  newRecord.value.account_type = {
+    id: null,
+    name: "",
+    type: "",
+    subtype: "",
+    classification: cls,
+  };
+});
+
+// Watch type changes
+watch(selectedType, (val) => {
+  newRecord.value.account_type.type = val || "";
+  newRecord.value.account_type.subtype = "";
+
+  selectedSubtype.value = "";
+
+  const firstMatch = accountTypes.value.find(
+      a =>
+          a.classification.toLowerCase() === selectedClassification.value.toLowerCase() &&
+          a.type === val
+  );
+
+  if (firstMatch) {
+    newRecord.value.account_type = { ...firstMatch };
+  } else {
+    newRecord.value.account_type = {
+      id: null,
+      name: "",
+      type: val || "",
+      subtype: "",
+      classification: selectedClassification.value,
+    };
+  }
+});
+
 function initData(): Account {
 
   return {
@@ -157,27 +175,28 @@ async function createNewRecord() {
 
   if (!await isRecordValid()) return;
 
-  const currentAccType = accountTypes.value.find(
-      acc => acc.type === selectedType.value && acc.subtype === selectedSubtype.value
-  );
+  const at =
+      accountTypes.value.find(
+          a =>
+              a.classification.toLowerCase() === selectedClassification.value.toLowerCase() &&
+              a.type === selectedType.value &&
+              a.subtype === selectedSubtype.value
+      ) || null;
 
-  if (!currentAccType) {
+  if (!at) {
     toast_store.errorResponseToast("Account type not found!");
     return;
   }
-
-  newRecord.value.account_type.subtype = selectedSubtype.value ?? "";
-  newRecord.value.account_type.classification = currentAccType?.classification;
-
+  
   try {
     let response = await shared_store.createRecord(
       "accounts",
         {
-          account_type_id: currentAccType.id,
+          account_type_id: at.id,
           name: newRecord.value.name,
-          type: newRecord.value.account_type.type,
-          subtype: newRecord.value.account_type.subtype,
-          classification: newRecord.value.account_type.classification,
+          type: at.type,
+          subtype: at.subtype,
+          classification: at.classification,
           balance: newRecord.value.balance.start_balance,
         }
         );
