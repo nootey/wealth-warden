@@ -198,7 +198,7 @@ provide("toggleFilterOverlay", null);
       </div>
 
       <div class="flex flex-row gap-2 w-full">
-        <div class="w-full table-container">
+        <div class="w-full">
           <DataTable 
             class="w-full enhanced-table" 
             dataKey="id" 
@@ -298,7 +298,7 @@ provide("toggleFilterOverlay", null);
                 </ColumnHeader>
               </template>
               <template #body="slotProps">
-                <span v-if="slotProps.data?.causer_id" class="causer-name">
+                <span v-if="slotProps.data?.causer_id">
                   {{ vueHelper.displayCauserFromId(slotProps.data.causer_id, availableCausers) }}
                 </span>
                 <span v-else class="no-causer">-</span>
@@ -307,17 +307,17 @@ provide("toggleFilterOverlay", null);
 
             <Column :expander="true" header="Metadata" style="width: 80px;"></Column>
             <template #expansion="slotProps">
-              <div class="expansion-content">
-                <div class="expansion-item">
+              <div>
+                <div>
                   <b> {{ "Description: "  }}</b>
                   {{ slotProps.data.description ? slotProps.data?.description : "none provided" }}
                 </div>
                 <div v-if="slotProps.data?.metadata" class="truncate-text" style="max-width: 50rem;"
                      v-for="item in vueHelper.formatChanges(slotProps.data?.metadata)">
-                  <label class="custom-label"> {{ item?.prop.toUpperCase() + ": " }}</label>
+                  <label> {{ item?.prop.toUpperCase() + ": " }}</label>
                   <span v-tooltip="vueHelper.formatValue(item)"> {{ vueHelper.formatValue(item) }} </span>
                 </div>
-                <div v-else class="empty-payload">{{ "Payload is empty" }}</div>
+                <div v-else>{{ "Payload is empty" }}</div>
               </div>
             </template>
           </DataTable>
@@ -329,68 +329,6 @@ provide("toggleFilterOverlay", null);
 </template>
 
 <style scoped>
-.table-container {
-  background: var(--background-primary);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
-.enhanced-table {
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.enhanced-table :deep(.p-datatable-wrapper) {
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.enhanced-table :deep(.p-datatable-table) {
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.enhanced-table :deep(.p-datatable-thead > tr > th) {
-  background: var(--background-secondary);
-  border-bottom: 2px solid var(--border-color);
-  padding: 16px 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  border-radius: 0;
-}
-
-.enhanced-table :deep(.p-datatable-tbody > tr) {
-  transition: background-color 0.2s ease;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.enhanced-table :deep(.p-datatable-tbody > tr:hover) {
-  background-color: var(--background-secondary);
-}
-
-.enhanced-table :deep(.p-datatable-tbody > tr > td) {
-  padding: 16px 12px;
-  border: none;
-  color: var(--text-primary);
-}
-
-.enhanced-table :deep(.p-datatable-tbody > tr:nth-child(even)) {
-  background-color: rgba(0, 0, 0, 0.02);
-}
-
-.table-footer {
-  padding: 16px;
-  background: var(--background-secondary);
-  border-top: 1px solid var(--border-color);
-  border-radius: 0 0 12px 12px;
-}
-
-.pagination-info {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  padding: 8px 0;
-}
 
 .action-icon {
   color: var(--accent-primary);
@@ -416,56 +354,9 @@ provide("toggleFilterOverlay", null);
   color: rgb(99, 102, 241);
 }
 
-.causer-name {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.no-causer {
-  color: var(--text-secondary);
-  font-style: italic;
-}
-
-.expansion-content {
-  padding: 16px;
-  background: var(--background-secondary);
-  border-top: 1px solid var(--border-color);
-}
-
-.expansion-item {
-  margin-bottom: 12px;
-  line-height: 1.5;
-}
-
-.expansion-item:last-child {
-  margin-bottom: 0;
-}
-
-.empty-payload {
-  color: var(--text-secondary);
-  font-style: italic;
-}
-
-.custom-label {
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-right: 8px;
-}
-
 .truncate-text {
   margin-bottom: 8px;
   word-break: break-word;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .enhanced-table :deep(.p-datatable-thead > tr > th),
-  .enhanced-table :deep(.p-datatable-tbody > tr > td) {
-    padding: 12px 8px;
-  }
-  
-  .table-footer {
-    padding: 12px;
-  }
-}
 </style>
