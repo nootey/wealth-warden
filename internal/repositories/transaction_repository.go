@@ -67,3 +67,22 @@ func (r *TransactionRepository) FindAllCategories(user *models.User) ([]models.C
 	result := r.DB.Find(&records)
 	return records, result.Error
 }
+
+func (r *TransactionRepository) FindTransactionByID(ID, userID uint) (models.Transaction, error) {
+	var record models.Transaction
+	result := r.DB.First(&record).Where("id = ? AND user_id = ?", ID, userID)
+	return record, result.Error
+}
+
+func (r *TransactionRepository) FindCategoryByID(ID, userID uint) (models.Category, error) {
+	var record models.Category
+	result := r.DB.First(&record).Where("id = ? AND user_id = ?", ID, userID)
+	return record, result.Error
+}
+
+func (r *TransactionRepository) InsertTransaction(tx *gorm.DB, newRecord models.Transaction) (uint, error) {
+	if err := tx.Create(&newRecord).Error; err != nil {
+		return 0, err
+	}
+	return newRecord.ID, nil
+}
