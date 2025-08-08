@@ -12,6 +12,8 @@ type Transaction struct {
 	Currency        string    `gorm:"type:char(3);not null;default:'EUR'" json:"currency" validate:"required"`
 	TxnDate         time.Time `gorm:"type:date;not null;index" json:"txn_date" validate:"required"`
 	Description     *string   `gorm:"type:varchar(255)" json:"description,omitempty"`
+	Account         Account   `json:"account"`
+	Category        Category  `json:"category,omitempty"`
 	CreatedAt       time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt       time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }

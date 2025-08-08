@@ -19,6 +19,8 @@ func (r *TransactionRepository) FindTransactions(user *models.User, year, offset
 	var records []models.Transaction
 
 	query := r.DB.
+		Preload("Category").
+		Preload("Account").
 		Where("transactions.user_id = ?", user.ID)
 
 	joins := utils.GetRequiredJoins(filters)
@@ -46,6 +48,8 @@ func (r *TransactionRepository) CountTransactions(user *models.User, year int, f
 	var totalRecords int64
 
 	query := r.DB.Model(&models.Transaction{}).
+		Preload("Category").
+		Preload("Account").
 		Where("transactions.user_id = ?", user.ID)
 
 	joins := utils.GetRequiredJoins(filters)
