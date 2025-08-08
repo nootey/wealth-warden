@@ -70,13 +70,13 @@ func (r *TransactionRepository) FindAllCategories(user *models.User) ([]models.C
 
 func (r *TransactionRepository) FindTransactionByID(ID, userID uint) (models.Transaction, error) {
 	var record models.Transaction
-	result := r.DB.First(&record).Where("id = ? AND user_id = ?", ID, userID)
+	result := r.DB.Where("id = ? AND user_id = ?", ID, userID).First(&record)
 	return record, result.Error
 }
 
 func (r *TransactionRepository) FindCategoryByID(ID, userID uint) (models.Category, error) {
 	var record models.Category
-	result := r.DB.First(&record).Where("id = ? AND user_id = ?", ID, userID)
+	result := r.DB.Where("id = ? AND user_id = ?", ID, userID).First(&record)
 	return record, result.Error
 }
 

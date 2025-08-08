@@ -123,7 +123,7 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountCreate
 	if err != nil {
 		return fmt.Errorf("can't find account_type for given id %w", err)
 	}
-	
+
 	account := &models.Account{
 		Name:          req.Name,
 		Currency:      models.DefaultCurrency,
