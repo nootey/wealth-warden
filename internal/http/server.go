@@ -92,7 +92,7 @@ func NewRouter(container *bootstrap.Container, logger *zap.Logger) *gin.Engine {
 		domainProtocol + container.Config.WebClient.Domain,
 		domainProtocol + container.Config.WebClient.Domain + ":" + container.Config.WebClient.Port,
 	}
-	corsConfig.AllowMethods = []string{"GET", "POST", "OPTIONS"}
+	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "OPTIONS"}
 	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "wealth-warden-client"}
 	corsConfig.AllowCredentials = true
 	r.Use(cors.New(corsConfig))
