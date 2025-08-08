@@ -37,7 +37,11 @@ func (rt *ServerRuntime) Run(context context.Context) error {
 	rt.Logger.Info("Successfully connected to the database")
 
 	httpLogger := rt.Logger.Named("http").With(zap.String("component", "HTTP"))
-	container := bootstrap.NewContainer(rt.Config, dbClient, httpLogger)
+	container, err := bootstrap.NewContainer(rt.Config, dbClient, httpLogger)
+	if err != nil {
+		rt.Logger.Error("Container initialization failed", zap.Error(err))
+		return fmt.Errorf("cntainer initialization failed: %w", err)
+	}
 	httpServer := http.NewServer(container, httpLogger)
 	go httpServer.Start()
 

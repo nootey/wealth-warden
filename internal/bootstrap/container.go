@@ -21,7 +21,7 @@ type Container struct {
 	TransactionService *services.TransactionService
 }
 
-func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Container {
+func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Container, error) {
 
 	// Initialize middleware
 	webClientMiddleware := middleware.NewWebClientMiddleware(cfg, logger)
@@ -50,7 +50,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Containe
 
 	userService := services.NewUserService(cfg, ctx, userRepo)
 	accountService := services.NewAccountService(cfg, ctx, accountRepo)
-	transactionService := services.NewTransactionService(cfg, ctx, transactionRepo)
+	transactionService := services.NewTransactionService(cfg, ctx, transactionRepo, accountService)
 
 	return &Container{
 		Config:             cfg,
@@ -61,5 +61,5 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *Containe
 		LoggingService:     loggingService,
 		AccountService:     accountService,
 		TransactionService: transactionService,
-	}
+	}, nil
 }
