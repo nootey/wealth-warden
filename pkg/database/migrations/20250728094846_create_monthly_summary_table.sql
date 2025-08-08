@@ -19,7 +19,7 @@ SELECT
 
 FROM transactions t
 LEFT JOIN categories c ON c.id = t.category_id
-WHERE t.transaction_type = 'increase'
+WHERE t.transaction_type = 'income'
 GROUP BY t.user_id, EXTRACT(YEAR FROM t.txn_date), EXTRACT(MONTH FROM t.txn_date), DATE_TRUNC('month', t.txn_date);
 -- +goose StatementEnd
 
