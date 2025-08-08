@@ -97,12 +97,12 @@ async function handleEmit(emitType: any) {
     <AddTransaction entity="account" @addTransaction="handleEmit('addTransaction')"></AddTransaction>
   </Dialog>
 
-  <main style="display: flex;flex-direction: column;height: 100vh;width: 100%;padding: 1rem;align-items: center;">
+  <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
 
-    <div class="flex flex-row justify-content-between align-items-center p-3"
+    <div class="flex flex-row justify-content-between align-items-center p-3 w-full"
          style="border-top-right-radius: 8px; border-top-left-radius: 8px;
          border: 1px solid var(--border-color);background: var(--background-secondary);
-         max-width: 1000px; width: 100%;">
+         max-width: 1000px;">
 
       <div style="font-weight: bold;">Transactions</div>
       <Button label="New transaction" icon="pi pi-plus" @click="manipulateDialog('addTransaction', true)"
@@ -110,14 +110,14 @@ async function handleEmit(emitType: any) {
                 border: none; border-radius: 6px; font-size: 0.875rem; padding: 0.5rem 1rem;"></Button>
     </div>
 
-    <div class="flex flex-column justify-content-center p-3"
+    <div class="flex flex-column justify-content-center p-3 w-full"
          style="border-bottom-right-radius: 8px; border-bottom-left-radius: 8px;
          border: 1px solid var(--border-color);background: var(--background-secondary);
-         max-width: 1000px; width: 100%;">
-      <div class="flex flex-row" style="width: 100%;">
+         max-width: 1000px;">
+      <div class="flex flex-row w-full">
         <InputText style="width: 100%; border-radius: 8px; font-size: 0.875rem; padding: 0.5rem 1rem;" placeholder="Search transactions ..." />
       </div>
-      <div class="flex flex-row" style="width: 100%;">
+      <div class="flex flex-row w-full">
         <TransactionRecords></TransactionRecords>
       </div>
 
