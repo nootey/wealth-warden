@@ -138,7 +138,12 @@ async function createNewRecord() {
     let response = await shared_store.createRecord(
         "transactions",
         {
-
+          account_id: newRecord.value.account.id,
+          category_id: newRecord.value.category?.id,
+          transaction_type: newRecord.value.transaction_type,
+          amount: newRecord.value.amount,
+          txn_date: newRecord.value.txn_date,
+          description: newRecord.value.description,
         }
     );
 
