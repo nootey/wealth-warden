@@ -21,7 +21,7 @@ export const useSharedStore = defineStore('shared', {
         },
         async createRecord(prefix: string, record: object) {
             try {
-                const response = await apiClient.post(`${prefix}`, record);
+                const response = await apiClient.put(`${prefix}`, record);
                 return response.data;
             } catch (err) {
                 throw err;
