@@ -136,6 +136,23 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 		tr.CategoryID = &category.ID
 	}
 
+	_, err = s.Repo.InsertTransaction(tx, tr)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.AccountService.UpdateAccountCashBalance(tx, &account, tr.TransactionType, tr.Amount)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Dispatch transaction activity log
 	changes := utils.InitChanges()
 	amountString := strconv.FormatFloat(tr.Amount, 'f', 2, 64)
 	dateStr := tr.TxnDate.UTC().Format(time.RFC3339)
@@ -152,16 +169,6 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 
 	utils.CompareChanges("", utils.SafeString(tr.Description), changes, "description")
 
-	_, err = s.Repo.InsertTransaction(tx, tr)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return err
-	}
-
 	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
 		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
 		Logger:      s.Ctx.Logger,
@@ -169,6 +176,49 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 		Category:    "transaction",
 		Description: nil,
 		Payload:     changes,
+		Causer:      user,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Dispatch balance activity log
+	changes2 := utils.InitChanges()
+
+	// Re-fetch account balance to get the computed end_balance
+	newBalance, err := s.AccountService.Repo.FindBalanceForAccountID(nil, account.ID)
+	if err != nil {
+		return err
+	}
+
+	endBalanceString := strconv.FormatFloat(newBalance.EndBalance, 'f', 2, 64)
+
+	var change float64
+	switch tr.TransactionType {
+	case "expense":
+		change = tr.Amount * -1
+	default:
+		change = tr.Amount
+	}
+
+	startBalance := newBalance.EndBalance - change
+
+	changeAmountString := strconv.FormatFloat(change, 'f', 2, 64)
+	startBalanceString := strconv.FormatFloat(startBalance, 'f', 2, 64)
+
+	utils.CompareChanges("", account.Name, changes2, "account")
+	utils.CompareChanges("", changeAmountString, changes2, "change")
+	utils.CompareChanges("", startBalanceString, changes2, "start_balance")
+	utils.CompareChanges("", endBalanceString, changes2, "end_balance")
+	utils.CompareChanges("", account.Currency, changes2, "currency")
+
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "update",
+		Category:    "balance",
+		Description: nil,
+		Payload:     changes2,
 		Causer:      user,
 	})
 	if err != nil {

@@ -85,6 +85,14 @@ func (r *AccountRepository) FindAccountByID(ID, userID uint) (models.Account, er
 func (r *AccountRepository) FindAccountTypeByID(ID uint) (models.AccountType, error) {
 	var record models.AccountType
 	result := r.DB.Where("id = ?", ID).First(&record)
+func (r *AccountRepository) FindBalanceForAccountID(tx *gorm.DB, accID uint) (models.Balance, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var record models.Balance
+	result := db.Where("account_id = ?", accID).First(&record)
 	return record, result.Error
 }
 
@@ -110,4 +118,18 @@ func (r *AccountRepository) InsertBalance(tx *gorm.DB, newRecord *models.Balance
 		return 0, err
 	}
 	return newRecord.ID, nil
+}
+
+func (r *AccountRepository) UpdateBalance(tx *gorm.DB, record models.Balance) (uint, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Model(models.Balance{}).
+		Where("id = ?", record.ID).
+		Updates(record).Error; err != nil {
+		return 0, err
+	}
+	return record.ID, nil
 }

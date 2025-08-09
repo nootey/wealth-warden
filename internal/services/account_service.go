@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"strconv"
 	"time"
 	"wealth-warden/internal/jobs"
@@ -119,7 +120,7 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountCreate
 		}
 	}()
 
-	accType, err := s.Repo.FindAccountTypeByID(req.AccountTypeID)
+	accType, err := s.Repo.FindAccountTypeByID(tx, req.AccountTypeID)
 	if err != nil {
 		return fmt.Errorf("can't find account_type for given id %w", err)
 	}
@@ -171,6 +172,28 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountCreate
 		Payload:     changes,
 		Causer:      user,
 	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *AccountService) UpdateAccountCashBalance(tx *gorm.DB, acc *models.Account, transactionType string, amount float64) error {
+
+	accBalance, err := s.Repo.FindBalanceForAccountID(tx, acc.ID)
+	if err != nil {
+		return fmt.Errorf("can't find balance for given account id %w", err)
+	}
+
+	switch transactionType {
+	case "expense":
+		accBalance.CashOutflows += amount
+	default:
+		accBalance.CashInflows += amount
+	}
+
+	_, err = s.Repo.UpdateBalance(tx, accBalance)
 	if err != nil {
 		return err
 	}
