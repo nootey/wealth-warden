@@ -116,7 +116,7 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 
 	var category models.Category
 	if req.CategoryID != nil {
-		category, err = s.Repo.FindCategoryByID(*req.CategoryID, user.ID)
+		category, err = s.Repo.FindCategoryByID(*req.CategoryID, &user.ID)
 		if err != nil {
 			return fmt.Errorf("can't find category with given id %w", err)
 		}

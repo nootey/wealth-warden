@@ -28,6 +28,14 @@ type Category struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
+type HiddenCategory struct {
+	ID         uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID     uint      `gorm:"not_null" json:"user_id"`
+	CategoryID uint      `gorm:"not_null" json:"category_id"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
 type TransactionCreateReq struct {
 	AccountID       uint      `json:"account_id" validate:"required"`
 	CategoryID      *uint     `json:"category_id,omitempty"`

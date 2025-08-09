@@ -68,18 +68,54 @@ func (r *TransactionRepository) CountTransactions(user *models.User, year int, f
 
 func (r *TransactionRepository) FindAllCategories(user *models.User) ([]models.Category, error) {
 	var records []models.Category
-	result := r.DB.Find(&records)
-	return records, result.Error
+	var userID *uint
+	if user != nil {
+		userID = &user.ID
+	}
+
+	tx := r.DB.
+		Model(&models.Category{}).
+		Scopes(r.scopeVisibleCategories(userID)).
+		Order("classification, name").
+		Find(&records)
+
+	return records, tx.Error
+}
+
+func (r *TransactionRepository) FindCategoryByID(ID uint, userID *uint) (models.Category, error) {
+	var record models.Category
+	tx := r.DB.
+		Model(&models.Category{}).
+		Scopes(r.scopeVisibleCategories(userID)).
+		Where("categories.id = ?", ID).
+		First(&record)
+	return record, tx.Error
+}
+
+func (r *TransactionRepository) scopeVisibleCategories(userID *uint) func(*gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		if userID == nil {
+			// No user: only default categories
+			return db.Where("categories.user_id IS NULL")
+		}
+		uid := *userID
+		return db.Where(`
+			(categories.user_id = ?) OR
+			(
+				categories.user_id IS NULL
+				AND NOT EXISTS (
+					SELECT 1
+					FROM hidden_categories hc
+					WHERE hc.category_id = categories.id
+					  AND hc.user_id = ?
+				)
+			)
+		`, uid, uid)
+	}
 }
 
 func (r *TransactionRepository) FindTransactionByID(ID, userID uint) (models.Transaction, error) {
 	var record models.Transaction
-	result := r.DB.Where("id = ? AND user_id = ?", ID, userID).First(&record)
-	return record, result.Error
-}
-
-func (r *TransactionRepository) FindCategoryByID(ID, userID uint) (models.Category, error) {
-	var record models.Category
 	result := r.DB.Where("id = ? AND user_id = ?", ID, userID).First(&record)
 	return record, result.Error
 }
