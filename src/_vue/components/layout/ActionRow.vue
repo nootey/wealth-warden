@@ -6,7 +6,7 @@ const slots: Slots = useSlots();
 </script>
 
 <template>
-  <div class="flex flex-row p-1 gap-2 align-items-center">
+  <div class="flex flex-row p-1 gap-2 align-items-center w-full">
 
     <div class="flex flex-column p-1" v-if="slots.yearPicker">
       Select year:

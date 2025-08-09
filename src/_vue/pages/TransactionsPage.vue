@@ -12,7 +12,7 @@ import ActionRow from "../components/layout/ActionRow.vue";
 import BaseFilter from "../components/filters/BaseFilter.vue";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import ColumnHeader from "../components/base/ColumnHeader.vue";
-import type {FilterObj, SortObj} from "../../models/shared_models.ts";
+import type {FilterObj} from "../../models/shared_models.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -261,10 +261,6 @@ provide('removeFilter', removeFilter);
          style="border-bottom-right-radius: 8px; border-bottom-left-radius: 8px;
          border: 1px solid var(--border-color); background: var(--background-secondary);
          max-width: 1000px;">
-
-      <div class="flex flex-row w-full">
-        <InputText style="width: 100%; border-radius: 8px; font-size: 0.875rem; padding: 0.5rem 1rem;" placeholder="Search transactions ..." />
-      </div>
 
       <div class="flex flex-row w-full">
         <ActionRow>
