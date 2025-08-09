@@ -89,14 +89,24 @@ func (r *AccountRepository) FindAccountTypeByID(ID uint) (models.AccountType, er
 }
 
 func (r *AccountRepository) InsertAccount(tx *gorm.DB, newRecord *models.Account) (uint, error) {
-	if err := tx.Create(&newRecord).Error; err != nil {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Create(&newRecord).Error; err != nil {
 		return 0, err
 	}
 	return newRecord.ID, nil
 }
 
 func (r *AccountRepository) InsertBalance(tx *gorm.DB, newRecord *models.Balance) (uint, error) {
-	if err := tx.Create(&newRecord).Error; err != nil {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Create(&newRecord).Error; err != nil {
 		return 0, err
 	}
 	return newRecord.ID, nil
