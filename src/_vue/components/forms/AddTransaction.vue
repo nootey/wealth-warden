@@ -135,6 +135,10 @@ async function createNewRecord() {
 
   if (!await isRecordValid()) return;
 
+  if (selectedParentCategory.value == null) {
+    return;
+  }
+
   const txn_date = dateHelper.mergeDateWithCurrentTime(dayjs(newRecord.value.txn_date).format('YYYY-MM-DD'))
 
   try {
@@ -143,7 +147,7 @@ async function createNewRecord() {
         {
           account_id: newRecord.value.account.id,
           category_id: newRecord.value.category?.id,
-          transaction_type: newRecord.value.transaction_type,
+          transaction_type: selectedParentCategory.value.classification,
           amount: newRecord.value.amount,
           txn_date: txn_date,
           description: newRecord.value.description,
