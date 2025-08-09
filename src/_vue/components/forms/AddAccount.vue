@@ -220,7 +220,9 @@ async function createNewRecord() {
 
     <div class="flex flex-row w-full justify-content-center">
       <div class="flex flex-column w-50">
-        <SelectButton style="font-size: 0.875rem;" size="small" v-model="selectedClassification" :options="['Asset', 'Liability']" />
+        <SelectButton
+            style="font-size: 0.875rem;" size="small"
+            v-model="selectedClassification" :options="['Asset', 'Liability']" :allowEmpty="false" />
       </div>
     </div>
 

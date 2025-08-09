@@ -134,6 +134,8 @@ async function createNewRecord() {
 
   if (!await isRecordValid()) return;
 
+  const txn_date = dateHelper.mergeDateWithCurrentTime(dayjs(newRecord.value.txn_date).format('YYYY-MM-DD'))
+
   try {
     let response = await shared_store.createRecord(
         "transactions",
