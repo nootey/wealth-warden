@@ -10,6 +10,7 @@ import ValidationError from "../validation/ValidationError.vue";
 import {useAccountStore} from "../../../services/stores/account_store.ts";
 import type {Account} from "../../../models/account_models.ts";
 import dayjs from "dayjs";
+import dateHelper from "../../../utils/dateHelper.ts";
 
 const shared_store = useSharedStore();
 const toast_store = useToastStore();
@@ -144,7 +145,7 @@ async function createNewRecord() {
           category_id: newRecord.value.category?.id,
           transaction_type: newRecord.value.transaction_type,
           amount: newRecord.value.amount,
-          txn_date: newRecord.value.txn_date,
+          txn_date: txn_date,
           description: newRecord.value.description,
         }
     );
@@ -203,7 +204,7 @@ const searchAccount = (event: { query: string }) => {
       <div class="flex flex-column w-50">
         <SelectButton style="font-size: 0.875rem;" size="small"
                       v-model="selectedParentCategory"
-                      :options="parentCategories" optionLabel="name"
+                      :options="parentCategories" optionLabel="name" :allowEmpty="false"
                       @update:modelValue="updateSelectedParentCategory($event)" />
       </div>
     </div>
