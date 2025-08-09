@@ -82,14 +82,18 @@ func (r *TransactionRepository) FindAllCategories(user *models.User) ([]models.C
 	return records, tx.Error
 }
 
-func (r *TransactionRepository) FindCategoryByID(ID uint, userID *uint) (models.Category, error) {
+func (r *TransactionRepository) FindCategoryByID(tx *gorm.DB, ID uint, userID *uint) (models.Category, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
 	var record models.Category
-	tx := r.DB.
-		Model(&models.Category{}).
+	txn := db.Model(&models.Category{}).
 		Scopes(r.scopeVisibleCategories(userID)).
 		Where("categories.id = ?", ID).
 		First(&record)
-	return record, tx.Error
+	return record, txn.Error
 }
 
 func (r *TransactionRepository) scopeVisibleCategories(userID *uint) func(*gorm.DB) *gorm.DB {

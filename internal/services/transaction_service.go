@@ -109,14 +109,14 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 		}
 	}()
 
-	account, err := s.AccountService.Repo.FindAccountByID(req.AccountID, user.ID)
+	account, err := s.AccountService.Repo.FindAccountByID(tx, req.AccountID, user.ID)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
 	var category models.Category
 	if req.CategoryID != nil {
-		category, err = s.Repo.FindCategoryByID(*req.CategoryID, &user.ID)
+		category, err = s.Repo.FindCategoryByID(tx, *req.CategoryID, &user.ID)
 		if err != nil {
 			return fmt.Errorf("can't find category with given id %w", err)
 		}

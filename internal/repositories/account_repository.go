@@ -76,15 +76,28 @@ func (r *AccountRepository) FindAllAccountTypes(user *models.User) ([]models.Acc
 	return records, result.Error
 }
 
-func (r *AccountRepository) FindAccountByID(ID, userID uint) (models.Account, error) {
+func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID uint) (models.Account, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
 	var record models.Account
 	result := r.DB.Where("id = ? AND user_id = ?", ID, userID).First(&record)
 	return record, result.Error
 }
 
-func (r *AccountRepository) FindAccountTypeByID(ID uint) (models.AccountType, error) {
+func (r *AccountRepository) FindAccountTypeByID(tx *gorm.DB, ID uint) (models.AccountType, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
 	var record models.AccountType
-	result := r.DB.Where("id = ?", ID).First(&record)
+	result := db.Where("id = ?", ID).First(&record)
+	return record, result.Error
+}
+
 func (r *AccountRepository) FindBalanceForAccountID(tx *gorm.DB, accID uint) (models.Balance, error) {
 	db := tx
 	if db == nil {
