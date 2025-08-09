@@ -12,7 +12,7 @@ CREATE TABLE transactions (
     transaction_type transaction_type_enum NOT NULL DEFAULT 'expense',
     amount NUMERIC(19,4) NOT NULL,
     currency CHAR(3) NOT NULL DEFAULT 'EUR',
-    txn_date DATE NOT NULL,
+    txn_date TIMESTAMPTZ NOT NULL,
     description VARCHAR(255),
 
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
