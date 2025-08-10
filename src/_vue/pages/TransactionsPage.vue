@@ -37,7 +37,7 @@ const params = computed(() => {
     filters: [],
   }
 });
-const rows = ref([100]);
+const rows = ref([25, 50, 100]);
 const default_rows = ref(rows.value[0]);
 const paginator = ref({
   total: 0,
@@ -51,9 +51,10 @@ const sort = ref(vueHelper.initSort());
 // const data_count = computed(() => {return records.value.length});
 //
 // const activeFilers = ref([]);
-const filterStorageIndex = ref("transaction-filters");
+const filterStorageIndex = ref(apiPrefix+"-filters");
 const filterObj = ref<FilterObj>({
-  parameter: null,
+  source: apiPrefix,
+  field: null,
   operator: 'like',
   value: null
 });
@@ -123,42 +124,30 @@ async function onPage(event: any) {
   await getData();
 }
 
-async function removeInflow(id: number) {
-  try {
-    console.log(id)
-    // toastStore.successResponseToast(response);
-  } catch (error) {
-    toastStore.errorResponseToast(error);
-  }
-}
-
-// async function updateYear(newYear: number) {
-//   inflowStore.currentYear = newYear;
-//   await init();
-// }
-
 function initFilter() {
   filterObj.value = {
-    parameter: null,
+    source: apiPrefix,
+    field: null,
     operator: 'like',
     value: null
   }
 }
 
-function submitFilter(parameter: string) {
+function submitFilter(field: string) {
   if(!filterObj.value.value){
     vueHelper.formatInfoToast("Invalid value", "Input a filter value");
     return;
   }
 
-  filterObj.value.parameter = parameter;
+  filterObj.value.field = field;
   addFilter(filterObj.value);
   getData();
 }
 
 function addFilter(filter: FilterObj, alternate = null) {
   let new_filter = {
-    parameter: filter.parameter,
+    source: apiPrefix,
+    field: filter.field,
     operator: filter.operator,
     value: filterType.value === "text" ? filter.value.trim().replace(/\s+/g, " ") : filter.value,
   };
@@ -166,7 +155,7 @@ function addFilter(filter: FilterObj, alternate = null) {
   let exists = filters.value.find((object: FilterObj) => {
     // Compare only the relevant properties
     return (
-        object.parameter === new_filter.parameter &&
+        object.field === new_filter.field &&
         object.operator === new_filter.operator &&
         object.value === new_filter.value
     );
@@ -293,18 +282,10 @@ provide('removeFilter', removeFilter);
               </template>
             </Paginator>
           </template>
-          <Column header="Actions">
-            <template #body="slotProps">
-              <div class="flex flex-row align-items-center gap-2">
-                <i class="pi pi-trash hover_icon" style="color: var(--accent-primary)"
-                   @click="removeInflow(slotProps.data?.id)"></i>
-              </div>
-            </template>
-          </Column>
 
           <Column v-for="col of activeColumns" :key="col.field" :field="col.field" style="width: 25%">
             <template #header>
-              <ColumnHeader :header="col.header" :field="col.field" :sort="sort" :filter="true" :filters="filters"></ColumnHeader>
+              <ColumnHeader :header="col.header" :field="col.field" :sort="sort" :filter="false" :filters="filters"></ColumnHeader>
             </template>
             <template #body="{ data, field }">
               <template v-if="field === 'amount'">

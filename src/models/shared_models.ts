@@ -1,5 +1,6 @@
 export interface FilterObj {
-    parameter: string | null;
+    source: string;
+    field: string | null;
     operator: string;
     value: any;
 }
