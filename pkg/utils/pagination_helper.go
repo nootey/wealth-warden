@@ -15,9 +15,10 @@ type Paginator struct {
 }
 
 type Filter struct {
-	Parameter string
-	Operator  string
-	Value     string
+	Source   string
+	Field    string
+	Operator string
+	Value    string
 }
 
 type PaginationParams struct {
@@ -64,18 +65,20 @@ func GetPaginationParams(queryParams url.Values) PaginationParams {
 
 	for i := 0; ; i++ {
 		operator := queryParams.Get(fmt.Sprintf("filters[%d][operator]", i))
-		parameter := queryParams.Get(fmt.Sprintf("filters[%d][parameter]", i))
+		field := queryParams.Get(fmt.Sprintf("filters[%d][field]", i))
 		value := queryParams.Get(fmt.Sprintf("filters[%d][value]", i))
+		source := queryParams.Get(fmt.Sprintf("filters[%d][source]", i))
 
-		if operator == "" && parameter == "" && value == "" {
+		if operator == "" && field == "" && value == "" && source == "" {
 			break
 		}
 
-		if operator != "" && parameter != "" && value != "" {
+		if operator != "" && field != "" && value != "" {
 			filters = append(filters, Filter{
-				Parameter: parameter,
-				Operator:  operator,
-				Value:     value,
+				Source:   source,
+				Field:    field,
+				Operator: operator,
+				Value:    value,
 			})
 		}
 	}

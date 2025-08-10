@@ -14,7 +14,7 @@ func NewTransactionRepository(db *gorm.DB) *TransactionRepository {
 	return &TransactionRepository{DB: db}
 }
 
-func (r *TransactionRepository) FindTransactions(user *models.User, year, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Transaction, error) {
+func (r *TransactionRepository) FindTransactions(user *models.User, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Transaction, error) {
 
 	var records []models.Transaction
 
@@ -24,7 +24,7 @@ func (r *TransactionRepository) FindTransactions(user *models.User, year, offset
 		Where("transactions.user_id = ?", user.ID)
 
 	joins := utils.GetRequiredJoins(filters)
-	orderBy := utils.ConstructOrderByClause(&joins, sortField, sortOrder)
+	orderBy := utils.ConstructOrderByClause(&joins, "transactions", sortField, sortOrder)
 
 	for _, join := range joins {
 		query = query.Joins(join)
@@ -44,7 +44,7 @@ func (r *TransactionRepository) FindTransactions(user *models.User, year, offset
 	return records, nil
 }
 
-func (r *TransactionRepository) CountTransactions(user *models.User, year int, filters []utils.Filter) (int64, error) {
+func (r *TransactionRepository) CountTransactions(user *models.User, filters []utils.Filter) (int64, error) {
 	var totalRecords int64
 
 	query := r.DB.Model(&models.Transaction{}).

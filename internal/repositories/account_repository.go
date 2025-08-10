@@ -24,7 +24,7 @@ func (r *AccountRepository) FindAccounts(user *models.User, year, offset, limit 
 		Where("accounts.user_id = ?", user.ID)
 
 	joins := utils.GetRequiredJoins(filters)
-	orderBy := utils.ConstructOrderByClause(&joins, sortField, sortOrder)
+	orderBy := utils.ConstructOrderByClause(&joins, "accounts", sortField, sortOrder)
 
 	for _, join := range joins {
 		query = query.Joins(join)

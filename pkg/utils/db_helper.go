@@ -10,20 +10,27 @@ type FieldMetadata struct {
 	Join   string
 }
 
-var FieldMap = map[string]FieldMetadata{
-	"inflow_category":  {Column: "inflow_categories.name", Join: "LEFT JOIN inflow_categories ON inflow_categories.id = inflows.inflow_category_id"},
-	"inflow_date":      {Column: "DATE(inflows.inflow_date)"},
-	"outflow_category": {Column: "outflow_categories.name", Join: "LEFT JOIN outflow_categories ON outflow_categories.id = outflows.outflow_category_id"},
-	"outflow_date":     {Column: "DATE(inflows.outflow_date)"},
-	"transaction_date": {Column: "DATE(savings_transactions.transaction_date)"},
-	"savings_category": {Column: "savings_categories.name", Join: "LEFT JOIN savings_categories ON savings_categories.id = savings_transactions.savings_category_id"},
+var FieldMap = map[string]map[string]FieldMetadata{
+	"transactions": {
+		"category": {Column: "categories.name", Join: "LEFT JOIN categories ON categories.id = transactions.category_id"},
+		"account":  {Column: "accounts.name", Join: "LEFT JOIN accounts   ON accounts.id   = transactions.account_id"},
+	},
+}
+
+func resolveMeta(source, field string) (FieldMetadata, bool) {
+	m, ok := FieldMap[source]
+	if !ok {
+		return FieldMetadata{}, false
+	}
+	meta, ok2 := m[field]
+	return meta, ok2
 }
 
 func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 	for _, f := range filters {
 
-		meta, ok := FieldMap[f.Parameter]
-		column := f.Parameter
+		meta, ok := resolveMeta(f.Source, f.Field)
+		column := f.Field
 		if ok {
 			column = meta.Column
 		}
@@ -49,14 +56,10 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 func GetRequiredJoins(filters []Filter) []string {
 	needed := make(map[string]struct{})
 
-	checkField := func(field string) {
-		if meta, ok := FieldMap[field]; ok && meta.Join != "" {
+	for _, f := range filters {
+		if meta, ok := resolveMeta(f.Source, f.Field); ok && meta.Join != "" { // <— NEW
 			needed[meta.Join] = struct{}{}
 		}
-	}
-
-	for _, f := range filters {
-		checkField(f.Parameter)
 	}
 
 	var joins []string
@@ -66,10 +69,10 @@ func GetRequiredJoins(filters []Filter) []string {
 	return joins
 }
 
-func ConstructOrderByClause(joins *[]string, sortField, sortOrder string) string {
+func ConstructOrderByClause(joins *[]string, source, sortField, sortOrder string) string {
 	sortColumn := sortField
 
-	if meta, ok := FieldMap[sortField]; ok {
+	if meta, ok := resolveMeta(source, sortField); ok {
 		sortColumn = meta.Column
 
 		if meta.Join != "" {

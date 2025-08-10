@@ -43,24 +43,14 @@ func (s *TransactionService) FetchTransactionsPaginated(c *gin.Context) ([]model
 
 	queryParams := c.Request.URL.Query()
 	paginationParams := utils.GetPaginationParams(queryParams)
-	yearParam := queryParams.Get("year")
 
-	// Get the current year
-	currentYear := time.Now().Year()
-
-	// Convert yearParam to integer
-	year, err := strconv.Atoi(yearParam)
-	if err != nil || year > currentYear || year < 2000 { // Ensure year is valid
-		year = currentYear // Default to current year if invalid
-	}
-
-	totalRecords, err := s.Repo.CountTransactions(user, year, paginationParams.Filters)
+	totalRecords, err := s.Repo.CountTransactions(user, paginationParams.Filters)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
-	records, err := s.Repo.FindTransactions(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
+	records, err := s.Repo.FindTransactions(user, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
 	if err != nil {
 		return nil, nil, err
 	}
