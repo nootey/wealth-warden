@@ -13,6 +13,7 @@ import BaseFilter from "../components/filters/BaseFilter.vue";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import ColumnHeader from "../components/base/ColumnHeader.vue";
 import type {FilterObj} from "../../models/shared_models.ts";
+import FilterMenu from "../components/filters/FilterMenu.vue";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -191,33 +192,12 @@ function switchSort(column:string) {
   getData();
 }
 
-function toggleFilterOverlay(event: any, column: string) {
-
-  switch (column) {
-    case "txn_date": {
-      filterType.value = "date";
-      break;
-    }
-    case "amount": {
-      filterType.value = "number";
-      break;
-    }
-    default: {
-      filterType.value = "text";
-      break;
-    }
-  }
-
-  activeFilterColumn.value = column;
+function toggleFilterOverlay(event: any) {
   filterOverlayRef.value.toggle(event);
 }
 
 provide("initData", getData);
 provide("switchSort", switchSort);
-provide("toggleFilterOverlay", toggleFilterOverlay);
-provide('submitFilter', submitFilter);
-provide('removeFilter', removeFilter);
-
 
 </script>
 
@@ -229,8 +209,12 @@ provide('removeFilter', removeFilter);
   </Dialog>
 
   <Popover ref="filterOverlayRef">
-    <BaseFilter :activeColumn="activeFilterColumn"
-                :filter="filterObj" :filters="filters" :filterType="filterType"></BaseFilter>
+    <div class="flex flex-column gap-2" style="width: 500px">
+    <FilterMenu :columns="activeColumns" :apiSource="apiPrefix"
+                @apply="(list) => { filters = list; localStorage.setItem(filterStorageIndex, JSON.stringify(list)); getData(); filterOverlayRef.hide(); }"
+                @clear="() => { filters = []; localStorage.removeItem(filterStorageIndex); getData(); }"
+                @cancel="() => filterOverlayRef.hide()"></FilterMenu>
+    </div>
   </Popover>
 
   <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
@@ -241,9 +225,7 @@ provide('removeFilter', removeFilter);
          max-width: 1000px;">
 
       <div style="font-weight: bold;">Transactions</div>
-      <Button label="New transaction" icon="pi pi-plus" @click="manipulateDialog('addTransaction', true)"
-              style="background-color: var(--text-primary); color: var(--background-primary);
-                border: none; border-radius: 6px; font-size: 0.875rem; padding: 0.5rem 1rem;"></Button>
+      <Button label="New transaction" icon="pi pi-plus" class="main-button" @click="manipulateDialog('addTransaction', true)"></Button>
     </div>
 
     <div class="flex flex-column justify-content-center p-3 w-full gap-3"
@@ -253,12 +235,15 @@ provide('removeFilter', removeFilter);
 
       <div class="flex flex-row w-full">
         <ActionRow>
-          <template #yearPicker>
-            <!--          <YearPicker records="inflows" :year="transaction_store.currentYear"-->
-            <!--                      :availableYears="transaction_store.inflowYears"  @update:year="updateYear" />-->
-          </template>
-          <template #activeFilters>
-            <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
+<!--          <template #activeFilters>-->
+<!--            <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />-->
+<!--          </template>-->
+          <template #filterButton>
+            <div class="hover flex flex-row align-items-center gap-2" @click="toggleFilterOverlay($event)"
+                 style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color)">
+              <i class="pi pi-filter" style="font-size: 0.845rem"></i>
+              <div>Filter</div>
+            </div>
           </template>
         </ActionRow>
       </div>
@@ -285,7 +270,7 @@ provide('removeFilter', removeFilter);
 
           <Column v-for="col of activeColumns" :key="col.field" :field="col.field" style="width: 25%">
             <template #header>
-              <ColumnHeader :header="col.header" :field="col.field" :sort="sort" :filter="false" :filters="filters"></ColumnHeader>
+              <ColumnHeader :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
             </template>
             <template #body="{ data, field }">
               <template v-if="field === 'amount'">

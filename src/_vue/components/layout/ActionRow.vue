@@ -32,6 +32,10 @@ const slots: Slots = useSlots();
       </div>
     </div>
 
+    <div style="margin-left: auto" class="flex flex-column p-1" v-if="slots.filterButton">
+      <slot name="filterButton"></slot>
+    </div>
+
   </div>
 
 </template>
