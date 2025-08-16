@@ -1,28 +1,46 @@
 <script setup lang="ts">
 import {inject} from "vue";
-import vueHelper from "../../../utils/vueHelper.ts";
 
-const props = defineProps(['header', 'field', 'sort']);
+defineProps(['header', 'field', 'sort']);
 
 const switchSort = inject<(column: string) => void>('switchSort', () => {});
 
 </script>
 
 <template>
-  <div class="flex flex-column w-100 gap-1">
-    <div class="flex flex-row header_text gap-2 align-items-center">
+  <div class="flex flex-column">
+    <div :class="{ highlight: sort && sort.field === field }"
+        class="flex flex-row header_text align-items-center p-1"
+        @click="switchSort(field)">
       {{ header }}
-      <i v-if="sort" class="pi hover_icon" :class="vueHelper.sortIcon(sort, field)" @click="switchSort(field)"></i>
     </div>
-
   </div>
 </template>
 
 <style scoped>
-.header_text{
+.header_text {
+  position: relative;
   text-wrap: nowrap;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.header_text::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  height: 2.5px;
+  background-color: var(--accent-primary);
+  transition: width 0.3s ease, left 0.3s ease;
+}
+
+.highlight::after {
+  width: 100%;
+  left: 0;
 }
 </style>

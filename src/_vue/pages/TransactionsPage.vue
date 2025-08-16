@@ -12,6 +12,7 @@ import ActionRow from "../components/layout/ActionRow.vue";
 import ColumnHeader from "../components/base/ColumnHeader.vue";
 import type {FilterObj} from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
+import ActiveFilters from "../components/filters/ActiveFilters.vue";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -186,9 +187,9 @@ provide("switchSort", switchSort);
 
       <div class="flex flex-row w-full">
         <ActionRow>
-<!--          <template #activeFilters>-->
-<!--            <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />-->
-<!--          </template>-->
+          <template #activeFilters>
+            <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
+          </template>
           <template #filterButton>
             <div class="hover flex flex-row align-items-center gap-2" @click="toggleFilterOverlay($event)"
                  style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color)">
@@ -220,8 +221,8 @@ provide("switchSort", switchSort);
           </template>
 
           <Column v-for="col of activeColumns" :key="col.field" :field="col.field" style="width: 25%">
-            <template #header>
-              <ColumnHeader :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
+            <template #header >
+              <ColumnHeader  :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
             </template>
             <template #body="{ data, field }">
               <template v-if="field === 'amount'">
