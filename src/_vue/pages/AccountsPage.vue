@@ -3,11 +3,11 @@
 import AddAccount from "../components/forms/AddAccount.vue";
 import {computed, onMounted, ref} from "vue";
 import {useAccountStore} from "../../services/stores/account_store.ts";
-import vueHelper from "../../utils/vueHelper.ts";
+import vueHelper from "../../utils/vue_helper.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import {useSharedStore} from "../../services/stores/shared_store.ts";
 import type {Account} from "../../models/account_models.ts";
-import filterHelper from "../../utils/filterHelper.ts";
+import filterHelper from "../../utils/filter_helper.ts";
 
 const account_store = useAccountStore();
 const shared_store = useSharedStore();

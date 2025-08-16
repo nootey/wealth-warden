@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import LoadingSpinner from "../../components/base/LoadingSpinner.vue";
 import {computed, onMounted, provide, ref} from "vue";
-import vueHelper from "../../../utils/vueHelper.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useLoggingStore} from "../../../services/stores/logging_store.ts";
 import ColumnHeader from "../../components/base/ColumnHeader.vue";
-import dateHelper from "../../../utils/dateHelper.ts";
+import dateHelper from "../../../utils/date_helper.ts";
 import IconDisplay from "../../components/base/IconDisplay.vue";
 import MultiSelectFilter from "../../components/filters/MultiSelectFilter.vue";
 import dayjs from "dayjs";
 import ActionRow from "../../components/layout/ActionRow.vue";
 import DateTimePicker from "../../components/base/DateTimePicker.vue";
 import type {Causer, FilterValue} from "../../../models/logging_models.ts";
-import filterHelper from "../../../utils/filterHelper.ts";
+import filterHelper from "../../../utils/filter_helper.ts";
 
 const toastStore = useToastStore();
 const loggingStore = useLoggingStore();

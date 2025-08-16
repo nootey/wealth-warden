@@ -8,9 +8,9 @@ import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useAccountStore} from "../../../services/stores/account_store.ts";
 import {computed, ref, toRef, watch} from "vue";
-import vueHelper from "../../../utils/vueHelper.ts"
+import vueHelper from "../../../utils/vue_helper.ts"
 import type {Account, AccountType} from "../../../models/account_models.ts"
-import currencyHelper from "../../../utils/currencyHelper.ts";
+import currencyHelper from "../../../utils/currency_helper.ts";
 
 const shared_store = useSharedStore();
 const account_store = useAccountStore();

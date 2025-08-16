@@ -11,8 +11,8 @@ import ValidationError from "../validation/ValidationError.vue";
 import {useAccountStore} from "../../../services/stores/account_store.ts";
 import type {Account} from "../../../models/account_models.ts";
 import dayjs from "dayjs";
-import dateHelper from "../../../utils/dateHelper.ts";
-import currencyHelper from "../../../utils/currencyHelper.ts";
+import dateHelper from "../../../utils/date_helper.ts";
+import currencyHelper from "../../../utils/currency_helper.ts";
 
 const shared_store = useSharedStore();
 const toast_store = useToastStore();

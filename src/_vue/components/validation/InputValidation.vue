@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import vueHelper from "../../../utils/vueHelper.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
 const props = defineProps(['validationObject']);
 </script>
 
