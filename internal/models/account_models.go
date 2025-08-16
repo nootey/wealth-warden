@@ -23,7 +23,7 @@ type AccountType struct {
 	ID             int64     `gorm:"primaryKey;autoIncrement" json:"id"`
 	Type           string    `gorm:"type:varchar(150);not null" json:"type" validate:"required"`
 	Subtype        *string   `gorm:"type:varchar(100)" json:"subtype" validate:"required"`
-	Classification string    `gorm:"->;type:varchar(20)" json:"classification" validate:"required"`
+	Classification string    `gorm:"type:varchar(20)" json:"classification" validate:"required"`
 	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }

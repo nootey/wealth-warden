@@ -106,7 +106,7 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountCreate
 	changes := utils.InitChanges()
 
 	if req.Balance.LessThan(decimal.NewFromInt(0)) {
-		return errors.New("initial balance cannot be negative")
+		return errors.New("provided initial balance cannot be negative")
 	}
 
 	tx := s.Repo.DB.Begin()
@@ -147,10 +147,16 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountCreate
 		return err
 	}
 
+	amount := req.Balance.Round(4)
+
+	if accType.Classification == "liability" {
+		amount = amount.Neg()
+	}
+
 	balance := &models.Balance{
 		AccountID:    accountID,
 		Currency:     models.DefaultCurrency,
-		StartBalance: req.Balance,
+		StartBalance: amount,
 		AsOf:         time.Now(),
 	}
 
