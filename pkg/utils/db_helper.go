@@ -3,6 +3,8 @@ package utils
 import (
 	"fmt"
 	"gorm.io/gorm"
+	"reflect"
+	"strings"
 )
 
 type FieldMetadata struct {
@@ -27,6 +29,7 @@ func resolveMeta(source, field string) (FieldMetadata, bool) {
 }
 
 func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
+
 	for _, f := range filters {
 
 		meta, ok := resolveMeta(f.Source, f.Field)
@@ -36,18 +39,34 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 		}
 
 		switch f.Operator {
-		case "equals":
-			query = query.Where(fmt.Sprintf("%s = ?", column), f.Value)
-		case "not equals":
-			query = query.Where(fmt.Sprintf("%s <> ?", column), f.Value)
-		case "contains":
-			query = query.Where(fmt.Sprintf("%s LIKE ?", column), "%"+f.Value+"%")
-		case "more than":
+		case "equals", "=":
+			query = query.Where(fmt.Sprintf("LOWER(%s) = ?", column), strings.ToLower(fmt.Sprint(f.Value)))
+		case "not equals", "<>", "!=":
+			query = query.Where(fmt.Sprintf("LOWER(%s) <> ?", column), strings.ToLower(fmt.Sprint(f.Value)))
+		case "contains", "like":
+			query = query.Where(fmt.Sprintf("LOWER(%s) LIKE ?", column), "%"+strings.ToLower(fmt.Sprint(f.Value))+"%")
+		case "more than", ">":
 			query = query.Where(fmt.Sprintf("%s > ?", column), f.Value)
-		case "less than":
+		case "less than", "<":
 			query = query.Where(fmt.Sprintf("%s < ?", column), f.Value)
+		case ">=":
+			query = query.Where(fmt.Sprintf("%s >= ?", column), f.Value)
+		case "<=":
+			query = query.Where(fmt.Sprintf("%s <= ?", column), f.Value)
+		case "in":
+			vals := reflect.ValueOf(f.Value)
+			if vals.Kind() == reflect.Slice {
+				lowered := []string{}
+				for i := 0; i < vals.Len(); i++ {
+					lowered = append(lowered, strings.ToLower(fmt.Sprint(vals.Index(i).Interface())))
+				}
+				query = query.Where(fmt.Sprintf("LOWER(%s) IN (?)", column), lowered)
+			} else {
+				query = query.Where(fmt.Sprintf("LOWER(%s) IN (?)", column), strings.ToLower(fmt.Sprint(f.Value)))
+			}
 		default:
-			// Unknown operator — skip or log
+			// Unknown operator
+			fmt.Println("Unknown operator")
 		}
 	}
 	return query
