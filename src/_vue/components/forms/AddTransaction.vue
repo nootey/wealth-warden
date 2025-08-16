@@ -14,8 +14,8 @@ import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
 
-const shared_store = useSharedStore();
-const toast_store = useToastStore();
+const sharedStore = useSharedStore();
+const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
 
@@ -89,7 +89,7 @@ async function getAccounts() {
     const response = await accountStore.getAllAccounts();
     accounts.value = response.data;
   } catch (e) {
-    toast_store.errorResponseToast(e)
+    toastStore.errorResponseToast(e)
   }
 }
 
@@ -146,7 +146,7 @@ async function createNewRecord() {
   const txn_date = dateHelper.mergeDateWithCurrentTime(dayjs(newRecord.value.txn_date).format('YYYY-MM-DD'))
 
   try {
-    let response = await shared_store.createRecord(
+    let response = await sharedStore.createRecord(
         "transactions",
         {
           account_id: newRecord.value.account.id,
@@ -161,12 +161,12 @@ async function createNewRecord() {
     newRecord.value = initData();
     v$.value.newRecord.$reset();
 
-    toast_store.successResponseToast(response);
+    toastStore.successResponseToast(response);
 
     emit("addTransaction")
 
   } catch (error) {
-    toast_store.errorResponseToast(error);
+    toastStore.errorResponseToast(error);
   }
 }
 

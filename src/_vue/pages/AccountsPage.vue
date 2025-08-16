@@ -9,9 +9,9 @@ import {useSharedStore} from "../../services/stores/shared_store.ts";
 import type {Account} from "../../models/account_models.ts";
 import filterHelper from "../../utils/filter_helper.ts";
 
-const account_store = useAccountStore();
-const shared_store = useSharedStore();
-const toast_store = useToastStore();
+const accountStore = useAccountStore();
+const sharedStore = useSharedStore();
+const toastStore = useToastStore();
 import Decimal from "decimal.js";
 
 
@@ -20,7 +20,7 @@ const apiPrefix = "accounts";
 const addAccountModal = ref(false);
 
 onMounted(async () => {
-  await account_store.getAccountTypes();
+  await accountStore.getAccountTypes();
   await getData();
 })
 
@@ -62,7 +62,7 @@ const logoColor = (type: string) =>
     typeColors[type] ?? { bg: "#444", fg: "#222" };
 
 const typeMap: Record<string, string> = {};
-account_store.accountTypes.forEach(t => {
+accountStore.accountTypes.forEach(t => {
   typeMap[t.type] = t.classification;
 });
 
@@ -73,7 +73,7 @@ async function getData(new_page = null) {
     page.value = new_page;
 
   try {
-    let paginationResponse = await shared_store.getRecordsPaginated(
+    let paginationResponse = await sharedStore.getRecordsPaginated(
         apiPrefix,
         { ...params.value },
         page.value
@@ -84,7 +84,7 @@ async function getData(new_page = null) {
     paginator.value.from = paginationResponse.from;
     loadingAccounts.value = false;
   } catch (error) {
-    toast_store.errorResponseToast(error);
+    toastStore.errorResponseToast(error);
   }
 }
 

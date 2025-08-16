@@ -12,9 +12,9 @@ import vueHelper from "../../../utils/vue_helper.ts"
 import type {Account, AccountType} from "../../../models/account_models.ts"
 import currencyHelper from "../../../utils/currency_helper.ts";
 
-const shared_store = useSharedStore();
-const account_store = useAccountStore();
-const toast_store = useToastStore();
+const sharedStore = useSharedStore();
+const accountStore = useAccountStore();
+const toastStore = useToastStore();
 
 const newRecord = ref<Account>(initData());
 const startBalanceRef = toRef(newRecord.value.balance, "start_balance");
@@ -24,7 +24,7 @@ const selectedClassification = ref<"Asset" | "Liability">("Asset");
 const selectedType = ref<string>("");
 const selectedSubtype = ref<string>("");
 
-const accountTypes = computed<AccountType[]>(() => account_store.accountTypes);
+const accountTypes = computed<AccountType[]>(() => accountStore.accountTypes);
 
 // Unique type options for chosen classification
 const typeOptions = computed<string[]>(() => {
@@ -188,12 +188,12 @@ async function createNewRecord() {
       ) || null;
 
   if (!at) {
-    toast_store.errorResponseToast("Account type not found!");
+    toastStore.errorResponseToast("Account type not found!");
     return;
   }
   
   try {
-    let response = await shared_store.createRecord(
+    let response = await sharedStore.createRecord(
       "accounts",
         {
           account_type_id: at.id,
@@ -208,12 +208,12 @@ async function createNewRecord() {
     newRecord.value = initData();
     v$.value.newRecord.$reset();
 
-    toast_store.successResponseToast(response);
+    toastStore.successResponseToast(response);
 
     emit("addAccount")
 
   } catch (error) {
-    toast_store.errorResponseToast(error);
+    toastStore.errorResponseToast(error);
   }
 }
 
