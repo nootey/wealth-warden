@@ -9,8 +9,8 @@ export interface AccountType {
 export interface Balance{
     id: number|null;
     as_of: Date | null;
-    start_balance: number | null;
-    end_balance: number | null;
+    start_balance: string | null;
+    end_balance: string | null;
 }
 
 export interface Account {

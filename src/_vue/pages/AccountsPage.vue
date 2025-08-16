@@ -12,6 +12,8 @@ import filterHelper from "../../utils/filterHelper.ts";
 const account_store = useAccountStore();
 const shared_store = useSharedStore();
 const toast_store = useToastStore();
+import Decimal from "decimal.js";
+
 
 const apiPrefix = "accounts";
 
@@ -87,7 +89,7 @@ async function getData(new_page = null) {
 }
 
 const groupedAccounts = computed(() => {
-  // group into a Map<type, Account[]>
+
   const groups = new Map<string, typeof accounts.value>();
   for (const acc of accounts.value) {
     const t = acc.account_type?.type || "other_asset";
@@ -95,31 +97,32 @@ const groupedAccounts = computed(() => {
     groups.get(t)!.push(acc);
   }
 
-  // turn into [type, group[]] array and sort
   return Array.from(groups.entries())
       .sort(([typeA], [typeB]) => {
-        const ca = typeMap[typeA] ?? "asset";    // default asset
+        const ca = typeMap[typeA] ?? "asset";
         const cb = typeMap[typeB] ?? "asset";
         if (ca !== cb) {
-          // assets (-1) before liabilities (1)
           return ca === "asset" ? -1 : 1;
         }
-        // same classification → alphabetical by type
         return typeA.localeCompare(typeB);
       });
 });
 
 const groupTotal = (group: Account[]) =>
-    group.reduce((sum, acc) => sum + (acc.balance.end_balance || 0), 0);
+    group.reduce((sum, acc) => sum.add(new Decimal(acc.balance.end_balance || 0)), new Decimal(0));
 
 const totals = computed(() => {
-  const vals = accounts.value.map(a => a?.balance?.end_balance ?? 0);
+  const vals = accounts.value.map(a => new Decimal(a.balance.end_balance || 0));
 
-  const total    = vals.reduce((s, v) => s + v, 0);
-  const positive = vals.reduce((s, v) => (v > 0 ? s + v : s), 0);
-  const negative = vals.reduce((s, v) => (v < 0 ? s + v : s), 0);
+  const total    = vals.reduce((s, v) => s.add(v), new Decimal(0));
+  const positive = vals.reduce((s, v) => (v.greaterThan(0) ? s.add(v) : s), new Decimal(0));
+  const negative = vals.reduce((s, v) => (v.lessThan(0) ? s.add(v) : s), new Decimal(0));
 
-  return { total, positive, negative };
+  return {
+    total: total.toString(),
+    positive: positive.toString(),
+    negative: negative.toString()
+  };
 });
 
 function manipulateDialog(modal: string, value: boolean) {

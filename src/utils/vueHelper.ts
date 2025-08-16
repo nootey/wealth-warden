@@ -1,3 +1,5 @@
+import Decimal from "decimal.js";
+
 interface ValidationObject {
     $error: boolean;
 }
@@ -28,7 +30,7 @@ const vueHelper = {
             [errorClass]: !!state?.$error,
         }
     },
-    displayAsCurrency: (amount: number|string|null) => {
+    displayAsCurrency: (amount: Decimal | number | string | null) => {
         // Hardcode for EU region for now
         if (amount === null || amount === undefined) return null;
         let num = Number(amount);

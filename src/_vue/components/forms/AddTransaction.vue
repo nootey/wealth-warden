@@ -2,15 +2,17 @@
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
-import {computed, onMounted, ref} from "vue";
+import {computed, onMounted, ref, toRef} from "vue";
 import type {Category, Transaction} from "../../../models/transaction_models.ts";
-import {maxValue, minValue, numeric, required} from "@vuelidate/validators";
+import {required} from "@vuelidate/validators";
+import {decimalValid, decimalMin, decimalMax} from "../../../validators/currency.ts";
 import useVuelidate from "@vuelidate/core";
 import ValidationError from "../validation/ValidationError.vue";
 import {useAccountStore} from "../../../services/stores/account_store.ts";
 import type {Account} from "../../../models/account_models.ts";
 import dayjs from "dayjs";
 import dateHelper from "../../../utils/dateHelper.ts";
+import currencyHelper from "../../../utils/currencyHelper.ts";
 
 const shared_store = useSharedStore();
 const toast_store = useToastStore();
@@ -24,8 +26,10 @@ onMounted(async () => {
 })
 
 const newRecord = ref<Transaction>(initData());
+const amountRef = toRef(newRecord.value, "amount");
+const amountNumber = currencyHelper.useMoneyField(amountRef, 2).number;
+
 const allCategories = computed<Category[]>(() => transactionStore.categories);
-// const parentCategories = allCategories.value.filter((category) => category.parent_id == null);
 const parentCategories = allCategories.value.filter((category) => (category.name == "Expense") || category.name == "Income");
 
 const selectedParentCategory = ref<Category | null>(
@@ -59,9 +63,9 @@ const rules = {
     },
     amount: {
       required,
-      numeric,
-      minValue: minValue(0),
-      maxValue: maxValue(1000000000),
+      decimalValid,
+      decimalMin: decimalMin(0),
+      decimalMax: decimalMax(1_000_000_000),
       $autoDirty: true
     },
     txn_date: {
@@ -230,7 +234,7 @@ const searchAccount = (event: { query: string }) => {
         <ValidationError :isRequired="true" :message="v$.newRecord.amount.$errors[0]?.$message">
           <label>Amount</label>
         </ValidationError>
-        <InputNumber size="small" v-model="newRecord.amount" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
+        <InputNumber size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
       </div>
     </div>
 

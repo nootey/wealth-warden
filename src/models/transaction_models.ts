@@ -6,7 +6,7 @@ export interface Transaction {
     category_id: number | null;
     category: Category | null;
     transaction_type: string;
-    amount: number | null;
+    amount: string | null;
     txn_date: Date | null;
     description: string | null;
     account: Account;

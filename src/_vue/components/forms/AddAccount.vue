@@ -1,20 +1,24 @@
 <script setup lang="ts">
 
 import ValidationError from "../../components/validation/ValidationError.vue";
-import {numeric, required, minValue, maxValue} from "@vuelidate/validators";
+import {required} from "@vuelidate/validators";
+import {decimalValid, decimalMin, decimalMax} from "../../../validators/currency.ts";
 import useVuelidate from "@vuelidate/core";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useAccountStore} from "../../../services/stores/account_store.ts";
-import {computed, ref, watch} from "vue";
+import {computed, ref, toRef, watch} from "vue";
 import vueHelper from "../../../utils/vueHelper.ts"
 import type {Account, AccountType} from "../../../models/account_models.ts"
+import currencyHelper from "../../../utils/currencyHelper.ts";
 
 const shared_store = useSharedStore();
 const account_store = useAccountStore();
 const toast_store = useToastStore();
 
 const newRecord = ref<Account>(initData());
+const startBalanceRef = toRef(newRecord.value.balance, "start_balance");
+const startBalanceNumber = currencyHelper.useMoneyField(startBalanceRef, 2).number;
 
 const selectedClassification = ref<"Asset" | "Liability">("Asset");
 const selectedType = ref<string>("");
@@ -79,9 +83,9 @@ const rules = {
     balance: {
       start_balance: {
         required,
-        numeric,
-        minValue: minValue(0),
-        maxValue: maxValue(1000000000),
+        decimalValid,
+        decimalMin: decimalMin(0),
+        decimalMax: decimalMax(1_000_000_000),
         $autoDirty: true
       },
     },
@@ -240,7 +244,8 @@ async function createNewRecord() {
       <ValidationError :isRequired="true" :message="v$.newRecord.balance.$errors[0]?.$message">
         <label>Current balance</label>
       </ValidationError>
-      <InputNumber size="small" v-model="newRecord.balance.start_balance" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
+      <InputNumber size="small" v-model="startBalanceNumber" mode="currency" currency="EUR" locale="de-DE"
+                   placeholder="0,00 €" :minFractionDigits="2" :maxFractionDigits="2"></InputNumber>
     </div>
 
     <div class="flex flex-row w-full">
