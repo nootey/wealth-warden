@@ -3,7 +3,7 @@ package services
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"strconv"
+	"github.com/shopspring/decimal"
 	"strings"
 	"time"
 	"wealth-warden/internal/jobs"
@@ -144,7 +144,7 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 
 	// Dispatch transaction activity log
 	changes := utils.InitChanges()
-	amountString := strconv.FormatFloat(tr.Amount, 'f', 2, 64)
+	amountString := tr.Amount.StringFixed(2)
 	dateStr := tr.TxnDate.UTC().Format(time.RFC3339)
 
 	utils.CompareChanges("", account.Name, changes, "account")
@@ -181,20 +181,20 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 		return err
 	}
 
-	endBalanceString := strconv.FormatFloat(newBalance.EndBalance, 'f', 2, 64)
+	endBalanceString := newBalance.EndBalance.StringFixed(2)
 
-	var change float64
+	var change decimal.Decimal
 	switch tr.TransactionType {
 	case "expense":
-		change = tr.Amount * -1
+		change = tr.Amount.Neg()
 	default:
 		change = tr.Amount
 	}
 
-	startBalance := newBalance.EndBalance - change
+	startBalance := newBalance.EndBalance.Sub(change)
 
-	changeAmountString := strconv.FormatFloat(change, 'f', 2, 64)
-	startBalanceString := strconv.FormatFloat(startBalance, 'f', 2, 64)
+	changeAmountString := change.StringFixed(2)
+	startBalanceString := startBalance.StringFixed(2)
 
 	utils.CompareChanges("", account.Name, changes2, "account")
 	utils.CompareChanges("", changeAmountString, changes2, "change")

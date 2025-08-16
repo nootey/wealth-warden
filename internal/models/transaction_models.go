@@ -1,21 +1,24 @@
 package models
 
-import "time"
+import (
+	"github.com/shopspring/decimal"
+	"time"
+)
 
 type Transaction struct {
-	ID              uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID          uint      `gorm:"not null;index:idx_transactions_user_date" json:"user_id"`
-	AccountID       uint      `gorm:"not null;index:idx_transactions_account_date" json:"account_id"`
-	CategoryID      *uint     `gorm:"index:idx_transactions_category" json:"category_id,omitempty"`
-	TransactionType string    `gorm:"not null;" json:"transaction_type"`
-	Amount          float64   `gorm:"type:decimal(19,4);not null" json:"amount" `
-	Currency        string    `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
-	TxnDate         time.Time `gorm:"not null;index" json:"txn_date"`
-	Description     *string   `gorm:"type:varchar(255)" json:"description,omitempty"`
-	Account         Account   `json:"account"`
-	Category        Category  `json:"category,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID              uint            `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID          uint            `gorm:"not null;index:idx_transactions_user_date" json:"user_id"`
+	AccountID       uint            `gorm:"not null;index:idx_transactions_account_date" json:"account_id"`
+	CategoryID      *uint           `gorm:"index:idx_transactions_category" json:"category_id,omitempty"`
+	TransactionType string          `gorm:"not null;" json:"transaction_type"`
+	Amount          decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount" `
+	Currency        string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
+	TxnDate         time.Time       `gorm:"not null;index" json:"txn_date"`
+	Description     *string         `gorm:"type:varchar(255)" json:"description,omitempty"`
+	Account         Account         `json:"account"`
+	Category        Category        `json:"category,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
 }
 
 type Category struct {
@@ -37,10 +40,10 @@ type HiddenCategory struct {
 }
 
 type TransactionCreateReq struct {
-	AccountID       uint      `json:"account_id" validate:"required"`
-	CategoryID      *uint     `json:"category_id,omitempty"`
-	TransactionType string    `json:"transaction_type" validate:"required"`
-	Amount          float64   `json:"amount" validate:"required"`
-	TxnDate         time.Time `json:"txn_date" validate:"required"`
-	Description     *string   `json:"description,omitempty"`
+	AccountID       uint            `json:"account_id" validate:"required"`
+	CategoryID      *uint           `json:"category_id,omitempty"`
+	TransactionType string          `json:"transaction_type" validate:"required"`
+	Amount          decimal.Decimal `json:"amount" validate:"required"`
+	TxnDate         time.Time       `json:"txn_date" validate:"required"`
+	Description     *string         `json:"description,omitempty"`
 }

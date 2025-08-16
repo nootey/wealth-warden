@@ -2,6 +2,7 @@ package workers
 
 import (
 	"context"
+	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"strings"
@@ -18,15 +19,15 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 		Subtype        *string
 		Classification string
 		Currency       string
-		StartBalance   float64
+		StartBalance   decimal.Decimal
 	}
 
 	seeds := []acctSeed{
-		{Name: "Checkings account", Type: "cash", Subtype: strptr("checking"), Classification: "asset", Currency: "eur", StartBalance: 1000},
-		{Name: "Savings account", Type: "cash", Subtype: strptr("savings"), Classification: "asset", Currency: "eur", StartBalance: 5000},
-		{Name: "Investment account", Type: "investment", Subtype: strptr("brokerage"), Classification: "asset", Currency: "eur", StartBalance: 25000},
-		{Name: "Crypto Exchange", Type: "crypto", Subtype: strptr("exchange"), Classification: "asset", Currency: "eur", StartBalance: 100000},
-		{Name: "Gambling debt", Type: "other_liability", Subtype: strptr("other"), Classification: "liability", Currency: "eur", StartBalance: -69000},
+		{Name: "Checking account", Type: "cash", Subtype: strptr("checking"), Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(1000)},
+		{Name: "Savings account", Type: "cash", Subtype: strptr("savings"), Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(10000)},
+		{Name: "Investment account", Type: "investment", Subtype: strptr("brokerage"), Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(2500)},
+		{Name: "Crypto Exchange", Type: "crypto", Subtype: strptr("exchange"), Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(100000)},
+		{Name: "Gambling debt", Type: "other_liability", Subtype: strptr("other"), Classification: "liability", Currency: "eur", StartBalance: decimal.NewFromInt(-50000)},
 	}
 
 	usernames := []string{"Support", "Member"}
@@ -108,7 +109,8 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 			logger.Info("seeded account",
 				zap.String("username", uname),
 				zap.String("name", s.Name),
-				zap.Float64("start_balance", s.StartBalance))
+				zap.String("start_balance", s.StartBalance.StringFixed(2)),
+			)
 		}
 	}
 

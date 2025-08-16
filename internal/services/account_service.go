@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"strconv"
 	"time"
@@ -104,7 +105,7 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountCreate
 	}
 	changes := utils.InitChanges()
 
-	if req.Balance < 0 {
+	if req.Balance.LessThan(decimal.NewFromInt(0)) {
 		return errors.New("initial balance cannot be negative")
 	}
 
@@ -132,7 +133,7 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountCreate
 		UserID:        user.ID,
 	}
 
-	balanceAmountString := strconv.FormatFloat(req.Balance, 'f', 2, 64)
+	balanceAmountString := req.Balance.StringFixed(2)
 
 	utils.CompareChanges("", account.Name, changes, "name")
 	utils.CompareChanges("", accType.Type, changes, "account_type")
@@ -179,18 +180,20 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountCreate
 	return nil
 }
 
-func (s *AccountService) UpdateAccountCashBalance(tx *gorm.DB, acc *models.Account, transactionType string, amount float64) error {
+func (s *AccountService) UpdateAccountCashBalance(tx *gorm.DB, acc *models.Account, transactionType string, amount decimal.Decimal) error {
 
 	accBalance, err := s.Repo.FindBalanceForAccountID(tx, acc.ID)
 	if err != nil {
 		return fmt.Errorf("can't find balance for given account id %w", err)
 	}
 
+	amount = amount.Round(4)
+
 	switch transactionType {
 	case "expense":
-		accBalance.CashOutflows += amount
+		accBalance.CashOutflows = accBalance.CashOutflows.Add(amount)
 	default:
-		accBalance.CashInflows += amount
+		accBalance.CashInflows = accBalance.CashInflows.Add(amount)
 	}
 
 	_, err = s.Repo.UpdateBalance(tx, accBalance)
