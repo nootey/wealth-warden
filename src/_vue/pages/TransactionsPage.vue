@@ -175,8 +175,8 @@ provide("removeFilter", removeFilter);
     <AddTransaction entity="account" @addTransaction="handleEmit('addTransaction')"></AddTransaction>
   </Dialog>
 
-  <Popover ref="filterOverlayRef">
-    <div class="flex flex-column gap-2" style="width: 500px">
+  <Popover ref="filterOverlayRef" class="rounded-popover">
+    <div class="flex flex-column gap-2" style="width: 400px">
       <FilterMenu
           :columns="activeColumns"
           :apiSource="apiPrefix"

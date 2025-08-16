@@ -42,12 +42,9 @@ function clear() {
 <template>
   <div class="flex flex-row w-100 gap-2 p-3">
     <div class="flex flex-column w-25 gap-2 p-1">
-      <button
-          v-for="i in items" :key="i.key"
-          class="flex align-items-center gap-2 p-2 w-full hover"
-          :class="{ active: i.key === selectedKey }"
-          @click="selectedKey = i.key"
-      >
+      <button v-for="i in items" :key="i.key"
+          class="flex align-items-center gap-2 p-2 w-full menu-button" :class="{ active: i.key === selectedKey }"
+          @click="selectedKey = i.key" style="background-color: transparent; border: 2px solid var(--border-color); border-radius: 10px;">
         <i :class="i.icon" />
         <span>{{ i.label }}</span>
       </button>
@@ -55,13 +52,9 @@ function clear() {
 
     <div class="flex flex-column w-100">
       <keep-alive>
-        <component
-            v-if="activeItem"
-            :is="activeItem.def.component"
-            v-model="models[activeItem.key]"
-            :field="activeItem.col.field"
-            :label="activeItem.col.header"
-        />
+        <component v-if="activeItem" v-model="models[activeItem.key]"
+            :is="activeItem.def.component" :field="activeItem.col.field" :label="activeItem.col.header">
+        </component>
       </keep-alive>
     </div>
   </div>
@@ -73,5 +66,8 @@ function clear() {
 </template>
 
 <style scoped>
-
+.menu-button:hover{
+  cursor: pointer;
+  background-color: var(--background-secondary) !important;
+}
 </style>
