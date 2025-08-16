@@ -1,5 +1,6 @@
 import '../node_modules/primeflex/primeflex.css';
 import './style/global.scss'
+import './style/overrride.scss'
 
 import { createApp } from 'vue'
 import App from './App.vue'

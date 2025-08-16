@@ -53,37 +53,12 @@ html {
   font-size: 0.7rem;
 }
 
-.hover_icon:hover {
-  cursor: pointer;
-}
-
-.p-button.main-button{
-  background-color: var(--text-primary);
-  color: var(--background-primary);
-  border: none;
-  border-radius: 10px;
-  font-size: 0.875rem;
-  padding: 0.5rem 1rem;
-}
-
-.p-dialog.rounded-dialog{
-  border-radius: 20px;
-  padding: 0.33rem;
-}
-
-button.p-button.main-button:hover {
-  background-color: var(--text-secondary);
-  border-color: var(--border-color);
-  font-size: 0.875rem;
-  padding: 0.5rem 1rem;
-}
-
 .enhanced-table {
   border-radius: 12px;
   overflow: hidden;
 }
 
-.hover:hover {
+.hover_icon:hover {
   cursor: pointer;
 }
 
