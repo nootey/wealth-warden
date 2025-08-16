@@ -56,6 +56,7 @@ const activeColumns = ref([
   { field: 'category', header: 'Category' },
   { field: 'amount', header: 'Amount' },
   { field: 'txn_date', header: 'Date' },
+  { field: 'description', header: 'Description' },
 ]);
 
 async function getData(new_page = null) {
