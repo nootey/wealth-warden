@@ -9,8 +9,6 @@ import {useTransactionStore} from "../../services/stores/transaction_store.ts";
 import dateHelper from "../../utils/dateHelper.ts";
 import LoadingSpinner from "../components/base/LoadingSpinner.vue";
 import ActionRow from "../components/layout/ActionRow.vue";
-import BaseFilter from "../components/filters/BaseFilter.vue";
-import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import ColumnHeader from "../components/base/ColumnHeader.vue";
 import type {FilterObj} from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
@@ -35,7 +33,7 @@ const params = computed(() => {
   return {
     rowsPerPage: paginator.value.rowsPerPage,
     sort: sort.value,
-    filters: [],
+    filters: filters.value,
   }
 });
 const rows = ref([25, 50, 100]);
@@ -48,20 +46,8 @@ const paginator = ref({
 });
 const page = ref(1);
 const sort = ref(vueHelper.initSort());
-
-// const data_count = computed(() => {return records.value.length});
-//
-// const activeFilers = ref([]);
 const filterStorageIndex = ref(apiPrefix+"-filters");
-const filterObj = ref<FilterObj>({
-  source: apiPrefix,
-  field: null,
-  operator: 'like',
-  value: null
-});
-const filterType = ref("text");
 const filters = ref(JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "[]"));
-const activeFilterColumn = ref<String|null>(null)
 const filterOverlayRef = ref<any>(null);
 
 
@@ -125,61 +111,22 @@ async function onPage(event: any) {
   await getData();
 }
 
-function initFilter() {
-  filterObj.value = {
-    source: apiPrefix,
-    field: null,
-    operator: 'like',
-    value: null
-  }
+function applyFilters(list: FilterObj[]){
+  filters.value = list;
+  localStorage.setItem(filterStorageIndex.value, JSON.stringify(list));
+  getData();
+  filterOverlayRef.value.hide();
 }
 
-function submitFilter(field: string) {
-  if(!filterObj.value.value){
-    vueHelper.formatInfoToast("Invalid value", "Input a filter value");
-    return;
-  }
-
-  filterObj.value.field = field;
-  addFilter(filterObj.value);
+function clearFilters(){
+  filters.value = [];
+  localStorage.removeItem(filterStorageIndex.value);
+  cancelFilters();
   getData();
 }
 
-function addFilter(filter: FilterObj, alternate = null) {
-  let new_filter = {
-    source: apiPrefix,
-    field: filter.field,
-    operator: filter.operator,
-    value: filterType.value === "text" ? filter.value.trim().replace(/\s+/g, " ") : filter.value,
-  };
-
-  let exists = filters.value.find((object: FilterObj) => {
-    // Compare only the relevant properties
-    return (
-        object.field === new_filter.field &&
-        object.operator === new_filter.operator &&
-        object.value === new_filter.value
-    );
-  });
-
-  if (exists === undefined) {
-    filters.value.push(new_filter);
-    localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value))
-    if (!alternate) initFilter();
-    filterOverlayRef.value.hide();
-  }
-}
-
-// function clearFilters(){
-//   filters.value.splice(0);
-//   localStorage.removeItem(filterStorageIndex.value);
-//   getData();
-// }
-
-function removeFilter(index: number){
-  filters.value.splice(index, 1);
-  localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value))
-  getData();
+function cancelFilters(){
+  filterOverlayRef.value.hide();
 }
 
 function switchSort(column:string) {
@@ -210,10 +157,13 @@ provide("switchSort", switchSort);
 
   <Popover ref="filterOverlayRef">
     <div class="flex flex-column gap-2" style="width: 500px">
-    <FilterMenu :columns="activeColumns" :apiSource="apiPrefix"
-                @apply="(list) => { filters = list; localStorage.setItem(filterStorageIndex, JSON.stringify(list)); getData(); filterOverlayRef.hide(); }"
-                @clear="() => { filters = []; localStorage.removeItem(filterStorageIndex); getData(); }"
-                @cancel="() => filterOverlayRef.hide()"></FilterMenu>
+      <FilterMenu
+          :columns="activeColumns"
+          :apiSource="apiPrefix"
+          @apply="(list) => applyFilters(list)"
+          @clear="clearFilters"
+          @cancel="cancelFilters"
+      />
     </div>
   </Popover>
 
