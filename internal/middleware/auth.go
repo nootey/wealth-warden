@@ -111,7 +111,7 @@ func (m *WebClientMiddleware) refreshAccessToken(c *gin.Context, refreshClaims *
 	return nil
 }
 
-func (m *WebClientMiddleware) encodeWebClientUserID(userID uint) (string, error) {
+func (m *WebClientMiddleware) encodeWebClientUserID(userID int64) (string, error) {
 	key := m.config.JWT.WebClientEncodeID
 	if len(key) != 32 {
 		return "", fmt.Errorf("encryption key must be 32 bytes long for AES-256")
@@ -141,7 +141,7 @@ func (m *WebClientMiddleware) encodeWebClientUserID(userID uint) (string, error)
 	return encoded, nil
 }
 
-func (m *WebClientMiddleware) DecodeWebClientUserID(encodedString string) (uint, error) {
+func (m *WebClientMiddleware) DecodeWebClientUserID(encodedString string) (int64, error) {
 	key := m.config.JWT.WebClientEncodeID
 	if len(key) != 32 {
 		return 0, fmt.Errorf("encryption key must be 32 bytes long for AES-256")
@@ -179,16 +179,10 @@ func (m *WebClientMiddleware) DecodeWebClientUserID(encodedString string) (uint,
 		return 0, fmt.Errorf("failed to parse user ID: %v", err)
 	}
 
-	// Ensure the parsed value is non-negative before converting to uint
-	if intUserID < 0 {
-		return 0, fmt.Errorf("invalid user ID: negative value")
-	}
-
-	// Convert int64 to uint
-	return uint(intUserID), nil
+	return intUserID, nil
 }
 
-func (m *WebClientMiddleware) GenerateToken(tokenType string, expiration time.Time, userID uint) (string, error) {
+func (m *WebClientMiddleware) GenerateToken(tokenType string, expiration time.Time, userID int64) (string, error) {
 	var jwtKey []byte
 	issuedAt := time.Now()
 
@@ -228,7 +222,7 @@ func (m *WebClientMiddleware) GenerateToken(tokenType string, expiration time.Ti
 	return signedToken, nil
 }
 
-func (m *WebClientMiddleware) GenerateLoginTokens(userID uint, rememberMe bool) (string, string, error) {
+func (m *WebClientMiddleware) GenerateLoginTokens(userID int64, rememberMe bool) (string, string, error) {
 
 	var expiresAt time.Time
 	if rememberMe {

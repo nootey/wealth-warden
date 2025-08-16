@@ -8,10 +8,10 @@ import (
 const DefaultCurrency = "EUR"
 
 type Account struct {
-	ID            uint        `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID        uint        `gorm:"not null;index:idx_accounts_user" json:"user_id"`
+	ID            int64       `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID        int64       `gorm:"not null;index:idx_accounts_user" json:"user_id"`
 	Name          string      `gorm:"type:varchar(150);not null" json:"name"`
-	AccountTypeID uint        `gorm:"not null" json:"account_type_id" validate:"required"`
+	AccountTypeID int64       `gorm:"not null" json:"account_type_id" validate:"required"`
 	AccountType   AccountType `json:"account_type"`
 	Balance       Balance     `json:"balance"`
 	Currency      string      `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
@@ -20,7 +20,7 @@ type Account struct {
 }
 
 type AccountType struct {
-	ID             uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	ID             int64     `gorm:"primaryKey;autoIncrement" json:"id"`
 	Type           string    `gorm:"type:varchar(150);not null" json:"type" validate:"required"`
 	Subtype        *string   `gorm:"type:varchar(100)" json:"subtype" validate:"required"`
 	Classification string    `gorm:"->;type:varchar(20)" json:"classification" validate:"required"`
@@ -29,8 +29,8 @@ type AccountType struct {
 }
 
 type Balance struct {
-	ID              uint            `gorm:"primaryKey;autoIncrement" json:"id"`
-	AccountID       uint            `gorm:"not null;index:idx_balances_account_asof" json:"account_id"`
+	ID              int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	AccountID       int64           `gorm:"not null;index:idx_balances_account_asof" json:"account_id"`
 	AsOf            time.Time       `gorm:"type:date;not null;index:idx_balances_account_asof" json:"as_of"`
 	StartBalance    decimal.Decimal `gorm:"type:decimal(19,4);not null;default:0" json:"start_balance"`
 	CashInflows     decimal.Decimal `gorm:"type:decimal(19,4);not null;default:0" json:"cash_inflows"`
@@ -47,7 +47,7 @@ type Balance struct {
 
 type AccountCreateReq struct {
 	Name           string          `json:"name" validate:"required"`
-	AccountTypeID  uint            `json:"account_type_id" validate:"required"`
+	AccountTypeID  int64           `json:"account_type_id" validate:"required"`
 	Type           string          `json:"type" validate:"required"`
 	Subtype        string          `json:"subtype" validate:"required"`
 	Classification string          `json:"classification" validate:"required"`

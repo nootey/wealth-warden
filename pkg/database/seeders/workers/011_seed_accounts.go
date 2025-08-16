@@ -84,7 +84,7 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 			acc := models.Account{
 				UserID:        u.ID,
 				Name:          s.Name,
-				AccountTypeID: uint(at.ID),
+				AccountTypeID: at.ID,
 				Currency:      strings.ToUpper(s.Currency),
 				CreatedAt:     time.Now(),
 				UpdatedAt:     time.Now(),

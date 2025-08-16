@@ -6,10 +6,10 @@ import (
 )
 
 type Transaction struct {
-	ID              uint            `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID          uint            `gorm:"not null;index:idx_transactions_user_date" json:"user_id"`
-	AccountID       uint            `gorm:"not null;index:idx_transactions_account_date" json:"account_id"`
-	CategoryID      *uint           `gorm:"index:idx_transactions_category" json:"category_id,omitempty"`
+	ID              int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID          int64           `gorm:"not null;index:idx_transactions_user_date" json:"user_id"`
+	AccountID       int64           `gorm:"not null;index:idx_transactions_account_date" json:"account_id"`
+	CategoryID      *int64          `gorm:"index:idx_transactions_category" json:"category_id,omitempty"`
 	TransactionType string          `gorm:"not null;" json:"transaction_type"`
 	Amount          decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount" `
 	Currency        string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
@@ -22,26 +22,26 @@ type Transaction struct {
 }
 
 type Category struct {
-	ID             uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID         *uint     `gorm:"index:idx_categories_user_class" json:"user_id"`
+	ID             int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID         *int64    `gorm:"index:idx_categories_user_class" json:"user_id"`
 	Name           string    `gorm:"type:varchar(100);not null" json:"name"`
 	Classification string    `gorm:"type:enum('income','expense','savings','investment');not null;default:'expense';index:idx_categories_user_class" json:"classification"`
-	ParentID       *uint     `gorm:"index" json:"parent_id,omitempty"`
+	ParentID       *int64    `gorm:"index" json:"parent_id,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type HiddenCategory struct {
-	ID         uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID     uint      `gorm:"not_null" json:"user_id"`
-	CategoryID uint      `gorm:"not_null" json:"category_id"`
+	ID         int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID     int64     `gorm:"not_null" json:"user_id"`
+	CategoryID int64     `gorm:"not_null" json:"category_id"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type TransactionCreateReq struct {
-	AccountID       uint            `json:"account_id" validate:"required"`
-	CategoryID      *uint           `json:"category_id,omitempty"`
+	AccountID       int64           `json:"account_id" validate:"required"`
+	CategoryID      *int64          `json:"category_id,omitempty"`
 	TransactionType string          `json:"transaction_type" validate:"required"`
 	Amount          decimal.Decimal `json:"amount" validate:"required"`
 	TxnDate         time.Time       `json:"txn_date" validate:"required"`

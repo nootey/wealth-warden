@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE account_types (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     type VARCHAR(100) NOT NULL,
     subtype VARCHAR(100) NOT NULL,
     classification VARCHAR(20) GENERATED ALWAYS AS (

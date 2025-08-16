@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE access_logs (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     event       VARCHAR(255) NOT NULL,
     status      VARCHAR(255) NOT NULL,
     service     VARCHAR(255),

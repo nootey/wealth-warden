@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE activity_logs (
-    id          BIGSERIAL PRIMARY KEY,
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     event       VARCHAR(255) NOT NULL,
     category    VARCHAR(255) NOT NULL,
     description TEXT NULL,

@@ -107,10 +107,10 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 
 	var rawCauserIDs []sql.NullInt64
 	if err := db.Distinct("causer_id").Pluck("causer_id", &rawCauserIDs).Error; err == nil {
-		var causerIDs []uint
+		var causerIDs []int64
 		for _, id := range rawCauserIDs {
 			if id.Valid {
-				causerIDs = append(causerIDs, uint(id.Int64))
+				causerIDs = append(causerIDs, int64(id.Int64))
 			}
 		}
 
@@ -209,44 +209,4 @@ func (r *LoggingRepository) InsertAccessLog(
 	}
 
 	return db.Table("access_logs").Create(&doc).Error
-}
-
-func (r *LoggingRepository) InsertNotificationLog(
-	tx *gorm.DB,
-	status string,
-	notificationType string,
-	message *string,
-	destination *string,
-	causer *models.User,
-	payload *utils.Changes,
-) error {
-
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-
-	doc := models.NotificationLog{
-		NotificationType: notificationType,
-		Status:           status,
-		Message:          message,
-		Destination:      destination,
-	}
-
-	if payload != nil && (len(payload.New) != 0 || len(payload.Old) != 0) {
-		metadata, err := json.Marshal(map[string]interface{}{
-			"new": payload.New,
-			"old": payload.Old,
-		})
-		if err != nil {
-			return err
-		}
-		doc.Metadata = metadata
-	}
-
-	if causer != nil {
-		doc.UserID = &causer.ID
-	}
-
-	return db.Table("notification_logs").Create(&doc).Error
 }

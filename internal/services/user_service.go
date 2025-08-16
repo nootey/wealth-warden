@@ -33,7 +33,7 @@ func (s *UserService) GetAllUsers() ([]models.User, error) {
 	return users, nil
 }
 
-func (s *UserService) FetchUserByID(ID uint) (*models.User, error) {
+func (s *UserService) FetchUserByID(ID int64) (*models.User, error) {
 	record, err := s.Repo.GetUserByID(ID)
 	if err != nil {
 		return nil, err

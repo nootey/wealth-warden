@@ -5,7 +5,7 @@ CREATE TYPE transaction_type_enum AS ENUM ('income', 'expense');
 
 -- +goose StatementBegin
 CREATE TABLE transactions (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT NOT NULL,
     account_id BIGINT NOT NULL,
     category_id BIGINT NULL,

@@ -32,7 +32,7 @@ func SeedMemberUser(ctx context.Context, db *gorm.DB, logger *zap.Logger) error 
 	}
 
 	// Fetch the global role ID for "member".
-	var globalRoleID uint
+	var globalRoleID int64
 	err = db.Raw(`SELECT id FROM roles WHERE name = ?`, "member").Scan(&globalRoleID).Error
 	if err != nil {
 		return fmt.Errorf("failed to fetch global role member: %w", err)
@@ -42,7 +42,7 @@ func SeedMemberUser(ctx context.Context, db *gorm.DB, logger *zap.Logger) error 
 	}
 
 	// Check if the member user already exists.
-	var userID uint
+	var userID int64
 	err = db.Raw(`SELECT id FROM users WHERE email = ?`, email).Scan(&userID).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return fmt.Errorf("failed to check existing user: %w", err)

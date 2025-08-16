@@ -111,11 +111,11 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 	}
 
 	// Map to store role IDs keyed by role name.
-	roleIDs := make(map[string]uint)
+	roleIDs := make(map[string]int64)
 
 	// Insert global roles.
 	for _, role := range globalRoles {
-		var roleID uint
+		var roleID int64
 		err := db.Raw(`SELECT id FROM roles WHERE name = ?`, role.Name).Scan(&roleID).Error
 		if err != nil && err != gorm.ErrRecordNotFound {
 			return fmt.Errorf("error checking role %s: %w", role.Name, err)
@@ -139,9 +139,9 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 	}
 
 	// Insert permissions and record their IDs.
-	permissionIDs := make(map[string]uint)
+	permissionIDs := make(map[string]int64)
 	for _, perm := range permissions {
-		var permID uint
+		var permID int64
 		err := db.Raw(`SELECT id FROM permissions WHERE name = ?`, perm.Name).Scan(&permID).Error
 		if err != nil && err != gorm.ErrRecordNotFound {
 			return fmt.Errorf("error checking permission %s: %w", perm, err)

@@ -22,7 +22,7 @@ func (r *UserRepository) GetPasswordByEmail(email string) (string, error) {
 	return password, nil
 }
 
-func (r *UserRepository) GetUserByID(id uint) (*models.User, error) {
+func (r *UserRepository) GetUserByID(id int64) (*models.User, error) {
 	var user models.User
 
 	query := r.DB.
@@ -68,6 +68,6 @@ func (r *UserRepository) UpdateUser(user *models.User) error {
 	return r.DB.Save(user).Error
 }
 
-func (r *UserRepository) DeleteUser(id uint) error {
+func (r *UserRepository) DeleteUser(id int64) error {
 	return r.DB.Delete(&models.User{}, id).Error
 }

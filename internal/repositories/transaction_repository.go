@@ -68,7 +68,7 @@ func (r *TransactionRepository) CountTransactions(user *models.User, filters []u
 
 func (r *TransactionRepository) FindAllCategories(user *models.User) ([]models.Category, error) {
 	var records []models.Category
-	var userID *uint
+	var userID *int64
 	if user != nil {
 		userID = &user.ID
 	}
@@ -82,7 +82,7 @@ func (r *TransactionRepository) FindAllCategories(user *models.User) ([]models.C
 	return records, tx.Error
 }
 
-func (r *TransactionRepository) FindCategoryByID(tx *gorm.DB, ID uint, userID *uint) (models.Category, error) {
+func (r *TransactionRepository) FindCategoryByID(tx *gorm.DB, ID int64, userID *int64) (models.Category, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
@@ -96,7 +96,7 @@ func (r *TransactionRepository) FindCategoryByID(tx *gorm.DB, ID uint, userID *u
 	return record, txn.Error
 }
 
-func (r *TransactionRepository) scopeVisibleCategories(userID *uint) func(*gorm.DB) *gorm.DB {
+func (r *TransactionRepository) scopeVisibleCategories(userID *int64) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		if userID == nil {
 			// No user: only default categories
@@ -118,13 +118,13 @@ func (r *TransactionRepository) scopeVisibleCategories(userID *uint) func(*gorm.
 	}
 }
 
-func (r *TransactionRepository) FindTransactionByID(ID, userID uint) (models.Transaction, error) {
+func (r *TransactionRepository) FindTransactionByID(ID, userID int64) (models.Transaction, error) {
 	var record models.Transaction
 	result := r.DB.Where("id = ? AND user_id = ?", ID, userID).First(&record)
 	return record, result.Error
 }
 
-func (r *TransactionRepository) InsertTransaction(tx *gorm.DB, newRecord models.Transaction) (uint, error) {
+func (r *TransactionRepository) InsertTransaction(tx *gorm.DB, newRecord models.Transaction) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.DB

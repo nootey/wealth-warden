@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 
 CREATE TABLE accounts (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT NOT NULL,
     name VARCHAR(150) NOT NULL,
     account_type_id BIGINT NOT NULL,

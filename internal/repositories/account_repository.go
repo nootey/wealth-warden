@@ -76,7 +76,7 @@ func (r *AccountRepository) FindAllAccountTypes(user *models.User) ([]models.Acc
 	return records, result.Error
 }
 
-func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID uint) (models.Account, error) {
+func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID int64) (models.Account, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
@@ -87,7 +87,7 @@ func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID uint) (model
 	return record, result.Error
 }
 
-func (r *AccountRepository) FindAccountTypeByID(tx *gorm.DB, ID uint) (models.AccountType, error) {
+func (r *AccountRepository) FindAccountTypeByID(tx *gorm.DB, ID int64) (models.AccountType, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
@@ -98,7 +98,7 @@ func (r *AccountRepository) FindAccountTypeByID(tx *gorm.DB, ID uint) (models.Ac
 	return record, result.Error
 }
 
-func (r *AccountRepository) FindBalanceForAccountID(tx *gorm.DB, accID uint) (models.Balance, error) {
+func (r *AccountRepository) FindBalanceForAccountID(tx *gorm.DB, accID int64) (models.Balance, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
@@ -109,7 +109,7 @@ func (r *AccountRepository) FindBalanceForAccountID(tx *gorm.DB, accID uint) (mo
 	return record, result.Error
 }
 
-func (r *AccountRepository) InsertAccount(tx *gorm.DB, newRecord *models.Account) (uint, error) {
+func (r *AccountRepository) InsertAccount(tx *gorm.DB, newRecord *models.Account) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
@@ -121,7 +121,7 @@ func (r *AccountRepository) InsertAccount(tx *gorm.DB, newRecord *models.Account
 	return newRecord.ID, nil
 }
 
-func (r *AccountRepository) InsertBalance(tx *gorm.DB, newRecord *models.Balance) (uint, error) {
+func (r *AccountRepository) InsertBalance(tx *gorm.DB, newRecord *models.Balance) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
@@ -133,7 +133,7 @@ func (r *AccountRepository) InsertBalance(tx *gorm.DB, newRecord *models.Balance
 	return newRecord.ID, nil
 }
 
-func (r *AccountRepository) UpdateBalance(tx *gorm.DB, record models.Balance) (uint, error) {
+func (r *AccountRepository) UpdateBalance(tx *gorm.DB, record models.Balance) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
@@ -141,7 +141,17 @@ func (r *AccountRepository) UpdateBalance(tx *gorm.DB, record models.Balance) (u
 
 	if err := db.Model(models.Balance{}).
 		Where("id = ?", record.ID).
-		Updates(record).Error; err != nil {
+		Updates(map[string]interface{}{
+			"as_of":             record.AsOf,
+			"start_balance":     record.StartBalance,
+			"cash_inflows":      record.CashInflows,
+			"cash_outflows":     record.CashOutflows,
+			"non_cash_inflows":  record.NonCashInflows,
+			"non_cash_outflows": record.NonCashOutflows,
+			"net_market_flows":  record.NetMarketFlows,
+			"adjustments":       record.Adjustments,
+			"currency":          record.Currency,
+		}).Error; err != nil {
 		return 0, err
 	}
 	return record.ID, nil
