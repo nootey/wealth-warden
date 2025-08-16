@@ -50,7 +50,7 @@ function toggleProfileMenu(event: any) {
       <div style="
         width: 32px;
         height: 32px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
         border-radius: 8px;
         display: flex;
         align-items: center;
@@ -114,7 +114,7 @@ function toggleProfileMenu(event: any) {
             width: 32px;
             height: 32px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -141,7 +141,7 @@ function toggleProfileMenu(event: any) {
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
             display: flex;
             align-items: center;
             justify-content: center;
