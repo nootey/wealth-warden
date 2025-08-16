@@ -13,6 +13,7 @@ import ColumnHeader from "../components/base/ColumnHeader.vue";
 import type {FilterObj} from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
+import filterHelper from "../../utils/filterHelper.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -114,8 +115,8 @@ async function onPage(event: any) {
 }
 
 function applyFilters(list: FilterObj[]){
-  filters.value = list;
-  localStorage.setItem(filterStorageIndex.value, JSON.stringify(list));
+  filters.value = filterHelper.mergeFilters(filters.value, list);
+  localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
   getData();
   filterOverlayRef.value.hide();
 }
