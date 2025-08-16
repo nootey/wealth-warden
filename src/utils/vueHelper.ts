@@ -47,31 +47,6 @@ const vueHelper = {
 
         return num.toFixed(1) + " %";
     },
-    initSort() {
-        return {
-            order: -1,
-            field: 'created_at'
-        };
-    },
-    toggleSort(sortValue: number): number {
-        switch (sortValue) {
-            case 1:
-                return -1;
-            case -1:
-                return 1;
-            default:
-                return 1;
-        }
-    },
-    sortIcon(sort: any, field: string) {
-        if (sort.order === -1 && sort.field === field) {
-            return 'pi-sort-down';
-        }
-        if (sort.order === 1 && sort.field === field) {
-            return 'pi-sort-up';
-        }
-        return 'pi-sort';
-    },
     formatSuccessToast(title: string, msg: string) {
         let message = {
             'data': {
@@ -147,7 +122,6 @@ const vueHelper = {
             (this.isEmpty(item.newVal) ? "DELETED" : item.newVal);
     },
     displayCauserFromId(causerId: number | null, availableCausers: Causer[]) {
-
         if (!causerId || !availableCausers) return '';
         const causer = availableCausers.find(c => c.id === causerId);
         return causer ? causer.username : "Deleted user";

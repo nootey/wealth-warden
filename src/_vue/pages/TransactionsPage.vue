@@ -47,7 +47,7 @@ const paginator = ref({
   rowsPerPage: default_rows.value
 });
 const page = ref(1);
-const sort = ref(vueHelper.initSort());
+const sort = ref(filterHelper.initSort());
 const filterStorageIndex = ref(apiPrefix+"-filters");
 const filters = ref(JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "[]"));
 const filterOverlayRef = ref<any>(null);
@@ -134,7 +134,7 @@ function cancelFilters(){
 
 function switchSort(column:string) {
   if (sort.value.field === column) {
-    sort.value.order = vueHelper.toggleSort(sort.value.order);
+    sort.value.order = filterHelper.toggleSort(sort.value.order);
   } else {
     sort.value.order = 1;
   }

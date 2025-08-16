@@ -7,6 +7,7 @@ import vueHelper from "../../utils/vueHelper.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import {useSharedStore} from "../../services/stores/shared_store.ts";
 import type {Account} from "../../models/account_models.ts";
+import filterHelper from "../../utils/filterHelper.ts";
 
 const account_store = useAccountStore();
 const shared_store = useSharedStore();
@@ -40,7 +41,7 @@ const paginator = ref({
   rowsPerPage: default_rows.value
 });
 const page = ref(1);
-const sort = ref(vueHelper.initSort());
+const sort = ref(filterHelper.initSort());
 
 const typeColors: Record<string, { bg: string; fg: string }> = {
   cash:         { bg: "#9b59b6", fg: "#6c3483" },

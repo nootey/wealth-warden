@@ -12,6 +12,7 @@ import dayjs from "dayjs";
 import ActionRow from "../../components/layout/ActionRow.vue";
 import DateTimePicker from "../../components/base/DateTimePicker.vue";
 import type { Causer, FilterValue } from "../../../models/logging_models";
+import filterHelper from "../../../utils/filterHelper.ts";
 
 const toastStore = useToastStore();
 const loggingStore = useLoggingStore();
@@ -34,7 +35,7 @@ const paginator = ref({
   rowsPerPage: default_rows.value
 });
 const page = ref(1);
-const sort = ref(vueHelper.initSort());
+const sort = ref(filterHelper.initSort());
 const expandedRows = ref([]);
 
 const filterOverlayRef = ref<any>(null);
@@ -153,7 +154,7 @@ async function onPage(event: any) {
 
 function switchSort(column: string) {
   if (sort.value.field === column) {
-    sort.value.order = vueHelper.toggleSort(sort.value.order);
+    sort.value.order = filterHelper.toggleSort(sort.value.order);
   } else {
     sort.value.order = 1;
   }
