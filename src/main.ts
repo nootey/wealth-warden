@@ -9,7 +9,7 @@ import { createPinia } from 'pinia';
 import PrimeVue from 'primevue/config';
 import Material from '@primevue/themes/material';
 import Tooltip from "primevue/tooltip";
-import {Toast} from "primevue";
+import {Chip, Toast} from "primevue";
 import {ToastService} from "primevue";
 import ConfirmationService from 'primevue/confirmationservice';
 import {Button} from "primevue";
@@ -54,6 +54,7 @@ app.component("ProgressSpinner", ProgressSpinner);
 app.component("ConfirmPopup", ConfirmPopup);
 app.component("Popover", Popover);
 app.component("SelectButton", SelectButton);
+app.component("Chip", Chip);
 
 app.use(pinia);
 app.use(router);

@@ -66,8 +66,8 @@ function clear() {
     </div>
   </div>
   <div class="flex flex-row w-full justify-content-end align-items-center gap-3 p-1">
-    <div class="hover" style="margin-right: auto;" @click="clear">Clear filters</div>
-    <div class="hover" @click="$emit('cancel')">Cancel</div>
+    <div class="hover_icon" style="margin-right: auto;" @click="clear">Clear filters</div>
+    <div class="hover_icon" @click="$emit('cancel')">Cancel</div>
     <Button size="small" label="Apply" class="main-button" @click="apply"></Button>
   </div>
 </template>

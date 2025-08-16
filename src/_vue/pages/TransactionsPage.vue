@@ -132,6 +132,22 @@ function cancelFilters(){
   filterOverlayRef.value.hide();
 }
 
+function removeFilter(index: number) {
+  if (index < 0 || index >= filters.value.length) return;
+
+  const next = filters.value.slice();
+  next.splice(index, 1);
+  filters.value = next;
+
+  if (filters.value.length > 0) {
+    localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
+  } else {
+    localStorage.removeItem(filterStorageIndex.value);
+  }
+
+  getData();
+}
+
 function switchSort(column:string) {
   if (sort.value.field === column) {
     sort.value.order = filterHelper.toggleSort(sort.value.order);
@@ -148,6 +164,7 @@ function toggleFilterOverlay(event: any) {
 
 provide("initData", getData);
 provide("switchSort", switchSort);
+provide("removeFilter", removeFilter);
 
 </script>
 
@@ -192,7 +209,7 @@ provide("switchSort", switchSort);
             <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
           </template>
           <template #filterButton>
-            <div class="hover flex flex-row align-items-center gap-2" @click="toggleFilterOverlay($event)"
+            <div class="hover_icon flex flex-row align-items-center gap-2" @click="toggleFilterOverlay($event)"
                  style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color)">
               <i class="pi pi-filter" style="font-size: 0.845rem"></i>
               <div>Filter</div>

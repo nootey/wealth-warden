@@ -8,11 +8,6 @@ const slots: Slots = useSlots();
 <template>
   <div class="flex flex-row p-1 gap-2 align-items-center w-full">
 
-<!--    <div class="flex flex-column p-1" v-if="slots.yearPicker">-->
-<!--      Select year:-->
-<!--      <slot name="yearPicker"></slot>-->
-<!--    </div>-->
-
     <div class="flex flex-column p-1" v-if="slots.dateTimePicker">
       Select time range:
       <div class="flex flex-row gap-1 align-items-center">
@@ -26,7 +21,6 @@ const slots: Slots = useSlots();
     </div>
 
     <div class="flex flex-column p-1" v-if="slots.activeFilters">
-      Active filters:
       <div>
         <slot name="activeFilters"></slot>
       </div>

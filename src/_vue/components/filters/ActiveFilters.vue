@@ -7,72 +7,54 @@ const props = defineProps<{
   showOnlyActive: boolean;
   activeFilter: string;
 }>();
-const removeFilter = inject<(index: number) => void>("removeFilter", () => {});
-const filters = ref<FilterObj[]>([]);
+
+const removeFilter = inject<(originalIndex: number) => void>("removeFilter", () => {});
+type FilterWithIndex = FilterObj & { originalIndex: number };
+
+const filters = ref<FilterWithIndex[]>([]);
 
 watch(
-    () => props.activeFilters,
-    () => {
-      initFilters();
-    },
+    () => [props.activeFilters, props.showOnlyActive, props.activeFilter],
+    initFilters,
     { immediate: true, deep: true }
 );
 
 function initFilters() {
-  // Start by setting the filters to active filters as per props
-  filters.value = [...props.activeFilters];
+  const withIndex = props.activeFilters.map((f, i) => ({ ...f, originalIndex: i }));
 
-  if (props.showOnlyActive) {
-    // Filter the array to only include the one that matches the activeFilter
-    filters.value = filters.value
-        .map((filter, index) => ({ ...filter, index })) // Add index to each filter
-        .filter(filter => filter.parameter === props.activeFilter);
-  }
+  filters.value = props.showOnlyActive
+      ? withIndex.filter(f => f.field === props.activeFilter)
+      : withIndex;
 }
 
-function clearFilter(index: number): void {
-  if (props.showOnlyActive) {
-    removeFilter && removeFilter(index);
-  } else {
-    removeFilter && removeFilter(index);
-  }
+function clearFilter(originalIndex: number): void {
+  removeFilter && removeFilter(originalIndex);
   initFilters();
 }
 
-function calcMaxWidth(type: any){
-  let width = 10;
-  switch(type){
-    case "parameter": {
-      width = props.showOnlyActive ? 4 : 10;
-      break;
-    }
-    case "operator": {
-      width = props.showOnlyActive ? 2 : 3;
-      break;
-    }
-    case "value": {
-      width = props.showOnlyActive ? 2 : 10;
-      break;
-    }
-    default: break;
-  }
-
-  return `${width}rem`;
-}
 </script>
 
 <template>
-  <div v-if="filters.length > 0" class="flex flex-row gap-2 w-full" style="background-color: var(--background-primary); border-radius: 9px; padding: 10px;">
-    <div class="flex flex-column w-full">
-      <div v-for="(filter, index) in filters" class="flex flex-row gap-2 align-items-center w-full">
-        <div class="flex flex-row align-items-center gap-5 w-full">
-          <span class="truncate-text" v-tooltip="filter.parameter" :style="{ maxWidth: calcMaxWidth('parameter') }">{{ filter.parameter }}</span>
-          <small class="truncate-text" v-tooltip="filter.operator" :style="{ maxWidth: calcMaxWidth('operator') }">{{ filter.operator}}</small>
-          <span class="truncate-text" v-tooltip="filter.value" :style="{ maxWidth: calcMaxWidth('value') }">{{ filter.value}}</span>
-          <i class="pi pi-times hover_icon" @click="clearFilter(index)" style="color: red;"></i>
+  <div v-if="filters.length > 0" class="flex flex-row gap-2 w-full" style="line-height: 1;">
+    <Chip v-for="filter in filters" :key="filter.originalIndex"
+          style="background-color: transparent; border: 3px solid var(--border-color); padding: 0.65rem;">
+      <div  class="flex flex-row align-items-center gap-2">
+        <div v-tooltip="filter.field"
+             style="width: 16px; height: 16px; border-radius: 50%; display: flex;
+                  align-items: center; justify-content: center; font-size: 0.55rem;
+                  font-weight: bold; color: white; border: 2px solid var(--border-color);">
+          {{filter.field?.split(' ').map(n => n[0]).join('').toUpperCase() }}
+        </div>
+        <div>{{ filter.operator }}</div>
+        <div>{{ filter.value}}</div>
+        <div
+            @click="clearFilter(filter.originalIndex)"
+            class="flex align-items-center justify-content-center">
+          <i class="pi pi-times hover_icon" style="color: grey; font-size: 0.75rem;" ></i>
         </div>
       </div>
-    </div>
+
+    </Chip>
   </div>
   <div v-else>
     <span> {{ "No filters active"}}</span>
