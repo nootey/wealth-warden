@@ -199,7 +199,7 @@ provide("switchSort", switchSort);
       </div>
 
       <div class="flex flex-row gap-2 w-full" >
-        <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingRecords" :value="records" size="small">
+        <DataTable class="w-full  enhanced-table" dataKey="id" :loading="loadingRecords" :value="records">
           <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
           <template #loading> <LoadingSpinner></LoadingSpinner> </template>
           <template #footer>
