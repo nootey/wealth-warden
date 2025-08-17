@@ -35,7 +35,7 @@ function clearFilter(originalIndex: number): void {
 </script>
 
 <template>
-  <div v-if="filters.length > 0" class="flex flex-row gap-2 w-full" style="line-height: 1;">
+  <div v-if="filters.length > 0" class="flex flex-wrap gap-1 w-full" style="line-height: 1; max-height: 135px; overflow-y: auto;">
     <Chip v-for="filter in filters" :key="filter.originalIndex"
           style="background-color: transparent; border: 3px solid var(--border-color); padding: 0.65rem;">
       <div  class="flex flex-row align-items-center gap-2">
