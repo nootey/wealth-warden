@@ -30,6 +30,7 @@ import {ProgressSpinner} from "primevue";
 import {ConfirmPopup} from "primevue";
 import {Popover} from "primevue";
 import {SelectButton} from "primevue";
+import {IftaLabel} from "primevue";
 
 const app = createApp(App);
 const pinia = createPinia();
@@ -55,6 +56,7 @@ app.component("ConfirmPopup", ConfirmPopup);
 app.component("Popover", Popover);
 app.component("SelectButton", SelectButton);
 app.component("Chip", Chip);
+app.component("IftaLabel", IftaLabel);
 
 app.use(pinia);
 app.use(router);

@@ -2,6 +2,15 @@ import { computed, type Ref } from "vue";
 import Decimal from "decimal.js";
 
 const currencyHelper = {
+    mightBeBalance(field: string | null): boolean {
+        if (!field) return false;
+        const balanceFields = ["amount"];
+
+        return (
+            balanceFields.includes(field.toLowerCase()) ||
+            field.toLowerCase().includes("balance")
+        );
+    },
     useMoneyField(model: Ref<string | null>, scale = 2) {
         const number = computed<number | null>({
             get() {

@@ -73,9 +73,13 @@ function hydrateFromFilters(list: FilterObj[]|undefined) {
     else if (i.col.type === 'number' || /^amount$|^balance$/.test(i.col.field)) {
       const m = i.def.makeModel();
       for (const f of rel) {
-        if (f.operator === '>=') m.min = f.value ?? null;
-        if (f.operator === '<=') m.max = f.value ?? null;
+        if (f.operator === '=' || f.operator === '>=' || f.operator === '<=') {
+          if (f.operator === '=') { m.single = parseFloat(String(f.value)); m.singleOp = '='; }
+          if (f.operator === '>=') m.min = parseFloat(String(f.value));
+          if (f.operator === '<=') m.max = parseFloat(String(f.value));
+        }
       }
+      if (m.single != null) { m.min = null; m.max = null; }
       models[i.key] = m;
     }
 
@@ -101,7 +105,7 @@ function onCommit() {
 </script>
 
 <template>
-  <div class="flex flex-row w-100 gap-2 p-3">
+  <div class="flex flex-row w-100 gap-1 p-2" style="height: 250px;">
     <div class="flex flex-column w-25 gap-2 p-1">
       <button v-for="i in items" :key="i.key"
           class="flex align-items-center gap-2 p-2 w-full menu-button" :class="{ active: i.key === selectedKey }"

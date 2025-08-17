@@ -2,6 +2,7 @@
 import {inject, ref, watch} from "vue";
 import type {FilterObj} from "../../../models/shared_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
+import currencyHelper from "../../../utils/currency_helper.ts";
 
 const props = defineProps<{
   activeFilters: FilterObj[];
@@ -65,8 +66,7 @@ function iconClass(field: string | null): string | null {
           <div>{{ filter.operator }}</div>
         </template>
 
-
-        <div>{{ filter.display ? filter.display : filter.value }}</div>
+        <div>{{ currencyHelper.mightBeBalance(filter.field) ? vueHelper.displayAsCurrency(filter.value) : (filter.display ? filter.display : filter.value) }}</div>
         <div
             @click="clearFilter(filter.originalIndex)"
             class="flex align-items-center justify-content-center">

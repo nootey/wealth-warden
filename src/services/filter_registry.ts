@@ -1,6 +1,7 @@
 import { defineAsyncComponent } from 'vue';
 import type { Component } from 'vue';
 import type { FilterObj } from '../models/shared_models';
+import Decimal from 'decimal.js';
 
 export type Column = {
     field: string;
@@ -38,14 +39,29 @@ export const defs = {
         };
     },
 
-    numberRange(): PanelDef<{min:number|null; max:number|null}> {
+    numberRange(): PanelDef<{min:number|null; max:number|null; single?:number|null; singleOp?: '='|'>='|'<='}> {
         return {
             component: RangePanel,
-            makeModel: () => ({ min: null, max: null }),
-            toFilters: ({ min, max }, { field, source }) => {
+            makeModel: () => ({ min: null, max: null, single: null, singleOp: '=' }),
+            toFilters: ({ single, singleOp, min, max }, { field, source }) => {
                 const out: FilterObj[] = [];
-                if (min != null) out.push({ source, field, operator: '>=', value: min });
-                if (max != null) out.push({ source, field, operator: '<=', value: max });
+
+                if (single !== null && single !== undefined) {
+                    out.push({
+                        source,
+                        field,
+                        operator: singleOp ?? '=',
+                        value: toMoneyStr(single)
+                    });
+                    return out;
+                }
+
+                if (min !== null && min !== undefined) {
+                    out.push({ source, field, operator: '>=', value: toMoneyStr(min) });
+                }
+                if (max !== null && max !== undefined) {
+                    out.push({ source, field, operator: '<=', value: toMoneyStr(max) });
+                }
                 return out;
             }
         };
@@ -134,4 +150,9 @@ function inferOptionValueKey(
     }
 
     return null;
+}
+
+function toMoneyStr(v: unknown, scale = 4): string {
+    if (v === null || v === undefined || v === '') return '';
+    return new Decimal(v as any).toFixed(scale);
 }
