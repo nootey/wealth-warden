@@ -87,7 +87,7 @@ func (s *TransactionService) FetchAllCategories(c *gin.Context) ([]models.Catego
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return categories, nil
 }
 

@@ -3,19 +3,30 @@ package utils
 import (
 	"fmt"
 	"gorm.io/gorm"
-	"reflect"
 	"strings"
 )
 
 type FieldMetadata struct {
-	Column string
-	Join   string
+	Column       string
+	Join         string
+	FilterColumn string
+	OrEquals     bool
 }
 
 var FieldMap = map[string]map[string]FieldMetadata{
 	"transactions": {
-		"category": {Column: "categories.name", Join: "LEFT JOIN categories ON categories.id = transactions.category_id"},
-		"account":  {Column: "accounts.name", Join: "LEFT JOIN accounts   ON accounts.id   = transactions.account_id"},
+		"category": {
+			Column:       "categories.name",
+			FilterColumn: "categories.id",
+			Join:         "LEFT JOIN categories ON categories.id = transactions.category_id",
+			OrEquals:     true,
+		},
+		"account": {
+			Column:       "accounts.name",
+			FilterColumn: "accounts.id",
+			Join:         "LEFT JOIN accounts ON accounts.id = transactions.account_id",
+			OrEquals:     true,
+		},
 	},
 }
 
@@ -29,9 +40,21 @@ func resolveMeta(source, field string) (FieldMetadata, bool) {
 }
 
 func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
+	// Group for fields that opt-in to OR behavior
+	type key struct{ source, field string }
+	eq := map[key][]any{}
 
+	// collect OR-able "="
 	for _, f := range filters {
+		if f.Operator == "=" || f.Operator == "equals" {
+			if meta, ok := resolveMeta(f.Source, f.Field); ok && meta.OrEquals {
+				eq[key{f.Source, f.Field}] = append(eq[key{f.Source, f.Field}], f.Value)
+			}
+		}
+	}
 
+	// apply everything else
+	for _, f := range filters {
 		meta, ok := resolveMeta(f.Source, f.Field)
 		column := f.Field
 		if ok {
@@ -40,35 +63,53 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 
 		switch f.Operator {
 		case "equals", "=":
+			if ok && meta.OrEquals {
+				continue
+			}
 			query = query.Where(fmt.Sprintf("LOWER(%s) = ?", column), strings.ToLower(fmt.Sprint(f.Value)))
+
 		case "not equals", "<>", "!=":
 			query = query.Where(fmt.Sprintf("LOWER(%s) <> ?", column), strings.ToLower(fmt.Sprint(f.Value)))
+
 		case "contains", "like":
 			query = query.Where(fmt.Sprintf("LOWER(%s) LIKE ?", column), "%"+strings.ToLower(fmt.Sprint(f.Value))+"%")
+
 		case "more than", ">":
 			query = query.Where(fmt.Sprintf("%s > ?", column), f.Value)
+
 		case "less than", "<":
 			query = query.Where(fmt.Sprintf("%s < ?", column), f.Value)
+
 		case ">=":
 			query = query.Where(fmt.Sprintf("%s >= ?", column), f.Value)
+
 		case "<=":
 			query = query.Where(fmt.Sprintf("%s <= ?", column), f.Value)
+
 		case "in":
-			vals := reflect.ValueOf(f.Value)
-			if vals.Kind() == reflect.Slice {
-				lowered := []string{}
-				for i := 0; i < vals.Len(); i++ {
-					lowered = append(lowered, strings.ToLower(fmt.Sprint(vals.Index(i).Interface())))
-				}
-				query = query.Where(fmt.Sprintf("LOWER(%s) IN (?)", column), lowered)
-			} else {
-				query = query.Where(fmt.Sprintf("LOWER(%s) IN (?)", column), strings.ToLower(fmt.Sprint(f.Value)))
+			col := column
+			if ok && meta.FilterColumn != "" {
+				col = meta.FilterColumn
 			}
+			query = query.Where(fmt.Sprintf("%s IN ?", col), f.Value)
+
 		default:
-			// Unknown operator
 			fmt.Println("Unknown operator")
 		}
 	}
+
+	// apply grouped "=" as one IN per field
+	for k, vals := range eq {
+		meta, ok := resolveMeta(k.source, k.field)
+		col := k.field
+		if ok && meta.FilterColumn != "" {
+			col = meta.FilterColumn
+		} else if ok {
+			col = meta.Column
+		}
+		query = query.Where(fmt.Sprintf("%s IN ?", col), vals)
+	}
+
 	return query
 }
 
