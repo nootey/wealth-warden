@@ -2,6 +2,9 @@ import { defineAsyncComponent } from 'vue';
 import type { Component } from 'vue';
 import type { FilterObj } from '../models/shared_models';
 import Decimal from 'decimal.js';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+dayjs.extend(utc);
 
 export type Column = {
     field: string;
@@ -26,14 +29,20 @@ const RangePanel  = defineAsyncComponent(() => import('../_vue/components/filter
 const TextPanel   = defineAsyncComponent(() => import('../_vue/components/filters/panels/TextPanel.vue')); // default
 
 export const defs = {
-    date(): PanelDef<{from:string|null; to:string|null}> {
+    date(): PanelDef<{ date: Date|null; from: Date|null; to: Date|null }> {
         return {
             component: DatePanel,
-            makeModel: () => ({ from: null, to: null }),
-            toFilters: ({ from, to }, { field, source }) => {
+            makeModel: () => ({ date: null, from: null, to: null }),
+            toFilters: ({ date, from, to }, { field, source }) => {
                 const out: FilterObj[] = [];
-                if (from) out.push({ source, field, operator: '>=', value: from });
-                if (to)   out.push({ source, field, operator: '<=', value: to });
+                const ymd = (d: Date) => dayjs(d).format('YYYY-MM-DD');
+                const startISO = (d: Date) => dayjs(d).startOf('day').utc().toISOString();
+                const endISO   = (d: Date) => dayjs(d).endOf('day').utc().toISOString();
+
+                if (date) return [{ source, field, operator: '=', value: ymd(date) }];
+
+                if (from) out.push({ source, field, operator: '>=', value: startISO(from) });
+                if (to)   out.push({ source, field, operator: '<=', value: endISO(to) });
                 return out;
             }
         };

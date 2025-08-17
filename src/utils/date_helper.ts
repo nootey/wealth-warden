@@ -69,6 +69,16 @@ const dateHelper = {
         const currentYear = new Date().getFullYear();
         const date = new Date(currentYear, monthNumber - 1);
         return new Intl.DateTimeFormat(navigator.language, { month: 'long' }).format(date)
+    },
+
+    mightBeDate(field: string | null): boolean {
+        if (!field) return false;
+        const dateFields = [];
+
+        return (
+            dateFields.includes(field.toLowerCase()) ||
+            field.toLowerCase().includes("date")
+        );
     }
 };
 
