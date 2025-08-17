@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"gorm.io/gorm"
+	"regexp"
 	"strings"
 )
 
@@ -29,6 +30,8 @@ var FieldMap = map[string]map[string]FieldMetadata{
 		},
 	},
 }
+
+var reDateOnly = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
 func resolveMeta(source, field string) (FieldMetadata, bool) {
 	m, ok := FieldMap[source]
@@ -69,6 +72,17 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 			if ok && meta.OrEquals {
 				continue
 			}
+
+			col := column
+			if ok && meta.FilterColumn != "" {
+				col = meta.FilterColumn
+			}
+
+			if s := f.Value; reDateOnly.MatchString(s) {
+				query = query.Where(fmt.Sprintf("%s::date = ?::date", col), s)
+				break
+			}
+
 			if isString(f.Value) {
 				query = query.Where(
 					fmt.Sprintf("LOWER(%s) = LOWER(?)", asText(column)),
