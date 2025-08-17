@@ -16,6 +16,11 @@ type Causer = {
 };
 
 const vueHelper = {
+    capitalize(value: unknown): string {
+        if (value == null) return '';
+        const str = String(value);
+        return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+    },
     formatString: (value: string) => {
         if (!value) return "";
 
