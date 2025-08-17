@@ -39,6 +39,9 @@ func resolveMeta(source, field string) (FieldMetadata, bool) {
 	return meta, ok2
 }
 
+func isString(v any) bool      { _, ok := v.(string); return ok }
+func asText(col string) string { return fmt.Sprintf("%s::text", col) }
+
 func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 	// Group for fields that opt-in to OR behavior
 	type key struct{ source, field string }
@@ -66,13 +69,37 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 			if ok && meta.OrEquals {
 				continue
 			}
-			query = query.Where(fmt.Sprintf("LOWER(%s) = ?", column), strings.ToLower(fmt.Sprint(f.Value)))
+			if isString(f.Value) {
+				query = query.Where(
+					fmt.Sprintf("LOWER(%s) = LOWER(?)", asText(column)),
+					f.Value,
+				)
+			} else {
+				query = query.Where(fmt.Sprintf("%s = ?", column), f.Value)
+			}
 
 		case "not equals", "<>", "!=":
-			query = query.Where(fmt.Sprintf("LOWER(%s) <> ?", column), strings.ToLower(fmt.Sprint(f.Value)))
+			if isString(f.Value) {
+				query = query.Where(
+					fmt.Sprintf("LOWER(%s) <> LOWER(?)", asText(column)),
+					f.Value,
+				)
+			} else {
+				query = query.Where(fmt.Sprintf("%s <> ?", column), f.Value)
+			}
 
 		case "contains", "like":
-			query = query.Where(fmt.Sprintf("LOWER(%s) LIKE ?", column), "%"+strings.ToLower(fmt.Sprint(f.Value))+"%")
+			if isString(f.Value) {
+				query = query.Where(
+					fmt.Sprintf("LOWER(%s) LIKE LOWER(?)", asText(column)),
+					"%"+f.Value+"%",
+				)
+			} else {
+				query = query.Where(
+					fmt.Sprintf("LOWER(%s) LIKE LOWER(?)", asText(column)),
+					"%"+strings.ToLower(fmt.Sprint(f.Value))+"%",
+				)
+			}
 
 		case "more than", ">":
 			query = query.Where(fmt.Sprintf("%s > ?", column), f.Value)

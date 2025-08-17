@@ -11,7 +11,7 @@ type Transaction struct {
 	AccountID       int64           `gorm:"not null;index:idx_transactions_account_date" json:"account_id"`
 	CategoryID      *int64          `gorm:"index:idx_transactions_category" json:"category_id,omitempty"`
 	TransactionType string          `gorm:"not null;" json:"transaction_type"`
-	Amount          decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount" `
+	Amount          decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
 	Currency        string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	TxnDate         time.Time       `gorm:"not null;index" json:"txn_date"`
 	Description     *string         `gorm:"type:varchar(255)" json:"description,omitempty"`
