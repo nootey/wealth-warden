@@ -55,17 +55,25 @@ export const defs = {
         const options = col?.options ?? [];
         const optionLabel = col?.optionLabel;
         const inferredValueKey = inferOptionValueKey(options, optionLabel, col?.optionValue);
+
+        // map value -> label for display
+        const valueKey = inferredValueKey ?? optionLabel ?? 'id';
+        const labelKey = optionLabel ?? 'label';
+        const valueToLabel = new Map(
+            (options as any[]).map(o => [o?.[valueKey], String(o?.[labelKey])])
+        );
+
         return {
             component: MultiSelectPanel,
             makeModel: () => null,
             toFilters: (v, { field, source }) =>
                 Array.isArray(v) && v.length
-                    ? v.map(val => ({ source, field, operator: '=', value: val }))
+                    ? v.map(val => ({ source, field, operator: '=', value: val, display: valueToLabel.get(val) }))
                     : [],
             passProps: {
                 options,
                 optionLabel,
-                optionValue: inferredValueKey ?? optionLabel ?? 'id'
+                optionValue: valueKey
             }
         };
     },

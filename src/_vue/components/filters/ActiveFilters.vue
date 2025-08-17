@@ -46,7 +46,7 @@ function clearFilter(originalIndex: number): void {
           {{filter.field?.split(' ').map(n => n[0]).join('').toUpperCase() }}
         </div>
         <div>{{ filter.operator }}</div>
-        <div>{{ filter.value}}</div>
+        <div>{{ filter.display ? filter.display : filter.value }}</div>
         <div
             @click="clearFilter(filter.originalIndex)"
             class="flex align-items-center justify-content-center">

@@ -3,6 +3,7 @@ export interface FilterObj {
     field: string | null;
     operator: string;
     value: any;
+    display?: string;
 }
 
 export interface SortObj {
