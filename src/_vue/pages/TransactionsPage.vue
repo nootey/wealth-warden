@@ -27,11 +27,13 @@ const addTransactionModal = ref(false);
 onMounted(async () => {
   await getData();
   await transactionStore.getCategories();
+  await transactionStore.getAccounts();
 })
 
 const loadingRecords = ref(true);
 const records = ref<Account[]>([]);
 const categories = computed<Category[]>(() => transactionStore.categories);
+const accounts = computed<Account[]>(() => transactionStore.accounts);
 
 const params = computed(() => {
   return {
@@ -56,8 +58,8 @@ const filterOverlayRef = ref<any>(null);
 
 
 const activeColumns = computed(() => [
-  { field: 'account', header: 'Account', type: "text" },
-  { field: 'category', header: 'Category', type: 'enum', options: categories.value, optionLabel: 'name',},
+  { field: 'account', header: 'Account', type: 'enum', options: accounts.value, optionLabel: 'name'},
+  { field: 'category', header: 'Category', type: 'enum', options: categories.value, optionLabel: 'name'},
   { field: 'amount', header: 'Amount', type: "number" },
   { field: 'txn_date', header: 'Date', type: "date" },
   { field: 'description', header: 'Description', type: "text" },
