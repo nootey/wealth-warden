@@ -50,12 +50,13 @@ function clear() {
       </button>
     </div>
 
-    <div class="flex flex-column w-100">
+    <div class="flex flex-column w-full">
       <component v-if="activeItem" v-model="models[activeItem.key]"
                  :is="activeItem.def.component"
                  :field="activeItem.col.field"
                  :label="activeItem.col.header"
                  v-bind="activeItem.def.passProps"
+                 @commit="apply"
       >
       </component>
     </div>
