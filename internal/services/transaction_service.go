@@ -77,7 +77,18 @@ func (s *TransactionService) FetchTransactionsPaginated(c *gin.Context) ([]model
 }
 
 func (s *TransactionService) FetchAllCategories(c *gin.Context) ([]models.Category, error) {
-	return s.Repo.FindAllCategories(nil)
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return nil, err
+	}
+
+	categories, err := s.Repo.FindAllCategories(user)
+	if err != nil {
+		return nil, err
+	}
+	
+	return categories, nil
 }
 
 func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.TransactionCreateReq) error {
