@@ -7,8 +7,8 @@ defineProps<{ label?: string }>();
   <div class="flex flex-column gap-2">
     <label class="text-sm">{{ label }}</label>
     <div class="flex gap-2">
-      <Calendar v-model="model.from" dateFormat="yy-mm-dd" showIcon placeholder="From" />
-      <Calendar v-model="model.to"   dateFormat="yy-mm-dd" showIcon placeholder="To" />
+      <DatePicker v-model="model.from" dateFormat="yy-mm-dd" showIcon placeholder="From" />
+      <DatePicker v-model="model.to"   dateFormat="yy-mm-dd" showIcon placeholder="To" />
     </div>
   </div>
 </template>

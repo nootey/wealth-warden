@@ -52,6 +52,9 @@ export const defs = {
     },
 
     enumMulti(col?: Column): PanelDef<string[]|number[]|null> {
+        const options = col?.options ?? [];
+        const optionLabel = col?.optionLabel;
+        const inferredValueKey = inferOptionValueKey(options, optionLabel, col?.optionValue);
         return {
             component: MultiSelectPanel,
             makeModel: () => null,
@@ -59,9 +62,11 @@ export const defs = {
                 !v || (Array.isArray(v) && v.length === 0)
                     ? []
                     : [{ source, field, operator: 'in', value: v }],
-            passProps: col
-                ? { options: col.options ?? [], optionLabel: col.optionLabel, optionValue: col.optionValue }
-                : undefined
+            passProps: {
+                options,
+                optionLabel,
+                optionValue: inferredValueKey ?? optionLabel ?? 'id'
+            }
         };
     },
 
@@ -96,4 +101,33 @@ export const rules: Rule[] = [
 export function resolveFor(col: Column) {
     const rule = rules.find(r => r.test(col))!;
     return { def: rule.use(col), icon: rule.icon };
+}
+
+function inferOptionValueKey(
+    options: any[] | undefined,
+    optionLabel?: string,
+    explicit?: string
+): string | null {
+    if (!options || options.length === 0) return null;
+
+    // explicit wins (if you ever pass it)
+    if (explicit && options.every(o => explicit in o)) return explicit;
+
+    // common case: use 'id' if present on all
+    if (options.every(o => typeof o === 'object' && o && 'id' in o)) return 'id';
+
+    // next best: use the label key if it exists on all
+    if (optionLabel && options.every(o => typeof o === 'object' && o && optionLabel in o)) {
+        return optionLabel;
+    }
+
+    // otherwise: pick the first primitive key that exists on all
+    const candidateKeys = Object.keys(options[0] ?? {});
+    for (const k of candidateKeys) {
+        if (options.every(o => o && k in o && (['string','number','boolean'].includes(typeof o[k])))) {
+            return k;
+        }
+    }
+
+    return null;
 }

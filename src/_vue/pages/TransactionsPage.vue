@@ -14,6 +14,7 @@ import type {FilterObj} from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import filterHelper from "../../utils/filter_helper.ts";
+import type {Category} from "../../models/transaction_models.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -30,6 +31,7 @@ onMounted(async () => {
 
 const loadingRecords = ref(true);
 const records = ref<Account[]>([]);
+const categories = computed<Category[]>(() => transactionStore.categories);
 
 const params = computed(() => {
   return {
@@ -53,12 +55,12 @@ const filters = ref(JSON.parse(localStorage.getItem(filterStorageIndex.value) ??
 const filterOverlayRef = ref<any>(null);
 
 
-const activeColumns = ref([
-  { field: 'account', header: 'Account' },
-  { field: 'category', header: 'Category' },
-  { field: 'amount', header: 'Amount' },
-  { field: 'txn_date', header: 'Date' },
-  { field: 'description', header: 'Description' },
+const activeColumns = computed(() => [
+  { field: 'account', header: 'Account', type: "text" },
+  { field: 'category', header: 'Category', type: 'enum', options: categories.value, optionLabel: 'name',},
+  { field: 'amount', header: 'Amount', type: "number" },
+  { field: 'txn_date', header: 'Date', type: "date" },
+  { field: 'description', header: 'Description', type: "text" },
 ]);
 
 async function getData(new_page = null) {

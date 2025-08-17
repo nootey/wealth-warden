@@ -51,11 +51,13 @@ function clear() {
     </div>
 
     <div class="flex flex-column w-100">
-      <keep-alive>
-        <component v-if="activeItem" v-model="models[activeItem.key]"
-            :is="activeItem.def.component" :field="activeItem.col.field" :label="activeItem.col.header">
-        </component>
-      </keep-alive>
+      <component v-if="activeItem" v-model="models[activeItem.key]"
+                 :is="activeItem.def.component"
+                 :field="activeItem.col.field"
+                 :label="activeItem.col.header"
+                 v-bind="activeItem.def.passProps"
+      >
+      </component>
     </div>
   </div>
   <div class="flex flex-row w-full justify-content-end align-items-center gap-3 p-1">
