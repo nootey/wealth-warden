@@ -18,7 +18,7 @@ export type PanelDef<M=any> = {
     passProps?: Record<string, any>;
 };
 
-// Reusable panel factories (same component, different fields ok)
+// Reusable panel factories
 const DatePanel   = defineAsyncComponent(() => import('../_vue/components/filters/panels/DatePanel.vue'));
 const MultiSelectPanel   = defineAsyncComponent(() => import('../_vue/components/filters/panels/MultiSelectPanel.vue'));
 const RangePanel  = defineAsyncComponent(() => import('../_vue/components/filters/panels/RangePanel.vue'));
@@ -59,9 +59,9 @@ export const defs = {
             component: MultiSelectPanel,
             makeModel: () => null,
             toFilters: (v, { field, source }) =>
-                !v || (Array.isArray(v) && v.length === 0)
-                    ? []
-                    : [{ source, field, operator: 'in', value: v }],
+                Array.isArray(v) && v.length
+                    ? v.map(val => ({ source, field, operator: '=', value: val }))
+                    : [],
             passProps: {
                 options,
                 optionLabel,
@@ -110,18 +110,14 @@ function inferOptionValueKey(
 ): string | null {
     if (!options || options.length === 0) return null;
 
-    // explicit wins (if you ever pass it)
     if (explicit && options.every(o => explicit in o)) return explicit;
 
-    // common case: use 'id' if present on all
     if (options.every(o => typeof o === 'object' && o && 'id' in o)) return 'id';
 
-    // next best: use the label key if it exists on all
     if (optionLabel && options.every(o => typeof o === 'object' && o && optionLabel in o)) {
         return optionLabel;
     }
 
-    // otherwise: pick the first primitive key that exists on all
     const candidateKeys = Object.keys(options[0] ?? {});
     for (const k of candidateKeys) {
         if (options.every(o => o && k in o && (['string','number','boolean'].includes(typeof o[k])))) {

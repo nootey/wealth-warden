@@ -1,12 +1,13 @@
 <script setup lang="ts">
 
-import {reactive, computed, ref} from 'vue';
+import {reactive, computed, ref, watch} from 'vue';
 import type { FilterObj } from '../../../models/shared_models';
-import {resolveFor} from "../../../services/filter_registry.ts";
+import {type Column, resolveFor} from "../../../services/filter_registry.ts";
 
 const props = defineProps<{
-  columns: Array<{ field: string; header: string }>
+  columns: Column[];
   apiSource?: string
+  value?: FilterObj[]
 }>();
 
 const items = computed(() => props.columns.map(c => {
@@ -21,20 +22,80 @@ items.value.forEach(i => { models[i.key] = i.def.makeModel(); });
 const activeItem = computed(() => items.value.find(i => i.key === selectedKey.value) || null);
 
 const emit = defineEmits<{
+  (e:'update:value', payload: FilterObj[]): void; // <--
   (e:'apply', payload: FilterObj[]): void;
   (e:'clear'): void;
   (e:'cancel'): void;
 }>();
 
+// initialize
+hydrateFromFilters(props.value);
+
+// keep in sync if parent changes saved filters
+watch(() => props.value, (v) => hydrateFromFilters(v), { deep: true });
+
+// call reset when columns change
+watch(items, () => hydrateFromFilters(props.value));
+
 function apply() {
   const list: FilterObj[] = items.value.flatMap(i =>
       i.def.toFilters(models[i.key], { field: i.col.field, source: props.apiSource ?? "" })
   );
+  emit('update:value', list);
   emit('apply', list);
 }
 function clear() {
-  for (const i of items.value) models[i.key] = i.def.makeModel();
+  resetModels();
+  emit('update:value', []);
   emit('clear');
+}
+
+function resetModels() {
+  items.value.forEach(i => { models[i.key] = i.def.makeModel(); });
+}
+
+function hydrateFromFilters(list: FilterObj[]|undefined) {
+  resetModels();
+  if (!list?.length) return;
+
+  for (const i of items.value) {
+    const rel = list.filter(f => f.field === i.col.field);
+
+    if (i.col.type === 'date') {
+      const m = i.def.makeModel();
+      for (const f of rel) {
+        if (f.operator === '>=') m.from = f.value ?? null;
+        if (f.operator === '<=') m.to   = f.value ?? null;
+      }
+      models[i.key] = m;
+    }
+
+    else if (i.col.type === 'number' || /^amount$|^balance$/.test(i.col.field)) {
+      const m = i.def.makeModel();
+      for (const f of rel) {
+        if (f.operator === '>=') m.min = f.value ?? null;
+        if (f.operator === '<=') m.max = f.value ?? null;
+      }
+      models[i.key] = m;
+    }
+
+    else if (i.col.type === 'enum') {
+      const eqs = rel.filter(f => f.operator === '=' || f.operator === 'equals');
+      const selected = eqs.map(f => f.value);
+      models[i.key] = selected.length ? selected : null;
+    }
+
+    else {
+      const like = rel.find(f => f.operator === 'like');
+      models[i.key] = like?.value ?? null;
+    }
+  }
+}
+
+function onCommit() {
+  if (activeItem.value?.col.type !== 'enum') {
+    apply();
+  }
 }
 
 </script>
@@ -56,7 +117,7 @@ function clear() {
                  :field="activeItem.col.field"
                  :label="activeItem.col.header"
                  v-bind="activeItem.def.passProps"
-                 @commit="apply"
+                 @commit="onCommit"
       >
       </component>
     </div>

@@ -15,6 +15,7 @@ import FilterMenu from "../components/filters/FilterMenu.vue";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import filterHelper from "../../utils/filter_helper.ts";
 import type {Category} from "../../models/transaction_models.ts";
+import type {Column} from "../../services/filter_registry.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -56,8 +57,7 @@ const filterStorageIndex = ref(apiPrefix+"-filters");
 const filters = ref(JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "[]"));
 const filterOverlayRef = ref<any>(null);
 
-
-const activeColumns = computed(() => [
+const activeColumns = computed<Column[]>(() => [
   { field: 'account', header: 'Account', type: 'enum', options: accounts.value, optionLabel: 'name'},
   { field: 'category', header: 'Category', type: 'enum', options: categories.value, optionLabel: 'name'},
   { field: 'amount', header: 'Amount', type: "number" },
@@ -182,6 +182,7 @@ provide("removeFilter", removeFilter);
   <Popover ref="filterOverlayRef" class="rounded-popover">
     <div class="flex flex-column gap-2" style="width: 400px">
       <FilterMenu
+          v-model:value="filters"
           :columns="activeColumns"
           :apiSource="apiPrefix"
           @apply="(list) => applyFilters(list)"
