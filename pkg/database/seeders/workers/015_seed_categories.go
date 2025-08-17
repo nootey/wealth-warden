@@ -16,6 +16,11 @@ func SeedCategories(ctx context.Context, db *gorm.DB, logger *zap.Logger) error 
 		Children       []string
 	}{
 		{
+			Name:           "(Uncategorized)",
+			Classification: "uncategorized",
+			Children:       []string{},
+		},
+		{
 			Name:           "Income",
 			Classification: "income",
 			Children:       []string{"Salary", "Food and transport", "Bonus", "Side hustle", "Annual allowance", "Refunds", "Other"},

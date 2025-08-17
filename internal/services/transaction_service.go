@@ -121,20 +121,22 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 		if err != nil {
 			return fmt.Errorf("can't find category with given id %w", err)
 		}
+	} else {
+		category, err = s.Repo.FindCategoryByClassification(tx, "uncategorized", &user.ID)
+		if err != nil {
+			return fmt.Errorf("can't find default category %w", err)
+		}
 	}
 
 	tr := models.Transaction{
 		UserID:          user.ID,
 		AccountID:       account.ID,
+		CategoryID:      &category.ID,
 		TransactionType: strings.ToLower(req.TransactionType),
 		Amount:          req.Amount,
 		Currency:        models.DefaultCurrency,
 		TxnDate:         req.TxnDate,
 		Description:     req.Description,
-	}
-
-	if category.ID != 0 {
-		tr.CategoryID = &category.ID
 	}
 
 	_, err = s.Repo.InsertTransaction(tx, tr)
@@ -163,11 +165,7 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 	utils.CompareChanges("", dateStr, changes, "date")
 	utils.CompareChanges("", amountString, changes, "amount")
 	utils.CompareChanges("", tr.Currency, changes, "currency")
-
-	if tr.CategoryID != nil {
-		utils.CompareChanges("", category.Name, changes, "category")
-	}
-
+	utils.CompareChanges("", category.Name, changes, "category")
 	utils.CompareChanges("", utils.SafeString(tr.Description), changes, "description")
 
 	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{

@@ -96,6 +96,20 @@ func (r *TransactionRepository) FindCategoryByID(tx *gorm.DB, ID int64, userID *
 	return record, txn.Error
 }
 
+func (r *TransactionRepository) FindCategoryByClassification(tx *gorm.DB, classification string, userID *int64) (models.Category, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var record models.Category
+	txn := db.Model(&models.Category{}).
+		Scopes(r.scopeVisibleCategories(userID)).
+		Where("categories.classification = ?", classification).
+		First(&record)
+	return record, txn.Error
+}
+
 func (r *TransactionRepository) scopeVisibleCategories(userID *int64) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		if userID == nil {
