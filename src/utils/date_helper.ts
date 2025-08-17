@@ -73,7 +73,7 @@ const dateHelper = {
 
     mightBeDate(field: string | null): boolean {
         if (!field) return false;
-        const dateFields = [];
+        const dateFields: string[] = [];
 
         return (
             dateFields.includes(field.toLowerCase()) ||
