@@ -7,6 +7,8 @@ import (
 
 func TransactionRoutes(apiGroup *gin.RouterGroup, handler *handlers.TransactionHandler) {
 	apiGroup.GET("", handler.GetTransactionsPaginated)
+	apiGroup.GET(":id", handler.GetTransactionByID)
 	apiGroup.GET("categories", handler.GetCategories)
 	apiGroup.PUT("", handler.InsertTransaction)
+	apiGroup.PUT(":id", handler.UpdateTransaction)
 }

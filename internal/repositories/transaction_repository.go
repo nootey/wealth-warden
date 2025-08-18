@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"gorm.io/gorm"
+	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
 )
@@ -132,9 +133,17 @@ func (r *TransactionRepository) scopeVisibleCategories(userID *int64) func(*gorm
 	}
 }
 
-func (r *TransactionRepository) FindTransactionByID(ID, userID int64) (models.Transaction, error) {
+func (r *TransactionRepository) FindTransactionByID(tx *gorm.DB, ID, userID int64) (models.Transaction, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
 	var record models.Transaction
-	result := r.DB.Where("id = ? AND user_id = ?", ID, userID).First(&record)
+	result := db.
+		Preload("Category").
+		Preload("Account").
+		Where("id = ? AND user_id = ?", ID, userID).First(&record)
 	return record, result.Error
 }
 
@@ -148,4 +157,27 @@ func (r *TransactionRepository) InsertTransaction(tx *gorm.DB, newRecord models.
 		return 0, err
 	}
 	return newRecord.ID, nil
+}
+
+func (r *TransactionRepository) UpdateTransaction(tx *gorm.DB, record models.Transaction) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Model(models.Transaction{}).
+		Where("id = ?", record.ID).
+		Updates(map[string]interface{}{
+			"account_id":       record.AccountID,
+			"category_id":      record.CategoryID,
+			"transaction_type": record.TransactionType,
+			"amount":           record.Amount,
+			"currency":         record.Currency,
+			"txn_date":         record.TxnDate,
+			"description":      record.Description,
+			"updated_at":       time.Now(),
+		}).Error; err != nil {
+		return 0, err
+	}
+	return record.ID, nil
 }

@@ -39,7 +39,7 @@ type HiddenCategory struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
-type TransactionCreateReq struct {
+type TransactionReq struct {
 	AccountID       int64           `json:"account_id" validate:"required"`
 	CategoryID      *int64          `json:"category_id,omitempty"`
 	TransactionType string          `json:"transaction_type" validate:"required"`
