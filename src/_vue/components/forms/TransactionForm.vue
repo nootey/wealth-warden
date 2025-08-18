@@ -146,7 +146,7 @@ function initData(): Transaction {
 async function loadRecord(id: number) {
   try {
     const data = await sharedStore.getRecordByID("transactions", id);
-      
+
     record.value = {
       ...initData(),
       ...data,

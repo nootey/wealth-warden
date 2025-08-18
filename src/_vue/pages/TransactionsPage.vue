@@ -174,7 +174,6 @@ function toggleFilterOverlay(event: any) {
   filterOverlayRef.value.toggle(event);
 }
 
-provide("initData", getData);
 provide("switchSort", switchSort);
 provide("removeFilter", removeFilter);
 
