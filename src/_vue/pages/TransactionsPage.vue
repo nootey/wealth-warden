@@ -16,6 +16,7 @@ import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import filterHelper from "../../utils/filter_helper.ts";
 import type {Category} from "../../models/transaction_models.ts";
 import type {Column} from "../../services/filter_registry.ts";
+import {between} from "@vuelidate/validators";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -174,6 +175,18 @@ function toggleFilterOverlay(event: any) {
   filterOverlayRef.value.toggle(event);
 }
 
+async function deleteRecord(id: number) {
+  try {
+    let response = await sharedStore.deleteRecord(
+        "transactions",
+        id,
+    );
+    toastStore.successResponseToast(response);
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
 provide("switchSort", switchSort);
 provide("removeFilter", removeFilter);
 
@@ -277,6 +290,12 @@ provide("removeFilter", removeFilter);
               <template v-else>
                 {{ data[field] }}
               </template>
+            </template>
+          </Column>
+
+          <Column header="Actions">
+            <template #body="slotProps">
+              <i class="pi pi-trash hover_icon" style="font-size: 0.875rem; color: var(--p-red-300);" @click="deleteRecord(slotProps.data?.id)"></i>
             </template>
           </Column>
 
