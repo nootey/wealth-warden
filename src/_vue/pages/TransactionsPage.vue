@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AddTransaction from "../components/forms/AddTransaction.vue";
+import TransactionForm from "../components/forms/TransactionForm.vue";
 import {computed, onMounted, provide, ref} from "vue";
 import type {Account} from "../../models/account_models.ts";
 import vueHelper from "../../utils/vue_helper.ts";
@@ -23,7 +23,9 @@ const transactionStore = useTransactionStore();
 
 const apiPrefix = "transactions";
 
-const addTransactionModal = ref(false);
+const createModal = ref(false);
+const updateModal = ref(false);
+const updateTransactionID = ref(null)
 
 onMounted(async () => {
   await getData();
@@ -87,10 +89,15 @@ async function getData(new_page = null) {
   }
 }
 
-function manipulateDialog(modal: string, value: boolean) {
+function manipulateDialog(modal: string, value: any) {
   switch (modal) {
     case 'addTransaction': {
-      addTransactionModal.value = value;
+      createModal.value = value;
+      break;
+    }
+    case 'updateTransaction': {
+      updateModal.value = true;
+      updateTransactionID.value = value;
       break;
     }
     default: {
@@ -101,8 +108,9 @@ function manipulateDialog(modal: string, value: boolean) {
 
 async function handleEmit(emitType: any) {
   switch (emitType) {
-    case 'addTransaction': {
-      addTransactionModal.value = false;
+    case 'completeOperation': {
+      createModal.value = false;
+      updateModal.value = false;
       await getData();
       break;
     }
@@ -174,9 +182,14 @@ provide("removeFilter", removeFilter);
 
 <template>
 
-  <Dialog class="rounded-dialog" v-model:visible="addTransactionModal" :breakpoints="{'801px': '90vw'}"
+  <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{'501px': '90vw'}"
           :modal="true" :style="{width: '500px'}" header="Add transaction">
-    <AddTransaction entity="account" @addTransaction="handleEmit('addTransaction')"></AddTransaction>
+    <TransactionForm mode="create" @completeOperation="handleEmit('completeOperation')"></TransactionForm>
+  </Dialog>
+
+  <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal" :breakpoints="{'501px': '90vw'}"
+          :modal="true" :style="{width: '500px'}" header="Update transaction">
+    <TransactionForm mode="update" :recordId="updateTransactionID" @completeOperation="handleEmit('completeOperation')"></TransactionForm>
   </Dialog>
 
   <Popover ref="filterOverlayRef" class="rounded-popover">
@@ -254,7 +267,12 @@ provide("removeFilter", removeFilter);
               <template v-else-if="field === 'txn_date'">
                 {{ dateHelper.formatDate(data?.txn_date, true) }}
               </template>
-              <template v-else-if="field === 'category' || field === 'account'">
+              <template v-else-if="field === 'account'">
+                <span class="hover" @click="manipulateDialog('updateTransaction', data['id'])">
+                  {{ data[field]["name"] }}
+                </span>
+              </template>
+              <template v-else-if="field === 'category'">
                 {{ data[field]["name"] }}
               </template>
               <template v-else>
@@ -271,5 +289,11 @@ provide("removeFilter", removeFilter);
 </template>
 
 <style scoped>
-
+.hover {
+  font-weight: bold;
+}
+.hover:hover {
+  cursor: pointer;
+  text-decoration: underline;
+}
 </style>

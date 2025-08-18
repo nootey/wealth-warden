@@ -2,7 +2,7 @@
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
-import {computed, onMounted, ref, toRef} from "vue";
+import {computed, onMounted, ref} from "vue";
 import type {Category, Transaction} from "../../../models/transaction_models.ts";
 import {required} from "@vuelidate/validators";
 import {decimalValid, decimalMin, decimalMax} from "../../../validators/currency.ts";
@@ -14,6 +14,11 @@ import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
 
+const props = defineProps<{
+  mode?: "create" | "update";
+  recordId?: number | null;
+}>();
+
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
@@ -23,18 +28,27 @@ const accounts = ref<Account[]>([]);
 
 onMounted(async () => {
   await getAccounts();
-})
+  if (props.mode === "update" && props.recordId) {
+    await loadRecord(props.recordId);
+  }
+});
 
-const newRecord = ref<Transaction>(initData());
-const amountRef = toRef(newRecord.value, "amount");
-const amountNumber = currencyHelper.useMoneyField(amountRef, 2).number;
+const record = ref<Transaction>(initData());
+const amountRef = computed({
+  get: () => record.value.amount,
+  set: v => record.value.amount = v
+});
+const { number: amountNumber } = currencyHelper.useMoneyField(amountRef, 2);
 
 const allCategories = computed<Category[]>(() => transactionStore.categories);
-const parentCategories = allCategories.value.filter((category) => (category.name == "Expense") || category.name == "Income");
+const parentCategories = computed(() =>
+    allCategories.value.filter(c => c.name === "Expense" || c.name === "Income")
+);
 
 const selectedParentCategory = ref<Category | null>(
-    parentCategories.find(cat => cat.name === "Expense") || null
+    parentCategories.value.find(cat => cat.name === "Expense") || null
 );
+
 const availableCategories = computed<Category[]>(() => {
   return allCategories.value.filter(
       (category) => category.parent_id === selectedParentCategory.value?.id
@@ -45,7 +59,7 @@ const filteredCategories = ref<Category[]>([]);
 const filteredAccounts = ref<Account[]>([]);
 
 const rules = {
-  newRecord: {
+  record: {
     category: {
         name: {
           $autoDirty: true
@@ -78,10 +92,10 @@ const rules = {
   },
 };
 
-const v$ = useVuelidate(rules, { newRecord });
+const v$ = useVuelidate(rules, { record });
 
 const emit = defineEmits<{
-  (event: 'addTransaction'): void;
+  (event: 'completeOperation'): void;
 }>();
 
 async function getAccounts() {
@@ -129,51 +143,88 @@ function initData(): Transaction {
   };
 }
 
+async function loadRecord(id: number) {
+  try {
+    const data = await sharedStore.getRecordByID("transactions", id);
+      
+    record.value = {
+      ...initData(),
+      ...data,
+      txn_date: data.txn_date ? dayjs(data.txn_date).toDate() : dayjs().toDate(),
+    };
+
+    selectedParentCategory.value =
+        parentCategories.value.find(
+            p =>
+                (p.classification?.toLowerCase?.() === String(data.transaction_type).toLowerCase()) ||
+                (p.name?.toLowerCase?.() === String(data.transaction_type).toLowerCase())
+        ) || null;
+  } catch (err) {
+    toastStore.errorResponseToast(err);
+  }
+}
+
 async function isRecordValid() {
-  const isValid = await v$.value.newRecord.$validate();
+  const isValid = await v$.value.record.$validate();
   if (!isValid) return false;
   return true;
 }
 
-async function createNewRecord() {
+async function manageRecord() {
 
-  if (!await isRecordValid()) return;
+    if (!await isRecordValid()) return;
 
-  if (selectedParentCategory.value == null) {
+    if (selectedParentCategory.value == null) {
     return;
-  }
+    }
 
-  const txn_date = dateHelper.mergeDateWithCurrentTime(dayjs(newRecord.value.txn_date).format('YYYY-MM-DD'))
+    const txn_date = dateHelper.mergeDateWithCurrentTime(dayjs(record.value.txn_date).format('YYYY-MM-DD'))
+    const recordData = {
+    account_id: record.value.account.id,
+    category_id: record.value.category?.id,
+    transaction_type: selectedParentCategory.value.classification,
+    amount: record.value.amount,
+    txn_date: txn_date,
+    description: record.value.description,
+    }
 
-  try {
-    let response = await sharedStore.createRecord(
-        "transactions",
-        {
-          account_id: newRecord.value.account.id,
-          category_id: newRecord.value.category?.id,
-          transaction_type: selectedParentCategory.value.classification,
-          amount: newRecord.value.amount,
-          txn_date: txn_date,
-          description: newRecord.value.description,
+    try {
+
+        let response = null;
+
+        switch (props.mode) {
+            case "create":
+                response = await sharedStore.createRecord(
+                    "transactions",
+                    recordData
+                );
+                break;
+            case "update":
+                response = await sharedStore.updateRecord(
+                "transactions",
+                record.value.id!,
+                recordData
+                );
+                break;
+            default:
+                emit("completeOperation")
+                break;
         }
-    );
 
-    newRecord.value = initData();
-    v$.value.newRecord.$reset();
+        // record.value = initData();
+        v$.value.record.$reset();
+        toastStore.successResponseToast(response);
+        emit("completeOperation")
 
-    toastStore.successResponseToast(response);
-
-    emit("addTransaction")
-
-  } catch (error) {
-    toastStore.errorResponseToast(error);
-  }
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
 }
 
 function updateSelectedParentCategory($event: any) {
   if ($event) {
     selectedParentCategory.value = $event;
-    newRecord.value.category = null;
+    record.value.category = null;
     filteredCategories.value = [];
   }
 }
@@ -219,10 +270,10 @@ const searchAccount = (event: { query: string }) => {
 
     <div class="flex flex-row w-full">
       <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="true" :message="v$.newRecord.account.name.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.record.account.name.$errors[0]?.$message">
           <label>Account</label>
         </ValidationError>
-        <AutoComplete size="small" v-model="newRecord.account" :suggestions="filteredAccounts"
+        <AutoComplete size="small" v-model="record.account" :suggestions="filteredAccounts"
                       @complete="searchAccount" optionLabel="name"
                       placeholder="Select account" dropdown>
         </AutoComplete>
@@ -231,7 +282,7 @@ const searchAccount = (event: { query: string }) => {
 
     <div class="flex flex-row w-full">
       <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="true" :message="v$.newRecord.amount.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.record.amount.$errors[0]?.$message">
           <label>Amount</label>
         </ValidationError>
         <InputNumber size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
@@ -240,10 +291,10 @@ const searchAccount = (event: { query: string }) => {
 
     <div class="flex flex-row w-full">
       <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="false" :message="v$.newRecord.category.name.$errors[0]?.$message">
+        <ValidationError :isRequired="false" :message="v$.record.category.name.$errors[0]?.$message">
             <label>Category</label>
         </ValidationError>
-        <AutoComplete size="small" v-model="newRecord.category" :suggestions="filteredCategories"
+        <AutoComplete size="small" v-model="record.category" :suggestions="filteredCategories"
                       @complete="searchCategory" optionLabel="name"
                       placeholder="Select category" dropdown>
         </AutoComplete>
@@ -252,10 +303,10 @@ const searchAccount = (event: { query: string }) => {
 
     <div class="flex flex-row w-full">
       <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="true" :message="v$.newRecord.txn_date.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.record.txn_date.$errors[0]?.$message">
             <label>Date</label>
         </ValidationError>
-        <DatePicker v-model="newRecord.txn_date" date-format="dd/mm/yy"
+        <DatePicker v-model="record.txn_date" date-format="dd/mm/yy"
                     showIcon fluid iconDisplay="input"
                     size="small"/>
       </div>
@@ -263,16 +314,17 @@ const searchAccount = (event: { query: string }) => {
 
     <div class="flex flex-row w-full">
       <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="false" :message="v$.newRecord.description.$errors[0]?.$message">
+        <ValidationError :isRequired="false" :message="v$.record.description.$errors[0]?.$message">
           <label>Description</label>
         </ValidationError>
-        <InputText size="small" v-model="newRecord.description" placeholder="Describe transaction"></InputText>
+        <InputText size="small" v-model="record.description" placeholder="Describe transaction"></InputText>
       </div>
     </div>
 
     <div class="flex flex-row gap-2 w-full">
       <div class="flex flex-column w-full">
-        <Button class="main-button" label="Add transaction" @click="createNewRecord" style="height: 42px;" />
+        <Button class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' transaction'"
+                @click="manageRecord" style="height: 42px;" />
       </div>
     </div>
 

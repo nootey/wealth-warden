@@ -29,21 +29,5 @@ export const useTransactionStore = defineStore('transaction', {
                 throw err;
             }
         },
-        async getTransactionsPaginated(params: object, page: number) {
-            try {
-                const queryParams = {
-                    ...params,
-                    page: page,
-                };
-
-                const response = await apiClient.get(`${this.apiPrefix}`, {
-                    params: queryParams,
-                });
-
-                return response.data;
-            } catch (err) {
-                throw err;
-            }
-        },
     },
 });
