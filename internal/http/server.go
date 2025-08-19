@@ -10,9 +10,13 @@ import (
 	"github.com/tavsec/gin-healthcheck/checks"
 	"github.com/tavsec/gin-healthcheck/config"
 	"go.uber.org/zap"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 	"wealth-warden/internal/bootstrap"
+	appConfig "wealth-warden/pkg/config"
 )
 
 type Server struct {
@@ -25,13 +29,14 @@ func NewServer(container *bootstrap.Container, logger *zap.Logger) *Server {
 
 	router := NewRouter(container, logger)
 
-	addr := container.Config.Host + ":" + container.Config.HttpServer.Port
+	addr := net.JoinHostPort(container.Config.Host, container.Config.HttpServer.Port)
 
 	return &Server{
 		Router: router,
 		logger: logger,
 		server: &http.Server{
-			Addr: addr,
+			Addr:    addr,
+			Handler: router,
 		},
 	}
 }
@@ -65,19 +70,16 @@ func (s *Server) Shutdown() error {
 
 func NewRouter(container *bootstrap.Container, logger *zap.Logger) *gin.Engine {
 
-	var r *gin.Engine
-	var domainProtocol string
-
 	if container.Config.Release {
 		gin.SetMode(gin.ReleaseMode)
-		r = gin.New()
-		domainProtocol = "https://"
-
-	} else {
-		r = gin.Default()
-		domainProtocol = "http://"
 	}
+	r := gin.New()
 
+	// Logging & recovery
+	r.Use(container.Middleware.ErrorLogger())
+	r.Use(ginzap.RecoveryWithZap(logger, true))
+
+	// Health check (DB)
 	sqlDB, err := container.DB.DB()
 	if err != nil {
 		panic(err)
@@ -86,25 +88,65 @@ func NewRouter(container *bootstrap.Container, logger *zap.Logger) *gin.Engine {
 	sqlCheck := checks.SqlCheck{Sql: sqlDB}
 	healthcheck.New(r, config.DefaultConfig(), []checks.Check{sqlCheck})
 
-	// Setup CORS
-	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowOrigins = []string{
-		domainProtocol + container.Config.WebClient.Domain,
-		domainProtocol + container.Config.WebClient.Domain + ":" + container.Config.WebClient.Port,
-	}
-	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
-	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "wealth-warden-client"}
-	corsConfig.AllowCredentials = true
-	r.Use(cors.New(corsConfig))
-
-	// Register custom logger middleware BEFORE recovery
-	r.Use(container.Middleware.ErrorLogger())
-
-	// Gin's recovery (to handle panics)
-	r.Use(ginzap.RecoveryWithZap(logger, true))
+	// CORS
+	c := defineCORS(container.Config)
+	r.Use(cors.New(c))
 
 	routeInitializer := NewRouteInitializerHTTP(r, container)
 	routeInitializer.InitEndpoints()
 
 	return r
+}
+
+func defineCORS(cfg *appConfig.Config) cors.Config {
+	origins := cfg.CORS.AllowedOrigins
+
+	allowList := make(map[string]struct{}, len(origins))
+	for _, o := range origins {
+		allowList[strings.TrimSpace(o)] = struct{}{}
+	}
+
+	// Optional wildcard support (e.g., *.example.com)
+	var wildcardSuffixes []string
+	for _, sfx := range cfg.CORS.WildcardSuffixes {
+		wildcardSuffixes = append(wildcardSuffixes, strings.ToLower(sfx))
+	}
+	return cors.Config{
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept", "X-Requested-With", "wealth-warden-client"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		AllowOriginFunc: func(origin string) bool {
+			// Compare exact allow-list (scheme + host + optional port)
+			if _, ok := allowList[origin]; ok {
+				return true
+			}
+			// Optional wildcard suffix check
+			u, err := url.Parse(origin)
+			if err != nil {
+				return false
+			}
+			host := strings.ToLower(u.Hostname())
+			for _, sfx := range wildcardSuffixes {
+				if strings.HasSuffix(host, sfx) {
+					// Optionally enforce scheme:
+					if len(cfg.CORS.AllowedSchemes) > 0 {
+						if u.Scheme == "" {
+							return false
+						}
+						ok := false
+						for _, sch := range cfg.CORS.AllowedSchemes {
+							if u.Scheme == sch {
+								ok = true
+								break
+							}
+						}
+						return ok
+					}
+					return true
+				}
+			}
+			return false
+		},
+	}
 }

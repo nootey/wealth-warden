@@ -7,11 +7,11 @@ type Config struct {
 	Host       string           `mapstructure:"host"`
 	Postgres   PostgresConfig   `mapstructure:"postgres"`
 	JWT        JWTConfig
+	CORS       CorsConfig `mapstructure:"cors"`
 }
 
 type WebClientConfig struct {
 	Domain string `mapstructure:"domain" validate:"required"`
-	Port   string `mapstructure:"port" validate:"required"`
 }
 
 type HttpServerConfig struct {
@@ -30,4 +30,10 @@ type JWTConfig struct {
 	WebClientAccess   string `mapstructure:"web_client_access" validate:"required"`
 	WebClientRefresh  string `mapstructure:"web_client_refresh" validate:"required"`
 	WebClientEncodeID string `mapstructure:"web_client_encode_id" validate:"required"`
+}
+
+type CorsConfig struct {
+	AllowedOrigins   []string `mapstructure:"allowedOrigins" validate:"required"`
+	WildcardSuffixes []string `mapstructure:"wildcardSuffixes"`
+	AllowedSchemes   []string `mapstructure:"allowedSchemes" validate:"required"`
 }
