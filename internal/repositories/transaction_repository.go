@@ -181,3 +181,22 @@ func (r *TransactionRepository) UpdateTransaction(tx *gorm.DB, record models.Tra
 	}
 	return record.ID, nil
 }
+
+func (r *TransactionRepository) DeleteTransaction(tx *gorm.DB, id, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	res := db.
+		Where("id = ? AND user_id = ?", id, userID).
+		Delete(&models.Transaction{})
+
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}

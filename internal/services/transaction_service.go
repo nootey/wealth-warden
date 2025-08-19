@@ -365,8 +365,8 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 
 	utils.CompareChanges(oldAccount.Name, newAccount.Name, changes, "account")
 	utils.CompareChanges(exTr.TransactionType, tr.TransactionType, changes, "type")
-	utils.CompareDateChange(exTr.TxnDate, tr.TxnDate, changes, "date")
-	utils.CompareDecimalChange(exTr.Amount, tr.Amount, changes, "amount", 2)
+	utils.CompareDateChange(&exTr.TxnDate, &tr.TxnDate, changes, "date")
+	utils.CompareDecimalChange(&exTr.Amount, &tr.Amount, changes, "amount", 2)
 	utils.CompareChanges(exTr.Currency, tr.Currency, changes, "currency")
 	utils.CompareChanges(oldCategory.Name, newCategory.Name, changes, "category")
 	utils.CompareChanges(utils.SafeString(exTr.Description), utils.SafeString(tr.Description), changes, "description")
@@ -443,6 +443,134 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 			Category:    "balance",
 			Description: nil,
 			Payload:     changes3,
+			Causer:      user,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *TransactionService) DeleteTransaction(c *gin.Context, id int64) error {
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Load the transaction + relations
+	tr, err := s.Repo.FindTransactionByID(tx, id, user.ID)
+	if err != nil {
+		return fmt.Errorf("can't find transaction with given id %w", err)
+	}
+
+	account, err := s.AccountService.Repo.FindAccountByID(tx, tr.AccountID, user.ID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	var category models.Category
+	if tr.CategoryID != nil {
+		cat, err := s.Repo.FindCategoryByID(tx, *tr.CategoryID, &user.ID)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("can't find category with given id %w", err)
+		}
+		category = cat
+	}
+
+	// Reverse the original cash effect on the account
+	signed := func(tt string, amt decimal.Decimal) decimal.Decimal {
+		switch strings.ToLower(tt) {
+		case "expense":
+			return amt.Neg()
+		default:
+			return amt
+		}
+	}
+	origEffect := signed(tr.TransactionType, tr.Amount)
+	inverse := origEffect.Neg()
+
+	if !inverse.IsZero() {
+		dir := map[bool]string{true: "expense", false: "income"}[inverse.IsNegative()]
+		if err := s.AccountService.UpdateAccountCashBalance(tx, &account, dir, inverse.Abs()); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// Delete transaction
+	if err := s.Repo.DeleteTransaction(tx, tr.ID, user.ID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Dispatch transaction activity log
+	changes := utils.InitChanges()
+
+	utils.CompareChanges(account.Name, "", changes, "account")
+	utils.CompareChanges(tr.TransactionType, "", changes, "type")
+	utils.CompareDateChange(&tr.TxnDate, nil, changes, "date")
+	utils.CompareDecimalChange(&tr.Amount, nil, changes, "amount", 2)
+	utils.CompareChanges(tr.Currency, "", changes, "currency")
+	utils.CompareChanges(utils.SafeString(&category.Name), "", changes, "category")
+	utils.CompareChanges(utils.SafeString(tr.Description), "", changes, "description")
+
+	if !changes.IsEmpty() {
+		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+			Logger:      s.Ctx.Logger,
+			Event:       "delete",
+			Category:    "transaction",
+			Description: nil,
+			Payload:     changes,
+			Causer:      user,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	// // Dispatch balance change on the affected account activity log
+	if !inverse.IsZero() {
+		newBal, err := s.AccountService.Repo.FindBalanceForAccountID(nil, account.ID)
+		if err != nil {
+			return err
+		}
+		delta := inverse
+		start := newBal.EndBalance.Sub(delta)
+		changesB := utils.InitChanges()
+		utils.CompareChanges("", account.Name, changesB, "account")
+		utils.CompareChanges("", delta.StringFixed(2), changesB, "change")
+		utils.CompareChanges("", start.StringFixed(2), changesB, "start_balance")
+		utils.CompareChanges("", newBal.EndBalance.StringFixed(2), changesB, "end_balance")
+		utils.CompareChanges("", account.Currency, changesB, "currency")
+
+		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+			Logger:      s.Ctx.Logger,
+			Event:       "update",
+			Category:    "balance",
+			Description: nil,
+			Payload:     changesB,
 			Causer:      user,
 		}); err != nil {
 			return err
