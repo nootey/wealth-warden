@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go.uber.org/zap"
 	"time"
+	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
 	"gorm.io/gorm"
@@ -12,25 +13,16 @@ import (
 
 func SeedMemberUser(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 
-	creds, err := LoadSeederCredentials()
-	if err != nil {
-		return fmt.Errorf("failed to load seeder credentials: %w", err)
-	}
-	email, ok := creds["MEMBER_EMAIL"]
-	if !ok || email == "" {
-		return fmt.Errorf("MEMBER_EMAIL not set in seeder credentials")
-	}
-	password, ok := creds["MEMBER_PASSWORD"]
-	if !ok || password == "" {
-		return fmt.Errorf("MEMBER_PASSWORD not set in seeder credentials")
+	cfg, cfgErr := config.LoadConfig(nil)
+	if cfgErr != nil {
+		return cfgErr
 	}
 
-	// Hash the Member password.
-	hashedPassword, err := utils.HashAndSaltPassword(password)
+	email := cfg.Seed.MemberUserEmail
+	hashedPassword, err := utils.HashAndSaltPassword(cfg.Seed.MemberUserPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
-
 	// Fetch the global role ID for "member".
 	var globalRoleID int64
 	err = db.Raw(`SELECT id FROM roles WHERE name = ?`, "member").Scan(&globalRoleID).Error

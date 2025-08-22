@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go.uber.org/zap"
 	"time"
+	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
 	"gorm.io/gorm"
@@ -12,21 +13,15 @@ import (
 
 func SeedRootUser(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 
-	creds, err := LoadSeederCredentials()
-	if err != nil {
-		return fmt.Errorf("failed to load seeder credentials: %w", err)
-	}
-	email, ok := creds["SUPER_ADMIN_EMAIL"]
-	if !ok || email == "" {
-		return fmt.Errorf("SUPER_ADMIN_EMAIL not set in seeder credentials")
-	}
-	password, ok := creds["SUPER_ADMIN_PASSWORD"]
-	if !ok || password == "" {
-		return fmt.Errorf("SUPER_ADMIN_PASSWORD not set in seeder credentials")
+	cfg, cfgErr := config.LoadConfig(nil)
+	if cfgErr != nil {
+		return cfgErr
 	}
 
+	email := cfg.Seed.SuperAdminEmail
+
 	// Hash the Super Admin password.
-	hashedPassword, err := utils.HashAndSaltPassword(password)
+	hashedPassword, err := utils.HashAndSaltPassword(cfg.Seed.SuperAdminPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}

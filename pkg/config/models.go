@@ -8,6 +8,7 @@ type Config struct {
 	Postgres   PostgresConfig   `mapstructure:"postgres"`
 	JWT        JWTConfig
 	CORS       CorsConfig `mapstructure:"cors"`
+	Seed       SeedConfig `mapstructure:"seed"`
 }
 
 type WebClientConfig struct {
@@ -36,4 +37,11 @@ type CorsConfig struct {
 	AllowedOrigins   []string `mapstructure:"allowedOrigins" validate:"required"`
 	WildcardSuffixes []string `mapstructure:"wildcardSuffixes"`
 	AllowedSchemes   []string `mapstructure:"allowedSchemes" validate:"required"`
+}
+
+type SeedConfig struct {
+	SuperAdminEmail    string `mapstructure:"super_admin_email"`
+	SuperAdminPassword string `mapstructure:"super_admin_password"`
+	MemberUserEmail    string `mapstructure:"member_user_email"`
+	MemberUserPassword string `mapstructure:"member_user_password"`
 }

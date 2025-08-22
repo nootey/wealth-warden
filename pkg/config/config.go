@@ -14,7 +14,7 @@ func LoadConfig(configPath *string) (*Config, error) {
 	}
 
 	// Load YAML config via Viper
-	viper.SetConfigName(filepath.Join("configurable", "environment"))
+	viper.SetConfigName("dev")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(*configPath)
 
