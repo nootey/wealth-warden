@@ -11,6 +11,7 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
+	"wealth-warden/pkg/constants"
 	"wealth-warden/pkg/utils"
 )
 
@@ -106,9 +107,9 @@ func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberM
 
 	var expiresAt int
 	if rememberMe {
-		expiresAt = 3600 * 24 * 14
+		expiresAt = int(constants.RefreshCookieTTLLong.Seconds())
 	} else {
-		expiresAt = 3600 * 24
+		expiresAt = int(constants.RefreshCookieTTLShort.Seconds())
 	}
 
 	logErr := s.logLoginAttempt(email, userAgent, ip, "success", nil, user)

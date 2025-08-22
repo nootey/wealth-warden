@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"time"
 	"wealth-warden/pkg/config"
+	"wealth-warden/pkg/constants"
 )
 
 var (
@@ -40,74 +41,81 @@ func NewWebClientMiddleware(cfg *config.Config, logger *zap.Logger) *WebClientMi
 
 func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var err error
-
-		accessToken, accessError := c.Cookie("access")
-		if accessError != nil {
-
-			refreshToken, refreshError := c.Cookie("refresh")
-			if refreshError != nil {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
-				return
-			}
-
-			refreshClaims, err2 := m.DecodeWebClientToken(refreshToken, "refresh")
-			if err2 != nil {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
-				return
-			}
-
-			// Perform token refresh asynchronously
-			go func() {
-				if err := m.refreshAccessToken(c, refreshClaims); err != nil {
-					fmt.Println("Error refreshing token:", err)
-				}
-			}()
-
-			c.Next()
-			return
-		}
-		_, err = m.DecodeWebClientToken(accessToken, "access")
-		if err != nil {
-			if errors.Is(err, ErrTokenExpired) {
-				refreshToken, _ := c.Cookie("refresh")
-				refreshClaims, err2 := m.DecodeWebClientToken(refreshToken, "refresh")
-				if err2 != nil {
-					c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
+		// Try access
+		access, _ := c.Cookie("access")
+		if access != "" {
+			claims, err := m.DecodeWebClientToken(access, "access")
+			if err == nil {
+				userID, err := m.DecodeWebClientUserID(claims.UserID)
+				if err == nil {
+					c.Set("userID", userID)
+					c.Next()
 					return
 				}
-
-				// Perform token refresh asynchronously
-				go func() {
-					if err := m.refreshAccessToken(c, refreshClaims); err != nil {
-						fmt.Println("Error refreshing token:", err)
-					}
-				}()
-			} else {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
-				return
 			}
 		}
 
+		// If access missing/expired, try refresh
+		refresh, _ := c.Cookie("refresh")
+		if refresh == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
+			return
+		}
+		rClaims, err := m.DecodeWebClientToken(refresh, "refresh")
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
+			return
+		}
+
+		// Check refresh token server-side  and rotation state here
+
+		userID, err := m.DecodeWebClientUserID(rClaims.UserID)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
+			return
+		}
+
+		// 4) Issue new access (and rotate refresh if you implement rotation)
+		if err := m.issueAccessCookie(c, userID); err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
+			return
+		}
+
+		// Optionally rotate refresh cookie here as well
+		// if rotated:
+		//     m.issueRefreshCookie(c, userID, newRefreshToken)
+
+		c.Set("userID", userID)
 		c.Next()
 	}
 }
 
-func (m *WebClientMiddleware) refreshAccessToken(c *gin.Context, refreshClaims *WebClientUserClaim) error {
+func (m *WebClientMiddleware) issueAccessCookie(c *gin.Context, userID int64) error {
 
-	userId, err := m.DecodeWebClientUserID(refreshClaims.UserID)
+	accessExp := time.Now().Add(constants.AccessCookieTTL)
+	token, err := m.GenerateToken("access", accessExp, userID)
 	if err != nil {
 		return err
 	}
 
-	accessToken, err := m.GenerateToken("access", time.Now().Add(15*time.Minute), userId)
-	if err != nil {
-		return err
-	}
-
+	// align maxAge with exp
+	maxAge := int(time.Until(accessExp).Seconds())
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("access", accessToken, 60*15, "/", m.config.WebClient.Domain, m.config.Release, true)
+	c.SetCookie("access", token, maxAge, "/", m.config.WebClient.Domain, true, true)
+	return nil
+}
 
+func (m *WebClientMiddleware) issueRefreshCookie(c *gin.Context, userID int64, remember bool) error {
+
+	refreshExp := time.Now().Add(map[bool]time.Duration{true: constants.RefreshCookieTTLLong, false: constants.RefreshCookieTTLShort}[remember])
+	token, err := m.GenerateToken("refresh", refreshExp, userID)
+	if err != nil {
+		return err
+	}
+
+	maxAge := int(time.Until(refreshExp).Seconds())
+	c.SetSameSite(http.SameSiteStrictMode) // stricter for refresh
+	c.SetCookie("refresh", token, maxAge, "/auth/refresh", m.config.WebClient.Domain, true, true)
 	return nil
 }
 
