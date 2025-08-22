@@ -9,11 +9,13 @@ require (
 	github.com/go-playground/validator/v10 v10.25.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/pressly/goose/v3 v3.24.1
+	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.20.1
 	github.com/tavsec/gin-healthcheck v1.7.6
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.35.0
+	golang.org/x/time v0.8.0
 	gorm.io/datatypes v1.2.5
 	gorm.io/driver/postgres v1.5.0
 	gorm.io/gorm v1.25.12
@@ -61,7 +63,6 @@ require (
 	github.com/redis/go-redis/v9 v9.7.3 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
-	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect

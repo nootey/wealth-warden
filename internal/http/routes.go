@@ -6,6 +6,7 @@ import (
 	"wealth-warden/internal/bootstrap"
 	httpHandlers "wealth-warden/internal/http/handlers"
 	"wealth-warden/internal/http/v1"
+	"wealth-warden/internal/middleware"
 )
 
 type RouteInitializerHTTP struct {
@@ -39,10 +40,12 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 	accountHandler := httpHandlers.NewAccountHandler(r.Container.AccountService)
 	transactionHandler := httpHandlers.NewTransactionHandler(r.Container.TransactionService)
 
+	authRL := middleware.NewRateLimiter(5.0/60.0, 3) // 5 per minute, burst 3
+
 	// Protected routes
 	authGroup := _v1.Group("/", r.Container.AuthService.WebClientMiddleware.WebClientAuthentication())
 	{
-		authRoutes := authGroup.Group("/auth")
+		authRoutes := authGroup.Group("/auth", authRL.Middleware())
 		v1.AuthRoutes(authRoutes, authHandler)
 
 		userRoutes := authGroup.Group("/users")
@@ -62,7 +65,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 	// Public routes
 	publicGroup := _v1.Group("")
 	{
-		publicAuthRoutes := publicGroup.Group("/auth")
+		publicAuthRoutes := publicGroup.Group("/auth", authRL.Middleware())
 		v1.PublicAuthRoutes(publicAuthRoutes, authHandler)
 	}
 }
