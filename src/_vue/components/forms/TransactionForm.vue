@@ -3,7 +3,7 @@ import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
 import {computed, onMounted, ref} from "vue";
-import type {Category, Transaction} from "../../../models/transaction_models.ts";
+import type {Category, Transaction, Transfer} from "../../../models/transaction_models.ts";
 import {required} from "@vuelidate/validators";
 import {decimalValid, decimalMin, decimalMax} from "../../../validators/currency.ts";
 import useVuelidate from "@vuelidate/core";
@@ -13,6 +13,7 @@ import type {Account} from "../../../models/account_models.ts";
 import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
+import TransferForm from "./TransferForm.vue";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -24,10 +25,16 @@ const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
 
-const accounts = ref<Account[]>([]);
+const accounts = computed<Account[]>(() => accountStore.accounts);
+const transfer = ref<Transfer>({
+    transaction_inflow_id: null,
+    transaction_outflow_id: null,
+    amount: null,
+    notes: null
+});
+const transferFormRef = ref<InstanceType<typeof TransferForm> | null>(null);
 
 onMounted(async () => {
-  await getAccounts();
   if (props.mode === "update" && props.recordId) {
     await loadRecord(props.recordId);
   }
@@ -41,9 +48,21 @@ const amountRef = computed({
 const { number: amountNumber } = currencyHelper.useMoneyField(amountRef, 2);
 
 const allCategories = computed<Category[]>(() => transactionStore.categories);
-const parentCategories = computed(() =>
-    allCategories.value.filter(c => c.name === "Expense" || c.name === "Income")
-);
+const parentCategories = computed(() => {
+    const base = allCategories.value.filter(c =>
+        c.name === "Expense" || c.name === "Income"
+    );
+
+    return [
+        ...base,
+        {
+            id: -1,
+            name: "Transfer",
+            classification: "Transfer",
+            parent_id: null
+        } as Category
+    ];
+});
 
 const selectedParentCategory = ref<Category | null>(
     parentCategories.value.find(cat => cat.name === "Expense") || null
@@ -97,15 +116,6 @@ const v$ = useVuelidate(rules, { record });
 const emit = defineEmits<{
   (event: 'completeOperation'): void;
 }>();
-
-async function getAccounts() {
-  try {
-    const response = await accountStore.getAllAccounts();
-    accounts.value = response.data;
-  } catch (e) {
-    toastStore.errorResponseToast(e)
-  }
-}
 
 function initData(): Transaction {
 
@@ -172,20 +182,28 @@ async function isRecordValid() {
 
 async function manageRecord() {
 
-    if (!await isRecordValid()) return;
-
     if (selectedParentCategory.value == null) {
     return;
     }
+    
+    if (selectedParentCategory.value.name.toLowerCase() == "transfer") {
+        await startTransferOperation();
+    } else {
+        if (!await isRecordValid()) return;
+        await startTransactionOperation();
+    }
 
+}
+
+async function startTransactionOperation() {
     const txn_date = dateHelper.mergeDateWithCurrentTime(dayjs(record.value.txn_date).format('YYYY-MM-DD'))
     const recordData = {
-    account_id: record.value.account.id,
-    category_id: record.value.category?.id,
-    transaction_type: selectedParentCategory.value.classification,
-    amount: record.value.amount,
-    txn_date: txn_date,
-    description: record.value.description,
+        account_id: record.value.account.id,
+        category_id: record.value.category?.id,
+        transaction_type: selectedParentCategory.value?.classification,
+        amount: record.value.amount,
+        txn_date: txn_date,
+        description: record.value.description,
     }
 
     try {
@@ -201,9 +219,9 @@ async function manageRecord() {
                 break;
             case "update":
                 response = await sharedStore.updateRecord(
-                "transactions",
-                record.value.id!,
-                recordData
+                    "transactions",
+                    record.value.id!,
+                    recordData
                 );
                 break;
             default:
@@ -216,6 +234,20 @@ async function manageRecord() {
         toastStore.successResponseToast(response);
         emit("completeOperation")
 
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
+}
+
+async function startTransferOperation() {
+    const isValid = await transferFormRef.value?.v$.$validate();
+    if (!isValid) return;
+
+    try {
+        const response = await transactionStore.startTransfer(transfer.value);
+        toastStore.successResponseToast(response);
+        v$.value.record.$reset();
+        emit("completeOperation");
     } catch (error) {
         toastStore.errorResponseToast(error);
     }
@@ -260,73 +292,86 @@ const searchAccount = (event: { query: string }) => {
   <div class="flex flex-column gap-3 p-1">
 
     <div class="flex flex-row w-full justify-content-center">
-      <div class="flex flex-column w-50">
+        <div class="flex flex-column w-50">
         <SelectButton style="font-size: 0.875rem;" size="small"
                       v-model="selectedParentCategory"
                       :options="parentCategories" optionLabel="name" :allowEmpty="false"
                       @update:modelValue="updateSelectedParentCategory($event)" />
-      </div>
+        </div>
     </div>
 
-    <div class="flex flex-row w-full">
-      <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="true" :message="v$.record.account.name.$errors[0]?.$message">
-          <label>Account</label>
-        </ValidationError>
-        <AutoComplete size="small" v-model="record.account" :suggestions="filteredAccounts"
-                      @complete="searchAccount" optionLabel="name"
-                      placeholder="Select account" dropdown>
-        </AutoComplete>
+      <div class="flex flex-column gap-3" v-if="selectedParentCategory?.name.toLowerCase() == 'transfer'">
+          <TransferForm ref="transferFormRef" v-model:transfer="transfer" :accounts="accounts" />
       </div>
-    </div>
 
-    <div class="flex flex-row w-full">
-      <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="true" :message="v$.record.amount.$errors[0]?.$message">
-          <label>Amount</label>
-        </ValidationError>
-        <InputNumber size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
-      </div>
-    </div>
+      <div class="flex flex-column gap-3" v-else>
 
-    <div class="flex flex-row w-full">
-      <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="false" :message="v$.record.category.name.$errors[0]?.$message">
-            <label>Category</label>
-        </ValidationError>
-        <AutoComplete size="small" v-model="record.category" :suggestions="filteredCategories"
-                      @complete="searchCategory" optionLabel="name"
-                      placeholder="Select category" dropdown>
-        </AutoComplete>
-      </div>
-    </div>
+          <div class="flex flex-row w-full">
+              <div class="flex flex-column gap-1 w-full">
+                  <ValidationError :isRequired="true" :message="v$.record.account.name.$errors[0]?.$message">
+                      <label>Account</label>
+                  </ValidationError>
+                  <AutoComplete size="small" v-model="record.account" :suggestions="filteredAccounts"
+                                @complete="searchAccount" optionLabel="name"
+                                placeholder="Select account" dropdown>
+                  </AutoComplete>
+              </div>
+          </div>
 
-    <div class="flex flex-row w-full">
-      <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="true" :message="v$.record.txn_date.$errors[0]?.$message">
-            <label>Date</label>
-        </ValidationError>
-        <DatePicker v-model="record.txn_date" date-format="dd/mm/yy"
-                    showIcon fluid iconDisplay="input"
-                    size="small"/>
-      </div>
-    </div>
+          <div class="flex flex-row w-full">
+              <div class="flex flex-column gap-1 w-full">
+                  <ValidationError :isRequired="true" :message="v$.record.amount.$errors[0]?.$message">
+                      <label>Amount</label>
+                  </ValidationError>
+                  <InputNumber size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
+              </div>
+          </div>
 
-    <div class="flex flex-row w-full">
-      <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="false" :message="v$.record.description.$errors[0]?.$message">
-          <label>Description</label>
-        </ValidationError>
-        <InputText size="small" v-model="record.description" placeholder="Describe transaction"></InputText>
-      </div>
-    </div>
+          <div class="flex flex-row w-full">
+              <div class="flex flex-column gap-1 w-full">
+                  <ValidationError :isRequired="false" :message="v$.record.category.name.$errors[0]?.$message">
+                      <label>Category</label>
+                  </ValidationError>
+                  <AutoComplete size="small" v-model="record.category" :suggestions="filteredCategories"
+                                @complete="searchCategory" optionLabel="name"
+                                placeholder="Select category" dropdown>
+                  </AutoComplete>
+              </div>
+          </div>
 
-    <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-column w-full">
-        <Button class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' transaction'"
-                @click="manageRecord" style="height: 42px;" />
+          <div class="flex flex-row w-full">
+              <div class="flex flex-column gap-1 w-full">
+                  <ValidationError :isRequired="true" :message="v$.record.txn_date.$errors[0]?.$message">
+                      <label>Date</label>
+                  </ValidationError>
+                  <DatePicker v-model="record.txn_date" date-format="dd/mm/yy"
+                              showIcon fluid iconDisplay="input"
+                              size="small"/>
+              </div>
+          </div>
+
+          <div class="flex flex-row w-full">
+              <div class="flex flex-column gap-1 w-full">
+                  <ValidationError :isRequired="false" :message="v$.record.description.$errors[0]?.$message">
+                      <label>Description</label>
+                  </ValidationError>
+                  <InputText size="small" v-model="record.description" placeholder="Describe transaction"></InputText>
+              </div>
+          </div>
+
+
       </div>
-    </div>
+
+      <div class="flex flex-row gap-2 w-full">
+          <div class="flex flex-column w-full">
+              <Button class="main-button"
+                      :label="(selectedParentCategory?.name.toLowerCase() == 'transfer' ? 'Start transfer' :
+                      (mode == 'create' ? 'Add' : 'Update') +  ' transaction')"
+                      @click="manageRecord" style="height: 42px;" />
+          </div>
+      </div>
+
+
 
   </div>
 

@@ -17,10 +17,12 @@ import filterHelper from "../../utils/filter_helper.ts";
 import type {Category} from "../../models/transaction_models.ts";
 import type {Column} from "../../services/filter_registry.ts";
 import {useConfirm} from "primevue/useconfirm";
+import {useAccountStore} from "../../services/stores/account_store.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
+const accountStore = useAccountStore();
 
 const confirm = useConfirm();
 
@@ -33,13 +35,13 @@ const updateTransactionID = ref(null)
 onMounted(async () => {
   await getData();
   await transactionStore.getCategories();
-  await transactionStore.getAccounts();
+  await accountStore.getAllAccounts();
 })
 
 const loadingRecords = ref(true);
 const records = ref<Account[]>([]);
 const categories = computed<Category[]>(() => transactionStore.categories);
-const accounts = computed<Account[]>(() => transactionStore.accounts);
+const accounts = computed<Account[]>(() => accountStore.accounts);
 
 const params = computed(() => {
   return {

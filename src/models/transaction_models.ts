@@ -12,6 +12,13 @@ export interface Transaction {
     account: Account;
 }
 
+export interface Transfer {
+    transaction_inflow_id: number | null;
+    transaction_outflow_id: number | null;
+    amount: string | null;
+    notes: string | null;
+}
+
 export interface Category {
     id: number | null;
     name: string;

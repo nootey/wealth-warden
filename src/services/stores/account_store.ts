@@ -1,18 +1,20 @@
 import { defineStore } from 'pinia';
-import type {AccountType} from '../../models/account_models.ts'
+import type {Account, AccountType} from '../../models/account_models.ts'
 import apiClient from "../api/axios.ts";
 
 export const useAccountStore = defineStore('account', {
     state: () => ({
         apiPrefix: "accounts",
         accountTypes: [] as AccountType[],
+        accounts: [] as Account[],
     }),
     getters: {
     },
     actions: {
         async getAllAccounts() {
             try {
-                return await apiClient.get(`${this.apiPrefix}/all`);
+                const response = await apiClient.get(`${this.apiPrefix}/all`);
+                this.accounts = response.data;
             } catch (err) {
                 throw err;
             }

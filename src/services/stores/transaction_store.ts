@@ -1,14 +1,12 @@
 import { defineStore } from 'pinia';
 import apiClient from "../api/axios_interceptor.ts";
 import type {Category} from "../../models/transaction_models.ts";
-import type {Account} from "../../models/account_models.ts";
 
 export const useTransactionStore = defineStore('transaction', {
     state: () => ({
         apiPrefix: "transactions",
         currentYear: new Date().getFullYear(),
         categories: [] as Category[],
-        accounts: [] as Account[],
     }),
     getters: {
     },
@@ -21,10 +19,10 @@ export const useTransactionStore = defineStore('transaction', {
                 throw err;
             }
         },
-        async getAccounts() {
+        async startTransfer(record: object) {
             try {
-                const response = await apiClient.get(`accounts/all`);
-                this.accounts = response.data;
+                const response = await apiClient.put(`${this.apiPrefix}/transfers`, record);
+                return response.data;
             } catch (err) {
                 throw err;
             }
