@@ -242,6 +242,34 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 	return nil
 }
 
+func (s *TransactionService) InsertTransfer(c *gin.Context, req *models.TransferReq) error {
+
+	//user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	//if err != nil {
+	//	return err
+	//}
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	fmt.Println(req)
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *models.TransactionReq) error {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)

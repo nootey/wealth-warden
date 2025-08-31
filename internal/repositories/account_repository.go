@@ -21,7 +21,7 @@ func (r *AccountRepository) FindAccounts(user *models.User, year, offset, limit 
 	query := r.DB.
 		Preload("AccountType").
 		Preload("Balance").
-		Where("accounts.user_id = ?", user.ID)
+		Where("user_id = ?", user.ID)
 
 	joins := utils.GetRequiredJoins(filters)
 	orderBy := utils.ConstructOrderByClause(&joins, "accounts", sortField, sortOrder)
@@ -48,7 +48,7 @@ func (r *AccountRepository) CountAccounts(user *models.User, year int, filters [
 	var totalRecords int64
 
 	query := r.DB.Model(&models.Account{}).
-		Where("accounts.user_id = ?", user.ID)
+		Where("user_id = ?", user.ID)
 
 	joins := utils.GetRequiredJoins(filters)
 	for _, join := range joins {
@@ -66,7 +66,7 @@ func (r *AccountRepository) CountAccounts(user *models.User, year int, filters [
 
 func (r *AccountRepository) FindAllAccounts(user *models.User) ([]models.Account, error) {
 	var records []models.Account
-	result := r.DB.Find(&records).Where("accounts.user_id = ?", user.ID)
+	result := r.DB.Where("user_id = ?", user.ID).Find(&records)
 	return records, result.Error
 }
 
