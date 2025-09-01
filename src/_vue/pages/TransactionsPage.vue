@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import TransactionForm from "../components/forms/TransactionForm.vue";
 import {computed, onMounted, provide, ref} from "vue";
-import type {Account} from "../../models/account_models.ts";
+import type {Transaction} from "../../models/transaction_models.ts";
 import vueHelper from "../../utils/vue_helper.ts";
 import {useSharedStore} from "../../services/stores/shared_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
@@ -18,6 +18,9 @@ import type {Category} from "../../models/transaction_models.ts";
 import type {Column} from "../../services/filter_registry.ts";
 import {useConfirm} from "primevue/useconfirm";
 import {useAccountStore} from "../../services/stores/account_store.ts";
+import type {Account} from "../../models/account_models.ts";
+import TransfersPaginated from "../features/TransfersPaginated.vue";
+import CustomPaginator from "../components/base/CustomPaginator.vue";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -27,6 +30,8 @@ const accountStore = useAccountStore();
 const confirm = useConfirm();
 
 const apiPrefix = "transactions";
+
+const transfersPaginatedRef = ref<InstanceType<typeof TransfersPaginated> | null>(null);
 
 const createModal = ref(false);
 const updateModal = ref(false);
@@ -39,7 +44,7 @@ onMounted(async () => {
 })
 
 const loadingRecords = ref(true);
-const records = ref<Account[]>([]);
+const records = ref<Transaction[]>([]);
 const categories = computed<Category[]>(() => transactionStore.categories);
 const accounts = computed<Account[]>(() => accountStore.accounts);
 
@@ -117,6 +122,7 @@ async function handleEmit(emitType: any) {
       createModal.value = false;
       updateModal.value = false;
       await getData();
+      await transfersPaginatedRef.value?.getData();
       break;
     }
     default: {
@@ -264,60 +270,54 @@ provide("removeFilter", removeFilter);
         </ActionRow>
       </div>
 
-      <div class="flex flex-row gap-2 w-full" >
-        <DataTable class="w-full  enhanced-table" dataKey="id" :loading="loadingRecords" :value="records">
-          <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-          <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-          <template #footer>
-            <Paginator v-model:first="paginator.from"
-                       v-model:rows="paginator.rowsPerPage"
-                       :rowsPerPageOptions="rows"
-                       :totalRecords="paginator.total"
-                       @page="onPage($event)">
-              <template #end>
-                <div>
-                  {{
-                    "Showing " + paginator.from + " to " + paginator.to + " out of " + paginator.total + " " + "records"
-                  }}
-                </div>
-              </template>
-            </Paginator>
-          </template>
+        <label>Transfers</label>
+        <div class="flex flex-row gap-2 w-full">
+            <TransfersPaginated ref="transfersPaginatedRef"></TransfersPaginated>
+        </div>
 
-          <Column v-for="col of activeColumns" :key="col.field" :field="col.field" style="width: 25%">
-            <template #header >
-              <ColumnHeader  :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
-            </template>
-            <template #body="{ data, field }">
-              <template v-if="field === 'amount'">
-                {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
+        <label>Transactions</label>
+        <div class="flex flex-row gap-2 w-full">
+            <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingRecords" :value="records">
+              <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
+              <template #loading> <LoadingSpinner></LoadingSpinner> </template>
+              <template #footer>
+                  <CustomPaginator :paginator="paginator" :rows="rows" @onPage="onPage"/>
               </template>
-              <template v-else-if="field === 'txn_date'">
-                {{ dateHelper.formatDate(data?.txn_date, true) }}
-              </template>
-              <template v-else-if="field === 'account'">
-                <span class="hover" @click="manipulateDialog('updateTransaction', data['id'])">
-                  {{ data[field]["name"] }}
-                </span>
-              </template>
-              <template v-else-if="field === 'category'">
-                {{ data[field]["name"] }}
-              </template>
-              <template v-else>
-                {{ data[field] }}
-              </template>
-            </template>
-          </Column>
 
-          <Column header="Actions">
-            <template #body="slotProps">
-              <i class="pi pi-trash hover_icon" style="font-size: 0.875rem; color: var(--p-red-300);"
-                 @click="deleteConfirmation(slotProps.data?.id, slotProps.data.transaction_type)"></i>
-            </template>
-          </Column>
+              <Column v-for="col of activeColumns" :key="col.field" :field="col.field" style="width: 25%">
+                <template #header >
+                  <ColumnHeader  :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
+                </template>
+                <template #body="{ data, field }">
+                  <template v-if="field === 'amount'">
+                    {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
+                  </template>
+                  <template v-else-if="field === 'txn_date'">
+                    {{ dateHelper.formatDate(data?.txn_date, true) }}
+                  </template>
+                  <template v-else-if="field === 'account'">
+                    <span class="hover" @click="manipulateDialog('updateTransaction', data['id'])">
+                      {{ data[field]["name"] }}
+                    </span>
+                  </template>
+                  <template v-else-if="field === 'category'">
+                    {{ data[field]["name"] }}
+                  </template>
+                  <template v-else>
+                    {{ data[field] }}
+                  </template>
+                </template>
+              </Column>
 
-        </DataTable>
-      </div>
+              <Column header="Actions">
+                <template #body="slotProps">
+                  <i class="pi pi-trash hover_icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                     @click="deleteConfirmation(slotProps.data?.id, slotProps.data.transaction_type)"></i>
+                </template>
+              </Column>
+
+            </DataTable>
+        </div>
 
     </div>
   </main>

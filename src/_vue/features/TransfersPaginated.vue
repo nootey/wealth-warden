@@ -1,0 +1,154 @@
+<script setup lang="ts">
+import {computed, onMounted, provide, ref} from "vue";
+import vueHelper from "../../utils/vue_helper.ts";
+import {useSharedStore} from "../../services/stores/shared_store.ts";
+import {useToastStore} from "../../services/stores/toast_store.ts";
+import dateHelper from "../../utils/date_helper.ts";
+import LoadingSpinner from "../components/base/LoadingSpinner.vue";
+import filterHelper from "../../utils/filter_helper.ts";
+import type {Transfer} from "../../models/transaction_models.ts";
+import type {Column} from "../../services/filter_registry.ts";
+import {useConfirm} from "primevue/useconfirm";
+import CustomPaginator from "../components/base/CustomPaginator.vue";
+
+const sharedStore = useSharedStore();
+const toastStore = useToastStore();
+
+const confirm = useConfirm();
+
+const apiPrefix = "transactions/transfers";
+
+onMounted(async () => {
+    await getData();
+})
+
+const loadingRecords = ref(true);
+const records = ref<Transfer[]>([]);
+
+const params = computed(() => {
+    return {
+        rowsPerPage: paginator.value.rowsPerPage,
+        sort: sort.value,
+        filters: null,
+    }
+});
+const rows = ref([5, 10, 25]);
+const default_rows = ref(rows.value[0]);
+const paginator = ref({
+    total: 0,
+    from: 0,
+    to: 0,
+    rowsPerPage: default_rows.value
+});
+const page = ref(1);
+const sort = ref(filterHelper.initSort());
+
+const activeColumns = computed<Column[]>(() => [
+    { field: 'from', header: 'From', type: 'enum'},
+    { field: 'to', header: 'To', type: 'enum'},
+    { field: 'amount', header: 'Amount', type: "number" },
+    { field: 'created_at', header: 'Date', type: "date" },
+    { field: 'notes', header: 'Notes' },
+]);
+
+async function getData(new_page = null) {
+
+    loadingRecords.value = true;
+    if(new_page)
+        page.value = new_page;
+
+    try {
+        let paginationResponse = await sharedStore.getRecordsPaginated(
+            apiPrefix,
+            { ...params.value },
+            page.value
+        );
+        records.value = paginationResponse.data;
+        paginator.value.total = paginationResponse.total_records;
+        paginator.value.to = paginationResponse.to;
+        paginator.value.from = paginationResponse.from;
+        loadingRecords.value = false;
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
+}
+
+async function onPage(event: any) {
+    paginator.value.rowsPerPage = event.rows;
+    page.value = (event.page+1)
+    await getData();
+}
+
+async function deleteConfirmation(id: number) {
+    confirm.require({
+        header: 'Delete record?',
+        message: `This will delete transaction: "transfer: ${id}".`,
+        rejectProps: { label: 'Cancel' },
+        acceptProps: { label: 'Delete', severity: 'danger' },
+        accept: () => deleteRecord(id),
+    });
+}
+
+async function deleteRecord(id: number) {
+    try {
+        let response = await sharedStore.deleteRecord(
+            apiPrefix,
+            id,
+        );
+        toastStore.successResponseToast(response);
+        await getData();
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
+}
+
+defineExpose({getData});
+
+</script>
+
+<template>
+
+    <div class="flex flex-column justify-content-center w-full gap-3"
+         style="background: var(--background-secondary); max-width: 1000px;">
+
+        <div class="flex flex-row gap-2 w-full">
+            <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingRecords" :value="records">
+                <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
+                <template #loading> <LoadingSpinner></LoadingSpinner> </template>
+                <template #footer>
+                    <CustomPaginator :paginator="paginator" :rows="rows" @onPage="onPage"/>
+                </template>
+
+                <Column v-for="col of activeColumns" :key="col.field" :header="col.header" :field="col.field" style="width: 25%" >
+                    <template #body="{ data, field }">
+                        <template v-if="field === 'amount'">
+                            {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
+                        </template>
+                        <template v-else-if="field === 'created_at'">
+                            {{ dateHelper.formatDate(data?.created_at, true) }}
+                        </template>
+                        <template v-else-if="field === 'from' || field === 'to'">
+                            {{ data[field]["account"]["name"] }}
+                        </template>
+                        <template v-else>
+                            {{ data[field] }}
+                        </template>
+                    </template>
+                </Column>
+
+                <Column header="Actions">
+                    <template #body="slotProps">
+                        <i class="pi pi-trash hover_icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                           @click="deleteConfirmation(slotProps.data?.id)"></i>
+                    </template>
+                </Column>
+
+            </DataTable>
+        </div>
+
+    </div>
+</template>
+
+<style scoped>
+
+</style>
