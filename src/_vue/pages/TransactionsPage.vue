@@ -179,20 +179,21 @@ function toggleFilterOverlay(event: any) {
   filterOverlayRef.value.toggle(event);
 }
 
-async function deleteConfirmation(id: number) {
+async function deleteConfirmation(id: number, tx_type: string) {
+    const txt = tx_type === "transfer" ? tx_type : "transaction";
     confirm.require({
         header: 'Delete record?',
-        message: `This will delete transaction: "${id}".`,
+        message: `This will delete transaction: "${txt} : ${id}".`,
         rejectProps: { label: 'Cancel' },
         acceptProps: { label: 'Delete', severity: 'danger' },
-        accept: () => deleteRecord(id),
+        accept: () => deleteRecord(id, tx_type),
     });
 }
 
-async function deleteRecord(id: number) {
+async function deleteRecord(id: number, tx_type: string) {
   try {
     let response = await sharedStore.deleteRecord(
-        "transactions",
+        tx_type === "transfer" ? "transactions/transfers" : "transactions",
         id,
     );
     toastStore.successResponseToast(response);
@@ -310,7 +311,8 @@ provide("removeFilter", removeFilter);
 
           <Column header="Actions">
             <template #body="slotProps">
-              <i class="pi pi-trash hover_icon" style="font-size: 0.875rem; color: var(--p-red-300);" @click="deleteConfirmation(slotProps.data?.id)"></i>
+              <i class="pi pi-trash hover_icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                 @click="deleteConfirmation(slotProps.data?.id, slotProps.data.transaction_type)"></i>
             </template>
           </Column>
 
