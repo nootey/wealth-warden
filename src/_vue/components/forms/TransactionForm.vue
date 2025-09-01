@@ -53,6 +53,10 @@ const parentCategories = computed(() => {
         c.name === "Expense" || c.name === "Income"
     );
 
+    if(props.mode === "update") {
+        return base
+    }
+
     return [
         ...base,
         {
