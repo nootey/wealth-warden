@@ -270,12 +270,6 @@ provide("removeFilter", removeFilter);
         </ActionRow>
       </div>
 
-        <label>Transfers</label>
-        <div class="flex flex-row gap-2 w-full">
-            <TransfersPaginated ref="transfersPaginatedRef"></TransfersPaginated>
-        </div>
-
-        <label>Transactions</label>
         <div class="flex flex-row gap-2 w-full">
             <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingRecords" :value="records">
               <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
@@ -317,6 +311,11 @@ provide("removeFilter", removeFilter);
               </Column>
 
             </DataTable>
+        </div>
+
+        <label>Transfers</label>
+        <div class="flex flex-row gap-2 w-full">
+            <TransfersPaginated ref="transfersPaginatedRef"></TransfersPaginated>
         </div>
 
     </div>
