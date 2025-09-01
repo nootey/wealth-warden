@@ -147,7 +147,19 @@ func (r *TransactionRepository) FindTransactionByID(tx *gorm.DB, ID, userID int6
 	return record, result.Error
 }
 
-func (r *TransactionRepository) InsertTransaction(tx *gorm.DB, newRecord models.Transaction) (int64, error) {
+func (r *TransactionRepository) InsertTransaction(tx *gorm.DB, newRecord *models.Transaction) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Create(&newRecord).Error; err != nil {
+		return 0, err
+	}
+	return newRecord.ID, nil
+}
+
+func (r *TransactionRepository) InsertTransfer(tx *gorm.DB, newRecord *models.Transfer) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.DB

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -32,6 +33,33 @@ func NewTransactionService(
 		Repo:           repo,
 		AccountService: accService,
 	}
+}
+
+func (s *TransactionService) logBalanceChange(account *models.Account, user *models.User, change decimal.Decimal) error {
+	newBalance, err := s.AccountService.Repo.FindBalanceForAccountID(nil, account.ID)
+	if err != nil {
+		return err
+	}
+
+	endBalance := newBalance.EndBalance
+	startBalance := endBalance.Sub(change)
+
+	changes := utils.InitChanges()
+	utils.CompareChanges("", account.Name, changes, "account")
+	utils.CompareChanges("", change.StringFixed(2), changes, "change")
+	utils.CompareChanges("", startBalance.StringFixed(2), changes, "start_balance")
+	utils.CompareChanges("", endBalance.StringFixed(2), changes, "end_balance")
+	utils.CompareChanges("", account.Currency, changes, "currency")
+
+	return s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "update",
+		Category:    "balance",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
 }
 
 func (s *TransactionService) FetchTransactionsPaginated(c *gin.Context) ([]models.Transaction, *utils.Paginator, error) {
@@ -125,7 +153,7 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 		}
 	}()
 
-	account, err := s.AccountService.Repo.FindAccountByID(tx, req.AccountID, user.ID)
+	account, err := s.AccountService.Repo.FindAccountByID(tx, req.AccountID, user.ID, false)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
@@ -154,7 +182,7 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 		Description:     req.Description,
 	}
 
-	_, err = s.Repo.InsertTransaction(tx, tr)
+	_, err = s.Repo.InsertTransaction(tx, &tr)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -244,10 +272,10 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 
 func (s *TransactionService) InsertTransfer(c *gin.Context, req *models.TransferReq) error {
 
-	//user, err := s.Ctx.AuthService.GetCurrentUser(c)
-	//if err != nil {
-	//	return err
-	//}
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
 
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
@@ -261,9 +289,110 @@ func (s *TransactionService) InsertTransfer(c *gin.Context, req *models.Transfer
 		}
 	}()
 
-	fmt.Println(req)
+	fromAccount, err := s.AccountService.Repo.FindAccountByID(tx, req.SourceID, user.ID, true)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find source account %w", err)
+	}
+
+	if fromAccount.Balance.EndBalance.LessThan(req.Amount) {
+		tx.Rollback()
+		return fmt.Errorf("%w: account %s balance=%s, requested=%s",
+			errors.New("insufficient funds"),
+			fromAccount.Name,
+			fromAccount.Balance.EndBalance.StringFixed(2),
+			req.Amount.StringFixed(2),
+		)
+	}
+
+	toAccount, err := s.AccountService.Repo.FindAccountByID(tx, req.DestinationID, user.ID, false)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find destination account %w", err)
+	}
+
+	outflow := models.Transaction{
+		UserID:          user.ID,
+		AccountID:       fromAccount.ID,
+		TransactionType: "expense",
+		Amount:          req.Amount,
+		Currency:        models.DefaultCurrency,
+		TxnDate:         time.Now(),
+		Description:     req.Notes,
+	}
+
+	if _, err := s.Repo.InsertTransaction(tx, &outflow); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	inflow := models.Transaction{
+		UserID:          user.ID,
+		AccountID:       toAccount.ID,
+		TransactionType: "income",
+		Amount:          req.Amount,
+		Currency:        models.DefaultCurrency,
+		TxnDate:         time.Now(),
+		Description:     req.Notes,
+	}
+
+	if _, err := s.Repo.InsertTransaction(tx, &inflow); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	transfer := models.Transfer{
+		TransactionInflowID:  inflow.ID,
+		TransactionOutflowID: outflow.ID,
+		Amount:               req.Amount,
+		Currency:             models.DefaultCurrency,
+		Status:               "success",
+		Notes:                req.Notes,
+	}
+
+	if _, err := s.Repo.InsertTransfer(tx, &transfer); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Update balances
+	if err := s.AccountService.UpdateAccountCashBalance(tx, &fromAccount, "expense", req.Amount); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := s.AccountService.UpdateAccountCashBalance(tx, &toAccount, "income", req.Amount); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Log transfer (one event)
+	changes := utils.InitChanges()
+	utils.CompareChanges("", fromAccount.Name, changes, "from_account")
+	utils.CompareChanges("", toAccount.Name, changes, "to_account")
+	utils.CompareChanges("", req.Amount.StringFixed(2), changes, "amount")
+	utils.CompareChanges("", transfer.Currency, changes, "currency")
+
+	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "transfer",
+		Description: req.Notes,
+		Payload:     changes,
+		Causer:      user,
+	}); err != nil {
+		return err
+	}
+
+	// Log balance updates for both accounts
+	if err := s.logBalanceChange(&fromAccount, user, req.Amount.Neg()); err != nil {
+		return err
+	}
+	if err := s.logBalanceChange(&toAccount, user, req.Amount); err != nil {
 		return err
 	}
 
@@ -295,7 +424,7 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 	}
 
 	// Load existing relations for comparison
-	oldAccount, err := s.AccountService.Repo.FindAccountByID(tx, exTr.AccountID, user.ID)
+	oldAccount, err := s.AccountService.Repo.FindAccountByID(tx, exTr.AccountID, user.ID, false)
 	if err != nil {
 		return fmt.Errorf("can't find existing account: %w", err)
 	}
@@ -305,7 +434,7 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 	}
 
 	// Resolve new relations  from req
-	newAccount, err := s.AccountService.Repo.FindAccountByID(tx, req.AccountID, user.ID)
+	newAccount, err := s.AccountService.Repo.FindAccountByID(tx, req.AccountID, user.ID, false)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
@@ -505,7 +634,7 @@ func (s *TransactionService) DeleteTransaction(c *gin.Context, id int64) error {
 		return fmt.Errorf("can't find transaction with given id %w", err)
 	}
 
-	account, err := s.AccountService.Repo.FindAccountByID(tx, tr.AccountID, user.ID)
+	account, err := s.AccountService.Repo.FindAccountByID(tx, tr.AccountID, user.ID, false)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find account with given id %w", err)
@@ -577,7 +706,7 @@ func (s *TransactionService) DeleteTransaction(c *gin.Context, id int64) error {
 		}
 	}
 
-	// // Dispatch balance change on the affected account activity log
+	// Dispatch balance change on the affected account activity log
 	if !inverse.IsZero() {
 		newBal, err := s.AccountService.Repo.FindBalanceForAccountID(nil, account.ID)
 		if err != nil {

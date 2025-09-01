@@ -10,7 +10,7 @@ type Transaction struct {
 	UserID          int64           `gorm:"not null;index:idx_transactions_user_date" json:"user_id"`
 	AccountID       int64           `gorm:"not null;index:idx_transactions_account_date" json:"account_id"`
 	CategoryID      *int64          `gorm:"index:idx_transactions_category" json:"category_id,omitempty"`
-	TransactionType string          `gorm:"not null;" json:"transaction_type"`
+	TransactionType string          `gorm:"not null;enum(income,expense)" json:"transaction_type"`
 	Amount          decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
 	Currency        string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	TxnDate         time.Time       `gorm:"not null;index" json:"txn_date"`
@@ -61,8 +61,8 @@ type TransactionReq struct {
 }
 
 type TransferReq struct {
-	TransactionInflowID  int64           `json:"transaction_inflow_id" validate:"required"`
-	TransactionOutflowID *int64          `json:"transaction_outflow_id" validate:"required"`
-	Amount               decimal.Decimal `json:"amount" validate:"required"`
-	Notes                *string         `json:"notes"`
+	SourceID      int64           `json:"source_id" validate:"required"`
+	DestinationID int64           `json:"destination_id" validate:"required"`
+	Amount        decimal.Decimal `json:"amount" validate:"required"`
+	Notes         *string         `json:"notes"`
 }
