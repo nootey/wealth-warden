@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"fmt"
 	"gorm.io/gorm"
 	"time"
 	"wealth-warden/internal/models"
@@ -47,6 +46,27 @@ func (r *TransactionRepository) FindTransactions(user *models.User, offset, limi
 	return records, nil
 }
 
+func (r *TransactionRepository) FindTransfers(user *models.User, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Transfer, error) {
+
+	var records []models.Transfer
+
+	query := r.DB.
+		Preload("TransactionInflow.Account").
+		Preload("TransactionOutflow.Account").
+		Where("user_id = ?", user.ID)
+
+	err := query.
+		Order("created_at desc").
+		Limit(limit).
+		Offset(offset).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
 func (r *TransactionRepository) CountTransactions(user *models.User, filters []utils.Filter) (int64, error) {
 	var totalRecords int64
 
@@ -68,78 +88,11 @@ func (r *TransactionRepository) CountTransactions(user *models.User, filters []u
 	return totalRecords, nil
 }
 
-func (r *TransactionRepository) FindTransfersAsTransactions(
-	user *models.User,
-	offset, limit int,
-	sortField, sortOrder string,
-	filters []utils.Filter,
-) ([]models.Transaction, error) {
-
-	var transfers []models.Transfer
-	var results []models.Transaction
-
-	query := r.DB.Model(&models.Transfer{}).
-		Joins("JOIN transactions inflow ON inflow.id = transfers.transaction_inflow_id").
-		Joins("JOIN transactions outflow ON outflow.id = transfers.transaction_outflow_id").
-		Where("inflow.user_id = ?", user.ID)
-
-	// TODO: apply filters if you want (optional)
-	query = utils.ApplyFilters(query, filters)
-
-	orderBy := fmt.Sprintf("%s %s", sortField, sortOrder)
-	if sortField == "" {
-		orderBy = "transfers.created_at desc"
-	}
-
-	err := query.
-		Preload("TransactionInflow.Account").
-		Preload("TransactionOutflow.Account").
-		Order(orderBy).
-		Limit(limit).
-		Offset(offset).
-		Find(&transfers).Error
-	if err != nil {
-		return nil, err
-	}
-
-	// Map transfer -> synthetic transaction
-	for _, t := range transfers {
-		fromAcc := t.TransactionOutflow.Account.Name
-		toAcc := t.TransactionInflow.Account.Name
-
-		desc := fmt.Sprintf("From %s", fromAcc)
-		accountName := fmt.Sprintf("To %s", toAcc)
-
-		synthetic := models.Transaction{
-			ID:              t.ID,
-			UserID:          user.ID,
-			AccountID:       0,
-			TransactionType: "transfer",
-			Amount:          t.Amount,
-			Currency:        t.Currency,
-			TxnDate:         t.CreatedAt,
-			Description:     &desc,
-			Account: models.Account{
-				Name: accountName,
-			},
-			Category: models.Category{
-				Name: "(Transfer)", // synthetic category
-			},
-		}
-		results = append(results, synthetic)
-	}
-
-	return results, nil
-}
-
 func (r *TransactionRepository) CountTransfers(user *models.User, filters []utils.Filter) (int64, error) {
 	var totalRecords int64
 
 	query := r.DB.Model(&models.Transfer{}).
-		Joins("JOIN transactions inflow ON inflow.id = transfers.transaction_inflow_id").
-		Where("inflow.user_id = ?", user.ID)
-
-	query = utils.ApplyFilters(query, filters)
+		Where("user_id = ?", user.ID)
 
 	err := query.Count(&totalRecords).Error
 	if err != nil {

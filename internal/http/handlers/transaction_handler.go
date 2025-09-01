@@ -40,6 +40,25 @@ func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (h *TransactionHandler) GetTransfersPaginated(c *gin.Context) {
+	records, paginator, err := h.Service.FetchTransfersPaginated(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	response := gin.H{
+		"current_page":  paginator.CurrentPage,
+		"rows_per_page": paginator.RowsPerPage,
+		"from":          paginator.From,
+		"to":            paginator.To,
+		"total_records": paginator.TotalRecords,
+		"data":          records,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 func (h *TransactionHandler) GetTransactionByID(c *gin.Context) {
 
 	idStr := c.Param("id")

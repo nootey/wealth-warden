@@ -34,8 +34,8 @@ type Transfer struct {
 	UpdatedAt            time.Time       `json:"updated_at"`
 
 	// Relations
-	TransactionInflow  Transaction `gorm:"foreignKey:TransactionInflowID;references:ID" json:"-"`
-	TransactionOutflow Transaction `gorm:"foreignKey:TransactionOutflowID;references:ID" json:"-"`
+	TransactionInflow  Transaction `gorm:"foreignKey:TransactionInflowID;references:ID" json:"from"`
+	TransactionOutflow Transaction `gorm:"foreignKey:TransactionOutflowID;references:ID" json:"to"`
 }
 
 type Category struct {

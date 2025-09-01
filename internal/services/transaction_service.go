@@ -70,35 +70,19 @@ func (s *TransactionService) FetchTransactionsPaginated(c *gin.Context) ([]model
 	}
 
 	queryParams := c.Request.URL.Query()
-	paginationParams := utils.GetPaginationParams(queryParams)
+	p := utils.GetPaginationParams(queryParams)
 
-	// Count both normal transactions and transfers
-	normalCount, err := s.Repo.CountTransactions(user, paginationParams.Filters)
-	if err != nil {
-		return nil, nil, err
-	}
-	transferCount, err := s.Repo.CountTransfers(user, paginationParams.Filters)
+	totalRecords, err := s.Repo.CountTransactions(user, p.Filters)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	totalRecords := normalCount + transferCount
-	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
+	offset := (p.PageNumber - 1) * p.RowsPerPage
 
-	// Fetch transactions
-	records, err := s.Repo.FindTransactions(user, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
+	records, err := s.Repo.FindTransactions(user, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	// Fetch synthetic transfers
-	transferRecords, err := s.Repo.FindTransfersAsTransactions(user, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Merge
-	allRecords := append(records, transferRecords...)
 
 	from := offset + 1
 	if from > int(totalRecords) {
@@ -111,14 +95,57 @@ func (s *TransactionService) FetchTransactionsPaginated(c *gin.Context) ([]model
 	}
 
 	paginator := &utils.Paginator{
-		CurrentPage:  paginationParams.PageNumber,
-		RowsPerPage:  paginationParams.RowsPerPage,
+		CurrentPage:  p.PageNumber,
+		RowsPerPage:  p.RowsPerPage,
 		TotalRecords: int(totalRecords),
 		From:         from,
 		To:           to,
 	}
 
-	return allRecords, paginator, nil
+	return records, paginator, nil
+}
+
+func (s *TransactionService) FetchTransfersPaginated(c *gin.Context) ([]models.Transfer, *utils.Paginator, error) {
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	queryParams := c.Request.URL.Query()
+	p := utils.GetPaginationParams(queryParams)
+
+	totalRecords, err := s.Repo.CountTransfers(user, p.Filters)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	offset := (p.PageNumber - 1) * p.RowsPerPage
+
+	records, err := s.Repo.FindTransfers(user, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	from := offset + 1
+	if from > int(totalRecords) {
+		from = int(totalRecords)
+	}
+
+	to := offset + len(records)
+	if to > int(totalRecords) {
+		to = int(totalRecords)
+	}
+
+	paginator := &utils.Paginator{
+		CurrentPage:  p.PageNumber,
+		RowsPerPage:  p.RowsPerPage,
+		TotalRecords: int(totalRecords),
+		From:         from,
+		To:           to,
+	}
+
+	return records, paginator, nil
 }
 
 func (s *TransactionService) FetchTransactionByID(c *gin.Context, id int64) (*models.Transaction, error) {
