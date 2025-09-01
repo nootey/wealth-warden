@@ -289,7 +289,7 @@ provide("removeFilter", removeFilter);
             </template>
             <template #body="{ data, field }">
               <template v-if="field === 'amount'">
-                {{ vueHelper.displayAsCurrency(data.amount) }}
+                {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
               </template>
               <template v-else-if="field === 'txn_date'">
                 {{ dateHelper.formatDate(data?.txn_date, true) }}
