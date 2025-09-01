@@ -159,6 +159,30 @@ func (h *TransactionHandler) DeleteTransaction(c *gin.Context) {
 	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
 }
 
+func (h *TransactionHandler) DeleteTransfer(c *gin.Context) {
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.DeleteTransfer(c, id); err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
+}
+
 func (h *TransactionHandler) InsertTransfer(c *gin.Context) {
 
 	var record *models.TransferReq

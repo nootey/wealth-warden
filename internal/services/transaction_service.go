@@ -328,6 +328,7 @@ func (s *TransactionService) InsertTransfer(c *gin.Context, req *models.Transfer
 	}
 
 	transfer := models.Transfer{
+		UserID:               user.ID,
 		TransactionInflowID:  inflow.ID,
 		TransactionOutflowID: outflow.ID,
 		Amount:               req.Amount,
@@ -357,8 +358,8 @@ func (s *TransactionService) InsertTransfer(c *gin.Context, req *models.Transfer
 
 	// Log transfer (one event)
 	changes := utils.InitChanges()
-	utils.CompareChanges("", fromAccount.Name, changes, "from_account")
-	utils.CompareChanges("", toAccount.Name, changes, "to_account")
+	utils.CompareChanges("", fromAccount.Name, changes, "from")
+	utils.CompareChanges("", toAccount.Name, changes, "to")
 	utils.CompareChanges("", req.Amount.StringFixed(2), changes, "amount")
 	utils.CompareChanges("", transfer.Currency, changes, "currency")
 
@@ -656,6 +657,117 @@ func (s *TransactionService) DeleteTransaction(c *gin.Context, id int64) error {
 		if err := s.logBalanceChange(&account, user, inverse); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (s *TransactionService) DeleteTransfer(c *gin.Context, id int64) error {
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Load the transfer
+	transfer, err := s.Repo.FindTransferByID(tx, id, user.ID)
+	if err != nil {
+		return fmt.Errorf("can't find transfer with given id %w", err)
+	}
+
+	// Load associated transactions
+	inflow, err := s.Repo.FindTransactionByID(tx, transfer.TransactionInflowID, user.ID)
+	if err != nil {
+		return fmt.Errorf("can't find inflow transaction with given id %w", err)
+	}
+
+	outflow, err := s.Repo.FindTransactionByID(tx, transfer.TransactionOutflowID, user.ID)
+	if err != nil {
+		return fmt.Errorf("can't find outflow transaction with given id %w", err)
+	}
+
+	// Load accounts
+	fromAcc, err := s.AccountService.Repo.FindAccountByID(tx, outflow.AccountID, user.ID, false)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find source account %w", err)
+	}
+	toAcc, err := s.AccountService.Repo.FindAccountByID(tx, inflow.AccountID, user.ID, false)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find destination account %w", err)
+	}
+
+	// Reverse balances
+	if err := s.AccountService.UpdateAccountCashBalance(tx, &fromAcc, "income", outflow.Amount); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := s.AccountService.UpdateAccountCashBalance(tx, &toAcc, "expense", inflow.Amount); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete transfer
+	if err := s.Repo.DeleteTransfer(tx, transfer.ID, user.ID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete transactions
+	if err := s.Repo.DeleteTransaction(tx, inflow.ID, user.ID); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := s.Repo.DeleteTransaction(tx, outflow.ID, user.ID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Log synthetic transfer deletion
+	changes := utils.InitChanges()
+	utils.CompareChanges(fromAcc.Name, "", changes, "from")
+	utils.CompareChanges(toAcc.Name, "", changes, "to")
+	utils.CompareChanges(transfer.Amount.StringFixed(2), "", changes, "amount")
+	utils.CompareChanges(transfer.Currency, "", changes, "currency")
+	utils.CompareChanges(utils.SafeString(transfer.Notes), "", changes, "description")
+
+	if !changes.IsEmpty() {
+		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+			Logger:      s.Ctx.Logger,
+			Event:       "delete",
+			Category:    "transfer",
+			Description: nil,
+			Payload:     changes,
+			Causer:      user,
+		}); err != nil {
+			return err
+		}
+	}
+
+	// Log balance changes
+	if err := s.logBalanceChange(&fromAcc, user, outflow.Amount); err != nil {
+		return err
+	}
+	if err := s.logBalanceChange(&toAcc, user, inflow.Amount.Neg()); err != nil {
+		return err
 	}
 
 	return nil

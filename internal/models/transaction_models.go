@@ -23,6 +23,7 @@ type Transaction struct {
 
 type Transfer struct {
 	ID                   int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID               int64           `gorm:"not null" json:"user_id"`
 	TransactionInflowID  int64           `gorm:"not null;index:idx_transfer_transaction_inflow" json:"transaction_inflow_id"`
 	TransactionOutflowID int64           `gorm:"not null;index:idx_transfer_transaction_outflow" json:"transaction_outflow_id"`
 	Amount               decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`

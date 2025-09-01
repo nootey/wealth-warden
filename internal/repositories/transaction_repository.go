@@ -228,6 +228,18 @@ func (r *TransactionRepository) FindTransactionByID(tx *gorm.DB, ID, userID int6
 	return record, result.Error
 }
 
+func (r *TransactionRepository) FindTransferByID(tx *gorm.DB, ID, userID int64) (models.Transfer, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var record models.Transfer
+	result := db.
+		Where("id = ? AND user_id = ?", ID, userID).First(&record)
+	return record, result.Error
+}
+
 func (r *TransactionRepository) InsertTransaction(tx *gorm.DB, newRecord *models.Transaction) (int64, error) {
 	db := tx
 	if db == nil {
@@ -284,6 +296,25 @@ func (r *TransactionRepository) DeleteTransaction(tx *gorm.DB, id, userID int64)
 	res := db.
 		Where("id = ? AND user_id = ?", id, userID).
 		Delete(&models.Transaction{})
+
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (r *TransactionRepository) DeleteTransfer(tx *gorm.DB, id, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	res := db.
+		Where("id = ? AND user_id = ?", id, userID).
+		Delete(&models.Transfer{})
 
 	if res.Error != nil {
 		return res.Error
