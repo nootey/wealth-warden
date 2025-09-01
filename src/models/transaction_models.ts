@@ -13,8 +13,8 @@ export interface Transaction {
 }
 
 export interface Transfer {
-    transaction_inflow_id: number | null;
-    transaction_outflow_id: number | null;
+    source_id: number | null;
+    destination_id: number | null;
     amount: string | null;
     notes: string | null;
 }

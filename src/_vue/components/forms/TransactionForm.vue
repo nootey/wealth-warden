@@ -27,8 +27,8 @@ const accountStore = useAccountStore();
 
 const accounts = computed<Account[]>(() => accountStore.accounts);
 const transfer = ref<Transfer>({
-    transaction_inflow_id: null,
-    transaction_outflow_id: null,
+    source_id: null,
+    destination_id: null,
     amount: null,
     notes: null
 });

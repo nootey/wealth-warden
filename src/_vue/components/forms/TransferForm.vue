@@ -56,8 +56,9 @@ watch(
     (val) => {
         emit("update:transfer", {
             ...props.transfer,
-            transaction_outflow_id: val.source?.id ?? null,
-            transaction_inflow_id: val.destination?.id ?? null,
+            source_id: val.source?.id ?? null,
+            destination_id: val.destination?.id ?? null,
+            amount: val.amount ?? null,
             notes: val.notes ?? null
         });
     },
