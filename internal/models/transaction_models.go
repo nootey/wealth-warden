@@ -31,6 +31,10 @@ type Transfer struct {
 	Notes                *string         `gorm:"type:text" json:"notes"`
 	CreatedAt            time.Time       `json:"created_at"`
 	UpdatedAt            time.Time       `json:"updated_at"`
+
+	// Relations
+	TransactionInflow  Transaction `gorm:"foreignKey:TransactionInflowID;references:ID" json:"-"`
+	TransactionOutflow Transaction `gorm:"foreignKey:TransactionOutflowID;references:ID" json:"-"`
 }
 
 type Category struct {
