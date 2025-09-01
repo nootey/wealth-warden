@@ -225,45 +225,14 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 	}
 
 	// Dispatch balance activity log
-	changes2 := utils.InitChanges()
-
-	// Re-fetch account balance to get the computed end_balance
-	newBalance, err := s.AccountService.Repo.FindBalanceForAccountID(nil, account.ID)
-	if err != nil {
-		return err
-	}
-
-	endBalanceString := newBalance.EndBalance.StringFixed(2)
-
 	var change decimal.Decimal
-	switch tr.TransactionType {
-	case "expense":
+	if tr.TransactionType == "expense" {
 		change = tr.Amount.Neg()
-	default:
+	} else {
 		change = tr.Amount
 	}
 
-	startBalance := newBalance.EndBalance.Sub(change)
-
-	changeAmountString := change.StringFixed(2)
-	startBalanceString := startBalance.StringFixed(2)
-
-	utils.CompareChanges("", account.Name, changes2, "account")
-	utils.CompareChanges("", changeAmountString, changes2, "change")
-	utils.CompareChanges("", startBalanceString, changes2, "start_balance")
-	utils.CompareChanges("", endBalanceString, changes2, "end_balance")
-	utils.CompareChanges("", account.Currency, changes2, "currency")
-
-	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
-		Logger:      s.Ctx.Logger,
-		Event:       "update",
-		Category:    "balance",
-		Description: nil,
-		Payload:     changes2,
-		Causer:      user,
-	})
-	if err != nil {
+	if err := s.logBalanceChange(&account, user, change); err != nil {
 		return err
 	}
 
@@ -545,10 +514,6 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 
 	// NEW account
 	{
-		newBal, err := s.AccountService.Repo.FindBalanceForAccountID(nil, newAccount.ID)
-		if err != nil {
-			return err
-		}
 		var delta decimal.Decimal
 		if oldAccount.ID == newAccount.ID {
 			delta = newEffect.Sub(oldEffect)
@@ -556,23 +521,7 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 			delta = newEffect
 		}
 		if !delta.IsZero() {
-			start := newBal.EndBalance.Sub(delta)
-			changes2 := utils.InitChanges()
-			utils.CompareChanges("", newAccount.Name, changes2, "account")
-			utils.CompareChanges("", delta.StringFixed(2), changes2, "change")
-			utils.CompareChanges("", start.StringFixed(2), changes2, "start_balance")
-			utils.CompareChanges("", newBal.EndBalance.StringFixed(2), changes2, "end_balance")
-			utils.CompareChanges("", newAccount.Currency, changes2, "currency")
-
-			if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-				LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
-				Logger:      s.Ctx.Logger,
-				Event:       "update",
-				Category:    "balance",
-				Description: nil,
-				Payload:     changes2,
-				Causer:      user,
-			}); err != nil {
+			if err := s.logBalanceChange(&newAccount, user, delta); err != nil {
 				return err
 			}
 		}
@@ -580,28 +529,7 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 
 	// OLD account (only if it changed)
 	if oldAccount.ID != newAccount.ID && !oldEffect.IsZero() {
-		oldBal, err := s.AccountService.Repo.FindBalanceForAccountID(nil, oldAccount.ID)
-		if err != nil {
-			return err
-		}
-		delta := oldEffect.Neg()
-		start := oldBal.EndBalance.Sub(delta)
-		changes3 := utils.InitChanges()
-		utils.CompareChanges("", oldAccount.Name, changes3, "account")
-		utils.CompareChanges("", delta.StringFixed(2), changes3, "change")
-		utils.CompareChanges("", start.StringFixed(2), changes3, "start_balance")
-		utils.CompareChanges("", oldBal.EndBalance.StringFixed(2), changes3, "end_balance")
-		utils.CompareChanges("", oldAccount.Currency, changes3, "currency")
-
-		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-			LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
-			Logger:      s.Ctx.Logger,
-			Event:       "update",
-			Category:    "balance",
-			Description: nil,
-			Payload:     changes3,
-			Causer:      user,
-		}); err != nil {
+		if err := s.logBalanceChange(&oldAccount, user, oldEffect.Neg()); err != nil {
 			return err
 		}
 	}
@@ -708,28 +636,7 @@ func (s *TransactionService) DeleteTransaction(c *gin.Context, id int64) error {
 
 	// Dispatch balance change on the affected account activity log
 	if !inverse.IsZero() {
-		newBal, err := s.AccountService.Repo.FindBalanceForAccountID(nil, account.ID)
-		if err != nil {
-			return err
-		}
-		delta := inverse
-		start := newBal.EndBalance.Sub(delta)
-		changesB := utils.InitChanges()
-		utils.CompareChanges("", account.Name, changesB, "account")
-		utils.CompareChanges("", delta.StringFixed(2), changesB, "change")
-		utils.CompareChanges("", start.StringFixed(2), changesB, "start_balance")
-		utils.CompareChanges("", newBal.EndBalance.StringFixed(2), changesB, "end_balance")
-		utils.CompareChanges("", account.Currency, changesB, "currency")
-
-		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-			LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
-			Logger:      s.Ctx.Logger,
-			Event:       "update",
-			Category:    "balance",
-			Description: nil,
-			Payload:     changesB,
-			Causer:      user,
-		}); err != nil {
+		if err := s.logBalanceChange(&account, user, inverse); err != nil {
 			return err
 		}
 	}
