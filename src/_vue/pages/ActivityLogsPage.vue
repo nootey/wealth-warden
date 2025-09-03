@@ -7,26 +7,38 @@ import {useLoggingStore} from "../../services/stores/logging_store.ts";
 import ColumnHeader from "../components/base/ColumnHeader.vue";
 import dateHelper from "../../utils/date_helper.ts";
 import IconDisplay from "../components/base/IconDisplay.vue";
-import MultiSelectFilter from "../components/filters/MultiSelectFilter.vue";
 import dayjs from "dayjs";
 import ActionRow from "../components/layout/ActionRow.vue";
-import DateTimePicker from "../components/base/DateTimePicker.vue";
-import type { Causer, FilterValue } from "../../models/logging_models";
+import type { Causer } from "../../models/logging_models";
 import filterHelper from "../../utils/filter_helper.ts";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
+import {useConfirm} from "primevue/useconfirm";
+import type {Transaction} from "../../models/transaction_models.ts";
+import type {Column} from "../../services/filter_registry.ts";
+import type {FilterObj} from "../../models/shared_models.ts";
+import FilterMenu from "../components/filters/FilterMenu.vue";
+import {useSharedStore} from "../../services/stores/shared_store.ts";
+import CustomPaginator from "../components/base/CustomPaginator.vue";
 
 const toastStore = useToastStore();
 const loggingStore = useLoggingStore();
+const sharedStore = useSharedStore();
 
-const loadingLogs = ref(true);
-const activityLogs = ref([]);
+const loadingRecords = ref(true);
+const records = ref<Transaction[]>([]);
+
+const confirm = useConfirm();
+
+const apiPrefix = "activity_logs";
 
 const params = computed(() => {
     return {
         rowsPerPage: paginator.value.rowsPerPage,
         sort: sort.value,
+        filters: filters.value,
     }
 });
+
 const rows = ref([10, 25, 50, 100]);
 const default_rows = ref(rows.value[0]);
 const paginator = ref({
@@ -38,57 +50,24 @@ const paginator = ref({
 const page = ref(1);
 const sort = ref(filterHelper.initSort());
 const expandedRows = ref([]);
-
+const filterStorageIndex = ref(apiPrefix+"-filters");
+const filters = ref(JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "[]"));
 const filterOverlayRef = ref<any>(null);
+
 const loadingFilterData = ref(false);
 
-const availableValues = ref<FilterValue[]>([]);
-const selectedValues = ref<FilterValue[]>([]);
-const optionLabel = ref("");
-const displayValueAsUppercase = ref(true);
-
 const availableEvents = ref<string[]>([]);
-const selectedEvents = ref<string[]>([]);
 const availableCategories = ref<string[]>([]);
-const selectedCategories = ref<string[]>([]);
 const availableCausers = ref<Causer[]>([]);
-const selectedCausers = ref<Causer[]>([]);
 
-const datetimePickerRef = ref<any>(null);
-const selectedDatetimeStart = computed(() => {
-    return dayjs(datetimePickerRef.value?.datetimeRange[0]).format('YYYY-MM-DD HH:mm');
-});
-const selectedDatetimeEnd = computed(() => {
-    return dayjs(datetimePickerRef.value?.datetimeRange[1]).format('YYYY-MM-DD HH:mm');
-});
-
-function toggleFilterOverlayPanel(event: any, field: string) {
-    switch (field) {
-        case "category":
-            availableValues.value = availableCategories.value;
-            selectedValues.value = [...selectedCategories.value];
-            displayValueAsUppercase.value = true;
-            optionLabel.value = "";
-            break;
-        case "event":
-            availableValues.value = availableEvents.value;
-            selectedValues.value = [...selectedEvents.value];
-            displayValueAsUppercase.value = true;
-            optionLabel.value = "";
-            break;
-        case "causer":
-            availableValues.value = availableCausers.value;
-            selectedValues.value = [...selectedCausers.value];
-            displayValueAsUppercase.value = false;
-            optionLabel.value = "username";
-            break;
-    }
-    filterOverlayRef.value.toggle(event);
-}
-
+const activeColumns = computed<Column[]>(() => [
+    { field: 'created_at', header: 'Time', type: 'date'},
+    { field: 'event', header: 'Event', type: 'enum', options: availableEvents.value, optionLabel: 'name'},
+    { field: 'category', header: 'Category', type: 'enum', options: availableCategories.value, optionLabel: 'name'},
+    { field: 'causer_id', header: 'Causer', type: 'enum', options: availableCausers.value, optionLabel: 'name' },
+]);
 
 onMounted(async () => {
-    datetimePickerRef.value?.lastTwoMonths();
     await init();
 });
 
@@ -112,23 +91,14 @@ async function getFilterData(){
 
 async function getData(new_page: number|null = null) {
 
-    loadingLogs.value = true;
+    loadingRecords.value = true;
     if(new_page)
         page.value = new_page;
 
     try {
 
-        let causers = selectedCausers.value
-            .map(causer => causer.id)
-            .filter(id => id !== null && id !== undefined);
-
         let payload = {
             ...params.value,
-            "categories[]": selectedCategories.value,
-            "causers[]": causers,
-            "events[]": selectedEvents.value,
-            date_start: selectedDatetimeStart.value,
-            date_stop: selectedDatetimeEnd.value
         };
 
         let paginationResponse = await loggingStore.getLogsPaginated(
@@ -137,11 +107,11 @@ async function getData(new_page: number|null = null) {
             page.value
         );
 
-        activityLogs.value = paginationResponse.data;
+        records.value = paginationResponse.data;
         paginator.value.total = paginationResponse.total_records;
         paginator.value.to = paginationResponse.to;
         paginator.value.from = paginationResponse.from;
-        loadingLogs.value = false;
+        loadingRecords.value = false;
     } catch (error) {
         toastStore.errorResponseToast(error);
     }
@@ -153,7 +123,41 @@ async function onPage(event: any) {
     await getData();
 }
 
-function switchSort(column: string) {
+function applyFilters(list: FilterObj[]){
+    filters.value = filterHelper.mergeFilters(filters.value, list);
+    localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
+    getData();
+    filterOverlayRef.value.hide();
+}
+
+function clearFilters(){
+    filters.value = [];
+    localStorage.removeItem(filterStorageIndex.value);
+    cancelFilters();
+    getData();
+}
+
+function cancelFilters(){
+    filterOverlayRef.value.hide();
+}
+
+function removeFilter(index: number) {
+    if (index < 0 || index >= filters.value.length) return;
+
+    const next = filters.value.slice();
+    next.splice(index, 1);
+    filters.value = next;
+
+    if (filters.value.length > 0) {
+        localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
+    } else {
+        localStorage.removeItem(filterStorageIndex.value);
+    }
+
+    getData();
+}
+
+function switchSort(column:string) {
     if (sort.value.field === column) {
         sort.value.order = filterHelper.toggleSort(sort.value.order);
     } else {
@@ -163,22 +167,52 @@ function switchSort(column: string) {
     getData();
 }
 
-async function removeLog(id: number) {
+function toggleFilterOverlay(event: any) {
+    filterOverlayRef.value.toggle(event);
+}
+
+async function deleteConfirmation(id: number) {
+    confirm.require({
+        header: 'Delete record?',
+        message: `This will delete record: "${id}".`,
+        rejectProps: { label: 'Cancel' },
+        acceptProps: { label: 'Delete', severity: 'danger' },
+        accept: () => deleteRecord(id),
+    });
+}
+
+async function deleteRecord(id: number) {
     try {
-        // TODO: Implement log removal when backend endpoint is available
-        console.log("Remove log with ID:", id);
-        toastStore.successResponseToast({ data: { title: "Info", message: "Log removal not yet implemented" } });
+        let response = await sharedStore.deleteRecord(
+            apiPrefix,
+            id,
+        );
+        toastStore.successResponseToast(response);
+        await getData();
     } catch (error) {
         toastStore.errorResponseToast(error);
     }
 }
 
 provide("switchSort", switchSort);
-provide("toggleFilterOverlay", null);
+provide("removeFilter", removeFilter);
 
 </script>
 
 <template>
+
+    <Popover ref="filterOverlayRef" class="rounded-popover">
+        <div class="flex flex-column gap-2" style="width: 400px">
+            <FilterMenu
+                    v-model:value="filters"
+                    :columns="activeColumns"
+                    :apiSource="apiPrefix"
+                    @apply="(list) => applyFilters(list)"
+                    @clear="clearFilters"
+                    @cancel="cancelFilters"
+            />
+        </div>
+    </Popover>
 
     <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
 
@@ -191,14 +225,8 @@ provide("toggleFilterOverlay", null);
                  style="border: 1px solid var(--border-color);background: var(--background-secondary);">
 
                 <ActionRow>
-                    <template #dateTimePicker>
-                        <InputGroup>
-                            <InputGroupAddon>
-                                <Button class="accent-button" size="small" icon="pi pi-search-plus" @click="getData(1)"></Button>
-
-                            </InputGroupAddon>
-                            <DateTimePicker ref="datetimePickerRef"></DateTimePicker>
-                        </InputGroup>
+                    <template #activeFilters>
+                        <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
                     </template>
                     <template #filterButton>
                         <div class="hover_icon flex flex-row align-items-center gap-2" @click="toggleFilterOverlay($event)"
@@ -212,100 +240,38 @@ provide("toggleFilterOverlay", null);
 
             <div class="flex flex-row gap-2 w-full">
                 <div class="w-full">
-                    <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingLogs" :value="activityLogs"
+                    <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingRecords" :value="records"
                                v-model:expandedRows="expandedRows" :rowHover="true" :showGridlines="false">
-                        <template #empty>
-                            <div style="padding: 20px; text-align: center; color: var(--text-secondary);">
-                                No records found.
-                            </div>
-                        </template>
-                        <template #loading>
-                            <LoadingSpinner></LoadingSpinner>
-                        </template>
+                        <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
+                        <template #loading> <LoadingSpinner></LoadingSpinner> </template>
                         <template #footer>
-                            <div class="table-footer">
-                                <Paginator
-                                        v-model:first="paginator.from"
-                                        v-model:rows="paginator.rowsPerPage"
-                                        :rowsPerPageOptions="rows"
-                                        :totalRecords="paginator.total"
-                                        @page="onPage($event)"
-                                        style="border-radius: 8px;"
-                                >
-                                    <template #end>
-                                        <div class="pagination-info">
-                                            {{
-                                                "Showing " + paginator.from + " to " + paginator.to + " out of " + paginator.total + " " + "records"
-                                            }}
-                                        </div>
-                                    </template>
-                                </Paginator>
-                            </div>
+                            <CustomPaginator :paginator="paginator" :rows="rows" @onPage="onPage"/>
                         </template>
-                        <Column header="Actions" style="width: 80px;">
+
+                        <Column header="Actions">
                             <template #body="slotProps">
-                                <div class="flex flex-row align-items-center gap-2">
-                                    <i class="pi pi-trash hover_icon action-icon"
-                                       @click="removeLog(slotProps.data?.id)"></i>
-                                </div>
+                                <i class="pi pi-trash hover_icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                                   @click="deleteConfirmation(slotProps.data?.id)"></i>
                             </template>
                         </Column>
-                        <Column field="created_at" style="width: 180px;">
-                            <template #header>
-                                <ColumnHeader header="Time" field="created_at" :sort="sort" :filter="false"></ColumnHeader>
+
+                        <Column v-for="col of activeColumns" :key="col.field" :field="col.field" style="width: 25%">
+                            <template #header >
+                                <ColumnHeader  :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
                             </template>
-                            <template #body="slotProps">
-                                <b>{{ dateHelper.formatDate(slotProps.data.created_at, true)}} </b>
-                            </template>
-                        </Column>
-                        <Column field="event" headerStyle="width:0" style="width: 120px;">
-                            <template #header>
-                                <ColumnHeader header="Event" field="event" :sort="sort" :filter="false">
-                                    <template #logging_filter>
-                                        <i v-if="!loadingFilterData" class="pi hover_icon" :class="'pi-filter'" @click="toggleFilterOverlayPanel($event, 'event')"></i>
-                                        <div v-else style="width: 13px;">
-                                            <ProgressSpinner animationDuration="1s" strokeWidth="8" style="width:12px;height:12px"/>
-                                        </div>
-                                    </template>
-                                </ColumnHeader>
-                            </template>
-                            <template #body="slotProps">
-                                <IconDisplay :event="slotProps.data.event"></IconDisplay>
-                            </template>
-                        </Column>
-                        <Column field="category" style="width: 120px;">
-                            <template #header>
-                                <ColumnHeader header="Category" field="category" :sort="sort" :filter="false">
-                                    <template #logging_filter>
-                                        <i v-if="!loadingFilterData" class="pi hover_icon" :class="'pi-filter'" @click="toggleFilterOverlayPanel($event, 'category')"></i>
-                                        <div v-else style="width: 13px;">
-                                            <ProgressSpinner animationDuration="1s" strokeWidth="8" style="width:12px;height:12px"/>
-                                        </div>
-                                    </template>
-                                </ColumnHeader>
-                            </template>
-                            <template #body="slotProps">
-                <span class="category-badge">
-                  {{ slotProps.data.category.toUpperCase() }}
-                </span>
-                            </template>
-                        </Column>
-                        <Column field="causer" style="width: 150px;">
-                            <template #header>
-                                <ColumnHeader header="Causer" field="causer" :sort="sort" :filter="false">
-                                    <template #logging_filter>
-                                        <i v-if="!loadingFilterData" class="pi hover_icon" :class="'pi-filter'" @click="toggleFilterOverlayPanel($event, 'causer')"></i>
-                                        <div v-else style="width: 13px;">
-                                            <ProgressSpinner animationDuration="1s" strokeWidth="8" style="width:12px;height:12px"/>
-                                        </div>
-                                    </template>
-                                </ColumnHeader>
-                            </template>
-                            <template #body="slotProps">
-                <span v-if="slotProps.data?.causer_id">
-                  {{ vueHelper.displayCauserFromId(slotProps.data.causer_id, availableCausers) }}
-                </span>
-                                <span v-else class="no-causer">-</span>
+                            <template #body="{ data, field }">
+                                <template v-if="field === 'created_at'">
+                                    {{ dateHelper.formatDate(data?.created_at, true) }}
+                                </template>
+                                <template v-else-if="field === 'causer_id'">
+                                    {{ vueHelper.displayCauserFromId(data.causer_id, availableCausers) }}
+                                </template>
+                                <template v-else-if="field === 'event'">
+                                    <IconDisplay :event="data.event"></IconDisplay>
+                                </template>
+                                <template v-else>
+                                    {{ data[field] }}
+                                </template>
                             </template>
                         </Column>
 
