@@ -171,7 +171,7 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountCreate
 	}
 
 	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		LoggingRepo: s.Ctx.LoggingService.Repo,
 		Logger:      s.Ctx.Logger,
 		Event:       "create",
 		Category:    "account",

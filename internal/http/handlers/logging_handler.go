@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strconv"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
 )
@@ -53,4 +55,28 @@ func (h *LoggingHandler) GetActivityLogFilterData(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": response})
+}
+
+func (h *LoggingHandler) DeleteActivityLog(c *gin.Context) {
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.DeleteActivityLog(c, id); err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
 }

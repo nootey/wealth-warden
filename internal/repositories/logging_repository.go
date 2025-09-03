@@ -10,11 +10,11 @@ import (
 )
 
 type LoggingRepository struct {
-	db *gorm.DB
+	DB *gorm.DB
 }
 
 func NewLoggingRepository(db *gorm.DB) *LoggingRepository {
-	return &LoggingRepository{db: db}
+	return &LoggingRepository{DB: db}
 }
 
 type Option struct {
@@ -25,7 +25,7 @@ type Option struct {
 func (r *LoggingRepository) CountLogs(filters []utils.Filter) (int64, error) {
 	var totalRecords int64
 
-	query := r.db.Model(&models.ActivityLog{})
+	query := r.DB.Model(&models.ActivityLog{})
 
 	query = utils.ApplyFilters(query, filters)
 
@@ -40,7 +40,7 @@ func (r *LoggingRepository) CountLogs(filters []utils.Filter) (int64, error) {
 func (r *LoggingRepository) FindLogs(offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error) {
 
 	var records []models.ActivityLog
-	query := r.db.Table("activity_logs").Select("*")
+	query := r.DB.Table("activity_logs").Select("*")
 
 	joins := utils.GetRequiredJoins(filters)
 	orderBy := sortField + " " + sortOrder
@@ -76,7 +76,7 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 		return nil, fmt.Errorf("invalid activity index")
 	}
 
-	db := r.db.Table(tableName)
+	db := r.DB.Table(tableName)
 
 	// events
 	var eventVals []string
@@ -132,7 +132,7 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 		var causers []map[string]interface{}
 		if len(causerIDs) > 0 {
 			var users []models.User
-			if err := r.db.Where("id IN ? AND deleted_at IS NULL", causerIDs).Find(&users).Error; err == nil {
+			if err := r.DB.Where("id IN ? AND deleted_at IS NULL", causerIDs).Find(&users).Error; err == nil {
 				for _, u := range users {
 					causers = append(causers, map[string]interface{}{
 						"id":       u.ID,
@@ -149,6 +149,17 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 	return response, nil
 }
 
+func (r *LoggingRepository) FindActivityLogByID(tx *gorm.DB, ID int64) (models.ActivityLog, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var record models.ActivityLog
+	result := db.Where("id = ?", ID).First(&record)
+	return record, result.Error
+}
+
 func (r *LoggingRepository) InsertActivityLog(
 	tx *gorm.DB,
 	event string,
@@ -160,7 +171,7 @@ func (r *LoggingRepository) InsertActivityLog(
 
 	db := tx
 	if db == nil {
-		db = r.db
+		db = r.DB
 	}
 
 	doc := models.ActivityLog{
@@ -185,4 +196,23 @@ func (r *LoggingRepository) InsertActivityLog(
 	}
 
 	return db.Table("activity_logs").Create(&doc).Error
+}
+
+func (r *LoggingRepository) DeleteActivityLog(tx *gorm.DB, id int64) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	res := db.
+		Where("id = ?", id).
+		Delete(&models.ActivityLog{})
+
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }

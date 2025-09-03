@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -9,14 +10,14 @@ import (
 )
 
 type LoggingService struct {
-	LoggingRepo *repositories.LoggingRepository
-	Config      *config.Config
+	Repo   *repositories.LoggingRepository
+	Config *config.Config
 }
 
 func NewLoggingService(cfg *config.Config, repo *repositories.LoggingRepository) *LoggingService {
 	return &LoggingService{
-		LoggingRepo: repo,
-		Config:      cfg,
+		Repo:   repo,
+		Config: cfg,
 	}
 }
 
@@ -25,14 +26,14 @@ func (s *LoggingService) FetchPaginatedLogs(c *gin.Context) ([]models.ActivityLo
 	queryParams := c.Request.URL.Query()
 	p := utils.GetPaginationParams(queryParams)
 
-	totalRecords, err := s.LoggingRepo.CountLogs(p.Filters)
+	totalRecords, err := s.Repo.CountLogs(p.Filters)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
 
-	records, err := s.LoggingRepo.FindLogs(offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters)
+	records, err := s.Repo.FindLogs(offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -59,5 +60,38 @@ func (s *LoggingService) FetchPaginatedLogs(c *gin.Context) ([]models.ActivityLo
 }
 
 func (s *LoggingService) FetchActivityLogFilterData(c *gin.Context, activityIndex string) (map[string]interface{}, error) {
-	return s.LoggingRepo.FindActivityLogFilterData(activityIndex)
+	return s.Repo.FindActivityLogFilterData(activityIndex)
+}
+
+func (s *LoggingService) DeleteActivityLog(c *gin.Context, id int64) error {
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Load the log to confirm existence
+	tr, err := s.Repo.FindActivityLogByID(tx, id)
+	if err != nil {
+		return fmt.Errorf("can't find log with given id %w", err)
+	}
+
+	// Delete log
+	if err := s.Repo.DeleteActivityLog(tx, tr.ID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
 }

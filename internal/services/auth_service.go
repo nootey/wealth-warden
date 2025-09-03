@@ -54,7 +54,7 @@ func (s *AuthService) logLoginAttempt(email, userAgent, ip, status string, descr
 	utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
 
 	err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.loggingService.LoggingRepo,
+		LoggingRepo: s.loggingService.Repo,
 		Logger:      s.logger,
 		Event:       "login",
 		Category:    "auth",

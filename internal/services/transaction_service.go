@@ -52,7 +52,7 @@ func (s *TransactionService) logBalanceChange(account *models.Account, user *mod
 	utils.CompareChanges("", account.Currency, changes, "currency")
 
 	return s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		LoggingRepo: s.Ctx.LoggingService.Repo,
 		Logger:      s.Ctx.Logger,
 		Event:       "update",
 		Category:    "balance",
@@ -256,7 +256,7 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 	utils.CompareChanges("", utils.SafeString(tr.Description), changes, "description")
 
 	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		LoggingRepo: s.Ctx.LoggingService.Repo,
 		Logger:      s.Ctx.Logger,
 		Event:       "create",
 		Category:    "transaction",
@@ -391,7 +391,7 @@ func (s *TransactionService) InsertTransfer(c *gin.Context, req *models.Transfer
 	utils.CompareChanges("", transfer.Currency, changes, "currency")
 
 	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+		LoggingRepo: s.Ctx.LoggingService.Repo,
 		Logger:      s.Ctx.Logger,
 		Event:       "create",
 		Category:    "transfer",
@@ -544,7 +544,7 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 
 	if !changes.IsEmpty() {
 		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-			LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+			LoggingRepo: s.Ctx.LoggingService.Repo,
 			Logger:      s.Ctx.Logger,
 			Event:       "update",
 			Category:    "transaction",
@@ -666,7 +666,7 @@ func (s *TransactionService) DeleteTransaction(c *gin.Context, id int64) error {
 
 	if !changes.IsEmpty() {
 		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-			LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+			LoggingRepo: s.Ctx.LoggingService.Repo,
 			Logger:      s.Ctx.Logger,
 			Event:       "delete",
 			Category:    "transaction",
@@ -777,7 +777,7 @@ func (s *TransactionService) DeleteTransfer(c *gin.Context, id int64) error {
 
 	if !changes.IsEmpty() {
 		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-			LoggingRepo: s.Ctx.LoggingService.LoggingRepo,
+			LoggingRepo: s.Ctx.LoggingService.Repo,
 			Logger:      s.Ctx.Logger,
 			Event:       "delete",
 			Category:    "transfer",
