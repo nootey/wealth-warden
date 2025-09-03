@@ -267,6 +267,11 @@ provide("removeFilter", removeFilter);
                                 <template v-else-if="field === 'event'">
                                     <IconDisplay :event="data.event"></IconDisplay>
                                 </template>
+                                <template v-else-if="field === 'category'">
+                                    <span class="formal">
+                                        {{ data[field] }}
+                                    </span>
+                                </template>
                                 <template v-else>
                                     {{ data[field] }}
                                 </template>
@@ -300,28 +305,11 @@ provide("removeFilter", removeFilter);
 
 <style scoped>
 
-.action-icon {
-    color: var(--accent-primary);
-    font-size: 1rem;
-    padding: 8px;
-    border-radius: 6px;
-    transition: all 0.2s ease;
-}
-
-.action-icon:hover {
-    background-color: var(--background-secondary);
-    transform: scale(1.1);
-}
-
-.category-badge {
-    padding: 4px 8px;
-    border-radius: 12px;
+.formal {
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    background-color: rgba(99, 102, 241, 0.1);
-    color: rgb(99, 102, 241);
+    line-height: 1;
 }
 
 .truncate-text {

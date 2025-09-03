@@ -91,7 +91,7 @@ const vueHelper = {
         if (!causerId || !availableCausers) return '';
         const causer = availableCausers.find(c => c.id === causerId);
         return causer ? causer.username : "Deleted user";
-    }
+    },
 };
 
 export default vueHelper;
