@@ -27,11 +27,6 @@ func (r *LoggingRepository) CountLogs(filters []utils.Filter) (int64, error) {
 
 	query := r.db.Model(&models.ActivityLog{})
 
-	joins := utils.GetRequiredJoins(filters)
-	for _, join := range joins {
-		query = query.Joins(join)
-	}
-
 	query = utils.ApplyFilters(query, filters)
 
 	err := query.Count(&totalRecords).Error
@@ -48,7 +43,7 @@ func (r *LoggingRepository) FindLogs(offset, limit int, sortField, sortOrder str
 	query := r.db.Table("activity_logs").Select("*")
 
 	joins := utils.GetRequiredJoins(filters)
-	orderBy := utils.ConstructOrderByClause(&joins, "transactions", sortField, sortOrder)
+	orderBy := sortField + " " + sortOrder
 
 	for _, join := range joins {
 		query = query.Joins(join)
