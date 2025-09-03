@@ -9,7 +9,6 @@ const slots: Slots = useSlots();
   <div class="flex flex-row p-1 gap-2 align-items-center w-full">
 
     <div class="flex flex-column p-1" v-if="slots.dateTimePicker">
-      Select time range:
       <div class="flex flex-row gap-1 align-items-center">
         <slot name="dateTimePicker"></slot>
       </div>

@@ -21,3 +21,8 @@ button.p-button.main-button:hover {
   background-color: var(--text-secondary);
   border-color: var(--border-color);
 }
+
+button.p-button.accent-button:hover {
+  background-color: var(--accent-primary);
+  border-color: var(--accent-secondary);
+}

@@ -13,6 +13,7 @@ import ActionRow from "../components/layout/ActionRow.vue";
 import DateTimePicker from "../components/base/DateTimePicker.vue";
 import type { Causer, FilterValue } from "../../models/logging_models";
 import filterHelper from "../../utils/filter_helper.ts";
+import ActiveFilters from "../components/filters/ActiveFilters.vue";
 
 const toastStore = useToastStore();
 const loggingStore = useLoggingStore();
@@ -179,38 +180,40 @@ provide("toggleFilterOverlay", null);
 
 <template>
 
-    <div class="flex w-full p-2">
+    <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
 
-        <Popover ref="filterOverlayRef">
-            <MultiSelectFilter :availableValues="availableValues" :selectedValues="selectedValues"
-                               :optionLabel="optionLabel" :toUppercase="displayValueAsUppercase ?? false"
-                               @getData="getData" />
-        </Popover>
+        <div class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
+             style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;">
 
-        <div class="flex w-full flex-column p-2 gap-3">
+            <div style="font-weight: bold;">Activity logs</div>
 
-            <div class="flex flex-row p-1 w-full">
+            <div class="flex flex-row justify-content-between align-items-center p-1 gap-3 w-full border-round-md"
+                 style="border: 1px solid var(--border-color);background: var(--background-secondary);">
+
                 <ActionRow>
                     <template #dateTimePicker>
-                        <DateTimePicker ref="datetimePickerRef"></DateTimePicker>
-                        <Button class="p-button accent-button" style="border-radius: 20px;" icon="pi pi-search-plus" @click="getData(1)"></Button>
+                        <InputGroup>
+                            <InputGroupAddon>
+                                <Button class="accent-button" size="small" icon="pi pi-search-plus" @click="getData(1)"></Button>
+
+                            </InputGroupAddon>
+                            <DateTimePicker ref="datetimePickerRef"></DateTimePicker>
+                        </InputGroup>
+                    </template>
+                    <template #filterButton>
+                        <div class="hover_icon flex flex-row align-items-center gap-2" @click="toggleFilterOverlay($event)"
+                             style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color)">
+                            <i class="pi pi-filter" style="font-size: 0.845rem"></i>
+                            <div>Filter</div>
+                        </div>
                     </template>
                 </ActionRow>
             </div>
 
             <div class="flex flex-row gap-2 w-full">
                 <div class="w-full">
-                    <DataTable
-                            class="w-full enhanced-table"
-                            dataKey="id"
-                            :loading="loadingLogs"
-                            :value="activityLogs"
-                            size="small"
-                            v-model:expandedRows="expandedRows"
-                            :rowHover="true"
-                            :showGridlines="false"
-                            style="border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);"
-                    >
+                    <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingLogs" :value="activityLogs"
+                               v-model:expandedRows="expandedRows" :rowHover="true" :showGridlines="false">
                         <template #empty>
                             <div style="padding: 20px; text-align: center; color: var(--text-secondary);">
                                 No records found.
@@ -326,7 +329,9 @@ provide("toggleFilterOverlay", null);
             </div>
         </div>
 
-    </div>
+
+    </main>
+
 </template>
 
 <style scoped>

@@ -49,14 +49,6 @@ function lastTwoWeeks() {
   timeRange.value = [setMinTime(firstDay), setMaxTime(lastDay)];
 }
 
-function lastThreeWeeks() {
-  let today = new Date;
-  let lastDay = new Date(today.setDate(today.getDate() - today.getDay()));
-  let firstDay = new Date(today.setDate(lastDay.getDate() - lastDay.getDay() - 20));
-  dateRange.value = [setMinTime(firstDay), setMaxTime(lastDay)];
-  timeRange.value = [setMinTime(firstDay), setMaxTime(lastDay)];
-}
-
 function thisMonth() {
   let today = new Date();
   let lastDay = new Date(today);
@@ -93,7 +85,6 @@ defineExpose({
   thisWeek,
   lastWeek,
   lastTwoWeeks,
-  lastThreeWeeks,
   thisMonth,
   lastTwoMonths
 })
@@ -101,20 +92,15 @@ defineExpose({
 
 <template>
   <DatePicker v-model="dateRange" :disabled="loading" :inputStyle="{'text-align':'center', 'cursor':'pointer'}"
-            :manualInput="false" :showIcon="false"
-            dateFormat="yy-mm-dd" locale="en_GB"
-            selectionMode="range" style="width:225px" @hide="dateHide">>
+            :manualInput="false" date-format="dd/mm/yy" selectionMode="range" @hide="dateHide"
+              showIcon fluid iconDisplay="input" size="small">
     <template #footer>
       <div class="flex justify-content-around w-full">
-        <Button class="p-button small-button" label="This week"
+        <Button size="small" label="This week"
                 @click="thisWeek"/>
-        <Button class="p-button small-button" label="Last week"
-                @click="lastWeek"/>
-        <Button class="p-button small-button" label="Last 2 weeks"
+        <Button size="small" label="Last 2 weeks"
                 @click="lastTwoWeeks"/>
-        <Button class="p-button small-button" label="Last 3 weeks"
-                @click="lastThreeWeeks"/>
-        <Button class="p-button small-button" label="This month"
+        <Button size="small" label="This month"
                 @click="thisMonth"/>
       </div>
     </template>
