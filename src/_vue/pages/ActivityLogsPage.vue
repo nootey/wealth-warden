@@ -7,13 +7,11 @@ import {useLoggingStore} from "../../services/stores/logging_store.ts";
 import ColumnHeader from "../components/base/ColumnHeader.vue";
 import dateHelper from "../../utils/date_helper.ts";
 import IconDisplay from "../components/base/IconDisplay.vue";
-import dayjs from "dayjs";
 import ActionRow from "../components/layout/ActionRow.vue";
-import type { Causer } from "../../models/logging_models";
+import type {ActivityLog, Causer} from "../../models/logging_models";
 import filterHelper from "../../utils/filter_helper.ts";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import {useConfirm} from "primevue/useconfirm";
-import type {Transaction} from "../../models/transaction_models.ts";
 import type {Column} from "../../services/filter_registry.ts";
 import type {FilterObj} from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
@@ -25,7 +23,7 @@ const loggingStore = useLoggingStore();
 const sharedStore = useSharedStore();
 
 const loadingRecords = ref(true);
-const records = ref<Transaction[]>([]);
+const records = ref<ActivityLog[]>([]);
 
 const confirm = useConfirm();
 

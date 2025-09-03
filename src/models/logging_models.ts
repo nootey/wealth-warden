@@ -3,10 +3,9 @@ export interface Causer {
     username: string;
 }
 
-export interface ActivityLogFilterData {
-    events: string[];
-    categories: string[];
-    causers: Causer[];
+export interface ActivityLog {
+    event: string | null;
+    category: string | null;
+    causer: object | null;
+    metadata: object | null;
 }
-
-export type FilterValue = string | Causer;
