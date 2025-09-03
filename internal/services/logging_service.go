@@ -2,6 +2,7 @@ package services
 
 import (
 	"github.com/gin-gonic/gin"
+	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
@@ -19,34 +20,19 @@ func NewLoggingService(cfg *config.Config, repo *repositories.LoggingRepository)
 	}
 }
 
-func (s *LoggingService) FetchPaginatedLogs(c *gin.Context, tableName string, fieldMappings map[string]string) ([]map[string]interface{}, *utils.Paginator, error) {
+func (s *LoggingService) FetchPaginatedLogs(c *gin.Context) ([]models.ActivityLog, *utils.Paginator, error) {
 
 	queryParams := c.Request.URL.Query()
-	paginationParams := utils.GetPaginationParams(queryParams)
+	p := utils.GetPaginationParams(queryParams)
 
-	filters := make(map[string]interface{})
-	for queryField, dbField := range fieldMappings {
-		if values, ok := queryParams[queryField+"[]"]; ok && len(values) > 0 {
-			filters[dbField] = values
-		} else if values, ok := queryParams[queryField]; ok && len(values) > 0 {
-			filters[dbField] = values
-		}
-	}
-
-	dateStart := queryParams.Get("date_start")
-	dateStop := queryParams.Get("date_stop")
-
-	if dateStart != "" && dateStop != "" {
-		filters["date_range"] = []string{dateStart, dateStop}
-	}
-
-	totalRecords, err := s.LoggingRepo.CountLogs(tableName, filters)
+	totalRecords, err := s.LoggingRepo.CountLogs(p.Filters)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
-	logs, err := s.LoggingRepo.FindLogs(tableName, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, filters)
+	offset := (p.PageNumber - 1) * p.RowsPerPage
+
+	records, err := s.LoggingRepo.FindLogs(offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -56,20 +42,20 @@ func (s *LoggingService) FetchPaginatedLogs(c *gin.Context, tableName string, fi
 		from = int(totalRecords)
 	}
 
-	to := offset + len(logs)
+	to := offset + len(records)
 	if to > int(totalRecords) {
 		to = int(totalRecords)
 	}
 
 	paginator := &utils.Paginator{
-		CurrentPage:  paginationParams.PageNumber,
-		RowsPerPage:  paginationParams.RowsPerPage,
+		CurrentPage:  p.PageNumber,
+		RowsPerPage:  p.RowsPerPage,
 		TotalRecords: int(totalRecords),
 		From:         from,
 		To:           to,
 	}
 
-	return logs, paginator, nil
+	return records, paginator, nil
 }
 
 func (s *LoggingService) FetchActivityLogFilterData(c *gin.Context, activityIndex string) (map[string]interface{}, error) {

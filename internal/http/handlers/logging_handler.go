@@ -17,9 +17,13 @@ func NewLoggingHandler(service *services.LoggingService) *LoggingHandler {
 	}
 }
 
-func (h *LoggingHandler) GetPaginatedLogs(c *gin.Context, tableName string, fieldMappings map[string]string) {
+func (h *LoggingHandler) GetActivityLogs(c *gin.Context) {
+	h.GetPaginatedLogs(c)
+}
 
-	records, paginator, err := h.Service.FetchPaginatedLogs(c, tableName, fieldMappings)
+func (h *LoggingHandler) GetPaginatedLogs(c *gin.Context) {
+
+	records, paginator, err := h.Service.FetchPaginatedLogs(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -35,17 +39,6 @@ func (h *LoggingHandler) GetPaginatedLogs(c *gin.Context, tableName string, fiel
 	}
 
 	c.JSON(http.StatusOK, response)
-}
-
-func (h *LoggingHandler) GetActivityLogs(c *gin.Context) {
-
-	fieldMappings := map[string]string{
-		"categories": "category",
-		"events":     "event",
-		"causers":    "causer_id",
-	}
-
-	h.GetPaginatedLogs(c, "activity_logs", fieldMappings)
 }
 
 func (h *LoggingHandler) GetActivityLogFilterData(c *gin.Context) {

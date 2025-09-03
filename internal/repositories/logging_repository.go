@@ -17,58 +17,55 @@ func NewLoggingRepository(db *gorm.DB) *LoggingRepository {
 	return &LoggingRepository{db: db}
 }
 
-func (r *LoggingRepository) filterLogs(query *gorm.DB, filters map[string]interface{}) *gorm.DB {
-	for key, value := range filters {
-		switch key {
-		case "date_range":
-			if v, ok := value.([]string); ok && len(v) == 2 {
-				query = query.Where("created_at BETWEEN ? AND ?", v[0], v[1])
-			}
-		default:
-			switch v := value.(type) {
-			case []string:
-				if len(v) > 0 {
-					query = query.Where(key+" IN ?", v)
-				}
-			case []int:
-				if len(v) > 0 {
-					query = query.Where(key+" IN ?", v)
-				}
-			default:
-				query = query.Where(key+" = ?", value)
-			}
-		}
-	}
-
-	return query
+type Option struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
-func (r *LoggingRepository) CountLogs(tableName string, filters map[string]interface{}) (int64, error) {
+func (r *LoggingRepository) CountLogs(filters []utils.Filter) (int64, error) {
 	var totalRecords int64
 
-	query := r.db.Table(tableName).Select("*")
-	query = r.filterLogs(query, filters)
+	query := r.db.Model(&models.ActivityLog{})
+
+	joins := utils.GetRequiredJoins(filters)
+	for _, join := range joins {
+		query = query.Joins(join)
+	}
+
+	query = utils.ApplyFilters(query, filters)
 
 	err := query.Count(&totalRecords).Error
 	if err != nil {
 		return 0, err
 	}
+
 	return totalRecords, nil
 }
 
-func (r *LoggingRepository) FindLogs(tableName string, offset, limit int, sortField, sortOrder string, filters map[string]interface{}) ([]map[string]interface{}, error) {
-	var logs []map[string]interface{}
-	orderBy := sortField + " " + sortOrder
+func (r *LoggingRepository) FindLogs(offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error) {
 
-	query := r.db.Table(tableName).Select("*")
-	query = r.filterLogs(query, filters)
+	var records []models.ActivityLog
+	query := r.db.Table("activity_logs").Select("*")
 
-	err := query.Order(orderBy).Limit(limit).Offset(offset).Find(&logs).Error
+	joins := utils.GetRequiredJoins(filters)
+	orderBy := utils.ConstructOrderByClause(&joins, "transactions", sortField, sortOrder)
+
+	for _, join := range joins {
+		query = query.Joins(join)
+	}
+
+	query = utils.ApplyFilters(query, filters)
+
+	err := query.
+		Order(orderBy).
+		Limit(limit).
+		Offset(offset).
+		Find(&records).Error
 	if err != nil {
 		return nil, err
 	}
 
-	return logs, nil
+	return records, nil
 }
 
 func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map[string]interface{}, error) {
@@ -86,50 +83,72 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 
 	db := r.db.Table(tableName)
 
-	var events []string
-	if err := db.Distinct("event").Pluck("event", &events).Error; err == nil {
+	// events
+	var eventVals []string
+	if err := db.Distinct("event").Pluck("event", &eventVals).Error; err == nil {
+		events := make([]Option, 0, len(eventVals))
+		for _, v := range eventVals {
+			if v == "" {
+				continue
+			}
+			events = append(events, Option{ID: v, Name: v})
+		}
 		response["events"] = events
 	}
 
 	if activityIndex == "activity" {
-		var categories []string
-		if err := db.Distinct("category").Pluck("category", &categories).Error; err == nil {
+		var categoryVals []string
+		if err := db.Distinct("category").Pluck("category", &categoryVals).Error; err == nil {
+			categories := make([]Option, 0, len(categoryVals))
+			for _, v := range categoryVals {
+				if v == "" {
+					continue
+				}
+				categories = append(categories, Option{ID: v, Name: v})
+			}
 			response["categories"] = categories
 		}
 	}
 
 	if activityIndex == "access" {
-		var states []string
-		if err := db.Distinct("status").Pluck("status", &states).Error; err == nil {
+		var stateVals []string
+		if err := db.Distinct("status").Pluck("status", &stateVals).Error; err == nil {
+			states := make([]Option, 0, len(stateVals))
+			for _, v := range stateVals {
+				if v == "" {
+					continue
+				}
+				states = append(states, Option{ID: v, Name: v})
+			}
 			response["states"] = states
 		}
 	}
 
+	// causers
 	var rawCauserIDs []sql.NullInt64
 	if err := db.Distinct("causer_id").Pluck("causer_id", &rawCauserIDs).Error; err == nil {
 		var causerIDs []int64
 		for _, id := range rawCauserIDs {
 			if id.Valid {
-				causerIDs = append(causerIDs, int64(id.Int64))
+				causerIDs = append(causerIDs, id.Int64)
 			}
 		}
 
 		var causers []map[string]interface{}
 		if len(causerIDs) > 0 {
 			var users []models.User
-			err := r.db.Where("id IN ? AND deleted_at IS NULL", causerIDs).Find(&users).Error
-			if err == nil {
+			if err := r.db.Where("id IN ? AND deleted_at IS NULL", causerIDs).Find(&users).Error; err == nil {
 				for _, u := range users {
 					causers = append(causers, map[string]interface{}{
 						"id":       u.ID,
 						"username": u.Username,
+						// add a generic "name" for consistency with optionLabel: 'name'
+						"name": u.Username,
 					})
 				}
 			}
 		}
 		response["causers"] = causers
-	} else {
-		fmt.Println(err)
 	}
 
 	return response, nil
