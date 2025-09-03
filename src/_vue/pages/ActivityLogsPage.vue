@@ -27,7 +27,7 @@ const records = ref<ActivityLog[]>([]);
 
 const confirm = useConfirm();
 
-const apiPrefix = "activity_logs";
+const apiPrefix = "logs";
 
 const params = computed(() => {
     return {
@@ -100,7 +100,6 @@ async function getData(new_page: number|null = null) {
         };
 
         let paginationResponse = await loggingStore.getLogsPaginated(
-            "activity",
             payload,
             page.value
         );

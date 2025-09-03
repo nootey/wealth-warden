@@ -6,7 +6,7 @@ export const useLoggingStore = defineStore('logging', {
         apiPrefix: "logs",
     }),
     actions: {
-        async getLogsPaginated(logType: string, params: object, page: number) {
+        async getLogsPaginated(params: object, page: number) {
             try {
 
                 const queryParams = {
@@ -14,7 +14,7 @@ export const useLoggingStore = defineStore('logging', {
                     page: page,
                 };
 
-                const response = await apiClient.get(`${this.apiPrefix}/${logType}`, {
+                const response = await apiClient.get(`${this.apiPrefix}`, {
                     params: queryParams,
                 });
 
