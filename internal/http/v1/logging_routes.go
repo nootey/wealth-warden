@@ -7,7 +7,5 @@ import (
 
 func LoggingRoutes(apiGroup *gin.RouterGroup, handler *handlers.LoggingHandler) {
 	apiGroup.GET("/activity", handler.GetActivityLogs)
-	apiGroup.GET("/access", handler.GetAccessLogs)
-	apiGroup.GET("/notification", handler.GetNotificationLogs)
 	apiGroup.GET("/filter-data", handler.GetActivityLogFilterData)
 }

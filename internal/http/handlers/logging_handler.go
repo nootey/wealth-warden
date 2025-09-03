@@ -48,24 +48,6 @@ func (h *LoggingHandler) GetActivityLogs(c *gin.Context) {
 	h.GetPaginatedLogs(c, "activity_logs", fieldMappings)
 }
 
-func (h *LoggingHandler) GetAccessLogs(c *gin.Context) {
-
-	fieldMappings := map[string]string{
-		"states":  "status",
-		"events":  "event",
-		"causers": "causer_id",
-	}
-
-	h.GetPaginatedLogs(c, "access_logs", fieldMappings)
-}
-
-func (h *LoggingHandler) GetNotificationLogs(c *gin.Context) {
-
-	fieldMappings := map[string]string{}
-
-	h.GetPaginatedLogs(c, "notification_logs", fieldMappings)
-}
-
 func (h *LoggingHandler) GetActivityLogFilterData(c *gin.Context) {
 
 	queryParams := c.Request.URL.Query()

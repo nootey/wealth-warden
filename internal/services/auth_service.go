@@ -47,17 +47,18 @@ func (s *AuthService) logLoginAttempt(email, userAgent, ip, status string, descr
 	changes := utils.InitChanges()
 	service := utils.DetermineServiceSource(userAgent)
 
+	utils.CompareChanges("", status, changes, status)
 	utils.CompareChanges("", service, changes, "service")
 	utils.CompareChanges("", email, changes, "email")
 	utils.CompareChanges("", utils.SafeString(&ip), changes, "ip_address")
 	utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
 
-	err := s.jobDispatcher.Dispatch(&jobs.AccessLogJob{
+	err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
 		LoggingRepo: s.loggingService.LoggingRepo,
 		Logger:      s.logger,
 		Event:       "login",
-		Status:      status,
-		Description: nil,
+		Category:    "auth",
+		Description: description,
 		Payload:     changes,
 		Causer:      user,
 	})
