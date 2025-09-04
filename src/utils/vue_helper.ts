@@ -92,6 +92,9 @@ const vueHelper = {
         const causer = availableCausers.find(c => c.id === causerId);
         return causer ? causer.username : "Deleted user";
     },
+    deletedRowClass<T extends { deleted_at?: string | null }>(data: T) {
+        return data?.deleted_at ? 'row-deleted' : '';
+    }
 };
 
 export default vueHelper;

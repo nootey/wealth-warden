@@ -62,4 +62,9 @@ html {
   cursor: pointer;
 }
 
+.row-deleted {
+  color: var(--text-color-secondary); /* use your theme’s secondary/darker gray */
+  opacity: 0.6;                       /* optional: make the row faded */
+}
+
 

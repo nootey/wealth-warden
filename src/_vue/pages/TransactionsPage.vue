@@ -211,6 +211,8 @@ async function deleteRecord(id: number, tx_type: string) {
   }
 }
 
+
+
 provide("switchSort", switchSort);
 provide("removeFilter", removeFilter);
 
@@ -271,7 +273,7 @@ provide("removeFilter", removeFilter);
               </template>
             <template #includeDeleted>
                 <div class="flex align-items-center gap-2" style="margin-left: auto;">
-                    <span style="font-size: 0.8rem;">Deleted</span>
+                    <span style="font-size: 0.8rem;">Include deleted</span>
                     <ToggleSwitch v-model="includeDeleted" @update:modelValue="getData()" />
                 </div>
             </template>
@@ -279,7 +281,7 @@ provide("removeFilter", removeFilter);
       </div>
 
         <div class="flex flex-row gap-2 w-full">
-            <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingRecords" :value="records">
+            <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingRecords" :value="records" :rowClass="vueHelper.deletedRowClass">
               <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
               <template #loading> <LoadingSpinner></LoadingSpinner> </template>
               <template #footer>
@@ -313,8 +315,11 @@ provide("removeFilter", removeFilter);
 
               <Column header="Actions">
                 <template #body="slotProps">
-                  <i class="pi pi-trash hover_icon" style="font-size: 0.875rem; color: var(--p-red-300);"
-                     @click="deleteConfirmation(slotProps.data?.id, slotProps.data.transaction_type)"></i>
+                   <div class="flex flex-row align-items-center gap-2">
+                       <i v-if="!slotProps.data.deleted_at" class="pi pi-trash hover_icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                          @click="deleteConfirmation(slotProps.data?.id, slotProps.data.transaction_type)"></i>
+                       <i v-else class="pi pi-exclamation-circle" style="font-size: 0.875rem;" v-tooltip="'This transaction is in deleted state!'"></i>
+                   </div>
                 </template>
               </Column>
 

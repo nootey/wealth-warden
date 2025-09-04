@@ -10,6 +10,7 @@ export interface Transaction {
     txn_date: Date | null;
     description: string | null;
     account: Account;
+    deleted_at: Date | null;
 }
 
 export interface Transfer {
@@ -17,6 +18,7 @@ export interface Transfer {
     destination_id: number | null;
     amount: string | null;
     notes: string | null;
+    deleted_at: Date | null;
 }
 
 export interface Category {
