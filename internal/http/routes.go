@@ -40,7 +40,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 	accountHandler := httpHandlers.NewAccountHandler(r.Container.AccountService)
 	transactionHandler := httpHandlers.NewTransactionHandler(r.Container.TransactionService)
 
-	authRL := middleware.NewRateLimiter(5.0/60.0, 3) // 5 per minute, burst 3
+	authRL := middleware.NewRateLimiter(5.0/60.0, 5) // 5 per minute, burst 3
 
 	// Protected routes
 	authGroup := _v1.Group("/", r.Container.AuthService.WebClientMiddleware.WebClientAuthentication())
