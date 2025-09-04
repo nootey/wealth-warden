@@ -171,7 +171,7 @@ async function handleEmit(emitType: any) {
         <AccountForm mode="update" :recordId="accountDetailsID" @completeOperation="handleEmit('completeOperation')"></AccountForm>
     </Dialog>
 
-  <main class="flex flex-column w-full p-2 justify-content-center align-items-center h-screen">
+  <main class="flex flex-column w-full p-2 justify-content-center align-items-center h-screen gap-2">
 
     <div class="flex flex-row justify-content-between align-items-center p-3 w-full border-round-md bordered"
          style="max-width: 1000px;">
@@ -180,25 +180,25 @@ async function handleEmit(emitType: any) {
       <Button class="main-button" label="New Account" icon="pi pi-plus" @click="manipulateDialog('addAccount', true)"/>
     </div>
 
-    <div class="flex w-full pt-2 pb-2 gap-2" style="max-width:1000px;">
-      <div class="flex-1 border-round-md p-3 bordered">
-        <div class="text-xs" style="color:var(--text-secondary);">Total</div>
-        <div class="font-bold">
-          {{ vueHelper.displayAsCurrency(totals.total) }}
+    <div class="flex w-full p-3 gap-2 border-round-md bordered justify-content-between align-items-center" style="max-width:1000px;">
+        <div>
+            <div class="text-xs" style="color:var(--text-secondary);">Total</div>
+            <div class="font-bold">
+              {{ vueHelper.displayAsCurrency(totals.total) }}
+            </div>
         </div>
-      </div>
-      <div class="flex-1 border-round-md p-3 bordered">
-        <div class="text-xs" style="color:var(--text-secondary);">Positive</div>
-        <div class="font-bold" style="color:green">
-          {{ vueHelper.displayAsCurrency(totals.positive) }}
+        <div>
+            <div class="text-xs" style="color:var(--text-secondary);">Positive</div>
+            <div class="font-bold" style="color:green">
+              {{ vueHelper.displayAsCurrency(totals.positive) }}
+            </div>
         </div>
-      </div>
-      <div class="flex-1 border-round-md p-3 bordered">
-        <div class="text-xs" style="color:var(--text-secondary);">Negative</div>
-        <div class="font-bold" style="color:red">
-          {{ vueHelper.displayAsCurrency(totals.negative) }}
+        <div>
+            <div class="text-xs" style="color:var(--text-secondary);">Negative</div>
+            <div class="font-bold" style="color:red">
+              {{ vueHelper.displayAsCurrency(totals.negative) }}
+            </div>
         </div>
-      </div>
     </div>
 
     <div class="flex-1 w-full border-round-md p-2 bordered overflow-y-auto" style="max-width: 1000px;">
@@ -206,7 +206,7 @@ async function handleEmit(emitType: any) {
         <div v-for="[type, group] in groupedAccounts" :key="type" class="w-full p-3 mb-2 border-round-md"
              style="background:var(--background-primary);">
 
-          <div class="flex p-2 mb-1 pb-1 align-items-center justify-content-between" style="border-bottom:1px solid var(--border-color);">
+          <div class="flex p-2 mb-2 pb-21 align-items-center justify-content-between" style="border-bottom:1px solid var(--border-color);">
             <div class="text-sm" style="color:var(--text-secondary);">
               {{ vueHelper.formatString(type) }} · {{ group.length }}
             </div>
