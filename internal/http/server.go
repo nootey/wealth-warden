@@ -70,10 +70,14 @@ func (s *Server) Shutdown() error {
 
 func NewRouter(container *bootstrap.Container, logger *zap.Logger) *gin.Engine {
 
+	var r *gin.Engine
 	if container.Config.Release {
 		gin.SetMode(gin.ReleaseMode)
+		r = gin.New()
+	} else {
+		gin.SetMode(gin.DebugMode)
+		r = gin.Default()
 	}
-	r := gin.New()
 
 	// Logging & recovery
 	r.Use(container.Middleware.ErrorLogger())
