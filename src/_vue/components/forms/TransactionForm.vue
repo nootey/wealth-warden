@@ -33,7 +33,6 @@ onMounted(async () => {
 });
 
 const readOnly = ref(false);
-const loading = ref(false);
 
 const accounts = computed<Account[]>(() => accountStore.accounts);
 const transfer = ref<Transfer>({
@@ -165,7 +164,7 @@ function initData(): Transaction {
 
 async function loadRecord(id: number) {
   try {
-    const data = await sharedStore.getRecordByID("transactions", id);
+    const data = await transactionStore.getTransactionByID(id, true);
 
     readOnly.value = !!data?.deleted_at
 
@@ -304,7 +303,20 @@ const searchAccount = (event: { query: string }) => {
 }
 
 async function restoreTransaction() {
-    console.log("hello there")
+
+    try {
+
+        let response = await transactionStore.restoreTransaction(
+            props.recordId!
+        );
+
+        v$.value.record.$reset();
+        toastStore.successResponseToast(response);
+        emit("completeOperation")
+
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
 }
 
 </script>
