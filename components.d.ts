@@ -22,6 +22,7 @@ declare module 'vue' {
     InputGroup: typeof import('primevue/inputgroup')['default']
     InputGroupAddon: typeof import('primevue/inputgroupaddon')['default']
     InputNumber: typeof import('primevue/inputnumber')['default']
+    InputSwitch: typeof import('primevue/inputswitch')['default']
     InputText: typeof import('primevue/inputtext')['default']
     MultiSelect: typeof import('primevue/multiselect')['default']
     Paginator: typeof import('primevue/paginator')['default']
@@ -31,6 +32,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SelectButton: typeof import('primevue/selectbutton')['default']
     Toast: typeof import('primevue/toast')['default']
+    ToggleSwitch: typeof import('primevue/toggleswitch')['default']
   }
   export interface GlobalDirectives {
     Tooltip: typeof import('primevue/tooltip')['default']

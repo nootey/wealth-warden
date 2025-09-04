@@ -35,7 +35,8 @@ const transfersPaginatedRef = ref<InstanceType<typeof TransfersPaginated> | null
 
 const createModal = ref(false);
 const updateModal = ref(false);
-const updateTransactionID = ref(null)
+const updateTransactionID = ref(null);
+const includeDeleted = ref(false);
 
 onMounted(async () => {
   await getData();
@@ -53,6 +54,7 @@ const params = computed(() => {
     rowsPerPage: paginator.value.rowsPerPage,
     sort: sort.value,
     filters: filters.value,
+    include_deleted: includeDeleted.value,
   }
 });
 const rows = ref([25, 50, 100]);
@@ -257,16 +259,22 @@ provide("removeFilter", removeFilter);
 
       <div class="flex flex-row w-full">
         <ActionRow>
-          <template #activeFilters>
+            <template #activeFilters>
             <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
-          </template>
-          <template #filterButton>
-            <div class="hover_icon flex flex-row align-items-center gap-2" @click="toggleFilterOverlay($event)"
-                 style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color)">
-              <i class="pi pi-filter" style="font-size: 0.845rem"></i>
-              <div>Filter</div>
-            </div>
-          </template>
+            </template>
+              <template #filterButton>
+                <div class="hover_icon flex flex-row align-items-center gap-2" @click="toggleFilterOverlay($event)"
+                     style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color)">
+                  <i class="pi pi-filter" style="font-size: 0.845rem"></i>
+                  <div>Filter</div>
+                </div>
+              </template>
+            <template #includeDeleted>
+                <div class="flex align-items-center gap-2" style="margin-left: auto;">
+                    <span style="font-size: 0.8rem;">Deleted</span>
+                    <ToggleSwitch v-model="includeDeleted" @update:modelValue="getData()" />
+                </div>
+            </template>
         </ActionRow>
       </div>
 
