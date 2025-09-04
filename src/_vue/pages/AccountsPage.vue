@@ -203,8 +203,7 @@ async function handleEmit(emitType: any) {
 
     <div class="flex-1 w-full border-round-md p-2 bordered overflow-y-auto" style="max-width: 1000px;">
 
-        <div v-for="[type, group] in groupedAccounts" :key="type" class="w-full p-3 mb-2 border-round-md"
-             style="background:var(--background-primary);">
+        <div v-for="[type, group] in groupedAccounts" :key="type" class="w-full p-3 mb-2 border-round-md" style="background:var(--background-primary);">
 
           <div class="flex p-2 mb-2 pb-21 align-items-center justify-content-between" style="border-bottom:1px solid var(--border-color);">
             <div class="text-sm" style="color:var(--text-secondary);">
@@ -248,7 +247,6 @@ async function handleEmit(emitType: any) {
 
           </div>
         </div>
-
 
     </div>
   </main>
