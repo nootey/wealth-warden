@@ -25,11 +25,11 @@ const slots: Slots = useSlots();
             </div>
         </div>
 
-        <div style="margin-left: auto" class="flex flex-column p-1" v-if="slots.includeDeleted">
+        <div class="flex flex-column p-1 ml-auto" v-if="slots.includeDeleted">
             <slot name="includeDeleted"></slot>
         </div>
 
-        <div class="flex flex-column p-1" v-if="slots.filterButton">
+        <div class="flex flex-column p-1" :class="{ 'ml-auto': !slots.includeDeleted }" v-if="slots.filterButton">
             <slot name="filterButton"></slot>
         </div>
 
