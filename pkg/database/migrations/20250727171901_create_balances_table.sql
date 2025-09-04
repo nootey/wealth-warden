@@ -25,7 +25,7 @@ CREATE TABLE balances (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_balances_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+    CONSTRAINT fk_balances_account FOREIGN KEY (account_id) REFERENCES accounts(id),
     CONSTRAINT uq_account_asof UNIQUE (account_id, as_of)
 );
 

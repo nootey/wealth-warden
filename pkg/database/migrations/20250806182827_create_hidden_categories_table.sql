@@ -7,7 +7,7 @@ CREATE TABLE hidden_categories (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_categories_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    CONSTRAINT fk_categories_user FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
 CREATE INDEX idx_category_id ON hidden_categories(category_id);

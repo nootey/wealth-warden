@@ -16,7 +16,7 @@ CREATE TABLE transfers (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_transactions_user     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_transactions_user     FOREIGN KEY (user_id) REFERENCES users(id),
     CONSTRAINT fk_transactions_inflow  FOREIGN KEY (transaction_inflow_id) REFERENCES transactions(id),
     CONSTRAINT fk_transactions_outflow FOREIGN KEY (transaction_outflow_id) REFERENCES transactions(id),
     CONSTRAINT uq_transaction UNIQUE (transaction_inflow_id, transaction_outflow_id)

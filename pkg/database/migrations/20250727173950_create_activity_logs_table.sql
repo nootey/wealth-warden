@@ -9,7 +9,7 @@ CREATE TABLE activity_logs (
     causer_id   BIGINT NULL,
     created_at  TIMESTAMPTZ DEFAULT NOW(),
     updated_at  TIMESTAMPTZ DEFAULT NOW(),
-    FOREIGN KEY (causer_id) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (causer_id) REFERENCES users(id)
 );
 
 -- Indexes

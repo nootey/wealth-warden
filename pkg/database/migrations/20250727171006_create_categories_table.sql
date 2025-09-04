@@ -13,8 +13,8 @@ CREATE TABLE categories (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_categories_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL,
+    CONSTRAINT fk_categories_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id),
     CONSTRAINT uq_categories_user_name_class UNIQUE (user_id, name, classification),
     CONSTRAINT no_self_reference CHECK (id IS DISTINCT FROM parent_id)
 );

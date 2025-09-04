@@ -17,15 +17,100 @@ CREATE TABLE transactions (
 
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMPTZ NULL,
 
-    CONSTRAINT fk_transactions_user     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    CONSTRAINT fk_transactions_account  FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+    CONSTRAINT fk_transactions_user     FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_transactions_account  FOREIGN KEY (account_id) REFERENCES accounts(id),
     CONSTRAINT fk_transactions_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_transactions_user_date    ON transactions(user_id, txn_date);
-CREATE INDEX idx_transactions_account_date ON transactions(account_id, txn_date);
-CREATE INDEX idx_transactions_category     ON transactions(category_id);
+CREATE INDEX idx_transactions_user_date_active
+    ON transactions(user_id, txn_date)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_transactions_account_date_active
+    ON transactions(account_id, txn_date)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_transactions_category_active
+    ON transactions(category_id)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_transactions_deleted_at
+    ON transactions(deleted_at)
+    WHERE deleted_at IS NOT NULL;
+
+-- Prevent posting into closed/deleted accounts
+CREATE OR REPLACE FUNCTION prevent_txn_on_closed_or_deleted_account()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    acc_closed_at TIMESTAMPTZ;
+acc_deleted_at TIMESTAMPTZ;
+BEGIN
+SELECT closed_at, deleted_at
+INTO acc_closed_at, acc_deleted_at
+FROM accounts
+WHERE id = NEW.account_id;
+
+IF acc_closed_at IS NOT NULL THEN
+        RAISE EXCEPTION 'Account % is closed; cannot post transactions', NEW.account_id
+            USING ERRCODE = 'check_violation';
+END IF;
+
+IF acc_deleted_at IS NOT NULL THEN
+        RAISE EXCEPTION 'Account % is deleted; cannot post transactions', NEW.account_id
+            USING ERRCODE = 'check_violation';
+END IF;
+
+RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_txn_prevent_post_to_closed
+    BEFORE INSERT OR UPDATE OF account_id, amount, txn_date, transaction_type, currency
+    ON transactions
+    FOR EACH ROW
+EXECUTE FUNCTION prevent_txn_on_closed_or_deleted_account();
+
+-- Block any UPDATEs to already soft-deleted transactions
+CREATE OR REPLACE FUNCTION prevent_update_of_soft_deleted_txn()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF OLD.deleted_at IS NOT NULL THEN
+        RAISE EXCEPTION 'Transaction % is soft-deleted; updates are not allowed', OLD.id
+            USING ERRCODE = 'read_only_sql_transaction';
+END IF;
+RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_txn_block_update_if_deleted
+    BEFORE UPDATE ON transactions
+    FOR EACH ROW
+    EXECUTE FUNCTION prevent_update_of_soft_deleted_txn();
+
+-- soft delete
+CREATE OR REPLACE FUNCTION soft_delete_transaction()
+RETURNS TRIGGER
+LANGUAGE plpgsql AS $$
+BEGIN
+UPDATE transactions
+SET deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP),
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = OLD.id;
+RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_soft_delete_transactions ON transactions;
+CREATE TRIGGER trg_soft_delete_transactions
+    BEFORE DELETE ON transactions
+    FOR EACH ROW
+    EXECUTE FUNCTION soft_delete_transaction();
 
 CREATE TRIGGER set_transactions_updated_at
     BEFORE UPDATE ON transactions
@@ -35,6 +120,12 @@ CREATE TRIGGER set_transactions_updated_at
 
 -- +goose Down
 -- +goose StatementBegin
+DROP RULE IF EXISTS soft_delete_transactions ON transactions;
+DROP TRIGGER IF EXISTS trg_txn_block_update_if_deleted ON transactions;
+DROP FUNCTION IF EXISTS prevent_update_of_soft_deleted_txn();
+DROP TRIGGER IF EXISTS trg_txn_prevent_post_to_closed ON transactions;
+DROP FUNCTION IF EXISTS prevent_txn_on_closed_or_deleted_account();
+
 DROP TRIGGER IF EXISTS set_transactions_updated_at ON transactions;
 DROP TABLE IF EXISTS transactions;
 DROP TYPE IF EXISTS transaction_type_enum;

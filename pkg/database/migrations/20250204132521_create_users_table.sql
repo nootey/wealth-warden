@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMPTZ DEFAULT NULL,
 
-    CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+    CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(id)
 );
 
 CREATE TRIGGER set_users_updated_at
