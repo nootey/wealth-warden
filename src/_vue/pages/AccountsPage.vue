@@ -158,58 +158,55 @@ async function handleEmit(emitType: any) {
     <AddAccount entity="account" @addAccount="handleEmit('addAccount')"></AddAccount>
   </Dialog>
 
-  <main class="flex flex-column w-full p-2 justify-content-center align-items-center" style="height: 100vh;">
+  <main class="flex flex-column w-full p-2 justify-content-center align-items-center h-screen">
 
-    <div class="flex flex-row justify-content-between align-items-center p-3 w-full"
-         style="border-radius: 8px; border: 1px solid var(--border-color);background: var(--background-secondary);
-         max-width: 1000px;">
-      
-      <div style="font-weight: bold;">Accounts</div>
+    <div class="flex flex-row justify-content-between align-items-center p-3 w-full border-round-md bordered"
+         style="max-width: 1000px;">
+
+      <div class="font-bold">Accounts</div>
       <Button class="main-button" label="New Account" icon="pi pi-plus" @click="manipulateDialog('addAccount', true)"/>
     </div>
 
-    <div style="display:flex;gap:0.75rem;max-width:1000px;width:100%;padding:0.75rem 0;">
-      <div style="flex:1;border:1px solid var(--border-color);border-radius:8px;padding:0.75rem;background:var(--background-secondary);">
-        <div style="font-size:0.75rem;color:var(--text-secondary);">Total</div>
-        <div style="font-weight:bold;">
+    <div class="flex w-full pt-2 pb-2 gap-2" style="max-width:1000px;">
+      <div class="flex-1 border-round-md p-3 bordered">
+        <div class="text-xs" style="color:var(--text-secondary);">Total</div>
+        <div class="font-bold">
           {{ vueHelper.displayAsCurrency(totals.total) }}
         </div>
       </div>
-      <div style="flex:1;border:1px solid var(--border-color);border-radius:8px;padding:0.75rem;background:var(--background-secondary);">
-        <div style="font-size:0.75rem;color:var(--text-secondary);">Positive</div>
-        <div style="font-weight:bold;color:green">
+      <div class="flex-1 border-round-md p-3 bordered">
+        <div class="text-xs" style="color:var(--text-secondary);">Positive</div>
+        <div class="font-bold" style="color:green">
           {{ vueHelper.displayAsCurrency(totals.positive) }}
         </div>
       </div>
-      <div style="flex:1;border:1px solid var(--border-color);border-radius:8px;padding:0.75rem;background:var(--background-secondary);">
-        <div style="font-size:0.75rem;color:var(--text-secondary);">Negative</div>
-        <div style="font-weight:bold;color:red">
+      <div class="flex-1 border-round-md p-3 bordered">
+        <div class="text-xs" style="color:var(--text-secondary);">Negative</div>
+        <div class="font-bold" style="color:red">
           {{ vueHelper.displayAsCurrency(totals.negative) }}
         </div>
       </div>
     </div>
 
-    <div style="flex: 1 1 auto;overflow-y: auto;padding: 1rem; border-radius: 8px;
-        border: 1px solid var(--border-color);background: var(--background-secondary);max-width: 1000px;width: 100%; ">
+    <div class="flex-1 w-full border-round-md p-2 bordered overflow-y-auto" style="max-width: 1000px;">
 
-        <div v-for="[type, group] in groupedAccounts" :key="type"
-             style="margin-bottom:1.5rem;background:var(--background-primary);border-radius:8px;padding:1rem; width: 100%;">
+        <div v-for="[type, group] in groupedAccounts" :key="type" class="w-full p-3 mb-2 border-round-md"
+             style="background:var(--background-primary);">
 
-          <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:0.5rem;
-              border-bottom:1px solid var(--border-color);margin-bottom:0.5rem;">
-            <div style="font-size:0.875rem; color:var(--text-secondary);">
+          <div class="flex p-2 mb-1 pb-1 align-items-center justify-content-between" style="border-bottom:1px solid var(--border-color);">
+            <div class="text-sm" style="color:var(--text-secondary);">
               {{ vueHelper.formatString(type) }} · {{ group.length }}
             </div>
-            <div style="font-weight:bold; font-size:0.875rem; color:var(--text-secondary);">
+            <div class="font-bold text-sm" style="color:var(--text-secondary);">
               {{ vueHelper.displayAsCurrency(groupTotal(group)) }}
             </div>
           </div>
 
-          <div v-for="(account, i) in group" :key="account.id ?? i" style="display:flex;align-items:center;justify-content:space-between;
-                padding:0.5rem;border:1px solid var(--border-color);border-radius:8px;margin-top:0.5rem;background:var(--background-secondary);">
+          <div v-for="(account, i) in group" :key="account.id ?? i"
+               class="flex align-items-center justify-content-between p-2 border-round-md mt-1 bordered">
 
-            <div style="display:flex; align-items:center;">
-              <div :style="{
+            <div class="flex align-items-center">
+              <div class="flex align-items-center justify-content-center font-bold" :style="{
                     width: '32px',
                     height: '32px',
                     border: '1px solid',
@@ -217,23 +214,19 @@ async function handleEmit(emitType: any) {
                     borderRadius: '50%',
                     background:  logoColor(account.account_type.type).bg,
                     color:       logoColor(account.account_type.type).fg,
-                    display:     'flex',
-                    alignItems:  'center',
-                    justifyContent: 'center',
-                    fontWeight:  'bold'
-              }">
+                }">
                 {{ account.name.charAt(0).toUpperCase() }}
               </div>
-              <div style="margin-left:1rem;">
-                <div style="font-weight:bold;">{{ account.name }}</div>
-                <div style="font-size:0.875rem; color:var(--text-secondary);">
+              <div class="ml-2">
+                <div class="font-bold">{{ account.name }}</div>
+                <div class="text-sm" style="color:var(--text-secondary);">
                   {{ vueHelper.formatString(account.account_type?.subtype) }}
                 </div>
               </div>
             </div>
 
-            <div style="display:flex; align-items:center;">
-              <div style="font-weight:bold; margin-right:0.5rem;">
+            <div class="flex align-items-center">
+              <div class="font-bold mr-1">
                 {{ vueHelper.displayAsCurrency(account.balance.end_balance) }}
               </div>
             </div>
@@ -247,5 +240,8 @@ async function handleEmit(emitType: any) {
 </template>
 
 <style scoped>
-
+.bordered {
+    border: 1px solid var(--border-color);
+    background: var(--background-secondary);
+}
 </style>
