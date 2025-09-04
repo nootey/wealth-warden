@@ -246,15 +246,15 @@ func (r *TransactionRepository) DeleteTransaction(tx *gorm.DB, id, userID int64)
 		db = r.DB
 	}
 
-	res := db.
-		Where("id = ? AND user_id = ?", id, userID).
-		Delete(&models.Transaction{})
+	res := db.Model(&models.Transaction{}).
+		Where("id = ? AND user_id = ? AND deleted_at IS NULL", id, userID).
+		Updates(map[string]any{
+			"deleted_at": time.Now(),
+			"updated_at": time.Now(),
+		})
 
 	if res.Error != nil {
 		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
 	}
 	return nil
 }
@@ -265,15 +265,15 @@ func (r *TransactionRepository) DeleteTransfer(tx *gorm.DB, id, userID int64) er
 		db = r.DB
 	}
 
-	res := db.
-		Where("id = ? AND user_id = ?", id, userID).
-		Delete(&models.Transfer{})
+	res := db.Model(&models.Transfer{}).
+		Where("id = ? AND user_id = ? AND deleted_at IS NULL", id, userID).
+		Updates(map[string]any{
+			"deleted_at": time.Now(),
+			"updated_at": time.Now(),
+		})
 
 	if res.Error != nil {
 		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
 	}
 	return nil
 }
