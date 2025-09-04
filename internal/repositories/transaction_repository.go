@@ -15,26 +15,64 @@ func NewTransactionRepository(db *gorm.DB) *TransactionRepository {
 	return &TransactionRepository{DB: db}
 }
 
-func (r *TransactionRepository) FindTransactions(user *models.User, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Transaction, error) {
+func (r *TransactionRepository) baseTxQuery(db *gorm.DB, userID int64, includeDeleted bool) *gorm.DB {
+	q := db.Model(&models.Transaction{}).
+		Where("transactions.user_id = ?", userID)
+
+	if !includeDeleted {
+		q = q.Where("transactions.deleted_at IS NULL")
+	}
+
+	// exclude transactions that belong to an active transfer
+	q = q.Where(`
+		NOT EXISTS (
+			SELECT 1 FROM transfers t
+			WHERE (t.transaction_inflow_id = transactions.id OR t.transaction_outflow_id = transactions.id)
+			  AND t.deleted_at IS NULL
+		)
+	`)
+
+	return q
+}
+
+func (r *TransactionRepository) baseTransferQuery(db *gorm.DB, userID int64, includeDeleted bool) *gorm.DB {
+	q := db.Model(&models.Transfer{}).
+		Where("transfers.user_id = ?", userID)
+
+	if !includeDeleted {
+		q = q.Where("transfers.deleted_at IS NULL")
+
+		// Also hide transfers whose legs are soft-deleted
+		q = q.Where(`
+			NOT EXISTS (
+				SELECT 1 FROM transactions ti
+				WHERE ti.id IN (transfers.transaction_inflow_id, transfers.transaction_outflow_id)
+				  AND ti.deleted_at IS NOT NULL
+			)
+		`)
+	}
+
+	return q
+}
+
+func (r *TransactionRepository) FindTransactions(user *models.User, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool) ([]models.Transaction, error) {
 
 	var records []models.Transaction
 
-	query := r.DB.
+	q := r.baseTxQuery(r.DB, user.ID, includeDeleted).
 		Preload("Category").
-		Preload("Account").
-		Where("transactions.user_id = ?", user.ID).
-		Where("NOT EXISTS (SELECT 1 FROM transfers t WHERE t.transaction_inflow_id = transactions.id OR t.transaction_outflow_id = transactions.id)")
+		Preload("Account")
 
 	joins := utils.GetRequiredJoins(filters)
 	orderBy := utils.ConstructOrderByClause(&joins, "transactions", sortField, sortOrder)
 
 	for _, join := range joins {
-		query = query.Joins(join)
+		q = q.Joins(join)
 	}
 
-	query = utils.ApplyFilters(query, filters)
+	q = utils.ApplyFilters(q, filters)
 
-	err := query.
+	err := q.
 		Order(orderBy).
 		Limit(limit).
 		Offset(offset).
@@ -46,16 +84,25 @@ func (r *TransactionRepository) FindTransactions(user *models.User, offset, limi
 	return records, nil
 }
 
-func (r *TransactionRepository) FindTransfers(user *models.User, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Transfer, error) {
+func (r *TransactionRepository) FindTransfers(user *models.User, offset, limit int, includeDeleted bool) ([]models.Transfer, error) {
 
 	var records []models.Transfer
 
-	query := r.DB.
-		Preload("TransactionInflow.Account").
-		Preload("TransactionOutflow.Account").
-		Where("user_id = ?", user.ID)
+	q := r.baseTransferQuery(r.DB, user.ID, includeDeleted)
 
-	err := query.
+	if !includeDeleted {
+		q = q.
+			Preload("TransactionInflow", "deleted_at IS NULL").
+			Preload("TransactionInflow.Account").
+			Preload("TransactionOutflow", "deleted_at IS NULL").
+			Preload("TransactionOutflow.Account")
+	} else {
+		q = q.
+			Preload("TransactionInflow.Account").
+			Preload("TransactionOutflow.Account")
+	}
+
+	err := q.
 		Order("created_at desc").
 		Limit(limit).
 		Offset(offset).
@@ -67,35 +114,31 @@ func (r *TransactionRepository) FindTransfers(user *models.User, offset, limit i
 	return records, nil
 }
 
-func (r *TransactionRepository) CountTransactions(user *models.User, filters []utils.Filter) (int64, error) {
+func (r *TransactionRepository) CountTransactions(user *models.User, filters []utils.Filter, includeDeleted bool) (int64, error) {
 	var totalRecords int64
 
-	query := r.DB.Model(&models.Transaction{}).
-		Where("transactions.user_id = ?", user.ID).
-		Where("NOT EXISTS (SELECT 1 FROM transfers t WHERE t.transaction_inflow_id = transactions.id OR t.transaction_outflow_id = transactions.id)")
+	q := r.baseTxQuery(r.DB, user.ID, includeDeleted)
 
 	joins := utils.GetRequiredJoins(filters)
 	for _, join := range joins {
-		query = query.Joins(join)
+		q = q.Joins(join)
 	}
 
-	query = utils.ApplyFilters(query, filters)
+	q = utils.ApplyFilters(q, filters)
 
-	err := query.Count(&totalRecords).Error
+	err := q.Count(&totalRecords).Error
 	if err != nil {
 		return 0, err
 	}
 	return totalRecords, nil
 }
 
-func (r *TransactionRepository) CountTransfers(user *models.User, filters []utils.Filter) (int64, error) {
+func (r *TransactionRepository) CountTransfers(user *models.User, includeDeleted bool) (int64, error) {
 	var totalRecords int64
 
-	query := r.DB.Model(&models.Transfer{}).
-		Where("user_id = ?", user.ID)
+	q := r.baseTransferQuery(r.DB, user.ID, includeDeleted)
 
-	err := query.Count(&totalRecords).Error
-	if err != nil {
+	if err := q.Count(&totalRecords).Error; err != nil {
 		return 0, err
 	}
 	return totalRecords, nil

@@ -5,6 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
+	"strings"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
@@ -22,7 +23,11 @@ func NewTransactionHandler(service *services.TransactionService) *TransactionHan
 }
 
 func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
-	records, paginator, err := h.Service.FetchTransactionsPaginated(c)
+
+	q := c.Request.URL.Query()
+	includeDeleted := strings.EqualFold(q.Get("include_deleted"), "true")
+
+	records, paginator, err := h.Service.FetchTransactionsPaginated(c, includeDeleted)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -41,7 +46,11 @@ func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
 }
 
 func (h *TransactionHandler) GetTransfersPaginated(c *gin.Context) {
-	records, paginator, err := h.Service.FetchTransfersPaginated(c)
+
+	q := c.Request.URL.Query()
+	includeDeleted := strings.EqualFold(q.Get("include_deleted"), "true")
+
+	records, paginator, err := h.Service.FetchTransfersPaginated(c, includeDeleted)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -117,6 +126,29 @@ func (h *TransactionHandler) InsertTransaction(c *gin.Context) {
 	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
 
+func (h *TransactionHandler) InsertTransfer(c *gin.Context) {
+
+	var record *models.TransferReq
+
+	if err := c.ShouldBindJSON(&record); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(record); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.Service.InsertTransfer(c, record); err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
+}
+
 func (h *TransactionHandler) UpdateTransaction(c *gin.Context) {
 
 	idStr := c.Param("id")
@@ -176,29 +208,6 @@ func (h *TransactionHandler) DeleteTransaction(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
-}
-
-func (h *TransactionHandler) InsertTransfer(c *gin.Context) {
-
-	var record *models.TransferReq
-
-	if err := c.ShouldBindJSON(&record); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	validator := validators.NewValidator()
-	if err := validator.ValidateStruct(record); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
-		return
-	}
-
-	if err := h.Service.InsertTransfer(c, record); err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-
-	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
 
 func (h *TransactionHandler) DeleteTransfer(c *gin.Context) {

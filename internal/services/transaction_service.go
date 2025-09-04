@@ -62,7 +62,7 @@ func (s *TransactionService) logBalanceChange(account *models.Account, user *mod
 	})
 }
 
-func (s *TransactionService) FetchTransactionsPaginated(c *gin.Context) ([]models.Transaction, *utils.Paginator, error) {
+func (s *TransactionService) FetchTransactionsPaginated(c *gin.Context, includeDeleted bool) ([]models.Transaction, *utils.Paginator, error) {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
 	if err != nil {
@@ -72,14 +72,14 @@ func (s *TransactionService) FetchTransactionsPaginated(c *gin.Context) ([]model
 	queryParams := c.Request.URL.Query()
 	p := utils.GetPaginationParams(queryParams)
 
-	totalRecords, err := s.Repo.CountTransactions(user, p.Filters)
+	totalRecords, err := s.Repo.CountTransactions(user, p.Filters, includeDeleted)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
 
-	records, err := s.Repo.FindTransactions(user, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters)
+	records, err := s.Repo.FindTransactions(user, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeDeleted)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -105,7 +105,7 @@ func (s *TransactionService) FetchTransactionsPaginated(c *gin.Context) ([]model
 	return records, paginator, nil
 }
 
-func (s *TransactionService) FetchTransfersPaginated(c *gin.Context) ([]models.Transfer, *utils.Paginator, error) {
+func (s *TransactionService) FetchTransfersPaginated(c *gin.Context, includeDeleted bool) ([]models.Transfer, *utils.Paginator, error) {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
 	if err != nil {
@@ -115,14 +115,14 @@ func (s *TransactionService) FetchTransfersPaginated(c *gin.Context) ([]models.T
 	queryParams := c.Request.URL.Query()
 	p := utils.GetPaginationParams(queryParams)
 
-	totalRecords, err := s.Repo.CountTransfers(user, p.Filters)
+	totalRecords, err := s.Repo.CountTransfers(user, includeDeleted)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
 
-	records, err := s.Repo.FindTransfers(user, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters)
+	records, err := s.Repo.FindTransfers(user, offset, p.RowsPerPage, includeDeleted)
 	if err != nil {
 		return nil, nil, err
 	}
