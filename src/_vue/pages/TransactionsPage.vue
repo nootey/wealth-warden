@@ -226,7 +226,7 @@ provide("removeFilter", removeFilter);
   </Dialog>
 
   <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal" :breakpoints="{'501px': '90vw'}"
-          :modal="true" :style="{width: '500px'}" header="Update transaction">
+          :modal="true" :style="{width: '500px'}" header="Transaction details">
     <TransactionForm mode="update" :recordId="updateTransactionID" @completeOperation="handleEmit('completeOperation')"></TransactionForm>
   </Dialog>
 

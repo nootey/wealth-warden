@@ -14,6 +14,7 @@ import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import TransferForm from "./TransferForm.vue";
+import toastHelper from "../../../utils/toast_helper.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -25,20 +26,24 @@ const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
 
+onMounted(async () => {
+    if (props.mode === "update" && props.recordId) {
+        await loadRecord(props.recordId);
+    }
+});
+
+const readOnly = ref(false);
+const loading = ref(false);
+
 const accounts = computed<Account[]>(() => accountStore.accounts);
 const transfer = ref<Transfer>({
     source_id: null,
     destination_id: null,
     amount: null,
-    notes: null
+    notes: null,
+    deleted_at: null,
 });
 const transferFormRef = ref<InstanceType<typeof TransferForm> | null>(null);
-
-onMounted(async () => {
-  if (props.mode === "update" && props.recordId) {
-    await loadRecord(props.recordId);
-  }
-});
 
 const record = ref<Transaction>(initData());
 const amountRef = computed({
@@ -154,12 +159,15 @@ function initData(): Transaction {
     amount: null,
     txn_date: dayjs().toDate(),
     description: null,
+    deleted_at: null,
   };
 }
 
 async function loadRecord(id: number) {
   try {
     const data = await sharedStore.getRecordByID("transactions", id);
+
+    readOnly.value = !!data?.deleted_at
 
     record.value = {
       ...initData(),
@@ -173,6 +181,7 @@ async function loadRecord(id: number) {
                 (p.classification?.toLowerCase?.() === String(data.transaction_type).toLowerCase()) ||
                 (p.name?.toLowerCase?.() === String(data.transaction_type).toLowerCase())
         ) || null;
+
   } catch (err) {
     toastStore.errorResponseToast(err);
   }
@@ -185,6 +194,11 @@ async function isRecordValid() {
 }
 
 async function manageRecord() {
+
+    if (readOnly.value) {
+        toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
+        return;
+    }
 
     if (selectedParentCategory.value == null) {
     return;
@@ -289,22 +303,26 @@ const searchAccount = (event: { query: string }) => {
   }, 250);
 }
 
+async function restoreTransaction() {
+    console.log("hello there")
+}
+
 </script>
 
 <template>
 
   <div class="flex flex-column gap-3 p-1">
 
-    <div class="flex flex-row w-full justify-content-center">
+    <div v-if="!readOnly" class="flex flex-row w-full justify-content-center">
         <div class="flex flex-column w-50">
-        <SelectButton style="font-size: 0.875rem;" size="small"
-                      v-model="selectedParentCategory"
-                      :options="parentCategories" optionLabel="name" :allowEmpty="false"
-                      @update:modelValue="updateSelectedParentCategory($event)" />
+            <SelectButton style="font-size: 0.875rem;" size="small"
+                          v-model="selectedParentCategory"
+                          :options="parentCategories" optionLabel="name" :allowEmpty="false"
+                          @update:modelValue="updateSelectedParentCategory($event)" />
         </div>
     </div>
 
-      <div class="flex flex-column gap-3" v-if="selectedParentCategory?.name.toLowerCase() == 'transfer'">
+      <div class="flex flex-column gap-3" v-if="selectedParentCategory?.name.toLowerCase() == 'transfer' && !readOnly">
           <TransferForm ref="transferFormRef" v-model:transfer="transfer" :accounts="accounts" />
       </div>
 
@@ -315,7 +333,7 @@ const searchAccount = (event: { query: string }) => {
                   <ValidationError :isRequired="true" :message="v$.record.account.name.$errors[0]?.$message">
                       <label>Account</label>
                   </ValidationError>
-                  <AutoComplete size="small" v-model="record.account" :suggestions="filteredAccounts"
+                  <AutoComplete :disabled="readOnly" size="small" v-model="record.account" :suggestions="filteredAccounts"
                                 @complete="searchAccount" optionLabel="name"
                                 placeholder="Select account" dropdown>
                   </AutoComplete>
@@ -327,7 +345,7 @@ const searchAccount = (event: { query: string }) => {
                   <ValidationError :isRequired="true" :message="v$.record.amount.$errors[0]?.$message">
                       <label>Amount</label>
                   </ValidationError>
-                  <InputNumber size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
+                  <InputNumber :disabled="readOnly" size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
               </div>
           </div>
 
@@ -336,7 +354,7 @@ const searchAccount = (event: { query: string }) => {
                   <ValidationError :isRequired="false" :message="v$.record.category.name.$errors[0]?.$message">
                       <label>Category</label>
                   </ValidationError>
-                  <AutoComplete size="small" v-model="record.category" :suggestions="filteredCategories"
+                  <AutoComplete :disabled="readOnly" size="small" v-model="record.category" :suggestions="filteredCategories"
                                 @complete="searchCategory" optionLabel="name"
                                 placeholder="Select category" dropdown>
                   </AutoComplete>
@@ -350,7 +368,7 @@ const searchAccount = (event: { query: string }) => {
                   </ValidationError>
                   <DatePicker v-model="record.txn_date" date-format="dd/mm/yy"
                               showIcon fluid iconDisplay="input"
-                              size="small"/>
+                              size="small" :disabled="readOnly"/>
               </div>
           </div>
 
@@ -359,19 +377,21 @@ const searchAccount = (event: { query: string }) => {
                   <ValidationError :isRequired="false" :message="v$.record.description.$errors[0]?.$message">
                       <label>Description</label>
                   </ValidationError>
-                  <InputText size="small" v-model="record.description" placeholder="Describe transaction"></InputText>
+                  <InputText :disabled="readOnly" size="small" v-model="record.description" placeholder="Describe transaction"></InputText>
               </div>
           </div>
 
-
       </div>
 
-      <div class="flex flex-row gap-2 w-full">
+      <div class="flex flex-row gap-2 w-full" >
           <div class="flex flex-column w-full">
-              <Button class="main-button"
+              <Button v-if="!readOnly" class="main-button"
                       :label="(selectedParentCategory?.name.toLowerCase() == 'transfer' ? 'Start transfer' :
                       (mode == 'create' ? 'Add' : 'Update') +  ' transaction')"
                       @click="manageRecord" style="height: 42px;" />
+              <Button v-else class="main-button"
+                      label="Restore"
+                      @click="restoreTransaction" style="height: 42px;" />
           </div>
       </div>
 
