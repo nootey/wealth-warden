@@ -19,6 +19,7 @@ type Transaction struct {
 	Category        Category        `json:"category,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
+	DeletedAt       *time.Time      `json:"deleted_at"`
 }
 
 type Transfer struct {
@@ -32,6 +33,7 @@ type Transfer struct {
 	Notes                *string         `gorm:"type:text" json:"notes"`
 	CreatedAt            time.Time       `json:"created_at"`
 	UpdatedAt            time.Time       `json:"updated_at"`
+	DeletedAt            *time.Time      `json:"deleted_at"`
 
 	// Relations
 	TransactionInflow  Transaction `gorm:"foreignKey:TransactionInflowID;references:ID" json:"from"`
@@ -70,4 +72,8 @@ type TransferReq struct {
 	DestinationID int64           `json:"destination_id" validate:"required"`
 	Amount        decimal.Decimal `json:"amount" validate:"required"`
 	Notes         *string         `json:"notes"`
+}
+
+type TrRestoreReq struct {
+	ID int64 `json:"id" validate:"required"`
 }

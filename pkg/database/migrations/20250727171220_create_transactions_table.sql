@@ -74,17 +74,30 @@ CREATE TRIGGER trg_txn_prevent_post_to_closed
     FOR EACH ROW
 EXECUTE FUNCTION prevent_txn_on_closed_or_deleted_account();
 
--- Block any UPDATEs to already soft-deleted transactions
+-- Block any updates to already soft-deleted transactions
 CREATE OR REPLACE FUNCTION prevent_update_of_soft_deleted_txn()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    old_stripped jsonb;
+    new_stripped jsonb;
 BEGIN
     IF OLD.deleted_at IS NOT NULL THEN
-        RAISE EXCEPTION 'Transaction % is soft-deleted; updates are not allowed', OLD.id
-            USING ERRCODE = 'read_only_sql_transaction';
-END IF;
-RETURN NEW;
+    -- Build row snapshots without deleted_at / updated_at for equality check
+    old_stripped := to_jsonb(OLD) - 'deleted_at' - 'updated_at';
+    new_stripped := to_jsonb(NEW) - 'deleted_at' - 'updated_at';
+
+        -- Allow restore: only change is deleted_at -> NULL (updated_at may change)
+    IF NEW.deleted_at IS NULL AND new_stripped = old_stripped THEN
+          RETURN NEW;
+    END IF;
+
+    RAISE EXCEPTION 'Transaction % is soft-deleted; updates are not allowed', OLD.id
+          USING ERRCODE = '25006';
+    END IF;
+
+    RETURN NEW;
 END;
 $$;
 

@@ -148,14 +148,14 @@ func (s *TransactionService) FetchTransfersPaginated(c *gin.Context, includeDele
 	return records, paginator, nil
 }
 
-func (s *TransactionService) FetchTransactionByID(c *gin.Context, id int64) (*models.Transaction, error) {
+func (s *TransactionService) FetchTransactionByID(c *gin.Context, id int64, includeDeleted bool) (*models.Transaction, error) {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
 	if err != nil {
 		return nil, err
 	}
 
-	record, err := s.Repo.FindTransactionByID(nil, id, user.ID)
+	record, err := s.Repo.FindTransactionByID(nil, id, user.ID, includeDeleted)
 	if err != nil {
 		return nil, err
 	}
@@ -432,7 +432,7 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 		}
 	}()
 
-	exTr, err := s.Repo.FindTransactionByID(tx, id, user.ID)
+	exTr, err := s.Repo.FindTransactionByID(tx, id, user.ID, false)
 	if err != nil {
 		return fmt.Errorf("can't find transaction with given id %w", err)
 	}
@@ -602,7 +602,7 @@ func (s *TransactionService) DeleteTransaction(c *gin.Context, id int64) error {
 	}()
 
 	// Load the transaction + relations
-	tr, err := s.Repo.FindTransactionByID(tx, id, user.ID)
+	tr, err := s.Repo.FindTransactionByID(tx, id, user.ID, false)
 	if err != nil {
 		return fmt.Errorf("can't find transaction with given id %w", err)
 	}
@@ -715,12 +715,12 @@ func (s *TransactionService) DeleteTransfer(c *gin.Context, id int64) error {
 	}
 
 	// Load associated transactions
-	inflow, err := s.Repo.FindTransactionByID(tx, transfer.TransactionInflowID, user.ID)
+	inflow, err := s.Repo.FindTransactionByID(tx, transfer.TransactionInflowID, user.ID, false)
 	if err != nil {
 		return fmt.Errorf("can't find inflow transaction with given id %w", err)
 	}
 
-	outflow, err := s.Repo.FindTransactionByID(tx, transfer.TransactionOutflowID, user.ID)
+	outflow, err := s.Repo.FindTransactionByID(tx, transfer.TransactionOutflowID, user.ID, false)
 	if err != nil {
 		return fmt.Errorf("can't find outflow transaction with given id %w", err)
 	}
@@ -795,6 +795,100 @@ func (s *TransactionService) DeleteTransfer(c *gin.Context, id int64) error {
 	}
 	if err := s.logBalanceChange(&toAcc, user, inflow.Amount.Neg()); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (s *TransactionService) RestoreTransaction(c *gin.Context, id int64) error {
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Load the transaction
+	tr, err := s.Repo.FindTransactionByID(tx, id, user.ID, true)
+	if err != nil {
+		return fmt.Errorf("can't find inflow transaction with given id %w", err)
+	}
+	if tr.DeletedAt == nil {
+		tx.Rollback()
+		return fmt.Errorf("transaction is not deleted")
+	}
+
+	// Load account
+	acc, err := s.AccountService.Repo.FindAccountByID(tx, tr.AccountID, user.ID, false)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find account for transaction %w", err)
+	}
+
+	// Re-apply og cash effect
+	signed := func(tt string, amt decimal.Decimal) decimal.Decimal {
+		switch strings.ToLower(tt) {
+		case "expense":
+			return amt.Neg()
+		default:
+			return amt
+		}
+	}
+	origEffect := signed(tr.TransactionType, tr.Amount)
+
+	// Reverse balances
+	if !origEffect.IsZero() {
+		dir := map[bool]string{true: "expense", false: "income"}[origEffect.IsNegative()]
+		if err := s.AccountService.UpdateAccountCashBalance(tx, &acc, dir, origEffect.Abs()); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// Unmark as soft deleted
+	if err := s.Repo.RestoreTransaction(tx, tr.ID, user.ID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Log
+	changes := utils.InitChanges()
+	utils.CompareChanges("", acc.Name, changes, "account")
+	utils.CompareChanges("", tr.Amount.StringFixed(2), changes, "amount")
+	utils.CompareChanges("", tr.Currency, changes, "currency")
+
+	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "restore",
+		Category:    "transaction",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	}); err != nil {
+		return err
+	}
+
+	// Log balance changes
+	if !origEffect.IsZero() {
+		if err := s.logBalanceChange(&acc, user, origEffect); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -71,6 +71,10 @@ func (h *TransactionHandler) GetTransfersPaginated(c *gin.Context) {
 func (h *TransactionHandler) GetTransactionByID(c *gin.Context) {
 
 	idStr := c.Param("id")
+	queryParams := c.Request.URL.Query()
+	includeDeletedStr := queryParams.Get("deleted")
+
+	includeDeleted := strings.EqualFold(includeDeletedStr, "true")
 
 	if idStr == "" {
 		err := errors.New("invalid id provided")
@@ -84,7 +88,7 @@ func (h *TransactionHandler) GetTransactionByID(c *gin.Context) {
 		return
 	}
 
-	record, err := h.Service.FetchTransactionByID(c, id)
+	record, err := h.Service.FetchTransactionByID(c, id, includeDeleted)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
@@ -232,4 +236,21 @@ func (h *TransactionHandler) DeleteTransfer(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
+}
+
+func (h *TransactionHandler) RestoreTransaction(c *gin.Context) {
+
+	var req *models.TrRestoreReq
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.RestoreTransaction(c, req.ID); err != nil {
+		utils.ErrorMessage(c, "Restore error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record restored", "Success", http.StatusOK)
 }

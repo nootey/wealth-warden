@@ -15,4 +15,5 @@ func TransactionRoutes(apiGroup *gin.RouterGroup, handler *handlers.TransactionH
 	apiGroup.GET("transfers", handler.GetTransfersPaginated)
 	apiGroup.PUT("transfers", handler.InsertTransfer)
 	apiGroup.DELETE("transfers/:id", handler.DeleteTransfer)
+	apiGroup.POST("/restore", handler.RestoreTransaction)
 }

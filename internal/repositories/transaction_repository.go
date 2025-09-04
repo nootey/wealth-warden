@@ -210,18 +210,25 @@ func (r *TransactionRepository) scopeVisibleCategories(userID *int64) func(*gorm
 	}
 }
 
-func (r *TransactionRepository) FindTransactionByID(tx *gorm.DB, ID, userID int64) (models.Transaction, error) {
+func (r *TransactionRepository) FindTransactionByID(tx *gorm.DB, ID, userID int64, includeDeleted bool) (models.Transaction, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
 
 	var record models.Transaction
-	result := db.
+	q := db.
 		Preload("Category").
 		Preload("Account").
-		Where("id = ? AND user_id = ?", ID, userID).First(&record)
-	return record, result.Error
+		Where("id = ? AND user_id = ?", ID, userID)
+
+	if !includeDeleted {
+		q = q.Where("deleted_at IS NULL")
+	}
+
+	q = q.First(&record)
+
+	return record, q.Error
 }
 
 func (r *TransactionRepository) FindTransferByID(tx *gorm.DB, ID, userID int64) (models.Transfer, error) {
@@ -319,4 +326,18 @@ func (r *TransactionRepository) DeleteTransfer(tx *gorm.DB, id, userID int64) er
 		return res.Error
 	}
 	return nil
+}
+
+func (r *TransactionRepository) RestoreTransaction(tx *gorm.DB, id, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+	res := db.Model(&models.Transaction{}).
+		Where("id = ? AND user_id = ? AND deleted_at IS NOT NULL", id, userID).
+		Updates(map[string]any{
+			"deleted_at": gorm.Expr("NULL"),
+			"updated_at": time.Now(),
+		})
+	return res.Error
 }
