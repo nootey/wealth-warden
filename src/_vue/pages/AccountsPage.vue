@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-import AddAccount from "../components/forms/AddAccount.vue";
+import AccountForm from "../components/forms/AccountForm.vue";
 import {computed, onMounted, ref} from "vue";
 import {useAccountStore} from "../../services/stores/account_store.ts";
 import vueHelper from "../../utils/vue_helper.ts";
@@ -17,7 +17,9 @@ import Decimal from "decimal.js";
 
 const apiPrefix = "accounts";
 
-const addAccountModal = ref(false);
+const createModal = ref(false);
+const detailsModal = ref(false);
+const accountDetailsID = ref(null);
 
 onMounted(async () => {
   await accountStore.getAccountTypes();
@@ -125,10 +127,15 @@ const totals = computed(() => {
   };
 });
 
-function manipulateDialog(modal: string, value: boolean) {
+function manipulateDialog(modal: string, value: any) {
   switch (modal) {
     case 'addAccount': {
-      addAccountModal.value = value;
+      createModal.value = value;
+      break;
+    }
+    case 'accountDetails': {
+      detailsModal.value = true;
+      accountDetailsID.value = value;
       break;
     }
     default: {
@@ -139,8 +146,9 @@ function manipulateDialog(modal: string, value: boolean) {
 
 async function handleEmit(emitType: any) {
   switch (emitType) {
-    case 'addAccount': {
-      addAccountModal.value = false;
+    case 'completeOperation': {
+      createModal.value = false;
+      detailsModal.value = false;
       await getData();
       break;
     }
@@ -153,10 +161,15 @@ async function handleEmit(emitType: any) {
 </script>
 
 <template>
-  <Dialog class="rounded-dialog" v-model:visible="addAccountModal" :breakpoints="{'801px': '90vw'}"
-          :modal="true" :style="{width: '500px'}" header="Add account">
-    <AddAccount entity="account" @addAccount="handleEmit('addAccount')"></AddAccount>
-  </Dialog>
+    <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{'801px': '90vw'}"
+          :modal="true" :style="{width: '500px'}" header="Create account">
+    <AccountForm mode="create" @completeOperation="handleEmit('completeOperation')"></AccountForm>
+    </Dialog>
+
+    <Dialog position="right" class="rounded-dialog" v-model:visible="detailsModal" :breakpoints="{'801px': '90vw'}"
+            :modal="true" :style="{width: '500px'}" header="Account details">
+        <AccountForm mode="update" :recordId="accountDetailsID" @completeOperation="handleEmit('completeOperation')"></AccountForm>
+    </Dialog>
 
   <main class="flex flex-column w-full p-2 justify-content-center align-items-center h-screen">
 
@@ -206,19 +219,21 @@ async function handleEmit(emitType: any) {
                class="flex align-items-center justify-content-between p-2 border-round-md mt-1 bordered">
 
             <div class="flex align-items-center">
-              <div class="flex align-items-center justify-content-center font-bold" :style="{
-                    width: '32px',
-                    height: '32px',
-                    border: '1px solid',
-                    borderColor:       logoColor(account.account_type.type).fg,
-                    borderRadius: '50%',
-                    background:  logoColor(account.account_type.type).bg,
-                    color:       logoColor(account.account_type.type).fg,
-                }">
+              <div class="flex align-items-center justify-content-center font-bold hover"
+                   @click="manipulateDialog('accountDetails', account.id)"
+                   :style="{
+                        width: '32px',
+                        height: '32px',
+                        border: '1px solid',
+                        borderColor:       logoColor(account.account_type.type).fg,
+                        borderRadius: '50%',
+                        background:  logoColor(account.account_type.type).bg,
+                        color:       logoColor(account.account_type.type).fg,
+                    }">
                 {{ account.name.charAt(0).toUpperCase() }}
               </div>
               <div class="ml-2">
-                <div class="font-bold">{{ account.name }}</div>
+                <div class="font-bold hover" @click="manipulateDialog('accountDetails', account.id)">{{ account.name }}</div>
                 <div class="text-sm" style="color:var(--text-secondary);">
                   {{ vueHelper.formatString(account.account_type?.subtype) }}
                 </div>
@@ -243,5 +258,12 @@ async function handleEmit(emitType: any) {
 .bordered {
     border: 1px solid var(--border-color);
     background: var(--background-secondary);
+}
+.hover {
+    font-weight: bold;
+}
+.hover:hover {
+    cursor: pointer;
+    text-decoration: underline;
 }
 </style>
