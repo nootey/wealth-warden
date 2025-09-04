@@ -284,10 +284,14 @@ provide("removeFilter", removeFilter);
                                     <b> {{ "Description: "  }}</b>
                                     {{ slotProps.data.description ? slotProps.data?.description : "none provided" }}
                                 </div>
-                                <div v-if="slotProps.data?.metadata" class="truncate-text" style="max-width: 50rem;"
-                                     v-for="item in vueHelper.formatChanges(slotProps.data?.metadata)">
-                                    <label> {{ item?.prop.toUpperCase() + ": " }}</label>
-                                    <span v-tooltip="vueHelper.formatValue(item)"> {{ vueHelper.formatValue(item) }} </span>
+                                <div v-if="slotProps.data?.metadata" class="truncate-text" style="max-width: 50rem;">
+                                    <div v-for="item in vueHelper.formatChanges(slotProps.data?.metadata)">
+                                        <label>{{ (item?.prop || '').toUpperCase() + ': ' }}</label>
+                                        <span v-tooltip="vueHelper.formatValue(item)">
+                                          {{ vueHelper.formatValue(item) }}
+                                        </span>
+                                    </div>
+
                                 </div>
                                 <div v-else>{{ "Payload is empty" }}</div>
                             </div>

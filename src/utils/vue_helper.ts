@@ -4,11 +4,8 @@ interface ValidationObject {
     $error: boolean;
 }
 
-type Change = {
-    prop: string;
-    oldVal: any;
-    newVal: any;
-};
+type ChangeSet = { new?: Record<string, any>; old?: Record<string, any> };
+type Change = { prop: string; oldVal: any; newVal: any };
 
 type Causer = {
     id: number;
@@ -54,38 +51,31 @@ const vueHelper = {
 
         return num.toFixed(1) + " %";
     },
-    formatChanges(payload: any) {
-        if (payload === "[]") return null;
-        if (payload) {
-            let newValues = JSON.parse(payload).new;
-            let oldValues = JSON.parse(payload).old ?? null;
-            let finalOutput: Change[] = [];
+    formatChanges(payload: any): Change[] | null {
+        if (!payload) return null;
 
-            let properties = new Set([...Object.keys(newValues), ...Object.keys(oldValues)]);
+        const obj: ChangeSet = typeof payload === 'string' ? JSON.parse(payload) : payload;
 
-            properties.forEach(property => {
-                let change = {
-                    prop: property,
-                    oldVal: oldValues ? oldValues[property] : null,
-                    newVal: newValues[property]
-                };
-                if (change.oldVal !== change.newVal) {
-                    finalOutput.push(change);
-                }
-            });
+        const newVals = obj.new ?? {};
+        const oldVals = obj.old ?? {};
+        const keys = new Set([...Object.keys(newVals), ...Object.keys(oldVals)]);
 
-            return finalOutput;
+        const out: Change[] = [];
+        for (const k of keys) {
+            const oldVal = oldVals?.[k] ?? null;
+            const newVal = newVals?.[k] ?? null;
+            if (oldVal !== newVal) out.push({ prop: k, oldVal, newVal });
         }
-        return null;
+        return out.length ? out : null;
     },
-    isEmpty(value: any){
-        return (value == null || value.length === 0 || value === ' ');
-    },
-    formatValue(item: any){
-        if(this.isEmpty(item.oldVal) && this.isEmpty(item.newVal)) return "NULL";
-        return (this.isEmpty(item.oldVal) ? "NEW" : item.oldVal)
-            + " => " +
-            (this.isEmpty(item.newVal) ? "DELETED" : item.newVal);
+    formatValue(item: { newVal: any; oldVal: any }) {
+        const hasNew = item.newVal !== undefined && item.newVal !== null && item.newVal !== '';
+        const hasOld = item.oldVal !== undefined && item.oldVal !== null && item.oldVal !== '';
+        if (hasNew && hasOld && item.newVal !== item.oldVal) {
+            return `${item.oldVal} => ${item.newVal}`;
+        }
+        const v = hasNew ? item.newVal : (hasOld ? item.oldVal : '');
+        return String(v ?? '');
     },
     displayCauserFromId(causerId: number | null, availableCausers: Causer[]) {
         if (!causerId || !availableCausers) return '';
