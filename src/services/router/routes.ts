@@ -5,6 +5,7 @@ import Login from "../../_vue/features/auth/Login.vue";
 import ActivityLogsPage from "../../_vue/pages/ActivityLogsPage.vue";
 import TransactionsPage from "../../_vue/pages/TransactionsPage.vue";
 import AccountsPage from "../../_vue/pages/AccountsPage.vue";
+import SettingsPage from "../../_vue/pages/SettingsPage.vue";
 
 const routes = [
     {
@@ -35,6 +36,15 @@ const routes = [
         path: '/logs',
         name: 'Logs',
         component: ActivityLogsPage,
+        beforeEnter: [requiresAuth],
+    },
+    { path: '/settings', redirect: '/settings/profile' },
+    // one component, different URLs
+    {
+        path: '/settings/:section(profile|preferences|accounts|categories)',
+        name: 'SettingsSection',
+        component: SettingsPage,
+        props: true,
         beforeEnter: [requiresAuth],
     },
 ];
