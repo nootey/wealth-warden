@@ -3,10 +3,13 @@ import {useThemeStore} from './services/stores/theme_store.ts';
 import {useAuthStore} from './services/stores/auth_store.ts';
 import {storeToRefs} from "pinia";
 import {ref} from 'vue';
+import {useRouter} from "vue-router";
 
 const themeStore = useThemeStore();
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
+
+const router = useRouter();
 
 interface MenuItem {
   to: string;
@@ -32,96 +35,36 @@ function toggleProfileMenu(event: any) {
 </script>
 
 <template>
-  <aside style="
-    display: flex;
-    flex-direction: column;
-    width: 80px;
-    min-height: 100vh;
-    overflow: hidden;
-    padding: 1rem 0.5rem;
-    background-color: var(--background-secondary);
-    color: var(--text-primary);">
-    <div class="logo-section" style="
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 2rem;
-      padding: 0.5rem;">
-      <div style="
-        width: 32px;
-        height: 32px;
-        background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);">
-        <i class="pi pi-wallet" style="
-          font-size: 1rem;
-          color: white;" />
+  <aside class="flex flex-column overflow-hidden min-h-screen"
+         style="width: 80px; background-color: var(--background-secondary); color: var(--text-primary); padding: 1rem 0;">
+    <div class="logo-section flex align-items-center justify-content-center mb-3 p-2">
+      <div class="flex align-items-center justify-content-center"
+           style="
+            width: 32px; height: 32px; border-radius: 8px;box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);">
+        <i class="pi pi-wallet" style="color: white;" />
       </div>
     </div>
 
-    <div style="flex: 1;">
-      <div class="menu" style="
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        height: 100%;">
-        <router-link
-            v-for="(item, index) in menuItems"
-            :key="index"
-            :to="item.to"
-            style="
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              text-decoration: none;
-              padding: 0.5rem 0.25rem;
-              border-radius: 12px;
-              transition: all 0.2s ease;
-              color: var(--text-secondary);"
+    <div class="flex-1">
+      <div class="menu flex flex-column h-full">
+        <router-link v-for="(item, index) in menuItems" :key="index" :to="item.to"
+            class="flex flex-column align-items-center p-1 border-round-lg"
+            style="text-decoration: none; transition: all 0.2s ease; color: var(--text-secondary);"
             :style="{
               backgroundColor: $route.path === item.to ? 'var(--background-primary)' : 'transparent',
               color: $route.path === item.to ? 'var(--text-primary)' : 'var(--text-secondary)'}">
-          <i :class="['pi', item.icon]" style="
-            font-size: 1.1rem;
-            margin-bottom: 0.25rem;
-            transition: all 0.2s ease;">
-          </i>
-          <span style="
-            font-size: 0.65rem;
-            font-weight: 500;
-            text-align: center;
-            line-height: 1.1;">
+          <i :class="['pi', item.icon]" class="text-0" style="transition: all 0.2s ease;" />
+          <span class="text-xs font-bold text-align-center">
             {{ item.text }}</span>
         </router-link>
 
-        <div
-            id="user-menu-trigger"
-            style="
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              padding: 0.5rem 0.25rem;
-              border-radius: 12px;
-              transition: all 0.2s ease;
-              cursor: pointer;
-              color: var(--text-secondary);
-              margin-top: auto;"
-            @click="toggleProfileMenu($event)">
-          <div style="
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 0.25rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: white;">
+        <div id="user-menu-trigger" @click="toggleProfileMenu($event)"
+            class="flex flex-column align-items-center p-1 border-round-lg mt-auto"
+            style="transition: all 0.2s ease; cursor: pointer; color: var(--text-secondary);">
+
+          <div class="flex align-items-center justify-content-center font-bold text-sm mb-1"
+               style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);color: white;">
             {{ user?.display_name.split(' ').map(n => n[0]).join('') }}
           </div>
         </div>
@@ -130,78 +73,45 @@ function toggleProfileMenu(event: any) {
 
     <Popover ref="profileMenuRef">
       <div style="padding: 1rem;">
-        <div style="
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          padding-bottom: 1rem;
-          border-bottom: 1px solid var(--border-color);
-          margin-bottom: 0.75rem;">
-          <div style="
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: white;">
+        <div class="flex align-items-center gap-3 pb-1 mb-2" style="border-bottom: 1px solid var(--border-color);">
+          <div class="flex align-items-center justify-content-center text-sm font-bold"
+               style="
+                  width: 40px;
+                  height: 40px;
+                  border-radius: 50%;
+                  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+                  color: white;">
             {{ user?.display_name.split(' ').map(n => n[0]).join('') }}
           </div>
           <div>
-            <div style="
-              font-weight: 600;
-              color: var(--text-primary);
-              margin-bottom: 0.25rem;">{{ user?.display_name }}
+            <div class="font-bold mb-1" style="color: var(--text-primary);">{{ user?.display_name }}
             </div>
-            <div style="
-              font-size: 0.875rem;
-              color: var(--text-secondary);">{{ user?.email }}
+            <div class="text-sm" style="color: var(--text-secondary);">{{ user?.email }}
             </div>
           </div>
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <div class="flex flex-column gap-2 p-1">
 
-          <div id="profileMenuItem" style="
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.5rem;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            color: var(--text-primary);">
-            <i class="pi pi-cog" style="font-size: 1rem;"></i>
-            <span style="font-size: 0.875rem;">Settings</span>
+          <div id="profileMenuItem" class="flex align-items-center gap-2 p-1 border-round-md"
+               style="cursor: pointer; transition: all 0.2s ease; color: var(--text-primary);"
+               @click="router.push('/settings')">
+            <i class="pi pi-cog"></i>
+            <span class="text-sm">Settings</span>
           </div>
 
-          <div id="profileMenuItem" style="
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.5rem;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            color: var(--text-primary);" @click="themeStore.toggleDarkMode()">
-            <i class="pi" :class="themeStore.darkModeActive ? 'pi-sun' : 'pi-moon'" style="font-size: 1rem;"></i>
-            <span style="font-size: 0.875rem;">Theme</span>
+          <div id="profileMenuItem" class="flex align-items-center gap-2 p-1 border-round-md"
+               style="cursor: pointer; transition: all 0.2s ease;"
+               @click="themeStore.toggleDarkMode()">
+            <i class="pi" :class="themeStore.darkModeActive ? 'pi-sun' : 'pi-moon'"></i>
+            <span class="text-sm">Theme</span>
           </div>
 
-          <div id="profileMenuItem" style="
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.5rem;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            color: #ef4444;" @click="authStore.logoutUser()">
-            <i class="pi pi-sign-out" style="font-size: 1rem;"></i>
-            <span style="font-size: 0.875rem;">Sign out</span>
+          <div id="profileMenuItem" class="flex align-items-center gap-2 p-1 border-round-md"
+               style="cursor: pointer; transition: all 0.2s ease;color: #ef4444;"
+               @click="authStore.logoutUser()">
+            <i class="pi pi-sign-out"></i>
+            <span class="text-sm">Sign out</span>
           </div>
 
         </div>
@@ -211,6 +121,17 @@ function toggleProfileMenu(event: any) {
 </template>
 
 <style scoped lang="scss">
+
+.menu {
+  gap: 1rem;
+  padding: 0 0.5rem;
+}
+
+aside .menu a,
+aside .menu div {
+  padding: 0.75rem 0.5rem;
+  border-radius: 0.5rem;
+}
 
 aside .menu a:hover,
 aside .menu div:hover {
@@ -223,6 +144,10 @@ aside .menu div:hover {
   background-color: var(--background-primary) !important;
   color: var(--text-primary) !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#user-menu-trigger {
+  padding: 0.75rem 0.5rem !important;
 }
 
 #profileMenuItem:hover {
