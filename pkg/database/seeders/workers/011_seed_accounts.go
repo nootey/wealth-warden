@@ -10,24 +10,22 @@ import (
 	"wealth-warden/internal/models"
 )
 
-func strptr(s string) *string { return &s }
-
 func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 	type acctSeed struct {
 		Name           string
 		Type           string
-		Subtype        *string
+		Subtype        string `gorm:"column:sub_type"`
 		Classification string
 		Currency       string
 		StartBalance   decimal.Decimal
 	}
 
 	seeds := []acctSeed{
-		{Name: "Checking account", Type: "cash", Subtype: strptr("checking"), Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(1000)},
-		{Name: "Savings account", Type: "cash", Subtype: strptr("savings"), Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(10000)},
-		{Name: "Investment account", Type: "investment", Subtype: strptr("brokerage"), Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(2500)},
-		{Name: "Crypto Exchange", Type: "crypto", Subtype: strptr("exchange"), Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(100000)},
-		{Name: "Gambling debt", Type: "other_liability", Subtype: strptr("other"), Classification: "liability", Currency: "eur", StartBalance: decimal.NewFromInt(-50000)},
+		{Name: "Checking account", Type: "cash", Subtype: "checking", Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(1000)},
+		{Name: "Savings account", Type: "cash", Subtype: "savings", Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(10000)},
+		{Name: "Investment account", Type: "investment", Subtype: "brokerage", Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(2500)},
+		{Name: "Crypto Exchange", Type: "crypto", Subtype: "exchange", Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(100000)},
+		{Name: "Gambling debt", Type: "other_liability", Subtype: "other", Classification: "liability", Currency: "eur", StartBalance: decimal.NewFromInt(-50000)},
 	}
 
 	usernames := []string{"Support", "Member"}
@@ -58,11 +56,7 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 				Where("LOWER(type) = ? AND LOWER(classification) = ?",
 					strings.ToLower(s.Type), strings.ToLower(s.Classification))
 
-			if s.Subtype != nil {
-				q = q.Where("LOWER(subtype) = ?", strings.ToLower(*s.Subtype))
-			} else {
-				q = q.Where("subtype IS NULL")
-			}
+			q = q.Where("LOWER(sub_type) = ?", strings.ToLower(s.Subtype))
 
 			if err := q.First(&at).Error; err != nil {
 				return err

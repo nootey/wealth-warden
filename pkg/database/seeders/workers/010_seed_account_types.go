@@ -7,8 +7,8 @@ import (
 )
 
 type AccountType struct {
-	Type    string
-	Subtype string
+	Type    string `gorm:"column:type"`
+	Subtype string `gorm:"column:sub_type"`
 }
 
 func SeedAccountTypes(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
@@ -54,7 +54,7 @@ func SeedAccountTypes(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 	for _, seed := range accountTypeSeeds {
 		var existing int64
 		err := db.WithContext(ctx).Model(&AccountType{}).
-			Where("type = ? AND subtype = ?", seed.Type, seed.Subtype).
+			Where("type = ? AND sub_type = ?", seed.Type, seed.Subtype).
 			Count(&existing).Error
 		if err != nil {
 			logger.Error("failed checking existing account_type", zap.Error(err))
@@ -66,10 +66,10 @@ func SeedAccountTypes(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 				Type:    seed.Type,
 				Subtype: seed.Subtype,
 			}).Error; err != nil {
-				logger.Error("failed inserting account_type", zap.String("type", seed.Type), zap.String("subtype", seed.Subtype), zap.Error(err))
+				logger.Error("failed inserting account_type", zap.String("type", seed.Type), zap.String("sub_type", seed.Subtype), zap.Error(err))
 				return err
 			}
-			logger.Info("seeded account_type", zap.String("type", seed.Type), zap.String("subtype", seed.Subtype))
+			logger.Info("seeded account_type", zap.String("type", seed.Type), zap.String("sub_type", seed.Subtype))
 		}
 	}
 

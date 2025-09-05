@@ -3,7 +3,7 @@
 CREATE TABLE account_types (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     type VARCHAR(100) NOT NULL,
-    subtype VARCHAR(100) NOT NULL,
+    sub_type VARCHAR(100) NOT NULL,
     classification VARCHAR(20) GENERATED ALWAYS AS (
               CASE
                   WHEN type IN ('loan', 'credit_card', 'other_liability') THEN 'liability'
@@ -13,7 +13,7 @@ CREATE TABLE account_types (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT uq_account_type UNIQUE (type, subtype)
+    CONSTRAINT uq_account_type UNIQUE (type, sub_type)
 );
 
 CREATE TRIGGER set_account_types_updated_at
