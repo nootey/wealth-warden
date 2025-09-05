@@ -3,6 +3,7 @@ package services
 import (
 	"go.uber.org/zap"
 	"wealth-warden/internal/jobs"
+	"wealth-warden/internal/repositories"
 )
 
 type DefaultServiceContext struct {
@@ -10,12 +11,5 @@ type DefaultServiceContext struct {
 	LoggingService *LoggingService
 	AuthService    *AuthService
 	JobDispatcher  jobs.JobDispatcher
-}
-
-func (c *DefaultServiceContext) Logging() *LoggingService {
-	return c.LoggingService
-}
-
-func (c *DefaultServiceContext) Auth() *AuthService {
-	return c.AuthService
+	SettingsRepo   *repositories.SettingsRepository
 }

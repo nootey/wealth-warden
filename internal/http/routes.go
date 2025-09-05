@@ -39,6 +39,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 	loggingHandler := httpHandlers.NewLoggingHandler(r.Container.LoggingService)
 	accountHandler := httpHandlers.NewAccountHandler(r.Container.AccountService)
 	transactionHandler := httpHandlers.NewTransactionHandler(r.Container.TransactionService)
+	settingsHandler := httpHandlers.NewSettingsHandler(r.Container.SettingsService)
 
 	authRL := middleware.NewRateLimiter(5.0/60.0, 5) // 5 per minute, burst 3
 
@@ -59,6 +60,9 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 
 		transactionRoutes := authGroup.Group("/transactions")
 		v1.TransactionRoutes(transactionRoutes, transactionHandler)
+
+		settingsRoutes := authGroup.Group("/settings")
+		v1.SettingsRoutes(settingsRoutes, settingsHandler)
 
 	}
 

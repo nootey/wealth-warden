@@ -52,6 +52,21 @@ func SeedRootUser(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 		if err != nil {
 			return fmt.Errorf("failed to insert super admin user: %w", err)
 		}
+
+		err = db.Raw(`SELECT id FROM users WHERE email = ?`, email).Scan(&userID).Error
+		if err != nil {
+			return fmt.Errorf("failed to refetch super admin id after insert: %w", err)
+		}
+	}
+
+	// Seed default user settings if not present
+	err = db.Exec(`
+		INSERT INTO settings_user (user_id, theme, accent, language, timezone, created_at, updated_at)
+		VALUES (?, 'system', NULL, 'en', 'UTC', ?, ?)
+		ON CONFLICT (user_id) DO NOTHING
+	`, userID, time.Now(), time.Now()).Error
+	if err != nil {
+		return fmt.Errorf("failed to insert root user default settings: %w", err)
 	}
 
 	return nil

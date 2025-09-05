@@ -19,6 +19,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, seederTy
 	switch seederType {
 	case "full":
 		seeders = []SeederFunc{
+			workers.SeedDefaultSettings,
 			workers.SeedRolesAndPermissions,
 			workers.SeedRootUser,
 			workers.SeedMemberUser,
@@ -28,6 +29,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, seederTy
 		}
 	case "basic":
 		seeders = []SeederFunc{
+			workers.SeedDefaultSettings,
 			workers.SeedRolesAndPermissions,
 			workers.SeedRootUser,
 			workers.SeedAccountTypes,
