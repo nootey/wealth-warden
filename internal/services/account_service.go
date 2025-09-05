@@ -313,10 +313,10 @@ func (s *AccountService) UpdateAccount(c *gin.Context, id int64, req *models.Acc
 
 		if !signed.IsZero() {
 			txnType := "income"
-			amt := signed
+			amount := signed
 			if signed.IsNegative() {
 				txnType = "expense"
-				amt = signed.Neg()
+				amount = signed.Neg()
 			}
 
 			desc := "Manual adjustment"
@@ -332,7 +332,7 @@ func (s *AccountService) UpdateAccount(c *gin.Context, id int64, req *models.Acc
 				AccountID:       exAcc.ID,
 				CategoryID:      &category.ID,
 				TransactionType: txnType,
-				Amount:          amt,
+				Amount:          amount,
 				Currency:        exAcc.Currency,
 				TxnDate:         time.Now(),
 				Description:     &desc,
@@ -341,6 +341,12 @@ func (s *AccountService) UpdateAccount(c *gin.Context, id int64, req *models.Acc
 			if _, err := s.TxnRepo.InsertTransaction(tx, txn); err != nil {
 				tx.Rollback()
 				return fmt.Errorf("failed to post adjustment transaction: %w", err)
+			}
+
+			err = s.UpdateAccountCashBalance(tx, acc, txnType, amount)
+			if err != nil {
+				tx.Rollback()
+				return err
 			}
 
 		}
