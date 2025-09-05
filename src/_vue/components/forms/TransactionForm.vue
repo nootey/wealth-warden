@@ -21,6 +21,10 @@ const props = defineProps<{
   recordId?: number | null;
 }>();
 
+const emit = defineEmits<{
+    (event: 'completeOperation'): void;
+}>();
+
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
@@ -120,10 +124,6 @@ const rules = {
 };
 
 const v$ = useVuelidate(rules, { record });
-
-const emit = defineEmits<{
-  (event: 'completeOperation'): void;
-}>();
 
 function initData(): Transaction {
 
@@ -230,13 +230,13 @@ async function startTransactionOperation() {
         switch (props.mode) {
             case "create":
                 response = await sharedStore.createRecord(
-                    "transactions",
+                    transactionStore.apiPrefix,
                     recordData
                 );
                 break;
             case "update":
                 response = await sharedStore.updateRecord(
-                    "transactions",
+                    transactionStore.apiPrefix,
                     record.value.id!,
                     recordData
                 );

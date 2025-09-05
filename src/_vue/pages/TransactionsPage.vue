@@ -27,6 +27,12 @@ const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
 
+onMounted(async () => {
+    await getData();
+    await transactionStore.getCategories();
+    await accountStore.getAllAccounts();
+})
+
 const confirm = useConfirm();
 
 const apiPrefix = "transactions";
@@ -37,12 +43,6 @@ const createModal = ref(false);
 const updateModal = ref(false);
 const updateTransactionID = ref(null);
 const includeDeleted = ref(false);
-
-onMounted(async () => {
-  await getData();
-  await transactionStore.getCategories();
-  await accountStore.getAllAccounts();
-})
 
 const loadingRecords = ref(true);
 const records = ref<Transaction[]>([]);
