@@ -85,6 +85,21 @@ func (s *AccountService) FetchAccountsPaginated(c *gin.Context) ([]models.Accoun
 	return records, paginator, nil
 }
 
+func (s *AccountService) FetchAccountByID(c *gin.Context, id int64) (*models.Account, error) {
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return nil, err
+	}
+
+	record, err := s.Repo.FindAccountByID(nil, id, user.ID, true)
+	if err != nil {
+		return nil, err
+	}
+
+	return &record, nil
+}
+
 func (s *AccountService) FetchAllAccounts(c *gin.Context) ([]models.Account, error) {
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
 	if err != nil {

@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strconv"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
@@ -41,6 +43,30 @@ func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 
 func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
 	records, err := h.Service.FetchAllAccounts(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, records)
+
+}
+
+func (h *AccountHandler) GetAccountByID(c *gin.Context) {
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+	records, err := h.Service.FetchAccountByID(c, id)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

@@ -84,7 +84,9 @@ func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID int64, withB
 
 	var record models.Account
 
-	query := db.Where("id = ? AND user_id = ?", ID, userID)
+	query := db.Where("id = ? AND user_id = ?", ID, userID).
+		Preload("AccountType")
+
 	if withBalance {
 		query = query.Preload("Balance")
 	}
