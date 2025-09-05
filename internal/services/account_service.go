@@ -7,6 +7,7 @@ import (
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"strconv"
+	"strings"
 	"time"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
@@ -16,21 +17,51 @@ import (
 )
 
 type AccountService struct {
-	Config *config.Config
-	Ctx    *DefaultServiceContext
-	Repo   *repositories.AccountRepository
+	Config  *config.Config
+	Ctx     *DefaultServiceContext
+	Repo    *repositories.AccountRepository
+	TxnRepo *repositories.TransactionRepository
 }
 
 func NewAccountService(
 	cfg *config.Config,
 	ctx *DefaultServiceContext,
 	repo *repositories.AccountRepository,
+	txnRepo *repositories.TransactionRepository,
 ) *AccountService {
 	return &AccountService{
-		Ctx:    ctx,
-		Config: cfg,
-		Repo:   repo,
+		Ctx:     ctx,
+		Config:  cfg,
+		Repo:    repo,
+		TxnRepo: txnRepo,
 	}
+}
+
+func (s *AccountService) LogBalanceChange(account *models.Account, user *models.User, change decimal.Decimal) error {
+	newBalance, err := s.Repo.FindBalanceForAccountID(nil, account.ID)
+	if err != nil {
+		return err
+	}
+
+	endBalance := newBalance.EndBalance
+	startBalance := endBalance.Sub(change)
+
+	changes := utils.InitChanges()
+	utils.CompareChanges("", account.Name, changes, "account")
+	utils.CompareChanges("", change.StringFixed(2), changes, "change")
+	utils.CompareChanges("", startBalance.StringFixed(2), changes, "start_balance")
+	utils.CompareChanges("", endBalance.StringFixed(2), changes, "end_balance")
+	utils.CompareChanges("", account.Currency, changes, "currency")
+
+	return s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "update",
+		Category:    "balance",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	})
 }
 
 func (s *AccountService) FetchAccountsPaginated(c *gin.Context) ([]models.Account, *utils.Paginator, error) {
@@ -112,7 +143,7 @@ func (s *AccountService) FetchAllAccountTypes(c *gin.Context) ([]models.AccountT
 	return s.Repo.FindAllAccountTypes(nil)
 }
 
-func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountCreateReq) error {
+func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountReq) error {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
 	if err != nil {
@@ -152,7 +183,7 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountCreate
 
 	utils.CompareChanges("", account.Name, changes, "name")
 	utils.CompareChanges("", accType.Type, changes, "account_type")
-	utils.CompareChanges("", utils.SafeString(accType.Subtype), changes, "account_subtype")
+	utils.CompareChanges("", accType.Subtype, changes, "account_subtype")
 	utils.CompareChanges("", account.Currency, changes, "currency")
 	utils.CompareChanges("", balanceAmountString, changes, "current_balance")
 
@@ -196,6 +227,156 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountCreate
 	})
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (s *AccountService) UpdateAccount(c *gin.Context, id int64, req *models.AccountReq) error {
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Load record
+	exAcc, err := s.Repo.FindAccountByID(tx, id, user.ID, true)
+	if err != nil {
+		return fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	// Load existing relations for comparison
+	exAccType, err := s.Repo.FindAccountTypeByID(tx, exAcc.AccountTypeID)
+	if err != nil {
+		return fmt.Errorf("can't find account type with given id %w", err)
+	}
+
+	// Resolve new relations  from req
+	newAccType, err := s.Repo.FindAccountTypeByID(tx, req.AccountTypeID)
+	if err != nil {
+		return fmt.Errorf("can't find account type with given id %w", err)
+	}
+
+	acc := &models.Account{
+		ID:            id,
+		Name:          req.Name,
+		Currency:      models.DefaultCurrency,
+		AccountTypeID: newAccType.ID,
+		UserID:        user.ID,
+	}
+
+	changes := utils.InitChanges()
+
+	utils.CompareChanges(exAcc.Name, acc.Name, changes, "name")
+	utils.CompareChanges(exAccType.Type, newAccType.Type, changes, "account_type")
+	utils.CompareChanges(exAccType.Subtype, newAccType.Subtype, changes, "account_subtype")
+	utils.CompareChanges(exAcc.Currency, acc.Currency, changes, "currency")
+
+	var delta decimal.Decimal
+
+	if req.Balance != nil {
+
+		desired, err := decimal.NewFromString(req.Balance.String())
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("invalid balance value: %w", err)
+		}
+
+		// Current end balance from snapshot
+		asOf := time.Now().UTC() // or your canonical TZ
+		current, err := utils.GetEndBalanceAsOf(tx, exAcc.ID, asOf)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		// Match sign conventions
+		isLiability := strings.EqualFold(newAccType.Type, "liability")
+
+		delta = desired.Sub(current)
+		signed := delta
+		if isLiability {
+			signed = delta.Neg()
+		}
+
+		if !signed.IsZero() {
+			txnType := "income"
+			amt := signed
+			if signed.IsNegative() {
+				txnType = "expense"
+				amt = signed.Neg()
+			}
+
+			desc := "Manual adjustment"
+
+			category, err := s.TxnRepo.FindCategoryByClassification(tx, "adjustment", &user.ID)
+			if err != nil {
+				tx.Rollback()
+				return fmt.Errorf("can't find adjustment category: %w", err)
+			}
+
+			txn := &models.Transaction{
+				UserID:          user.ID,
+				AccountID:       exAcc.ID,
+				CategoryID:      &category.ID,
+				TransactionType: txnType,
+				Amount:          amt,
+				Currency:        exAcc.Currency,
+				TxnDate:         time.Now(),
+				Description:     &desc,
+			}
+
+			if _, err := s.TxnRepo.InsertTransaction(tx, txn); err != nil {
+				tx.Rollback()
+				return fmt.Errorf("failed to post adjustment transaction: %w", err)
+			}
+
+		}
+	}
+
+	_, err = s.Repo.UpdateAccount(tx, acc)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// balance log (with the new end_balance)
+	if req.Balance != nil {
+		accForLog := &models.Account{ID: exAcc.ID, Name: acc.Name, Currency: exAcc.Currency}
+		if err := s.LogBalanceChange(accForLog, user, delta); err != nil {
+			s.Ctx.Logger.Warn("Balance change logging failed")
+		}
+	}
+
+	if !changes.IsEmpty() {
+		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.Repo,
+			Logger:      s.Ctx.Logger,
+			Event:       "update",
+			Category:    "account",
+			Description: nil,
+			Payload:     changes,
+			Causer:      user,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

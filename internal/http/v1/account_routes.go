@@ -11,4 +11,5 @@ func AccountRoutes(apiGroup *gin.RouterGroup, handler *handlers.AccountHandler) 
 	apiGroup.GET("/:id", handler.GetAccountByID)
 	apiGroup.GET("/types", handler.GetAccountTypes)
 	apiGroup.PUT("", handler.InsertAccount)
+	apiGroup.PUT(":id", handler.UpdateAccount)
 }

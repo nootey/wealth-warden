@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TYPE category_classification AS ENUM ('income', 'expense', 'savings', 'investment', 'uncategorized');
+CREATE TYPE category_classification AS ENUM ('income', 'expense', 'savings', 'investment', 'adjustment', 'uncategorized');
 -- +goose StatementEnd
 
 -- +goose StatementBegin

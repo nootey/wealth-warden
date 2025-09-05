@@ -35,33 +35,6 @@ func NewTransactionService(
 	}
 }
 
-func (s *TransactionService) logBalanceChange(account *models.Account, user *models.User, change decimal.Decimal) error {
-	newBalance, err := s.AccountService.Repo.FindBalanceForAccountID(nil, account.ID)
-	if err != nil {
-		return err
-	}
-
-	endBalance := newBalance.EndBalance
-	startBalance := endBalance.Sub(change)
-
-	changes := utils.InitChanges()
-	utils.CompareChanges("", account.Name, changes, "account")
-	utils.CompareChanges("", change.StringFixed(2), changes, "change")
-	utils.CompareChanges("", startBalance.StringFixed(2), changes, "start_balance")
-	utils.CompareChanges("", endBalance.StringFixed(2), changes, "end_balance")
-	utils.CompareChanges("", account.Currency, changes, "currency")
-
-	return s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
-		Event:       "update",
-		Category:    "balance",
-		Description: nil,
-		Payload:     changes,
-		Causer:      user,
-	})
-}
-
 func (s *TransactionService) FetchTransactionsPaginated(c *gin.Context, includeDeleted bool) ([]models.Transaction, *utils.Paginator, error) {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
@@ -276,7 +249,7 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 		change = tr.Amount
 	}
 
-	if err := s.logBalanceChange(&account, user, change); err != nil {
+	if err := s.AccountService.LogBalanceChange(&account, user, change); err != nil {
 		return err
 	}
 
@@ -403,10 +376,10 @@ func (s *TransactionService) InsertTransfer(c *gin.Context, req *models.Transfer
 	}
 
 	// Log balance updates for both accounts
-	if err := s.logBalanceChange(&fromAccount, user, req.Amount.Neg()); err != nil {
+	if err := s.AccountService.LogBalanceChange(&fromAccount, user, req.Amount.Neg()); err != nil {
 		return err
 	}
-	if err := s.logBalanceChange(&toAccount, user, req.Amount); err != nil {
+	if err := s.AccountService.LogBalanceChange(&toAccount, user, req.Amount); err != nil {
 		return err
 	}
 
@@ -566,7 +539,7 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 			delta = newEffect
 		}
 		if !delta.IsZero() {
-			if err := s.logBalanceChange(&newAccount, user, delta); err != nil {
+			if err := s.AccountService.LogBalanceChange(&newAccount, user, delta); err != nil {
 				return err
 			}
 		}
@@ -574,7 +547,7 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 
 	// OLD account (only if it changed)
 	if oldAccount.ID != newAccount.ID && !oldEffect.IsZero() {
-		if err := s.logBalanceChange(&oldAccount, user, oldEffect.Neg()); err != nil {
+		if err := s.AccountService.LogBalanceChange(&oldAccount, user, oldEffect.Neg()); err != nil {
 			return err
 		}
 	}
@@ -681,7 +654,7 @@ func (s *TransactionService) DeleteTransaction(c *gin.Context, id int64) error {
 
 	// Dispatch balance change on the affected account activity log
 	if !inverse.IsZero() {
-		if err := s.logBalanceChange(&account, user, inverse); err != nil {
+		if err := s.AccountService.LogBalanceChange(&account, user, inverse); err != nil {
 			return err
 		}
 	}
@@ -790,10 +763,10 @@ func (s *TransactionService) DeleteTransfer(c *gin.Context, id int64) error {
 	}
 
 	// Log balance changes
-	if err := s.logBalanceChange(&fromAcc, user, outflow.Amount); err != nil {
+	if err := s.AccountService.LogBalanceChange(&fromAcc, user, outflow.Amount); err != nil {
 		return err
 	}
-	if err := s.logBalanceChange(&toAcc, user, inflow.Amount.Neg()); err != nil {
+	if err := s.AccountService.LogBalanceChange(&toAcc, user, inflow.Amount.Neg()); err != nil {
 		return err
 	}
 
@@ -886,7 +859,7 @@ func (s *TransactionService) RestoreTransaction(c *gin.Context, id int64) error 
 
 	// Log balance changes
 	if !origEffect.IsZero() {
-		if err := s.logBalanceChange(&acc, user, origEffect); err != nil {
+		if err := s.AccountService.LogBalanceChange(&acc, user, origEffect); err != nil {
 			return err
 		}
 	}

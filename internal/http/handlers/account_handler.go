@@ -87,7 +87,7 @@ func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
 
 func (h *AccountHandler) InsertAccount(c *gin.Context) {
 
-	var record *models.AccountCreateReq
+	var record *models.AccountReq
 
 	if err := c.ShouldBindJSON(&record); err != nil {
 		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
@@ -106,5 +106,43 @@ func (h *AccountHandler) InsertAccount(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
+
+}
+
+func (h *AccountHandler) UpdateAccount(c *gin.Context) {
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	var req *models.AccountReq
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.Service.UpdateAccount(c, id, req); err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
 
 }

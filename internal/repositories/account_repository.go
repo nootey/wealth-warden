@@ -129,6 +129,24 @@ func (r *AccountRepository) InsertAccount(tx *gorm.DB, newRecord *models.Account
 	return newRecord.ID, nil
 }
 
+func (r *AccountRepository) UpdateAccount(tx *gorm.DB, record *models.Account) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Model(models.Account{}).
+		Where("id = ?", record.ID).
+		Updates(map[string]interface{}{
+			"name":            record.Name,
+			"currency":        record.Currency,
+			"account_type_id": record.AccountTypeID,
+		}).Error; err != nil {
+		return 0, err
+	}
+	return record.ID, nil
+}
+
 func (r *AccountRepository) InsertBalance(tx *gorm.DB, newRecord *models.Balance) (int64, error) {
 	db := tx
 	if db == nil {

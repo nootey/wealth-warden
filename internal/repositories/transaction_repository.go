@@ -169,7 +169,7 @@ func (r *TransactionRepository) FindCategoryByID(tx *gorm.DB, ID int64, userID *
 	var record models.Category
 	txn := db.Model(&models.Category{}).
 		Scopes(r.scopeVisibleCategories(userID)).
-		Where("categories.id = ?", ID).
+		Where("id = ?", ID).
 		First(&record)
 	return record, txn.Error
 }
@@ -183,7 +183,7 @@ func (r *TransactionRepository) FindCategoryByClassification(tx *gorm.DB, classi
 	var record models.Category
 	txn := db.Model(&models.Category{}).
 		Scopes(r.scopeVisibleCategories(userID)).
-		Where("categories.classification = ?", classification).
+		Where("classification = ?", classification).
 		First(&record)
 	return record, txn.Error
 }
