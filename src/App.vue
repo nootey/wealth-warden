@@ -30,8 +30,8 @@ onMounted(async () => {
                       <span class="font-bold text-xl" style="color: var(--text-primary);">{{ message.header }}</span>
                       <span style="color: var(--text-primary);">{{ message.message }}</span>
                       <div class="flex justify-content-end gap-2"  >
-                          <Button class="p-2 border-round-lg" label="Cancel" variant="outlined" style="color: var(--text-primary); border-color: var(--text-primary)" @click="rejectCallback" />
-                          <Button class="p-2 border-round-lg" label="Delete" severity="danger" style="color: var(--text-primary);" @click="acceptCallback" />
+                          <Button class="p-2 border-round-lg" :label="message.rejectProps?.label || 'Cancel'" variant="outlined" style="color: var(--text-primary); border-color: var(--text-primary)" @click="rejectCallback" />
+                          <Button class="p-2 border-round-lg" :label="message.acceptProps?.label || 'Confirm'" :severity="message.acceptProps?.severity" style="color: var(--text-primary);" @click="acceptCallback" />
                       </div>
                   </div>
               </div>
