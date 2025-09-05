@@ -7,18 +7,53 @@ import useVuelidate from "@vuelidate/core";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useAccountStore} from "../../../services/stores/account_store.ts";
-import {computed, ref, toRef, watch} from "vue";
+import {computed, onMounted, ref, watch} from "vue";
 import vueHelper from "../../../utils/vue_helper.ts"
 import type {Account, AccountType} from "../../../models/account_models.ts"
 import currencyHelper from "../../../utils/currency_helper.ts";
+import {useConfirm} from "primevue/useconfirm";
+
+const props = defineProps<{
+    mode?: "create" | "update";
+    recordId?: number | null;
+}>();
+
+const emit = defineEmits<{
+    (event: 'completeOperation'): void;
+}>();
 
 const sharedStore = useSharedStore();
 const accountStore = useAccountStore();
 const toastStore = useToastStore();
 
-const newRecord = ref<Account>(initData());
-const startBalanceRef = toRef(newRecord.value.balance, "start_balance");
-const startBalanceNumber = currencyHelper.useMoneyField(startBalanceRef, 2).number;
+onMounted(async () => {
+    if (props.mode === "update" && props.recordId) {
+        await loadRecord(props.recordId);
+    }
+});
+
+const confirm = useConfirm();
+const initializing = ref(false);
+
+const record = ref<Account>(initData());
+const balanceFieldRef = computed({
+    get: () => {
+        if (props.mode === "create") {
+            return record.value.balance.start_balance;
+        }
+        return record.value.balance.end_balance;
+    },
+    set: (val) => {
+        if (props.mode === "create") {
+            record.value.balance.start_balance = val;
+        } else {
+            record.value.balance.end_balance = val;
+        }
+    },
+});
+
+const balanceNumber = currencyHelper.useMoneyField(balanceFieldRef, 2).number;
+const balanceAdjusted = ref(false);
 
 const selectedClassification = ref<"Asset" | "Liability">("Asset");
 const selectedType = ref<string>("");
@@ -42,7 +77,7 @@ const subtypeOptions = computed<string[]>(() => {
           a.classification.toLowerCase() === selectedClassification.value.toLowerCase() &&
           a.type === selectedType.value
   );
-  return [...new Set(filtered.map(a => a.subtype))];
+  return [...new Set(filtered.map(a => a.sub_type))];
 });
 
 const filteredAccountTypes = ref<string[]>([]);
@@ -60,39 +95,33 @@ const searchSubtype = (event: { query: string }) => {
   filteredSubtypeOptions.value = !q ? [...all] : all.filter(s => s.toLowerCase().startsWith(q));
 };
 
-const emit = defineEmits<{
-  (event: 'addAccount'): void;
-}>();
-
 const rules = {
-  newRecord: {
-    name: {
-      required,
-      $autoDirty: true
+    record: {
+        name: { required, $autoDirty: true },
+        account_type: {
+            type: { required, $autoDirty: true },
+            sub_type: { required, $autoDirty: true },
+        },
+        balance: {
+            start_balance: props.mode === "create" ? {
+                required,
+                decimalValid,
+                decimalMin: decimalMin(0),
+                decimalMax: decimalMax(1_000_000_000),
+                $autoDirty: true,
+            } : {},
+            end_balance: props.mode === "update" ? {
+                required,
+                decimalValid,
+                decimalMin: decimalMin(0),
+                decimalMax: decimalMax(1_000_000_000),
+                $autoDirty: true,
+            } : {},
+        },
     },
-    account_type: {
-      type: {
-        required,
-        $autoDirty: true
-      },
-      subtype: {
-        required,
-        $autoDirty: true
-      },
-    },
-    balance: {
-      start_balance: {
-        required,
-        decimalValid,
-        decimalMin: decimalMin(0),
-        decimalMax: decimalMax(1_000_000_000),
-        $autoDirty: true
-      },
-    },
-  },
 };
 
-const v$ = useVuelidate(rules, { newRecord });
+const v$ = useVuelidate(rules, { record });
 
 // Format selected types
 const formattedTypeModel = computed({
@@ -111,42 +140,61 @@ const formattedSubtypeModel = computed({
 
 // Keep classification in the account_type, reset selections
 watch(selectedClassification, (cls) => {
-  selectedType.value = "";
-  selectedSubtype.value = "";
-  newRecord.value.account_type = {
+    if (initializing.value) {
+        // keep classification in the model without resetting type/subtype
+        record.value.account_type.classification = cls;
+        return;
+    }
+    selectedType.value = "";
+    selectedSubtype.value = "";
+    record.value.account_type = {
     id: null,
     name: "",
     type: "",
-    subtype: "",
+    sub_type: "",
     classification: cls,
-  };
+    };
 });
 
 // Watch type changes
-watch(selectedType, (val) => {
-  newRecord.value.account_type.type = val || "";
-  newRecord.value.account_type.subtype = "";
+watch(
+    [selectedType, selectedSubtype, selectedClassification],
+    ([typeVal, subVal, clsVal], [oldType, oldSub, oldCls]) => {
+        if (initializing.value) return;
+        if (typeVal === oldType && subVal === oldSub && clsVal === oldCls) return;
 
-  selectedSubtype.value = "";
+        // keep current selections on the model
+        record.value.account_type.type = typeVal || "";
+        record.value.account_type.sub_type = subVal || "";
+        record.value.account_type.classification = clsVal;
 
-  const firstMatch = accountTypes.value.find(
-      a =>
-          a.classification.toLowerCase() === selectedClassification.value.toLowerCase() &&
-          a.type === val
-  );
+        // if subtype is no longer valid for the chosen type, clear it
+        const stillValid =
+            !!subVal && subtypeOptions.value.includes(subVal);
+        if (!stillValid) {
+            selectedSubtype.value = "";
+            record.value.account_type.sub_type = "";
+        }
 
-  if (firstMatch) {
-    newRecord.value.account_type = { ...firstMatch };
-  } else {
-    newRecord.value.account_type = {
-      id: null,
-      name: "",
-      type: val || "",
-      subtype: "",
-      classification: selectedClassification.value,
-    };
-  }
-});
+        // resolve the exact AccountType
+        const match = accountTypes.value.find(
+            a =>
+                a.classification.toLowerCase() === clsVal.toLowerCase() &&
+                a.type === (typeVal || "") &&
+                a.sub_type === (stillValid ? subVal : "")
+        );
+
+        record.value.account_type = match
+            ? { ...match }
+            : {
+                id: null,
+                name: "",
+                type: typeVal || "",
+                sub_type: stillValid ? subVal : "",
+                classification: clsVal,
+            };
+    }
+);
 
 function initData(): Account {
 
@@ -157,7 +205,7 @@ function initData(): Account {
       id: null,
       name: "",
       type: "",
-      subtype: "",
+      sub_type: "",
       classification: "",
     },
     balance: {
@@ -169,13 +217,51 @@ function initData(): Account {
   };
 }
 
+async function loadRecord(id: number) {
+    try {
+        initializing.value = true;
+        const data = await sharedStore.getRecordByID(accountStore.apiPrefix, id);
+
+        record.value = {
+            ...initData(),
+            ...data,
+        };
+
+        selectedClassification.value = vueHelper.capitalize(
+            data.account_type.classification
+        ) as "Asset" | "Liability";
+
+        selectedType.value = data.account_type.type;
+        selectedSubtype.value = data.account_type.sub_type;
+
+    } catch (err) {
+        toastStore.errorResponseToast(err);
+    } finally {
+        initializing.value = false;
+    }
+}
+
 async function isRecordValid() {
-  const isValid = await v$.value.newRecord.$validate();
+  const isValid = await v$.value.record.$validate();
   if (!isValid) return false;
   return true;
 }
 
-async function createNewRecord() {
+async function confirmManage() {
+    if(props.mode === "update" && balanceAdjusted.value) {
+        confirm.require({
+            header: 'Confirm balance adjustment',
+            message: 'You have made a manual balance adjustment. Do you want to continue?',
+            rejectProps: { label: 'Cancel' },
+            acceptProps: { label: 'Confirm' },
+            accept: () => manageRecord(),
+        });
+    } else {
+        await manageRecord()
+    }
+}
+
+async function manageRecord() {
 
   if (!await isRecordValid()) return;
 
@@ -184,33 +270,60 @@ async function createNewRecord() {
           a =>
               a.classification.toLowerCase() === selectedClassification.value.toLowerCase() &&
               a.type === selectedType.value &&
-              a.subtype === selectedSubtype.value
+              a.sub_type === selectedSubtype.value
       ) || null;
 
   if (!at) {
     toastStore.errorResponseToast("Account type not found!");
     return;
   }
+
+    const balanceToSend =
+        props.mode === "create"
+            ? record.value.balance.start_balance
+            : record.value.balance.end_balance
+
+    const recordData: any = {
+        account_type_id: at.id,
+        name: record.value.name,
+        type: at.type,
+        sub_type: at.sub_type,
+        classification: at.classification,
+    }
+
+    if (props.mode === "create") {
+        recordData.balance = balanceToSend
+    } else if (props.mode === "update" && balanceAdjusted.value) {
+        // only send on update if the user actually edited it
+        recordData.balance = balanceToSend
+    }
   
   try {
-    let response = await sharedStore.createRecord(
-      "accounts",
-        {
-          account_type_id: at.id,
-          name: newRecord.value.name,
-          type: at.type,
-          subtype: at.subtype,
-          classification: at.classification,
-          balance: newRecord.value.balance.start_balance,
-        }
-        );
 
-    newRecord.value = initData();
-    v$.value.newRecord.$reset();
+    let response = null;
 
+    switch (props.mode) {
+      case "create":
+          response = await sharedStore.createRecord(
+              accountStore.apiPrefix,
+              recordData
+          );
+          break;
+      case "update":
+          response = await sharedStore.updateRecord(
+              accountStore.apiPrefix,
+              record.value.id!,
+              recordData
+          );
+          break;
+      default:
+          emit("completeOperation")
+          break;
+    }
+
+    v$.value.record.$reset();
     toastStore.successResponseToast(response);
-
-    emit("addAccount")
+    emit("completeOperation")
 
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -220,7 +333,8 @@ async function createNewRecord() {
 </script>
 
 <template>
-  <div class="flex flex-column gap-3 p-1">
+
+    <div class="flex flex-column gap-3 p-1">
 
     <div class="flex flex-row w-full justify-content-center">
       <div class="flex flex-column w-50">
@@ -233,24 +347,24 @@ async function createNewRecord() {
 
     <div class="flex flex-row w-full">
       <div class="flex flex-column w-full">
-        <ValidationError :isRequired="true" :message="v$.newRecord.name.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.record.name.$errors[0]?.$message">
           <label>Name</label>
         </ValidationError>
-        <InputText size="small" v-model="newRecord.name"></InputText>
+        <InputText size="small" v-model="record.name"></InputText>
       </div>
     </div>
 
     <div class="flex flex-column gap-1">
-      <ValidationError :isRequired="true" :message="v$.newRecord.balance.$errors[0]?.$message">
+      <ValidationError :isRequired="true" :message="v$.record.balance.$errors[0]?.$message">
         <label>Current balance</label>
       </ValidationError>
-      <InputNumber size="small" v-model="startBalanceNumber" mode="currency" currency="EUR" locale="de-DE"
-                   placeholder="0,00 €" :minFractionDigits="2" :maxFractionDigits="2"></InputNumber>
+      <InputNumber size="small" v-model="balanceNumber" mode="currency" currency="EUR" locale="de-DE"
+                   placeholder="0,00 €" :minFractionDigits="2" :maxFractionDigits="2" @update:model-value="balanceAdjusted = true"></InputNumber>
     </div>
 
     <div class="flex flex-row w-full">
       <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="true" :message="v$.newRecord.account_type.type.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.record.account_type.type.$errors[0]?.$message">
           <label>Type</label>
         </ValidationError>
         <AutoComplete size="small" v-model="formattedTypeModel" :suggestions="filteredAccountTypes"
@@ -266,7 +380,7 @@ async function createNewRecord() {
 
     <div class="flex flex-row gap-2 w-full">
       <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="true" :message="v$.newRecord.account_type.subtype.$errors[0]?.$message">
+        <ValidationError :isRequired="true" :message="v$.record.account_type.sub_type.$errors[0]?.$message">
           <label>Subtype</label>
         </ValidationError>
         <AutoComplete
@@ -283,11 +397,13 @@ async function createNewRecord() {
 
     <div class="flex flex-row gap-2 w-full">
       <div class="flex flex-column w-full">
-        <Button class="main-button" label="Create account" @click="createNewRecord" style="height: 42px;" />
+        <Button class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' account'" @click="confirmManage" style="height: 42px;" />
       </div>
     </div>
 
   </div>
+
+
 </template>
 
 <style scoped>
