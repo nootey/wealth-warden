@@ -51,5 +51,5 @@ type AccountReq struct {
 	Type           string           `json:"type" validate:"required"`
 	Subtype        string           `json:"sub_type" validate:"required"`
 	Classification string           `json:"classification" validate:"required"`
-	Balance        *decimal.Decimal `json:"balance" validate:"required"`
+	Balance        *decimal.Decimal `json:"balance"`
 }
