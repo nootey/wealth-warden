@@ -132,7 +132,6 @@ const totals = computed(() => {
 });
 
 function openModal(type: string, data: any) {
-
     switch (type) {
         case "update": {
             if (!props.allowEdit) return;
@@ -140,15 +139,12 @@ function openModal(type: string, data: any) {
             selectedID.value = data;
             break;
         }
-
         case "details": {
             detailsModal.value = true;
             selectedAccount.value = data;
             break;
         }
-
     }
-
 }
 
 async function handleEmit(emitType: string) {
