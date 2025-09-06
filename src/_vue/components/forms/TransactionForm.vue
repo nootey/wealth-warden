@@ -349,7 +349,7 @@ async function restoreTransaction() {
                   <ValidationError :isRequired="true" :message="v$.record.account.name.$errors[0]?.$message">
                       <label>Account</label>
                   </ValidationError>
-                  <AutoComplete :disabled="readOnly" size="small" v-model="record.account" :suggestions="filteredAccounts"
+                  <AutoComplete :readonly="readOnly" :disabled="readOnly" size="small" v-model="record.account" :suggestions="filteredAccounts"
                                 @complete="searchAccount" optionLabel="name"
                                 placeholder="Select account" dropdown>
                   </AutoComplete>
@@ -361,7 +361,7 @@ async function restoreTransaction() {
                   <ValidationError :isRequired="true" :message="v$.record.amount.$errors[0]?.$message">
                       <label>Amount</label>
                   </ValidationError>
-                  <InputNumber :disabled="readOnly" size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
+                  <InputNumber :readonly="readOnly" :disabled="readOnly" size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
               </div>
           </div>
 
@@ -370,7 +370,7 @@ async function restoreTransaction() {
                   <ValidationError :isRequired="false" :message="v$.record.category.name.$errors[0]?.$message">
                       <label>Category</label>
                   </ValidationError>
-                  <AutoComplete :disabled="readOnly" size="small" v-model="record.category" :suggestions="filteredCategories"
+                  <AutoComplete :readonly="readOnly" :disabled="readOnly" size="small" v-model="record.category" :suggestions="filteredCategories"
                                 @complete="searchCategory" optionLabel="name"
                                 placeholder="Select category" dropdown>
                   </AutoComplete>
@@ -384,7 +384,7 @@ async function restoreTransaction() {
                   </ValidationError>
                   <DatePicker v-model="record.txn_date" date-format="dd/mm/yy"
                               showIcon fluid iconDisplay="input"
-                              size="small" :disabled="readOnly"/>
+                              size="small" :readonly="readOnly" :disabled="readOnly"/>
               </div>
           </div>
 
@@ -393,7 +393,7 @@ async function restoreTransaction() {
                   <ValidationError :isRequired="false" :message="v$.record.description.$errors[0]?.$message">
                       <label>Description</label>
                   </ValidationError>
-                  <InputText :disabled="readOnly" size="small" v-model="record.description" placeholder="Describe transaction"></InputText>
+                  <InputText :readonly="readOnly" :disabled="readOnly" size="small" v-model="record.description" placeholder="Describe transaction"></InputText>
               </div>
           </div>
 
