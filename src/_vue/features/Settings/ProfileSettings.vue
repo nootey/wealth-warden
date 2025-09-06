@@ -71,7 +71,7 @@ async function initUser() {
                         <Button class="main-button ml-auto" label="Save"></Button>
                     </div>
                 </div>
-                <div v-else class="w-full flex flex-column">
+                <div v-else class="w-full flex flex-column gap-3">
                     <div class="w-full flex flex-row gap-2 w-full">
                         <Skeleton class="w-full" borderRadius="16px"></Skeleton>
                     </div>
