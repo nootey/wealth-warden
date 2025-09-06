@@ -2,7 +2,7 @@
 
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
 import {onMounted, ref} from "vue";
-import type { UserSettings } from "../../../models/settings_models";
+import type { UserSettings } from "../../../models/settings_models.ts";
 import {useUserStore} from "../../../services/stores/user_store.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 

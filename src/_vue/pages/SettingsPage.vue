@@ -2,10 +2,10 @@
 import { computed } from 'vue';
 import { useRoute, RouterLink } from 'vue-router';
 
-import PreferencesSettings from '../features/Settings/PreferencesSettings.vue';
-import ProfileSettings from "../features/Settings/ProfileSettings.vue";
-import AccountsSettings from "../features/Settings/AccountsSettings.vue";
-import CategoriesSettings from "../features/Settings/CategoriesSettings.vue";
+import PreferencesSettings from './Settings/PreferencesSettings.vue';
+import ProfileSettings from "./Settings/ProfileSettings.vue";
+import AccountsSettings from "./Settings/AccountsSettings.vue";
+import CategoriesSettings from "./Settings/CategoriesSettings.vue";
 import vueHelper from "../../utils/vue_helper.ts";
 
 const route = useRoute();

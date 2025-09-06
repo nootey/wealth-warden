@@ -1,7 +1,7 @@
 <script setup lang="ts">
 
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
-import AccountsPanel from "../AccountsPanel.vue";
+import AccountsPanel from "../../features/AccountsPanel.vue";
 
 function toggleEnabled(acc) {
 
@@ -10,7 +10,7 @@ function viewHistory(acc) {
 
 }
 function closeAccount(acc) {
-    
+
 }
 </script>
 
