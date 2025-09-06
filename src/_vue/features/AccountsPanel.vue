@@ -66,7 +66,7 @@ async function getData(new_page: number | null = null) {
     try {
         const paginationResponse = await sharedStore.getRecordsPaginated(
             apiPrefix,
-            { ...params.value },
+            { ...params.value, inactive: props.advanced },
             page.value
         );
         accounts.value = paginationResponse.data;
