@@ -226,7 +226,7 @@ provide("removeFilter", removeFilter);
                         <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
                     </template>
                     <template #filterButton>
-                        <div class="hover_icon flex flex-row align-items-center gap-2" @click="toggleFilterOverlay($event)"
+                        <div class="hover-icon flex flex-row align-items-center gap-2" @click="toggleFilterOverlay($event)"
                              style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color)">
                             <i class="pi pi-filter" style="font-size: 0.845rem"></i>
                             <div>Filter</div>
@@ -247,7 +247,7 @@ provide("removeFilter", removeFilter);
 
                         <Column header="Actions">
                             <template #body="slotProps">
-                                <i class="pi pi-trash hover_icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                                <i class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                                    @click="deleteConfirmation(slotProps.data?.id)"></i>
                             </template>
                         </Column>

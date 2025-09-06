@@ -72,7 +72,7 @@ function iconClass(field: string | null): string | null {
         <div
             @click="clearFilter(filter.originalIndex)"
             class="flex align-items-center justify-content-center">
-          <i class="pi pi-times hover_icon" style="color: grey; font-size: 0.75rem;" ></i>
+          <i class="pi pi-times hover-icon" style="color: grey; font-size: 0.75rem;" ></i>
         </div>
       </div>
 

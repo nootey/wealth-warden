@@ -138,7 +138,7 @@ defineExpose({getData});
 
                 <Column header="Actions">
                     <template #body="slotProps">
-                        <i class="pi pi-trash hover_icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                        <i class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                            @click="deleteConfirmation(slotProps.data?.id)"></i>
                     </template>
                 </Column>
