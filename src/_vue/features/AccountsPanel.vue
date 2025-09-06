@@ -11,16 +11,10 @@ import type { Account } from "../../models/account_models.ts";
 
 const props = withDefaults(defineProps<{
     advanced?: boolean;
-    showHeader?: boolean;
-    allowCreate?: boolean;
     allowEdit?: boolean;
-    rowsPerPage?: number;
 }>(), {
     advanced: false,
-    showHeader: true,
-    allowCreate: true,
     allowEdit: true,
-    rowsPerPage: 100,
 });
 
 const emit = defineEmits<{
@@ -35,14 +29,13 @@ const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 
 const apiPrefix = "accounts";
-const createModal = ref(false);
 const detailsModal = ref(false);
 const accountDetailsID = ref<number | null>(null);
 
 const loadingAccounts = ref(true);
 const accounts = ref<Account[]>([]);
 
-const rows = ref([props.rowsPerPage]);
+const rows = ref([10, 25]);
 const default_rows = ref(rows.value[0]);
 const paginator = ref({
     total: 0,
@@ -136,10 +129,6 @@ const totals = computed(() => {
     };
 });
 
-function openCreate() {
-    if (!props.allowCreate) return;
-    createModal.value = true;
-}
 function openDetails(id: number) {
     if (!props.allowEdit) return;
     detailsModal.value = true;
@@ -147,7 +136,6 @@ function openDetails(id: number) {
 }
 async function handleEmit(emitType: string) {
     if (emitType === "completeOperation") {
-        createModal.value = false;
         detailsModal.value = false;
         await getData();
         emit("refresh");
@@ -168,10 +156,6 @@ function onCloseAccount(acc: Account) {
 </script>
 
 <template>
-    <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{ '801px': '90vw' }"
-            :modal="true" :style="{ width: '500px' }" header="Create account">
-        <AccountForm mode="create" @completeOperation="handleEmit('completeOperation')" />
-    </Dialog>
 
     <Dialog position="right" class="rounded-dialog" v-model:visible="detailsModal"
             :breakpoints="{ '801px': '90vw' }" :modal="true" :style="{ width: '500px' }" header="Account details">
@@ -179,59 +163,47 @@ function onCloseAccount(acc: Account) {
                 @completeOperation="handleEmit('completeOperation')"/>
     </Dialog>
 
-    <main class="flex flex-column w-full p-2 justify-content-center align-items-center gap-2">
-        <div v-if="showHeader"
-                class="flex flex-row justify-content-between align-items-center p-3 w-full border-round-md bordered"
-                style="max-width: 1000px">
-            <div class="font-bold">Accounts</div>
-            <Button v-if="allowCreate"
-                    class="main-button"
-                    label="New Account"
-                    icon="pi pi-plus"
-                    @click="openCreate"/>
+    <div class="flex w-full p-3 gap-2 border-round-md bordered justify-content-between align-items-center"
+         style="max-width: 1000px">
+        <div>
+            <div class="text-xs" style="color: var(--text-secondary)">Total</div>
+            <div class="font-bold">{{ vueHelper.displayAsCurrency(totals.total) }}</div>
         </div>
-
-        <div class="flex w-full p-3 gap-2 border-round-md bordered justify-content-between align-items-center"
-                style="max-width: 1000px">
-            <div>
-                <div class="text-xs" style="color: var(--text-secondary)">Total</div>
-                <div class="font-bold">{{ vueHelper.displayAsCurrency(totals.total) }}</div>
-            </div>
-            <div>
-                <div class="text-xs" style="color: var(--text-secondary)">Positive</div>
-                <div class="font-bold" style="color: green">
-                    {{ vueHelper.displayAsCurrency(totals.positive) }}
-                </div>
-            </div>
-            <div>
-                <div class="text-xs" style="color: var(--text-secondary)">Negative</div>
-                <div class="font-bold" style="color: red">
-                    {{ vueHelper.displayAsCurrency(totals.negative) }}
-                </div>
+        <div>
+            <div class="text-xs" style="color: var(--text-secondary)">Positive</div>
+            <div class="font-bold" style="color: green">
+                {{ vueHelper.displayAsCurrency(totals.positive) }}
             </div>
         </div>
+        <div>
+            <div class="text-xs" style="color: var(--text-secondary)">Negative</div>
+            <div class="font-bold" style="color: red">
+                {{ vueHelper.displayAsCurrency(totals.negative) }}
+            </div>
+        </div>
+    </div>
 
-        <div class="flex-1 w-full border-round-md p-2 bordered overflow-y-auto" style="max-width: 1000px;" >
-            <div v-for="[type, group] in groupedAccounts" :key="type"
-                    class="w-full p-3 mb-2 border-round-md"
-                    style="background: var(--background-primary)">
-                <div class="flex p-2 mb-2 pb-21 align-items-center justify-content-between"
-                        style="border-bottom: 1px solid var(--border-color)">
-                    <div class="text-sm" style="color: var(--text-secondary)">
-                        {{ vueHelper.formatString(type) }} · {{ group.length }}
-                    </div>
-                    <div class="font-bold text-sm" style="color: var(--text-secondary)">
-                        {{ vueHelper.displayAsCurrency(groupTotal(group)) }}
-                    </div>
+    <div class="flex-1 w-full border-round-md p-2 bordered overflow-y-auto" style="max-width: 1000px;" >
+        <div v-for="[type, group] in groupedAccounts" :key="type"
+             class="w-full p-3 mb-2 border-round-md"
+             style="background: var(--background-primary)">
+            <div class="flex p-2 mb-2 pb-21 align-items-center justify-content-between"
+                 style="border-bottom: 1px solid var(--border-color)">
+                <div class="text-sm" style="color: var(--text-secondary)">
+                    {{ vueHelper.formatString(type) }} · {{ group.length }}
                 </div>
+                <div class="font-bold text-sm" style="color: var(--text-secondary)">
+                    {{ vueHelper.displayAsCurrency(groupTotal(group)) }}
+                </div>
+            </div>
 
-                <div v-for="(account, i) in group" :key="account.id ?? i"
-                        class="flex align-items-center justify-content-between p-2 border-round-md mt-1 bordered">
-                    <div class="flex align-items-center">
-                        <div class="flex align-items-center justify-content-center font-bold"
-                                :class="{ hover: allowEdit }"
-                                @click="allowEdit && openDetails(account.id!)"
-                                :style="{
+            <div v-for="(account, i) in group" :key="account.id ?? i"
+                 class="flex align-items-center justify-content-between p-2 border-round-md mt-1 bordered">
+                <div class="flex align-items-center">
+                    <div class="flex align-items-center justify-content-center font-bold"
+                         :class="{ hover: allowEdit }"
+                         @click="allowEdit && openDetails(account.id!)"
+                         :style="{
                                     width: '32px',
                                     height: '32px',
                                     border: '1px solid',
@@ -240,41 +212,37 @@ function onCloseAccount(acc: Account) {
                                     background: logoColor(account.account_type.type).bg,
                                     color: logoColor(account.account_type.type).fg,
                                 }">
-                            {{ account.name.charAt(0).toUpperCase() }}
+                        {{ account.name.charAt(0).toUpperCase() }}
+                    </div>
+                    <div class="ml-2">
+                        <div class="font-bold" :class="{ hover: allowEdit }"
+                             @click="allowEdit && openDetails(account.id!)">
+                            {{ account.name }}
                         </div>
-                        <div class="ml-2">
-                            <div class="font-bold" :class="{ hover: allowEdit }"
-                                    @click="allowEdit && openDetails(account.id!)">
-                                {{ account.name }}
-                            </div>
-                            <div class="text-sm" style="color: var(--text-secondary)">
-                                {{ vueHelper.formatString(account.account_type?.sub_type) }}
-                            </div>
+                        <div class="text-sm" style="color: var(--text-secondary)">
+                            {{ vueHelper.formatString(account.account_type?.sub_type) }}
                         </div>
                     </div>
+                </div>
 
-                    <div class="flex align-items-center gap-2">
-                        <div class="font-bold mr-1">
-                            {{ vueHelper.displayAsCurrency(account.balance.end_balance) }}
-                        </div>
-
-                        <template v-if="advanced">
-                            <Button
-                                    size="small"
-                                    text
-                                    :label="account.enabled ? 'Disable' : 'Enable'"
-                                    @click="onToggleEnabled(account)"
-                            />
-                            <Button size="small" text label="History" @click="onViewHistory(account)" />
-                            <Button size="small" text severity="danger" label="Close" @click="onCloseAccount(account)" />
-                        </template>
-
-                        <slot name="account-actions" :account="account" />
+                <div class="flex align-items-center gap-2">
+                    <div class="font-bold mr-1">
+                        {{ vueHelper.displayAsCurrency(account.balance.end_balance) }}
                     </div>
+
+                    <template v-if="advanced">
+                        <ToggleSwitch style="transform: scale(0.675)" v-model="account.is_active" @update:modelValue="onToggleEnabled(account)" />
+                        <i class="pi pi-list-check" @click="onViewHistory(account)" v-tooltip="'View history'" />
+                        <Button size="small" text severity="danger" label="Close" @click="onCloseAccount(account)" />
+                    </template>
+
+                    <slot name="account-actions" :account="account" />
                 </div>
             </div>
         </div>
-    </main>
+    </div>
+
+
 </template>
 
 <style scoped>

@@ -18,4 +18,5 @@ export interface Account {
     name: string;
     account_type: AccountType,
     balance: Balance;
+    is_active: boolean;
 }

@@ -25,8 +25,6 @@ function closeAccount(acc) {
 
                 <AccountsPanel
                         :advanced="true"
-                        :showHeader="false"
-                        :allowCreate="false"
                         :allowEdit="true"
                         @toggle-enabled="toggleEnabled"
                         @view-history="viewHistory"
