@@ -35,7 +35,7 @@ func NewTransactionService(
 	}
 }
 
-func (s *TransactionService) FetchTransactionsPaginated(c *gin.Context, includeDeleted bool) ([]models.Transaction, *utils.Paginator, error) {
+func (s *TransactionService) FetchTransactionsPaginated(c *gin.Context, includeDeleted bool, accountID *int64) ([]models.Transaction, *utils.Paginator, error) {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
 	if err != nil {
@@ -45,14 +45,14 @@ func (s *TransactionService) FetchTransactionsPaginated(c *gin.Context, includeD
 	queryParams := c.Request.URL.Query()
 	p := utils.GetPaginationParams(queryParams)
 
-	totalRecords, err := s.Repo.CountTransactions(user, p.Filters, includeDeleted)
+	totalRecords, err := s.Repo.CountTransactions(user, p.Filters, includeDeleted, accountID)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
 
-	records, err := s.Repo.FindTransactions(user, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeDeleted)
+	records, err := s.Repo.FindTransactions(user, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeDeleted, accountID)
 	if err != nil {
 		return nil, nil, err
 	}

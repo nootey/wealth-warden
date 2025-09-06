@@ -27,7 +27,18 @@ func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
 	q := c.Request.URL.Query()
 	includeDeleted := strings.EqualFold(q.Get("include_deleted"), "true")
 
-	records, paginator, err := h.Service.FetchTransactionsPaginated(c, includeDeleted)
+	accountIDStr := q.Get("account")
+	var accountID *int64
+	if accountIDStr != "" {
+		id, err := strconv.ParseInt(accountIDStr, 10, 64)
+		if err != nil {
+			utils.ErrorMessage(c, "Error occurred", "account id must be a valid integer", http.StatusBadRequest, err)
+			return
+		}
+		accountID = &id
+	}
+
+	records, paginator, err := h.Service.FetchTransactionsPaginated(c, includeDeleted, accountID)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

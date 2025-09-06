@@ -55,13 +55,17 @@ func (r *TransactionRepository) baseTransferQuery(db *gorm.DB, userID int64, inc
 	return q
 }
 
-func (r *TransactionRepository) FindTransactions(user *models.User, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool) ([]models.Transaction, error) {
+func (r *TransactionRepository) FindTransactions(user *models.User, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool, accountID *int64) ([]models.Transaction, error) {
 
 	var records []models.Transaction
 
 	q := r.baseTxQuery(r.DB, user.ID, includeDeleted).
 		Preload("Category").
 		Preload("Account")
+
+	if accountID != nil {
+		q = q.Where("transactions.account_id = ?", *accountID)
+	}
 
 	joins := utils.GetRequiredJoins(filters)
 	orderBy := utils.ConstructOrderByClause(&joins, "transactions", sortField, sortOrder)
@@ -114,10 +118,13 @@ func (r *TransactionRepository) FindTransfers(user *models.User, offset, limit i
 	return records, nil
 }
 
-func (r *TransactionRepository) CountTransactions(user *models.User, filters []utils.Filter, includeDeleted bool) (int64, error) {
+func (r *TransactionRepository) CountTransactions(user *models.User, filters []utils.Filter, includeDeleted bool, accountID *int64) (int64, error) {
 	var totalRecords int64
 
 	q := r.baseTxQuery(r.DB, user.ID, includeDeleted)
+	if accountID != nil {
+		q = q.Where("transactions.account_id = ?", *accountID)
+	}
 
 	joins := utils.GetRequiredJoins(filters)
 	for _, join := range joins {

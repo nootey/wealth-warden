@@ -47,18 +47,12 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    acc_closed_at TIMESTAMPTZ;
-acc_deleted_at TIMESTAMPTZ;
+    acc_deleted_at TIMESTAMPTZ;
 BEGIN
-SELECT closed_at, deleted_at
-INTO acc_closed_at, acc_deleted_at
+SELECT deleted_at
+INTO acc_deleted_at
 FROM accounts
 WHERE id = NEW.account_id;
-
-IF acc_closed_at IS NOT NULL THEN
-        RAISE EXCEPTION 'Account % is closed; cannot post transactions', NEW.account_id
-            USING ERRCODE = 'check_violation';
-END IF;
 
 IF acc_deleted_at IS NOT NULL THEN
         RAISE EXCEPTION 'Account % is deleted; cannot post transactions', NEW.account_id
