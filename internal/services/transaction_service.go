@@ -410,6 +410,10 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 		return fmt.Errorf("can't find transaction with given id %w", err)
 	}
 
+	if exTr.IsAdjustment {
+		return fmt.Errorf("can't edit a manual adjustment transaction! %w", err)
+	}
+
 	// Load existing relations for comparison
 	oldAccount, err := s.AccountService.Repo.FindAccountByID(tx, exTr.AccountID, user.ID, false)
 	if err != nil {
