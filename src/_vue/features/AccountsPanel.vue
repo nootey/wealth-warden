@@ -37,7 +37,7 @@ const selectedAccount = ref<Account>();
 const loadingAccounts = ref(true);
 const accounts = ref<Account[]>([]);
 
-const rows = ref([10, 25]);
+const rows = ref([25]);
 const default_rows = ref(rows.value[0]);
 const paginator = ref({
     total: 0,
