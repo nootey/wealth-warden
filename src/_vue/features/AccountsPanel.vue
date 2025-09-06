@@ -183,7 +183,7 @@ defineExpose({ refresh: getData });
 
     <Dialog position="top" class="rounded-dialog" v-model:visible="detailsModal"
             :breakpoints="{ '851px': '90vw' }" :modal="true" :style="{ width: '850px' }" header="Account details">
-        <AccountDetails :account="selectedAccount"></AccountDetails>
+        <AccountDetails :account="selectedAccount!"></AccountDetails>
     </Dialog>
 
     <div class="flex w-full p-3 gap-2 border-round-md bordered justify-content-between align-items-center"
