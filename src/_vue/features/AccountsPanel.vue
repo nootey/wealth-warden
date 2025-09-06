@@ -219,7 +219,7 @@ defineExpose({ refresh: getData });
 
             <div v-for="(account, i) in group" :key="account.id ?? i"
                  class="account-row flex align-items-center justify-content-between p-2 border-round-md mt-1 bordered"
-                 :class="{ advanced }">
+                 :class="{ advanced, inactive: advanced && !account.is_active }">
 
                 <div class="flex align-items-center">
                     <!-- Avatar -->
@@ -298,5 +298,9 @@ defineExpose({ refresh: getData });
 
 .account-row.advanced .edit-icon {
     opacity: 1;
+}
+.account-row.inactive {
+    filter: grayscale(100%);
+    opacity: 0.6;
 }
 </style>
