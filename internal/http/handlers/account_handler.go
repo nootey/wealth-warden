@@ -5,6 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
+	"strings"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
@@ -23,7 +24,10 @@ func NewAccountHandler(service *services.AccountService) *AccountHandler {
 
 func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 
-	records, paginator, err := h.Service.FetchAccountsPaginated(c)
+	q := c.Request.URL.Query()
+	includeInactive := strings.EqualFold(q.Get("inactive"), "true")
+
+	records, paginator, err := h.Service.FetchAccountsPaginated(c, includeInactive)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

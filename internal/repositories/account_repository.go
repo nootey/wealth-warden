@@ -14,7 +14,7 @@ func NewAccountRepository(db *gorm.DB) *AccountRepository {
 	return &AccountRepository{DB: db}
 }
 
-func (r *AccountRepository) FindAccounts(user *models.User, year, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Account, error) {
+func (r *AccountRepository) FindAccounts(user *models.User, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeInactive bool) ([]models.Account, error) {
 
 	var records []models.Account
 
@@ -22,6 +22,10 @@ func (r *AccountRepository) FindAccounts(user *models.User, year, offset, limit 
 		Preload("AccountType").
 		Preload("Balance").
 		Where("user_id = ?", user.ID)
+
+	if !includeInactive {
+		query = query.Where("is_active = ?", true)
+	}
 
 	joins := utils.GetRequiredJoins(filters)
 	orderBy := utils.ConstructOrderByClause(&joins, "accounts", sortField, sortOrder)
@@ -44,11 +48,15 @@ func (r *AccountRepository) FindAccounts(user *models.User, year, offset, limit 
 	return records, nil
 }
 
-func (r *AccountRepository) CountAccounts(user *models.User, year int, filters []utils.Filter) (int64, error) {
+func (r *AccountRepository) CountAccounts(user *models.User, filters []utils.Filter, includeInactive bool) (int64, error) {
 	var totalRecords int64
 
 	query := r.DB.Model(&models.Account{}).
 		Where("user_id = ?", user.ID)
+
+	if !includeInactive {
+		query = query.Where("is_active = ?", true)
+	}
 
 	joins := utils.GetRequiredJoins(filters)
 	for _, join := range joins {

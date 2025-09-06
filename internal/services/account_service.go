@@ -64,7 +64,7 @@ func (s *AccountService) LogBalanceChange(account *models.Account, user *models.
 	})
 }
 
-func (s *AccountService) FetchAccountsPaginated(c *gin.Context) ([]models.Account, *utils.Paginator, error) {
+func (s *AccountService) FetchAccountsPaginated(c *gin.Context, includeInactive bool) ([]models.Account, *utils.Paginator, error) {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
 	if err != nil {
@@ -72,25 +72,14 @@ func (s *AccountService) FetchAccountsPaginated(c *gin.Context) ([]models.Accoun
 	}
 
 	queryParams := c.Request.URL.Query()
-	paginationParams := utils.GetPaginationParams(queryParams)
-	yearParam := queryParams.Get("year")
-
-	// Get the current year
-	currentYear := time.Now().Year()
-
-	// Convert yearParam to integer
-	year, err := strconv.Atoi(yearParam)
-	if err != nil || year > currentYear || year < 2000 { // Ensure year is valid
-		year = currentYear // Default to current year if invalid
-	}
-
-	totalRecords, err := s.Repo.CountAccounts(user, year, paginationParams.Filters)
+	p := utils.GetPaginationParams(queryParams)
+	totalRecords, err := s.Repo.CountAccounts(user, p.Filters, includeInactive)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	offset := (paginationParams.PageNumber - 1) * paginationParams.RowsPerPage
-	records, err := s.Repo.FindAccounts(user, year, offset, paginationParams.RowsPerPage, paginationParams.SortField, paginationParams.SortOrder, paginationParams.Filters)
+	offset := (p.PageNumber - 1) * p.RowsPerPage
+	records, err := s.Repo.FindAccounts(user, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeInactive)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -106,8 +95,8 @@ func (s *AccountService) FetchAccountsPaginated(c *gin.Context) ([]models.Accoun
 	}
 
 	paginator := &utils.Paginator{
-		CurrentPage:  paginationParams.PageNumber,
-		RowsPerPage:  paginationParams.RowsPerPage,
+		CurrentPage:  p.PageNumber,
+		RowsPerPage:  p.RowsPerPage,
 		TotalRecords: int(totalRecords),
 		From:         from,
 		To:           to,
