@@ -135,15 +135,20 @@ func (r *AccountRepository) UpdateAccount(tx *gorm.DB, record *models.Account) (
 		db = r.DB
 	}
 
-	if err := db.Model(models.Account{}).
-		Where("id = ?", record.ID).
-		Updates(map[string]interface{}{
-			"name":            record.Name,
-			"currency":        record.Currency,
-			"account_type_id": record.AccountTypeID,
-		}).Error; err != nil {
-		return 0, err
+	updates := map[string]interface{}{}
+	if record.Name != "" {
+		updates["name"] = record.Name
 	}
+	if record.Currency != "" {
+		updates["currency"] = record.Currency
+	}
+	if record.AccountTypeID != 0 {
+		updates["account_type_id"] = record.AccountTypeID
+	}
+	updates["is_active"] = record.IsActive
+
+	db.Model(&models.Account{}).Where("id = ?", record.ID).Updates(updates)
+
 	return record.ID, nil
 }
 

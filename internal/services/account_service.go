@@ -274,6 +274,7 @@ func (s *AccountService) UpdateAccount(c *gin.Context, id int64, req *models.Acc
 		Name:          req.Name,
 		Currency:      models.DefaultCurrency,
 		AccountTypeID: newAccType.ID,
+		IsActive:      exAcc.IsActive,
 		UserID:        user.ID,
 	}
 
@@ -408,6 +409,68 @@ func (s *AccountService) UpdateAccountCashBalance(tx *gorm.DB, acc *models.Accou
 	_, err = s.Repo.UpdateBalance(tx, accBalance)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (s *AccountService) ToggleAccountActiveState(c *gin.Context, id int64) error {
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Load record to confirm it exists
+	exAcc, err := s.Repo.FindAccountByID(tx, id, user.ID, false)
+	if err != nil {
+		return fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	acc := &models.Account{
+		ID:       id,
+		UserID:   user.ID,
+		IsActive: !exAcc.IsActive,
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(strconv.FormatBool(exAcc.IsActive), strconv.FormatBool(acc.IsActive), changes, "is_active")
+
+	_, err = s.Repo.UpdateAccount(tx, acc)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	if !changes.IsEmpty() {
+		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.Repo,
+			Logger:      s.Ctx.Logger,
+			Event:       "update",
+			Category:    "account",
+			Description: nil,
+			Payload:     changes,
+			Causer:      user,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
