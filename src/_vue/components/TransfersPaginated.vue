@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import {computed, onMounted, provide, ref} from "vue";
+import {computed, onMounted, ref} from "vue";
 import vueHelper from "../../utils/vue_helper.ts";
 import {useSharedStore} from "../../services/stores/shared_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import dateHelper from "../../utils/date_helper.ts";
-import LoadingSpinner from "../components/base/LoadingSpinner.vue";
+import LoadingSpinner from "./base/LoadingSpinner.vue";
 import filterHelper from "../../utils/filter_helper.ts";
 import type {Transfer} from "../../models/transaction_models.ts";
 import type {Column} from "../../services/filter_registry.ts";
 import {useConfirm} from "primevue/useconfirm";
-import CustomPaginator from "../components/base/CustomPaginator.vue";
+import CustomPaginator from "./base/CustomPaginator.vue";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();

@@ -1,15 +1,11 @@
 <script setup lang="ts">
 import TransactionForm from "../components/forms/TransactionForm.vue";
 import {computed, onMounted, provide, ref} from "vue";
-import type {Transaction} from "../../models/transaction_models.ts";
 import vueHelper from "../../utils/vue_helper.ts";
 import {useSharedStore} from "../../services/stores/shared_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
-import dateHelper from "../../utils/date_helper.ts";
-import LoadingSpinner from "../components/base/LoadingSpinner.vue";
 import ActionRow from "../components/layout/ActionRow.vue";
-import ColumnHeader from "../components/base/ColumnHeader.vue";
 import type {FilterObj} from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
@@ -19,8 +15,8 @@ import type {Column} from "../../services/filter_registry.ts";
 import {useConfirm} from "primevue/useconfirm";
 import {useAccountStore} from "../../services/stores/account_store.ts";
 import type {Account} from "../../models/account_models.ts";
-import TransfersPaginated from "../features/TransfersPaginated.vue";
-import CustomPaginator from "../components/base/CustomPaginator.vue";
+import TransfersPaginated from "../components/TransfersPaginated.vue";
+import TransactionsPaginated from "../components/TransactionsPaginated.vue";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -28,44 +24,24 @@ const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
 
 onMounted(async () => {
-    await getData();
     await transactionStore.getCategories();
     await accountStore.getAllAccounts();
 })
 
 const confirm = useConfirm();
-
 const apiPrefix = "transactions";
 
-const transfersPaginatedRef = ref<InstanceType<typeof TransfersPaginated> | null>(null);
+const transfersRef = ref<InstanceType<typeof TransfersPaginated> | null>(null);
+const txRef = ref<InstanceType<typeof TransactionsPaginated> | null>(null);
 
 const createModal = ref(false);
 const updateModal = ref(false);
 const updateTransactionID = ref(null);
 const includeDeleted = ref(false);
 
-const loadingRecords = ref(true);
-const records = ref<Transaction[]>([]);
 const categories = computed<Category[]>(() => transactionStore.categories);
 const accounts = computed<Account[]>(() => accountStore.accounts);
 
-const params = computed(() => {
-  return {
-    rowsPerPage: paginator.value.rowsPerPage,
-    sort: sort.value,
-    filters: filters.value,
-    include_deleted: includeDeleted.value,
-  }
-});
-const rows = ref([25, 50, 100]);
-const default_rows = ref(rows.value[0]);
-const paginator = ref({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: default_rows.value
-});
-const page = ref(1);
 const sort = ref(filterHelper.initSort());
 const filterStorageIndex = ref(apiPrefix+"-filters");
 const filters = ref(JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "[]"));
@@ -79,26 +55,20 @@ const activeColumns = computed<Column[]>(() => [
   { field: 'description', header: 'Description', type: "text" },
 ]);
 
-async function getData(new_page = null) {
+async function loadTransactionsPage({ page, rows, sort: s, filters: f, include_deleted }: any) {
+    let response = null;
 
-  loadingRecords.value = true;
-  if(new_page)
-    page.value = new_page;
+    try {
+        response =  await sharedStore.getRecordsPaginated(
+            apiPrefix,
+            { rowsPerPage: rows, sort: s, filters: f, include_deleted },
+            page
+        );
+    } catch (e) {
+        toastStore.errorResponseToast(e);
+    }
 
-  try {
-    let paginationResponse = await sharedStore.getRecordsPaginated(
-        apiPrefix,
-        { ...params.value },
-        page.value
-    );
-    records.value = paginationResponse.data;
-    paginator.value.total = paginationResponse.total_records;
-    paginator.value.to = paginationResponse.to;
-    paginator.value.from = paginationResponse.from;
-    loadingRecords.value = false;
-  } catch (error) {
-    toastStore.errorResponseToast(error);
-  }
+    return { data: response?.data, total: response?.total_records };
 }
 
 function manipulateDialog(modal: string, value: any) {
@@ -123,8 +93,8 @@ async function handleEmit(emitType: any) {
     case 'completeOperation': {
       createModal.value = false;
       updateModal.value = false;
-      await getData();
-      await transfersPaginatedRef.value?.getData();
+      txRef.value?.reload();
+      await transfersRef.value?.getData();
       break;
     }
     default: {
@@ -133,16 +103,10 @@ async function handleEmit(emitType: any) {
   }
 }
 
-async function onPage(event: any) {
-  paginator.value.rowsPerPage = event.rows;
-  page.value = (event.page+1)
-  await getData();
-}
-
 function applyFilters(list: FilterObj[]){
   filters.value = filterHelper.mergeFilters(filters.value, list);
   localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
-  getData();
+  txRef.value?.reload();
   filterOverlayRef.value.hide();
 }
 
@@ -150,7 +114,7 @@ function clearFilters(){
   filters.value = [];
   localStorage.removeItem(filterStorageIndex.value);
   cancelFilters();
-  getData();
+  txRef.value?.reload();
 }
 
 function cancelFilters(){
@@ -170,7 +134,7 @@ function removeFilter(index: number) {
     localStorage.removeItem(filterStorageIndex.value);
   }
 
-  getData();
+  txRef.value?.reload();
 }
 
 function switchSort(column:string) {
@@ -180,7 +144,6 @@ function switchSort(column:string) {
     sort.value.order = 1;
   }
   sort.value.field = column;
-  getData();
 }
 
 function toggleFilterOverlay(event: any) {
@@ -205,13 +168,11 @@ async function deleteRecord(id: number, tx_type: string) {
         id,
     );
     toastStore.successResponseToast(response);
-    await getData();
+    txRef.value?.reload();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
 }
-
-
 
 provide("switchSort", switchSort);
 provide("removeFilter", removeFilter);
@@ -274,56 +235,26 @@ provide("removeFilter", removeFilter);
             <template #includeDeleted>
                 <div class="flex align-items-center gap-2" style="margin-left: auto;">
                     <span style="font-size: 0.8rem;">Include deleted</span>
-                    <ToggleSwitch v-model="includeDeleted" @update:modelValue="getData()" />
+                    <ToggleSwitch v-model="includeDeleted" />
                 </div>
             </template>
         </ActionRow>
       </div>
 
         <div class="flex flex-row gap-2 w-full">
-            <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingRecords" :value="records" :rowClass="vueHelper.deletedRowClass">
-              <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-              <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-              <template #footer>
-                  <CustomPaginator :paginator="paginator" :rows="rows" @onPage="onPage"/>
-              </template>
-
-              <Column v-for="col of activeColumns" :key="col.field" :field="col.field" style="width: 25%">
-                <template #header >
-                  <ColumnHeader  :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
-                </template>
-                <template #body="{ data, field }">
-                  <template v-if="field === 'amount'">
-                    {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
-                  </template>
-                  <template v-else-if="field === 'txn_date'">
-                    {{ dateHelper.formatDate(data?.txn_date, true) }}
-                  </template>
-                  <template v-else-if="field === 'account'">
-                    <span class="hover" @click="manipulateDialog('updateTransaction', data['id'])">
-                      {{ data[field]["name"] }}
-                    </span>
-                  </template>
-                  <template v-else-if="field === 'category'">
-                    {{ data[field]["name"] }}
-                  </template>
-                  <template v-else>
-                    {{ data[field] }}
-                  </template>
-                </template>
-              </Column>
-
-              <Column header="Actions">
-                <template #body="slotProps">
-                   <div class="flex flex-row align-items-center gap-2">
-                       <i v-if="!slotProps.data.deleted_at" class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
-                          @click="deleteConfirmation(slotProps.data?.id, slotProps.data.transaction_type)"></i>
-                       <i v-else class="pi pi-exclamation-circle" style="font-size: 0.875rem;" v-tooltip="'This transaction is in deleted state!'"></i>
-                   </div>
-                </template>
-              </Column>
-
-            </DataTable>
+            <TransactionsPaginated
+                    ref="txRef"
+                    :readOnly="false"
+                    :columns="activeColumns"
+                    :sort="sort"
+                    :filters="filters"
+                    :include_deleted="includeDeleted"
+                    :fetchPage="loadTransactionsPage"
+                    :rowClass="vueHelper.deletedRowClass"
+                    @sortChange="switchSort"
+                    @rowClick="(id) => manipulateDialog('updateTransaction', id)"
+                    @deleteClick="({ id, tx_type }) => deleteConfirmation(id, tx_type)"
+            />
         </div>
 
         <label>Transfers</label>
