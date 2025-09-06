@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia';
+import {defineStore} from 'pinia';
 import apiClient from "../api/axios_interceptor.ts";
 import type {Category} from "../../models/transaction_models.ts";
 
@@ -11,6 +11,24 @@ export const useTransactionStore = defineStore('transaction', {
     getters: {
     },
     actions: {
+        async getPaginatedTransactionsForAccount(params: object, page: number, accID: number) {
+            try {
+
+                const queryParams = {
+                    ...params,
+                    page: page,
+                    account: accID,
+                };
+
+                const response = await apiClient.get(`${this.apiPrefix}`, {
+                    params: queryParams,
+                });
+
+                return response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
         async getCategories() {
             try {
                 const response = await apiClient.get(`${this.apiPrefix}/categories`);
