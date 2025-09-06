@@ -9,6 +9,7 @@ import {useToastStore} from "../../services/stores/toast_store.ts";
 import TransactionsPaginated from "./TransactionsPaginated.vue";
 import type {Column} from "../../services/filter_registry.ts";
 import filterHelper from "../../utils/filter_helper.ts";
+import {useConfirm} from "primevue/useconfirm";
 
 const props = defineProps<{
     account: Account;
@@ -16,6 +17,8 @@ const props = defineProps<{
 
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
+
+const confirm = useConfirm();
 
 const sort = ref(filterHelper.initSort());
 
@@ -41,12 +44,27 @@ async function loadTransactionsPage({ page, rows, sort: s, filters: f, include_d
     return { data: response?.data, total: response?.total_records };
 }
 
+async function confirmCloseAccount(id: number) {
+    confirm.require({
+        header: 'Confirm account close',
+        message: 'You are about to close this account. Are you sure?',
+        rejectProps: { label: 'Cancel' },
+        acceptProps: { label: 'Close account', severity: 'danger' },
+        accept: () => closeAccount(id),
+    });
+}
+
+async function closeAccount(id: number) {
+    console.log(id)
+}
+
 </script>
 
 <template>
     <div class="flex flex-column w-full gap-3">
-        <div class="flex flex-row gap-2 align-items-center">
+        <div class="flex flex-row gap-2 align-items-center justify-content-between">
             <span>{{ account.name }}</span>
+            <Button size="small" label="Close account" severity="danger" style="color: white;" @click="confirmCloseAccount(account.id!)"></Button>
         </div>
         <SettingsSkeleton class="w-full">
             <div class="w-full flex flex-column gap-3 p-2">
