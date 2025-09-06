@@ -19,15 +19,15 @@ const allowed: Record<Section, any> = {
 };
 
 const section = computed<Section>(() => {
-    const s = (route.params.section as string) || 'account';
-    return (Object.keys(allowed) as Section[]).includes(s as Section) ? (s as Section) : 'account';
+    const s = (route.params.section as string) || 'profile';
+    return (Object.keys(allowed) as Section[]).includes(s as Section) ? (s as Section) : 'profile';
 });
 
 const CurrentView = computed(() => allowed[section.value]);
 </script>
 
 <template>
-    <div class="settings flex p-2">
+    <div class="settings flex p-2 w-full">
         <aside class="w-16rem text-white h-full flex flex-column gap-2 p-3">
 
             <div class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable" style="color: var(--text-primary)">
@@ -77,7 +77,7 @@ const CurrentView = computed(() => allowed[section.value]);
 
         </aside>
 
-        <main class="flex-1 pt-3">
+        <main class="w-full flex-1 pt-3" style="max-width: 850px; margin: 0 auto;">
             <div class="flex flex-row gap-2 mb-2 align-items-center">
                 <span class="text-sm" style="color: var(--text-secondary)">Home</span>
                 <i class="pi pi-angle-right"></i>
