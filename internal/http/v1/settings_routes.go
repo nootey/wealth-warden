@@ -7,6 +7,6 @@ import (
 
 func SettingsRoutes(apiGroup *gin.RouterGroup, handler *handlers.SettingsHandler) {
 	apiGroup.GET("", handler.GetGeneralSettings)
-	apiGroup.GET("/users", handler.GetGeneralSettings)
+	apiGroup.GET("/users", handler.GetUserSettings)
 	apiGroup.PUT("/users/:id", handler.UpdateUserSettings)
 }
