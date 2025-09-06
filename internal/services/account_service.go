@@ -336,6 +336,7 @@ func (s *AccountService) UpdateAccount(c *gin.Context, id int64, req *models.Acc
 				Currency:        exAcc.Currency,
 				TxnDate:         time.Now(),
 				Description:     &desc,
+				IsAdjustment:    true,
 			}
 
 			if _, err := s.TxnRepo.InsertTransaction(tx, txn); err != nil {

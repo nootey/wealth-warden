@@ -14,6 +14,7 @@ CREATE TABLE transactions (
     currency CHAR(3) NOT NULL DEFAULT 'EUR',
     txn_date TIMESTAMPTZ NOT NULL,
     description VARCHAR(255),
+    is_adjustment BOOLEAN NOT NULL DEFAULT FALSE,
 
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
