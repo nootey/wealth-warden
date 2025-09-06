@@ -15,8 +15,10 @@ type Account struct {
 	AccountType   AccountType `json:"account_type"`
 	Balance       Balance     `json:"balance"`
 	Currency      string      `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
+	IsActive      bool        `gorm:"type:boolean;not null;default:true" json:"is_active"`
 	CreatedAt     time.Time   `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt     time.Time   `gorm:"autoUpdateTime" json:"updated_at"`
+	DeletedAt     *time.Time  `json:"deleted_at"`
 }
 
 type AccountType struct {
