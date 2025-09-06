@@ -6,12 +6,7 @@ import AccountsPanel from "../../features/AccountsPanel.vue";
 function toggleEnabled(acc) {
 
 }
-function viewHistory(acc) {
 
-}
-function closeAccount(acc) {
-
-}
 </script>
 
 <template>
@@ -27,8 +22,6 @@ function closeAccount(acc) {
                         :advanced="true"
                         :allowEdit="true"
                         @toggle-enabled="toggleEnabled"
-                        @view-history="viewHistory"
-                        @close-account="closeAccount"
                 />
             </div>
         </SettingsSkeleton>

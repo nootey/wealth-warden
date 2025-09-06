@@ -32,7 +32,7 @@ async function handleCreate() {
         <div class="flex flex-row justify-content-between align-items-center p-3 w-full border-round-md bordered gap-2"
              style="max-width: 1000px">
             <div class="font-bold">Accounts</div>
-            <i class="pi pi-map hover_icon mr-auto text-sm" @click="router.push('settings/accounts')" v-tooltip="'Go to accounts settings.'"></i>
+            <i class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/accounts')" v-tooltip="'Go to accounts settings.'"></i>
             <Button class="main-button" label="New Account" icon="pi pi-plus" @click="openCreate"/>
         </div>
 

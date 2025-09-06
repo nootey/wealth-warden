@@ -8,6 +8,7 @@ import { useSharedStore } from "../../services/stores/shared_store.ts";
 import vueHelper from "../../utils/vue_helper.ts";
 import filterHelper from "../../utils/filter_helper.ts";
 import type { Account } from "../../models/account_models.ts";
+import AccountDetails from "../components/AccountDetails.vue";
 
 const props = withDefaults(defineProps<{
     advanced?: boolean;
@@ -19,8 +20,6 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
     (e: "toggle-enabled", account: Account): void;
-    (e: "view-history", account: Account): void;
-    (e: "close-account", account: Account): void;
     (e: "refresh"): void;
 }>();
 
@@ -29,8 +28,11 @@ const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 
 const apiPrefix = "accounts";
+
 const detailsModal = ref(false);
-const accountDetailsID = ref<number | null>(null);
+const updateModal = ref(false);
+const selectedID = ref<number | null>(null);
+const selectedAccount = ref<Account>();
 
 const loadingAccounts = ref(true);
 const accounts = ref<Account[]>([]);
@@ -129,38 +131,60 @@ const totals = computed(() => {
     };
 });
 
-function openDetails(id: number) {
-    if (!props.allowEdit) return;
-    detailsModal.value = true;
-    accountDetailsID.value = id;
+function openModal(type: string, data: any) {
+
+    switch (type) {
+        case "update": {
+            if (!props.allowEdit) return;
+            updateModal.value = true;
+            selectedID.value = data;
+            break;
+        }
+
+        case "details": {
+            detailsModal.value = true;
+            selectedAccount.value = data;
+            break;
+        }
+
+    }
+
 }
+
 async function handleEmit(emitType: string) {
     if (emitType === "completeOperation") {
-        detailsModal.value = false;
+        updateModal.value = false;
         await getData();
         emit("refresh");
     }
 }
 
-defineExpose({ refresh: getData });
-
 function onToggleEnabled(acc: Account) {
     emit("toggle-enabled", acc);
 }
-function onViewHistory(acc: Account) {
-    emit("view-history", acc);
+
+function handlePrimaryClick(acc: Account) {
+    if (props.advanced) {
+        openModal("details", acc);
+    }
+    // non-advanced: do nothing
 }
-function onCloseAccount(acc: Account) {
-    emit("close-account", acc);
-}
+
+defineExpose({ refresh: getData });
+
 </script>
 
 <template>
 
-    <Dialog position="right" class="rounded-dialog" v-model:visible="detailsModal"
-            :breakpoints="{ '801px': '90vw' }" :modal="true" :style="{ width: '500px' }" header="Account details">
-        <AccountForm mode="update" :recordId="accountDetailsID"
+    <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal"
+            :breakpoints="{ '501px': '90vw' }" :modal="true" :style="{ width: '500px' }" header="Update account">
+        <AccountForm mode="update" :recordId="selectedID"
                 @completeOperation="handleEmit('completeOperation')"/>
+    </Dialog>
+
+    <Dialog position="top" class="rounded-dialog" v-model:visible="detailsModal"
+            :breakpoints="{ '851px': '90vw' }" :modal="true" :style="{ width: '850px' }" header="Account details">
+        <AccountDetails :account="selectedAccount"></AccountDetails>
     </Dialog>
 
     <div class="flex w-full p-3 gap-2 border-round-md bordered justify-content-between align-items-center"
@@ -198,11 +222,12 @@ function onCloseAccount(acc: Account) {
             </div>
 
             <div v-for="(account, i) in group" :key="account.id ?? i"
-                 class="flex align-items-center justify-content-between p-2 border-round-md mt-1 bordered">
+                 class="account-row flex align-items-center justify-content-between p-2 border-round-md mt-1 bordered"
+                 :class="{ advanced }">
+
                 <div class="flex align-items-center">
+                    <!-- Avatar -->
                     <div class="flex align-items-center justify-content-center font-bold"
-                         :class="{ hover: allowEdit }"
-                         @click="allowEdit && openDetails(account.id!)"
                          :style="{
                                     width: '32px',
                                     height: '32px',
@@ -214,15 +239,26 @@ function onCloseAccount(acc: Account) {
                                 }">
                         {{ account.name.charAt(0).toUpperCase() }}
                     </div>
+
+                    <!-- Name + subtype -->
                     <div class="ml-2">
-                        <div class="font-bold" :class="{ hover: allowEdit }"
-                             @click="allowEdit && openDetails(account.id!)">
+                        <div class="font-bold"
+                             :class="{ clickable: advanced }"
+                             @click="handlePrimaryClick(account)">
                             {{ account.name }}
                         </div>
+
                         <div class="text-sm" style="color: var(--text-secondary)">
                             {{ vueHelper.formatString(account.account_type?.sub_type) }}
                         </div>
                     </div>
+
+                    <!-- Edit icon -->
+                    <i class="ml-3 pi pi-pen-to-square text-xs hover-icon edit-icon"
+                       style="color: var(--text-secondary)"
+                       @click="openModal('update', account.id!)"
+                       v-tooltip="'Edit account'" />
+
                 </div>
 
                 <div class="flex align-items-center gap-2">
@@ -232,13 +268,11 @@ function onCloseAccount(acc: Account) {
 
                     <template v-if="advanced">
                         <ToggleSwitch style="transform: scale(0.675)" v-model="account.is_active" @update:modelValue="onToggleEnabled(account)" />
-                        <i class="pi pi-list-check" @click="onViewHistory(account)" v-tooltip="'View history'" />
-                        <Button size="small" text severity="danger" label="Close" @click="onCloseAccount(account)" />
                     </template>
 
-                    <slot name="account-actions" :account="account" />
                 </div>
             </div>
+
         </div>
     </div>
 
@@ -246,15 +280,27 @@ function onCloseAccount(acc: Account) {
 </template>
 
 <style scoped>
+
 .bordered {
     border: 1px solid var(--border-color);
     background: var(--background-secondary);
 }
-.hover {
-    font-weight: bold;
-}
-.hover:hover {
-    cursor: pointer;
+
+.clickable { cursor: pointer; }
+
+.account-row.advanced .font-bold.clickable:hover {
     text-decoration: underline;
+}
+
+.account-row .edit-icon {
+    opacity: 0;
+    transition: opacity .15s ease;
+}
+.account-row:hover .edit-icon {
+    opacity: 1;
+}
+
+.account-row.advanced .edit-icon {
+    opacity: 1;
 }
 </style>
