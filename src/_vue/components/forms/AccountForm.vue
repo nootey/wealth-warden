@@ -12,6 +12,7 @@ import vueHelper from "../../../utils/vue_helper.ts"
 import type {Account, AccountType} from "../../../models/account_models.ts"
 import currencyHelper from "../../../utils/currency_helper.ts";
 import {useConfirm} from "primevue/useconfirm";
+import toastHelper from "../../../utils/toast_helper.ts";
 
 const props = defineProps<{
     mode?: "create" | "update";
@@ -31,6 +32,8 @@ onMounted(async () => {
         await loadRecord(props.recordId);
     }
 });
+
+const readOnly = ref(false);
 
 const confirm = useConfirm();
 const initializing = ref(false);
@@ -222,6 +225,8 @@ async function loadRecord(id: number) {
         initializing.value = true;
         const data = await sharedStore.getRecordByID(accountStore.apiPrefix, id);
 
+        readOnly.value = !!data?.deleted_at || !data.is_active
+
         record.value = {
             ...initData(),
             ...data,
@@ -262,6 +267,11 @@ async function confirmManage() {
 }
 
 async function manageRecord() {
+
+    if (readOnly.value) {
+        toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
+        return;
+    }
 
   if (!await isRecordValid()) return;
 
@@ -336,12 +346,15 @@ async function manageRecord() {
 
     <div class="flex flex-column gap-3 p-1">
 
-    <div class="flex flex-row w-full justify-content-center">
+    <div v-if="!readOnly" class="flex flex-row w-full justify-content-center">
       <div class="flex flex-column w-50">
         <SelectButton
             style="font-size: 0.875rem;" size="small"
             v-model="selectedClassification" :options="['Asset', 'Liability']" :allowEmpty="false" />
       </div>
+    </div>
+    <div v-else>
+       <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
     </div>
 
 
@@ -350,7 +363,7 @@ async function manageRecord() {
         <ValidationError :isRequired="true" :message="v$.record.name.$errors[0]?.$message">
           <label>Name</label>
         </ValidationError>
-        <InputText size="small" v-model="record.name"></InputText>
+        <InputText :readonly="readOnly" :disabled="readOnly" size="small" v-model="record.name"></InputText>
       </div>
     </div>
 
@@ -358,7 +371,7 @@ async function manageRecord() {
       <ValidationError :isRequired="true" :message="v$.record.balance.$errors[0]?.$message">
         <label>Current balance</label>
       </ValidationError>
-      <InputNumber size="small" v-model="balanceNumber" mode="currency" currency="EUR" locale="de-DE"
+      <InputNumber :readonly="readOnly" :disabled="readOnly" size="small" v-model="balanceNumber" mode="currency" currency="EUR" locale="de-DE"
                    placeholder="0,00 €" :minFractionDigits="2" :maxFractionDigits="2" @update:model-value="balanceAdjusted = true"></InputNumber>
     </div>
 
@@ -367,7 +380,7 @@ async function manageRecord() {
         <ValidationError :isRequired="true" :message="v$.record.account_type.type.$errors[0]?.$message">
           <label>Type</label>
         </ValidationError>
-        <AutoComplete size="small" v-model="formattedTypeModel" :suggestions="filteredAccountTypes"
+        <AutoComplete :readonly="readOnly" :disabled="readOnly" size="small" v-model="formattedTypeModel" :suggestions="filteredAccountTypes"
                       @complete="searchAccountType" placeholder="Select type" dropdown>
           <template #option="slotProps">
             <div class="flex items-center">
@@ -383,9 +396,9 @@ async function manageRecord() {
         <ValidationError :isRequired="true" :message="v$.record.account_type.sub_type.$errors[0]?.$message">
           <label>Subtype</label>
         </ValidationError>
-        <AutoComplete
+        <AutoComplete :readonly="readOnly" :disabled="!selectedType || readOnly "
             size="small" v-model="formattedSubtypeModel" :suggestions="filteredSubtypeOptions"
-            @complete="searchSubtype" :disabled="!selectedType" placeholder="Select subtype" dropdown>
+            @complete="searchSubtype" placeholder="Select subtype" dropdown>
           <template #option="slotProps">
             <div class="flex items-center">
               {{ vueHelper.formatString(slotProps.option)}}
@@ -397,7 +410,7 @@ async function manageRecord() {
 
     <div class="flex flex-row gap-2 w-full">
       <div class="flex flex-column w-full">
-        <Button class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' account'" @click="confirmManage" style="height: 42px;" />
+        <Button v-if="!readOnly" class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' account'" @click="confirmManage" style="height: 42px;" />
       </div>
     </div>
 
