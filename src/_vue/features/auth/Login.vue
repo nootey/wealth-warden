@@ -5,7 +5,7 @@ import useVuelidate from "@vuelidate/core";
 import {useRouter} from "vue-router";
 import ValidationError from "../../components/validation/ValidationError.vue";
 import {useAuthStore} from "../../../services/stores/auth_store.ts";
-import AuthSkeleton from "../../components/forms/AuthSkeleton.vue";
+import AuthSkeleton from "../../components/layout/AuthSkeleton.vue";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 
 const authStore = useAuthStore();
