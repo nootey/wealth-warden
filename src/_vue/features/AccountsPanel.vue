@@ -120,10 +120,13 @@ const groupTotal = (group: Account[]) =>
     group.reduce((sum, acc) => sum.add(new Decimal(acc.balance.end_balance || 0)), new Decimal(0));
 
 const totals = computed(() => {
-    const vals = accounts.value.map(a => new Decimal(a.balance.end_balance || 0));
+    const activeAccounts = accounts.value.filter(a => a.is_active);
+
+    const vals = activeAccounts.map(a => new Decimal(a.balance.end_balance || 0));
     const total = vals.reduce((s, v) => s.add(v), new Decimal(0));
     const positive = vals.reduce((s, v) => (v.greaterThan(0) ? s.add(v) : s), new Decimal(0));
     const negative = vals.reduce((s, v) => (v.lessThan(0) ? s.add(v) : s), new Decimal(0));
+
     return {
         total: total.toString(),
         positive: positive.toString(),
