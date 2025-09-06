@@ -411,7 +411,7 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 	}
 
 	if exTr.IsAdjustment {
-		return fmt.Errorf("can't edit a manual adjustment transaction! %w", err)
+		return errors.New("can't edit a manual adjustment transaction")
 	}
 
 	// Load existing relations for comparison
