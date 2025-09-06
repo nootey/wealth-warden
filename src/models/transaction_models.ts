@@ -11,6 +11,7 @@ export interface Transaction {
     description: string | null;
     account: Account;
     deleted_at: Date | null;
+    is_adjustment: Boolean;
 }
 
 export interface Transfer {

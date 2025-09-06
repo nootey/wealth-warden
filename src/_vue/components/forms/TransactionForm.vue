@@ -144,7 +144,7 @@ function initData(): Transaction {
         id: null,
         name: "",
         type: "",
-        subtype: "",
+        sub_type: "",
         classification: "",
       },
       balance: {
@@ -159,6 +159,7 @@ function initData(): Transaction {
     txn_date: dayjs().toDate(),
     description: null,
     deleted_at: null,
+    is_adjustment: false,
   };
 }
 
@@ -166,7 +167,7 @@ async function loadRecord(id: number) {
   try {
     const data = await transactionStore.getTransactionByID(id, true);
 
-    readOnly.value = !!data?.deleted_at
+    readOnly.value = !!data?.deleted_at || data.is_adjustment
 
     record.value = {
       ...initData(),
@@ -325,14 +326,17 @@ async function restoreTransaction() {
 
   <div class="flex flex-column gap-3 p-1">
 
-    <div v-if="!readOnly" class="flex flex-row w-full justify-content-center">
-        <div class="flex flex-column w-50">
-            <SelectButton style="font-size: 0.875rem;" size="small"
-                          v-model="selectedParentCategory"
-                          :options="parentCategories" optionLabel="name" :allowEmpty="false"
-                          @update:modelValue="updateSelectedParentCategory($event)" />
-        </div>
-    </div>
+      <div v-if="!readOnly" class="flex flex-row w-full justify-content-center">
+          <div class="flex flex-column w-50">
+                <SelectButton style="font-size: 0.875rem;" size="small"
+                              v-model="selectedParentCategory"
+                              :options="parentCategories" optionLabel="name" :allowEmpty="false"
+                              @update:modelValue="updateSelectedParentCategory($event)" />
+          </div>
+      </div>
+      <div v-else>
+          <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
+      </div>
 
       <div class="flex flex-column gap-3" v-if="selectedParentCategory?.name.toLowerCase() == 'transfer' && !readOnly">
           <TransferForm ref="transferFormRef" v-model:transfer="transfer" :accounts="accounts" />
@@ -395,7 +399,7 @@ async function restoreTransaction() {
 
       </div>
 
-      <div class="flex flex-row gap-2 w-full" >
+      <div v-if="!record.is_adjustment" class="flex flex-row gap-2 w-full" >
           <div class="flex flex-column w-full">
               <Button v-if="!readOnly" class="main-button"
                       :label="(selectedParentCategory?.name.toLowerCase() == 'transfer' ? 'Start transfer' :
