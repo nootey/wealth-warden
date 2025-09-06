@@ -246,6 +246,10 @@ func (s *AccountService) UpdateAccount(c *gin.Context, id int64, req *models.Acc
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
+	if !exAcc.IsActive {
+		return errors.New("can't update non-active account")
+	}
+
 	// Load existing relations for comparison
 	exAccType, err := s.Repo.FindAccountTypeByID(tx, exAcc.AccountTypeID)
 	if err != nil {
