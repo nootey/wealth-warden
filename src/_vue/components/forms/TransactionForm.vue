@@ -140,6 +140,8 @@ function initData(): Transaction {
     account: {
       id: null,
       name: "",
+      is_active: true,
+      deleted_at: null,
       account_type: {
         id: null,
         name: "",
@@ -167,7 +169,7 @@ async function loadRecord(id: number) {
   try {
     const data = await transactionStore.getTransactionByID(id, true);
 
-    readOnly.value = !!data?.deleted_at || data.is_adjustment
+    readOnly.value = !!data?.deleted_at || data.is_adjustment || !!data.account.deleted_at;
 
     record.value = {
       ...initData(),
@@ -405,9 +407,10 @@ async function restoreTransaction() {
                       :label="(selectedParentCategory?.name.toLowerCase() == 'transfer' ? 'Start transfer' :
                       (mode == 'create' ? 'Add' : 'Update') +  ' transaction')"
                       @click="manageRecord" style="height: 42px;" />
-              <Button v-else class="main-button"
+              <Button v-else-if="!record.account.deleted_at" class="main-button"
                       label="Restore"
                       @click="restoreTransaction" style="height: 42px;" />
+              <h5 v-else style="color: var(--text-secondary)">Transaction can not be restored!</h5>
           </div>
       </div>
 

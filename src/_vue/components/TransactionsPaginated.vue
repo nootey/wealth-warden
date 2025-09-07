@@ -107,9 +107,9 @@ defineExpose({ reload });
 
         <Column v-for="col of columns" :key="col.field" :field="col.field" style="width: 25%">
             <template #header >
-                <ColumnHeader :header="col.header" :field="col.field"   :sort="localSort"
-                              :sortable="!readOnly"
-                              @click="!readOnly && triggerSort(col.field as string)">
+                <ColumnHeader :header="col.header" :field="col.field" :sort="localSort"
+                              :sortable="!!sort"
+                              @click="!sort && triggerSort(col.field as string)">
                 </ColumnHeader>
             </template>
             <template #body="{ data, field }">
@@ -120,9 +120,12 @@ defineExpose({ reload });
                     {{ dateHelper.formatDate(data?.txn_date, true) }}
                 </template>
                 <template v-else-if="field === 'account'">
-                    <span class="hover" @click="$emit('rowClick', data.id)">
-                      {{ data[field]["name"] }}
-                    </span>
+                    <div class="flex flex-row gap-2 align-items-center account-row">
+                        <span class="hover" @click="$emit('rowClick', data.id)">
+                            {{ data[field]["name"] }}
+                        </span>
+                        <i v-if="data[field]['deleted_at']" class="pi pi-ban popup-icon hover-icon" v-tooltip="'This account is closed.'"/>
+                    </div>
                 </template>
                 <template v-else-if="field === 'category'">
                     {{ data[field]["name"] }}
@@ -136,9 +139,9 @@ defineExpose({ reload });
         <Column v-if="!readOnly" header="Actions">
             <template #body="{ data }">
                 <div class="flex flex-row align-items-center gap-2">
-                    <i v-if="!data.deleted_at" class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                    <i v-if="!data.deleted_at && !data.account.deleted_at" class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                        @click="$emit('deleteClick', { id: data.id, tx_type: data.transaction_type })"></i>
-                    <i v-else class="pi pi-exclamation-circle" style="font-size: 0.875rem;" v-tooltip="'This transaction is in deleted state!'"></i>
+                    <i v-else class="pi pi-exclamation-circle" style="font-size: 0.875rem;" v-tooltip="'This transaction is in read only state!'"></i>
                 </div>
             </template>
         </Column>
@@ -149,4 +152,17 @@ defineExpose({ reload });
 <style scoped>
 .hover { font-weight: bold; }
 .hover:hover { cursor: pointer; text-decoration: underline; }
+
+.account-row .popup-icon {
+    opacity: 0;
+    transition: opacity .15s ease;
+}
+.account-row:hover .popup-icon {
+    opacity: 1;
+}
+
+.account-row.advanced .popup-icon {
+    opacity: 1;
+}
+
 </style>
