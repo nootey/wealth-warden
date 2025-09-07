@@ -3,15 +3,16 @@
 import type {Category} from "../../../models/transaction_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
-import {computed} from "vue";
+import {computed, ref} from "vue";
 import type {Column} from "../../../services/filter_registry.ts";
+import CategoryForm from "../forms/CategoryForm.vue";
 
 const props = defineProps<{
     categories: Category[];
-
 }>();
 
-const emits = defineEmits<{
+const emit = defineEmits<{
+    (e: "completeOperation"): void;
     (e: "deleteCategory", payload: { id: number }): void;
 }>();
 
@@ -19,15 +20,49 @@ const localCategories = computed(() => {
     return props.categories.filter((category) => !category.name.startsWith("("))
 })
 
+const updateModal = ref(false);
+const selectedID = ref<number | null>(null);
+
 const categoryColumns = computed<Column[]>(() => [
     { field: 'display_name', header: 'Name'},
     { field: 'is_default', header: 'Type'},
     { field: 'classification', header: 'Classification'},
 ]);
 
+function openModal(type: string, data: any) {
+    switch (type) {
+        case "update": {
+            updateModal.value = true;
+            selectedID.value = data;
+            break;
+        }
+    }
+}
+
+async function handleEmit(type: string, data?: any) {
+    switch (type) {
+        case "completeOperation": {
+            updateModal.value = false;
+            emit("completeOperation");
+            break;
+        }
+        case "deleteCategory": {
+            emit("deleteCategory", data);
+            break;
+        }
+    }
+}
+
 </script>
 
 <template>
+
+    <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal"
+            :breakpoints="{ '501px': '90vw' }" :modal="true" :style="{ width: '500px' }" header="Update category">
+        <CategoryForm mode="update" :recordId="selectedID"
+                     @completeOperation="handleEmit('completeOperation')"/>
+    </Dialog>
+
     <DataTable class="w-full enhanced-table" dataKey="id" :value="localCategories"
                paginator :rows="10" :rowsPerPageOptions="[10, 25]" scrollable scroll-height="75vh"
                rowGroupMode="subheader" groupRowsBy="classification">
@@ -56,9 +91,11 @@ const categoryColumns = computed<Column[]>(() => [
         <Column header="Actions">
             <template #body="{ data }">
                 <div class="flex flex-row align-items-center gap-2">
-                    <i class="pi pi-pencil" style="font-size: 0.875rem;"></i>
-                    <i class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
-                       @click="$emit('deleteCategory', { id: data.id })"></i>
+                    <i class="pi pi-pen-to-square hover-icon text-xs" v-tooltip="'Edit category'"
+                       @click="openModal('update', data.id!)"/>
+                    <i class="pi pi-trash hover-icon text-xs" v-tooltip="'Delete category'"
+                       style="color: var(--p-red-300);"
+                       @click="$emit('deleteCategory', data.id)"></i>
                 </div>
             </template>
         </Column>

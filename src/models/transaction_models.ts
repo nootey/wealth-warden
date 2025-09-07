@@ -30,6 +30,6 @@ export interface Category {
     display_name: string;
     classification: string;
     parent_id: number | null;
-    is_default: number;
+    is_default: boolean;
     deleted_at: Date | null;
 }
