@@ -15,8 +15,8 @@ import type {Column} from "../../services/filter_registry.ts";
 import {useConfirm} from "primevue/useconfirm";
 import {useAccountStore} from "../../services/stores/account_store.ts";
 import type {Account} from "../../models/account_models.ts";
-import TransfersPaginated from "../components/TransfersPaginated.vue";
-import TransactionsPaginated from "../components/TransactionsPaginated.vue";
+import TransfersPaginated from "../components/data/TransfersPaginated.vue";
+import TransactionsPaginated from "../components/data/TransactionsPaginated.vue";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();

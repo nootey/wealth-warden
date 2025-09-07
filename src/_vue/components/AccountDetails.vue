@@ -6,7 +6,7 @@ import vueHelper from "../../utils/vue_helper.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
 import {computed} from "vue";
 import {useToastStore} from "../../services/stores/toast_store.ts";
-import TransactionsPaginated from "./TransactionsPaginated.vue";
+import TransactionsPaginated from "./data/TransactionsPaginated.vue";
 import type {Column} from "../../services/filter_registry.ts";
 import {useConfirm} from "primevue/useconfirm";
 

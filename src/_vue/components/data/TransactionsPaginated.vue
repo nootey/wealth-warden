@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import vueHelper from "../../utils/vue_helper.ts";
-import dateHelper from "../../utils/date_helper.ts";
-import CustomPaginator from "./base/CustomPaginator.vue";
-import ColumnHeader from "./base/ColumnHeader.vue";
-import LoadingSpinner from "./base/LoadingSpinner.vue";
-import type {Transaction} from "../../models/transaction_models.ts";
-import type {Column} from "../../services/filter_registry.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
+import dateHelper from "../../../utils/date_helper.ts";
+import CustomPaginator from "../base/CustomPaginator.vue";
+import ColumnHeader from "../base/ColumnHeader.vue";
+import LoadingSpinner from "../base/LoadingSpinner.vue";
+import type {Transaction} from "../../../models/transaction_models.ts";
+import type {Column} from "../../../services/filter_registry.ts";
 import {computed, onMounted, ref, watch} from "vue";
-import filterHelper from "../../utils/filter_helper.ts";
-import type { SortObj } from "../../models/shared_models";
+import filterHelper from "../../../utils/filter_helper.ts";
+import type { SortObj } from "../../../models/shared_models.ts";
 
 const props = defineProps<{
     columns: Column[];
