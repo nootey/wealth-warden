@@ -20,6 +20,8 @@ export interface Transfer {
     amount: string | null;
     notes: string | null;
     deleted_at: Date | null;
+    from: Transaction | null;
+    to: Transaction | null;
 }
 
 export interface Category {

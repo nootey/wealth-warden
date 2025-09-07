@@ -67,6 +67,8 @@ const transfer = ref<Transfer>({
     amount: null,
     notes: null,
     deleted_at: null,
+    from: null,
+    to: null,
 });
 const transferFormRef = ref<InstanceType<typeof TransferForm> | null>(null);
 

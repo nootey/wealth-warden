@@ -102,6 +102,15 @@ async function deleteRecord(id: number) {
     }
 }
 
+function canDelete(tr: Transfer) {
+    return !tr.deleted_at &&
+        (
+            (!tr?.from?.account?.deleted_at && tr?.from?.account?.is_active)
+            &&
+            (!tr?.to?.account?.deleted_at && tr?.to?.account?.is_active)
+        )
+}
+
 function refresh() { getData(); }
 
 defineExpose({ refresh });
@@ -139,9 +148,12 @@ defineExpose({ refresh });
                 </Column>
 
                 <Column header="Actions">
-                    <template #body="slotProps">
-                        <i class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
-                           @click="deleteConfirmation(slotProps.data?.id)"></i>
+                    <template #body="{ data }">
+                        <i v-if="canDelete(data)"
+                           class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                           @click="deleteConfirmation(data?.id)"></i>
+                        <i v-else class="pi pi-exclamation-circle" style="font-size: 0.875rem;"
+                           v-tooltip="'This transfer is in read only state!'"></i>
                     </template>
                 </Column>
 
