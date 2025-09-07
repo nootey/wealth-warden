@@ -140,7 +140,7 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountReq) e
 	}
 	changes := utils.InitChanges()
 
-	if req.Balance.LessThan(decimal.NewFromInt(0)) {
+	if req.Classification == "asset" && req.Balance.LessThan(decimal.NewFromInt(0)) {
 		return errors.New("provided initial balance cannot be negative")
 	}
 
