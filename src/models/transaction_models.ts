@@ -27,6 +27,9 @@ export interface Transfer {
 export interface Category {
     id: number | null;
     name: string;
+    display_name: string;
     classification: string;
     parent_id: number | null;
+    is_default: number;
+    deleted_at: Date | null;
 }
