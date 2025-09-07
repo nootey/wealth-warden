@@ -139,7 +139,7 @@ defineExpose({ reload });
         <Column v-if="!readOnly" header="Actions">
             <template #body="{ data }">
                 <div class="flex flex-row align-items-center gap-2">
-                    <i v-if="!data.deleted_at && !data.account.deleted_at" class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                    <i v-if="!data.deleted_at && (!data.account.deleted_at && data.account.is_active)" class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                        @click="$emit('deleteClick', { id: data.id, tx_type: data.transaction_type })"></i>
                     <i v-else class="pi pi-exclamation-circle" style="font-size: 0.875rem;" v-tooltip="'This transaction is in read only state!'"></i>
                 </div>

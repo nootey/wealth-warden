@@ -36,7 +36,34 @@ onMounted(async () => {
     }
 });
 
-const readOnly = ref(false);
+const readOnly = computed(() =>
+    !!record.value.deleted_at ||
+    record.value.is_adjustment ||
+    !!record.value.account?.deleted_at ||
+    !record.value.account?.is_active
+);
+
+const isTxnDeleted = computed(() => !!record.value.deleted_at);
+const isAccountDeleted = computed(() => !!record.value.account?.deleted_at);
+const isAccountActive = computed(() => !!record.value.account?.is_active);
+
+const canRestore = computed(() =>
+    readOnly.value && isTxnDeleted.value && !isAccountDeleted.value && isAccountActive.value
+);
+
+const showCantRestore = computed(() =>
+    readOnly.value && isTxnDeleted.value && !canRestore.value
+);
+
+const isTransferSelected = computed(() =>
+    (selectedParentCategory.value?.name ?? '').toLowerCase() === 'transfer'
+);
+
+const actionLabel = computed(() =>
+    isTransferSelected.value
+        ? 'Start transfer'
+        : `${props.mode === 'create' ? 'Add' : 'Update'} transaction`
+);
 
 const accounts = computed<Account[]>(() => accountStore.accounts);
 const transfer = ref<Transfer>({
@@ -168,8 +195,6 @@ function initData(): Transaction {
 async function loadRecord(id: number) {
   try {
     const data = await transactionStore.getTransactionByID(id, true);
-
-    readOnly.value = !!data?.deleted_at || data.is_adjustment || !!data.account.deleted_at;
 
     record.value = {
       ...initData(),
@@ -340,7 +365,7 @@ async function restoreTransaction() {
           <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
       </div>
 
-      <div class="flex flex-column gap-3" v-if="selectedParentCategory?.name.toLowerCase() == 'transfer' && !readOnly">
+      <div class="flex flex-column gap-3" v-if="isTransferSelected && !readOnly">
           <TransferForm ref="transferFormRef" v-model:transfer="transfer" :accounts="accounts" />
       </div>
 
@@ -351,7 +376,7 @@ async function restoreTransaction() {
                   <ValidationError :isRequired="true" :message="v$.record.account.name.$errors[0]?.$message">
                       <label>Account</label>
                   </ValidationError>
-                  <AutoComplete :readonly="readOnly" :disabled="readOnly" size="small" v-model="record.account" :suggestions="filteredAccounts"
+                  <AutoComplete :readonly="readOnly" :disabled="readOnly.valueOf()" size="small" v-model="record.account" :suggestions="filteredAccounts"
                                 @complete="searchAccount" optionLabel="name"
                                 placeholder="Select account" dropdown>
                   </AutoComplete>
@@ -363,7 +388,7 @@ async function restoreTransaction() {
                   <ValidationError :isRequired="true" :message="v$.record.amount.$errors[0]?.$message">
                       <label>Amount</label>
                   </ValidationError>
-                  <InputNumber :readonly="readOnly" :disabled="readOnly" size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
+                  <InputNumber :readonly="readOnly.valueOf()" :disabled="readOnly.valueOf()" size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
               </div>
           </div>
 
@@ -372,7 +397,7 @@ async function restoreTransaction() {
                   <ValidationError :isRequired="false" :message="v$.record.category.name.$errors[0]?.$message">
                       <label>Category</label>
                   </ValidationError>
-                  <AutoComplete :readonly="readOnly" :disabled="readOnly" size="small" v-model="record.category" :suggestions="filteredCategories"
+                  <AutoComplete :readonly="readOnly" :disabled="readOnly.valueOf()" size="small" v-model="record.category" :suggestions="filteredCategories"
                                 @complete="searchCategory" optionLabel="name"
                                 placeholder="Select category" dropdown>
                   </AutoComplete>
@@ -386,7 +411,7 @@ async function restoreTransaction() {
                   </ValidationError>
                   <DatePicker v-model="record.txn_date" date-format="dd/mm/yy"
                               showIcon fluid iconDisplay="input"
-                              size="small" :readonly="readOnly" :disabled="readOnly"/>
+                              size="small" :readonly="readOnly.valueOf()" :disabled="readOnly.valueOf()"/>
               </div>
           </div>
 
@@ -395,7 +420,7 @@ async function restoreTransaction() {
                   <ValidationError :isRequired="false" :message="v$.record.description.$errors[0]?.$message">
                       <label>Description</label>
                   </ValidationError>
-                  <InputText :readonly="readOnly" :disabled="readOnly" size="small" v-model="record.description" placeholder="Describe transaction"></InputText>
+                  <InputText :readonly="readOnly.valueOf()" :disabled="readOnly.valueOf()" size="small" v-model="record.description" placeholder="Describe transaction"></InputText>
               </div>
           </div>
 
@@ -407,10 +432,10 @@ async function restoreTransaction() {
                       :label="(selectedParentCategory?.name.toLowerCase() == 'transfer' ? 'Start transfer' :
                       (mode == 'create' ? 'Add' : 'Update') +  ' transaction')"
                       @click="manageRecord" style="height: 42px;" />
-              <Button v-else-if="!record.account.deleted_at" class="main-button"
+              <Button v-else-if="canRestore" class="main-button"
                       label="Restore"
                       @click="restoreTransaction" style="height: 42px;" />
-              <h5 v-else style="color: var(--text-secondary)">Transaction can not be restored!</h5>
+              <h5 v-else-if="showCantRestore" style="color: var(--text-secondary)">Transaction can not be restored!</h5>
           </div>
       </div>
 
