@@ -13,6 +13,7 @@ import type {Account, AccountType} from "../../../models/account_models.ts"
 import currencyHelper from "../../../utils/currency_helper.ts";
 import {useConfirm} from "primevue/useconfirm";
 import toastHelper from "../../../utils/toast_helper.ts";
+import Decimal from "decimal.js";
 
 const props = defineProps<{
     mode?: "create" | "update";
@@ -241,6 +242,14 @@ async function loadRecord(id: number) {
         selectedType.value = data.account_type.type;
         selectedSubtype.value = data.account_type.sub_type;
 
+        // keep form value non-negative for liabilities
+        if (props.mode === "update" && selectedClassification.value === "Liability") {
+            const b = record.value.balance.end_balance;
+            if (b !== null) {
+                record.value.balance.end_balance = new Decimal(b).abs().toString(); // NEW
+            }
+        }
+
     } catch (err) {
         toastStore.errorResponseToast(err);
     } finally {
@@ -290,10 +299,14 @@ async function manageRecord() {
     return;
   }
 
-    const balanceToSend =
+    let balanceToSend =
         props.mode === "create"
             ? record.value.balance.start_balance
             : record.value.balance.end_balance
+
+    if (balanceToSend !== null && selectedClassification.value === "Liability") {
+        balanceToSend = new Decimal(balanceToSend).abs().negated().toString(); // NEW
+    }
 
     const recordData: any = {
         account_type_id: at.id,
@@ -373,8 +386,11 @@ async function manageRecord() {
       <ValidationError :isRequired="true" :message="v$.record.balance.$errors[0]?.$message">
         <label>Current balance</label>
       </ValidationError>
-      <InputNumber :readonly="readOnly" :disabled="readOnly" size="small" v-model="balanceNumber" mode="currency" currency="EUR" locale="de-DE"
-                   placeholder="0,00 €" :minFractionDigits="2" :maxFractionDigits="2" @update:model-value="balanceAdjusted = true"></InputNumber>
+      <InputNumber :readonly="readOnly" :disabled="readOnly" size="small" v-model="balanceNumber"
+                   mode="currency" currency="EUR" locale="de-DE" :min="0"
+                   placeholder="0,00 €" :minFractionDigits="2" :maxFractionDigits="2"
+                   @update:model-value="balanceAdjusted = true">
+      </InputNumber>
     </div>
 
     <div class="flex flex-row w-full">
