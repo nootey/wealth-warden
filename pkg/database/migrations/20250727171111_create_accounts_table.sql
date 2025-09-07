@@ -37,7 +37,7 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF NEW.is_active IS NOT NULL AND NEW.deleted_at IS NOT NULL THEN
+    IF NEW.is_active = TRUE AND NEW.deleted_at IS NOT NULL THEN
         RAISE EXCEPTION 'Account cannot be both active and deleted at the same time';
 END IF;
 RETURN NEW;

@@ -468,3 +468,62 @@ func (s *AccountService) ToggleAccountActiveState(c *gin.Context, id int64) erro
 
 	return nil
 }
+
+func (s *AccountService) CloseAccount(c *gin.Context, id int64) error {
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Load the account
+	acc, err := s.Repo.FindAccountByID(tx, id, user.ID, false)
+	if err != nil {
+		return fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	// Close it
+	if err := s.Repo.CloseAccount(tx, acc.ID, user.ID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+
+	utils.CompareChanges(acc.Name, "", changes, "account")
+	utils.CompareChanges(acc.AccountType.Type, "", changes, "type")
+	utils.CompareChanges(acc.AccountType.Subtype, "", changes, "sub_type")
+
+	if !changes.IsEmpty() {
+		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.Repo,
+			Logger:      s.Ctx.Logger,
+			Event:       "delete",
+			Category:    "account",
+			Description: nil,
+			Payload:     changes,
+			Causer:      user,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

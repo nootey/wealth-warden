@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"gorm.io/gorm"
+	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
 )
@@ -21,7 +22,8 @@ func (r *AccountRepository) FindAccounts(user *models.User, offset, limit int, s
 	query := r.DB.
 		Preload("AccountType").
 		Preload("Balance").
-		Where("user_id = ?", user.ID)
+		Where("user_id = ?", user.ID).
+		Where("deleted_At is NULL")
 
 	if !includeInactive {
 		query = query.Where("is_active = ?", true)
@@ -52,7 +54,8 @@ func (r *AccountRepository) CountAccounts(user *models.User, filters []utils.Fil
 	var totalRecords int64
 
 	query := r.DB.Model(&models.Account{}).
-		Where("user_id = ?", user.ID)
+		Where("user_id = ?", user.ID).
+		Where("deleted_At is NULL")
 
 	if !includeInactive {
 		query = query.Where("is_active = ?", true)
@@ -194,4 +197,24 @@ func (r *AccountRepository) UpdateBalance(tx *gorm.DB, record models.Balance) (i
 		return 0, err
 	}
 	return record.ID, nil
+}
+
+func (r *AccountRepository) CloseAccount(tx *gorm.DB, id, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	res := db.Model(&models.Account{}).
+		Where("id = ? AND user_id = ? AND deleted_at IS NULL", id, userID).
+		Updates(map[string]any{
+			"is_active":  false,
+			"deleted_at": time.Now(),
+			"updated_at": time.Now(),
+		})
+
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
 }

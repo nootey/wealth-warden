@@ -48,14 +48,15 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
     acc_deleted_at TIMESTAMPTZ;
+acc_is_active  BOOLEAN;
 BEGIN
-SELECT deleted_at
-INTO acc_deleted_at
+SELECT deleted_at, is_active
+INTO acc_deleted_at, acc_is_active
 FROM accounts
 WHERE id = NEW.account_id;
 
-IF acc_deleted_at IS NOT NULL THEN
-        RAISE EXCEPTION 'Account % is deleted; cannot post transactions', NEW.account_id
+IF acc_deleted_at IS NOT NULL OR acc_is_active IS FALSE THEN
+        RAISE EXCEPTION 'Account % is not open (inactive or deleted); cannot post transactions', NEW.account_id
             USING ERRCODE = 'check_violation';
 END IF;
 
