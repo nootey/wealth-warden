@@ -363,78 +363,78 @@ async function manageRecord() {
 
     <div class="flex flex-column gap-3 p-1">
 
-    <div v-if="!readOnly" class="flex flex-row w-full justify-content-center">
-      <div class="flex flex-column w-50">
-        <SelectButton
-            style="font-size: 0.875rem;" size="small"
-            v-model="selectedClassification" :options="['Asset', 'Liability']" :allowEmpty="false" />
-      </div>
-    </div>
-    <div v-else>
-       <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
-    </div>
+        <div v-if="!readOnly" class="flex flex-row w-full justify-content-center">
+          <div class="flex flex-column w-50">
+            <SelectButton
+                style="font-size: 0.875rem;" size="small"
+                v-model="selectedClassification" :options="['Asset', 'Liability']" :allowEmpty="false" />
+          </div>
+        </div>
+        <div v-else>
+           <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
+        </div>
 
 
-    <div class="flex flex-row w-full">
-      <div class="flex flex-column w-full">
-        <ValidationError :isRequired="true" :message="v$.record.name.$errors[0]?.$message">
-          <label>Name</label>
-        </ValidationError>
-        <InputText :readonly="readOnly" :disabled="readOnly" size="small" v-model="record.name"></InputText>
-      </div>
-    </div>
+        <div class="flex flex-row w-full">
+          <div class="flex flex-column w-full">
+            <ValidationError :isRequired="true" :message="v$.record.name.$errors[0]?.$message">
+              <label>Name</label>
+            </ValidationError>
+            <InputText :readonly="readOnly" :disabled="readOnly" size="small" v-model="record.name"></InputText>
+          </div>
+        </div>
 
-    <div class="flex flex-column gap-1">
-      <ValidationError :isRequired="true" :message="v$.record.balance.$errors[0]?.$message">
-        <label>Current balance</label>
-      </ValidationError>
-      <InputNumber :readonly="readOnly" :disabled="readOnly" size="small" v-model="balanceNumber"
-                   mode="currency" currency="EUR" locale="de-DE" :min="0"
-                   placeholder="0,00 €" :minFractionDigits="2" :maxFractionDigits="2"
-                   @update:model-value="balanceAdjusted = true">
-      </InputNumber>
-    </div>
+        <div class="flex flex-column gap-1">
+          <ValidationError :isRequired="true" :message="v$.record.balance.$errors[0]?.$message">
+            <label>Current balance</label>
+          </ValidationError>
+          <InputNumber :readonly="readOnly" :disabled="readOnly" size="small" v-model="balanceNumber"
+                       mode="currency" currency="EUR" locale="de-DE" :min="0"
+                       placeholder="0,00 €" :minFractionDigits="2" :maxFractionDigits="2"
+                       @update:model-value="balanceAdjusted = true">
+          </InputNumber>
+        </div>
 
-    <div class="flex flex-row w-full">
-      <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="true" :message="v$.record.account_type.type.$errors[0]?.$message">
-          <label>Type</label>
-        </ValidationError>
-        <AutoComplete :readonly="readOnly" :disabled="readOnly" size="small" v-model="formattedTypeModel" :suggestions="filteredAccountTypes"
-                      @complete="searchAccountType" placeholder="Select type" dropdown>
-          <template #option="slotProps">
-            <div class="flex items-center">
-              {{ vueHelper.formatString(slotProps.option)}}
-            </div>
-          </template>
-        </AutoComplete>
-      </div>
-    </div>
+        <div class="flex flex-row w-full">
+          <div class="flex flex-column gap-1 w-full">
+            <ValidationError :isRequired="true" :message="v$.record.account_type.type.$errors[0]?.$message">
+              <label>Type</label>
+            </ValidationError>
+            <AutoComplete :readonly="readOnly" :disabled="readOnly" size="small" v-model="formattedTypeModel" :suggestions="filteredAccountTypes"
+                          @complete="searchAccountType" placeholder="Select type" dropdown>
+              <template #option="slotProps">
+                <div class="flex items-center">
+                  {{ vueHelper.formatString(slotProps.option)}}
+                </div>
+              </template>
+            </AutoComplete>
+          </div>
+        </div>
 
-    <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-column gap-1 w-full">
-        <ValidationError :isRequired="true" :message="v$.record.account_type.sub_type.$errors[0]?.$message">
-          <label>Subtype</label>
-        </ValidationError>
-        <AutoComplete :readonly="readOnly" :disabled="!selectedType || readOnly "
-            size="small" v-model="formattedSubtypeModel" :suggestions="filteredSubtypeOptions"
-            @complete="searchSubtype" placeholder="Select subtype" dropdown>
-          <template #option="slotProps">
-            <div class="flex items-center">
-              {{ vueHelper.formatString(slotProps.option)}}
-            </div>
-          </template>
-        </AutoComplete>
-      </div>
-    </div>
+        <div class="flex flex-row gap-2 w-full">
+          <div class="flex flex-column gap-1 w-full">
+            <ValidationError :isRequired="true" :message="v$.record.account_type.sub_type.$errors[0]?.$message">
+              <label>Subtype</label>
+            </ValidationError>
+            <AutoComplete :readonly="readOnly" :disabled="!selectedType || readOnly "
+                size="small" v-model="formattedSubtypeModel" :suggestions="filteredSubtypeOptions"
+                @complete="searchSubtype" placeholder="Select subtype" dropdown>
+              <template #option="slotProps">
+                <div class="flex items-center">
+                  {{ vueHelper.formatString(slotProps.option)}}
+                </div>
+              </template>
+            </AutoComplete>
+          </div>
+        </div>
 
-    <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-column w-full">
-        <Button v-if="!readOnly" class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' account'" @click="confirmManage" style="height: 42px;" />
-      </div>
-    </div>
+        <div class="flex flex-row gap-2 w-full">
+          <div class="flex flex-column w-full">
+            <Button v-if="!readOnly" class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' account'" @click="confirmManage" style="height: 42px;" />
+          </div>
+        </div>
 
-  </div>
+    </div>
 
 
 </template>
