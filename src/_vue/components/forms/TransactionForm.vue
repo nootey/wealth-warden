@@ -82,7 +82,7 @@ const { number: amountNumber } = currencyHelper.useMoneyField(amountRef, 2);
 const allCategories = computed<Category[]>(() => transactionStore.categories);
 const parentCategories = computed(() => {
     const base = allCategories.value.filter(c =>
-        c.name === "Expense" || c.name === "Income"
+        c.display_name === "Expense" || c.display_name === "Income"
     );
 
     if(props.mode === "update") {
@@ -93,7 +93,8 @@ const parentCategories = computed(() => {
         ...base,
         {
             id: -1,
-            name: "Transfer",
+            name: "transfer",
+            display_name: "Transfer",
             classification: "Transfer",
             parent_id: null
         } as Category
@@ -101,7 +102,7 @@ const parentCategories = computed(() => {
 });
 
 const selectedParentCategory = ref<Category | null>(
-    parentCategories.value.find(cat => cat.name === "Expense") || null
+    parentCategories.value.find(cat => cat.name === "expense") || null
 );
 
 const availableCategories = computed<Category[]>(() => {
@@ -158,8 +159,11 @@ function initData(): Transaction {
     category: {
       id: null,
       name: "",
+      display_name: "",
       classification: "",
+      is_default: true,
       parent_id: null,
+      deleted_at: null,
     },
     account: {
       id: null,
@@ -354,7 +358,7 @@ async function restoreTransaction() {
           <div class="flex flex-column w-50">
                 <SelectButton style="font-size: 0.875rem;" size="small"
                               v-model="selectedParentCategory"
-                              :options="parentCategories" optionLabel="name" :allowEmpty="false"
+                              :options="parentCategories" optionLabel="display_name" :allowEmpty="false"
                               @update:modelValue="updateSelectedParentCategory($event)" />
           </div>
       </div>
@@ -395,7 +399,7 @@ async function restoreTransaction() {
                       <label>Category</label>
                   </ValidationError>
                   <AutoComplete :readonly="readOnly" :disabled="readOnly.valueOf()" size="small" v-model="record.category" :suggestions="filteredCategories"
-                                @complete="searchCategory" optionLabel="name"
+                                @complete="searchCategory" optionLabel="display_name"
                                 placeholder="Select category" dropdown>
                   </AutoComplete>
               </div>
