@@ -19,7 +19,7 @@ CREATE TABLE categories (
 
     CONSTRAINT fk_categories_user FOREIGN KEY (user_id) REFERENCES users(id),
     CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id),
-    CONSTRAINT uq_categories_user_name_class UNIQUE (user_id, name, classification),
+    CONSTRAINT uq_categories_name_class UNIQUE (name, classification),
     CONSTRAINT no_self_reference CHECK (id IS DISTINCT FROM parent_id)
 );
 
