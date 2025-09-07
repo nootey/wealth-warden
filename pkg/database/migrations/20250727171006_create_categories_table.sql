@@ -8,10 +8,14 @@ CREATE TABLE categories (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT,
     name VARCHAR(100) NOT NULL,
+    display_name VARCHAR(100) NOT NULL,
     classification category_classification NOT NULL DEFAULT 'expense',
     parent_id BIGINT NULL,
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMPTZ NULL,
 
     CONSTRAINT fk_categories_user FOREIGN KEY (user_id) REFERENCES users(id),
     CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id),
@@ -20,6 +24,10 @@ CREATE TABLE categories (
 );
 
 CREATE INDEX idx_categories_user_class ON categories(user_id, classification);
+
+CREATE INDEX idx_categories_deleted_at
+    ON categories(deleted_at)
+    WHERE deleted_at IS NOT NULL;
 
 CREATE TRIGGER set_categories_updated_at
     BEFORE UPDATE ON categories

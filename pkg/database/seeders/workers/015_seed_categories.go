@@ -4,9 +4,14 @@ import (
 	"context"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"strings"
 	"time"
 	"wealth-warden/internal/models"
 )
+
+func normalizeName(s string) string {
+	return strings.ReplaceAll(strings.ToLower(s), " ", "_")
+}
 
 func SeedCategories(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 	// Top-level categories
@@ -41,8 +46,10 @@ func SeedCategories(ctx context.Context, db *gorm.DB, logger *zap.Logger) error 
 	for _, mainCat := range mainCategories {
 		mainCategory := models.Category{
 			UserID:         nil,
-			Name:           mainCat.Name,
+			Name:           normalizeName(mainCat.Name),
+			DisplayName:    mainCat.Name,
 			Classification: mainCat.Classification,
+			IsDefault:      true,
 			CreatedAt:      time.Now(),
 			UpdatedAt:      time.Now(),
 		}
@@ -56,9 +63,11 @@ func SeedCategories(ctx context.Context, db *gorm.DB, logger *zap.Logger) error 
 		for _, childName := range mainCat.Children {
 			subCategory := models.Category{
 				UserID:         nil,
-				Name:           childName,
+				Name:           normalizeName(childName),
+				DisplayName:    childName,
 				Classification: mainCat.Classification,
 				ParentID:       &mainCategory.ID,
+				IsDefault:      true,
 				CreatedAt:      time.Now(),
 				UpdatedAt:      time.Now(),
 			}

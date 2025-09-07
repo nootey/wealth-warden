@@ -42,13 +42,16 @@ type Transfer struct {
 }
 
 type Category struct {
-	ID             int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID         *int64    `gorm:"index:idx_categories_user_class" json:"user_id"`
-	Name           string    `gorm:"type:varchar(100);not null" json:"name"`
-	Classification string    `gorm:"type:enum('income','expense','savings','investment');not null;default:'expense';index:idx_categories_user_class" json:"classification"`
-	ParentID       *int64    `gorm:"index" json:"parent_id,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID             int64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID         *int64     `gorm:"index:idx_categories_user_class" json:"user_id"`
+	Name           string     `gorm:"type:varchar(100);not null" json:"name"`
+	DisplayName    string     `gorm:"type:varchar(100);not null" json:"display_name"`
+	Classification string     `gorm:"not null;default:'expense';index:idx_categories_user_class" json:"classification"`
+	ParentID       *int64     `gorm:"index" json:"parent_id,omitempty"`
+	IsDefault      bool       `json:"is_default"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	DeletedAt      *time.Time `json:"deleted_at"`
 }
 
 type HiddenCategory struct {

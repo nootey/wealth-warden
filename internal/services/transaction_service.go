@@ -143,7 +143,7 @@ func (s *TransactionService) FetchAllCategories(c *gin.Context) ([]models.Catego
 		return nil, err
 	}
 
-	categories, err := s.Repo.FindAllCategories(user)
+	categories, err := s.Repo.FindAllCategories(&user.ID)
 	if err != nil {
 		return nil, err
 	}

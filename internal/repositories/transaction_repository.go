@@ -151,19 +151,19 @@ func (r *TransactionRepository) CountTransfers(user *models.User, includeDeleted
 	return totalRecords, nil
 }
 
-func (r *TransactionRepository) FindAllCategories(user *models.User) ([]models.Category, error) {
-	var records []models.Category
-	var userID *int64
-	if user != nil {
-		userID = &user.ID
+func (r *TransactionRepository) scopeCategories(db *gorm.DB, userID *int64) *gorm.DB {
+	q := db.Model(&models.Category{}).Where("deleted_at IS NULL")
+	if userID != nil {
+		return q.Where("(user_id IS NULL OR user_id = ?)", *userID)
 	}
+	return q.Where("user_id IS NULL")
+}
 
-	tx := r.DB.
-		Model(&models.Category{}).
-		Scopes(r.scopeVisibleCategories(userID)).
+func (r *TransactionRepository) FindAllCategories(userID *int64) ([]models.Category, error) {
+	var records []models.Category
+	tx := r.scopeCategories(r.DB, userID).
 		Order("classification, name").
 		Find(&records)
-
 	return records, tx.Error
 }
 
@@ -174,8 +174,7 @@ func (r *TransactionRepository) FindCategoryByID(tx *gorm.DB, ID int64, userID *
 	}
 
 	var record models.Category
-	txn := db.Model(&models.Category{}).
-		Scopes(r.scopeVisibleCategories(userID)).
+	txn := r.scopeCategories(db, userID).
 		Where("id = ?", ID).
 		First(&record)
 	return record, txn.Error
@@ -188,33 +187,11 @@ func (r *TransactionRepository) FindCategoryByClassification(tx *gorm.DB, classi
 	}
 
 	var record models.Category
-	txn := db.Model(&models.Category{}).
-		Scopes(r.scopeVisibleCategories(userID)).
+	txn := r.scopeCategories(db, userID).
 		Where("classification = ?", classification).
+		Order("name").
 		First(&record)
 	return record, txn.Error
-}
-
-func (r *TransactionRepository) scopeVisibleCategories(userID *int64) func(*gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		if userID == nil {
-			// No user: only default categories
-			return db.Where("categories.user_id IS NULL")
-		}
-		uid := *userID
-		return db.Where(`
-			(categories.user_id = ?) OR
-			(
-				categories.user_id IS NULL
-				AND NOT EXISTS (
-					SELECT 1
-					FROM hidden_categories hc
-					WHERE hc.category_id = categories.id
-					  AND hc.user_id = ?
-				)
-			)
-		`, uid, uid)
-	}
 }
 
 func (r *TransactionRepository) FindTransactionByID(tx *gorm.DB, ID, userID int64, includeDeleted bool) (models.Transaction, error) {
