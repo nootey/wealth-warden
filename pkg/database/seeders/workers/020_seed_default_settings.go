@@ -14,10 +14,11 @@ func strPtr(s string) *string {
 
 func SeedDefaultSettings(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 	defaults := models.SettingsGeneral{
-		SupportEmail:  strPtr("support@wealth.warden"),
-		AllowSignups:  true,
-		DefaultLocale: "en",
-		DefaultTZ:     "UTC",
+		SupportEmail:    strPtr("support@wealth.warden"),
+		AllowSignups:    true,
+		DefaultLocale:   "en",
+		DefaultTZ:       "UTC",
+		MaxUserAccounts: 25,
 	}
 
 	if err := db.WithContext(ctx).

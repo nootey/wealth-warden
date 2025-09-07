@@ -14,6 +14,21 @@ func NewSettingsRepository(db *gorm.DB) *SettingsRepository {
 	return &SettingsRepository{DB: db}
 }
 
+func (r *SettingsRepository) FetchMaxAccountsForUser(tx *gorm.DB) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var maxAccounts int64
+	err := db.Model(&models.SettingsGeneral{}).Select("max_accounts_per_user").First(&maxAccounts).Error
+	if err != nil {
+		return 0, err
+	}
+
+	return maxAccounts, nil
+}
+
 func (r *SettingsRepository) FetchGeneralSettings(tx *gorm.DB) (*models.SettingsGeneral, error) {
 	db := tx
 	if db == nil {

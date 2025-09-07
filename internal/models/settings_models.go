@@ -3,13 +3,14 @@ package models
 import "time"
 
 type SettingsGeneral struct {
-	ID            int64     `gorm:"primaryKey" json:"id"`
-	SupportEmail  *string   `gorm:"column:support_email" json:"support_email"`
-	AllowSignups  bool      `gorm:"column:allow_signups" json:"allow_signups"`
-	DefaultLocale string    `gorm:"column:default_locale" json:"default_locale"`
-	DefaultTZ     string    `gorm:"column:default_timezone" json:"default_timezone"`
-	CreatedAt     time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt     time.Time `gorm:"column:updated_at" json:"updated_at"`
+	ID              int64     `gorm:"primaryKey" json:"id"`
+	SupportEmail    *string   `gorm:"column:support_email" json:"support_email"`
+	AllowSignups    bool      `gorm:"column:allow_signups" json:"allow_signups"`
+	DefaultLocale   string    `gorm:"column:default_locale" json:"default_locale"`
+	DefaultTZ       string    `gorm:"column:default_timezone" json:"default_timezone"`
+	MaxUserAccounts int       `gorm:"column:max_accounts_per_user" json:"max_user_acc"`
+	CreatedAt       time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt       time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
 func (SettingsGeneral) TableName() string {

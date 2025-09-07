@@ -144,6 +144,20 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountReq) e
 		return errors.New("provided initial balance cannot be negative")
 	}
 
+	accCount, err := s.Repo.CountAccounts(user, nil, false)
+	if err != nil {
+		return err
+	}
+
+	maxAcc, err := s.Ctx.SettingsRepo.FetchMaxAccountsForUser(nil)
+	if err != nil {
+		return err
+	}
+
+	if accCount >= maxAcc {
+		return fmt.Errorf("you can only have %d active accounts", maxAcc)
+	}
+
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
@@ -430,6 +444,20 @@ func (s *AccountService) ToggleAccountActiveState(c *gin.Context, id int64) erro
 	exAcc, err := s.Repo.FindAccountByID(tx, id, user.ID, false)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	accCount, err := s.Repo.CountAccounts(user, nil, false)
+	if err != nil {
+		return err
+	}
+
+	maxAcc, err := s.Ctx.SettingsRepo.FetchMaxAccountsForUser(nil)
+	if err != nil {
+		return err
+	}
+
+	if !exAcc.IsActive && accCount >= maxAcc {
+		return fmt.Errorf("you can only have %d active accounts", maxAcc)
 	}
 
 	acc := &models.Account{

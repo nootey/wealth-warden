@@ -6,6 +6,7 @@ CREATE TABLE settings_general (
     allow_signups BOOLEAN NOT NULL DEFAULT TRUE,
     default_locale   TEXT NOT NULL DEFAULT 'en',
     default_timezone TEXT NOT NULL DEFAULT 'UTC',
+    max_accounts_per_user SMALLINT NOT NULL DEFAULT 25,
 
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
