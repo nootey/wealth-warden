@@ -6,12 +6,6 @@ export const useUserStore = defineStore('user', {
         apiPrefix: "users",
     }),
     actions: {
-        async getUserSettings() {
-            try {
-                return await apiClient.get(`settings/users`);
-            } catch (err) {
-                throw err;
-            }
-        },
+
     },
 });

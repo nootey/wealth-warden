@@ -41,7 +41,7 @@ const routes = [
     { path: '/settings', redirect: '/settings/profile' },
     // one component, different URLs
     {
-        path: '/settings/:section(profile|preferences|accounts|categories)',
+        path: '/settings/:section(general|profile|preferences|accounts|categories)',
         name: 'SettingsSection',
         component: SettingsPage,
         props: true,

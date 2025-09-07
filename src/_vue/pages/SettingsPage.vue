@@ -7,11 +7,13 @@ import ProfileSettings from "./Settings/ProfileSettings.vue";
 import AccountsSettings from "./Settings/AccountsSettings.vue";
 import CategoriesSettings from "./Settings/CategoriesSettings.vue";
 import vueHelper from "../../utils/vue_helper.ts";
+import GeneralSettings from "./Settings/GeneralSettings.vue";
 
 const route = useRoute();
 
-type Section = 'profile' | 'preferences' | 'categories' | 'accounts';
+type Section = 'general' | 'profile' | 'preferences' | 'categories' | 'accounts';
 const allowed: Record<Section, any> = {
+    general: GeneralSettings,
     profile: ProfileSettings,
     preferences: PreferencesSettings,
     categories: CategoriesSettings,
@@ -36,6 +38,15 @@ const CurrentView = computed(() => allowed[section.value]);
             </div>
 
             <h6 class="text-xs font-bold uppercase mb-2" style="color: var(--text-primary);">General</h6>
+
+            <RouterLink
+                    :to="{ name: 'SettingsSection', params: { section: 'general' } }"
+                    class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
+                    style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);"
+                    :class="{ 'active': section === 'general' }">
+                <i class="pi pi-cog text-sm" style="color: var(--text-secondary)"></i>
+                <span>General</span>
+            </RouterLink>
 
             <RouterLink
                     :to="{ name: 'SettingsSection', params: { section: 'profile' } }"
