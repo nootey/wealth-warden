@@ -31,7 +31,7 @@ onMounted(async () => {
 const confirm = useConfirm();
 const apiPrefix = "transactions";
 
-const transfersRef = ref<InstanceType<typeof TransfersPaginated> | null>(null);
+const trRef = ref<InstanceType<typeof TransfersPaginated> | null>(null);
 const txRef = ref<InstanceType<typeof TransactionsPaginated> | null>(null);
 
 const createModal = ref(false);
@@ -90,12 +90,16 @@ function manipulateDialog(modal: string, value: any) {
 
 async function handleEmit(emitType: any) {
   switch (emitType) {
-    case 'completeOperation': {
-      createModal.value = false;
-      updateModal.value = false;
-      txRef.value?.reload();
-      await transfersRef.value?.getData();
-      break;
+    case 'completeTxOperation': {
+        createModal.value = false;
+        updateModal.value = false;
+        txRef.value?.refresh();
+        break;
+    }
+    case 'completeTrOperation': {
+        createModal.value = false;
+        trRef.value?.refresh();
+        break;
     }
     default: {
       break;
@@ -106,7 +110,7 @@ async function handleEmit(emitType: any) {
 function applyFilters(list: FilterObj[]){
   filters.value = filterHelper.mergeFilters(filters.value, list);
   localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
-  txRef.value?.reload();
+  txRef.value?.refresh();
   filterOverlayRef.value.hide();
 }
 
@@ -114,7 +118,7 @@ function clearFilters(){
   filters.value = [];
   localStorage.removeItem(filterStorageIndex.value);
   cancelFilters();
-  txRef.value?.reload();
+  txRef.value?.refresh();
 }
 
 function cancelFilters(){
@@ -134,7 +138,7 @@ function removeFilter(index: number) {
     localStorage.removeItem(filterStorageIndex.value);
   }
 
-  txRef.value?.reload();
+  txRef.value?.refresh();
 }
 
 function switchSort(column:string) {
@@ -168,7 +172,7 @@ async function deleteRecord(id: number, tx_type: string) {
         id,
     );
     toastStore.successResponseToast(response);
-    txRef.value?.reload();
+    txRef.value?.refresh();
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -183,12 +187,15 @@ provide("removeFilter", removeFilter);
 
   <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{'501px': '90vw'}"
           :modal="true" :style="{width: '500px'}" header="Add transaction">
-    <TransactionForm mode="create" @completeOperation="handleEmit('completeOperation')"></TransactionForm>
+    <TransactionForm mode="create"
+                     @completeTxOperation="handleEmit('completeTxOperation')"
+                     @completeTrOperation="handleEmit('completeTrOperation')"></TransactionForm>
   </Dialog>
 
   <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal" :breakpoints="{'501px': '90vw'}"
           :modal="true" :style="{width: '500px'}" header="Transaction details">
-    <TransactionForm mode="update" :recordId="updateTransactionID" @completeOperation="handleEmit('completeOperation')"></TransactionForm>
+    <TransactionForm mode="update" :recordId="updateTransactionID"
+                     @completeTxOperation="handleEmit('completeTxOperation')"></TransactionForm>
   </Dialog>
 
   <Popover ref="filterOverlayRef" class="rounded-popover">
@@ -259,7 +266,7 @@ provide("removeFilter", removeFilter);
 
         <label>Transfers</label>
         <div class="flex flex-row gap-2 w-full">
-            <TransfersPaginated ref="transfersPaginatedRef"></TransfersPaginated>
+            <TransfersPaginated ref="trRef"></TransfersPaginated>
         </div>
 
     </div>

@@ -22,7 +22,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    (event: 'completeOperation'): void;
+    (event: 'completeTxOperation'): void;
+    (event: 'completeTrOperation'): void;
 }>();
 
 const sharedStore = useSharedStore();
@@ -57,12 +58,6 @@ const showCantRestore = computed(() =>
 
 const isTransferSelected = computed(() =>
     (selectedParentCategory.value?.name ?? '').toLowerCase() === 'transfer'
-);
-
-const actionLabel = computed(() =>
-    isTransferSelected.value
-        ? 'Start transfer'
-        : `${props.mode === 'create' ? 'Add' : 'Update'} transaction`
 );
 
 const accounts = computed<Account[]>(() => accountStore.accounts);
@@ -192,6 +187,44 @@ function initData(): Transaction {
   };
 }
 
+function updateSelectedParentCategory($event: any) {
+    if ($event) {
+        selectedParentCategory.value = $event;
+        record.value.category = null;
+        filteredCategories.value = [];
+    }
+}
+
+const searchCategory = (event: { query: string }) => {
+    setTimeout(() => {
+        if (!event.query.trim().length) {
+            filteredCategories.value = [...availableCategories.value];
+        } else {
+            filteredCategories.value = availableCategories.value.filter((record) => {
+                return record.name.toLowerCase().startsWith(event.query.toLowerCase());
+            });
+        }
+    }, 250);
+}
+
+const searchAccount = (event: { query: string }) => {
+    setTimeout(() => {
+        if (!event.query.trim().length) {
+            filteredAccounts.value = [...accounts.value];
+        } else {
+            filteredAccounts.value = accounts.value.filter((record) => {
+                return record.name.toLowerCase().startsWith(event.query.toLowerCase());
+            });
+        }
+    }, 250);
+}
+
+async function isRecordValid() {
+    const isValid = await v$.value.record.$validate();
+    if (!isValid) return false;
+    return true;
+}
+
 async function loadRecord(id: number) {
   try {
     const data = await transactionStore.getTransactionByID(id, true);
@@ -212,12 +245,6 @@ async function loadRecord(id: number) {
   } catch (err) {
     toastStore.errorResponseToast(err);
   }
-}
-
-async function isRecordValid() {
-  const isValid = await v$.value.record.$validate();
-  if (!isValid) return false;
-  return true;
 }
 
 async function manageRecord() {
@@ -270,14 +297,14 @@ async function startTransactionOperation() {
                 );
                 break;
             default:
-                emit("completeOperation")
+                emit("completeTxOperation")
                 break;
         }
 
         // record.value = initData();
         v$.value.record.$reset();
         toastStore.successResponseToast(response);
-        emit("completeOperation")
+        emit("completeTxOperation")
 
     } catch (error) {
         toastStore.errorResponseToast(error);
@@ -292,42 +319,10 @@ async function startTransferOperation() {
         const response = await transactionStore.startTransfer(transfer.value);
         toastStore.successResponseToast(response);
         v$.value.record.$reset();
-        emit("completeOperation");
+        emit("completeTrOperation");
     } catch (error) {
         toastStore.errorResponseToast(error);
     }
-}
-
-function updateSelectedParentCategory($event: any) {
-  if ($event) {
-    selectedParentCategory.value = $event;
-    record.value.category = null;
-    filteredCategories.value = [];
-  }
-}
-
-const searchCategory = (event: { query: string }) => {
-  setTimeout(() => {
-    if (!event.query.trim().length) {
-      filteredCategories.value = [...availableCategories.value];
-    } else {
-      filteredCategories.value = availableCategories.value.filter((record) => {
-        return record.name.toLowerCase().startsWith(event.query.toLowerCase());
-      });
-    }
-  }, 250);
-}
-
-const searchAccount = (event: { query: string }) => {
-  setTimeout(() => {
-    if (!event.query.trim().length) {
-      filteredAccounts.value = [...accounts.value];
-    } else {
-      filteredAccounts.value = accounts.value.filter((record) => {
-        return record.name.toLowerCase().startsWith(event.query.toLowerCase());
-      });
-    }
-  }, 250);
 }
 
 async function restoreTransaction() {
@@ -340,7 +335,7 @@ async function restoreTransaction() {
 
         v$.value.record.$reset();
         toastStore.successResponseToast(response);
-        emit("completeOperation")
+        emit("completeTxOperation")
 
     } catch (error) {
         toastStore.errorResponseToast(error);

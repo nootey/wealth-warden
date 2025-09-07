@@ -91,9 +91,9 @@ function triggerSort(col: string) {
     emits("sortChange", col);
 }
 
-function reload() { getData(); }
+function refresh() { getData(); }
 
-defineExpose({ reload });
+defineExpose({ refresh });
 
 </script>
 

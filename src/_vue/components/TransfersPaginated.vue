@@ -102,7 +102,9 @@ async function deleteRecord(id: number) {
     }
 }
 
-defineExpose({getData});
+function refresh() { getData(); }
+
+defineExpose({ refresh });
 
 </script>
 
