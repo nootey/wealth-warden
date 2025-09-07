@@ -151,6 +151,21 @@ func (s *TransactionService) FetchAllCategories(c *gin.Context) ([]models.Catego
 	return categories, nil
 }
 
+func (s *TransactionService) FetchCategoryByID(c *gin.Context, id int64) (*models.Category, error) {
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return nil, err
+	}
+
+	record, err := s.Repo.FindCategoryByID(nil, id, &user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &record, nil
+}
+
 func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.TransactionReq) error {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
