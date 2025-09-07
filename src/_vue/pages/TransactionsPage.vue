@@ -17,6 +17,7 @@ import {useAccountStore} from "../../services/stores/account_store.ts";
 import type {Account} from "../../models/account_models.ts";
 import TransfersPaginated from "../components/data/TransfersPaginated.vue";
 import TransactionsPaginated from "../components/data/TransactionsPaginated.vue";
+import {useRouter} from "vue-router";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -29,6 +30,7 @@ onMounted(async () => {
 })
 
 const confirm = useConfirm();
+const router = useRouter();
 const apiPrefix = "transactions";
 
 const trRef = ref<InstanceType<typeof TransfersPaginated> | null>(null);
@@ -213,12 +215,14 @@ provide("removeFilter", removeFilter);
 
   <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
 
-    <div class="flex flex-row justify-content-between align-items-center p-3 w-full"
+    <div class="flex flex-row justify-content-between align-items-center p-3  gap-2 w-full"
          style="border-top-right-radius: 8px; border-top-left-radius: 8px;
          border: 1px solid var(--border-color);background: var(--background-secondary);
          max-width: 1000px;">
 
       <div style="font-weight: bold;">Transactions</div>
+      <i class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/categories')" v-tooltip="'Go to categories settings.'"></i>
+
       <Button label="New transaction" icon="pi pi-plus" class="main-button" @click="manipulateDialog('addTransaction', true)"></Button>
     </div>
 
