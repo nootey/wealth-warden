@@ -14,15 +14,19 @@ const sharedStore = useSharedStore();
 
 const accRef = ref<InstanceType<typeof AccountsPanel> | null>(null);
 
-async function toggleEnabled(acc: Account) {
+async function toggleEnabled(acc: Account, nextValue: boolean): Promise<boolean> {
     const previous = acc.is_active;
-
+    acc.is_active = nextValue;
     try {
         const response = await accountStore.toggleActiveState(acc.id!);
         toastStore.successResponseToast(response);
+        return true;
     } catch (error) {
+        // add a small delay for the toggle animation to complete
+        await new Promise(resolve => setTimeout(resolve, 300));
         acc.is_active = previous;
         toastStore.errorResponseToast(error);
+        return false;
     }
 }
 
@@ -54,7 +58,7 @@ async function closeAccount(id: number) {
                         ref="accRef"
                         :advanced="true"
                         :allowEdit="true"
-                        @toggleEnabled="toggleEnabled"
+                        :onToggle="toggleEnabled"
                         @closeAccount="closeAccount"
                 />
             </div>

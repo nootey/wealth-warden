@@ -13,13 +13,13 @@ import AccountDetails from "../components/AccountDetails.vue";
 const props = withDefaults(defineProps<{
     advanced?: boolean;
     allowEdit?: boolean;
+    onToggle: (acc: Account, nextValue: boolean) => Promise<boolean>;
 }>(), {
     advanced: false,
     allowEdit: true,
 });
 
 const emit = defineEmits<{
-    (e: "toggleEnabled", account: Account): void;
     (e: "refresh"): void;
     (e: "closeAccount", id: number): void;
 }>();
@@ -167,8 +167,10 @@ async function handleEmit(type: string, data?: any) {
     }
 }
 
-function onToggleEnabled(acc: Account) {
-    emit("toggleEnabled", acc);
+async function onToggleEnabled(acc: Account, nextValue: boolean) {
+    const prev = !nextValue;
+    const ok = await props.onToggle(acc, nextValue);
+    if (!ok) acc.is_active = prev;
 }
 
 function handlePrimaryClick(acc: Account) {
@@ -275,7 +277,9 @@ defineExpose({ refresh: getData });
                     </div>
 
                     <template v-if="advanced">
-                        <ToggleSwitch style="transform: scale(0.675)" v-model="account.is_active" @update:modelValue="onToggleEnabled(account)" />
+                        <ToggleSwitch style="transform: scale(0.675)"
+                                      v-model="account.is_active"
+                                      @update:modelValue="(v) => onToggleEnabled(account, v)" />
                     </template>
 
                 </div>
