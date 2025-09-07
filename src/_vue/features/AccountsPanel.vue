@@ -13,7 +13,7 @@ import AccountDetails from "../components/AccountDetails.vue";
 const props = withDefaults(defineProps<{
     advanced?: boolean;
     allowEdit?: boolean;
-    onToggle: (acc: Account, nextValue: boolean) => Promise<boolean>;
+    onToggle?: (acc: Account, nextValue: boolean) => Promise<boolean>;
 }>(), {
     advanced: false,
     allowEdit: true,
