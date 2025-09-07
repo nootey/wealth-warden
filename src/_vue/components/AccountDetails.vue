@@ -4,11 +4,10 @@ import SettingsSkeleton from "./layout/SettingsSkeleton.vue";
 import type {Account} from "../../models/account_models.ts";
 import vueHelper from "../../utils/vue_helper.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
-import {computed, ref} from "vue";
+import {computed} from "vue";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import TransactionsPaginated from "./TransactionsPaginated.vue";
 import type {Column} from "../../services/filter_registry.ts";
-import filterHelper from "../../utils/filter_helper.ts";
 import {useConfirm} from "primevue/useconfirm";
 
 const props = defineProps<{
@@ -23,8 +22,6 @@ const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 
 const confirm = useConfirm();
-
-const sort = ref(filterHelper.initSort());
 
 const transactionColumns = computed<Column[]>(() => [
     { field: 'category', header: 'Category'},
@@ -87,7 +84,6 @@ async function confirmCloseAccount(id: number) {
                             ref="txRef"
                             :readOnly="true"
                             :columns="transactionColumns"
-                            :sort="sort"
                             :fetchPage="loadTransactionsPage"
                             :rowClass="vueHelper.deletedRowClass"
                     />

@@ -19,4 +19,5 @@ export interface Account {
     account_type: AccountType,
     balance: Balance;
     is_active: boolean;
+    deleted_at: Date | null;
 }
