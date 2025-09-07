@@ -637,6 +637,74 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 	return nil
 }
 
+func (s *TransactionService) UpdateCategory(c *gin.Context, id int64, req *models.CategoryReq) error {
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	exCat, err := s.Repo.FindCategoryByID(tx, id, &user.ID)
+	if err != nil {
+		return fmt.Errorf("can't find category with given id %w", err)
+	}
+
+	if exCat.IsDefault && (exCat.DisplayName != req.DisplayName) {
+		return errors.New("can't edit some parts of a default category")
+	}
+
+	cat := models.Category{
+		ID:             exCat.ID,
+		UserID:         &user.ID,
+		Classification: req.Classification,
+		DisplayName:    req.DisplayName,
+	}
+
+	_, err = s.Repo.UpdateCategory(tx, cat)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+
+	utils.CompareChanges(exCat.DisplayName, cat.DisplayName, changes, "name")
+	utils.CompareChanges(exCat.Classification, cat.Classification, changes, "classification")
+
+	if !changes.IsEmpty() {
+		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.Repo,
+			Logger:      s.Ctx.Logger,
+			Event:       "update",
+			Category:    "category",
+			Description: nil,
+			Payload:     changes,
+			Causer:      user,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *TransactionService) DeleteTransaction(c *gin.Context, id int64) error {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)

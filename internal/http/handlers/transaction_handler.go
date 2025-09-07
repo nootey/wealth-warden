@@ -242,7 +242,44 @@ func (h *TransactionHandler) UpdateTransaction(c *gin.Context) {
 	}
 
 	if err := h.Service.UpdateTransaction(c, id, record); err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
+}
+
+func (h *TransactionHandler) UpdateCategory(c *gin.Context) {
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	var record *models.CategoryReq
+
+	if err := c.ShouldBindJSON(&record); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(record); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.Service.UpdateCategory(c, id, record); err != nil {
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
@@ -266,7 +303,7 @@ func (h *TransactionHandler) DeleteTransaction(c *gin.Context) {
 	}
 
 	if err := h.Service.DeleteTransaction(c, id); err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
@@ -290,7 +327,12 @@ func (h *TransactionHandler) DeleteTransfer(c *gin.Context) {
 	}
 
 	if err := h.Service.DeleteTransfer(c, id); err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
+}
 		return
 	}
 

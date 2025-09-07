@@ -286,6 +286,24 @@ func (r *TransactionRepository) UpdateTransaction(tx *gorm.DB, record models.Tra
 	return record.ID, nil
 }
 
+func (r *TransactionRepository) UpdateCategory(tx *gorm.DB, record models.Category) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Model(models.Category{}).
+		Where("id = ?", record.ID).
+		Updates(map[string]interface{}{
+			"display_name":   record.DisplayName,
+			"classification": record.Classification,
+			"updated_at":     time.Now(),
+		}).Error; err != nil {
+		return 0, err
+	}
+	return record.ID, nil
+}
+
 func (r *TransactionRepository) DeleteTransaction(tx *gorm.DB, id, userID int64) error {
 	db := tx
 	if db == nil {
