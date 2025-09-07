@@ -3,15 +3,15 @@ services:
     build:
       context: ../../
       dockerfile: ./build/Dockerfile
+      args:
+        - API_BASE_URL=app:2000
+        - PRODUCTION_MODE=false
     ports:
       - "3000:80"
     restart: unless-stopped
-    volumes:
-      - ../../nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ../../.env:/app/.env
     networks:
       - wealth-warden
 
 networks:
   wealth-warden:
-    external: true
+    # external: true
