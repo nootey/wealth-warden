@@ -666,6 +666,16 @@ func (s *TransactionService) DeleteTransaction(c *gin.Context, id int64) error {
 	return nil
 }
 
+func validateAccount(acc *models.Account, role string) error {
+	if acc.DeletedAt != nil {
+		return fmt.Errorf("%s account (ID=%d) is closed and cannot be used", role, acc.ID)
+	}
+	if !acc.IsActive {
+		return fmt.Errorf("%s account (ID=%d) is inactive and cannot be used", role, acc.ID)
+	}
+	return nil
+}
+
 func (s *TransactionService) DeleteTransfer(c *gin.Context, id int64) error {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
@@ -712,6 +722,13 @@ func (s *TransactionService) DeleteTransfer(c *gin.Context, id int64) error {
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find destination account %w", err)
+	}
+
+	if err := validateAccount(&fromAcc, "source"); err != nil {
+		return err
+	}
+	if err := validateAccount(&toAcc, "destination"); err != nil {
+		return err
 	}
 
 	// Reverse balances
