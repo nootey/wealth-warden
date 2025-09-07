@@ -401,6 +401,69 @@ func (s *TransactionService) InsertTransfer(c *gin.Context, req *models.Transfer
 	return nil
 }
 
+func (s *TransactionService) InsertCategory(c *gin.Context, req *models.CategoryReq) error {
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	cat, err := s.Repo.FindCategoryByName(tx, req.Classification, &user.ID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	rec := models.Category{
+		UserID:         &user.ID,
+		Classification: req.Classification,
+		DisplayName:    req.DisplayName,
+		Name:           utils.NormalizeName(req.DisplayName),
+		ParentID:       &cat.ID,
+		IsDefault:      false,
+	}
+
+	if _, err := s.Repo.InsertCategory(tx, &rec); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Log transfer (one event)
+	changes := utils.InitChanges()
+	utils.CompareChanges("", rec.DisplayName, changes, "name")
+	utils.CompareChanges("", rec.Classification, changes, "classification")
+
+	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "transfer",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *models.TransactionReq) error {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)

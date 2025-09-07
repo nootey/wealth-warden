@@ -251,6 +251,18 @@ func (r *TransactionRepository) InsertTransfer(tx *gorm.DB, newRecord *models.Tr
 	return newRecord.ID, nil
 }
 
+func (r *TransactionRepository) InsertCategory(tx *gorm.DB, newRecord *models.Category) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Create(&newRecord).Error; err != nil {
+		return 0, err
+	}
+	return newRecord.ID, nil
+}
+
 func (r *TransactionRepository) UpdateTransaction(tx *gorm.DB, record models.Transaction) (int64, error) {
 	db := tx
 	if db == nil {

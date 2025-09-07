@@ -65,3 +65,7 @@ func MapJSONToStructField(jsonField string, modelType interface{}) (string, bool
 	}
 	return "", false
 }
+
+func NormalizeName(s string) string {
+	return strings.ReplaceAll(strings.ToLower(s), " ", "_")
+}

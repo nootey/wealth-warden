@@ -81,3 +81,8 @@ type TransferReq struct {
 type TrRestoreReq struct {
 	ID int64 `json:"id" validate:"required"`
 }
+
+type CategoryReq struct {
+	DisplayName    string `json:"display_name" validate:"required"`
+	Classification string `json:"classification" validate:"required"`
+}
