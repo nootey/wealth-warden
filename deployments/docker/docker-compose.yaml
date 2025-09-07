@@ -3,11 +3,12 @@ services:
     build:
       context: ../../
       dockerfile: ./build/Dockerfile
+      args:
+        - API_BASE_URL=app:2000
+        - PRODUCTION_MODE=false
     ports:
       - "3000:80"
     restart: unless-stopped
-    volumes:
-      - ../../.env:/app/.env
     networks:
       - wealth-warden
 
