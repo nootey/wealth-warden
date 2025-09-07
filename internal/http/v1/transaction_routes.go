@@ -19,4 +19,5 @@ func TransactionRoutes(apiGroup *gin.RouterGroup, handler *handlers.TransactionH
 	apiGroup.GET("categories/:id", handler.GetCategoryByID)
 	apiGroup.PUT("categories", handler.InsertCategory)
 	apiGroup.PUT("categories/:id", handler.UpdateCategory)
+	apiGroup.DELETE("categories/:id", handler.DeleteCategory)
 }

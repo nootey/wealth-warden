@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"fmt"
 	"gorm.io/gorm"
 	"time"
 	"wealth-warden/internal/models"
@@ -194,6 +195,20 @@ func (r *TransactionRepository) FindCategoryByClassification(tx *gorm.DB, classi
 	return record, txn.Error
 }
 
+func (r *TransactionRepository) FindCategoryByName(tx *gorm.DB, name string, userID *int64) (models.Category, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var record models.Category
+	txn := r.scopeCategories(db, userID).
+		Where("name = ?", name).
+		Order("name").
+		First(&record)
+	return record, txn.Error
+}
+
 func (r *TransactionRepository) FindTransactionByID(tx *gorm.DB, ID, userID int64, includeDeleted bool) (models.Transaction, error) {
 	db := tx
 	if db == nil {
@@ -225,6 +240,19 @@ func (r *TransactionRepository) FindTransferByID(tx *gorm.DB, ID, userID int64) 
 	result := db.
 		Where("id = ? AND user_id = ?", ID, userID).First(&record)
 	return record, result.Error
+}
+
+func (r *TransactionRepository) CountActiveTransactionsForCategory(tx *gorm.DB, userID, categoryID int64) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var cnt int64
+	err := db.Model(&models.Transaction{}).
+		Where("user_id = ? AND category_id = ? AND deleted_at IS NULL", userID, categoryID).
+		Count(&cnt).Error
+	return cnt, err
 }
 
 func (r *TransactionRepository) InsertTransaction(tx *gorm.DB, newRecord *models.Transaction) (int64, error) {
@@ -338,6 +366,55 @@ func (r *TransactionRepository) DeleteTransfer(tx *gorm.DB, id, userID int64) er
 
 	if res.Error != nil {
 		return res.Error
+	}
+	return nil
+}
+
+func (r *TransactionRepository) ArchiveCategory(tx *gorm.DB, id, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+	now := time.Now()
+	res := db.Model(&models.Category{}).
+		Where("id = ? AND (user_id = ? OR user_id IS NULL) AND deleted_at IS NULL", id, userID).
+		Updates(map[string]any{
+			"deleted_at": now,
+			"updated_at": now,
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		// Treat as idempotent success if it exists but is already soft-deleted
+		// Optional: verify existence if you want stricter feedback
+	}
+	return nil
+}
+
+func (r *TransactionRepository) DeleteCategory(tx *gorm.DB, id, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var cat models.Category
+	if err := db.
+		Where("id = ? AND (user_id = ? OR user_id IS NULL)", id, userID).
+		First(&cat).Error; err != nil {
+		return err
+	}
+
+	if cat.IsDefault {
+		return fmt.Errorf("default categories cannot be hard-deleted")
+	}
+	if cat.DeletedAt == nil {
+		return fmt.Errorf("category must be soft-deleted before hard deletion")
+	}
+
+	if err := db.Where("id = ? AND (user_id = ? OR user_id IS NULL)", id, userID).
+		Delete(&models.Category{}).Error; err != nil {
+		return err
 	}
 	return nil
 }

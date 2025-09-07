@@ -930,6 +930,87 @@ func (s *TransactionService) DeleteTransfer(c *gin.Context, id int64) error {
 	return nil
 }
 
+func (s *TransactionService) DeleteCategory(c *gin.Context, id int64) error {
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	cat, err := s.Repo.FindCategoryByID(tx, id, &user.ID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find category with given id: %w", err)
+	}
+
+	alreadySoftDeleted := cat.DeletedAt != nil
+	var deleteType string
+
+	switch {
+	case !alreadySoftDeleted:
+		// Archive first
+		if err := s.Repo.ArchiveCategory(tx, cat.ID, user.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
+		deleteType = "soft"
+
+	case !cat.IsDefault && alreadySoftDeleted:
+		// Non-default category, already archived -> try permanent delete
+		cnt, err := s.Repo.CountActiveTransactionsForCategory(tx, user.ID, cat.ID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		if cnt > 0 {
+			tx.Rollback()
+			return fmt.Errorf("cannot permanently delete category: %d active transactions still reference it", cnt)
+		}
+		if err := s.Repo.DeleteCategory(tx, cat.ID, user.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
+		deleteType = "hard"
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(deleteType, "", changes, "delete_type")
+	utils.CompareChanges(cat.DisplayName, "", changes, "name")
+	utils.CompareChanges(cat.Classification, "", changes, "classification")
+
+	if !changes.IsEmpty() {
+		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.Repo,
+			Logger:      s.Ctx.Logger,
+			Event:       "delete",
+			Category:    "category",
+			Description: nil,
+			Payload:     changes,
+			Causer:      user,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *TransactionService) RestoreTransaction(c *gin.Context, id int64) error {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
