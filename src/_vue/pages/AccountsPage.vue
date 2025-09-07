@@ -27,7 +27,7 @@ async function handleCreate() {
         <AccountForm mode="create" @completeOperation="handleCreate" />
     </Dialog>
 
-    <main class="flex flex-column w-full p-2 justify-content-center align-items-center gap-2">
+    <main class="flex flex-column w-full p-2 align-items-center gap-2">
 
         <div class="flex flex-row justify-content-between align-items-center p-3 w-full border-round-md bordered gap-2"
              style="max-width: 1000px">
@@ -38,7 +38,9 @@ async function handleCreate() {
 
         <AccountsPanel ref="accountsPanelRef"
                        :advanced="false"
-                       :allowEdit="true"/>
+                       :allowEdit="true"
+                       :maxHeight="80"
+        />
 
     </main>
 

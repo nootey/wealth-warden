@@ -14,9 +14,11 @@ const props = withDefaults(defineProps<{
     advanced?: boolean;
     allowEdit?: boolean;
     onToggle?: (acc: Account, nextValue: boolean) => Promise<boolean>;
+    maxHeight: number;
 }>(), {
     advanced: false,
     allowEdit: true,
+    maxHeight: 75,
 });
 
 const emit = defineEmits<{
@@ -169,8 +171,10 @@ async function handleEmit(type: string, data?: any) {
 
 async function onToggleEnabled(acc: Account, nextValue: boolean) {
     const prev = !nextValue;
-    const ok = await props.onToggle(acc, nextValue);
-    if (!ok) acc.is_active = prev;
+    if (props.onToggle) {
+        const ok = await props.onToggle(acc, nextValue);
+        if (!ok) acc.is_active = prev;
+    }
 }
 
 function handlePrimaryClick(acc: Account) {
@@ -217,7 +221,8 @@ defineExpose({ refresh: getData });
         </div>
     </div>
 
-    <div class="flex-1 w-full border-round-md p-2 bordered overflow-y-auto" style="max-width: 1000px;" >
+    <div class="flex-1 w-full border-round-md p-2 bordered overflow-y-auto"
+         :style="{ maxWidth: '1000px', maxHeight: `${maxHeight}vh` }">
         <div v-for="[type, group] in groupedAccounts" :key="type"
              class="w-full p-3 mb-2 border-round-md"
              style="background: var(--background-primary)">
@@ -287,7 +292,6 @@ defineExpose({ refresh: getData });
 
         </div>
     </div>
-
 
 </template>
 
