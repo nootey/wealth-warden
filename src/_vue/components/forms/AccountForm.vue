@@ -204,6 +204,7 @@ function initData(): Account {
   return {
     id: null,
     name: "",
+    is_active: true,
     account_type: {
       id: null,
       name: "",

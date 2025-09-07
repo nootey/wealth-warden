@@ -15,6 +15,10 @@ const props = defineProps<{
     account: Account;
 }>();
 
+const emit = defineEmits<{
+    (event: 'closeAccount', id: number): void;
+}>();
+
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 
@@ -47,15 +51,11 @@ async function loadTransactionsPage({ page, rows, sort: s, filters: f, include_d
 async function confirmCloseAccount(id: number) {
     confirm.require({
         header: 'Confirm account close',
-        message: 'You are about to close this account. Are you sure?',
+        message: 'You are about to close this account. This action is irreversible. Are you sure?',
         rejectProps: { label: 'Cancel' },
         acceptProps: { label: 'Close account', severity: 'danger' },
-        accept: () => closeAccount(id),
+        accept: () => emit("closeAccount", id),
     });
-}
-
-async function closeAccount(id: number) {
-    console.log(id)
 }
 
 </script>

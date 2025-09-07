@@ -19,8 +19,9 @@ const props = withDefaults(defineProps<{
 });
 
 const emit = defineEmits<{
-    (e: "toggle-enabled", account: Account): void;
+    (e: "toggleEnabled", account: Account): void;
     (e: "refresh"): void;
+    (e: "closeAccount", id: number): void;
 }>();
 
 const accountStore = useAccountStore();
@@ -150,16 +151,24 @@ function openModal(type: string, data: any) {
     }
 }
 
-async function handleEmit(emitType: string) {
-    if (emitType === "completeOperation") {
-        updateModal.value = false;
-        await getData();
-        emit("refresh");
+async function handleEmit(type: string, data?: any) {
+    switch (type) {
+        case "completeOperation": {
+            updateModal.value = false;
+            await getData();
+            emit("refresh");
+            break;
+        }
+        case "closeAccount": {
+            emit("closeAccount", data);
+            detailsModal.value = false;
+            break;
+        }
     }
 }
 
 function onToggleEnabled(acc: Account) {
-    emit("toggle-enabled", acc);
+    emit("toggleEnabled", acc);
 }
 
 function handlePrimaryClick(acc: Account) {
@@ -183,7 +192,7 @@ defineExpose({ refresh: getData });
 
     <Dialog position="top" class="rounded-dialog" v-model:visible="detailsModal"
             :breakpoints="{ '851px': '90vw' }" :modal="true" :style="{ width: '850px' }" header="Account details">
-        <AccountDetails :account="selectedAccount!"></AccountDetails>
+        <AccountDetails :account="selectedAccount!" @closeAccount="(id) => handleEmit('closeAccount', id)"></AccountDetails>
     </Dialog>
 
     <div class="flex w-full p-3 gap-2 border-round-md bordered justify-content-between align-items-center"

@@ -5,9 +5,14 @@ import AccountsPanel from "../../features/AccountsPanel.vue";
 import {useAccountStore} from "../../../services/stores/account_store.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import type {Account} from "../../../models/account_models.ts";
+import {useSharedStore} from "../../../services/stores/shared_store.ts";
+import {ref} from "vue";
 
 const accountStore = useAccountStore();
 const toastStore = useToastStore();
+const sharedStore = useSharedStore();
+
+const accRef = ref<InstanceType<typeof AccountsPanel> | null>(null);
 
 async function toggleEnabled(acc: Account) {
     const previous = acc.is_active;
@@ -17,6 +22,19 @@ async function toggleEnabled(acc: Account) {
         toastStore.successResponseToast(response);
     } catch (error) {
         acc.is_active = previous;
+        toastStore.errorResponseToast(error);
+    }
+}
+
+async function closeAccount(id: number) {
+    try {
+        let response = await sharedStore.deleteRecord(
+            "accounts",
+            id,
+        );
+        toastStore.successResponseToast(response);
+        accRef.value?.refresh();
+    } catch (error) {
         toastStore.errorResponseToast(error);
     }
 }
@@ -33,9 +51,11 @@ async function toggleEnabled(acc: Account) {
                 </div>
 
                 <AccountsPanel
+                        ref="accRef"
                         :advanced="true"
                         :allowEdit="true"
-                        @toggle-enabled="toggleEnabled"
+                        @toggleEnabled="toggleEnabled"
+                        @closeAccount="closeAccount"
                 />
             </div>
         </SettingsSkeleton>
