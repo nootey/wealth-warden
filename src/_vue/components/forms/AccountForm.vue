@@ -7,7 +7,7 @@ import useVuelidate from "@vuelidate/core";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useAccountStore} from "../../../services/stores/account_store.ts";
-import {computed, onMounted, ref, watch} from "vue";
+import {computed, nextTick, onMounted, ref, watch} from "vue";
 import vueHelper from "../../../utils/vue_helper.ts"
 import type {Account, AccountType} from "../../../models/account_models.ts"
 import currencyHelper from "../../../utils/currency_helper.ts";
@@ -249,6 +249,8 @@ async function loadRecord(id: number) {
                 record.value.balance.end_balance = new Decimal(b).abs().toString(); // NEW
             }
         }
+
+        await nextTick();
 
     } catch (err) {
         toastStore.errorResponseToast(err);
