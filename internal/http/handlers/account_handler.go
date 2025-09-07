@@ -46,7 +46,10 @@ func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 }
 
 func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
-	records, err := h.Service.FetchAllAccounts(c)
+	q := c.Request.URL.Query()
+	includeInactive := strings.EqualFold(q.Get("inactive"), "true")
+
+	records, err := h.Service.FetchAllAccounts(c, includeInactive)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

@@ -120,12 +120,12 @@ func (s *AccountService) FetchAccountByID(c *gin.Context, id int64) (*models.Acc
 	return &record, nil
 }
 
-func (s *AccountService) FetchAllAccounts(c *gin.Context) ([]models.Account, error) {
+func (s *AccountService) FetchAllAccounts(c *gin.Context, includeInactive bool) ([]models.Account, error) {
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
 	if err != nil {
 		return nil, err
 	}
-	return s.Repo.FindAllAccounts(user)
+	return s.Repo.FindAllAccounts(user, includeInactive)
 }
 
 func (s *AccountService) FetchAllAccountTypes(c *gin.Context) ([]models.AccountType, error) {

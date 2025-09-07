@@ -75,10 +75,20 @@ func (r *AccountRepository) CountAccounts(user *models.User, filters []utils.Fil
 	return totalRecords, nil
 }
 
-func (r *AccountRepository) FindAllAccounts(user *models.User) ([]models.Account, error) {
+func (r *AccountRepository) FindAllAccounts(user *models.User, includeInactive bool) ([]models.Account, error) {
 	var records []models.Account
-	result := r.DB.Where("user_id = ?", user.ID).Find(&records)
-	return records, result.Error
+	query := r.DB.Where("user_id = ?", user.ID).
+		Where("deleted_at is NULL")
+
+	if !includeInactive {
+		query = query.Where("is_active = ?", true)
+	}
+
+	if err := query.Find(&records).Error; err != nil {
+		return nil, err
+	}
+
+	return records, nil
 }
 
 func (r *AccountRepository) FindAllAccountTypes(user *models.User) ([]models.AccountType, error) {
