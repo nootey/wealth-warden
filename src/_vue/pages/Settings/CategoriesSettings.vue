@@ -22,8 +22,10 @@ const createModal = ref(false);
 
 const categories = computed<Category[]>(() => transactionStore.categories);
 
+const includeDeleted = ref(false);
+
 async function getCategories() {
-    await transactionStore.getCategories();
+    await transactionStore.getCategories(includeDeleted.value);
 }
 
 async function handleEmit(type: string, data?: any) {
@@ -75,12 +77,18 @@ async function deleteCategory(id: number) {
     <div class="flex flex-column w-full gap-3">
         <SettingsSkeleton class="w-full">
             <div class="w-full flex flex-column gap-3 p-2">
-                <div class="flex flex-row justify-content-between align-items-center">
+                <div class="flex flex-row justify-content-between align-items-center gap-3">
                     <div class="w-full flex flex-column gap-2">
                         <h3>Categories</h3>
                         <h5 style="color: var(--text-secondary)">View and manage transaction categories.</h5>
                     </div>
-                    <Button class="main-button w-3" label="New category" icon="pi pi-plus" @click="handleEmit('openCreate')"/>
+
+                    <div class="flex align-items-center gap-2" style="margin-left: auto;">
+                        <span class="text-sm">Archived?</span>
+                        <ToggleSwitch style="transform: scale(0.75)" v-model="includeDeleted"
+                            @update:model-value="getCategories()"/>
+                    </div>
+                    <Button class="main-button w-4" label="New category" icon="pi pi-plus" @click="handleEmit('openCreate')"/>
                 </div>
 
 

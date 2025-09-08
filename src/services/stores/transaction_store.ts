@@ -29,9 +29,11 @@ export const useTransactionStore = defineStore('transaction', {
                 throw err;
             }
         },
-        async getCategories() {
+        async getCategories(deleted: boolean = false) {
             try {
-                const response = await apiClient.get(`${this.apiPrefix}/categories`);
+                const response = await apiClient.get(`${this.apiPrefix}/categories`, {
+                    params: {deleted}
+                });
                 this.categories = response.data;
             } catch (err) {
                 throw err;
