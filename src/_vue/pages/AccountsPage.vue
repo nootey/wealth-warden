@@ -22,7 +22,7 @@ async function handleCreate() {
 
 <template>
 
-    <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{ '801px': '90vw' }"
+    <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{'501px':'90vw'}"
             :modal="true" :style="{ width: '500px' }" header="Create account">
         <AccountForm mode="create" @completeOperation="handleCreate" />
     </Dialog>
