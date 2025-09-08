@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import TransactionForm from "../components/forms/TransactionForm.vue";
 import {computed, onMounted, provide, ref} from "vue";
-import vueHelper from "../../utils/vue_helper.ts";
 import {useSharedStore} from "../../services/stores/shared_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
