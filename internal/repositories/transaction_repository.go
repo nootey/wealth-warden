@@ -172,6 +172,7 @@ func (r *TransactionRepository) FindAllCategories(userID *int64, includeDeleted 
 	var records []models.Category
 	tx := r.scopeCategories(r.DB, userID, includeDeleted).
 		Order("classification, name").
+		Where("name NOT IN ?", []string{"income", "expense"}).
 		Find(&records)
 	return records, tx.Error
 }
