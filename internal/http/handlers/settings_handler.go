@@ -11,11 +11,16 @@ import (
 
 type SettingsHandler struct {
 	Service *services.SettingsService
+	v       *validators.GoValidator
 }
 
-func NewSettingsHandler(SettingsService *services.SettingsService) *SettingsHandler {
+func NewSettingsHandler(
+	service *services.SettingsService,
+	v *validators.GoValidator,
+) *SettingsHandler {
 	return &SettingsHandler{
-		Service: SettingsService,
+		Service: service,
+		v:       v,
 	}
 }
 
@@ -60,8 +65,7 @@ func (h *SettingsHandler) UpdateUserSettings(c *gin.Context) {
 		return
 	}
 
-	validator := validators.NewValidator()
-	if err := validator.ValidateStruct(record); err != nil {
+	if err := h.v.ValidateStruct(record); err != nil {
 		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}

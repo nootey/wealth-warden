@@ -14,11 +14,16 @@ import (
 
 type AccountHandler struct {
 	Service *services.AccountService
+	v       *validators.GoValidator
 }
 
-func NewAccountHandler(service *services.AccountService) *AccountHandler {
+func NewAccountHandler(
+	service *services.AccountService,
+	v *validators.GoValidator,
+) *AccountHandler {
 	return &AccountHandler{
 		Service: service,
+		v:       v,
 	}
 }
 
@@ -126,8 +131,7 @@ func (h *AccountHandler) InsertAccount(c *gin.Context) {
 		return
 	}
 
-	validator := validators.NewValidator()
-	if err := validator.ValidateStruct(record); err != nil {
+	if err := h.v.ValidateStruct(record); err != nil {
 		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
@@ -169,8 +173,7 @@ func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 		return
 	}
 
-	validator := validators.NewValidator()
-	if err := validator.ValidateStruct(req); err != nil {
+	if err := h.v.ValidateStruct(req); err != nil {
 		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}

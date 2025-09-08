@@ -13,9 +13,11 @@ type AuthHandler struct {
 	Service *services.AuthService
 }
 
-func NewAuthHandler(authService *services.AuthService) *AuthHandler {
+func NewAuthHandler(
+	service *services.AuthService,
+) *AuthHandler {
 	return &AuthHandler{
-		Service: authService,
+		Service: service,
 	}
 }
 

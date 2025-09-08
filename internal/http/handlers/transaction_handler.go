@@ -14,11 +14,16 @@ import (
 
 type TransactionHandler struct {
 	Service *services.TransactionService
+	v       *validators.GoValidator
 }
 
-func NewTransactionHandler(service *services.TransactionService) *TransactionHandler {
+func NewTransactionHandler(
+	service *services.TransactionService,
+	v *validators.GoValidator,
+) *TransactionHandler {
 	return &TransactionHandler{
 		Service: service,
+		v:       v,
 	}
 }
 
@@ -196,8 +201,7 @@ func (h *TransactionHandler) InsertTransaction(c *gin.Context) {
 		return
 	}
 
-	validator := validators.NewValidator()
-	if err := validator.ValidateStruct(record); err != nil {
+	if err := h.v.ValidateStruct(record); err != nil {
 		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
@@ -225,8 +229,7 @@ func (h *TransactionHandler) InsertTransfer(c *gin.Context) {
 		return
 	}
 
-	validator := validators.NewValidator()
-	if err := validator.ValidateStruct(record); err != nil {
+	if err := h.v.ValidateStruct(record); err != nil {
 		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
@@ -254,8 +257,7 @@ func (h *TransactionHandler) InsertCategory(c *gin.Context) {
 		return
 	}
 
-	validator := validators.NewValidator()
-	if err := validator.ValidateStruct(record); err != nil {
+	if err := h.v.ValidateStruct(record); err != nil {
 		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
@@ -297,8 +299,7 @@ func (h *TransactionHandler) UpdateTransaction(c *gin.Context) {
 		return
 	}
 
-	validator := validators.NewValidator()
-	if err := validator.ValidateStruct(record); err != nil {
+	if err := h.v.ValidateStruct(record); err != nil {
 		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
@@ -340,8 +341,7 @@ func (h *TransactionHandler) UpdateCategory(c *gin.Context) {
 		return
 	}
 
-	validator := validators.NewValidator()
-	if err := validator.ValidateStruct(record); err != nil {
+	if err := h.v.ValidateStruct(record); err != nil {
 		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}

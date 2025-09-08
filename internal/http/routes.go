@@ -7,6 +7,7 @@ import (
 	httpHandlers "wealth-warden/internal/http/handlers"
 	"wealth-warden/internal/http/v1"
 	"wealth-warden/internal/middleware"
+	"wealth-warden/pkg/validators"
 )
 
 type RouteInitializerHTTP struct {
@@ -34,12 +35,14 @@ func (r *RouteInitializerHTTP) InitEndpoints() {
 
 func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 
+	validator := validators.NewValidator()
+
 	authHandler := httpHandlers.NewAuthHandler(r.Container.AuthService)
-	userHandler := httpHandlers.NewUserHandler(r.Container.UserService)
+	userHandler := httpHandlers.NewUserHandler(r.Container.UserService, validator)
 	loggingHandler := httpHandlers.NewLoggingHandler(r.Container.LoggingService)
-	accountHandler := httpHandlers.NewAccountHandler(r.Container.AccountService)
-	transactionHandler := httpHandlers.NewTransactionHandler(r.Container.TransactionService)
-	settingsHandler := httpHandlers.NewSettingsHandler(r.Container.SettingsService)
+	accountHandler := httpHandlers.NewAccountHandler(r.Container.AccountService, validator)
+	transactionHandler := httpHandlers.NewTransactionHandler(r.Container.TransactionService, validator)
+	settingsHandler := httpHandlers.NewSettingsHandler(r.Container.SettingsService, validator)
 
 	authRL := middleware.NewRateLimiter(5.0/60.0, 5) // 5 per minute, burst 3
 

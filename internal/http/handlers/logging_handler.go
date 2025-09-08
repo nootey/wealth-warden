@@ -13,7 +13,9 @@ type LoggingHandler struct {
 	Service *services.LoggingService
 }
 
-func NewLoggingHandler(service *services.LoggingService) *LoggingHandler {
+func NewLoggingHandler(
+	service *services.LoggingService,
+) *LoggingHandler {
 	return &LoggingHandler{
 		Service: service,
 	}

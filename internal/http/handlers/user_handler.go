@@ -8,15 +8,21 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
+	"wealth-warden/pkg/validators"
 )
 
 type UserHandler struct {
 	Service *services.UserService
+	v       *validators.GoValidator
 }
 
-func NewUserHandler(userService *services.UserService) *UserHandler {
+func NewUserHandler(
+	service *services.UserService,
+	v *validators.GoValidator,
+) *UserHandler {
 	return &UserHandler{
-		Service: userService,
+		Service: service,
+		v:       v,
 	}
 }
 
