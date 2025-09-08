@@ -5,65 +5,58 @@ export const useToastStore = defineStore('toast', () => {
     const toast = useToast();
 
     const errorResponseToast = (error: any) => {
-        console.error(error);
 
-        let errorTitle = "Error occurred";
-        let errorMsg = error ?? "An error has occurred without additional information.";
+        console.error("triggered error", error);
 
-        if (error?.response?.data?.errors) {
-            let errors = error.response.data.errors;
-            for (let key in errors) {
-                if (errors.hasOwnProperty(key)) {
-                    toast.add({
-                        severity: 'error',
-                        summary: key ?? 'Error occurred',
-                        detail: errors[key] ?? "...",
-                        life: 5000
-                    });
-                }
-            }
-            return;
+        const data = error?.response?.data;
+        let summary = 'Unexpected Error';
+        let detail = error?.message ?? 'An unknown error occurred.';
+
+        if (data?.title || data?.message) {
+            summary = data.title ?? 'Error';
+            detail = data.message ?? 'Something went wrong.';
         }
 
-        if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-            errorTitle = "Server unreachable";
-            errorMsg = "The server is currently not reachable.";
-        }
-
-        if (error?.response?.data) {
-            errorTitle = error.response.data.title;
-            errorMsg = error?.response?.data?.message || error.response.data;
+        if (error?.code === 'ERR_NETWORK' || error?.message === 'Network Error') {
+            summary = 'Server unreachable';
+            detail = 'The server is currently not reachable.';
         }
 
         toast.add({
             severity: 'error',
-            summary: errorTitle,
-            detail: errorMsg,
-            life: 5000
+            summary,
+            detail,
+            life: 5000,
         });
     };
 
     const successResponseToast = (response: any) => {
-        if (response) {
+        const data = response?.data || response;
+        if (data?.title || data?.message) {
             toast.add({
                 severity: 'success',
-                summary: response && response.data ? response.data.title : response.title,
-                detail: response && response.data ? response.data.message : response.message,
-                life: 3000
+                summary: data.title ?? 'Success',
+                detail: data.message ?? '',
+                life: 3000,
             });
         }
     };
-
     const infoResponseToast = (response: any) => {
-        if (response.data) {
+        const data = response?.data || response;
+        if (data?.title || data?.message) {
             toast.add({
                 severity: 'info',
-                summary: response.data.title,
-                detail: response.data.message,
-                life: 3000
+                summary: data.title ?? 'Info',
+                detail: data.message ?? '',
+                life: 3000,
             });
         }
     };
 
-    return { errorResponseToast, successResponseToast, infoResponseToast };
+    return {
+        errorResponseToast,
+        successResponseToast,
+        infoResponseToast
+    };
+    
 });
