@@ -44,7 +44,6 @@ async function handleEmit(type: string, data?: any) {
         }
         case 'deleteCategory': {
             await deleteConfirmation(data.id, data.name, data.deleted);
-            await getCategories();
             break;
         }
         default: {
@@ -70,6 +69,7 @@ async function deleteRecord(id: number) {
             id,
         );
         toastStore.successResponseToast(response);
+        await getCategories();
 
     } catch (err) {
         toastStore.errorResponseToast(err)

@@ -8,6 +8,7 @@ import useVuelidate from "@vuelidate/core";
 import toastHelper from "../../../utils/toast_helper.ts";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
+import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
 
 const props = defineProps<{
     mode?: "create" | "update";
@@ -22,6 +23,7 @@ const apiPrefix = "transactions/categories"
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
+const transactionStore = useTransactionStore();
 
 onMounted(async () => {
     if (props.mode === "update" && props.recordId) {
@@ -137,6 +139,23 @@ const searchClassifications = (event: { query: string }) => {
     filteredClassifications.value = !q ? [...all] : all.filter(t => t.toLowerCase().startsWith(q));
 };
 
+async function restoreCategory() {
+
+    try {
+
+        let response = await transactionStore.restoreCategory(
+            props.recordId!
+        );
+
+        v$.value.record.$reset();
+        toastStore.successResponseToast(response);
+        emit("completeOperation")
+
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
+}
+
 </script>
 
 <template>
@@ -179,6 +198,9 @@ const searchClassifications = (event: { query: string }) => {
             <div class="flex flex-column w-full">
                 <Button v-if="!readOnly" class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' category'"
                         @click="manageRecord" style="height: 42px;" />
+                <Button v-else class="main-button"
+                        label="Restore"
+                        @click="restoreCategory" style="height: 42px;" />
             </div>
         </div>
 
