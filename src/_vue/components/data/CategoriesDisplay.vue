@@ -53,6 +53,17 @@ async function handleEmit(type: string, data?: any) {
     }
 }
 
+function showDeleteButton(data: Category) {
+        switch (data.is_default){
+            case true: {
+                return !data.deleted_at
+            }
+            default: {
+                return true;
+            }
+        }
+}
+
 </script>
 
 <template>
@@ -65,7 +76,7 @@ async function handleEmit(type: string, data?: any) {
 
     <DataTable class="w-full enhanced-table" dataKey="id" :value="localCategories"
                paginator :rows="10" :rowsPerPageOptions="[10, 25]" scrollable scroll-height="75vh"
-               rowGroupMode="subheader" groupRowsBy="classification">
+               rowGroupMode="subheader" groupRowsBy="classification" :rowClass="vueHelper.deletedRowClass">
         <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
         <template #loading> <LoadingSpinner></LoadingSpinner> </template>
 
@@ -93,7 +104,7 @@ async function handleEmit(type: string, data?: any) {
                 <div class="flex flex-row align-items-center gap-2">
                     <i class="pi pi-pen-to-square hover-icon text-xs" v-tooltip="'Edit category'"
                        @click="openModal('update', data.id!)"/>
-                    <i class="pi pi-trash hover-icon text-xs" v-tooltip="'Delete category'"
+                    <i v-if="showDeleteButton(data)" class="pi pi-trash hover-icon text-xs" v-tooltip="'Delete category'"
                        style="color: var(--p-red-300);"
                        @click="handleEmit('deleteCategory', data)"></i>
                 </div>
