@@ -7,6 +7,7 @@ import {required} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import toastHelper from "../../../utils/toast_helper.ts";
 import ValidationError from "../validation/ValidationError.vue";
+import ShowLoading from "../base/ShowLoading.vue";
 
 const props = defineProps<{
     mode?: "create" | "update";
@@ -29,6 +30,7 @@ onMounted(async () => {
 });
 
 const readOnly = ref(false);
+const loading = ref(false);
 
 const record = ref<Category>(initData());
 
@@ -59,7 +61,8 @@ function initData(): Category {
 
 async function loadRecord(id: number) {
     try {
-        const data = await sharedStore.getRecordByID(apiPrefix, id);
+        loading.value = true;
+        const data = await sharedStore.getRecordByID(apiPrefix, id, { deleted: true});
 
         readOnly.value = !!data?.deleted_at
 
@@ -69,6 +72,7 @@ async function loadRecord(id: number) {
         };
 
         await nextTick();
+        loading.value = false;
 
     } catch (err) {
         toastStore.errorResponseToast(err);
@@ -137,31 +141,34 @@ const searchClassifications = (event: { query: string }) => {
 
 <template>
 
-    <div class="flex flex-column gap-3 p-1">
+    <div v-if="!loading" class="flex flex-column gap-3 p-1">
         <div v-if="readOnly">
             <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
         </div>
 
-        <div class="flex flex-row w-full">
-            <div class="flex flex-column w-full">
-                <ValidationError :isRequired="true" :message="v$.record.display_name.$errors[0]?.$message">
-                    <label>Name</label>
-                </ValidationError>
-                <InputText :readonly="readOnly" :disabled="readOnly" size="small" v-model="record.display_name"></InputText>
+        <div class="flex flex-column gap-3 p-1">
+            <div class="flex flex-row w-full">
+                <div class="flex flex-column w-full">
+                    <ValidationError :isRequired="true" :message="v$.record.display_name.$errors[0]?.$message">
+                        <label>Name</label>
+                    </ValidationError>
+                    <InputText :readonly="readOnly" :disabled="readOnly" size="small" v-model="record.display_name"></InputText>
+                </div>
+            </div>
+
+            <div class="flex flex-row w-full">
+                <div class="flex flex-column gap-1 w-full">
+                    <ValidationError :isRequired="true" :message="v$.record.classification.$errors[0]?.$message">
+                        <label>Classification</label>
+                    </ValidationError>
+                    <AutoComplete :readonly="readOnly || record.is_default" :disabled="readOnly || record.is_default" size="small" v-model="record.classification"
+                                  :suggestions="filteredClassifications" @complete="searchClassifications"
+                                  placeholder="Select classification" dropdown>
+                    </AutoComplete>
+                </div>
             </div>
         </div>
 
-        <div class="flex flex-row w-full">
-            <div class="flex flex-column gap-1 w-full">
-                <ValidationError :isRequired="true" :message="v$.record.classification.$errors[0]?.$message">
-                    <label>Classification</label>
-                </ValidationError>
-                <AutoComplete :readonly="readOnly || record.is_default" :disabled="readOnly || record.is_default" size="small" v-model="record.classification"
-                              :suggestions="filteredClassifications" @complete="searchClassifications"
-                              placeholder="Select classification" dropdown>
-                </AutoComplete>
-            </div>
-        </div>
 
         <div v-if="mode === 'update' && record.is_default" class="flex flex-row w-full align-items-center gap-2">
             <i class="pi pi-info-circle"></i>
@@ -176,6 +183,7 @@ const searchClassifications = (event: { query: string }) => {
         </div>
 
     </div>
+    <ShowLoading v-else />
 
 </template>
 
