@@ -15,7 +15,7 @@ Wealth Warden is a personal finance tracker designed to be simple, intuitive, an
 
 ## 🛠️ Tech Stack
 Server: Go
-Database: MySQL with GORM
+Database: Postgres with GORM
 
 ## 📦 Deployment
 
