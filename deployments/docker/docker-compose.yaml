@@ -4,10 +4,10 @@ services:
       context: ../../
       dockerfile: ./build/Dockerfile
       args:
-        - API_BASE_URL=app:2000
+        - API_BASE_URL=localhost:2000/api/v1
         - PRODUCTION_MODE=false
     ports:
-      - "3000:80"
+      - "5000:80"
     restart: unless-stopped
     networks:
       - wealth-warden
