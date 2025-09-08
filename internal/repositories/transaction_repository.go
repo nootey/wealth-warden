@@ -3,7 +3,10 @@ package repositories
 import (
 	"fmt"
 	"gorm.io/gorm"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
 )
@@ -444,18 +447,57 @@ func (r *TransactionRepository) RestoreCategory(tx *gorm.DB, id int64, userID *i
 		db = r.DB
 	}
 
-	scope := db.
-		Model(&models.Category{}).
+	var owner *gorm.DB
+	if userID != nil {
+		owner = db.Where("user_id = ?", *userID).
+			Or("is_default = ? AND user_id IS NULL", true)
+	} else {
+		owner = db.Where("is_default = ? AND user_id IS NULL", true)
+	}
+
+	scope := db.Model(&models.Category{}).
 		Unscoped().
 		Where("id = ? AND deleted_at IS NOT NULL", id).
-		Where(
-			db.Where("user_id = ?", *userID).
-				Or("is_default = ? AND user_id IS NULL", true),
-		)
+		Where(owner)
 
 	res := scope.Updates(map[string]any{
 		"deleted_at": gorm.Expr("NULL"),
 		"updated_at": time.Now(),
+	})
+
+	return res.Error
+}
+
+func (r *TransactionRepository) RestoreCategoryName(tx *gorm.DB, id int64, userID *int64, name string) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var owner *gorm.DB
+	if userID != nil {
+		owner = db.Where("user_id = ?", *userID).
+			Or("is_default = ? AND user_id IS NULL", true)
+	} else {
+		owner = db.Where("is_default = ? AND user_id IS NULL", true)
+	}
+
+	s := strings.ReplaceAll(strings.ToLower(name), "_", " ")
+	if s != "" {
+		r0, size := utf8.DecodeRuneInString(s)
+		if r0 != utf8.RuneError {
+			s = string(unicode.ToUpper(r0)) + s[size:]
+		}
+	}
+
+	scope := db.Model(&models.Category{}).
+		Unscoped().
+		Where("id = ?", id).
+		Where(owner)
+
+	res := scope.Updates(map[string]any{
+		"display_name": s,
+		"updated_at":   time.Now(),
 	})
 
 	return res.Error
