@@ -9,6 +9,7 @@ import vueHelper from "../../utils/vue_helper.ts";
 import filterHelper from "../../utils/filter_helper.ts";
 import type { Account } from "../../models/account_models.ts";
 import AccountDetails from "../components/AccountDetails.vue";
+import ShowLoading from "../components/base/ShowLoading.vue";
 
 const props = withDefaults(defineProps<{
     advanced?: boolean;
@@ -37,7 +38,7 @@ const updateModal = ref(false);
 const selectedID = ref<number | null>(null);
 const selectedAccount = ref<Account>();
 
-const loadingAccounts = ref(true);
+const loading = ref(true);
 const accounts = ref<Account[]>([]);
 
 const rows = ref([25]);
@@ -63,7 +64,7 @@ onMounted(async () => {
 });
 
 async function getData(new_page: number | null = null) {
-    loadingAccounts.value = true;
+    loading.value = true;
     if (new_page) page.value = new_page;
 
     try {
@@ -79,7 +80,7 @@ async function getData(new_page: number | null = null) {
     } catch (error) {
         toastStore.errorResponseToast(error);
     } finally {
-        loadingAccounts.value = false;
+        loading.value = false;
     }
 }
 
@@ -223,7 +224,19 @@ defineExpose({ refresh: getData });
 
     <div class="flex-1 w-full border-round-md p-2 bordered overflow-y-auto"
          :style="{ maxWidth: '1000px', maxHeight: `${maxHeight}vh` }">
-        <div v-for="[type, group] in groupedAccounts" :key="type"
+
+        <template v-if="loading">
+            <ShowLoading :numFields="10" />
+        </template>
+
+        <div v-else-if="groupedAccounts.length === 0" class="flex flex-row p-2 w-full justify-content-center">
+            <div class="flex flex-column gap-2 justify-content-center align-items-center">
+                <i style="color: var(--text-secondary)" class="pi pi-eye-slash text-4xl"></i>
+                <span>No accounts available</span>
+            </div>
+        </div>
+
+        <div v-else v-for="[type, group] in groupedAccounts" :key="type"
              class="w-full p-3 mb-2 border-round-md"
              style="background: var(--background-primary)">
             <div class="flex p-2 mb-2 pb-21 align-items-center justify-content-between"
@@ -291,6 +304,7 @@ defineExpose({ refresh: getData });
             </div>
 
         </div>
+        
     </div>
 
 </template>
