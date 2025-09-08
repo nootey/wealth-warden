@@ -30,8 +30,7 @@ services:
       - "2000:2000"
     volumes:
       - ../../logs:/app/logs
-      - ../../pkg/config/environment.yaml:/app/pkg/config/environment.yaml
-      - ../../.seeder.credentials:/app/.seeder.credentials
+      - ../../pkg/config/dev.yaml:/app/pkg/config/dev.yaml
     networks:
       - wealth-warden
 
