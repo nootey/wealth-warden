@@ -42,7 +42,7 @@ func NewAuthService(
 	}
 }
 
-func (s *AuthService) logLoginAttempt(email, userAgent, ip, status string, description *string, user *models.User) error {
+func (s *AuthService) logLoginAttempt(email, userAgent, ip, status string, description *string, userID *int64) error {
 
 	changes := utils.InitChanges()
 	service := utils.DetermineServiceSource(userAgent)
@@ -60,7 +60,7 @@ func (s *AuthService) logLoginAttempt(email, userAgent, ip, status string, descr
 		Category:    "auth",
 		Description: description,
 		Payload:     changes,
-		Causer:      user,
+		Causer:      userID,
 	})
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberM
 		expiresAt = int(constants.RefreshCookieTTLShort.Seconds())
 	}
 
-	logErr := s.logLoginAttempt(email, userAgent, ip, "success", nil, user)
+	logErr := s.logLoginAttempt(email, userAgent, ip, "success", nil, &user.ID)
 	if logErr != nil {
 		return "", "", 0, logErr
 	}

@@ -166,7 +166,7 @@ func (r *LoggingRepository) InsertActivityLog(
 	category string,
 	description *string,
 	payload *utils.Changes,
-	causer *models.User,
+	causerID *int64,
 ) error {
 
 	db := tx
@@ -191,8 +191,8 @@ func (r *LoggingRepository) InsertActivityLog(
 		doc.Metadata = metadata
 	}
 
-	if causer != nil {
-		doc.CauserID = &causer.ID
+	if causerID != nil {
+		doc.CauserID = causerID
 	}
 
 	return db.Table("activity_logs").Create(&doc).Error

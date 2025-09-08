@@ -2,7 +2,6 @@ package services
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -28,24 +27,15 @@ func NewSettingsService(
 	}
 }
 
-func (s *SettingsService) FetchGeneralSettings(c *gin.Context) (*models.SettingsGeneral, error) {
+func (s *SettingsService) FetchGeneralSettings() (*models.SettingsGeneral, error) {
 	return s.Repo.FetchGeneralSettings(nil)
 }
 
-func (s *SettingsService) FetchUserSettings(c *gin.Context) (*models.SettingsUser, error) {
-	user, err := s.Ctx.AuthService.GetCurrentUser(c)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.Repo.FetchUserSettings(nil, user.ID)
+func (s *SettingsService) FetchUserSettings(userID int64) (*models.SettingsUser, error) {
+	return s.Repo.FetchUserSettings(nil, userID)
 }
 
-func (s *SettingsService) UpdateUserSettings(c *gin.Context, req models.SettingsUserReq) error {
-	user, err := s.Ctx.AuthService.GetCurrentUser(c)
-	if err != nil {
-		return err
-	}
+func (s *SettingsService) UpdateUserSettings(userID int64, req models.SettingsUserReq) error {
 
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
@@ -60,21 +50,21 @@ func (s *SettingsService) UpdateUserSettings(c *gin.Context, req models.Settings
 	}()
 
 	// Fetch settings to confirm user is owner
-	existingSettings, err := s.Repo.FetchUserSettings(nil, user.ID)
+	existingSettings, err := s.Repo.FetchUserSettings(nil, userID)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find settings for given user: %w", err)
 	}
 
 	settings := models.SettingsUser{
-		UserID:   user.ID,
+		UserID:   userID,
 		Theme:    req.Theme,
 		Accent:   req.Accent,
 		Timezone: req.Timezone,
 		Language: req.Language,
 	}
 
-	err = s.Repo.UpdateUserSettings(tx, user, settings)
+	err = s.Repo.UpdateUserSettings(tx, userID, settings)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -99,7 +89,7 @@ func (s *SettingsService) UpdateUserSettings(c *gin.Context, req models.Settings
 		Category:    "user_settings",
 		Description: nil,
 		Payload:     changes,
-		Causer:      user,
+		Causer:      &userID,
 	})
 	if err != nil {
 		return err

@@ -59,11 +59,11 @@ func (r *TransactionRepository) baseTransferQuery(db *gorm.DB, userID int64, inc
 	return q
 }
 
-func (r *TransactionRepository) FindTransactions(user *models.User, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool, accountID *int64) ([]models.Transaction, error) {
+func (r *TransactionRepository) FindTransactions(userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool, accountID *int64) ([]models.Transaction, error) {
 
 	var records []models.Transaction
 
-	q := r.baseTxQuery(r.DB, user.ID, includeDeleted).
+	q := r.baseTxQuery(r.DB, userID, includeDeleted).
 		Preload("Category").
 		Preload("Account")
 
@@ -92,11 +92,11 @@ func (r *TransactionRepository) FindTransactions(user *models.User, offset, limi
 	return records, nil
 }
 
-func (r *TransactionRepository) FindTransfers(user *models.User, offset, limit int, includeDeleted bool) ([]models.Transfer, error) {
+func (r *TransactionRepository) FindTransfers(userID int64, offset, limit int, includeDeleted bool) ([]models.Transfer, error) {
 
 	var records []models.Transfer
 
-	q := r.baseTransferQuery(r.DB, user.ID, includeDeleted)
+	q := r.baseTransferQuery(r.DB, userID, includeDeleted)
 
 	if !includeDeleted {
 		q = q.
@@ -122,10 +122,10 @@ func (r *TransactionRepository) FindTransfers(user *models.User, offset, limit i
 	return records, nil
 }
 
-func (r *TransactionRepository) CountTransactions(user *models.User, filters []utils.Filter, includeDeleted bool, accountID *int64) (int64, error) {
+func (r *TransactionRepository) CountTransactions(userID int64, filters []utils.Filter, includeDeleted bool, accountID *int64) (int64, error) {
 	var totalRecords int64
 
-	q := r.baseTxQuery(r.DB, user.ID, includeDeleted)
+	q := r.baseTxQuery(r.DB, userID, includeDeleted)
 	if accountID != nil {
 		q = q.Where("transactions.account_id = ?", *accountID)
 	}
@@ -144,10 +144,10 @@ func (r *TransactionRepository) CountTransactions(user *models.User, filters []u
 	return totalRecords, nil
 }
 
-func (r *TransactionRepository) CountTransfers(user *models.User, includeDeleted bool) (int64, error) {
+func (r *TransactionRepository) CountTransfers(userID int64, includeDeleted bool) (int64, error) {
 	var totalRecords int64
 
-	q := r.baseTransferQuery(r.DB, user.ID, includeDeleted)
+	q := r.baseTransferQuery(r.DB, userID, includeDeleted)
 
 	if err := q.Count(&totalRecords).Error; err != nil {
 		return 0, err

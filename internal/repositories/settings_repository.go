@@ -64,7 +64,7 @@ func (r *SettingsRepository) FetchUserSettings(tx *gorm.DB, userID int64) (*mode
 	return &settings, err
 }
 
-func (r *SettingsRepository) UpdateUserSettings(tx *gorm.DB, user *models.User, record models.SettingsUser) error {
+func (r *SettingsRepository) UpdateUserSettings(tx *gorm.DB, userID int64, record models.SettingsUser) error {
 	db := tx
 	if db == nil {
 		db = r.DB
@@ -79,7 +79,7 @@ func (r *SettingsRepository) UpdateUserSettings(tx *gorm.DB, user *models.User, 
 	}
 
 	res := db.Model(&models.SettingsUser{}).
-		Where("user_id = ?", user.ID).
+		Where("user_id = ?", userID).
 		Updates(updates)
 
 	if res.Error != nil {

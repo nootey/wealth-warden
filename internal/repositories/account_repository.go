@@ -15,14 +15,14 @@ func NewAccountRepository(db *gorm.DB) *AccountRepository {
 	return &AccountRepository{DB: db}
 }
 
-func (r *AccountRepository) FindAccounts(user *models.User, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeInactive bool) ([]models.Account, error) {
+func (r *AccountRepository) FindAccounts(userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeInactive bool) ([]models.Account, error) {
 
 	var records []models.Account
 
 	query := r.DB.
 		Preload("AccountType").
 		Preload("Balance").
-		Where("user_id = ?", user.ID).
+		Where("user_id = ?", userID).
 		Where("deleted_At is NULL")
 
 	if !includeInactive {
@@ -50,11 +50,11 @@ func (r *AccountRepository) FindAccounts(user *models.User, offset, limit int, s
 	return records, nil
 }
 
-func (r *AccountRepository) CountAccounts(user *models.User, filters []utils.Filter, includeInactive bool) (int64, error) {
+func (r *AccountRepository) CountAccounts(userID int64, filters []utils.Filter, includeInactive bool) (int64, error) {
 	var totalRecords int64
 
 	query := r.DB.Model(&models.Account{}).
-		Where("user_id = ?", user.ID).
+		Where("user_id = ?", userID).
 		Where("deleted_At is NULL")
 
 	if !includeInactive {
@@ -75,9 +75,9 @@ func (r *AccountRepository) CountAccounts(user *models.User, filters []utils.Fil
 	return totalRecords, nil
 }
 
-func (r *AccountRepository) FindAllAccounts(user *models.User, includeInactive bool) ([]models.Account, error) {
+func (r *AccountRepository) FindAllAccounts(userID int64, includeInactive bool) ([]models.Account, error) {
 	var records []models.Account
-	query := r.DB.Where("user_id = ?", user.ID).
+	query := r.DB.Where("user_id = ?", userID).
 		Where("deleted_at is NULL")
 
 	if !includeInactive {
@@ -91,7 +91,7 @@ func (r *AccountRepository) FindAllAccounts(user *models.User, includeInactive b
 	return records, nil
 }
 
-func (r *AccountRepository) FindAllAccountTypes(user *models.User) ([]models.AccountType, error) {
+func (r *AccountRepository) FindAllAccountTypes(userID *int64) ([]models.AccountType, error) {
 	var records []models.AccountType
 	result := r.DB.Find(&records)
 	return records, result.Error

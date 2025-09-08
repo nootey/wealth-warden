@@ -2,7 +2,6 @@ package jobs
 
 import (
 	"go.uber.org/zap"
-	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
 )
@@ -14,7 +13,7 @@ type ActivityLogJob struct {
 	Category    string
 	Description *string
 	Payload     *utils.Changes
-	Causer      *models.User
+	Causer      *int64
 }
 
 func (j *ActivityLogJob) Process() {

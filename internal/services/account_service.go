@@ -3,7 +3,6 @@ package services
 import (
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"strconv"
@@ -37,7 +36,7 @@ func NewAccountService(
 	}
 }
 
-func (s *AccountService) LogBalanceChange(account *models.Account, user *models.User, change decimal.Decimal) error {
+func (s *AccountService) LogBalanceChange(account *models.Account, userID int64, change decimal.Decimal) error {
 	newBalance, err := s.Repo.FindBalanceForAccountID(nil, account.ID)
 	if err != nil {
 		return err
@@ -60,26 +59,19 @@ func (s *AccountService) LogBalanceChange(account *models.Account, user *models.
 		Category:    "balance",
 		Description: nil,
 		Payload:     changes,
-		Causer:      user,
+		Causer:      &userID,
 	})
 }
 
-func (s *AccountService) FetchAccountsPaginated(c *gin.Context, includeInactive bool) ([]models.Account, *utils.Paginator, error) {
+func (s *AccountService) FetchAccountsPaginated(userID int64, p utils.PaginationParams, includeInactive bool) ([]models.Account, *utils.Paginator, error) {
 
-	user, err := s.Ctx.AuthService.GetCurrentUser(c)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	queryParams := c.Request.URL.Query()
-	p := utils.GetPaginationParams(queryParams)
-	totalRecords, err := s.Repo.CountAccounts(user, p.Filters, includeInactive)
+	totalRecords, err := s.Repo.CountAccounts(userID, p.Filters, includeInactive)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
-	records, err := s.Repo.FindAccounts(user, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeInactive)
+	records, err := s.Repo.FindAccounts(userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeInactive)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -105,14 +97,9 @@ func (s *AccountService) FetchAccountsPaginated(c *gin.Context, includeInactive 
 	return records, paginator, nil
 }
 
-func (s *AccountService) FetchAccountByID(c *gin.Context, id int64) (*models.Account, error) {
+func (s *AccountService) FetchAccountByID(userID int64, id int64) (*models.Account, error) {
 
-	user, err := s.Ctx.AuthService.GetCurrentUser(c)
-	if err != nil {
-		return nil, err
-	}
-
-	record, err := s.Repo.FindAccountByID(nil, id, user.ID, true)
+	record, err := s.Repo.FindAccountByID(nil, id, userID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -120,31 +107,23 @@ func (s *AccountService) FetchAccountByID(c *gin.Context, id int64) (*models.Acc
 	return &record, nil
 }
 
-func (s *AccountService) FetchAllAccounts(c *gin.Context, includeInactive bool) ([]models.Account, error) {
-	user, err := s.Ctx.AuthService.GetCurrentUser(c)
-	if err != nil {
-		return nil, err
-	}
-	return s.Repo.FindAllAccounts(user, includeInactive)
+func (s *AccountService) FetchAllAccounts(userID int64, includeInactive bool) ([]models.Account, error) {
+	return s.Repo.FindAllAccounts(userID, includeInactive)
 }
 
-func (s *AccountService) FetchAllAccountTypes(c *gin.Context) ([]models.AccountType, error) {
+func (s *AccountService) FetchAllAccountTypes() ([]models.AccountType, error) {
 	return s.Repo.FindAllAccountTypes(nil)
 }
 
-func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountReq) error {
+func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) error {
 
-	user, err := s.Ctx.AuthService.GetCurrentUser(c)
-	if err != nil {
-		return err
-	}
 	changes := utils.InitChanges()
 
 	if req.Classification == "asset" && req.Balance.LessThan(decimal.NewFromInt(0)) {
 		return errors.New("provided initial balance cannot be negative")
 	}
 
-	accCount, err := s.Repo.CountAccounts(user, nil, false)
+	accCount, err := s.Repo.CountAccounts(userID, nil, false)
 	if err != nil {
 		return err
 	}
@@ -179,7 +158,7 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountReq) e
 		Name:          req.Name,
 		Currency:      models.DefaultCurrency,
 		AccountTypeID: accType.ID,
-		UserID:        user.ID,
+		UserID:        userID,
 	}
 
 	balanceAmountString := req.Balance.StringFixed(2)
@@ -226,7 +205,7 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountReq) e
 		Category:    "account",
 		Description: nil,
 		Payload:     changes,
-		Causer:      user,
+		Causer:      &userID,
 	})
 	if err != nil {
 		return err
@@ -235,12 +214,7 @@ func (s *AccountService) InsertAccount(c *gin.Context, req *models.AccountReq) e
 	return nil
 }
 
-func (s *AccountService) UpdateAccount(c *gin.Context, id int64, req *models.AccountReq) error {
-
-	user, err := s.Ctx.AuthService.GetCurrentUser(c)
-	if err != nil {
-		return err
-	}
+func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.AccountReq) error {
 
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
@@ -255,7 +229,7 @@ func (s *AccountService) UpdateAccount(c *gin.Context, id int64, req *models.Acc
 	}()
 
 	// Load record
-	exAcc, err := s.Repo.FindAccountByID(tx, id, user.ID, true)
+	exAcc, err := s.Repo.FindAccountByID(tx, id, userID, true)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
@@ -282,7 +256,7 @@ func (s *AccountService) UpdateAccount(c *gin.Context, id int64, req *models.Acc
 		Currency:      models.DefaultCurrency,
 		AccountTypeID: newAccType.ID,
 		IsActive:      exAcc.IsActive,
-		UserID:        user.ID,
+		UserID:        userID,
 	}
 
 	changes := utils.InitChanges()
@@ -329,14 +303,14 @@ func (s *AccountService) UpdateAccount(c *gin.Context, id int64, req *models.Acc
 
 			desc := "Manual adjustment"
 
-			category, err := s.TxnRepo.FindCategoryByClassification(tx, "adjustment", &user.ID)
+			category, err := s.TxnRepo.FindCategoryByClassification(tx, "adjustment", &userID)
 			if err != nil {
 				tx.Rollback()
 				return fmt.Errorf("can't find adjustment category: %w", err)
 			}
 
 			txn := &models.Transaction{
-				UserID:          user.ID,
+				UserID:          userID,
 				AccountID:       exAcc.ID,
 				CategoryID:      &category.ID,
 				TransactionType: txnType,
@@ -374,7 +348,7 @@ func (s *AccountService) UpdateAccount(c *gin.Context, id int64, req *models.Acc
 	// balance log (with the new end_balance)
 	if req.Balance != nil {
 		accForLog := &models.Account{ID: exAcc.ID, Name: acc.Name, Currency: exAcc.Currency}
-		if err := s.LogBalanceChange(accForLog, user, delta); err != nil {
+		if err := s.LogBalanceChange(accForLog, userID, delta); err != nil {
 			s.Ctx.Logger.Warn("Balance change logging failed")
 		}
 	}
@@ -387,7 +361,7 @@ func (s *AccountService) UpdateAccount(c *gin.Context, id int64, req *models.Acc
 			Category:    "account",
 			Description: nil,
 			Payload:     changes,
-			Causer:      user,
+			Causer:      &userID,
 		})
 		if err != nil {
 			return err
@@ -421,12 +395,7 @@ func (s *AccountService) UpdateAccountCashBalance(tx *gorm.DB, acc *models.Accou
 	return nil
 }
 
-func (s *AccountService) ToggleAccountActiveState(c *gin.Context, id int64) error {
-
-	user, err := s.Ctx.AuthService.GetCurrentUser(c)
-	if err != nil {
-		return err
-	}
+func (s *AccountService) ToggleAccountActiveState(userID int64, id int64) error {
 
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
@@ -441,12 +410,12 @@ func (s *AccountService) ToggleAccountActiveState(c *gin.Context, id int64) erro
 	}()
 
 	// Load record to confirm it exists
-	exAcc, err := s.Repo.FindAccountByID(tx, id, user.ID, false)
+	exAcc, err := s.Repo.FindAccountByID(tx, id, userID, false)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
-	accCount, err := s.Repo.CountAccounts(user, nil, false)
+	accCount, err := s.Repo.CountAccounts(userID, nil, false)
 	if err != nil {
 		return err
 	}
@@ -462,7 +431,7 @@ func (s *AccountService) ToggleAccountActiveState(c *gin.Context, id int64) erro
 
 	acc := &models.Account{
 		ID:       id,
-		UserID:   user.ID,
+		UserID:   userID,
 		IsActive: !exAcc.IsActive,
 	}
 
@@ -487,7 +456,7 @@ func (s *AccountService) ToggleAccountActiveState(c *gin.Context, id int64) erro
 			Category:    "account",
 			Description: nil,
 			Payload:     changes,
-			Causer:      user,
+			Causer:      &userID,
 		})
 		if err != nil {
 			return err
@@ -497,12 +466,7 @@ func (s *AccountService) ToggleAccountActiveState(c *gin.Context, id int64) erro
 	return nil
 }
 
-func (s *AccountService) CloseAccount(c *gin.Context, id int64) error {
-
-	user, err := s.Ctx.AuthService.GetCurrentUser(c)
-	if err != nil {
-		return err
-	}
+func (s *AccountService) CloseAccount(userID int64, id int64) error {
 
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
@@ -517,13 +481,13 @@ func (s *AccountService) CloseAccount(c *gin.Context, id int64) error {
 	}()
 
 	// Load the account
-	acc, err := s.Repo.FindAccountByID(tx, id, user.ID, false)
+	acc, err := s.Repo.FindAccountByID(tx, id, userID, false)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
 	// Close it
-	if err := s.Repo.CloseAccount(tx, acc.ID, user.ID); err != nil {
+	if err := s.Repo.CloseAccount(tx, acc.ID, userID); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -546,7 +510,7 @@ func (s *AccountService) CloseAccount(c *gin.Context, id int64) error {
 			Category:    "account",
 			Description: nil,
 			Payload:     changes,
-			Causer:      user,
+			Causer:      &userID,
 		})
 		if err != nil {
 			return err

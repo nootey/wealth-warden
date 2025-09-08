@@ -20,7 +20,7 @@ func NewSettingsHandler(SettingsService *services.SettingsService) *SettingsHand
 }
 
 func (h *SettingsHandler) GetGeneralSettings(c *gin.Context) {
-	record, err := h.Service.FetchGeneralSettings(c)
+	record, err := h.Service.FetchGeneralSettings()
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -30,7 +30,14 @@ func (h *SettingsHandler) GetGeneralSettings(c *gin.Context) {
 }
 
 func (h *SettingsHandler) GetUserSettings(c *gin.Context) {
-	record, err := h.Service.FetchUserSettings(c)
+
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	record, err := h.Service.FetchUserSettings(userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -40,6 +47,12 @@ func (h *SettingsHandler) GetUserSettings(c *gin.Context) {
 }
 
 func (h *SettingsHandler) UpdateUserSettings(c *gin.Context) {
+
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
 
 	var record models.SettingsUserReq
 	if err := c.ShouldBindJSON(&record); err != nil {
@@ -53,7 +66,7 @@ func (h *SettingsHandler) UpdateUserSettings(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateUserSettings(c, record); err != nil {
+	if err := h.Service.UpdateUserSettings(userID, record); err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

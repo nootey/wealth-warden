@@ -24,10 +24,17 @@ func NewAccountHandler(service *services.AccountService) *AccountHandler {
 
 func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 
-	q := c.Request.URL.Query()
-	includeInactive := strings.EqualFold(q.Get("inactive"), "true")
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
 
-	records, paginator, err := h.Service.FetchAccountsPaginated(c, includeInactive)
+	qp := c.Request.URL.Query()
+	p := utils.GetPaginationParams(qp)
+	includeInactive := strings.EqualFold(qp.Get("inactive"), "true")
+
+	records, paginator, err := h.Service.FetchAccountsPaginated(userID, p, includeInactive)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -46,10 +53,17 @@ func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 }
 
 func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
+
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
 	q := c.Request.URL.Query()
 	includeInactive := strings.EqualFold(q.Get("inactive"), "true")
 
-	records, err := h.Service.FetchAllAccounts(c, includeInactive)
+	records, err := h.Service.FetchAllAccounts(userID, includeInactive)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -60,8 +74,13 @@ func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
 
 func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 
-	idStr := c.Param("id")
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
 
+	idStr := c.Param("id")
 	if idStr == "" {
 		err := errors.New("invalid id provided")
 		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
@@ -73,7 +92,7 @@ func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
 		return
 	}
-	records, err := h.Service.FetchAccountByID(c, id)
+	records, err := h.Service.FetchAccountByID(userID, id)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -83,7 +102,8 @@ func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 }
 
 func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
-	records, err := h.Service.FetchAllAccountTypes(c)
+
+	records, err := h.Service.FetchAllAccountTypes()
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -94,8 +114,13 @@ func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
 
 func (h *AccountHandler) InsertAccount(c *gin.Context) {
 
-	var record *models.AccountReq
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
 
+	var record *models.AccountReq
 	if err := c.ShouldBindJSON(&record); err != nil {
 		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
@@ -107,7 +132,7 @@ func (h *AccountHandler) InsertAccount(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.InsertAccount(c, record); err != nil {
+	if err := h.Service.InsertAccount(userID, record); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -118,8 +143,13 @@ func (h *AccountHandler) InsertAccount(c *gin.Context) {
 
 func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 
-	idStr := c.Param("id")
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
 
+	idStr := c.Param("id")
 	if idStr == "" {
 		err := errors.New("invalid id provided")
 		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
@@ -145,7 +175,7 @@ func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateAccount(c, id, req); err != nil {
+	if err := h.Service.UpdateAccount(userID, id, req); err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -156,8 +186,13 @@ func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 
 func (h *AccountHandler) ToggleAccountActiveState(c *gin.Context) {
 
-	idStr := c.Param("id")
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
 
+	idStr := c.Param("id")
 	if idStr == "" {
 		err := errors.New("invalid id provided")
 		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
@@ -170,7 +205,7 @@ func (h *AccountHandler) ToggleAccountActiveState(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.ToggleAccountActiveState(c, id); err != nil {
+	if err := h.Service.ToggleAccountActiveState(userID, id); err != nil {
 		utils.ErrorMessage(c, "Toggle error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -181,8 +216,13 @@ func (h *AccountHandler) ToggleAccountActiveState(c *gin.Context) {
 
 func (h *AccountHandler) CloseAccount(c *gin.Context) {
 
-	idStr := c.Param("id")
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
 
+	idStr := c.Param("id")
 	if idStr == "" {
 		err := errors.New("invalid id provided")
 		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
@@ -195,7 +235,7 @@ func (h *AccountHandler) CloseAccount(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.CloseAccount(c, id); err != nil {
+	if err := h.Service.CloseAccount(userID, id); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
