@@ -17,7 +17,12 @@ const emit = defineEmits<{
 }>();
 
 const localCategories = computed(() => {
-    return props.categories.filter((category) => !category.name.startsWith("("))
+    return props.categories.filter(
+        (c) =>
+            !c.name.startsWith("(") &&
+            c.display_name !== "Expense" &&
+            c.display_name !== "Income"
+    )
 })
 
 const updateModal = ref(false);
