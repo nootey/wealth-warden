@@ -307,10 +307,6 @@ async function manageRecord() {
             ? record.value.balance.start_balance
             : record.value.balance.end_balance
 
-    if (balanceToSend !== null && selectedClassification.value === "Liability") {
-        balanceToSend = new Decimal(balanceToSend).abs().negated().toString(); // NEW
-    }
-
     const recordData: any = {
         account_type_id: at.id,
         name: record.value.name,
