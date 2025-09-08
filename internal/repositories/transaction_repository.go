@@ -152,30 +152,35 @@ func (r *TransactionRepository) CountTransfers(user *models.User, includeDeleted
 	return totalRecords, nil
 }
 
-func (r *TransactionRepository) scopeCategories(db *gorm.DB, userID *int64) *gorm.DB {
-	q := db.Model(&models.Category{}).Where("deleted_at IS NULL")
+func (r *TransactionRepository) scopeCategories(db *gorm.DB, userID *int64, includeDeleted bool) *gorm.DB {
+	q := db.Model(&models.Category{})
+
+	if !includeDeleted {
+		q = q.Where("deleted_at IS NULL")
+	}
+
 	if userID != nil {
 		return q.Where("(user_id IS NULL OR user_id = ?)", *userID)
 	}
 	return q.Where("user_id IS NULL")
 }
 
-func (r *TransactionRepository) FindAllCategories(userID *int64) ([]models.Category, error) {
+func (r *TransactionRepository) FindAllCategories(userID *int64, includeDeleted bool) ([]models.Category, error) {
 	var records []models.Category
-	tx := r.scopeCategories(r.DB, userID).
+	tx := r.scopeCategories(r.DB, userID, includeDeleted).
 		Order("classification, name").
 		Find(&records)
 	return records, tx.Error
 }
 
-func (r *TransactionRepository) FindCategoryByID(tx *gorm.DB, ID int64, userID *int64) (models.Category, error) {
+func (r *TransactionRepository) FindCategoryByID(tx *gorm.DB, ID int64, userID *int64, includeDeleted bool) (models.Category, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
 
 	var record models.Category
-	txn := r.scopeCategories(db, userID).
+	txn := r.scopeCategories(db, userID, includeDeleted).
 		Where("id = ?", ID).
 		First(&record)
 	return record, txn.Error
@@ -188,7 +193,7 @@ func (r *TransactionRepository) FindCategoryByClassification(tx *gorm.DB, classi
 	}
 
 	var record models.Category
-	txn := r.scopeCategories(db, userID).
+	txn := r.scopeCategories(db, userID, false).
 		Where("classification = ?", classification).
 		Order("name").
 		First(&record)
@@ -202,7 +207,7 @@ func (r *TransactionRepository) FindCategoryByName(tx *gorm.DB, name string, use
 	}
 
 	var record models.Category
-	txn := r.scopeCategories(db, userID).
+	txn := r.scopeCategories(db, userID, false).
 		Where("name = ?", name).
 		Order("name").
 		First(&record)

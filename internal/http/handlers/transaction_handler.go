@@ -109,7 +109,11 @@ func (h *TransactionHandler) GetTransactionByID(c *gin.Context) {
 }
 
 func (h *TransactionHandler) GetCategories(c *gin.Context) {
-	records, err := h.Service.FetchAllCategories(c)
+
+	q := c.Request.URL.Query()
+	includeDeleted := strings.EqualFold(q.Get("deleted"), "true")
+
+	records, err := h.Service.FetchAllCategories(c, includeDeleted)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -121,6 +125,8 @@ func (h *TransactionHandler) GetCategories(c *gin.Context) {
 func (h *TransactionHandler) GetCategoryByID(c *gin.Context) {
 
 	idStr := c.Param("id")
+	q := c.Request.URL.Query()
+	includeDeleted := strings.EqualFold(q.Get("deleted"), "true")
 
 	if idStr == "" {
 		err := errors.New("invalid id provided")
@@ -134,7 +140,7 @@ func (h *TransactionHandler) GetCategoryByID(c *gin.Context) {
 		return
 	}
 
-	records, err := h.Service.FetchCategoryByID(c, id)
+	records, err := h.Service.FetchCategoryByID(c, id, includeDeleted)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

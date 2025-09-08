@@ -136,14 +136,14 @@ func (s *TransactionService) FetchTransactionByID(c *gin.Context, id int64, incl
 	return &record, nil
 }
 
-func (s *TransactionService) FetchAllCategories(c *gin.Context) ([]models.Category, error) {
+func (s *TransactionService) FetchAllCategories(c *gin.Context, includeDeleted bool) ([]models.Category, error) {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
 	if err != nil {
 		return nil, err
 	}
 
-	categories, err := s.Repo.FindAllCategories(&user.ID)
+	categories, err := s.Repo.FindAllCategories(&user.ID, includeDeleted)
 	if err != nil {
 		return nil, err
 	}
@@ -151,14 +151,14 @@ func (s *TransactionService) FetchAllCategories(c *gin.Context) ([]models.Catego
 	return categories, nil
 }
 
-func (s *TransactionService) FetchCategoryByID(c *gin.Context, id int64) (*models.Category, error) {
+func (s *TransactionService) FetchCategoryByID(c *gin.Context, id int64, includeDeleted bool) (*models.Category, error) {
 
 	user, err := s.Ctx.AuthService.GetCurrentUser(c)
 	if err != nil {
 		return nil, err
 	}
 
-	record, err := s.Repo.FindCategoryByID(nil, id, &user.ID)
+	record, err := s.Repo.FindCategoryByID(nil, id, &user.ID, includeDeleted)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +192,7 @@ func (s *TransactionService) InsertTransaction(c *gin.Context, req *models.Trans
 
 	var category models.Category
 	if req.CategoryID != nil {
-		category, err = s.Repo.FindCategoryByID(tx, *req.CategoryID, &user.ID)
+		category, err = s.Repo.FindCategoryByID(tx, *req.CategoryID, &user.ID, false)
 		if err != nil {
 			return fmt.Errorf("can't find category with given id %w", err)
 		}
@@ -499,7 +499,10 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 	}
 	var oldCategory models.Category
 	if exTr.CategoryID != nil {
-		oldCategory, _ = s.Repo.FindCategoryByID(tx, *exTr.CategoryID, &user.ID)
+		oldCategory, err = s.Repo.FindCategoryByID(tx, *exTr.CategoryID, &user.ID, true)
+		if err != nil {
+			return fmt.Errorf("can't find existing category with given id %w", err)
+		}
 	}
 
 	// Resolve new relations  from req
@@ -510,9 +513,9 @@ func (s *TransactionService) UpdateTransaction(c *gin.Context, id int64, req *mo
 
 	var newCategory models.Category
 	if req.CategoryID != nil {
-		newCategory, err = s.Repo.FindCategoryByID(tx, *req.CategoryID, &user.ID)
+		newCategory, err = s.Repo.FindCategoryByID(tx, *req.CategoryID, &user.ID, false)
 		if err != nil {
-			return fmt.Errorf("can't find category with given id %w", err)
+			return fmt.Errorf("can't find new category with given id %w", err)
 		}
 	} else {
 		newCategory, err = s.Repo.FindCategoryByClassification(tx, "uncategorized", &user.ID)
@@ -656,7 +659,7 @@ func (s *TransactionService) UpdateCategory(c *gin.Context, id int64, req *model
 		}
 	}()
 
-	exCat, err := s.Repo.FindCategoryByID(tx, id, &user.ID)
+	exCat, err := s.Repo.FindCategoryByID(tx, id, &user.ID, false)
 	if err != nil {
 		return fmt.Errorf("can't find category with given id %w", err)
 	}
@@ -738,7 +741,7 @@ func (s *TransactionService) DeleteTransaction(c *gin.Context, id int64) error {
 
 	var category models.Category
 	if tr.CategoryID != nil {
-		cat, err := s.Repo.FindCategoryByID(tx, *tr.CategoryID, &user.ID)
+		cat, err := s.Repo.FindCategoryByID(tx, *tr.CategoryID, &user.ID, true)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("can't find category with given id %w", err)
@@ -949,7 +952,7 @@ func (s *TransactionService) DeleteCategory(c *gin.Context, id int64) error {
 		}
 	}()
 
-	cat, err := s.Repo.FindCategoryByID(tx, id, &user.ID)
+	cat, err := s.Repo.FindCategoryByID(tx, id, &user.ID, true)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find category with given id: %w", err)
