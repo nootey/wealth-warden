@@ -261,7 +261,6 @@ provide("removeFilter", removeFilter);
                     :filters="filters"
                     :include_deleted="includeDeleted"
                     :fetchPage="loadTransactionsPage"
-                    :rowClass="vueHelper.deletedRowClass"
                     @sortChange="switchSort"
                     @rowClick="(id) => manipulateDialog('updateTransaction', id)"
                     @deleteClick="({ id, tx_type }) => deleteConfirmation(id, tx_type)"

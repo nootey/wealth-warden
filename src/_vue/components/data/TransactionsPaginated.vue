@@ -24,7 +24,6 @@ const props = defineProps<{
         include_deleted?: boolean;
     }) => Promise<{ data: Transaction[]; total: number }>;
     readOnly: boolean;
-    rowClass?: (row: any) => string | undefined;
 }>();
 
 const emits = defineEmits<{
