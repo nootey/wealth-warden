@@ -73,5 +73,13 @@ export const useTransactionStore = defineStore('transaction', {
                 throw err;
             }
         },
+        async restoreCategoryName(id: number) {
+            try {
+                const response = await apiClient.post(`${this.apiPrefix}/categories/restore/name`, { id });
+                return response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
     },
 });

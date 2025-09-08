@@ -9,6 +9,7 @@ import toastHelper from "../../../utils/toast_helper.ts";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
 import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
 
 const props = defineProps<{
     mode?: "create" | "update";
@@ -156,6 +157,27 @@ async function restoreCategory() {
     }
 }
 
+function checkCategoryName() {
+    return record.value.display_name.toLowerCase() != vueHelper.normalize(record.value.name)
+}
+
+async function restoreCategoryName() {
+
+    try {
+
+        let response = await transactionStore.restoreCategoryName(
+            props.recordId!
+        );
+
+        v$.value.record.$reset();
+        toastStore.successResponseToast(response);
+        emit("completeOperation")
+
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
+}
+
 </script>
 
 <template>
@@ -164,6 +186,11 @@ async function restoreCategory() {
         <div v-if="readOnly">
             <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
         </div>
+        <div v-else-if="mode === 'update' && record.is_default && checkCategoryName()" class="flex flex-row w-full align-items-center gap-2">
+            <i class="pi pi-spin pi-refresh hover-icon" @click="restoreCategoryName"></i>
+            <span class="text-sm" style="color: var(--text-secondary)">Restore default category name.</span>
+        </div>
+
 
         <div class="flex flex-column gap-3 p-1">
             <div class="flex flex-row w-full">
@@ -187,7 +214,6 @@ async function restoreCategory() {
                 </div>
             </div>
         </div>
-
 
         <div v-if="mode === 'update' && record.is_default" class="flex flex-row w-full align-items-center gap-2">
             <i class="pi pi-info-circle"></i>

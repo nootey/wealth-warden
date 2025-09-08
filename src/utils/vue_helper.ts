@@ -18,6 +18,11 @@ const vueHelper = {
         const str = String(value);
         return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
     },
+    normalize(value: unknown): string {
+        if (value == null) return '';
+        const str = String(value);
+        return str.replace(" ", "_");
+    },
     formatString: (value: string) => {
         if (!value) return "";
 
