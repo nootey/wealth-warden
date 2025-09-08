@@ -1107,3 +1107,62 @@ func (s *TransactionService) RestoreTransaction(c *gin.Context, id int64) error 
 
 	return nil
 }
+
+func (s *TransactionService) RestoreCategory(c *gin.Context, id int64) error {
+
+	user, err := s.Ctx.AuthService.GetCurrentUser(c)
+	if err != nil {
+		return err
+	}
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Load the record
+	cat, err := s.Repo.FindCategoryByID(tx, id, &user.ID, true)
+	if err != nil {
+		return fmt.Errorf("can't find existing category with given id %w", err)
+	}
+	if cat.DeletedAt == nil {
+		tx.Rollback()
+		return fmt.Errorf("category is not deleted")
+	}
+
+	// Unmark as soft deleted
+	if err := s.Repo.RestoreCategory(tx, cat.ID, &user.ID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Log
+	changes := utils.InitChanges()
+	utils.CompareChanges("", cat.DisplayName, changes, "name")
+	utils.CompareChanges("", cat.Classification, changes, "classification")
+
+	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "restore",
+		Category:    "classification",
+		Description: nil,
+		Payload:     changes,
+		Causer:      user,
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}

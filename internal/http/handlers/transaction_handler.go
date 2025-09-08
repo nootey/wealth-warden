@@ -380,3 +380,20 @@ func (h *TransactionHandler) RestoreTransaction(c *gin.Context) {
 
 	utils.SuccessMessage(c, "Record restored", "Success", http.StatusOK)
 }
+
+func (h *TransactionHandler) RestoreCategory(c *gin.Context) {
+
+	var req *models.TrRestoreReq
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.RestoreCategory(c, req.ID); err != nil {
+		utils.ErrorMessage(c, "Restore error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record restored", "Success", http.StatusOK)
+}

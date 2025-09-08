@@ -437,3 +437,26 @@ func (r *TransactionRepository) RestoreTransaction(tx *gorm.DB, id, userID int64
 		})
 	return res.Error
 }
+
+func (r *TransactionRepository) RestoreCategory(tx *gorm.DB, id int64, userID *int64) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	scope := db.
+		Model(&models.Category{}).
+		Unscoped().
+		Where("id = ? AND deleted_at IS NOT NULL", id).
+		Where(
+			db.Where("user_id = ?", *userID).
+				Or("is_default = ? AND user_id IS NULL", true),
+		)
+
+	res := scope.Updates(map[string]any{
+		"deleted_at": gorm.Expr("NULL"),
+		"updated_at": time.Now(),
+	})
+
+	return res.Error
+}
