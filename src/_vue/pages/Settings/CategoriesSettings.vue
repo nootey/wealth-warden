@@ -8,6 +8,7 @@ import type {Category} from "../../../models/transaction_models.ts";
 import CategoriesDisplay from "../../components/data/CategoriesDisplay.vue";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import CategoryForm from "../../components/forms/CategoryForm.vue";
+import {useConfirm} from "primevue/useconfirm";
 
 const transactionStore = useTransactionStore();
 const toastStore = useToastStore();
@@ -16,6 +17,8 @@ const sharedStore = useSharedStore();
 onMounted(async () => {
     await transactionStore.getCategories();
 });
+
+const confirm = useConfirm();
 
 const catRef = ref<InstanceType<typeof CategoriesDisplay> | null>(null);
 const createModal = ref(false);
@@ -40,7 +43,7 @@ async function handleEmit(type: string, data?: any) {
             break;
         }
         case 'deleteCategory': {
-            await deleteCategory(data);
+            await deleteConfirmation(data.id, data.name, data.deleted);
             await getCategories();
             break;
         }
@@ -50,8 +53,17 @@ async function handleEmit(type: string, data?: any) {
     }
 }
 
-async function deleteCategory(id: number) {
-    console.log(id);
+async function deleteConfirmation(id: number, name: string, deleted: Date | null) {
+    confirm.require({
+        header: 'Confirm operation',
+        message: `You are about to ${!deleted ? 'archive' : 'delete'} category: "${name}". ${!deleted ? '' : 'This action is irreversible!'}`,
+        rejectProps: { label: 'Cancel' },
+        acceptProps: { label: 'Continue', severity: 'danger' },
+        accept: () => deleteRecord(id),
+    });
+}
+
+async function deleteRecord(id: number) {
     try {
         let response = await sharedStore.deleteRecord(
             "transactions/categories",
@@ -97,7 +109,7 @@ async function deleteCategory(id: number) {
                             ref="catRef"
                             :categories="categories"
                             @completeOperation="handleEmit('completeOperation')"
-                            @deleteCategory="(id) => handleEmit('deleteCategory', id)">
+                            @deleteCategory="(id, name, deleted_at) => handleEmit('deleteCategory', {id: id, name: name, deleted: deleted_at})">
 
                     </CategoriesDisplay>
                 </div>

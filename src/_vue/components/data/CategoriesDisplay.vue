@@ -13,7 +13,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (e: "completeOperation"): void;
-    (e: "deleteCategory", payload: { id: number }): void;
+    (e: "deleteCategory", id: number, name: string, deleted_at: Date | null): void;
 }>();
 
 const localCategories = computed(() => {
@@ -47,7 +47,7 @@ async function handleEmit(type: string, data?: any) {
             break;
         }
         case "deleteCategory": {
-            emit("deleteCategory", data);
+            emit("deleteCategory", data.id, data.display_name, data.deleted_at);
             break;
         }
     }
@@ -95,7 +95,7 @@ async function handleEmit(type: string, data?: any) {
                        @click="openModal('update', data.id!)"/>
                     <i class="pi pi-trash hover-icon text-xs" v-tooltip="'Delete category'"
                        style="color: var(--p-red-300);"
-                       @click="$emit('deleteCategory', data.id)"></i>
+                       @click="handleEmit('deleteCategory', data)"></i>
                 </div>
             </template>
         </Column>
