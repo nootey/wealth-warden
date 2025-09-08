@@ -19,10 +19,12 @@ export const useSharedStore = defineStore('shared', {
                 throw err;
             }
         },
-        async getRecordByID(prefix: string, id: number) {
+        async getRecordByID(prefix: string, id: number, params?: object) {
             try {
 
-                const response = await apiClient.get(`${prefix}/${id}`);
+                const response = await apiClient.get(`${prefix}/${id}`, {
+                    params: params
+                });
                 return response.data;
             } catch (err) {
                 throw err;
