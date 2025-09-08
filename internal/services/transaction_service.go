@@ -664,7 +664,7 @@ func (s *TransactionService) UpdateCategory(c *gin.Context, id int64, req *model
 		return fmt.Errorf("can't find category with given id %w", err)
 	}
 
-	if exCat.IsDefault && (exCat.DisplayName != req.DisplayName) {
+	if exCat.IsDefault && (exCat.Classification != req.Classification) {
 		return errors.New("can't edit some parts of a default category")
 	}
 
