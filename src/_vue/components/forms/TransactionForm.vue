@@ -2,7 +2,7 @@
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
-import {computed, onMounted, ref} from "vue";
+import {computed, nextTick, onMounted, ref} from "vue";
 import type {Category, Transaction, Transfer} from "../../../models/transaction_models.ts";
 import {required} from "@vuelidate/validators";
 import {decimalValid, decimalMin, decimalMax} from "../../../validators/currency.ts";
@@ -15,6 +15,7 @@ import dateHelper from "../../../utils/date_helper.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import TransferForm from "./TransferForm.vue";
 import toastHelper from "../../../utils/toast_helper.ts";
+import ShowLoading from "../base/ShowLoading.vue";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -59,6 +60,8 @@ const showCantRestore = computed(() =>
 const isTransferSelected = computed(() =>
     (selectedParentCategory.value?.name ?? '').toLowerCase() === 'transfer'
 );
+
+const loading = ref(false);
 
 const accounts = computed<Account[]>(() => accountStore.accounts);
 const transfer = ref<Transfer>({
@@ -233,6 +236,7 @@ async function isRecordValid() {
 
 async function loadRecord(id: number) {
   try {
+    loading.value = true;
     const data = await transactionStore.getTransactionByID(id, true);
 
     record.value = {
@@ -247,6 +251,9 @@ async function loadRecord(id: number) {
                 (p.classification?.toLowerCase?.() === String(data.transaction_type).toLowerCase()) ||
                 (p.name?.toLowerCase?.() === String(data.transaction_type).toLowerCase())
         ) || null;
+
+    await nextTick();
+    loading.value = false;
 
   } catch (err) {
     toastStore.errorResponseToast(err);
@@ -352,7 +359,7 @@ async function restoreTransaction() {
 
 <template>
 
-  <div class="flex flex-column gap-3 p-1">
+  <div v-if="!loading" class="flex flex-column gap-3 p-1">
 
       <div v-if="!readOnly" class="flex flex-row w-full justify-content-center">
           <div class="flex flex-column w-50">
@@ -443,6 +450,7 @@ async function restoreTransaction() {
 
 
   </div>
+  <ShowLoading v-else :numFields="7" />
 
 </template>
 

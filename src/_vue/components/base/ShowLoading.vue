@@ -1,20 +1,31 @@
 <script setup lang="ts">
-function getDimension(min: number, max: number){
-    let rand = Math.floor(Math.random() * (max - min + 1)) + min;
-    return rand.toString()
+import { computed } from 'vue';
+
+const props = defineProps<{
+    numFields: number;
+}>();
+
+function randInt(min: number, max: number) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
 }
+
+const skeletons = computed(() =>
+    Array.from({ length: props.numFields }, (_, i) => ({
+        id: i,
+        width: `${randInt(20, 100)}%`,
+        height: `${randInt(1, 3)}rem`,
+    }))
+);
 </script>
 
 <template>
     <div class="flex flex-column justify-content-center mt-4 gap-4" style="width: 75%; margin: 0 auto;">
-        <Skeleton borderRadius="16px" :width="getDimension(20, 100)+'%'" :height="getDimension(1, 2)+'rem'" />
-        <Skeleton borderRadius="16px" :width="getDimension(20, 100)+'%'" :height="getDimension(1, 3)+'rem'" />
-        <Skeleton borderRadius="16px" :width="getDimension(20, 100)+'%'" :height="getDimension(1, 1)+'rem'" />
-        <Skeleton borderRadius="16px" :width="getDimension(20, 100)+'%'" :height="getDimension(1, 1)+'rem'" />
-        <Skeleton borderRadius="16px" :width="getDimension(20, 100)+'%'" :height="getDimension(1, 3)+'rem'" />
+        <Skeleton
+                v-for="s in skeletons"
+                :key="s.id"
+                borderRadius="16px"
+                :width="s.width"
+                :height="s.height"
+        />
     </div>
 </template>
-
-<style scoped>
-
-</style>

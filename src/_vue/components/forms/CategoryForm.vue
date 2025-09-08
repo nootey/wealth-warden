@@ -234,7 +234,7 @@ async function restoreCategoryName() {
         </div>
 
     </div>
-    <ShowLoading v-else />
+    <ShowLoading v-else :numFields="4" />
 
 </template>
 

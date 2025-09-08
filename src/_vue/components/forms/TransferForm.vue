@@ -7,6 +7,7 @@ import {required} from "@vuelidate/validators";
 import ValidationError from "../validation/ValidationError.vue";
 import {decimalMax, decimalMin, decimalValid} from "../../../validators/currency.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
+import ShowLoading from "../base/ShowLoading.vue";
 
 const props = defineProps<{
     accounts: Account[];
@@ -16,6 +17,8 @@ const props = defineProps<{
 const emit = defineEmits<{
     (event: "update:transfer", value: Transfer): void;
 }>();
+
+const loading = ref(false);
 
 const localTransfer = ref<{
     source: Account | null;
@@ -94,13 +97,13 @@ function searchAccount(type: "source" | "destination", event: { query: string })
     }, 200);
 }
 
-// Expose validator so parent can call it
 defineExpose({ v$, localTransfer });
 
 </script>
 
 <template>
-    <div class="flex flex-column gap-3">
+
+    <div v-if="!loading" class="flex flex-column gap-3">
 
         <div class="flex flex-row w-full">
             <div class="flex flex-column gap-1 w-full">
@@ -148,4 +151,6 @@ defineExpose({ v$, localTransfer });
     </div>
 
     </div>
+    <ShowLoading v-else :numFields="6" />
+
 </template>

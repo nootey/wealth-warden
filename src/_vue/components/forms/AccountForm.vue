@@ -14,6 +14,7 @@ import currencyHelper from "../../../utils/currency_helper.ts";
 import {useConfirm} from "primevue/useconfirm";
 import toastHelper from "../../../utils/toast_helper.ts";
 import Decimal from "decimal.js";
+import ShowLoading from "../base/ShowLoading.vue";
 
 const props = defineProps<{
     mode?: "create" | "update";
@@ -361,7 +362,7 @@ async function manageRecord() {
 
 <template>
 
-    <div class="flex flex-column gap-3 p-1">
+    <div v-if="!initializing" class="flex flex-column gap-3 p-1">
 
         <div v-if="!readOnly" class="flex flex-row w-full justify-content-center">
           <div class="flex flex-column w-50">
@@ -435,6 +436,7 @@ async function manageRecord() {
         </div>
 
     </div>
+    <ShowLoading v-else :numFields="6" />
 
 
 </template>
