@@ -35,6 +35,7 @@ onMounted(async () => {
 const readOnly = ref(false);
 const loading = ref(false);
 
+const changedName = ref(false);
 const record = ref<Category>(initData());
 
 const classifications = ref<string[]>(['income', 'expense']);
@@ -158,7 +159,8 @@ async function restoreCategory() {
 }
 
 function checkCategoryName() {
-    return record.value.display_name.toLowerCase() != vueHelper.normalize(record.value.name)
+    if(changedName.value) return;
+    return record.value.name.toLowerCase() != vueHelper.normalize(record.value.display_name).toLowerCase()
 }
 
 async function restoreCategoryName() {
@@ -198,7 +200,8 @@ async function restoreCategoryName() {
                     <ValidationError :isRequired="true" :message="v$.record.display_name.$errors[0]?.$message">
                         <label>Name</label>
                     </ValidationError>
-                    <InputText :readonly="readOnly" :disabled="readOnly" size="small" v-model="record.display_name"></InputText>
+                    <InputText :readonly="readOnly" :disabled="readOnly" size="small"
+                               v-model="record.display_name" @update:model-value="changedName=true"></InputText>
                 </div>
             </div>
 
