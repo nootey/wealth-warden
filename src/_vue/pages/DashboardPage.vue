@@ -104,7 +104,7 @@ watch(selectedDTO, (val: any) => {
         <div class="flex flex-column justify-content-center p-2 w-full gap-3 border-round-md"
              style="max-width: 1200px;">
 
-            <SlotSkeleton bg="primary">
+            <SlotSkeleton bg="transparent">
                 <div class="w-full flex flex-row justify-content-between p-2 gap-2">
                     <div class="w-full flex flex-column gap-2">
                         <div style="font-weight: bold;"> Welcome back {{ authStore?.user?.display_name }} </div>
@@ -144,6 +144,17 @@ watch(selectedDTO, (val: any) => {
                 <ShowLoading v-else :numFields="6" />
             </SlotSkeleton>
 
+            <SlotSkeleton bg="secondary">
+                <div class="w-full flex flex-row justify-content-between p-2 gap-2">
+                    Assets - WIP
+                </div>
+            </SlotSkeleton>
+
+            <SlotSkeleton bg="secondary">
+                <div class="w-full flex flex-row justify-content-between p-2 gap-2">
+                    Liabilities - WIP
+                </div>
+            </SlotSkeleton>
 
     </div>
     </main>
