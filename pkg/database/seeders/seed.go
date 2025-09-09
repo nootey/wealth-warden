@@ -26,6 +26,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, seederTy
 			workers.SeedAccountTypes,
 			workers.SeedAccounts,
 			workers.SeedCategories,
+			workers.SeedTransactions,
 		}
 	case "basic":
 		seeders = []SeederFunc{
