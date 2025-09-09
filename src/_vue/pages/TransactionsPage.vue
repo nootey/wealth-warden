@@ -214,23 +214,16 @@ provide("removeFilter", removeFilter);
 
   <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
 
-    <div class="flex flex-row justify-content-between align-items-center p-3  gap-2 w-full"
-         style="border-top-right-radius: 8px; border-top-left-radius: 8px;
-         border: 1px solid var(--border-color);background: var(--background-secondary);
-         max-width: 1000px;">
+      <div class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
+           style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;">
 
-      <div style="font-weight: bold;">Transactions</div>
-      <i class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/categories')" v-tooltip="'Go to categories settings.'"></i>
+        <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
+          <div style="font-weight: bold;">Transactions</div>
+          <i class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/categories')" v-tooltip="'Go to categories settings.'"></i>
+          <Button label="New transaction" icon="pi pi-plus" class="main-button" @click="manipulateDialog('addTransaction', true)"></Button>
+      </div>
 
-      <Button label="New transaction" icon="pi pi-plus" class="main-button" @click="manipulateDialog('addTransaction', true)"></Button>
-    </div>
-
-    <div class="flex flex-column justify-content-center p-3 w-full gap-3"
-         style="border-bottom-right-radius: 8px; border-bottom-left-radius: 8px;
-         border: 1px solid var(--border-color); background: var(--background-secondary);
-         max-width: 1000px;">
-
-      <div class="flex flex-row w-full">
+        <div class="flex flex-row w-full">
         <ActionRow>
             <template #activeFilters>
             <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
