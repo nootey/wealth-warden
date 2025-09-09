@@ -1,7 +1,20 @@
 <script setup lang="ts">
 import {useAuthStore} from "../../services/stores/auth_store.ts";
+import {useAccountStore} from "../../services/stores/account_store.ts";
+import {useToastStore} from "../../services/stores/toast_store.ts";
 
 const authStore = useAuthStore();
+const accountStore = useAccountStore();
+const toastStore = useToastStore();
+
+async function backfillBalances(){
+    try {
+        const response = await accountStore.backfillBalances();
+        toastStore.successResponseToast(response.data);
+    } catch (err) {
+        toastStore.errorResponseToast(err)
+    }
+}
 
 </script>
 
@@ -15,6 +28,8 @@ const authStore = useAuthStore();
         <div> Welcome back {{ authStore?.user?.display_name }} </div>
         <div>{{ "Here's what's happening with your finances." }} </div>
       </div>
+
+        <Button label="magic" @click="backfillBalances"></Button>
 
     </div>
   </main>

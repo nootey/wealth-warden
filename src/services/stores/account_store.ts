@@ -34,5 +34,12 @@ export const useAccountStore = defineStore('account', {
                 throw err;
             }
         },
+        async backfillBalances() {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/balances/backfill`);
+            } catch (err) {
+                throw err;
+            }
+        },
     },
 });
