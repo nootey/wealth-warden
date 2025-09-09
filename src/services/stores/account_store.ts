@@ -41,5 +41,15 @@ export const useAccountStore = defineStore('account', {
                 throw err;
             }
         },
+        async getNetWorth(currency = "EUR") {
+            try {
+                const response = await apiClient.get(`${this.apiPrefix}/charts/networth`, {
+                    params: { range: "1m", currency }
+                });
+                return response.data;
+            } catch (err) {
+                throw err;
+            }
+        }
     },
 });

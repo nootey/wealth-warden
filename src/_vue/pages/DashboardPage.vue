@@ -2,10 +2,18 @@
 import {useAuthStore} from "../../services/stores/auth_store.ts";
 import {useAccountStore} from "../../services/stores/account_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
+import {onMounted, ref} from "vue";
 
 const authStore = useAuthStore();
 const accountStore = useAccountStore();
 const toastStore = useToastStore();
+
+const points = ref([]);
+
+onMounted(async () => {
+    points.value = await accountStore.getNetWorth();
+    console.log(points.value);
+})
 
 async function backfillBalances(){
     try {
@@ -30,6 +38,10 @@ async function backfillBalances(){
       </div>
 
         <Button label="magic" @click="backfillBalances"></Button>
+
+        <div v-if="points">
+            {{ points }}
+        </div>
 
     </div>
   </main>
