@@ -245,3 +245,22 @@ func (h *AccountHandler) CloseAccount(c *gin.Context) {
 
 	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
 }
+
+func (h *AccountHandler) BackfillBalancesForUser(c *gin.Context) {
+
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	from := c.Query("from")
+	to := c.Query("to")
+
+	if err := h.Service.BackfillBalancesForUser(userID, from, to); err != nil {
+		utils.ErrorMessage(c, "Backfill error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Backfill completed", "Success", http.StatusOK)
+}

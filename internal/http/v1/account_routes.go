@@ -14,4 +14,6 @@ func AccountRoutes(apiGroup *gin.RouterGroup, handler *handlers.AccountHandler) 
 	apiGroup.PUT(":id", handler.UpdateAccount)
 	apiGroup.POST(":id/active", handler.ToggleAccountActiveState)
 	apiGroup.DELETE(":id", handler.CloseAccount)
+
+	apiGroup.POST("/balances/backfill", handler.BackfillBalancesForUser)
 }
