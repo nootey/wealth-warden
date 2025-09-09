@@ -12,6 +12,7 @@ import {
     Tooltip, Legend, Filler, CategoryScale
 } from 'chart.js'
 import 'chartjs-adapter-date-fns'
+import dateHelper from "../../../utils/date_helper.ts";
 
 ChartJS.register(
     LineController,
@@ -71,13 +72,33 @@ const options = computed(() => ({
     scales: {
         x: {
             type: 'timeseries',
-            time: { unit: 'day', tooltipFormat: 'PP' },
-            ticks: { maxRotation: 0, autoSkip: true },
-            grid: { display: false }
+            bounds: 'data',
+            grid: { display: false },
+            afterBuildTicks: (scale: any) => {
+                const t = scale.ticks
+                if (!t?.length) return
+                const first = t[0]
+                const last  = t[t.length - 1]
+                scale.ticks = first.value === last.value ? [first] : [first, last]
+            },
+
+            ticks: {
+                autoSkip: false,
+                maxRotation: 0,
+                minRotation: 0,
+                callback: (_val: any, index: number, ticks: any[]) => {
+                    if (index !== 0 && index !== ticks.length - 1) return ''
+                    const v = ticks[index].value // ms timestamp
+                    return dateHelper.formatDate(v, false, 'MMM D, YYYY', true)
+                },
+            },
+
+            time: { unit: 'day' }
         },
         y: {
             beginAtZero: false,
-            ticks: { callback: (v: number | string) => currencyFmt.value.format(Number(v)) }
+            ticks: { display: false },
+            grid: { display: false }
         }
     },
     onClick: (evt: any, _els: any, chart: any) => {
