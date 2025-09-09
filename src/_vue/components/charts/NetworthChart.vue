@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import {computed, onMounted, ref} from 'vue'
 import Chart from 'primevue/chart'
 import type {ChartPoint} from "../../../models/chart_models.ts";
 
@@ -21,7 +21,6 @@ ChartJS.register(
     TimeSeriesScale,
     Tooltip, Legend, Filler, CategoryScale
 )
-
 
 const props = withDefaults(defineProps<{
     dataPoints: ChartPoint[]
@@ -48,12 +47,12 @@ const data = computed(() => ({
         data: props.dataPoints.map(p => ({ date: p.date, value: Number(p.value) })),
         borderWidth: 2,
         pointHoverRadius: 4,
-        fill: 'origin',
-        tension: 0,
-        stepped: 'before',
+        fill: false,
+        stepped: false,
+        tension: 0.35,
+        cubicInterpolationMode: 'monotone',
         spanGaps: true,
         borderColor: 'rgba(99, 102, 241, 1)',
-        backgroundColor: 'rgba(99, 102, 241, 0.15)',
         pointRadius: (ctx: any) => (ctx.dataIndex === selectedIndex.value ? 3 : 0),
     }]
 }))
@@ -86,6 +85,7 @@ const options = computed(() => ({
                 autoSkip: false,
                 maxRotation: 0,
                 minRotation: 0,
+                color: "grey",
                 callback: (_val: any, index: number, ticks: any[]) => {
                     if (index !== 0 && index !== ticks.length - 1) return ''
                     const v = ticks[index].value // ms timestamp
@@ -120,9 +120,7 @@ const selectedIndex = computed(() => {
 </script>
 
 <template>
-    <div style="height: 320px">
-        <Chart ref="chartRef" type="line" :data="data" :options="options" />
-    </div>
+    <Chart style="height: 300px;" ref="chartRef" type="line" :data="data" :options="options" />
 
     <div v-if="selected" style="margin-top: .5rem; font-size: .9rem;">
         Selected:
