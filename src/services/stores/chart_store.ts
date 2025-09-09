@@ -8,10 +8,10 @@ export const useChartStore = defineStore('chart', {
     getters: {
     },
     actions: {
-        async getNetWorth(currency = "EUR") {
+        async getNetWorth(params?: { range?: string; from?: string; to?: string; currency?: string }) {
             try {
                 const response = await apiClient.get(`${this.apiPrefix}/networth`, {
-                    params: { range: "1m", currency }
+                    params: { params }
                 });
                 return response.data;
             } catch (err) {

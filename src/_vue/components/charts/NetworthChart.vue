@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import Chart from 'primevue/chart'
+import type {ChartPoint} from "../../../models/chart_models.ts";
+
 import {
     Chart as ChartJS,
     LineController,
@@ -18,10 +20,10 @@ ChartJS.register(
     TimeSeriesScale,
     Tooltip, Legend, Filler, CategoryScale
 )
-type Pt = { date: string; value: number | string }
+
 
 const props = withDefaults(defineProps<{
-    dataPoints: Pt[]
+    dataPoints: ChartPoint[]
     currency?: string
 }>(), {
     dataPoints: () => [],

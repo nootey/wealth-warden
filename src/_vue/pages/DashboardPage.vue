@@ -2,30 +2,48 @@
 import {useAuthStore} from "../../services/stores/auth_store.ts";
 import {useAccountStore} from "../../services/stores/account_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
-import {computed, onMounted, ref} from "vue";
+import {computed, onMounted, ref, watch} from "vue";
 import NetworthChart from "../components/charts/NetworthChart.vue";
 import {useChartStore} from "../../services/stores/chart_store.ts";
+import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
+import ShowLoading from "../components/base/ShowLoading.vue";
+import vueHelper from "../../utils/vue_helper.ts";
+import type {NetworthResponse, ChartPoint} from "../../models/chart_models.ts";
 
 const authStore = useAuthStore();
 const accountStore = useAccountStore();
 const toastStore = useToastStore();
 const chatStore = useChartStore();
 
-type ChartPoint = { date: string; value: number | string }
-type NetworthResponse = {
-    currency: string
-    points: ChartPoint[]
-    current: ChartPoint // 👈 new
-}
+const STORAGE_KEY = 'networth_range_key'
+const hydrating = ref(true);
 
-const payload = ref<NetworthResponse | null>(null)
+onMounted(async () => {
+    const lastKey = localStorage.getItem(STORAGE_KEY)
+    if (lastKey) {
+        const found = dateRanges.find(r => r.key === lastKey)
+        if (found) selectedDTO.value = found
+    }
 
-const currencyFmt = computed(() =>
-    new Intl.NumberFormat('de-DE', {
-        style: 'currency',
-        currency: payload.value?.currency || 'EUR'
-    })
-)
+    const initialKey = (selectedDTO.value as any)?.key || '1m'
+    await getNetworthData({ rangeKey: initialKey })
+    hydrating.value = false
+})
+
+const payload = ref<NetworthResponse | null>(null);
+
+const dateRanges = [
+    { name: '1W',  key: '1w'  },
+    { name: '1M',  key: '1m'  },
+    { name: '3M',  key: '3m'  },
+    { name: '6M',  key: '6m'  },
+    { name: 'YTD', key: 'ytd' },
+    { name: '1Y',  key: '1y'  },
+    { name: '5Y',  key: '5y'  },
+];
+
+const filteredDateRanges = ref<typeof dateRanges>([...dateRanges]);
+const selectedDTO = ref({ name: '1M'});
 
 const orderedPoints = computed<ChartPoint[]>(() => {
     const arr = payload.value?.points ?? []
@@ -34,17 +52,25 @@ const orderedPoints = computed<ChartPoint[]>(() => {
     )
 })
 
-onMounted(async () => {
-    const raw = await chatStore.getNetWorth()
-    const res: any = raw?.data?.points ?? raw?.points
+async function getNetworthData(opts?: { rangeKey?: string; from?: string; to?: string }) {
+    try {
+        const params: any = {};
+        if (opts?.from || opts?.to) {
+            if (opts.from) params.from = opts.from;
+            if (opts.to) params.to = opts.to;
+        } else if (opts?.rangeKey) {
+            params.range = opts.rangeKey;
+        }
+        const raw = await chatStore.getNetWorth(params);
+        const res: any = raw?.data?.points ?? raw?.points ?? raw?.data;
 
-    console.log(res)
-
-    res.points = res.points.map(p => ({ ...p, value: Number(p.value) }))
-    res.current.value = Number(res.current.value)
-    payload.value = res
-    console.log(payload.value)
-})
+        res.points = res.points.map((p: any) => ({ ...p, value: Number(p.value) }));
+        res.current.value = Number(res.current.value);
+        payload.value = res;
+    } catch (err) {
+        toastStore.errorResponseToast(err);
+    }
+}
 
 async function backfillBalances(){
     try {
@@ -55,37 +81,73 @@ async function backfillBalances(){
     }
 }
 
+const searchDaterange = (event: any) => {
+    const q = (event.query ?? '').trim().toLowerCase();
+    filteredDateRanges.value = q
+        ? dateRanges.filter(o => o.name.toLowerCase().startsWith(q))
+        : [...dateRanges];
+};
+
+watch(selectedDTO, (val: any) => {
+    if (!val) return
+    if (hydrating.value) return
+    if (val.key) localStorage.setItem(STORAGE_KEY, val.key)
+    getNetworthData({ rangeKey: val.key })
+});
+
 </script>
 
 <template>
-  <main>
-    <div class="flex flex-column w-100 gap-3 justify-content-center align-items-center">
 
-      <div class="main-item flex flex-column justify-content-center gap-1">
-        <div style="font-weight: bold;">WealthWarden </div>
-        <br>
-        <div> Welcome back {{ authStore?.user?.display_name }} </div>
-        <div>{{ "Here's what's happening with your finances." }} </div>
-      </div>
+    <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
 
-        <Button label="magic" @click="backfillBalances"></Button>
+        <div class="flex flex-column justify-content-center p-2 w-full gap-3 border-round-md"
+             style="max-width: 1200px;">
 
-        <div v-if="payload" class="flex align-items-center gap-2" style="margin-top:.5rem">
-            <span style="opacity:.7">As of {{ new Date(payload.current.date).toLocaleDateString() }}:</span>
-            <strong>{{ currencyFmt.format(Number(payload.current.value)) }}</strong>
-        </div>
+            <SlotSkeleton bg="primary">
+                <div class="w-full flex flex-row justify-content-between p-2 gap-2">
+                    <div class="w-full flex flex-column gap-2">
+                        <div style="font-weight: bold;"> Welcome back {{ authStore?.user?.display_name }} </div>
+                        <div>{{ "Here's what's happening with your finances." }} </div>
+                    </div>
+                    <Button label="Refresh" icon="pi pi-refresh" class="main-button" @click="backfillBalances"></Button>
+                </div>
+            </SlotSkeleton>
 
-        <div v-if="payload">
-            <NetworthChart
-                    :data-points="orderedPoints"
-                    :currency="payload.currency"
-                    @point-select="p => console.log('selected', p)"
-            />
-        </div>
-        <div v-else>Loading net worth …</div>
+            <SlotSkeleton bg="secondary">
+                <div v-if="payload" class="w-full flex flex-column justify-content-center p-3 gap-3">
+
+                    <div class="flex flex-row p-2 gap-2 w-full justify-content-between">
+                        <div class="flex flex-column gap-2">
+                            <div class="flex flex-row">
+                                <span class="text-sm" style="color: var(--text-secondary)">Net worth</span>
+                            </div>
+                            <div class="flex flex-row">
+                                <strong>{{ vueHelper.displayAsCurrency(payload.current.value) }}</strong>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-column gap-2">
+                            <AutoComplete size="small" style="width: 90px;" v-model="selectedDTO"
+                                          :suggestions="filteredDateRanges" dropdown
+                                          @complete="searchDaterange" optionLabel="name" forceSelection />
+                        </div>
+                    </div>
+
+                    <NetworthChart
+                            :data-points="orderedPoints"
+                            :currency="payload.currency"
+                            @point-select="p => console.log('selected', p)"
+                    />
+
+                </div>
+                <ShowLoading v-else :numFields="6" />
+            </SlotSkeleton>
+
 
     </div>
-  </main>
+    </main>
+
 </template>
 
 <style scoped>
