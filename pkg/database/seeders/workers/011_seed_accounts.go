@@ -46,6 +46,9 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
+	const minDaysBack = 370 // strictly > 365
+	const maxDaysBack = 430
+
 	for _, uname := range usernames {
 		u, ok := usersByName[uname]
 		if !ok {
@@ -78,22 +81,21 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 				return err
 			}
 
+			delta := minDaysBack + rng.Intn(maxDaysBack-minDaysBack+1)
+			asOf := today.AddDate(0, 0, -delta)
+
 			// Create account
 			acc := models.Account{
 				UserID:        u.ID,
 				Name:          s.Name,
 				AccountTypeID: at.ID,
 				Currency:      strings.ToUpper(s.Currency),
-				CreatedAt:     time.Now(),
-				UpdatedAt:     time.Now(),
+				CreatedAt:     asOf,
+				UpdatedAt:     asOf,
 			}
 			if err := db.WithContext(ctx).Create(&acc).Error; err != nil {
 				return err
 			}
-
-			// Random as_of: 0..7 days back from today
-			daysBack := rng.Intn(8) // 0..7 inclusive of 0, exclusive of 8
-			asOf := today.AddDate(0, 0, -daysBack)
 
 			// Create balance with start balance
 			bal := models.Balance{
@@ -101,8 +103,8 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 				AsOf:         asOf,
 				StartBalance: s.StartBalance,
 				Currency:     strings.ToUpper(s.Currency),
-				CreatedAt:    time.Now(),
-				UpdatedAt:    time.Now(),
+				CreatedAt:    asOf,
+				UpdatedAt:    asOf,
 			}
 			if err := db.WithContext(ctx).Create(&bal).Error; err != nil {
 				return err
