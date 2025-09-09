@@ -2,17 +2,48 @@
 import {useAuthStore} from "../../services/stores/auth_store.ts";
 import {useAccountStore} from "../../services/stores/account_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
-import {onMounted, ref} from "vue";
+import {computed, onMounted, ref} from "vue";
+import NetworthChart from "../components/charts/NetworthChart.vue";
+import {useChartStore} from "../../services/stores/chart_store.ts";
 
 const authStore = useAuthStore();
 const accountStore = useAccountStore();
 const toastStore = useToastStore();
+const chatStore = useChartStore();
 
-const points = ref([]);
+type ChartPoint = { date: string; value: number | string }
+type NetworthResponse = {
+    currency: string
+    points: ChartPoint[]
+    current: ChartPoint // 👈 new
+}
+
+const payload = ref<NetworthResponse | null>(null)
+
+const currencyFmt = computed(() =>
+    new Intl.NumberFormat('de-DE', {
+        style: 'currency',
+        currency: payload.value?.currency || 'EUR'
+    })
+)
+
+const orderedPoints = computed<ChartPoint[]>(() => {
+    const arr = payload.value?.points ?? []
+    return [...arr].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    )
+})
 
 onMounted(async () => {
-    points.value = await accountStore.getNetWorth();
-    console.log(points.value);
+    const raw = await chatStore.getNetWorth()
+    const res: any = raw?.data?.points ?? raw?.points
+
+    console.log(res)
+
+    res.points = res.points.map(p => ({ ...p, value: Number(p.value) }))
+    res.current.value = Number(res.current.value)
+    payload.value = res
+    console.log(payload.value)
 })
 
 async function backfillBalances(){
@@ -39,9 +70,19 @@ async function backfillBalances(){
 
         <Button label="magic" @click="backfillBalances"></Button>
 
-        <div v-if="points">
-            {{ points }}
+        <div v-if="payload" class="flex align-items-center gap-2" style="margin-top:.5rem">
+            <span style="opacity:.7">As of {{ new Date(payload.current.date).toLocaleDateString() }}:</span>
+            <strong>{{ currencyFmt.format(Number(payload.current.value)) }}</strong>
         </div>
+
+        <div v-if="payload">
+            <NetworthChart
+                    :data-points="orderedPoints"
+                    :currency="payload.currency"
+                    @point-select="p => console.log('selected', p)"
+            />
+        </div>
+        <div v-else>Loading net worth …</div>
 
     </div>
   </main>
