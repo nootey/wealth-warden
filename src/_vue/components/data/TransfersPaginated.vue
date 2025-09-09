@@ -123,7 +123,8 @@ defineExpose({ refresh });
          style="background: var(--background-secondary); max-width: 1000px;">
 
         <div class="flex flex-row gap-2 w-full">
-            <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingRecords" :value="records">
+            <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingRecords" :value="records"
+                       scrollable scroll-height="50vh">
                 <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
                 <template #loading> <LoadingSpinner></LoadingSpinner> </template>
                 <template #footer>

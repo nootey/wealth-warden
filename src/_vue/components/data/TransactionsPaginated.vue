@@ -97,14 +97,16 @@ defineExpose({ refresh });
 </script>
 
 <template>
-    <DataTable class="w-full enhanced-table" dataKey="id" :loading="loading" :value="recordsLocal" :rowClass="vueHelper.deletedRowClass">
+    <DataTable class="w-full enhanced-table" dataKey="id"
+               :loading="loading" :value="recordsLocal" scrollable scroll-height="50vh"
+               :rowClass="vueHelper.deletedRowClass">
         <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
         <template #loading> <LoadingSpinner></LoadingSpinner> </template>
         <template #footer>
             <CustomPaginator :paginator="derivedPaginator" :rows="rowsOptions" @onPage="handlePage"/>
         </template>
 
-        <Column v-for="col of columns" :key="col.field" :field="col.field" style="width: 25%">
+        <Column v-for="col of columns" :key="col.field" :field="col.field" style="width: 20%">
             <template #header >
                 <ColumnHeader :header="col.header" :field="col.field" :sort="localSort"
                               :sortable="!!sort"
@@ -127,7 +129,7 @@ defineExpose({ refresh });
                     </div>
                 </template>
                 <template v-else-if="field === 'category'">
-                    {{ data[field]["name"] }}
+                    {{ data[field]["display_name"] }}
                 </template>
                 <template v-else>
                     {{ data[field] }}
