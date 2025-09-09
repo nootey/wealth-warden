@@ -72,7 +72,10 @@ const options = computed(() => ({
         x: {
             type: 'timeseries',
             bounds: 'data',
-            grid: { display: false },
+            grid: {
+                display: false,
+                drawBorder: false
+            },
             afterBuildTicks: (scale: any) => {
                 const t = scale.ticks
                 if (!t?.length) return
@@ -98,7 +101,10 @@ const options = computed(() => ({
         y: {
             beginAtZero: false,
             ticks: { display: false },
-            grid: { display: false }
+            grid: {
+                display: false,
+                drawBorder: false
+            }
         }
     },
     onClick: (evt: any, _els: any, chart: any) => {
