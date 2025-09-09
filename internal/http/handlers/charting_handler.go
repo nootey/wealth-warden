@@ -32,14 +32,30 @@ func (h *ChartingHandler) NetWorthChart(c *gin.Context) {
 		return
 	}
 
+	p := c.QueryMap("params")
+
 	currency := c.Query("currency")
+	if currency == "" {
+		currency = p["currency"]
+	}
 	if currency == "" {
 		currency = models.DefaultCurrency
 	}
 
 	r := strings.ToLower(strings.TrimSpace(c.Query("range")))
+	if r == "" {
+		r = strings.ToLower(strings.TrimSpace(p["range"]))
+	}
+
 	from := c.Query("from")
+	if from == "" {
+		from = p["from"]
+	}
+
 	to := c.Query("to")
+	if to == "" {
+		to = p["to"]
+	}
 
 	series, err := h.Service.GetNetWorthSeries(userID, currency, r, from, to)
 	if err != nil {
