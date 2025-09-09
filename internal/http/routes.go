@@ -43,6 +43,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 	accountHandler := httpHandlers.NewAccountHandler(r.Container.AccountService, validator)
 	transactionHandler := httpHandlers.NewTransactionHandler(r.Container.TransactionService, validator)
 	settingsHandler := httpHandlers.NewSettingsHandler(r.Container.SettingsService, validator)
+	chartingHandler := httpHandlers.NewChartingHandler(r.Container.ChartingService, validator)
 
 	authRL := middleware.NewRateLimiter(5.0/60.0, 5) // 5 per minute, burst 3
 
@@ -66,6 +67,9 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 
 		settingsRoutes := authGroup.Group("/settings")
 		v1.SettingsRoutes(settingsRoutes, settingsHandler)
+
+		chartingRoutes := authGroup.Group("/charts")
+		v1.ChartingRoutes(chartingRoutes, chartingHandler)
 
 	}
 

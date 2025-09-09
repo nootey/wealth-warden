@@ -264,30 +264,3 @@ func (h *AccountHandler) BackfillBalancesForUser(c *gin.Context) {
 
 	utils.SuccessMessage(c, "Backfill completed", "Success", http.StatusOK)
 }
-
-func (h *AccountHandler) NetWorthChart(c *gin.Context) {
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
-
-	currency := c.Query("currency")
-	if currency == "" {
-		currency = "EUR"
-	}
-
-	r := strings.ToLower(strings.TrimSpace(c.Query("range")))
-	from := c.Query("from")
-	to := c.Query("to")
-
-	series, err := h.Service.GetNetWorthSeries(userID, currency, r, from, to)
-	if err != nil {
-		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"currency": currency,
-		"points":   series,
-	})
-}

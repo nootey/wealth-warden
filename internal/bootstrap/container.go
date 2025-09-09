@@ -20,6 +20,7 @@ type Container struct {
 	AccountService     *services.AccountService
 	TransactionService *services.TransactionService
 	SettingsService    *services.SettingsService
+	ChartingService    *services.ChartingService
 }
 
 func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Container, error) {
@@ -38,6 +39,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	accountRepo := repositories.NewAccountRepository(db)
 	transactionRepo := repositories.NewTransactionRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
+	chartingRepo := repositories.NewChartingRepository(db)
 
 	// Initialize services
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
@@ -55,6 +57,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	accountService := services.NewAccountService(cfg, ctx, accountRepo, transactionRepo)
 	transactionService := services.NewTransactionService(cfg, ctx, transactionRepo, accountService)
 	settingsService := services.NewSettingsService(cfg, ctx, settingsRepo)
+	chartingService := services.NewChartingService(cfg, ctx, chartingRepo)
 
 	return &Container{
 		Config:             cfg,
@@ -66,5 +69,6 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 		AccountService:     accountService,
 		TransactionService: transactionService,
 		SettingsService:    settingsService,
+		ChartingService:    chartingService,
 	}, nil
 }

@@ -65,8 +65,3 @@ type AccountReq struct {
 	Classification string           `json:"classification" validate:"required"`
 	Balance        *decimal.Decimal `json:"balance"`
 }
-
-type ChartPoint struct {
-	Date  time.Time       `json:"date"`
-	Value decimal.Decimal `json:"value"`
-}
