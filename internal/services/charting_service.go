@@ -78,6 +78,8 @@ func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, fr
 			dfrom = dto.AddDate(0, -3, 0)
 		case "6m":
 			dfrom = dto.AddDate(0, -6, 0)
+		case "ytd":
+			dfrom = time.Date(dto.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
 		case "1y":
 			dfrom = dto.AddDate(-1, 0, 0)
 		case "5y":
