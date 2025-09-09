@@ -47,6 +47,16 @@ type Balance struct {
 	UpdatedAt       time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
+type AccountDailySnapshot struct {
+	ID         int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID     int64           `gorm:"not null" json:"user_id"`
+	AccountID  int64           `gorm:"not null" json:"account_id"`
+	AsOf       time.Time       `gorm:"type:date;not null;" json:"as_of"`
+	EndBalance decimal.Decimal `gorm:"type:numeric(19,4);not null" json:"end_balance"`
+	Currency   string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
+	ComputedAt time.Time       `gorm:"autoCreateTime" json:"computed_at"`
+}
+
 type AccountReq struct {
 	Name           string           `json:"name" validate:"required"`
 	AccountTypeID  int64            `json:"account_type_id" validate:"required"`
