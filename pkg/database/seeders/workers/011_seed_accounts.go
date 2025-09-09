@@ -5,6 +5,7 @@ import (
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"math/rand"
 	"strings"
 	"time"
 	"wealth-warden/internal/models"
@@ -41,6 +42,9 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 	for _, u := range users {
 		usersByName[u.Username] = u
 	}
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	for _, uname := range usernames {
 		u, ok := usersByName[uname]
@@ -87,10 +91,14 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 				return err
 			}
 
+			// Random as_of: 0..7 days back from today
+			daysBack := rng.Intn(8) // 0..7 inclusive of 0, exclusive of 8
+			asOf := today.AddDate(0, 0, -daysBack)
+
 			// Create balance with start balance
 			bal := models.Balance{
 				AccountID:    acc.ID,
-				AsOf:         time.Now().Truncate(24 * time.Hour),
+				AsOf:         asOf,
 				StartBalance: s.StartBalance,
 				Currency:     strings.ToUpper(s.Currency),
 				CreatedAt:    time.Now(),
