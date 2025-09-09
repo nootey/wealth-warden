@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"fmt"
+	"github.com/shopspring/decimal"
+	"sort"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -27,8 +29,9 @@ func NewChartingService(
 	}
 }
 
-func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, from, to string) ([]models.ChartPoint, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, from, to string) (*models.NetWorthResponse, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	tx := s.Repo.DB.WithContext(ctx).Begin()
@@ -42,7 +45,6 @@ func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, fr
 		}
 	}()
 
-	// Resolve date window
 	var dfrom, dto time.Time
 	var err error
 
@@ -66,7 +68,6 @@ func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, fr
 			}
 		}
 	} else {
-		// rangeKey -> window
 		dto = time.Now().UTC().Truncate(24 * time.Hour)
 		switch rangeKey {
 		case "1w":
@@ -82,7 +83,7 @@ func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, fr
 		case "5y":
 			dfrom = dto.AddDate(-5, 0, 0)
 		default:
-			dfrom = dto.AddDate(0, 0, -30) // sensible default
+			dfrom = dto.AddDate(0, -1, 0)
 		}
 	}
 	if dfrom.After(dto) {
@@ -99,15 +100,42 @@ func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, fr
 		gran = "month"
 	}
 
-	// Fetch
 	points, err := s.Repo.FetchNetWorthSeries(tx, userID, currency, dfrom, dto, gran)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
 	}
 
+	// ensure ascending order by date
+	sort.Slice(points, func(i, j int) bool { return points[i].Date.Before(points[j].Date) })
+
+	// forward-fill so we end exactly at dto (and optionally start at dfrom)
+	if len(points) > 0 {
+		last := points[len(points)-1]
+		// If last point isn't exactly dto, append a synthetic point at dto with last known value
+		if !last.Date.Equal(dto) {
+			points = append(points, models.ChartPoint{
+				Date:  dto,
+				Value: last.Value,
+			})
+		}
+	}
+
+	// latest snapshot
+	curDate, curStr, err := s.Repo.FetchLatestNetWorth(tx, userID, currency)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	curDec, _ := decimal.NewFromString(curStr)
+
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
-	return points, nil
+
+	return &models.NetWorthResponse{
+		Currency: currency,
+		Points:   points,
+		Current:  models.ChartPoint{Date: curDate, Value: curDec},
+	}, nil
 }

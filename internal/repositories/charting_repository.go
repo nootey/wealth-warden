@@ -19,7 +19,7 @@ func NewChartingRepository(db *gorm.DB) *ChartingRepository {
 func (r *ChartingRepository) FetchNetWorthSeries(tx *gorm.DB, userID int64, currency string, from, to time.Time, gran string) ([]models.ChartPoint, error) {
 	type row struct {
 		Date  time.Time
-		Value string // numeric -> string -> decimal
+		Value string
 	}
 	rows := []row{}
 
@@ -83,11 +83,26 @@ func (r *ChartingRepository) FetchNetWorthSeries(tx *gorm.DB, userID int64, curr
 		return nil, fmt.Errorf("unknown granularity %q", gran)
 	}
 
-	// map to output
 	out := make([]models.ChartPoint, 0, len(rows))
 	for _, r := range rows {
 		v, _ := decimal.NewFromString(r.Value)
 		out = append(out, models.ChartPoint{Date: r.Date, Value: v})
 	}
 	return out, nil
+}
+
+func (r *ChartingRepository) FetchLatestNetWorth(tx *gorm.DB, userID int64, currency string) (time.Time, string, error) {
+	var date time.Time
+	var value string
+	err := tx.Raw(`
+        SELECT as_of, end_balance::text
+        FROM v_user_daily_networth_snapshots
+        WHERE user_id = ? AND currency = ?
+        ORDER BY as_of DESC
+        LIMIT 1
+    `, userID, currency).Row().Scan(&date, &value)
+	if err != nil {
+		return time.Time{}, "", err
+	}
+	return date, value, nil
 }

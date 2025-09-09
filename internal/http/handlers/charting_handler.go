@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strings"
+	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
@@ -33,7 +34,7 @@ func (h *ChartingHandler) NetWorthChart(c *gin.Context) {
 
 	currency := c.Query("currency")
 	if currency == "" {
-		currency = "EUR"
+		currency = models.DefaultCurrency
 	}
 
 	r := strings.ToLower(strings.TrimSpace(c.Query("range")))
@@ -45,6 +46,7 @@ func (h *ChartingHandler) NetWorthChart(c *gin.Context) {
 		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"currency": currency,
 		"points":   series,
