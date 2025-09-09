@@ -16,4 +16,6 @@ func AccountRoutes(apiGroup *gin.RouterGroup, handler *handlers.AccountHandler) 
 	apiGroup.DELETE(":id", handler.CloseAccount)
 
 	apiGroup.POST("/balances/backfill", handler.BackfillBalancesForUser)
+	// TODO: this is not account based, make a chart handler
+	apiGroup.GET("/charts/networth", handler.NetWorthChart)
 }
