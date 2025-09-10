@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, onMounted, ref} from 'vue'
+import {computed, ref} from 'vue'
 import Chart from 'primevue/chart'
 import type {ChartPoint} from "../../../models/chart_models.ts";
 
@@ -13,6 +13,7 @@ import {
 } from 'chart.js'
 import 'chartjs-adapter-date-fns'
 import dateHelper from "../../../utils/date_helper.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
 
 ChartJS.register(
     LineController,
@@ -25,34 +26,45 @@ ChartJS.register(
 const props = withDefaults(defineProps<{
     dataPoints: ChartPoint[]
     currency?: string
+    activeColor?: string
 }>(), {
     dataPoints: () => [],
-    currency: 'EUR'
+    currency: 'EUR',
+    activeColor: "#ef4444"
 })
 
 const emit = defineEmits<{
     (e: 'point-select', payload: { x: string | number | Date; y: number }): void
 }>()
 
-const chartRef = ref<any>(null)
-const selected = ref<{ x: string | number | Date; y: number } | null>(null)
+const chartRef = ref<any>(null);
+const selected = ref<{ x: string | number | Date; y: number } | null>(null);
 
-const currencyFmt = computed(
-    () => new Intl.NumberFormat('de-DE', { style: 'currency', currency: props.currency ?? 'EUR' })
-)
+function hexToRgba(hex: string, alpha = 0.15) {
+    // supports #RRGGBB and #RGB
+    const h = hex.replace('#', '')
+    const bigint = h.length === 3
+        ? parseInt(h.split('').map(c => c + c).join(''), 16)
+        : parseInt(h, 16)
+    const r = (bigint >> 16) & 255
+    const g = (bigint >> 8) & 255
+    const b = bigint & 255
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
 
 const data = computed(() => ({
     datasets: [{
         label: 'Net worth',
         data: props.dataPoints.map(p => ({ date: p.date, value: Number(p.value) })),
-        borderWidth: 2,
+        borderWidth: 3,
         pointHoverRadius: 4,
         fill: false,
         stepped: false,
         tension: 0.35,
         cubicInterpolationMode: 'monotone',
         spanGaps: true,
-        borderColor: 'rgba(99, 102, 241, 1)',
+        borderColor: props.activeColor,
+        backgroundColor: hexToRgba(props.activeColor, 0.12),
         pointRadius: (ctx: any) => (ctx.dataIndex === selectedIndex.value ? 3 : 0),
     }]
 }))
@@ -65,7 +77,7 @@ const options = computed(() => ({
     plugins: {
         legend: { display: false },
         tooltip: {
-            callbacks: { label: (ctx: any) => currencyFmt.value.format(ctx.parsed.y) }
+            callbacks: { label: (ctx: any) => vueHelper.displayAsCurrency(ctx.parsed.y) }
         }
     },
     scales: {
@@ -131,6 +143,6 @@ const selectedIndex = computed(() => {
     <div v-if="selected" style="margin-top: .5rem; font-size: .9rem;">
         Selected:
         <strong>{{ new Date(selected.x).toLocaleDateString() }}</strong>
-        — {{ currencyFmt.format(Number(selected.y)) }}
+        — {{ vueHelper.displayAsCurrency(Number(selected.y)) }}
     </div>
 </template>

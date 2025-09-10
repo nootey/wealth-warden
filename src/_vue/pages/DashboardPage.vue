@@ -55,6 +55,8 @@ const orderedPoints = computed<ChartPoint[]>(() => {
     )
 });
 
+const activeColor = ref("#ef4444");
+
 const periodLabels: Record<string,string> = {
     "1w": "week",
     "1m": "month",
@@ -89,6 +91,8 @@ async function getNetworthData(opts?: { rangeKey?: string; from?: string; to?: s
         }
 
         payload.value = res;
+
+        activeColor.value = res?.change?.abs >= 0 ? "#22c55e" : "#ef4444";
 
     } catch (err) {
         toastStore.errorResponseToast(err);
@@ -138,9 +142,9 @@ watch(selectedDTO, (val: any) => {
             </SlotSkeleton>
 
             <SlotSkeleton bg="secondary">
-                <div v-if="payload" class="w-full flex flex-column justify-content-center p-3 gap-3">
+                <div v-if="payload" class="w-full flex flex-column justify-content-center p-3 gap-1">
 
-                    <div class="flex flex-row p-2 gap-2 w-full justify-content-between">
+                    <div class="flex flex-row gap-2 w-full justify-content-between">
                         <div class="flex flex-column gap-2">
                             <div class="flex flex-row">
                                 <span class="text-sm" style="color: var(--text-secondary)">Net worth</span>
@@ -177,6 +181,7 @@ watch(selectedDTO, (val: any) => {
                     <NetworthChart
                             :dataPoints="orderedPoints"
                             :currency="payload.currency"
+                            :activeColor="activeColor"
                             @point-select="p => console.log('selected', p)"
                     />
 
