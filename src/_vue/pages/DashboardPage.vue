@@ -19,15 +19,7 @@ const STORAGE_KEY = 'networth_range_key'
 const hydrating = ref(true);
 
 onMounted(async () => {
-    const lastKey = localStorage.getItem(STORAGE_KEY)
-    if (lastKey) {
-        const found = dateRanges.find(r => r.key === lastKey)
-        if (found) selectedDTO.value = found
-    }
-
-    const initialKey = (selectedDTO.value as any)?.key || '1m'
-    await getNetworthData({ rangeKey: initialKey })
-    hydrating.value = false
+    await getData();
 })
 
 const payload = ref<NetworthResponse | null>(null);
@@ -67,6 +59,18 @@ const periodLabels: Record<string,string> = {
     "5y": "5 years"
 }
 
+async function getData() {
+    const lastKey = localStorage.getItem(STORAGE_KEY)
+    if (lastKey) {
+        const found = dateRanges.find(r => r.key === lastKey)
+        if (found) selectedDTO.value = found
+    }
+
+    const initialKey = (selectedDTO.value as any)?.key || '1m'
+    await getNetworthData({ rangeKey: initialKey })
+    hydrating.value = false
+}
+
 async function getNetworthData(opts?: { rangeKey?: string; from?: string; to?: string }) {
     try {
         const params: any = {};
@@ -103,6 +107,7 @@ async function backfillBalances(){
     try {
         const response = await accountStore.backfillBalances();
         toastStore.successResponseToast(response.data);
+        await getData();
     } catch (err) {
         toastStore.errorResponseToast(err)
     }
@@ -114,6 +119,11 @@ const searchDaterange = (event: any) => {
         ? dateRanges.filter(o => o.name.toLowerCase().startsWith(q))
         : [...dateRanges];
 };
+
+function displayNetworthChange(change: any) {
+    if(change === "year to date") return change;
+    return "vs. last " + (change ?? "period");
+}
 
 watch(selectedDTO, (val: any) => {
     if (!val) return
@@ -174,7 +184,7 @@ watch(selectedDTO, (val: any) => {
                         </div>
 
                         <span class="text-sm" style="color: var(--text-secondary)">
-                          vs. last {{ periodLabels[selectedKey] ?? 'period' }}
+                            {{ displayNetworthChange(periodLabels[selectedKey]) }}
                         </span>
                     </div>
 
