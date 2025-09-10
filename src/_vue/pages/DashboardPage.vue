@@ -167,7 +167,7 @@ watch(selectedDTO, (val: any) => {
                         </span>
 
                         <div class="flex flex-row gap-1 align-items-center">
-                            <i :class="payload.change.abs >= 0 ? 'pi pi-angle-up' : 'pi pi-angle-down'"></i>
+                            <i class="text-sm" :class="payload.change.abs >= 0 ? 'pi pi-angle-double-up' : 'pi pi-angle-double-down'"></i>
                             <span>
                             ({{ (payload.change.pct * 100).toFixed(1) }}%)
                           </span>
