@@ -163,7 +163,7 @@ watch(selectedDTO, (val: any) => {
 
                     <div v-if="payload?.change" class="flex flex-row gap-2 align-items-center" :style="{ color: activeColor }">
                         <span>
-                        {{ vueHelper.displayAsCurrency(payload.change.current_end_value) }}
+                            {{ vueHelper.displayAsCurrency(Math.abs(payload.change.abs)) }}
                         </span>
 
                         <div class="flex flex-row gap-1 align-items-center">
