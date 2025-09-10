@@ -723,6 +723,12 @@ func (s *TransactionService) DeleteTransaction(userID int64, id int64) error {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
+	// Delete transaction
+	if err := s.Repo.DeleteTransaction(tx, tr.ID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	var category models.Category
 	if tr.CategoryID != nil {
 		cat, err := s.Repo.FindCategoryByID(tx, *tr.CategoryID, &userID, true)
@@ -751,12 +757,17 @@ func (s *TransactionService) DeleteTransaction(userID int64, id int64) error {
 			tx.Rollback()
 			return err
 		}
-	}
 
-	// Delete transaction
-	if err := s.Repo.DeleteTransaction(tx, tr.ID, userID); err != nil {
-		tx.Rollback()
-		return err
+		err = s.AccountService.SyncDailySnapshotsForAccountRange(
+			tx,
+			&account,
+			tr.TxnDate,
+			time.Now().UTC().Truncate(24*time.Hour),
+		)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
