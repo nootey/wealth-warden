@@ -3,6 +3,7 @@ package repositories
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -247,16 +248,16 @@ func (r *AccountRepository) CloseAccount(tx *gorm.DB, id, userID int64) error {
 
 func (r *AccountRepository) GetAccountOpening(tx *gorm.DB, accountID int64) (time.Time, decimal.Decimal, error) {
 	var asOf *time.Time
-	var endBalStr *string
+	var startBalStr *string
 
-	// earliest balance
+	// earliest balance row
 	err := tx.Raw(`
-        SELECT as_of::date, end_balance::text
+        SELECT as_of::date, start_balance::text
         FROM balances
         WHERE account_id = ?
         ORDER BY as_of ASC
         LIMIT 1
-    `, accountID).Row().Scan(&asOf, &endBalStr)
+    `, accountID).Row().Scan(&asOf, &startBalStr)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) && err != sql.ErrNoRows {
 		return time.Time{}, decimal.Zero, err
 	}
@@ -271,18 +272,18 @@ func (r *AccountRepository) GetAccountOpening(tx *gorm.DB, accountID int64) (tim
 		return time.Time{}, decimal.Zero, err2
 	}
 
-	today := time.Now().Truncate(24 * time.Hour)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
 	openingDate := today
 	if asOf != nil && !asOf.IsZero() && asOf.Before(openingDate) {
-		openingDate = *asOf
+		openingDate = asOf.UTC().Truncate(24 * time.Hour)
 	}
 	if firstTxn != nil && !firstTxn.IsZero() && firstTxn.Before(openingDate) {
-		openingDate = *firstTxn
+		openingDate = firstTxn.UTC().Truncate(24 * time.Hour)
 	}
 
 	openingBal := decimal.Zero
-	if endBalStr != nil {
-		if v, e := decimal.NewFromString(*endBalStr); e == nil {
+	if startBalStr != nil {
+		if v, e := decimal.NewFromString(*startBalStr); e == nil {
 			openingBal = v
 		}
 	}
@@ -290,7 +291,6 @@ func (r *AccountRepository) GetAccountOpening(tx *gorm.DB, accountID int64) (tim
 	return openingDate, openingBal, nil
 }
 
-// daily net deltas (income - expense) for [start..end] inclusive
 func (r *AccountRepository) GetDailyTxnNet(tx *gorm.DB, accountID int64, start, end time.Time) (map[time.Time]decimal.Decimal, error) {
 	type row struct {
 		AsOf   time.Time
@@ -319,12 +319,10 @@ func (r *AccountRepository) GetDailyTxnNet(tx *gorm.DB, accountID int64, start, 
 	return out, nil
 }
 
-// batch upsert snapshots for one account
 func (r *AccountRepository) UpsertAccountSnapshots(tx *gorm.DB, rows []models.AccountDailySnapshot) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	// GORM Upsert
 	return tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "account_id"}, {Name: "as_of"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
@@ -336,7 +334,6 @@ func (r *AccountRepository) UpsertAccountSnapshots(tx *gorm.DB, rows []models.Ac
 	}).Create(&rows).Error
 }
 
-// user-level helpers for default date range
 func (r *AccountRepository) GetUserFirstBalanceDate(tx *gorm.DB, userID int64) (time.Time, error) {
 	var d *time.Time
 	err := tx.Raw(`
@@ -369,4 +366,59 @@ func (r *AccountRepository) GetUserFirstTxnDate(tx *gorm.DB, userID int64) (time
 		return time.Time{}, nil
 	}
 	return d.Truncate(24 * time.Hour), nil
+}
+
+func (r *AccountRepository) EnsureDailyBalanceRow(
+	tx *gorm.DB, accountID int64, asOf time.Time, currency string,
+) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+	asOf = asOf.UTC().Truncate(24 * time.Hour)
+
+	// Insert-if-missing with proper start_balance derived from previous end_balance
+	return db.Exec(`
+        WITH prev AS (
+            SELECT end_balance
+            FROM balances
+            WHERE account_id = ? AND as_of < ?
+            ORDER BY as_of DESC
+            LIMIT 1
+        )
+        INSERT INTO balances (
+            account_id, as_of, start_balance,
+            cash_inflows, cash_outflows, non_cash_inflows, non_cash_outflows,
+            net_market_flows, adjustments, currency, created_at, updated_at
+        )
+        VALUES (
+            ?, ?, COALESCE((SELECT end_balance FROM prev), 0),
+            0, 0, 0, 0,
+            0, 0, ?, NOW(), NOW()
+        )
+        ON CONFLICT (account_id, as_of) DO NOTHING
+    `, accountID, asOf, accountID, asOf, currency).Error
+}
+
+func (r *AccountRepository) AddToDailyBalance(
+	tx *gorm.DB, accountID int64, asOf time.Time, field string, amt decimal.Decimal,
+) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+	asOf = asOf.UTC().Truncate(24 * time.Hour)
+
+	// guard: only allow the expected columns
+	switch field {
+	case "cash_inflows", "cash_outflows", "non_cash_inflows", "non_cash_outflows", "net_market_flows", "adjustments":
+	default:
+		return fmt.Errorf("invalid balance field %q", field)
+	}
+
+	return db.Exec(fmt.Sprintf(`
+        UPDATE balances
+        SET %s = %s + ?, updated_at = NOW()
+        WHERE account_id = ? AND as_of = ?
+    `, field, field), amt, accountID, asOf).Error
 }

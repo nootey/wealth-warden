@@ -80,7 +80,7 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 				return err
 			}
 
-			if err := accService.UpdateAccountCashBalance(db, &acc, ttype, amt); err != nil {
+			if err := accService.UpdateAccountCashBalance(db, &acc, t.TxnDate, ttype, amt); err != nil {
 				return err
 			}
 

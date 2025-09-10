@@ -326,7 +326,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 				return fmt.Errorf("failed to post adjustment transaction: %w", err)
 			}
 
-			err = s.UpdateAccountCashBalance(tx, acc, txnType, amount)
+			err = s.UpdateAccountCashBalance(tx, acc, txn.TxnDate, txnType, amount)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -371,25 +371,32 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 	return nil
 }
 
-func (s *AccountService) UpdateAccountCashBalance(tx *gorm.DB, acc *models.Account, transactionType string, amount decimal.Decimal) error {
-
-	accBalance, err := s.Repo.FindBalanceForAccountID(tx, acc.ID)
-	if err != nil {
-		return fmt.Errorf("can't find balance for given account id %w", err)
+func (s *AccountService) UpdateAccountCashBalance(
+	tx *gorm.DB,
+	acc *models.Account,
+	asOf time.Time,
+	transactionType string,
+	amount decimal.Decimal,
+) error {
+	// ensure daily balance row exists for asOf
+	if err := s.Repo.EnsureDailyBalanceRow(tx, acc.ID, asOf, acc.Currency); err != nil {
+		return err
 	}
 
 	amount = amount.Round(4)
 
-	switch transactionType {
+	// increment the correct field on balances(as_of)
+	switch strings.ToLower(transactionType) {
 	case "expense":
-		accBalance.CashOutflows = accBalance.CashOutflows.Add(amount)
+		// expense decreases cash => goes to cash_outflows
+		if err := s.Repo.AddToDailyBalance(tx, acc.ID, asOf, "cash_outflows", amount); err != nil {
+			return err
+		}
 	default:
-		accBalance.CashInflows = accBalance.CashInflows.Add(amount)
-	}
-
-	_, err = s.Repo.UpdateBalance(tx, accBalance)
-	if err != nil {
-		return err
+		// income increases cash => goes to cash_inflows
+		if err := s.Repo.AddToDailyBalance(tx, acc.ID, asOf, "cash_inflows", amount); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -567,13 +574,74 @@ func (s *AccountService) resolveUserDateRange(tx *gorm.DB, userID int64, from, t
 	return dfrom, dto, nil
 }
 
-func (s *AccountService) BackfillBalancesForUser(userID int64, from, to string) error {
+func (s *AccountService) backfillAccountRange(
+	tx *gorm.DB,
+	acc *models.Account,
+	dfrom, dto time.Time,
+) error {
+	// opening: earliest balances row if any; else first txn date; opening balance 0 if none
+	openingDate, openingBalance, err := s.Repo.GetAccountOpening(tx, acc.ID)
+	if err != nil {
+		return err
+	}
 
+	// clamp start to requested range
+	start := openingDate
+	if dfrom.After(start) {
+		start = dfrom
+	}
+	if start.After(dto) {
+		// nothing to write for this account
+		return nil
+	}
+
+	// daily net deltas for [start..dto]
+	deltas, err := s.Repo.GetDailyTxnNet(tx, acc.ID, start, dto)
+	if err != nil {
+		return err
+	}
+
+	running := openingBalance
+
+	// If start > openingDate, pre-accumulate deltas from openingDate..start-1.
+	if start.After(openingDate) {
+		preDeltas, err := s.Repo.GetDailyTxnNet(tx, acc.ID, openingDate, start.AddDate(0, 0, -1))
+		if err != nil {
+			return err
+		}
+		for d := openingDate; d.Before(start); d = d.AddDate(0, 0, 1) {
+			if v, ok := preDeltas[d]; ok {
+				running = running.Add(v)
+			}
+		}
+	}
+
+	// produce snapshots [start..dto]
+	snapshots := make([]models.AccountDailySnapshot, 0, int(dto.Sub(start).Hours()/24)+1)
+	for d := start; !d.After(dto); d = d.AddDate(0, 0, 1) {
+		if v, ok := deltas[d]; ok {
+			running = running.Add(v)
+		}
+		snapshots = append(snapshots, models.AccountDailySnapshot{
+			UserID:     acc.UserID,
+			AccountID:  acc.ID,
+			AsOf:       d,
+			EndBalance: running,
+			Currency:   acc.Currency,
+		})
+	}
+
+	if len(snapshots) > 0 {
+		return s.Repo.UpsertAccountSnapshots(tx, snapshots)
+	}
+	return nil
+}
+
+func (s *AccountService) BackfillBalancesForUser(userID int64, from, to string) error {
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
-
 	defer func() {
 		if p := recover(); p != nil {
 			tx.Rollback()
@@ -581,90 +649,41 @@ func (s *AccountService) BackfillBalancesForUser(userID int64, from, to string) 
 		}
 	}()
 
-	// Resolve accounts (exclude deleted, include deactivated)
-	accounts, err := s.Repo.FindAllAccounts(tx, userID, true)
+	accounts, err := s.Repo.FindAllAccounts(tx, userID, true) // unchanged
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 	if len(accounts) == 0 {
-		// nothing to do
 		return tx.Commit().Error
 	}
 
-	// Resolve date range defaults
-	// from = min(user first balance date, user first txn date, today) if empty
-	// to   = today if empty
-	dfrom, dto, err := s.resolveUserDateRange(tx, userID, from, to)
+	dfrom, dto, err := s.resolveUserDateRange(tx, userID, from, to) // unchanged
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	// Per-account backfill
 	for _, acc := range accounts {
-		// opening: earliest balances row if any; else first txn date; opening balance 0 if none
-		openingDate, openingBalance, err := s.Repo.GetAccountOpening(tx, acc.ID)
-		if err != nil {
+		if err := s.backfillAccountRange(tx, &acc, dfrom, dto); err != nil {
 			tx.Rollback()
 			return err
-		}
-
-		start := openingDate
-		if dfrom.After(start) {
-			start = dfrom
-		}
-		if start.After(dto) {
-			// nothing to write for this account
-			continue
-		}
-
-		// daily net deltas for [start..dto]
-		deltas, err := s.Repo.GetDailyTxnNet(tx, acc.ID, start, dto)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		running := openingBalance
-
-		// If start > openingDate, we must pre-accumulate deltas from openingDate..start-1.
-		if start.After(openingDate) {
-			preDeltas, err := s.Repo.GetDailyTxnNet(tx, acc.ID, openingDate, start.AddDate(0, 0, -1))
-			if err != nil {
-				tx.Rollback()
-				return err
-			}
-			for d := openingDate; d.Before(start); d = d.AddDate(0, 0, 1) {
-				if v, ok := preDeltas[d]; ok {
-					running = running.Add(v)
-				}
-			}
-		}
-
-		// now produce snapshots [start..dto]
-		snapshots := make([]models.AccountDailySnapshot, 0, int(dto.Sub(start).Hours()/24)+1)
-		for d := start; !d.After(dto); d = d.AddDate(0, 0, 1) {
-			if v, ok := deltas[d]; ok {
-				running = running.Add(v)
-			}
-			snapshots = append(snapshots, models.AccountDailySnapshot{
-				UserID:     userID,
-				AccountID:  acc.ID,
-				AsOf:       d,
-				EndBalance: running,
-				Currency:   acc.Currency,
-			})
-		}
-
-		if len(snapshots) > 0 {
-			if err := s.Repo.UpsertAccountSnapshots(tx, snapshots); err != nil {
-				tx.Rollback()
-				return err
-			}
 		}
 	}
 
 	return tx.Commit().Error
+}
 
+func (s *AccountService) SyncDailySnapshotsForAccountRange(
+	tx *gorm.DB,
+	acc *models.Account,
+	from, to time.Time,
+) error {
+	// normalize UTC date-only
+	dfrom := from.UTC().Truncate(24 * time.Hour)
+	dto := to.UTC().Truncate(24 * time.Hour)
+	if dto.Before(dfrom) {
+		dto = dfrom
+	}
+	return s.backfillAccountRange(tx, acc, dfrom, dto)
 }
