@@ -106,3 +106,19 @@ func (r *ChartingRepository) FetchLatestNetWorth(tx *gorm.DB, userID int64, curr
 	}
 	return date, value, nil
 }
+
+func (r *ChartingRepository) FetchNetWorthAsOf(tx *gorm.DB, userID int64, currency string, asOf time.Time) (time.Time, string, error) {
+	var date time.Time
+	var value string
+	err := tx.Raw(`
+        SELECT as_of, end_balance::text
+        FROM v_user_daily_networth_snapshots
+        WHERE user_id = ? AND currency = ? AND as_of <= ?
+        ORDER BY as_of DESC
+        LIMIT 1
+    `, userID, currency, asOf).Row().Scan(&date, &value)
+	if err != nil {
+		return time.Time{}, "", err
+	}
+	return date, value, nil
+}

@@ -63,8 +63,5 @@ func (h *ChartingHandler) NetWorthChart(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"currency": currency,
-		"points":   series,
-	})
+	c.JSON(http.StatusOK, series)
 }

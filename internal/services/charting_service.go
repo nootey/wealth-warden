@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/shopspring/decimal"
 	"sort"
@@ -131,6 +133,58 @@ func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, fr
 	}
 	curDec, _ := decimal.NewFromString(curStr)
 
+	// Compute “previous period end” and delta
+	prevEndAnchor := dfrom.AddDate(0, 0, -1)
+
+	var prevEndDate time.Time
+	var prevEndStr string
+	var prevEndVal decimal.Decimal
+	if !prevEndAnchor.IsZero() {
+		prevEndDate, prevEndStr, err = s.Repo.FetchNetWorthAsOf(tx, userID, currency, prevEndAnchor)
+		if err != nil {
+			// When there is no earlier snapshot, Row().Scan likely returns sql.ErrNoRows.
+			// In that case, treat previous end as zero to keep API stable.
+			if errors.Is(err, sql.ErrNoRows) {
+				prevEndVal = decimal.Zero
+			} else {
+				tx.Rollback()
+				return nil, err
+			}
+		} else {
+			prevEndVal, _ = decimal.NewFromString(prevEndStr)
+		}
+	}
+
+	// Current period end = last point in the series (or zero if no points).
+	var currentEndDate time.Time
+	var currentEndVal decimal.Decimal
+	if len(points) > 0 {
+		currentEndDate = points[len(points)-1].Date
+		currentEndVal = points[len(points)-1].Value
+	} else {
+		// No points in range — fall back to "as of dto" to define the end value
+		var asOfDate time.Time
+		var asOfStr string
+		asOfDate, asOfStr, err = s.Repo.FetchNetWorthAsOf(tx, userID, currency, dto)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				currentEndVal = decimal.Zero
+			} else {
+				tx.Rollback()
+				return nil, err
+			}
+		} else {
+			currentEndDate = asOfDate
+			currentEndVal, _ = decimal.NewFromString(asOfStr)
+		}
+	}
+
+	abs := currentEndVal.Sub(prevEndVal)
+	pct := decimal.Zero
+	if !prevEndVal.IsZero() {
+		pct = abs.Div(prevEndVal)
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
@@ -139,5 +193,13 @@ func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, fr
 		Currency: currency,
 		Points:   points,
 		Current:  models.ChartPoint{Date: curDate, Value: curDec},
+		Change: &models.Change{
+			PrevPeriodEndDate:  prevEndDate,
+			PrevPeriodEndValue: prevEndVal,
+			CurrentEndDate:     currentEndDate,
+			CurrentEndValue:    currentEndVal,
+			Abs:                abs,
+			Pct:                pct,
+		},
 	}, nil
 }
