@@ -139,7 +139,7 @@ watch(selectedDTO, (val: any) => {
     <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
 
         <div class="flex flex-column justify-content-center p-2 w-full gap-3 border-round-md"
-             style="max-width: 1200px;">
+             style="max-width: 1000px;">
 
             <SlotSkeleton bg="transparent">
                 <div class="w-full flex flex-row justify-content-between p-2 gap-2">
