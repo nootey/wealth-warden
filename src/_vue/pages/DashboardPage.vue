@@ -40,17 +40,30 @@ const dateRanges = [
     { name: 'YTD', key: 'ytd' },
     { name: '1Y',  key: '1y'  },
     { name: '5Y',  key: '5y'  },
-];
+] as const;
 
-const filteredDateRanges = ref<typeof dateRanges>([...dateRanges]);
-const selectedDTO = ref({ name: '1M'});
+type RangeOption = typeof dateRanges[number];
+
+const filteredDateRanges = ref<RangeOption[]>([...dateRanges]);
+const selectedDTO = ref<RangeOption | null>(dateRanges[1]); // '1M'
+const selectedKey = computed(() => selectedDTO.value?.key ?? '1m');
 
 const orderedPoints = computed<ChartPoint[]>(() => {
     const arr = payload.value?.points ?? []
     return [...arr].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     )
-})
+});
+
+const periodLabels: Record<string,string> = {
+    "1w": "week",
+    "1m": "month",
+    "3m": "3 months",
+    "6m": "6 months",
+    "ytd": "year to date",
+    "1y": "year",
+    "5y": "5 years"
+}
 
 async function getNetworthData(opts?: { rangeKey?: string; from?: string; to?: string }) {
     try {
@@ -61,12 +74,22 @@ async function getNetworthData(opts?: { rangeKey?: string; from?: string; to?: s
         } else if (opts?.rangeKey) {
             params.range = opts.rangeKey;
         }
-        const raw = await chatStore.getNetWorth(params);
-        const res: any = raw?.data?.points ?? raw?.points ?? raw?.data;
+
+        const res = await chatStore.getNetWorth(params);
+
 
         res.points = res.points.map((p: any) => ({ ...p, value: Number(p.value) }));
         res.current.value = Number(res.current.value);
+
+        if (res.change) {
+            res.change.prev_period_end_value = Number(res.change.prev_period_end_value);
+            res.change.current_end_value    = Number(res.change.current_end_value);
+            res.change.abs                  = Number(res.change.abs);
+            res.change.pct                  = Number(res.change.pct);
+        }
+
         payload.value = res;
+
     } catch (err) {
         toastStore.errorResponseToast(err);
     }
@@ -134,8 +157,25 @@ watch(selectedDTO, (val: any) => {
                         </div>
                     </div>
 
+                    <div v-if="payload?.change" class="flex flex-row gap-2 align-items-center" :style="{ color: activeColor }">
+                        <span>
+                        {{ vueHelper.displayAsCurrency(payload.change.current_end_value) }}
+                        </span>
+
+                        <div class="flex flex-row gap-1 align-items-center">
+                            <i :class="payload.change.abs >= 0 ? 'pi pi-angle-up' : 'pi pi-angle-down'"></i>
+                            <span>
+                            ({{ (payload.change.pct * 100).toFixed(1) }}%)
+                          </span>
+                        </div>
+
+                        <span class="text-sm" style="color: var(--text-secondary)">
+                          vs. last {{ periodLabels[selectedKey] ?? 'period' }}
+                        </span>
+                    </div>
+
                     <NetworthChart
-                            :data-points="orderedPoints"
+                            :dataPoints="orderedPoints"
                             :currency="payload.currency"
                             @point-select="p => console.log('selected', p)"
                     />
