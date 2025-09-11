@@ -38,8 +38,9 @@ func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
 	includeInactive := strings.EqualFold(qp.Get("inactive"), "true")
+	classification := qp.Get("classification")
 
-	records, paginator, err := h.Service.FetchAccountsPaginated(userID, p, includeInactive)
+	records, paginator, err := h.Service.FetchAccountsPaginated(userID, p, includeInactive, classification)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

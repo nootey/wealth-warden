@@ -63,15 +63,15 @@ func (s *AccountService) LogBalanceChange(account *models.Account, userID int64,
 	})
 }
 
-func (s *AccountService) FetchAccountsPaginated(userID int64, p utils.PaginationParams, includeInactive bool) ([]models.Account, *utils.Paginator, error) {
+func (s *AccountService) FetchAccountsPaginated(userID int64, p utils.PaginationParams, includeInactive bool, classification string) ([]models.Account, *utils.Paginator, error) {
 
-	totalRecords, err := s.Repo.CountAccounts(userID, p.Filters, includeInactive)
+	totalRecords, err := s.Repo.CountAccounts(userID, p.Filters, includeInactive, &classification)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
-	records, err := s.Repo.FindAccounts(userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeInactive)
+	records, err := s.Repo.FindAccounts(userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeInactive, &classification)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -123,7 +123,7 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		return errors.New("provided initial balance cannot be negative")
 	}
 
-	accCount, err := s.Repo.CountAccounts(userID, nil, false)
+	accCount, err := s.Repo.CountAccounts(userID, nil, false, nil)
 	if err != nil {
 		return err
 	}
@@ -433,7 +433,7 @@ func (s *AccountService) ToggleAccountActiveState(userID int64, id int64) error 
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
-	accCount, err := s.Repo.CountAccounts(userID, nil, false)
+	accCount, err := s.Repo.CountAccounts(userID, nil, false, nil)
 	if err != nil {
 		return err
 	}

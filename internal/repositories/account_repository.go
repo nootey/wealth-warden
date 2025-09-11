@@ -24,6 +24,7 @@ func (r *AccountRepository) FindAccounts(
 	sortField, sortOrder string,
 	filters []utils.Filter,
 	includeInactive bool,
+	classification *string,
 ) ([]models.Account, error) {
 
 	type row struct {
@@ -72,6 +73,10 @@ func (r *AccountRepository) FindAccounts(
 			lb.currency    AS balance_currency
 		`).
 		Where("accounts.user_id = ? AND accounts.deleted_at IS NULL", userID)
+
+	if classification != nil && *classification != "" {
+		q = q.Where("at.classification = ?", *classification)
+	}
 
 	if !includeInactive {
 		q = q.Where("accounts.is_active = TRUE")
@@ -133,12 +138,17 @@ func (r *AccountRepository) FindAccounts(
 	return records, nil
 }
 
-func (r *AccountRepository) CountAccounts(userID int64, filters []utils.Filter, includeInactive bool) (int64, error) {
+func (r *AccountRepository) CountAccounts(userID int64, filters []utils.Filter, includeInactive bool, classification *string) (int64, error) {
 	var totalRecords int64
 
 	query := r.DB.Model(&models.Account{}).
 		Where("user_id = ?", userID).
 		Where("deleted_At is NULL")
+
+	if classification != nil && *classification != "" {
+		query = query.Joins("JOIN account_types at ON at.id = accounts.account_type_id").
+			Where("at.classification = ?", *classification)
+	}
 
 	if !includeInactive {
 		query = query.Where("is_active = ?", true)
