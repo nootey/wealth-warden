@@ -4,11 +4,12 @@ import SettingsSkeleton from "./layout/SettingsSkeleton.vue";
 import type {Account} from "../../models/account_models.ts";
 import vueHelper from "../../utils/vue_helper.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
-import {computed} from "vue";
+import {computed, ref} from "vue";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import TransactionsPaginated from "./data/TransactionsPaginated.vue";
 import type {Column} from "../../services/filter_registry.ts";
 import {useConfirm} from "primevue/useconfirm";
+import NetworthWidget from "./widgets/NetworthWidget.vue";
 
 const props = defineProps<{
     account: Account;
@@ -22,6 +23,7 @@ const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 
 const confirm = useConfirm();
+const nWidgetRef = ref<InstanceType<typeof NetworthWidget> | null>(null);
 
 const transactionColumns = computed<Column[]>(() => [
     { field: 'category', header: 'Category'},
@@ -63,15 +65,8 @@ async function confirmCloseAccount(id: number) {
             <span>{{ account.name }}</span>
             <Button size="small" label="Close account" severity="danger" style="color: white;" @click="confirmCloseAccount(account.id!)"></Button>
         </div>
-        <SettingsSkeleton class="w-full">
-            <div class="w-full flex flex-column gap-3 p-2">
-                <div class="w-full flex flex-column gap-2" style="height: 300px;">
-                    <h5 style="color: var(--text-secondary)">Balance</h5>
-                    <h3 style="color: var(--text-primary)">{{ vueHelper.displayAsCurrency(account.balance.end_balance)}}</h3>
-                    <span>Work in progress ...</span>
-                </div>
-            </div>
-        </SettingsSkeleton>
+
+        <NetworthWidget ref="nWidgetRef" :accountId="account.id" :chartHeight="200"/>
 
         <SettingsSkeleton class="w-full">
             <div class="w-full flex flex-column gap-3 p-2">

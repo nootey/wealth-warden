@@ -74,10 +74,12 @@ const props = withDefaults(defineProps<{
     dataPoints: ChartPoint[]
     currency?: string
     activeColor?: string
+    height: number
 }>(), {
     dataPoints: () => [],
     currency: 'EUR',
-    activeColor: "#ef4444"
+    activeColor: "#ef4444",
+    height: 300,
 })
 
 defineEmits<{
@@ -181,7 +183,7 @@ const options = computed(() => ({
 </script>
 
 <template>
-    <Chart style="height: 300px;" ref="chartRef" type="line" :data="data" :options="options" />
+    <Chart :style="{ height: height + 'px' }" ref="chartRef" type="line" :data="data" :options="options" />
 
     <div v-if="selected" style="margin-top: .5rem; font-size: .9rem;">
         Selected:

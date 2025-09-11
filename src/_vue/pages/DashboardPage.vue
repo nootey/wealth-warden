@@ -42,7 +42,7 @@ async function backfillBalances(){
                 </div>
             </SlotSkeleton>
 
-            <NetworthWidget ref="nWidgetRef" />
+            <NetworthWidget ref="nWidgetRef" :chartHeight="400" />
 
             <SlotSkeleton bg="secondary">
                 <div class="w-full flex flex-row justify-content-between p-2 gap-2">

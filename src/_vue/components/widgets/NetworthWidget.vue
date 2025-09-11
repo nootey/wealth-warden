@@ -12,10 +12,12 @@ const props = withDefaults(defineProps<{
     accountId?: number | null
     title?: string
     storageKeyPrefix?: string
+    chartHeight: number
 }>(), {
     accountId: null,
     title: 'Net worth',
-    storageKeyPrefix: 'networth_range_key'
+    storageKeyPrefix: 'networth_range_key',
+    chartHeight: 300,
 })
 
 type RangeKey = '1w'|'1m'|'3m'|'6m'|'ytd'|'1y'|'5y'
@@ -173,6 +175,7 @@ onMounted(getData)
             </div>
 
             <NetworthChart
+                    :height="chartHeight"
                     :dataPoints="orderedPoints"
                     :currency="payload.currency"
                     :activeColor="activeColor"
