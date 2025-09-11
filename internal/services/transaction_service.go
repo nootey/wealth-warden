@@ -464,7 +464,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		}
 	}
 
-	// Resolve new relations  from req
+	// Resolve new relations
 	newAccount, err := s.AccountService.Repo.FindAccountByID(tx, req.AccountID, userID, false)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
@@ -502,45 +502,81 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 	}
 
 	signed := func(tt string, amt decimal.Decimal) decimal.Decimal {
-		switch strings.ToLower(tt) {
-		case "expense":
+		if strings.ToLower(tt) == "expense" {
 			return amt.Neg()
-		default:
-			return amt
 		}
+		return amt
 	}
+	dirFor := func(effect decimal.Decimal) string {
+		if effect.IsNegative() {
+			return "expense"
+		}
+		return "income"
+	}
+	reverseDirFor := func(effect decimal.Decimal) string {
+		if effect.IsPositive() {
+			return "expense"
+		}
+		return "income"
+	}
+
+	type adj struct {
+		acc  *models.Account
+		date time.Time
+		dir  string
+		amt  decimal.Decimal
+	}
+
+	var adjs []adj
 	oldEffect := signed(exTr.TransactionType, exTr.Amount)
 	newEffect := signed(tr.TransactionType, tr.Amount)
+	oldDate := exTr.TxnDate.UTC().Truncate(24 * time.Hour)
+	newDate := tr.TxnDate.UTC().Truncate(24 * time.Hour)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	if oldAccount.ID != newAccount.ID {
+		// reverse on old, apply on new
 		if !oldEffect.IsZero() {
-			if err := s.AccountService.UpdateAccountCashBalance(tx, &oldAccount, tr.TxnDate,
-				map[bool]string{true: "income", false: "expense"}[oldEffect.IsNegative()],
-				oldEffect.Abs(),
-			); err != nil {
-				tx.Rollback()
-				return err
-			}
+			adjs = append(adjs, adj{&oldAccount, oldDate, reverseDirFor(oldEffect), oldEffect.Abs()})
 		}
 		if !newEffect.IsZero() {
-			if err := s.AccountService.UpdateAccountCashBalance(tx, &newAccount, tr.TxnDate,
-				map[bool]string{true: "expense", false: "income"}[newEffect.IsNegative()],
-				newEffect.Abs(),
-			); err != nil {
-				tx.Rollback()
-				return err
-			}
+			adjs = append(adjs, adj{&newAccount, newDate, dirFor(newEffect), newEffect.Abs()})
+		}
+	} else if oldDate.Equal(newDate) {
+		// same account + same day -> net delta
+		if delta := newEffect.Sub(oldEffect); !delta.IsZero() {
+			adjs = append(adjs, adj{&newAccount, newDate, dirFor(delta), delta.Abs()})
 		}
 	} else {
-		delta := newEffect.Sub(oldEffect)
-		if !delta.IsZero() {
-			if err := s.AccountService.UpdateAccountCashBalance(tx, &newAccount, tr.TxnDate,
-				map[bool]string{true: "expense", false: "income"}[delta.IsNegative()],
-				delta.Abs(),
-			); err != nil {
-				tx.Rollback()
-				return err
-			}
+		// same account + different day -> remove old, add new
+		if !oldEffect.IsZero() {
+			adjs = append(adjs, adj{&newAccount, oldDate, reverseDirFor(oldEffect), oldEffect.Abs()})
+		}
+		if !newEffect.IsZero() {
+			adjs = append(adjs, adj{&newAccount, newDate, dirFor(newEffect), newEffect.Abs()})
+		}
+	}
+
+	// apply adjustments and track earliest date per account
+	type stamp struct {
+		acc   *models.Account
+		start time.Time
+	}
+	earliest := map[int64]stamp{}
+	for _, a := range adjs {
+		if err := s.AccountService.UpdateAccountCashBalance(tx, a.acc, a.date, a.dir, a.amt); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if st, ok := earliest[a.acc.ID]; !ok || a.date.Before(st.start) {
+			earliest[a.acc.ID] = stamp{a.acc, a.date}
+		}
+	}
+	// sync snapshots per affected account
+	for _, st := range earliest {
+		if err := s.AccountService.SyncDailySnapshotsForAccountRange(tx, st.acc, st.start, today); err != nil {
+			tx.Rollback()
+			return err
 		}
 	}
 
@@ -574,7 +610,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		}
 	}
 
-	// NEW account
+	// balance change logs
 	{
 		var delta decimal.Decimal
 		if oldAccount.ID == newAccount.ID {
@@ -587,47 +623,10 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 				return err
 			}
 		}
-	}
-
-	// OLD account (only if it changed)
-	if oldAccount.ID != newAccount.ID && !oldEffect.IsZero() {
-		if err := s.AccountService.LogBalanceChange(&oldAccount, userID, oldEffect.Neg()); err != nil {
-			return err
-		}
-	}
-
-	// Determine earliest affected date
-	startDate := exTr.TxnDate
-	if tr.TxnDate.Before(startDate) {
-		startDate = tr.TxnDate
-	}
-	startDate = startDate.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-
-	// NEW account snapshots
-	{
-		var needRange bool
-		// If account changed -> all future days need recompute on both accounts
-		if oldAccount.ID != newAccount.ID {
-			needRange = true
-		} else {
-			// Same account – only if there was a net delta
-			delta := newEffect.Sub(oldEffect)
-			needRange = !delta.IsZero()
-		}
-		if needRange {
-			if err := s.AccountService.SyncDailySnapshotsForAccountRange(tx, &newAccount, startDate, today); err != nil {
-				tx.Rollback()
+		if oldAccount.ID != newAccount.ID && !oldEffect.IsZero() {
+			if err := s.AccountService.LogBalanceChange(&oldAccount, userID, oldEffect.Neg()); err != nil {
 				return err
 			}
-		}
-	}
-
-	// OLD account snapshots (only if it changed)
-	if oldAccount.ID != newAccount.ID && !oldEffect.IsZero() {
-		if err := s.AccountService.SyncDailySnapshotsForAccountRange(tx, &oldAccount, startDate, today); err != nil {
-			tx.Rollback()
-			return err
 		}
 	}
 
