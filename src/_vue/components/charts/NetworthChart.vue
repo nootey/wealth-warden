@@ -14,6 +14,7 @@ import {
 import 'chartjs-adapter-date-fns'
 import dateHelper from "../../../utils/date_helper.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
+import {useThemeStore} from "../../../services/stores/theme_store.ts";
 
 ChartJS.register(
     LineController,
@@ -22,6 +23,10 @@ ChartJS.register(
     TimeSeriesScale,
     Tooltip, Legend, Filler, CategoryScale
 )
+
+const themeStore = useThemeStore();
+
+const dimColor = themeStore.darkModeActive ? hexToRgba("#9C9C9C") : hexToRgba("#1C1919")
 
 const hoverXByChart = new WeakMap<any, number | null>()
 
@@ -54,7 +59,7 @@ const hoverGuidePlugin = {
         ctx.save()
         ctx.setLineDash(opts?.dash ?? [4, 6])
         ctx.lineWidth = opts?.lineWidth ?? 1
-        ctx.strokeStyle = opts?.dashColor ?? 'rgba(255,255,255,0.35)'
+        ctx.strokeStyle = opts?.dashColor ?? dimColor
         ctx.beginPath()
         ctx.moveTo(x, top)
         ctx.lineTo(x, bottom)
@@ -92,8 +97,6 @@ function hexToRgba(hex: string, alpha = 0.15) {
     const b = bigint & 255
     return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
-
-const dimColor = 'rgba(255,255,255,0.35)'
 
 const data = computed(() => ({
     datasets: [{
