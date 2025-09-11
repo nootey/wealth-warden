@@ -538,6 +538,43 @@ func (s *AccountService) CloseAccount(userID int64, id int64) error {
 	return nil
 }
 
+func (s *AccountService) BackfillBalancesForUser(userID int64, from, to string) error {
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	accounts, err := s.Repo.FindAllAccounts(tx, userID, true) // unchanged
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	if len(accounts) == 0 {
+		return tx.Commit().Error
+	}
+
+	dfrom, dto, err := s.resolveUserDateRange(tx, userID, from, to) // unchanged
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	for _, acc := range accounts {
+		if err := s.backfillAccountRange(tx, &acc, dfrom, dto); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit().Error
+}
+
 func (s *AccountService) resolveUserDateRange(tx *gorm.DB, userID int64, from, to string) (time.Time, time.Time, error) {
 	today := time.Now().Truncate(24 * time.Hour)
 
@@ -598,41 +635,4 @@ func (s *AccountService) backfillAccountRange(
 		dfrom,
 		dto,
 	)
-}
-
-func (s *AccountService) BackfillBalancesForUser(userID int64, from, to string) error {
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
-	}
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p)
-		}
-	}()
-
-	accounts, err := s.Repo.FindAllAccounts(tx, userID, true) // unchanged
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	if len(accounts) == 0 {
-		return tx.Commit().Error
-	}
-
-	dfrom, dto, err := s.resolveUserDateRange(tx, userID, from, to) // unchanged
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	for _, acc := range accounts {
-		if err := s.backfillAccountRange(tx, &acc, dfrom, dto); err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
-	return tx.Commit().Error
 }

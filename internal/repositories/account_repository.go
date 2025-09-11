@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
@@ -325,55 +324,6 @@ func (r *AccountRepository) CloseAccount(tx *gorm.DB, id, userID int64) error {
 	return nil
 }
 
-func (r *AccountRepository) UpsertAccountSnapshots(tx *gorm.DB, rows []models.AccountDailySnapshot) error {
-	if len(rows) == 0 {
-		return nil
-	}
-	return tx.Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "account_id"}, {Name: "as_of"}},
-		DoUpdates: clause.Assignments(map[string]interface{}{
-			"user_id":     gorm.Expr("EXCLUDED.user_id"),
-			"currency":    gorm.Expr("EXCLUDED.currency"),
-			"end_balance": gorm.Expr("EXCLUDED.end_balance"),
-			"computed_at": gorm.Expr("NOW()"),
-		}),
-	}).Create(&rows).Error
-}
-
-func (r *AccountRepository) GetUserFirstBalanceDate(tx *gorm.DB, userID int64) (time.Time, error) {
-	var d *time.Time
-	err := tx.Raw(`
-        SELECT MIN(b.as_of)::date
-        FROM balances b
-        JOIN accounts a ON a.id = b.account_id
-        WHERE a.user_id = ? AND a.deleted_at IS NULL
-    `, userID).Row().Scan(&d)
-	if err != nil && err != sql.ErrNoRows {
-		return time.Time{}, err
-	}
-	if d == nil {
-		return time.Time{}, nil
-	}
-	return d.Truncate(24 * time.Hour), nil
-}
-
-func (r *AccountRepository) GetUserFirstTxnDate(tx *gorm.DB, userID int64) (time.Time, error) {
-	var d *time.Time
-	err := tx.Raw(`
-        SELECT MIN(t.txn_date)::date
-        FROM transactions t
-        JOIN accounts a ON a.id = t.account_id
-        WHERE a.user_id = ? AND t.deleted_at IS NULL AND a.deleted_at IS NULL
-    `, userID).Row().Scan(&d)
-	if err != nil && err != sql.ErrNoRows {
-		return time.Time{}, err
-	}
-	if d == nil {
-		return time.Time{}, nil
-	}
-	return d.Truncate(24 * time.Hour), nil
-}
-
 func (r *AccountRepository) EnsureDailyBalanceRow(
 	tx *gorm.DB, accountID int64, asOf time.Time, currency string,
 ) error {
@@ -428,8 +378,6 @@ func (r *AccountRepository) AddToDailyBalance(
         WHERE account_id = ? AND as_of = ?
     `, field, field), amt, accountID, asOf).Error
 }
-
-// ----------
 
 func (r *AccountRepository) GetDailyBalances(
 	tx *gorm.DB, accountID int64, from, to time.Time,
@@ -502,4 +450,38 @@ func (r *AccountRepository) UpsertSnapshotsFromBalances(
 			end_balance = EXCLUDED.end_balance,
 			computed_at = NOW();
 	`, userID, accountID, currency, from, to, accountID).Error
+}
+
+func (r *AccountRepository) GetUserFirstBalanceDate(tx *gorm.DB, userID int64) (time.Time, error) {
+	var d *time.Time
+	err := tx.Raw(`
+        SELECT MIN(b.as_of)::date
+        FROM balances b
+        JOIN accounts a ON a.id = b.account_id
+        WHERE a.user_id = ? AND a.deleted_at IS NULL
+    `, userID).Row().Scan(&d)
+	if err != nil && err != sql.ErrNoRows {
+		return time.Time{}, err
+	}
+	if d == nil {
+		return time.Time{}, nil
+	}
+	return d.Truncate(24 * time.Hour), nil
+}
+
+func (r *AccountRepository) GetUserFirstTxnDate(tx *gorm.DB, userID int64) (time.Time, error) {
+	var d *time.Time
+	err := tx.Raw(`
+        SELECT MIN(t.txn_date)::date
+        FROM transactions t
+        JOIN accounts a ON a.id = t.account_id
+        WHERE a.user_id = ? AND t.deleted_at IS NULL AND a.deleted_at IS NULL
+    `, userID).Row().Scan(&d)
+	if err != nil && err != sql.ErrNoRows {
+		return time.Time{}, err
+	}
+	if d == nil {
+		return time.Time{}, nil
+	}
+	return d.Truncate(24 * time.Hour), nil
 }
