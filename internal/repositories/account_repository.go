@@ -19,36 +19,116 @@ func NewAccountRepository(db *gorm.DB) *AccountRepository {
 	return &AccountRepository{DB: db}
 }
 
-func (r *AccountRepository) FindAccounts(userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeInactive bool) ([]models.Account, error) {
+func (r *AccountRepository) FindAccounts(
+	userID int64,
+	offset, limit int,
+	sortField, sortOrder string,
+	filters []utils.Filter,
+	includeInactive bool,
+) ([]models.Account, error) {
 
-	var records []models.Account
+	type row struct {
+		models.Account
 
-	query := r.DB.
-		Preload("AccountType").
-		Preload("Balance").
-		Where("user_id = ?", userID).
-		Where("deleted_At is NULL")
+		AT_ID             int64     `gorm:"column:at_id"`
+		AT_Type           string    `gorm:"column:at_type"`
+		AT_Subtype        string    `gorm:"column:at_subtype"`
+		AT_Classification string    `gorm:"column:at_classification"`
+		AT_CreatedAt      time.Time `gorm:"column:at_created_at"`
+		AT_UpdatedAt      time.Time `gorm:"column:at_updated_at"`
+
+		BalanceID       *int64           `gorm:"column:balance_id"`
+		BalanceAsOf     *time.Time       `gorm:"column:balance_as_of"`
+		BalanceEnd      *decimal.Decimal `gorm:"column:balance_end"`
+		BalanceCurrency *string          `gorm:"column:balance_currency"`
+	}
+
+	var rows []row
+
+	q := r.DB.
+		Table("accounts").
+		Joins(`INNER JOIN account_types at ON at.id = accounts.account_type_id`).
+		Joins(`
+			LEFT JOIN LATERAL (
+				SELECT b.id, b.as_of, b.end_balance, b.currency
+				FROM balances b
+				WHERE b.account_id = accounts.id
+				ORDER BY b.as_of DESC
+				LIMIT 1
+			) lb ON TRUE
+		`).
+		Select(`
+			accounts.*,
+
+			at.id             AS at_id,
+			at.type           AS at_type,
+			at.sub_type       AS at_subtype,
+			at.classification AS at_classification,
+			at.created_at     AS at_created_at,
+			at.updated_at     AS at_updated_at,
+
+			lb.id          AS balance_id,
+			lb.as_of       AS balance_as_of,
+			lb.end_balance AS balance_end,
+			lb.currency    AS balance_currency
+		`).
+		Where("accounts.user_id = ? AND accounts.deleted_at IS NULL", userID)
 
 	if !includeInactive {
-		query = query.Where("is_active = ?", true)
+		q = q.Where("accounts.is_active = TRUE")
 	}
 
 	joins := utils.GetRequiredJoins(filters)
 	orderBy := utils.ConstructOrderByClause(&joins, "accounts", sortField, sortOrder)
-
-	for _, join := range joins {
-		query = query.Joins(join)
+	for _, j := range joins {
+		q = q.Joins(j)
 	}
+	q = utils.ApplyFilters(q, filters)
 
-	query = utils.ApplyFilters(query, filters)
-
-	err := query.
+	if err := q.
 		Order(orderBy).
 		Limit(limit).
 		Offset(offset).
-		Find(&records).Error
-	if err != nil {
+		Scan(&rows).Error; err != nil {
 		return nil, err
+	}
+
+	records := make([]models.Account, 0, len(rows))
+	for _, r := range rows {
+		a := r.Account
+
+		a.AccountType = models.AccountType{
+			ID:             r.AT_ID,
+			Type:           r.AT_Type,
+			Subtype:        r.AT_Subtype,
+			Classification: r.AT_Classification,
+			CreatedAt:      r.AT_CreatedAt,
+			UpdatedAt:      r.AT_UpdatedAt,
+		}
+
+		if r.BalanceID != nil {
+			end := decimal.Zero
+			if r.BalanceEnd != nil {
+				end = *r.BalanceEnd
+			}
+			cur := ""
+			if r.BalanceCurrency != nil {
+				cur = *r.BalanceCurrency
+			}
+			asOf := time.Time{}
+			if r.BalanceAsOf != nil {
+				asOf = *r.BalanceAsOf
+			}
+			a.Balance = models.Balance{
+				ID:         *r.BalanceID,
+				AccountID:  a.ID,
+				AsOf:       asOf,
+				EndBalance: end,
+				Currency:   cur,
+			}
+		}
+
+		records = append(records, a)
 	}
 
 	return records, nil
