@@ -217,11 +217,5 @@ watch(selectedDTO, (val: any) => {
 </template>
 
 <style scoped>
-.main-item {
-  width: 100%;
-  max-width: 1000px;
-  align-items: center;
-  padding: 1rem;
-  border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--background-secondary)
-}
+
 </style>
