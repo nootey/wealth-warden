@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, ref} from 'vue'
+import {computed, onUnmounted, ref} from 'vue'
 import Chart from 'primevue/chart'
 import type {ChartPoint} from "../../../models/chart_models.ts";
 
@@ -23,52 +23,9 @@ ChartJS.register(
     TimeSeriesScale,
     Tooltip, Legend, Filler, CategoryScale
 )
-
-const themeStore = useThemeStore();
-
-const dimColor = themeStore.darkModeActive ? hexToRgba("#9C9C9C") : hexToRgba("#1C1919")
-
 const hoverXByChart = new WeakMap<any, number | null>()
 
-const hoverGuidePlugin = {
-    id: 'hoverGuide',
-
-    afterEvent(chart: any, args: any) {
-        let next: number | null = null
-        if (args.inChartArea) {
-            const a = chart.getActiveElements?.() ?? []
-            if (a.length) next = a[0].element?.$context?.parsed?.x ?? null
-        }
-        if (args.event?.type === 'mouseout') next = null
-
-        const prev = hoverXByChart.get(chart) ?? null
-        if (prev !== next) {
-            hoverXByChart.set(chart, next)
-            chart.update('none')
-        }
-    },
-
-    afterDatasetsDraw(chart: any, _args: any, opts: any) {
-        const hv = hoverXByChart.get(chart)
-        if (hv == null) return
-
-        const { ctx, chartArea, scales } = chart
-        const { top, bottom } = chartArea
-        const x = scales.x.getPixelForValue(hv)
-
-        ctx.save()
-        ctx.setLineDash(opts?.dash ?? [4, 6])
-        ctx.lineWidth = opts?.lineWidth ?? 1
-        ctx.strokeStyle = opts?.dashColor ?? dimColor
-        ctx.beginPath()
-        ctx.moveTo(x, top)
-        ctx.lineTo(x, bottom)
-        ctx.stroke()
-        ctx.restore()
-    }
-}
-
-ChartJS.register(hoverGuidePlugin)
+// ChartJS.register(hoverGuidePlugin)
 
 const props = withDefaults(defineProps<{
     dataPoints: ChartPoint[]
@@ -87,7 +44,59 @@ defineEmits<{
 }>()
 
 const chartRef = ref<any>(null);
-const selected = ref<{ x: string | number | Date; y: number } | null>(null);
+
+onUnmounted(() => {
+    chartRef.value?.chart?.destroy?.()
+})
+
+const themeStore = useThemeStore();
+
+const dimColor = computed(() =>
+    themeStore.darkModeActive ? hexToRgba("#9C9C9C") : hexToRgba("#1C1919")
+)
+
+const hoverGuidePlugin = {
+    id: 'hoverGuide',
+
+    afterEvent(chart: any, args: any) {
+        let next: number | null = null
+        if (args.inChartArea) {
+            const a = chart.getActiveElements?.() ?? []
+            if (a.length) next = a[0].element?.$context?.parsed?.x ?? null
+        }
+        if (args.event?.type === 'mouseout') next = null
+
+        const prev = hoverXByChart.get(chart) ?? null
+        if (prev !== next) {
+            hoverXByChart.set(chart, next)
+
+            // Force scriptable options to be re-evaluated.
+            const prevAnim = chart.options.animation
+            chart.options.animation = false
+            chart.update()
+            chart.options.animation = prevAnim
+        }
+    },
+
+    afterDatasetsDraw(chart: any, _args: any, opts: any) {
+        const hv = hoverXByChart.get(chart)
+        if (hv == null) return
+
+        const { ctx, chartArea, scales } = chart
+        const { top, bottom } = chartArea
+        const x = scales.x.getPixelForValue(hv)
+
+        ctx.save()
+        ctx.setLineDash(opts?.dash ?? [4, 6])
+        ctx.lineWidth = opts?.lineWidth ?? 1
+        ctx.strokeStyle = opts?.dashColor ?? dimColor.value
+        ctx.beginPath()
+        ctx.moveTo(x, top)
+        ctx.lineTo(x, bottom)
+        ctx.stroke()
+        ctx.restore()
+    }
+}
 
 function hexToRgba(hex: string, alpha = 0.15) {
     const h = hex.replace('#', '')
@@ -117,7 +126,7 @@ const data = computed(() => ({
                 const hv = hoverXByChart.get(ctx.chart) ?? null
                 if (hv == null) return props.activeColor
                 const x0 = ctx.p0?.parsed?.x
-                return x0 >= hv ? dimColor : props.activeColor
+                return x0 >= hv ? dimColor.value : props.activeColor
             }
         }
     }]
@@ -183,11 +192,13 @@ const options = computed(() => ({
 </script>
 
 <template>
-    <Chart :style="{ height: height + 'px' }" ref="chartRef" type="line" :data="data" :options="options" />
-
-    <div v-if="selected" style="margin-top: .5rem; font-size: .9rem;">
-        Selected:
-        <strong>{{ new Date(selected.x).toLocaleDateString() }}</strong>
-        — {{ vueHelper.displayAsCurrency(Number(selected.y)) }}
-    </div>
+    <Chart
+            ref="chartRef"
+            :key="`nw-${themeStore.darkModeActive}-${dataPoints?.length}`"
+            type="line"
+            :data="data"
+            :options="options"
+            :plugins="[hoverGuidePlugin]"
+            :style="{ height: height + 'px' }"
+    />
 </template>
