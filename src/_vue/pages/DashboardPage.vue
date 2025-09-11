@@ -5,6 +5,7 @@ import {useToastStore} from "../../services/stores/toast_store.ts";
 import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
 import NetworthWidget from "../components/widgets/NetworthWidget.vue";
 import {ref} from "vue";
+import AccountAllocations from "../components/charts/AccountAllocations.vue";
 
 const authStore = useAuthStore();
 const accountStore = useAccountStore();
@@ -44,16 +45,16 @@ async function backfillBalances(){
 
             <NetworthWidget ref="nWidgetRef" :chartHeight="400" />
 
+            <div class="w-full flex flex-row justify-content-between p-2 gap-2">
+                <h3>Account allocation by type</h3>
+            </div>
+
             <SlotSkeleton bg="secondary">
-                <div class="w-full flex flex-row justify-content-between p-2 gap-2">
-                    Assets - WIP
-                </div>
+                <AccountAllocations title="Assets" classification="asset" />
             </SlotSkeleton>
 
             <SlotSkeleton bg="secondary">
-                <div class="w-full flex flex-row justify-content-between p-2 gap-2">
-                    Liabilities - WIP
-                </div>
+                <AccountAllocations title="Liablities" classification="liability" />
             </SlotSkeleton>
 
     </div>

@@ -22,6 +22,10 @@ const vueHelper = {
         if (!value) return '';
         return value.replace(/\s+/g, "_");
     },
+    denormalize(value: string): string {
+        if (!value) return '';
+        return value.replace("_", " ");
+    },
     formatString: (value: string) => {
         if (!value) return "";
 
