@@ -399,6 +399,17 @@ func (s *AccountService) UpdateAccountCashBalance(
 		}
 	}
 
+	if err := s.Repo.UpsertSnapshotsFromBalances(
+		tx,
+		acc.UserID,
+		acc.ID,
+		acc.Currency,
+		asOf.UTC().Truncate(24*time.Hour),
+		time.Now().UTC().Truncate(24*time.Hour),
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
