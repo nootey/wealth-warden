@@ -8,14 +8,22 @@ export const useChartStore = defineStore('chart', {
     getters: {
     },
     actions: {
-        async getNetWorth(params?: { range?: string; from?: string; to?: string; currency?: string }) {
+        async getNetWorth(params?: {
+            range?: string; from?: string; to?: string; currency?: string;
+            account?: number | string | null;
+        }) {
             try {
-                const response = await apiClient.get(`${this.apiPrefix}/networth`, {
-                    params: { params }
-                });
-                return response.data;
+                const q: Record<string, any> = {}
+                if (params) {
+                    for (const [k, v] of Object.entries(params)) {
+                        if (v !== undefined && v !== null && v !== '') q[k] = v
+                    }
+                }
+
+                const response = await apiClient.get(`${this.apiPrefix}/networth`, { params: q })
+                return response.data
             } catch (err) {
-                throw err;
+                throw err
             }
         }
     },
