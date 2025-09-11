@@ -3,6 +3,7 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strconv"
 	"strings"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
@@ -57,11 +58,25 @@ func (h *ChartingHandler) NetWorthChart(c *gin.Context) {
 		to = p["to"]
 	}
 
-	series, err := h.Service.GetNetWorthSeries(userID, currency, r, from, to)
+	accStr := c.Query("account")
+	if accStr == "" {
+		accStr = p["account"]
+	}
+
+	var accID *int64
+	if strings.TrimSpace(accStr) != "" {
+		v, err := strconv.ParseInt(accStr, 10, 64)
+		if err != nil {
+			utils.ErrorMessage(c, "param error", "account must be a valid integer", http.StatusBadRequest, err)
+			return
+		}
+		accID = &v
+	}
+
+	series, err := h.Service.GetNetWorthSeries(userID, currency, r, from, to, accID)
 	if err != nil {
 		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
-
 	c.JSON(http.StatusOK, series)
 }

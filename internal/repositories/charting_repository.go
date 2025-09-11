@@ -16,66 +16,92 @@ func NewChartingRepository(db *gorm.DB) *ChartingRepository {
 	return &ChartingRepository{DB: db}
 }
 
-func (r *ChartingRepository) FetchNetWorthSeries(tx *gorm.DB, userID int64, currency string, from, to time.Time, gran string) ([]models.ChartPoint, error) {
+func (r *ChartingRepository) sourceView(accountID *int64) string {
+	if accountID != nil {
+		return "v_user_account_daily_snapshots"
+	}
+	return "v_user_daily_networth_snapshots"
+}
+
+func (r *ChartingRepository) FetchNetWorthSeries(
+	tx *gorm.DB, userID int64, currency string,
+	from, to time.Time, gran string, accountID *int64,
+) ([]models.ChartPoint, error) {
+
 	type row struct {
 		Date  time.Time
 		Value string
 	}
 	rows := []row{}
 
+	src := r.sourceView(accountID)
+
 	switch gran {
 	case "day":
-		err := tx.Raw(`
-            SELECT as_of AS date,
-                   end_balance::text AS value
-            FROM v_user_daily_networth_snapshots
-            WHERE user_id = ? AND currency = ?
-              AND as_of BETWEEN ? AND ?
-            ORDER BY as_of
-        `, userID, currency, from, to).Scan(&rows).Error
-		if err != nil {
+		sql := `
+		  SELECT as_of AS date, end_balance::text AS value
+		  FROM ` + src + `
+		  WHERE user_id = ? AND currency = ? AND as_of BETWEEN ? AND ?
+		`
+		args := []any{userID, currency, from, to}
+		if accountID != nil {
+			sql += " AND account_id = ?"
+			args = append(args, *accountID)
+		}
+		sql += " ORDER BY as_of"
+		if err := tx.Raw(sql, args...).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 
 	case "week":
-		err := tx.Raw(`
-            WITH s AS (
-              SELECT as_of, end_balance
-              FROM v_user_daily_networth_snapshots
-              WHERE user_id = ? AND currency = ? AND as_of BETWEEN ? AND ?
-            ),
-            b AS (
-              SELECT date_trunc('week', as_of)::date AS bucket, as_of, end_balance
-              FROM s
-            )
-            SELECT DISTINCT ON (bucket)
-                   bucket AS date,
-                   end_balance::text AS value
-            FROM b
-            ORDER BY bucket, as_of DESC
-        `, userID, currency, from, to).Scan(&rows).Error
-		if err != nil {
+		sql := `
+		  WITH s AS (
+		    SELECT as_of, end_balance
+		    FROM ` + src + `
+		    WHERE user_id = ? AND currency = ? AND as_of BETWEEN ? AND ?
+		`
+		args := []any{userID, currency, from, to}
+		if accountID != nil {
+			sql += " AND account_id = ?"
+			args = append(args, *accountID)
+		}
+		sql += `
+		  ),
+		  b AS (
+		    SELECT date_trunc('week', as_of)::date AS bucket, as_of, end_balance
+		    FROM s
+		  )
+		  SELECT DISTINCT ON (bucket) bucket AS date, end_balance::text AS value
+		  FROM b
+		  ORDER BY bucket, as_of DESC
+		`
+		if err := tx.Raw(sql, args...).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 
 	case "month":
-		err := tx.Raw(`
-            WITH s AS (
-              SELECT as_of, end_balance
-              FROM v_user_daily_networth_snapshots
-              WHERE user_id = ? AND currency = ? AND as_of BETWEEN ? AND ?
-            ),
-            b AS (
-              SELECT date_trunc('month', as_of)::date AS bucket, as_of, end_balance
-              FROM s
-            )
-            SELECT DISTINCT ON (bucket)
-                   bucket AS date,
-                   end_balance::text AS value
-            FROM b
-            ORDER BY bucket, as_of DESC
-        `, userID, currency, from, to).Scan(&rows).Error
-		if err != nil {
+		sql := `
+		  WITH s AS (
+		    SELECT as_of, end_balance
+		    FROM ` + src + `
+		    WHERE user_id = ? AND currency = ? AND as_of BETWEEN ? AND ?
+		`
+		args := []any{userID, currency, from, to}
+		if accountID != nil {
+			sql += " AND account_id = ?"
+			args = append(args, *accountID)
+		}
+		sql += `
+		  ),
+		  b AS (
+		    SELECT date_trunc('month', as_of)::date AS bucket, as_of, end_balance
+		    FROM s
+		  )
+		  SELECT DISTINCT ON (bucket) bucket AS date, end_balance::text AS value
+		  FROM b
+		  ORDER BY bucket, as_of DESC
+		`
+		if err := tx.Raw(sql, args...).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 
@@ -91,33 +117,53 @@ func (r *ChartingRepository) FetchNetWorthSeries(tx *gorm.DB, userID int64, curr
 	return out, nil
 }
 
-func (r *ChartingRepository) FetchLatestNetWorth(tx *gorm.DB, userID int64, currency string) (time.Time, string, error) {
+func (r *ChartingRepository) FetchLatestNetWorth(
+	tx *gorm.DB, userID int64, currency string, accountID *int64,
+) (time.Time, string, error) {
+
+	src := r.sourceView(accountID)
+
+	sql := `
+	  SELECT as_of, end_balance::text
+	  FROM ` + src + `
+	  WHERE user_id = ? AND currency = ?
+	`
+	args := []any{userID, currency}
+	if accountID != nil {
+		sql += " AND account_id = ?"
+		args = append(args, *accountID)
+	}
+	sql += ` ORDER BY as_of DESC LIMIT 1`
+
 	var date time.Time
 	var value string
-	err := tx.Raw(`
-        SELECT as_of, end_balance::text
-        FROM v_user_daily_networth_snapshots
-        WHERE user_id = ? AND currency = ?
-        ORDER BY as_of DESC
-        LIMIT 1
-    `, userID, currency).Row().Scan(&date, &value)
-	if err != nil {
+	if err := tx.Raw(sql, args...).Row().Scan(&date, &value); err != nil {
 		return time.Time{}, "", err
 	}
 	return date, value, nil
 }
 
-func (r *ChartingRepository) FetchNetWorthAsOf(tx *gorm.DB, userID int64, currency string, asOf time.Time) (time.Time, string, error) {
+func (r *ChartingRepository) FetchNetWorthAsOf(
+	tx *gorm.DB, userID int64, currency string, asOf time.Time, accountID *int64,
+) (time.Time, string, error) {
+
+	src := r.sourceView(accountID)
+
+	sql := `
+	  SELECT as_of, end_balance::text
+	  FROM ` + src + `
+	  WHERE user_id = ? AND currency = ? AND as_of <= ?
+	`
+	args := []any{userID, currency, asOf}
+	if accountID != nil {
+		sql += " AND account_id = ?"
+		args = append(args, *accountID)
+	}
+	sql += ` ORDER BY as_of DESC LIMIT 1`
+
 	var date time.Time
 	var value string
-	err := tx.Raw(`
-        SELECT as_of, end_balance::text
-        FROM v_user_daily_networth_snapshots
-        WHERE user_id = ? AND currency = ? AND as_of <= ?
-        ORDER BY as_of DESC
-        LIMIT 1
-    `, userID, currency, asOf).Row().Scan(&date, &value)
-	if err != nil {
+	if err := tx.Raw(sql, args...).Row().Scan(&date, &value); err != nil {
 		return time.Time{}, "", err
 	}
 	return date, value, nil

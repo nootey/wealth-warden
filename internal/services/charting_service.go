@@ -31,7 +31,13 @@ func NewChartingService(
 	}
 }
 
-func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, from, to string) (*models.NetWorthResponse, error) {
+func (s *ChartingService) GetNetWorthSeries(
+	userID int64,
+	currency,
+	rangeKey,
+	from, to string,
+	accountID *int64,
+) (*models.NetWorthResponse, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -104,7 +110,7 @@ func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, fr
 		gran = "month"
 	}
 
-	points, err := s.Repo.FetchNetWorthSeries(tx, userID, currency, dfrom, dto, gran)
+	points, err := s.Repo.FetchNetWorthSeries(tx, userID, currency, dfrom, dto, gran, accountID)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -126,7 +132,7 @@ func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, fr
 	}
 
 	// latest snapshot
-	curDate, curStr, err := s.Repo.FetchLatestNetWorth(tx, userID, currency)
+	curDate, curStr, err := s.Repo.FetchLatestNetWorth(tx, userID, currency, accountID)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -140,7 +146,7 @@ func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, fr
 	var prevEndStr string
 	var prevEndVal decimal.Decimal
 	if !prevEndAnchor.IsZero() {
-		prevEndDate, prevEndStr, err = s.Repo.FetchNetWorthAsOf(tx, userID, currency, prevEndAnchor)
+		prevEndDate, prevEndStr, err = s.Repo.FetchNetWorthAsOf(tx, userID, currency, prevEndAnchor, accountID)
 		if err != nil {
 			// When there is no earlier snapshot, Row().Scan likely returns sql.ErrNoRows.
 			// In that case, treat previous end as zero to keep API stable.
@@ -165,7 +171,7 @@ func (s *ChartingService) GetNetWorthSeries(userID int64, currency, rangeKey, fr
 		// No points in range — fall back to "as of dto" to define the end value
 		var asOfDate time.Time
 		var asOfStr string
-		asOfDate, asOfStr, err = s.Repo.FetchNetWorthAsOf(tx, userID, currency, dto)
+		asOfDate, asOfStr, err = s.Repo.FetchNetWorthAsOf(tx, userID, currency, dto, accountID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				currentEndVal = decimal.Zero
