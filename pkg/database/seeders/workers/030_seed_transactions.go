@@ -64,10 +64,17 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 
 			desc := "Random " + ttype
 
+			var category models.Category
+			_ = db.Model(&models.Category{}).
+				Where("classification = ?", "uncategorized").
+				Order("name").
+				First(&category)
+
 			t := models.Transaction{
 				UserID:          u.ID,
 				AccountID:       acc.ID,
 				TransactionType: ttype,
+				CategoryID:      &category.ID,
 				Amount:          amt,
 				Currency:        acc.Currency,
 				TxnDate:         date,
