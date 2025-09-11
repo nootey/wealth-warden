@@ -31,11 +31,22 @@ SELECT
     SUM(end_balance)::NUMERIC(19,4) AS end_balance
 FROM account_daily_snapshots
 GROUP BY user_id, as_of, currency;
+
+CREATE OR REPLACE VIEW v_user_account_daily_snapshots AS
+SELECT
+    user_id,
+    account_id,
+    as_of,
+    currency,
+    end_balance::NUMERIC(19,4) AS end_balance
+FROM account_daily_snapshots;
+
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 DROP VIEW IF EXISTS v_user_daily_networth_snapshots;
+DROP VIEW IF EXISTS v_user_account_daily_snapshots;
 DROP INDEX IF EXISTS idx_ads_user_ccy_asof;
 DROP INDEX IF EXISTS idx_ads_account_asof;
 DROP INDEX IF EXISTS idx_ads_user_asof;
