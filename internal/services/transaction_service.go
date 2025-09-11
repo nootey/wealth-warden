@@ -189,17 +189,6 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 		return err
 	}
 
-	err = s.AccountService.SyncDailySnapshotsForAccountRange(
-		tx,
-		&account,
-		tr.TxnDate,
-		time.Now().UTC().Truncate(24*time.Hour),
-	)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
@@ -429,12 +418,10 @@ func (s *TransactionService) InsertCategory(userID int64, req *models.CategoryRe
 }
 
 func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *models.TransactionReq) error {
-
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
-
 	defer func() {
 		if p := recover(); p != nil {
 			tx.Rollback()
@@ -442,16 +429,16 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		}
 	}()
 
+	// Load existing transaction
 	exTr, err := s.Repo.FindTransactionByID(tx, id, userID, false)
 	if err != nil {
 		return fmt.Errorf("can't find transaction with given id %w", err)
 	}
-
 	if exTr.IsAdjustment {
 		return errors.New("can't edit a manual adjustment transaction")
 	}
 
-	// Load existing relations for comparison
+	// Load old account & category (for logs)
 	oldAccount, err := s.AccountService.Repo.FindAccountByID(tx, exTr.AccountID, userID, false)
 	if err != nil {
 		return fmt.Errorf("can't find existing account: %w", err)
@@ -464,12 +451,11 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		}
 	}
 
-	// Resolve new relations
+	// Resolve new account & category
 	newAccount, err := s.AccountService.Repo.FindAccountByID(tx, req.AccountID, userID, false)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
-
 	var newCategory models.Category
 	if req.CategoryID != nil {
 		newCategory, err = s.Repo.FindCategoryByID(tx, *req.CategoryID, &userID, false)
@@ -483,6 +469,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		}
 	}
 
+	// Update the transaction
 	tr := models.Transaction{
 		ID:              exTr.ID,
 		UserID:          userID,
@@ -494,13 +481,13 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		TxnDate:         req.TxnDate,
 		Description:     req.Description,
 	}
-
 	_, err = s.Repo.UpdateTransaction(tx, tr)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
+	// Adjust balances
 	signed := func(tt string, amt decimal.Decimal) decimal.Decimal {
 		if strings.ToLower(tt) == "expense" {
 			return amt.Neg()
@@ -520,73 +507,42 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		return "income"
 	}
 
-	type adj struct {
-		acc  *models.Account
-		date time.Time
-		dir  string
-		amt  decimal.Decimal
-	}
-
-	var adjs []adj
 	oldEffect := signed(exTr.TransactionType, exTr.Amount)
 	newEffect := signed(tr.TransactionType, tr.Amount)
-	oldDate := exTr.TxnDate.UTC().Truncate(24 * time.Hour)
-	newDate := tr.TxnDate.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	if oldAccount.ID != newAccount.ID {
-		// reverse on old, apply on new
+		// reverse old
 		if !oldEffect.IsZero() {
-			adjs = append(adjs, adj{&oldAccount, oldDate, reverseDirFor(oldEffect), oldEffect.Abs()})
+			if err := s.AccountService.UpdateAccountCashBalance(tx, &oldAccount, exTr.TxnDate, reverseDirFor(oldEffect), oldEffect.Abs()); err != nil {
+				tx.Rollback()
+				return err
+			}
 		}
+		// apply new
 		if !newEffect.IsZero() {
-			adjs = append(adjs, adj{&newAccount, newDate, dirFor(newEffect), newEffect.Abs()})
-		}
-	} else if oldDate.Equal(newDate) {
-		// same account + same day -> net delta
-		if delta := newEffect.Sub(oldEffect); !delta.IsZero() {
-			adjs = append(adjs, adj{&newAccount, newDate, dirFor(delta), delta.Abs()})
+			if err := s.AccountService.UpdateAccountCashBalance(tx, &newAccount, tr.TxnDate, dirFor(newEffect), newEffect.Abs()); err != nil {
+				tx.Rollback()
+				return err
+			}
 		}
 	} else {
-		// same account + different day -> remove old, add new
-		if !oldEffect.IsZero() {
-			adjs = append(adjs, adj{&newAccount, oldDate, reverseDirFor(oldEffect), oldEffect.Abs()})
-		}
-		if !newEffect.IsZero() {
-			adjs = append(adjs, adj{&newAccount, newDate, dirFor(newEffect), newEffect.Abs()})
-		}
-	}
-
-	// apply adjustments and track earliest date per account
-	type stamp struct {
-		acc   *models.Account
-		start time.Time
-	}
-	earliest := map[int64]stamp{}
-	for _, a := range adjs {
-		if err := s.AccountService.UpdateAccountCashBalance(tx, a.acc, a.date, a.dir, a.amt); err != nil {
-			tx.Rollback()
-			return err
-		}
-		if st, ok := earliest[a.acc.ID]; !ok || a.date.Before(st.start) {
-			earliest[a.acc.ID] = stamp{a.acc, a.date}
-		}
-	}
-	// sync snapshots per affected account
-	for _, st := range earliest {
-		if err := s.AccountService.SyncDailySnapshotsForAccountRange(tx, st.acc, st.start, today); err != nil {
-			tx.Rollback()
-			return err
+		// same account, net delta
+		delta := newEffect.Sub(oldEffect)
+		if !delta.IsZero() {
+			if err := s.AccountService.UpdateAccountCashBalance(tx, &newAccount, tr.TxnDate, dirFor(delta), delta.Abs()); err != nil {
+				tx.Rollback()
+				return err
+			}
 		}
 	}
 
+	// Commit transaction
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
 	// Dispatch transaction activity log
 	changes := utils.InitChanges()
-
 	utils.CompareChanges(oldAccount.Name, newAccount.Name, changes, "account")
 	utils.CompareChanges(exTr.TransactionType, tr.TransactionType, changes, "type")
 	utils.CompareDateChange(&exTr.TxnDate, &tr.TxnDate, changes, "date")
@@ -596,7 +552,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 	utils.CompareChanges(utils.SafeString(exTr.Description), utils.SafeString(tr.Description), changes, "description")
 
 	if !changes.IsEmpty() {
-		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
 			LoggingRepo: s.Ctx.LoggingService.Repo,
 			Logger:      s.Ctx.Logger,
 			Event:       "update",
@@ -604,13 +560,12 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 			Description: nil,
 			Payload:     changes,
 			Causer:      &userID,
-		})
-		if err != nil {
+		}); err != nil {
 			return err
 		}
 	}
 
-	// balance change logs
+	// Balance change logs
 	{
 		var delta decimal.Decimal
 		if oldAccount.ID == newAccount.ID {
@@ -753,17 +708,6 @@ func (s *TransactionService) DeleteTransaction(userID int64, id int64) error {
 	if !inverse.IsZero() {
 		dir := map[bool]string{true: "expense", false: "income"}[inverse.IsNegative()]
 		if err := s.AccountService.UpdateAccountCashBalance(tx, &account, tr.TxnDate, dir, inverse.Abs()); err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		err = s.AccountService.SyncDailySnapshotsForAccountRange(
-			tx,
-			&account,
-			tr.TxnDate,
-			time.Now().UTC().Truncate(24*time.Hour),
-		)
-		if err != nil {
 			tx.Rollback()
 			return err
 		}

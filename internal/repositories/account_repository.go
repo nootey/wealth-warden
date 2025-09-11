@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -246,79 +245,6 @@ func (r *AccountRepository) CloseAccount(tx *gorm.DB, id, userID int64) error {
 	return nil
 }
 
-func (r *AccountRepository) GetAccountOpening(tx *gorm.DB, accountID int64) (time.Time, decimal.Decimal, error) {
-	var asOf *time.Time
-	var startBalStr *string
-
-	// earliest balance row
-	err := tx.Raw(`
-        SELECT as_of::date, start_balance::text
-        FROM balances
-        WHERE account_id = ?
-        ORDER BY as_of ASC
-        LIMIT 1
-    `, accountID).Row().Scan(&asOf, &startBalStr)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) && err != sql.ErrNoRows {
-		return time.Time{}, decimal.Zero, err
-	}
-
-	// fallback opening date: earliest txn date or today
-	var firstTxn *time.Time
-	if err2 := tx.Raw(`
-        SELECT MIN(txn_date)::date
-        FROM transactions
-        WHERE account_id = ? AND deleted_at IS NULL
-    `, accountID).Row().Scan(&firstTxn); err2 != nil && err2 != sql.ErrNoRows {
-		return time.Time{}, decimal.Zero, err2
-	}
-
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	openingDate := today
-	if asOf != nil && !asOf.IsZero() && asOf.Before(openingDate) {
-		openingDate = asOf.UTC().Truncate(24 * time.Hour)
-	}
-	if firstTxn != nil && !firstTxn.IsZero() && firstTxn.Before(openingDate) {
-		openingDate = firstTxn.UTC().Truncate(24 * time.Hour)
-	}
-
-	openingBal := decimal.Zero
-	if startBalStr != nil {
-		if v, e := decimal.NewFromString(*startBalStr); e == nil {
-			openingBal = v
-		}
-	}
-
-	return openingDate, openingBal, nil
-}
-
-func (r *AccountRepository) GetDailyTxnNet(tx *gorm.DB, accountID int64, start, end time.Time) (map[time.Time]decimal.Decimal, error) {
-	type row struct {
-		AsOf   time.Time
-		Amount string
-	}
-	var rows []row
-	err := tx.Raw(`
-        SELECT DATE(txn_date) AS as_of,
-               SUM(CASE WHEN transaction_type = 'expense' THEN -amount ELSE amount END)::text AS amount
-        FROM transactions
-        WHERE account_id = ?
-          AND deleted_at IS NULL
-          AND txn_date::date BETWEEN ? AND ?
-        GROUP BY DATE(txn_date)
-        ORDER BY DATE(txn_date)
-    `, accountID, start, end).Scan(&rows).Error
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[time.Time]decimal.Decimal, len(rows))
-	for _, r := range rows {
-		v, _ := decimal.NewFromString(r.Amount)
-		// normalize date to midnight
-		out[r.AsOf.Truncate(24*time.Hour)] = v
-	}
-	return out, nil
-}
-
 func (r *AccountRepository) UpsertAccountSnapshots(tx *gorm.DB, rows []models.AccountDailySnapshot) error {
 	if len(rows) == 0 {
 		return nil
@@ -421,4 +347,79 @@ func (r *AccountRepository) AddToDailyBalance(
         SET %s = %s + ?, updated_at = NOW()
         WHERE account_id = ? AND as_of = ?
     `, field, field), amt, accountID, asOf).Error
+}
+
+// ----------
+
+func (r *AccountRepository) GetDailyBalances(
+	tx *gorm.DB, accountID int64, from, to time.Time,
+) (map[string]decimal.Decimal, error) {
+	type row struct {
+		AsOf  time.Time
+		Value string
+	}
+
+	fromUTC := from.UTC().Truncate(24 * time.Hour)
+	toUTC := to.UTC().Truncate(24 * time.Hour)
+
+	var rows []row
+	err := tx.Raw(`
+        SELECT as_of, end_balance::text
+        FROM balances
+        WHERE account_id = ? AND as_of BETWEEN ? AND ?
+        ORDER BY as_of
+    `, accountID, fromUTC, toUTC).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[string]decimal.Decimal, len(rows))
+	for _, r := range rows {
+		v, _ := decimal.NewFromString(r.Value)
+		k := r.AsOf.UTC().Format("2006-01-02")
+		out[k] = v
+	}
+	return out, nil
+}
+
+func (r *AccountRepository) UpsertSnapshotsFromBalances(
+	tx *gorm.DB,
+	userID, accountID int64,
+	currency string,
+	from, to time.Time,
+) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	from = from.UTC().Truncate(24 * time.Hour)
+	to = to.UTC().Truncate(24 * time.Hour)
+
+	// One-shot insert/update using generate_series and "last balance <= day"
+	return db.Exec(`
+		INSERT INTO account_daily_snapshots (
+			user_id, account_id, as_of, end_balance, currency, computed_at
+		)
+		SELECT
+			?::bigint        AS user_id,
+			?::bigint        AS account_id,
+			d.day            AS as_of,
+			COALESCE(lb.end_balance, 0)::numeric(19,4) AS end_balance,
+			?::char(3)       AS currency,
+			NOW()            AS computed_at
+		FROM generate_series(?::date, ?::date, '1 day') AS d(day)
+		LEFT JOIN LATERAL (
+			SELECT b.end_balance
+			FROM balances b
+			WHERE b.account_id = ? AND b.as_of <= d.day
+			ORDER BY b.as_of DESC
+			LIMIT 1
+		) lb ON TRUE
+		ON CONFLICT (account_id, as_of) DO UPDATE
+		SET user_id     = EXCLUDED.user_id,
+			currency    = EXCLUDED.currency,
+			end_balance = EXCLUDED.end_balance,
+			computed_at = NOW();
+	`, userID, accountID, currency, from, to, accountID).Error
 }

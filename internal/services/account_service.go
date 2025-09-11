@@ -579,62 +579,14 @@ func (s *AccountService) backfillAccountRange(
 	acc *models.Account,
 	dfrom, dto time.Time,
 ) error {
-	// opening: earliest balances row if any; else first txn date; opening balance 0 if none
-	openingDate, openingBalance, err := s.Repo.GetAccountOpening(tx, acc.ID)
-	if err != nil {
-		return err
-	}
-
-	// clamp start to requested range
-	start := openingDate
-	if dfrom.After(start) {
-		start = dfrom
-	}
-	if start.After(dto) {
-		// nothing to write for this account
-		return nil
-	}
-
-	// daily net deltas for [start..dto]
-	deltas, err := s.Repo.GetDailyTxnNet(tx, acc.ID, start, dto)
-	if err != nil {
-		return err
-	}
-
-	running := openingBalance
-
-	// If start > openingDate, pre-accumulate deltas from openingDate..start-1.
-	if start.After(openingDate) {
-		preDeltas, err := s.Repo.GetDailyTxnNet(tx, acc.ID, openingDate, start.AddDate(0, 0, -1))
-		if err != nil {
-			return err
-		}
-		for d := openingDate; d.Before(start); d = d.AddDate(0, 0, 1) {
-			if v, ok := preDeltas[d]; ok {
-				running = running.Add(v)
-			}
-		}
-	}
-
-	// produce snapshots [start..dto]
-	snapshots := make([]models.AccountDailySnapshot, 0, int(dto.Sub(start).Hours()/24)+1)
-	for d := start; !d.After(dto); d = d.AddDate(0, 0, 1) {
-		if v, ok := deltas[d]; ok {
-			running = running.Add(v)
-		}
-		snapshots = append(snapshots, models.AccountDailySnapshot{
-			UserID:     acc.UserID,
-			AccountID:  acc.ID,
-			AsOf:       d,
-			EndBalance: running,
-			Currency:   acc.Currency,
-		})
-	}
-
-	if len(snapshots) > 0 {
-		return s.Repo.UpsertAccountSnapshots(tx, snapshots)
-	}
-	return nil
+	return s.Repo.UpsertSnapshotsFromBalances(
+		tx,
+		acc.UserID,
+		acc.ID,
+		acc.Currency,
+		dfrom,
+		dto,
+	)
 }
 
 func (s *AccountService) BackfillBalancesForUser(userID int64, from, to string) error {
@@ -672,18 +624,4 @@ func (s *AccountService) BackfillBalancesForUser(userID int64, from, to string) 
 	}
 
 	return tx.Commit().Error
-}
-
-func (s *AccountService) SyncDailySnapshotsForAccountRange(
-	tx *gorm.DB,
-	acc *models.Account,
-	from, to time.Time,
-) error {
-	// normalize UTC date-only
-	dfrom := from.UTC().Truncate(24 * time.Hour)
-	dto := to.UTC().Truncate(24 * time.Hour)
-	if dto.Before(dfrom) {
-		dto = dfrom
-	}
-	return s.backfillAccountRange(tx, acc, dfrom, dto)
 }
