@@ -119,9 +119,12 @@ func (s *ChartingService) GetNetWorthSeries(
 	// ensure ascending order by date
 	sort.Slice(points, func(i, j int) bool { return points[i].Date.Before(points[j].Date) })
 
+	// keep the original number of real points
+	origLen := len(points)
+
 	// forward-fill so we end exactly at dto (and optionally start at dfrom)
-	if len(points) > 0 {
-		last := points[len(points)-1]
+	if origLen > 0 {
+		last := points[origLen-1]
 		// If last point isn't exactly dto, append a synthetic point at dto with last known value
 		if !last.Date.Equal(dto) {
 			points = append(points, models.ChartPoint{
@@ -164,6 +167,17 @@ func (s *ChartingService) GetNetWorthSeries(
 	pct := decimal.Zero
 	if !prevEndVal.IsZero() {
 		pct = abs.Div(prevEndVal)
+	}
+
+	// special case: initial account balance spike
+	if len(points) == 1 {
+		// treat first ever balance as an increase from zero
+		prevEndDate = points[0].Date
+		prevEndVal = decimal.Zero
+		currentEndDate = points[0].Date
+		currentEndVal = points[0].Value
+		abs = currentEndVal
+		pct = decimal.NewFromInt(1) // 100% "gain"
 	}
 
 	if err := tx.Commit().Error; err != nil {
