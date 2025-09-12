@@ -12,7 +12,7 @@
         <div class="auth-brand">
           <img src="../../../assets/images/logo.png" alt="WealthWarden Logo" class="auth-logo"/>
           <h1 class="auth-title">WealthWarden</h1>
-          <p class="auth-subtitle">Tap. Track. Relax.</p>
+          <p id="hideOnMobile" class="auth-subtitle">Tap. Track. Relax.</p>
         </div>
       </div>
     </Transition>
@@ -113,21 +113,25 @@
   font-weight: 400;
 }
 
-/* Responsive Design */
 @media (max-width: 768px) {
+
+   #hideOnMobile {
+     display: none;
+   }
+
   .auth-card {
     flex-direction: column;
-    width: 100%;
+    width: 90%;
     max-width: 400px;
     min-height: auto;
   }
   
   .auth-content {
-    padding: 2rem;
+    padding: 1rem;
   }
   
   .auth-brand {
-    padding: 2rem 1.5rem;
+    padding: 1.5rem 1rem;
     order: -1;
   }
   
@@ -137,11 +141,7 @@
   }
   
   .auth-title {
-    font-size: 2rem;
-  }
-  
-  .auth-subtitle {
-    font-size: 1rem;
+    font-size: 1.55rem;
   }
 }
 
@@ -159,7 +159,6 @@
   }
 }
 
-/* Animation */
 .auth-animation-enter-active,
 .auth-animation-leave-active {
   transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);

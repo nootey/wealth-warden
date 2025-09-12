@@ -30,3 +30,22 @@ button.p-button.accent-button:hover {
   background-color: var(--accent-primary);
   border-color: var(--accent-secondary);
 }
+
+.p-button.auth-accent-button {
+  background-image: linear-gradient(to right, var(--accent-primary) 0%, var(--accent-secondary)  51%, var(--accent-primary)  100%)
+}
+
+.p-button.auth-accent-button {
+  text-align: center;
+  transition: 1s;
+  background-size: 200% auto;
+  color: white;
+  border-radius: 10px;
+  display: block;
+}
+
+button.p-button.auth-accent-button:hover {
+  background-position: right center;
+  color: white;
+  text-decoration: none;
+}
