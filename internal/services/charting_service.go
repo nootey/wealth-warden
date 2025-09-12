@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/shopspring/decimal"
 	"sort"
@@ -132,8 +134,14 @@ func (s *ChartingService) GetNetWorthSeries(
 	// latest snapshot
 	curDate, curStr, err := s.Repo.FetchLatestNetWorth(tx, userID, currency, accountID)
 	if err != nil {
-		tx.Rollback()
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			// brand-new user: pretend current is zero as of dto
+			curDate = dto
+			curStr = "0"
+		} else {
+			tx.Rollback()
+			return nil, err
+		}
 	}
 	curDec, _ := decimal.NewFromString(curStr)
 
