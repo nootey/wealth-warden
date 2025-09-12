@@ -98,24 +98,29 @@ func (m *WebClientMiddleware) issueAccessCookie(c *gin.Context, userID int64) er
 		return err
 	}
 
-	// align maxAge with exp
-	maxAge := int(time.Until(accessExp).Seconds())
+	secure := m.config.Release
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("access", token, maxAge, "/", m.config.WebClient.Domain, true, true)
+	maxAge := int(time.Until(accessExp).Seconds())
+	c.SetCookie("access", token, maxAge, "/", m.config.WebClient.Domain, secure, true)
 	return nil
 }
 
 func (m *WebClientMiddleware) issueRefreshCookie(c *gin.Context, userID int64, remember bool) error {
 
-	refreshExp := time.Now().Add(map[bool]time.Duration{true: constants.RefreshCookieTTLLong, false: constants.RefreshCookieTTLShort}[remember])
+	refreshExp := time.Now().Add(map[bool]time.Duration{
+		true:  constants.RefreshCookieTTLLong,
+		false: constants.RefreshCookieTTLShort,
+	}[remember])
+
 	token, err := m.GenerateToken("refresh", refreshExp, userID)
 	if err != nil {
 		return err
 	}
 
+	secure := m.config.Release
+	c.SetSameSite(http.SameSiteLaxMode)
 	maxAge := int(time.Until(refreshExp).Seconds())
-	c.SetSameSite(http.SameSiteStrictMode) // stricter for refresh
-	c.SetCookie("refresh", token, maxAge, "/auth/refresh", m.config.WebClient.Domain, true, true)
+	c.SetCookie("refresh", token, maxAge, "/", m.config.WebClient.Domain, secure, true)
 	return nil
 }
 
