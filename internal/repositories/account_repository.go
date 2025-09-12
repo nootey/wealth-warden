@@ -495,3 +495,26 @@ func (r *AccountRepository) GetUserFirstTxnDate(tx *gorm.DB, userID int64) (time
 	}
 	return d.Truncate(24 * time.Hour), nil
 }
+
+func (r *AccountRepository) GetAccountOpeningAsOf(
+	tx *gorm.DB, accountID int64,
+) (time.Time, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	// MIN(as_of) is the opening day; if no balance rows exist, return sql.ErrNoRows
+	var open *time.Time
+	if err := db.Raw(`
+        SELECT MIN(as_of) FROM balances WHERE account_id = ?
+    `, accountID).Scan(&open).Error; err != nil {
+		return time.Time{}, err
+	}
+	if open == nil {
+		return time.Time{}, sql.ErrNoRows
+	}
+	// normalize to UTC midnight
+	t := open.UTC().Truncate(24 * time.Hour)
+	return t, nil
+}

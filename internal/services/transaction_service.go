@@ -1,6 +1,7 @@
 package services
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/shopspring/decimal"
@@ -153,6 +154,24 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
+	// block transactions before opening date
+	openAsOf, err := s.AccountService.Repo.GetAccountOpeningAsOf(tx, account.ID)
+	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("account has no opening balance; set an opening balance first")
+		}
+		return err
+	}
+	txnDay := req.TxnDate.UTC().Truncate(24 * time.Hour)
+	if txnDay.Before(openAsOf) {
+		tx.Rollback()
+		return fmt.Errorf(
+			"transaction date (%s) cannot be before account opening date (%s)",
+			txnDay.Format("2006-01-02"), openAsOf.Format("2006-01-02"),
+		)
+	}
+
 	var category models.Category
 	if req.CategoryID != nil {
 		category, err = s.Repo.FindCategoryByID(tx, *req.CategoryID, &userID, false)
@@ -173,7 +192,7 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 		TransactionType: strings.ToLower(req.TransactionType),
 		Amount:          req.Amount,
 		Currency:        models.DefaultCurrency,
-		TxnDate:         req.TxnDate,
+		TxnDate:         txnDay,
 		Description:     req.Description,
 	}
 
@@ -469,6 +488,24 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		}
 	}
 
+	// normalize edited date and block before opening
+	txnDay := req.TxnDate.UTC().Truncate(24 * time.Hour)
+	openAsOf, err := s.AccountService.Repo.GetAccountOpeningAsOf(tx, newAccount.ID)
+	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("account has no opening balance; set an opening balance first")
+		}
+		return err
+	}
+	if txnDay.Before(openAsOf) {
+		tx.Rollback()
+		return fmt.Errorf(
+			"transaction date (%s) cannot be before account opening date (%s)",
+			txnDay.Format("2006-01-02"), openAsOf.Format("2006-01-02"),
+		)
+	}
+
 	// Update the transaction
 	tr := models.Transaction{
 		ID:              exTr.ID,
@@ -478,7 +515,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		TransactionType: strings.ToLower(req.TransactionType),
 		Amount:          req.Amount,
 		Currency:        exTr.Currency,
-		TxnDate:         req.TxnDate,
+		TxnDate:         txnDay,
 		Description:     req.Description,
 	}
 	_, err = s.Repo.UpdateTransaction(tx, tr)
@@ -510,26 +547,37 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 	oldEffect := signed(exTr.TransactionType, exTr.Amount)
 	newEffect := signed(tr.TransactionType, tr.Amount)
 
-	if oldAccount.ID != newAccount.ID {
-		// reverse old
+	// handle account change OR date change explicitly
+	dateChanged := !exTr.TxnDate.UTC().Truncate(24 * time.Hour).Equal(txnDay)
+
+	switch {
+	case oldAccount.ID != newAccount.ID || dateChanged:
+		// Reverse the old posting on its original day & account
 		if !oldEffect.IsZero() {
-			if err := s.AccountService.UpdateAccountCashBalance(tx, &oldAccount, exTr.TxnDate, reverseDirFor(oldEffect), oldEffect.Abs()); err != nil {
+			if err := s.AccountService.UpdateAccountCashBalance(
+				tx, &oldAccount, exTr.TxnDate, reverseDirFor(oldEffect), oldEffect.Abs(),
+			); err != nil {
 				tx.Rollback()
 				return err
 			}
 		}
-		// apply new
+		// Apply the new posting on the new day & account
 		if !newEffect.IsZero() {
-			if err := s.AccountService.UpdateAccountCashBalance(tx, &newAccount, tr.TxnDate, dirFor(newEffect), newEffect.Abs()); err != nil {
+			if err := s.AccountService.UpdateAccountCashBalance(
+				tx, &newAccount, txnDay, dirFor(newEffect), newEffect.Abs(),
+			); err != nil {
 				tx.Rollback()
 				return err
 			}
 		}
-	} else {
-		// same account, net delta
+
+	default:
+		// Same account AND same day -> net delta is safe
 		delta := newEffect.Sub(oldEffect)
 		if !delta.IsZero() {
-			if err := s.AccountService.UpdateAccountCashBalance(tx, &newAccount, tr.TxnDate, dirFor(delta), delta.Abs()); err != nil {
+			if err := s.AccountService.UpdateAccountCashBalance(
+				tx, &newAccount, txnDay, dirFor(delta), delta.Abs(),
+			); err != nil {
 				tx.Rollback()
 				return err
 			}
