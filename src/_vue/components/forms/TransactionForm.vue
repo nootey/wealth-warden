@@ -206,6 +206,11 @@ function initData(): Transaction {
   };
 }
 
+const todayUtcMidnight = computed(() => {
+    const now = new Date()
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+})
+
 function updateSelectedParentCategory($event: any) {
     if ($event) {
         selectedParentCategory.value = $event;
@@ -429,8 +434,10 @@ async function restoreTransaction() {
                       <label>Date</label>
                   </ValidationError>
                   <DatePicker v-model="record.txn_date" date-format="dd/mm/yy"
-                              showIcon fluid iconDisplay="input"
-                              size="small" :readonly="isFormReadOnly" :disabled="isFormReadOnly"/>
+                              showIcon fluid iconDisplay="input" size="small"
+                               :readonly="isFormReadOnly" :disabled="isFormReadOnly"
+                              :maxDate="todayUtcMidnight"
+                  />
               </div>
           </div>
 
