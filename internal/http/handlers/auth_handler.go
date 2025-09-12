@@ -61,3 +61,27 @@ func (h *AuthHandler) LogoutUser(c *gin.Context) {
 	c.SetCookie("refresh", "", -1, "/", h.Service.Config.WebClient.Domain, true, true)
 	utils.SuccessMessage(c, "", "Logged out", http.StatusOK)
 }
+
+func (h *AuthHandler) RegisterUser(c *gin.Context) {
+	loginIP := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+
+	var form models.RegisterForm
+	if err := c.ShouldBindJSON(&form); err != nil {
+		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := utils.SanitizeStruct(&form); err != nil {
+		utils.ErrorMessage(c, "Sanitization error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	err := h.Service.RegisterUser(form.Email, form.Password, form.PasswordConfirmation, userAgent, loginIP)
+	if err != nil {
+		utils.ErrorMessage(c, "Registration failed", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "200", "Account created", http.StatusOK)
+}

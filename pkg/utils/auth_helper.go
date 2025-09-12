@@ -4,7 +4,9 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
+	"reflect"
 	"strings"
+	"unicode"
 )
 
 func HashAndSaltPassword(password string) (string, error) {
@@ -52,4 +54,46 @@ func UserIDFromCtx(c *gin.Context) (int64, error) {
 		return 0, errors.New("invalid user id type")
 	}
 	return id, nil
+}
+
+func cleanString(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if !unicode.IsControl(r) && !unicode.IsSpace(r) || r == ' ' {
+			b.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func SanitizeStruct(s interface{}) error {
+	v := reflect.ValueOf(s)
+
+	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Struct {
+		return errors.New("SanitizeStruct expects a pointer to a struct")
+	}
+
+	v = v.Elem()
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+
+		if !field.CanSet() {
+			continue
+		}
+
+		switch field.Kind() {
+		case reflect.String:
+			trimmed := cleanString(field.String())
+			field.SetString(trimmed)
+
+		case reflect.Ptr:
+			if field.Type().Elem().Kind() == reflect.String && !field.IsNil() {
+				trimmed := cleanString(field.Elem().String())
+				field.Elem().SetString(trimmed)
+			}
+		}
+	}
+
+	return nil
 }
