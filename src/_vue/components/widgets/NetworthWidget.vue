@@ -69,6 +69,42 @@ const storageKey = computed(() =>
     `${props.storageKeyPrefix}_${storageSuffix.value}`
 )
 
+const startOfRange = computed(() => {
+    const today = new Date()
+    // normalize to UTC midnight like backend
+    const dto = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
+
+    switch (selectedKey.value) {
+        case '1w': return new Date(dto.getTime() - 7 * 24 * 60 * 60 * 1000)
+        case '1m': return new Date(Date.UTC(dto.getUTCFullYear(), dto.getUTCMonth() - 1, dto.getUTCDate()))
+        case '3m': return new Date(Date.UTC(dto.getUTCFullYear(), dto.getUTCMonth() - 3, dto.getUTCDate()))
+        case '6m': return new Date(Date.UTC(dto.getUTCFullYear(), dto.getUTCMonth() - 6, dto.getUTCDate()))
+        case 'ytd': return new Date(Date.UTC(dto.getUTCFullYear(), 0, 1))
+        case '1y': return new Date(Date.UTC(dto.getUTCFullYear() - 1, dto.getUTCMonth(), dto.getUTCDate()))
+        case '5y': return new Date(Date.UTC(dto.getUTCFullYear() - 5, dto.getUTCMonth(), dto.getUTCDate()))
+        default:   return new Date(Date.UTC(dto.getUTCFullYear(), dto.getUTCMonth() - 1, dto.getUTCDate()))
+    }
+})
+
+const displayPoints = computed<ChartPoint[]>(() => {
+    const pts = orderedPoints.value
+    if (pts.length === 1) {
+        const first = pts[0]
+        const start = startOfRange.value
+        const firstDay = new Date(first.date)
+        // if first point isn't already at start, prepend a phantom point at start with same value
+        if (firstDay.getUTCFullYear() !== start.getUTCFullYear() ||
+            firstDay.getUTCMonth()  !== start.getUTCMonth()  ||
+            firstDay.getUTCDate()   !== start.getUTCDate()) {
+            return [
+                { date: start.toISOString(), value: first.value },
+                ...pts,
+            ]
+        }
+    }
+    return pts
+})
+
 function searchDaterange(event: any) {
     const q = (event.query ?? '').trim().toLowerCase()
     filteredDateRanges.value = q
@@ -181,10 +217,9 @@ onMounted(getData)
             <NetworthChart
                     v-if="hasSeries"
                     :height="chartHeight"
-                    :dataPoints="orderedPoints"
+                    :dataPoints="displayPoints"
                     :currency="payload.currency"
                     :activeColor="activeColor"
-                    @point-select="p => console.log('selected', p)"
             />
 
             <div v-else
