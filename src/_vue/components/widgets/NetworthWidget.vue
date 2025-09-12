@@ -55,6 +55,7 @@ const orderedPoints = computed<ChartPoint[]>(() => {
     const arr = payload.value?.points ?? []
     return [...arr].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 })
+const hasSeries = computed(() => (payload.value?.points?.length ?? 0) > 0)
 
 const activeColor = ref('#ef4444')
 
@@ -159,7 +160,7 @@ onMounted(getData)
                 </div>
             </div>
 
-            <div v-if="payload?.change"
+            <div v-if="payload?.change && hasSeries"
                     class="flex flex-row gap-2 align-items-center"
                     :style="{ color: activeColor }">
                 <span>{{ vueHelper.displayAsCurrency(Math.abs(payload.change.abs)) }}</span>
@@ -175,14 +176,24 @@ onMounted(getData)
             </div>
 
             <NetworthChart
+                    v-if="hasSeries"
                     :height="chartHeight"
                     :dataPoints="orderedPoints"
                     :currency="payload.currency"
                     :activeColor="activeColor"
                     @point-select="p => console.log('selected', p)"
             />
-        </div>
 
+            <div v-else
+                 class="flex flex-column align-items-center justify-content-center border-1 border-dashed border-round-md surface-border"
+                 :style="{ height: (chartHeight/2) + 'px' }">
+                <i class="pi pi-inbox text-2xl mb-2" style="color: var(--text-secondary)"></i>
+                <div class="text-sm" style="color: var(--text-secondary)">
+                    No data yet - connect an account to see your net worth over time.
+                </div>
+            </div>
+
+        </div>
         <ShowLoading v-else :numFields="6" />
     </SlotSkeleton>
 </template>
