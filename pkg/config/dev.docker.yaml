@@ -1,0 +1,34 @@
+host: "0.0.0.0"
+release: false
+
+http_server:
+  port: 2000
+
+web_client:
+  domain: "localhost"
+
+postgres:
+  host: "db"
+  user: "postgres"
+  password: "postgres"
+  port: 5432
+  db: "wealth_warden"
+
+jwt:
+  web_client_access: "O7yslMel&nR6"
+  web_client_refresh: "M2tb,_R!X4w~"
+  web_client_encode_id: "Rjy6E*)Dz'UwWLPPk*47c0||o`-Oy<p/"
+
+cors:
+  allowedOrigins:
+    - "http://localhost:5000"
+    - "http://app:5000"
+    - "http://127.0.0.1:5000"
+  wildcardSuffixes: []
+  allowedSchemes: ["http"]
+
+seed:
+  super_admin_email: "admin@email.com"
+  super_admin_password: "password"
+  member_user_email: "member@admin.com"
+  member_user_password: "password"

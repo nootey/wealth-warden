@@ -3,15 +3,15 @@ services:
     image: postgres:latest
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-wealth_warden}
     ports:
       - "5432:5432"
     volumes:
       - db:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres -d postgres" ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-wealth_warden}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,7 +30,7 @@ services:
       - "2000:2000"
     volumes:
       - ../../logs:/app/logs
-      - ../../pkg/config/dev.yaml:/app/pkg/config/dev.yaml
+      - ../../pkg/config/override:/app/pkg/config/override:ro
     networks:
       - wealth-warden
 

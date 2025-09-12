@@ -22,7 +22,9 @@ go.work.sum
 # Environment
 .env
 /pkg/config/*.yaml
+/pkg/config/override/*.yaml
 !/pkg/config/*.example.yaml
+!/pkg/config/*.docker.yaml
 
 # Volumes
 /logs

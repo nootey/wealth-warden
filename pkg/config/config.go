@@ -7,16 +7,19 @@ import (
 
 func LoadConfig(configPath *string) (*Config, error) {
 
-	// Default config path
+	// Default config search paths
 	if configPath == nil {
-		path := filepath.Join("pkg", "config")
-		configPath = &path
+		overridePath := filepath.Join("pkg", "config", "override")
+		defaultPath := filepath.Join("pkg", "config")
+
+		viper.AddConfigPath(overridePath)
+		viper.AddConfigPath(defaultPath)
+	} else {
+		viper.AddConfigPath(*configPath)
 	}
 
-	// Load YAML config via Viper
 	viper.SetConfigName("dev")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath(*configPath)
 
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, err
