@@ -5,6 +5,7 @@ import {useAccountStore} from "../../../services/stores/account_store.ts";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
+import {colorForAccountType} from "../../../style/theme/accountColors.ts";
 
 const props = defineProps<{
     title: string;
@@ -18,17 +19,12 @@ const toastStore   = useToastStore();
 const loading  = ref(true);
 const accounts = ref<Account[]>([]);
 
-// nice, distinct colors (extend if needed)
-const palette = ["#8B5CF6","#3B82F6","#A3A3A3","#22C55E","#F59E0B","#EF4444","#06B6D4","#E879F9"];
-
 type Bucket = { key: string; amount: number; color: string; percent: number };
 
-// robust string→number for Decimal strings
 function toNumber(v: unknown): number {
     if (v == null) return 0;
     if (typeof v === "number") return v;
     if (typeof v === "string") {
-        // strip spaces/commas; keep minus and dot
         const cleaned = v.replace(/[^0-9.\-]/g, "");
         const n = Number(cleaned);
         return Number.isFinite(n) ? n : 0;
@@ -47,12 +43,13 @@ const buckets = computed<Bucket[]>(() => {
     const absValues = Array.from(map.values()).map(v => Math.abs(v));
     const totalAbs = absValues.reduce((s, n) => s + n, 0);
 
-    const keys = Array.from(map.keys());
-    return keys.map((k, i) => {
-        const amount = map.get(k) ?? 0;
-        const percent = totalAbs > 0 ? (Math.abs(amount) / totalAbs) * 100 : 0;
-        return { key: k, amount, color: palette[i % palette.length], percent };
-    }).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+    return Array.from(map.entries())
+        .map(([k, amount]) => {
+            const percent = totalAbs > 0 ? (Math.abs(amount) / totalAbs) * 100 : 0;
+            const { bg } = colorForAccountType(k);
+            return { key: k, amount, color: bg, percent };
+        })
+        .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
 });
 
 const totalAmount = computed(() =>

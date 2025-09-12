@@ -10,6 +10,7 @@ import filterHelper from "../../utils/filter_helper.ts";
 import type { Account } from "../../models/account_models.ts";
 import AccountDetails from "../components/AccountDetails.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
+import {colorForAccountType} from "../../style/theme/accountColors.ts";
 
 const props = withDefaults(defineProps<{
     advanced?: boolean;
@@ -84,18 +85,7 @@ async function getData(new_page: number | null = null) {
     }
 }
 
-const typeColors: Record<string, { bg: string; fg: string }> = {
-    cash: { bg: "#9b59b6", fg: "#6c3483" },
-    investment: { bg: "#2980b9", fg: "#1c5980" },
-    crypto: { bg: "#16a085", fg: "#0d6655" },
-    property: { bg: "#8e44ad", fg: "#5b2c6f" },
-    vehicle: { bg: "#3498db", fg: "#21618c" },
-    other_asset: { bg: "#7d3c98", fg: "#4a235a" },
-    credit_card: { bg: "#e74c3c", fg: "#922b21" },
-    loan: { bg: "#e67e22", fg: "#9a531c" },
-    other_liability: { bg: "#f1c40f", fg: "#9a7d0a" },
-};
-const logoColor = (type: string) => typeColors[type] ?? { bg: "#444", fg: "#222" };
+const logoColor = (type?: string) => colorForAccountType(type);
 
 const typeMap: Record<string, string> = {};
 
@@ -260,7 +250,7 @@ defineExpose({ refresh: getData });
                                     width: '32px',
                                     height: '32px',
                                     border: '1px solid',
-                                    borderColor: logoColor(account.account_type.type).fg,
+                                    borderColor: logoColor(account.account_type?.type).border,
                                     borderRadius: '50%',
                                     background: logoColor(account.account_type.type).bg,
                                     color: logoColor(account.account_type.type).fg,
