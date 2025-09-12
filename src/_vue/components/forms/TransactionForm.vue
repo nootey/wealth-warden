@@ -38,11 +38,21 @@ onMounted(async () => {
     }
 });
 
-const readOnly = computed(() =>
-    !!record.value.deleted_at ||
-    record.value.is_adjustment ||
-    !!record.value.account?.deleted_at ||
-    !record.value.account?.is_active
+const isGlobalReadOnly = computed(() =>
+    !!record.value.deleted_at || !!record.value.is_adjustment
+);
+
+const isAccountRestricted = computed<boolean>(() => {
+    const acc = record.value.account as Account | null | undefined;
+    return !!acc && typeof acc === 'object' && (!!acc.deleted_at || !acc.is_active);
+});
+
+const isFormReadOnly = computed<boolean>(() =>
+    isGlobalReadOnly.value || isAccountRestricted.value
+);
+
+const isAccountPickerDisabled = computed<boolean>(() =>
+    isGlobalReadOnly.value
 );
 
 const isTxnDeleted = computed(() => !!record.value.deleted_at);
@@ -50,11 +60,11 @@ const isAccountDeleted = computed(() => !!record.value.account?.deleted_at);
 const isAccountActive = computed(() => !!record.value.account?.is_active);
 
 const canRestore = computed(() =>
-    readOnly.value && isTxnDeleted.value && !isAccountDeleted.value && isAccountActive.value
+    isFormReadOnly.value && isTxnDeleted.value && !isAccountDeleted.value && isAccountActive.value
 );
 
 const showCantRestore = computed(() =>
-    readOnly.value && isTxnDeleted.value && !canRestore.value
+    isFormReadOnly.value && isTxnDeleted.value && !canRestore.value
 );
 
 const isTransferSelected = computed(() =>
@@ -262,7 +272,7 @@ async function loadRecord(id: number) {
 
 async function manageRecord() {
 
-    if (readOnly.value) {
+    if (isFormReadOnly.value) {
         toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
         return;
     }
@@ -361,7 +371,7 @@ async function restoreTransaction() {
 
   <div v-if="!loading" class="flex flex-column gap-3 p-1">
 
-      <div v-if="!readOnly" class="flex flex-row w-full justify-content-center">
+      <div v-if="!isFormReadOnly" class="flex flex-row w-full justify-content-center">
           <div class="flex flex-column w-50">
                 <SelectButton style="font-size: 0.875rem;" size="small"
                               v-model="selectedParentCategory"
@@ -373,7 +383,7 @@ async function restoreTransaction() {
           <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
       </div>
 
-      <div class="flex flex-column gap-3" v-if="isTransferSelected && !readOnly">
+      <div class="flex flex-column gap-3" v-if="isTransferSelected && !isFormReadOnly">
           <TransferForm ref="transferFormRef" v-model:transfer="transfer" :accounts="accounts" />
       </div>
 
@@ -384,8 +394,9 @@ async function restoreTransaction() {
                   <ValidationError :isRequired="true" :message="v$.record.account.name.$errors[0]?.$message">
                       <label>Account</label>
                   </ValidationError>
-                  <AutoComplete :readonly="readOnly" :disabled="readOnly.valueOf()" size="small" v-model="record.account" :suggestions="filteredAccounts"
-                                @complete="searchAccount" optionLabel="name"
+                  <AutoComplete :readonly="isAccountPickerDisabled || isFormReadOnly" :disabled="isAccountPickerDisabled || isFormReadOnly" size="small"
+                                v-model="record.account" :suggestions="filteredAccounts"
+                                @complete="searchAccount" optionLabel="name" forceSelection
                                 placeholder="Select account" dropdown>
                   </AutoComplete>
               </div>
@@ -396,7 +407,7 @@ async function restoreTransaction() {
                   <ValidationError :isRequired="true" :message="v$.record.amount.$errors[0]?.$message">
                       <label>Amount</label>
                   </ValidationError>
-                  <InputNumber :readonly="readOnly.valueOf()" :disabled="readOnly.valueOf()" size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
+                  <InputNumber :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
               </div>
           </div>
 
@@ -405,7 +416,7 @@ async function restoreTransaction() {
                   <ValidationError :isRequired="false" :message="v$.record.category.name.$errors[0]?.$message">
                       <label>Category</label>
                   </ValidationError>
-                  <AutoComplete :readonly="readOnly" :disabled="readOnly.valueOf()" size="small" v-model="record.category" :suggestions="filteredCategories"
+                  <AutoComplete :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small" v-model="record.category" :suggestions="filteredCategories"
                                 @complete="searchCategory" optionLabel="display_name"
                                 placeholder="Select category" dropdown>
                   </AutoComplete>
@@ -419,7 +430,7 @@ async function restoreTransaction() {
                   </ValidationError>
                   <DatePicker v-model="record.txn_date" date-format="dd/mm/yy"
                               showIcon fluid iconDisplay="input"
-                              size="small" :readonly="readOnly.valueOf()" :disabled="readOnly.valueOf()"/>
+                              size="small" :readonly="isFormReadOnly" :disabled="isFormReadOnly"/>
               </div>
           </div>
 
@@ -428,7 +439,7 @@ async function restoreTransaction() {
                   <ValidationError :isRequired="false" :message="v$.record.description.$errors[0]?.$message">
                       <label>Description</label>
                   </ValidationError>
-                  <InputText :readonly="readOnly.valueOf()" :disabled="readOnly.valueOf()" size="small" v-model="record.description" placeholder="Describe transaction"></InputText>
+                  <InputText :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small" v-model="record.description" placeholder="Describe transaction"></InputText>
               </div>
           </div>
 
@@ -436,7 +447,7 @@ async function restoreTransaction() {
 
       <div v-if="!record.is_adjustment" class="flex flex-row gap-2 w-full" >
           <div class="flex flex-column w-full">
-              <Button v-if="!readOnly" class="main-button"
+              <Button v-if="!isFormReadOnly" class="main-button"
                       :label="(selectedParentCategory?.name.toLowerCase() == 'transfer' ? 'Start transfer' :
                       (mode == 'create' ? 'Add' : 'Update') +  ' transaction')"
                       @click="manageRecord" style="height: 42px;" />
