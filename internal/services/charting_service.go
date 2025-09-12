@@ -158,7 +158,6 @@ func (s *ChartingService) GetNetWorthSeries(
 		currentEndDate = points[len(points)-1].Date
 		currentEndVal = points[len(points)-1].Value
 	} else {
-		// no points → treat as zero
 		prevEndVal = decimal.Zero
 		currentEndVal = decimal.Zero
 	}
@@ -169,15 +168,14 @@ func (s *ChartingService) GetNetWorthSeries(
 		pct = abs.Div(prevEndVal)
 	}
 
-	// special case: initial account balance spike
-	if len(points) == 1 {
-		// treat first ever balance as an increase from zero
+	// special case: initial account balance spike (only one real bucket in window)
+	if origLen == 1 {
 		prevEndDate = points[0].Date
 		prevEndVal = decimal.Zero
-		currentEndDate = points[0].Date
-		currentEndVal = points[0].Value
+		currentEndDate = points[len(points)-1].Date
+		currentEndVal = points[len(points)-1].Value
 		abs = currentEndVal
-		pct = decimal.NewFromInt(1) // 100% "gain"
+		pct = decimal.NewFromInt(1) // 100% gain; set to decimal.Zero if you prefer 0%
 	}
 
 	if err := tx.Commit().Error; err != nil {
