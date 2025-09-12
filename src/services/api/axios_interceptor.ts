@@ -1,20 +1,33 @@
 import apiClient from './axios.ts';
 import { useAuthStore } from '../stores/auth_store.ts';
 
-// Request Interceptor (Optional if you want to add headers globally)
-apiClient.interceptors.request.use((config) => {
-    config.headers["wealth-warden-client"] = "true";
-    return config;
-});
+let isRetrying = false;
 
-// Response Interceptor for handling 401 errors
 apiClient.interceptors.response.use(
     (response) => response,
-    (error) => {
-        if (error?.response?.status === 401) {
-            const authStore = useAuthStore();
-            if (authStore.isAuthenticated) {
-                authStore.logoutUser().then();
+    async (error) => {
+        const { config, response } = error;
+        if (!response) return Promise.reject(error);
+
+        if (response.status === 401 && !config.__retried) {
+            config.__retried = true;
+            try {
+                // if the server minted a new access cookie, retry
+                return await apiClient(config);
+            } catch (e) {
+                // fall through to logout
+            }
+        }
+
+        if (response.status === 401) {
+            const auth = useAuthStore();
+            if (auth.isAuthenticated && !isRetrying) {
+                isRetrying = true;
+                try {
+                    await auth.logoutUser();
+                } finally {
+                    isRetrying = false;
+                }
             }
         }
         return Promise.reject(error);
