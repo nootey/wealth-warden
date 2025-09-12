@@ -1,5 +1,4 @@
-import { useAuthStore } from '../stores/auth_store.ts';
-
+import type {RouteRecordRaw} from 'vue-router';
 import DashboardPage from "../../_vue/pages/DashboardPage.vue";
 import Login from "../../_vue/features/auth/Login.vue";
 import ActivityLogsPage from "../../_vue/pages/ActivityLogsPage.vue";
@@ -7,66 +6,53 @@ import TransactionsPage from "../../_vue/pages/TransactionsPage.vue";
 import AccountsPage from "../../_vue/pages/AccountsPage.vue";
 import SettingsPage from "../../_vue/pages/SettingsPage.vue";
 
-const routes = [
+declare module 'vue-router' {
+    interface RouteMeta {
+        requiresAuth?: boolean;
+        guestOnly?: boolean;
+    }
+}
+
+const routes: RouteRecordRaw[] = [
     {
         path: '/',
         name: 'Dashboard',
+        meta: {title: 'Dash', requiresAuth: true},
         component: DashboardPage,
-        beforeEnter: [requiresAuth],
     },
     {
         path: '/login',
         name: 'Login',
+        meta: {title: 'Login'},
         component: Login,
-        beforeEnter: [requiresGuest],
     },
     {
         path: '/accounts',
         name: 'Accounts',
+        meta: {title: 'Accounts', requiresAuth: true},
         component: AccountsPage,
-        beforeEnter: [requiresAuth],
     },
     {
         path: '/transactions',
         name: 'Transactions',
+        meta: {title: 'Transactions', requiresAuth: true},
         component: TransactionsPage,
-        beforeEnter: [requiresAuth],
     },
     {
         path: '/logs',
         name: 'Logs',
+        meta: {title: 'Audit', requiresAuth: true},
         component: ActivityLogsPage,
-        beforeEnter: [requiresAuth],
     },
     { path: '/settings', redirect: '/settings/profile' },
     // one component, different URLs
     {
         path: '/settings/:section(general|profile|preferences|accounts|categories)',
         name: 'SettingsSection',
+        meta: {title: 'Settings', requiresAuth: true},
         component: SettingsPage,
         props: true,
-        beforeEnter: [requiresAuth],
     },
 ];
-
-
-
-function requiresAuth() {
-    const authStore = useAuthStore();
-    if (authStore.isAuthenticated) {
-        return true;
-    } else {
-        return { path: '/login' };
-    }
-}
-
-function requiresGuest() {
-    const authStore = useAuthStore();
-    if (!authStore.isAuthenticated) {
-        return true;
-    } else {
-        return { path: '/' };
-    }
-}
 
 export default routes

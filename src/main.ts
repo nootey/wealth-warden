@@ -5,7 +5,7 @@ import './style/overrride.scss'
 
 import { createApp } from 'vue'
 import App from './App.vue'
-import router from "./services/router";
+import router from "./services/router/main.ts";
 import { createPinia } from 'pinia';
 
 // PrimeVue core + theme
