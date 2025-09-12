@@ -35,69 +35,99 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 
 		var accounts []models.Account
 		if err := db.WithContext(ctx).
-			Joins("JOIN account_types at ON at.id = accounts.account_type_id").
-			Where("accounts.user_id = ? AND LOWER(at.sub_type) = ?", u.ID, "checking").
+			Preload("AccountType").
+			Where("accounts.user_id = ?", u.ID).
 			Find(&accounts).Error; err != nil {
 			return err
 		}
 		if len(accounts) == 0 {
-			logger.Info("no checking accounts for user", zap.Int64("user_id", u.ID))
+			logger.Info("no accounts for user", zap.Int64("user_id", u.ID))
 			continue
 		}
 
-		acc := accounts[0]
+		totalTxns := 250
+		perAcc := totalTxns / len(accounts)
 
-		// create ~200 random txns in that year
-		for i := 0; i < 200; i++ {
-
-			daysAgo := rng.Intn(365)
-			date := today.AddDate(0, 0, -daysAgo)
-
-			var ttype string
-			if rng.Float64() < 0.4 {
-				ttype = "income"
-			} else {
-				ttype = "expense"
-			}
-
-			amt := decimal.NewFromFloat(10 + rng.Float64()*1000).Round(2)
-
-			desc := "Random " + ttype
-
-			var category models.Category
-			_ = db.Model(&models.Category{}).
-				Where("classification = ?", "uncategorized").
-				Order("name").
-				First(&category)
-
-			t := models.Transaction{
-				UserID:          u.ID,
-				AccountID:       acc.ID,
-				TransactionType: ttype,
-				CategoryID:      &category.ID,
-				Amount:          amt,
-				Currency:        acc.Currency,
-				TxnDate:         date,
-				Description:     &desc,
-				IsAdjustment:    false,
-				CreatedAt:       time.Now(),
-				UpdatedAt:       time.Now(),
-			}
-			if err := db.WithContext(ctx).Create(&t).Error; err != nil {
+		for _, acc := range accounts {
+			// fetch latest balance row for starting balance
+			var bal models.Balance
+			if err := db.WithContext(ctx).
+				Where("account_id = ?", acc.ID).
+				Order("as_of DESC").
+				First(&bal).Error; err != nil {
 				return err
 			}
 
-			if err := accService.UpdateAccountCashBalance(db, &acc, t.TxnDate, ttype, amt); err != nil {
-				return err
+			currBal := bal.StartBalance
+
+			for i := 0; i < perAcc; i++ {
+				daysAgo := rng.Intn(365)
+				date := today.AddDate(0, 0, -daysAgo)
+
+				var ttype string
+				if rng.Float64() < 0.4 {
+					ttype = "income"
+				} else {
+					ttype = "expense"
+				}
+
+				amt := decimal.NewFromFloat(10 + rng.Float64()*1000).Round(2)
+
+				// prevent asset accounts from going negative
+				if acc.AccountType.Classification == "asset" && ttype == "expense" {
+					if currBal.LessThanOrEqual(decimal.Zero) {
+						// no money left, force income txn instead
+						ttype = "income"
+					} else if amt.GreaterThan(currBal) {
+						// shrink expense to available balance
+						amt = currBal
+					}
+				}
+
+				desc := "Random " + ttype
+
+				var category models.Category
+				_ = db.Model(&models.Category{}).
+					Where("classification = ?", "uncategorized").
+					Order("name").
+					First(&category)
+
+				t := models.Transaction{
+					UserID:          u.ID,
+					AccountID:       acc.ID,
+					TransactionType: ttype,
+					CategoryID:      &category.ID,
+					Amount:          amt,
+					Currency:        acc.Currency,
+					TxnDate:         date,
+					Description:     &desc,
+					IsAdjustment:    false,
+					CreatedAt:       time.Now(),
+					UpdatedAt:       time.Now(),
+				}
+				if err := db.WithContext(ctx).Create(&t).Error; err != nil {
+					return err
+				}
+
+				if err := accService.UpdateAccountCashBalance(db, &acc, t.TxnDate, ttype, amt); err != nil {
+					return err
+				}
+
+				// adjust running balance
+				if ttype == "income" {
+					currBal = currBal.Add(amt)
+				} else {
+					currBal = currBal.Sub(amt)
+				}
 			}
 
+			logger.Info("seeded transactions",
+				zap.Int64("user_id", u.ID),
+				zap.Int("count", perAcc),
+				zap.String("account", acc.Name),
+				zap.String("ending_balance", currBal.StringFixed(2)),
+			)
 		}
-
-		logger.Info("seeded transactions",
-			zap.Int64("user_id", u.ID),
-			zap.Int("count", 200),
-			zap.String("account", acc.Name),
-		)
 	}
 
 	return nil
