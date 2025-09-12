@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia';
+import {defineStore} from 'pinia';
 import apiClient from '../api/axios_interceptor.ts';
 import router from "../router/main.ts";
 import type {AuthForm} from '../../models/auth_models.ts';
@@ -23,7 +23,6 @@ export const useAuthStore = defineStore('auth', {
                 await this.init();
                 return response;
             } catch (error) {
-                console.error('Login failed:', error);
                 throw error;
             }
         },
@@ -42,7 +41,6 @@ export const useAuthStore = defineStore('auth', {
 
                 return response.data;
             } catch (error) {
-                console.error('auth user not found:', error);
                 await this.logoutUser();
                 throw error;
             }
@@ -56,7 +54,6 @@ export const useAuthStore = defineStore('auth', {
             try {
                 await apiClient.post(`${this.apiPrefix}/logout`, null);
             } catch (error) {
-                console.error('Logout failed:', error);
             }
             this.logout();
         },
