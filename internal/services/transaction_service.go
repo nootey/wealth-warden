@@ -163,12 +163,22 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 		}
 		return err
 	}
+
 	txnDay := req.TxnDate.UTC().Truncate(24 * time.Hour)
 	if txnDay.Before(openAsOf) {
 		tx.Rollback()
 		return fmt.Errorf(
 			"transaction date (%s) cannot be before account opening date (%s)",
 			txnDay.Format("2006-01-02"), openAsOf.Format("2006-01-02"),
+		)
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	if txnDay.After(today) {
+		tx.Rollback()
+		return fmt.Errorf(
+			"transaction date (%s) cannot be in the future (>%s)",
+			txnDay.Format("2006-01-02"), today.Format("2006-01-02"),
 		)
 	}
 
@@ -503,6 +513,15 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		return fmt.Errorf(
 			"transaction date (%s) cannot be before account opening date (%s)",
 			txnDay.Format("2006-01-02"), openAsOf.Format("2006-01-02"),
+		)
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	if txnDay.After(today) {
+		tx.Rollback()
+		return fmt.Errorf(
+			"transaction date (%s) cannot be in the future (>%s)",
+			txnDay.Format("2006-01-02"), today.Format("2006-01-02"),
 		)
 	}
 
