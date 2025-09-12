@@ -59,7 +59,7 @@ const rules = {
         passwordConfirmation : {
             required,
             $autoDirty: true,
-            repeatPassword: helpers.withMessage('Password confirmation must match password', value => value === form.password.value),
+            repeatPassword: helpers.withMessage('Password confirmation must match password', value => value === form.value.password),
         },
     }
 }
