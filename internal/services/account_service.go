@@ -181,15 +181,30 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		amount = amount.Neg()
 	}
 
+	asOf := time.Now().UTC().Truncate(24 * time.Hour)
+
 	balance := &models.Balance{
 		AccountID:    accountID,
 		Currency:     models.DefaultCurrency,
 		StartBalance: amount,
-		AsOf:         time.Now(),
+		AsOf:         asOf,
 	}
 
 	_, err = s.Repo.InsertBalance(tx, balance)
 	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// seed snapshots
+	if err := s.Repo.UpsertSnapshotsFromBalances(
+		tx,
+		userID,
+		accountID,
+		models.DefaultCurrency,
+		asOf, // from opening day
+		time.Now().UTC().Truncate(24*time.Hour), // to today
+	); err != nil {
 		tx.Rollback()
 		return err
 	}
