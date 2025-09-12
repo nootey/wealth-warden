@@ -1,6 +1,7 @@
 import type {RouteRecordRaw} from 'vue-router';
 import DashboardPage from "../../_vue/pages/DashboardPage.vue";
 import Login from "../../_vue/features/auth/Login.vue";
+import Register from "../../_vue/features/auth/Register.vue";
 import ActivityLogsPage from "../../_vue/pages/ActivityLogsPage.vue";
 import TransactionsPage from "../../_vue/pages/TransactionsPage.vue";
 import AccountsPage from "../../_vue/pages/AccountsPage.vue";
@@ -23,8 +24,14 @@ const routes: RouteRecordRaw[] = [
     {
         path: '/login',
         name: 'Login',
-        meta: {title: 'Login'},
+        meta: {title: 'Login', guestOnly: true},
         component: Login,
+    },
+    {
+        path: '/register',
+        name: 'Register',
+        meta: {title: 'Register', guestOnly: true},
+        component: Register,
     },
     {
         path: '/accounts',
