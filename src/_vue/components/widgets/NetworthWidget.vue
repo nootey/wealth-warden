@@ -7,6 +7,7 @@ import SlotSkeleton from "../layout/SlotSkeleton.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import NetworthChart from "../charts/NetworthChart.vue";
 import ShowLoading from "../base/ShowLoading.vue";
+import {useRouter} from "vue-router";
 
 const props = withDefaults(defineProps<{
     accountId?: number | null
@@ -19,6 +20,8 @@ const props = withDefaults(defineProps<{
     storageKeyPrefix: 'networth_range_key',
     chartHeight: 300,
 })
+
+const router = useRouter();
 
 type RangeKey = '1w'|'1m'|'3m'|'6m'|'ytd'|'1y'|'5y'
 
@@ -189,7 +192,11 @@ onMounted(getData)
                  :style="{ height: (chartHeight/2) + 'px' }">
                 <i class="pi pi-inbox text-2xl mb-2" style="color: var(--text-secondary)"></i>
                 <div class="text-sm" style="color: var(--text-secondary)">
-                    No data yet - connect an account to see your net worth over time.
+                    <span>
+                        No data yet - connect an
+                    </span>
+                    <span class="hover-icon font-bold text-base" @click="router.push({name: 'Accounts'})"> account </span>
+                    <span> to see your net worth over time. </span>
                 </div>
             </div>
 
