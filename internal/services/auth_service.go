@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"strings"
 	"time"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/middleware"
@@ -22,6 +23,7 @@ type AuthService struct {
 	logger              *zap.Logger
 	UserRepo            *repositories.UserRepository
 	RoleRepo            *repositories.RolePermissionRepository
+	SettingsRepo        *repositories.SettingsRepository
 	loggingService      *LoggingService
 	WebClientMiddleware *middleware.WebClientMiddleware
 	jobDispatcher       jobs.JobDispatcher
@@ -33,6 +35,7 @@ func NewAuthService(
 	logger *zap.Logger,
 	userRepo *repositories.UserRepository,
 	roleRepo *repositories.RolePermissionRepository,
+	settingsRepo *repositories.SettingsRepository,
 	loggingService *LoggingService,
 	webClientMiddleware *middleware.WebClientMiddleware,
 	jobDispatcher jobs.JobDispatcher,
@@ -43,6 +46,7 @@ func NewAuthService(
 		logger:              logger,
 		UserRepo:            userRepo,
 		RoleRepo:            roleRepo,
+		SettingsRepo:        settingsRepo,
 		loggingService:      loggingService,
 		WebClientMiddleware: webClientMiddleware,
 		jobDispatcher:       jobDispatcher,
@@ -176,6 +180,16 @@ func (s *AuthService) ValidateInvitation(hash string) error {
 func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) error {
 
 	// Validation
+
+	settings, err := s.SettingsRepo.FetchGeneralSettings(nil)
+	if err != nil {
+		return err
+	}
+
+	if !settings.AllowSignups {
+		return errors.New("open sign ups are not currently enabled")
+	}
+
 	if form.Password != form.PasswordConfirmation {
 		return errors.New("password and password confirmation do not match")
 	}
@@ -205,8 +219,11 @@ func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) err
 			return err
 		}
 
+		username := strings.ReplaceAll(strings.ToLower(form.DisplayName), " ", "")
+
 		user := &models.User{
 			DisplayName: form.DisplayName,
+			Username:    username,
 			Email:       form.Email,
 			Password:    hashedPass,
 			RoleID:      role.ID,

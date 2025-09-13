@@ -48,7 +48,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 
 	// Initialize services
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
-	authService := services.NewAuthService(cfg, logger, userRepo, roleRepo, loggingService, webClientMiddleware, jobDispatcher, mail)
+	authService := services.NewAuthService(cfg, logger, userRepo, roleRepo, settingsRepo, loggingService, webClientMiddleware, jobDispatcher, mail)
 
 	ctx := &services.DefaultServiceContext{
 		LoggingService: loggingService,
