@@ -1,8 +1,10 @@
 package repositories
 
 import (
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"wealth-warden/internal/models"
+	"wealth-warden/pkg/utils"
 )
 
 type UserRepository struct {
@@ -22,17 +24,23 @@ func (r *UserRepository) GetPasswordByEmail(email string) (string, error) {
 	return password, nil
 }
 
-func (r *UserRepository) GetUserByID(id int64) (*models.User, error) {
-	var user models.User
+func (r *UserRepository) FindUserByID(tx *gorm.DB, id int64) (*models.User, error) {
 
-	query := r.DB.
-		Preload("Role")
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
 
-	err := query.First(&user, id).Error
+	var record models.User
+
+	query := r.DB
+
+	err := query.Where("id = ?", id).First(&record).Error
 	if err != nil {
 		return nil, err
 	}
-	return &user, nil
+
+	return &record, nil
 }
 
 func (r *UserRepository) FindUserByEmail(tx *gorm.DB, email string) (*models.User, error) {
@@ -70,6 +78,41 @@ func (r *UserRepository) FindUserInvitationByHash(tx *gorm.DB, hash string) (*mo
 	return &record, nil
 }
 
+func (r *UserRepository) FindTokenByValue(tx *gorm.DB, tokenType, tokenValue string) (*models.Token, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var record models.Token
+	err := r.DB.
+		Where("token_type = ? AND token_value = ?", tokenType, tokenValue).
+		First(&record).Error
+	if err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
+func (r *UserRepository) FindTokenByData(tx *gorm.DB, tokenType string, dataIndex string, dataValue interface{}) (*models.Token, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	fragment := datatypes.JSONMap{dataIndex: dataValue}
+
+	var record models.Token
+
+	err := r.DB.
+		Where("token_type = ? AND data @> ?", tokenType, fragment).
+		First(&record).Error
+	if err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
 func (r *UserRepository) GetAllUsers() ([]models.User, error) {
 	var users []models.User
 
@@ -94,6 +137,31 @@ func (r *UserRepository) InsertInvitation(tx *gorm.DB, record *models.Invitation
 	return record.ID, nil
 }
 
+func (r *UserRepository) InsertToken(tx *gorm.DB, tokenType string, dataIndex string, dataValue interface{}) (*models.Token, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	randomToken, err := utils.GenerateRandomToken(32)
+	if err != nil {
+		return nil, err
+	}
+
+	record := models.Token{
+		TokenType:  tokenType,
+		TokenValue: randomToken,
+		Data: datatypes.JSONMap{
+			dataIndex: dataValue,
+		},
+	}
+
+	if err := db.Create(&record).Error; err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
 func (r *UserRepository) InsertUser(tx *gorm.DB, record *models.User) (int64, error) {
 	db := tx
 	if db == nil {
@@ -112,4 +180,17 @@ func (r *UserRepository) UpdateUser(user *models.User) error {
 
 func (r *UserRepository) DeleteUser(id int64) error {
 	return r.DB.Delete(&models.User{}, id).Error
+}
+
+func (r *UserRepository) DeleteTokenByData(tx *gorm.DB, tokenType, dataIndex string, dataValue interface{}) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	fragment := datatypes.JSONMap{dataIndex: dataValue}
+
+	return db.
+		Where("token_type = ? AND data @> ?", tokenType, fragment).
+		Delete(&models.Token{}).Error
 }

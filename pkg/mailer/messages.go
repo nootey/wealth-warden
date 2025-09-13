@@ -22,8 +22,8 @@ func (m *Mailer) SendRegistrationEmail(to, displayName, token string) error {
 	return m.SendEmail(to, "Please validate registration email.", body)
 }
 
-func (m *Mailer) SendConfirmationEmail(to, displayName string) error {
-	link := m.buildLink("auth", "confirm-email")
+func (m *Mailer) SendConfirmationEmail(to, displayName, token string) error {
+	link := m.buildLink("auth", "confirm-email?token="+token)
 	body, err := renderTemplate("confirm-email.html", map[string]string{
 		"subjectName": displayName,
 		"confirmLink": link,

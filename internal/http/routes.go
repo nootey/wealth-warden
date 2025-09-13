@@ -76,7 +76,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 	// Public routes
 	publicGroup := _v1.Group("")
 	{
-		publicAuthRoutes := publicGroup.Group("/auth", authRL.Middleware())
+		publicAuthRoutes := publicGroup.Group("/auth")
 		v1.PublicAuthRoutes(publicAuthRoutes, authHandler)
 
 		publicUserRoutes := publicGroup.Group("/users")

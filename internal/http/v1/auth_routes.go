@@ -6,7 +6,7 @@ import (
 )
 
 func PublicAuthRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) {
-	apiGroup.GET("/validate-email", handler.ValidateEmail)
+	apiGroup.GET("/validate-email", handler.ValidateInvitationEmail)
 	apiGroup.POST("/login", handler.LoginUser)
 	apiGroup.POST("/logout", handler.LogoutUser)
 	apiGroup.POST("/signup", handler.SignUp)
@@ -15,4 +15,6 @@ func PublicAuthRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) 
 
 func AuthRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) {
 	apiGroup.GET("/current", handler.GetAuthUser)
+	apiGroup.GET("/confirm-email", handler.ConfirmEmail)
+	apiGroup.POST("/resend-confirmation-email", handler.ResendConfirmationEmail)
 }

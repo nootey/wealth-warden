@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"reflect"
 	"strings"
 	"unicode"
+	"wealth-warden/internal/models"
 	"wealth-warden/pkg/config"
 )
 
@@ -191,4 +193,35 @@ func ValidatePasswordStrength(password string) (string, error) {
 	}
 
 	return sanitized, nil
+}
+
+func GenerateRandomToken(length int) (string, error) {
+	if length > 32 {
+		return "", errors.New("max supported length is 32 characters")
+	}
+	randomBytes := make([]byte, length*2)
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		return "", err
+	}
+
+	// Encode the random bytes to base64
+	token := base64.URLEncoding.EncodeToString(randomBytes)
+
+	// Trim padding characters '=' from the end
+	token = strings.TrimRight(token, "=")
+
+	// Trim to the desired length
+	return token[:length], nil
+}
+
+func UnwrapToken(token *models.Token, key string) (interface{}, error) {
+	if token.Data == nil {
+		return nil, fmt.Errorf("token data is nil")
+	}
+	val, ok := token.Data[key]
+	if !ok {
+		return nil, fmt.Errorf("missing key %q in token data", key)
+	}
+	return val, nil
 }

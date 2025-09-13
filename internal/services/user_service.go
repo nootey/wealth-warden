@@ -35,7 +35,7 @@ func (s *UserService) GetAllUsers() ([]models.User, error) {
 }
 
 func (s *UserService) FetchUserByID(ID int64) (*models.User, error) {
-	record, err := s.Repo.GetUserByID(ID)
+	record, err := s.Repo.FindUserByID(nil, ID)
 	if err != nil {
 		return nil, err
 	}

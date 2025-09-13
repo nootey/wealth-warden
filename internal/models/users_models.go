@@ -1,6 +1,7 @@
 package models
 
 import (
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"time"
 )
@@ -28,6 +29,15 @@ type Invitation struct {
 	RoleID      int64     `gorm:"not null;index:idx_email_role,unique" json:"role_id"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type Token struct {
+	ID         int64             `gorm:"primaryKey;autoIncrement" json:"id"`
+	TokenType  string            `gorm:"not null" json:"token_type"`
+	TokenValue string            `json:"token_value"`
+	Data       datatypes.JSONMap `gorm:"type:jsonb" json:"data"`
+	CreatedAt  time.Time         `json:"created_at"`
+	UpdatedAt  time.Time         `json:"updated_at"`
 }
 
 type InvitationRequest struct {

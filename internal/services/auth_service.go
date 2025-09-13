@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -54,7 +55,7 @@ func NewAuthService(
 	}
 }
 
-func (s *AuthService) logLoginAttempt(email, userAgent, ip, status string, description *string, userID *int64) error {
+func (s *AuthService) log(event, email, userAgent, ip, status string, description *string, userID *int64) error {
 
 	changes := utils.InitChanges()
 	service := utils.DetermineServiceSource(userAgent)
@@ -68,7 +69,7 @@ func (s *AuthService) logLoginAttempt(email, userAgent, ip, status string, descr
 	err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
 		LoggingRepo: s.loggingService.Repo,
 		Logger:      s.logger,
-		Event:       "login",
+		Event:       event,
 		Category:    "auth",
 		Description: description,
 		Payload:     changes,
@@ -86,7 +87,7 @@ func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberM
 	userPassword, _ := s.UserRepo.GetPasswordByEmail(email)
 	if userPassword == "" {
 		desc := "user does not exist"
-		logErr := s.logLoginAttempt(email, userAgent, ip, "fail", &desc, nil)
+		logErr := s.log("login", email, userAgent, ip, "fail", &desc, nil)
 		if logErr != nil {
 			return "", "", 0, logErr
 		}
@@ -98,7 +99,7 @@ func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberM
 	err := bcrypt.CompareHashAndPassword([]byte(userPassword), []byte(password))
 	if err != nil {
 		desc := "incorrect_password"
-		logErr := s.logLoginAttempt(email, userAgent, ip, "fail", &desc, nil)
+		logErr := s.log("login", email, userAgent, ip, "fail", &desc, nil)
 		if logErr != nil {
 			return "", "", 0, logErr
 		}
@@ -125,7 +126,7 @@ func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberM
 		expiresAt = int(constants.RefreshCookieTTLShort.Seconds())
 	}
 
-	logErr := s.logLoginAttempt(email, userAgent, ip, "success", nil, &user.ID)
+	logErr := s.log("login", email, userAgent, ip, "success", nil, &user.ID)
 	if logErr != nil {
 		return "", "", 0, logErr
 	}
@@ -151,7 +152,7 @@ func (s *AuthService) GetCurrentUser(c *gin.Context) (*models.User, error) {
 			return nil, fmt.Errorf("failed to decode user ID: %v", decodeErr)
 		}
 
-		user, repoError := s.UserRepo.GetUserByID(userId)
+		user, repoError := s.UserRepo.FindUserByID(nil, userId)
 		if repoError != nil {
 			return nil, fmt.Errorf("failed to get user from repository: %v", repoError)
 		}
@@ -177,10 +178,42 @@ func (s *AuthService) ValidateInvitation(hash string) error {
 	return nil
 }
 
+func (s *AuthService) dispatchConfirmationEmail(user *models.User) error {
+
+	tx := s.UserRepo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	// Always ensure only one active token for this user/type
+	if err := s.UserRepo.DeleteTokenByData(tx, "confirm_email", "user_id", user.ID); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	// Insert new token
+	newToken, err := s.UserRepo.InsertToken(tx, "confirm_email", "user_id", user.ID)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	// Commit before sending email
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Send email after commit
+	if err := s.mailer.SendConfirmationEmail(user.Email, user.DisplayName, newToken.TokenValue); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) error {
 
 	// Validation
-
 	settings, err := s.SettingsRepo.FetchGeneralSettings(nil)
 	if err != nil {
 		return err
@@ -241,11 +274,104 @@ func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) err
 			return err
 		}
 
-		err = s.mailer.SendConfirmationEmail(user.Email, user.DisplayName)
+		desc := "Via open signup"
+		logErr := s.log("register", user.Email, userAgent, ip, "success", &desc, &user.ID)
+		if logErr != nil {
+			return logErr
+		}
+
+		err = s.dispatchConfirmationEmail(user)
 		if err != nil {
 			return err
 		}
 
+	}
+
+	return nil
+}
+
+func (s *AuthService) ResendConfirmationEmail(email, userAgent, ip string) error {
+
+	user, err := s.UserRepo.FindUserByEmail(nil, email)
+	if err != nil {
+		return err
+	}
+
+	if user.ID == 0 {
+		return errors.New("no user found for given email")
+	}
+
+	err = s.dispatchConfirmationEmail(user)
+	if err != nil {
+		return err
+	}
+
+	desc := "Requested a resend"
+	logErr := s.log("confirm-email", user.Email, userAgent, ip, "success", &desc, &user.ID)
+	if logErr != nil {
+		return logErr
+	}
+
+	return nil
+}
+
+func (s *AuthService) ConfirmEmail(tokenValue, userAgent, ip string) error {
+
+	tx := s.UserRepo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	token, err := s.UserRepo.FindTokenByValue(tx, "confirm_email", tokenValue)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	if token == nil {
+		_ = tx.Rollback()
+		return errors.New("no valid token found")
+	}
+
+	raw, err := utils.UnwrapToken(token, "user_id")
+	if err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("no user_id in token data")
+	}
+
+	num := raw.(json.Number)
+	userID, err := num.Int64()
+	if err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("invalid user_id in token data: %v", err)
+	}
+
+	user, err := s.UserRepo.FindUserByID(tx, userID)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	now := time.Now().UTC()
+	user.EmailConfirmed = &now
+
+	if err := tx.Save(&user).Error; err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	if err := s.UserRepo.DeleteTokenByData(tx, "confirm_email", "user_id", userID); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	logErr := s.log("confirm-email", user.Email, userAgent, ip, "success", nil, &user.ID)
+	if logErr != nil {
+		return logErr
 	}
 
 	return nil
