@@ -3,6 +3,6 @@ export interface User {
     username: string;
     display_name: string;
     email: string;
-    validated_at?: string;
+    email_confirmed?: Date | null;
     role_id: number;
 }

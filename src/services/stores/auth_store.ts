@@ -13,8 +13,9 @@ export const useAuthStore = defineStore('auth', {
         initialized: false,
     }),
     getters: {
-        isAuthenticated: (state) => state.authenticated,
-        isInitialized: (state) => state.initialized,
+        isAuthenticated: (s) => s.authenticated,
+        isInitialized:  (s) => s.initialized,
+        isValidated:     (s) => !!s.user?.email_confirmed,
     },
     actions: {
         async login(form: AuthForm) {
@@ -32,6 +33,14 @@ export const useAuthStore = defineStore('auth', {
                 return await apiClient.post(`${this.apiPrefix}/signup`, form);
             } catch (error) {
                 throw error;
+            }
+        },
+
+        async resendConfirmationEmail(email?: string) {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/resend-confirmation-email`, {email: email});
+            } catch (error) {
+                console.error(error)
             }
         },
 

@@ -2,6 +2,7 @@ import type {RouteRecordRaw} from 'vue-router';
 import DashboardPage from "../../_vue/pages/DashboardPage.vue";
 import Login from "../../_vue/features/auth/Login.vue";
 import SignUp from "../../_vue/features/auth/SignUp.vue";
+import ConfirmEmail from "../../_vue/features/auth/ConfirmEmail.vue";
 import ActivityLogsPage from "../../_vue/pages/ActivityLogsPage.vue";
 import TransactionsPage from "../../_vue/pages/TransactionsPage.vue";
 import AccountsPage from "../../_vue/pages/AccountsPage.vue";
@@ -11,6 +12,7 @@ declare module 'vue-router' {
     interface RouteMeta {
         requiresAuth?: boolean;
         guestOnly?: boolean;
+        emailConfirmed?: boolean;
     }
 }
 
@@ -20,6 +22,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Dashboard',
         meta: {title: 'Dash', requiresAuth: true},
         component: DashboardPage,
+    },
+    {
+        path: '/confirm-email',
+        name: 'Confirm email',
+        meta: { title: 'Confirm email', requiresAuth: true, emailConfirmed: false },
+        component: ConfirmEmail,
     },
     {
         path: '/login',

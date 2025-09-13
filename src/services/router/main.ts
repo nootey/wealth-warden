@@ -11,12 +11,19 @@ router.beforeEach(async (to) => {
     const auth = useAuthStore();
     const requiresAuth = to.matched.some(r => r.meta.requiresAuth);
     const guestOnly = to.matched.some(r => r.meta.guestOnly);
+    const emailValidated = to.matched.some(r => r.meta.emailValidated);
 
     if (requiresAuth && !auth.isInitialized) {
         await auth.init();
     }
     if (requiresAuth && !auth.isAuthenticated) {
         return {name: 'Login', query: {redirect: to.fullPath}};
+    }
+    // Logged in but NOT verified
+    if (requiresAuth && auth.isAuthenticated && !auth.isValidated && !emailValidated) {
+        if (to.name !== 'Confirm email') {
+            return { name: 'Confirm email', query: { redirect: to.fullPath } };
+        }
     }
     if (guestOnly && auth.isAuthenticated) {
         return {name: 'Dashboard'};
