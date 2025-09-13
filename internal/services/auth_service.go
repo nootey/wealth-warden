@@ -12,6 +12,7 @@ import (
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/constants"
+	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
 )
 
@@ -22,6 +23,7 @@ type AuthService struct {
 	loggingService      *LoggingService
 	WebClientMiddleware *middleware.WebClientMiddleware
 	jobDispatcher       jobs.JobDispatcher
+	mailer              *mailer.Mailer
 }
 
 func NewAuthService(
@@ -31,6 +33,7 @@ func NewAuthService(
 	loggingService *LoggingService,
 	webClientMiddleware *middleware.WebClientMiddleware,
 	jobDispatcher jobs.JobDispatcher,
+	mailer *mailer.Mailer,
 ) *AuthService {
 	return &AuthService{
 		Config:              cfg,
@@ -39,6 +42,7 @@ func NewAuthService(
 		loggingService:      loggingService,
 		WebClientMiddleware: webClientMiddleware,
 		jobDispatcher:       jobDispatcher,
+		mailer:              mailer,
 	}
 }
 

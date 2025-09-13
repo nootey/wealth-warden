@@ -4,11 +4,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"reflect"
 	"strings"
 	"unicode"
+	"wealth-warden/pkg/config"
 )
 
 func HashAndSaltPassword(password string) (string, error) {
@@ -106,4 +108,24 @@ func GenerateSecureToken(nBytes int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes), nil
+}
+
+func GenerateHttpReleaseLink(cfg *config.Config) string {
+	domain := cfg.WebClient.Domain
+	port := cfg.HttpServer.Port
+	version := cfg.Api.Version
+	production := cfg.Release
+	prefix := "http://"
+
+	if production {
+		prefix = "https://"
+		port = ""
+	}
+
+	base := fmt.Sprintf("%s%s", prefix, domain)
+	if port != "" {
+		base += ":" + port
+	}
+
+	return fmt.Sprintf("%s/api/v%s/", base, version)
 }

@@ -8,6 +8,7 @@ import (
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/config"
+	"wealth-warden/pkg/mailer"
 )
 
 type Container struct {
@@ -28,6 +29,9 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	// Initialize middleware
 	webClientMiddleware := middleware.NewWebClientMiddleware(cfg, logger)
 
+	// Initialize mailer
+	mail := mailer.NewMailer(cfg, &mailer.MailConfig{From: cfg.Mailer.Username, FromName: "Wealth Warden Support"})
+
 	// Initialize job queue system (In-Memory)
 	// Can later be swapped to Redis/Kafka with zero change to service layer
 	jobQueue := jobs.NewJobQueue(1, 25)
@@ -43,7 +47,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 
 	// Initialize services
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
-	authService := services.NewAuthService(cfg, logger, userRepo, loggingService, webClientMiddleware, jobDispatcher)
+	authService := services.NewAuthService(cfg, logger, userRepo, loggingService, webClientMiddleware, jobDispatcher, mail)
 
 	ctx := &services.DefaultServiceContext{
 		LoggingService: loggingService,
