@@ -1,6 +1,7 @@
 export interface AuthForm {
+    display_name?: string;
     email: string;
     password: string;
-    passwordConfirmation?: string;
-    rememberMe?: boolean;
+    password_confirmation?: string;
+    remember_me?: boolean;
 }

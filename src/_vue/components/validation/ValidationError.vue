@@ -14,9 +14,9 @@ const isDisplayed = computed(() => Boolean(props.message));
     </div>
     <small v-show="!isDisplayed && props.isRequired" class="invalid disclaimer"> * </small>
     <Transition name="slide-fade">
-      <small v-if="isDisplayed">
-        {{ message.replace('Value', '- This field') }}
-      </small>
+      <span v-if="isDisplayed" class="text-xs">
+        {{ message.replace('Value', ': field') }}
+      </span>
     </Transition>
 
 

@@ -16,7 +16,7 @@ const router = useRouter();
 const form = ref<AuthForm>({
   email: "",
   password: "",
-  rememberMe: false,
+  remember_me: false,
 });
 
 const rules = {
@@ -100,7 +100,7 @@ function forgotPassword() {
 
                 <div class="flex flex-row w-full justify-content-between">
                     <div class="flex flex-row align-items-center gap-2">
-                        <Checkbox inputId="rememberMe" v-model="form.rememberMe" :binary="true" class="scale-90" />
+                        <Checkbox inputId="rememberMe" v-model="form.remember_me" :binary="true" class="scale-90" />
                         <label for="rememberMe" class="text-sm cursor-pointer" style="color: var(--text-secondary);">
                             Remember me
                         </label>

@@ -17,14 +17,6 @@ export const useAuthStore = defineStore('auth', {
         isInitialized: (state) => state.initialized,
     },
     actions: {
-        async register(authForm: AuthForm) {
-            try {
-                return await apiClient.post(`${this.apiPrefix}/register`, authForm);
-            } catch (error) {
-                throw error;
-            }
-        },
-
         async login(authForm: AuthForm) {
             try {
                 const response = await apiClient.post(`${this.apiPrefix}/login`, authForm);
