@@ -241,6 +241,11 @@ func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) err
 			return err
 		}
 
+		err = s.mailer.SendConfirmationEmail(user.Email, user.DisplayName)
+		if err != nil {
+			return err
+		}
+
 	}
 
 	return nil

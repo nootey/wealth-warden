@@ -98,17 +98,17 @@
 
             <div class="content">
                 <h3>Hello {{ .subjectName }}!</h3>
-                <span>Please click the button below to verify your email address:</span>
+                <span>Please click the button below to confirm your email address:</span>
 
                 <div class="cta-wrap" style="margin-bottom: 14px;">
-                    <a href="{{ .verifyLink }}" class="cta">Verify Email Address</a>
+                    <a href="{{ .confirmLink }}" class="cta">Confirm email Address</a>
                 </div>
 
                 <p style="width: 70%; margin: 0 auto; text-align: center;">If you did not create an account, no further action is required. This email is automated.</p>
 
                 <div class="fallback">
                     Having trouble with the button? Paste this URL into your browser:<br>
-                    {{ .verifyLink }}
+                    {{ .confirmLink }}
                 </div>
             </div>
         </div>

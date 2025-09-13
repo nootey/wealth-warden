@@ -22,11 +22,11 @@ func (m *Mailer) SendRegistrationEmail(to, displayName, token string) error {
 	return m.SendEmail(to, "Please validate registration email.", body)
 }
 
-func (m *Mailer) SendVerificationEmail(to, displayName, token string) error {
-	link := m.buildLink("auth", "validate-email?token="+token)
-	body, err := renderTemplate("verify-email.html", map[string]string{
+func (m *Mailer) SendConfirmationEmail(to, displayName string) error {
+	link := m.buildLink("auth", "confirm-email")
+	body, err := renderTemplate("confirm-email.html", map[string]string{
 		"subjectName": displayName,
-		"verifyLink":  link,
+		"confirmLink": link,
 		"year":        time.Now().Format("2006"),
 	})
 	if err != nil {
