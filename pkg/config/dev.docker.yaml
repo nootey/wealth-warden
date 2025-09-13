@@ -9,6 +9,7 @@ http_server:
 
 web_client:
   domain: "localhost"
+  port: 5000
 
 postgres:
   host: "db"

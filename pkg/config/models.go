@@ -19,6 +19,7 @@ type ApiConfig struct {
 
 type WebClientConfig struct {
 	Domain string `mapstructure:"domain" validate:"required"`
+	Port   string `mapstructure:"port"  validate:"required"`
 }
 
 type HttpServerConfig struct {
