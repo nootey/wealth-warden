@@ -43,6 +43,15 @@ func (s *UserService) FetchUserByID(ID int64) (*models.User, error) {
 	return record, nil
 }
 
+func (s *UserService) FetchInvitationByHash(hash string) (*models.Invitation, error) {
+	record, err := s.Repo.FindUserInvitationByHash(nil, hash)
+	if err != nil {
+		return nil, err
+	}
+
+	return record, nil
+}
+
 func (s *UserService) CreateInvitation(invitation *models.Invitation) error {
 
 	tx := s.Repo.DB.Begin()
@@ -72,13 +81,5 @@ func (s *UserService) CreateInvitation(invitation *models.Invitation) error {
 		return err
 	}
 
-	return nil
-}
-
-func (s *UserService) CreateUser(user *models.User) error {
-	err := s.Repo.CreateUser(user)
-	if err != nil {
-		return err
-	}
 	return nil
 }

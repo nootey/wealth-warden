@@ -35,17 +35,23 @@ func (r *UserRepository) GetUserByID(id int64) (*models.User, error) {
 	return &user, nil
 }
 
-func (r *UserRepository) GetUserByEmail(email string) (*models.User, error) {
-	var user models.User
+func (r *UserRepository) FindUserByEmail(tx *gorm.DB, email string) (*models.User, error) {
 
-	query := r.DB.
-		Preload("Role")
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
 
-	err := query.Where("email = ?", email).First(&user).Error
+	var record models.User
+
+	query := r.DB
+
+	err := query.Where("email = ?", email).First(&record).Error
 	if err != nil {
 		return nil, err
 	}
-	return &user, nil
+
+	return &record, nil
 }
 
 func (r *UserRepository) FindUserInvitationByHash(tx *gorm.DB, hash string) (*models.Invitation, error) {
@@ -88,8 +94,16 @@ func (r *UserRepository) InsertInvitation(tx *gorm.DB, record *models.Invitation
 	return record.ID, nil
 }
 
-func (r *UserRepository) CreateUser(user *models.User) error {
-	return r.DB.Create(user).Error
+func (r *UserRepository) InsertUser(tx *gorm.DB, record *models.User) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Create(&record).Error; err != nil {
+		return 0, err
+	}
+	return record.ID, nil
 }
 
 func (r *UserRepository) UpdateUser(user *models.User) error {

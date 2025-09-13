@@ -59,6 +59,24 @@ func (h *UserHandler) GetUserById(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": user})
 }
 
+func (h *UserHandler) GetInvitationByHash(c *gin.Context) {
+
+	hash := c.Param("hash")
+
+	if hash == "" {
+		err := errors.New("invalid hash provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	record, err := h.Service.FetchInvitationByHash(hash)
+	if err != nil {
+		utils.ErrorMessage(c, "fetch error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+	c.JSON(http.StatusOK, record)
+}
+
 func (h *UserHandler) CreateInvitation(c *gin.Context) {
 	var req models.InvitationRequest
 
@@ -92,21 +110,4 @@ func (h *UserHandler) CreateInvitation(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "User invited", "Invitation link has been sent successfully.", http.StatusOK)
-}
-
-func (h *UserHandler) CreateUser(c *gin.Context) {
-	var user models.User
-
-	if err := c.ShouldBindJSON(&user); err != nil {
-		utils.ErrorMessage(c, "Json bind error", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-
-	err := h.Service.CreateUser(&user)
-	if err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-
-	utils.SuccessMessage(c, user.Email, "User created successfully", http.StatusOK)
 }

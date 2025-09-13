@@ -49,7 +49,7 @@ func GetUser(db *gorm.DB) (*models.User, error) {
 		return nil, fmt.Errorf("SUPER_ADMIN_EMAIL not set in seeder credentials")
 	}
 	userRepo := repositories.NewUserRepository(db)
-	user, err := userRepo.GetUserByEmail(email)
+	user, err := userRepo.FindUserByEmail(nil, email)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user: %w", err)
 	}

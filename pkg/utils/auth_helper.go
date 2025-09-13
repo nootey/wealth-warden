@@ -129,3 +129,47 @@ func GenerateHttpReleaseLink(cfg *config.Config) string {
 
 	return fmt.Sprintf("%s/api/v%s/", base, version)
 }
+func ValidatePasswordStrength(password string) (string, error) {
+
+	const minLength = 8
+	var (
+		hasUpper   bool
+		hasNumber  bool
+		hasSpecial bool
+	)
+
+	sanitized := strings.TrimSpace(password)
+
+	if len(sanitized) < minLength {
+		return "", fmt.Errorf("password must be at least %d characters long", minLength)
+	}
+
+	for _, char := range sanitized {
+		switch {
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsNumber(char):
+			hasNumber = true
+		case unicode.IsPunct(char), unicode.IsSymbol(char):
+			hasSpecial = true
+		}
+	}
+
+	var missing []string
+
+	if !hasUpper {
+		missing = append(missing, "uppercase letter")
+	}
+	if !hasNumber {
+		missing = append(missing, "number")
+	}
+	if !hasSpecial {
+		missing = append(missing, "special character")
+	}
+
+	if len(missing) > 0 {
+		return "", errors.New("password must contain: " + strings.Join(missing, ", "))
+	}
+
+	return sanitized, nil
+}

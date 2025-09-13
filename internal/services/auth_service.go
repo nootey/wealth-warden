@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"time"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
@@ -20,6 +21,7 @@ type AuthService struct {
 	Config              *config.Config
 	logger              *zap.Logger
 	UserRepo            *repositories.UserRepository
+	RoleRepo            *repositories.RolePermissionRepository
 	loggingService      *LoggingService
 	WebClientMiddleware *middleware.WebClientMiddleware
 	jobDispatcher       jobs.JobDispatcher
@@ -30,6 +32,7 @@ func NewAuthService(
 	cfg *config.Config,
 	logger *zap.Logger,
 	userRepo *repositories.UserRepository,
+	roleRepo *repositories.RolePermissionRepository,
 	loggingService *LoggingService,
 	webClientMiddleware *middleware.WebClientMiddleware,
 	jobDispatcher jobs.JobDispatcher,
@@ -39,6 +42,7 @@ func NewAuthService(
 		Config:              cfg,
 		logger:              logger,
 		UserRepo:            userRepo,
+		RoleRepo:            roleRepo,
 		loggingService:      loggingService,
 		WebClientMiddleware: webClientMiddleware,
 		jobDispatcher:       jobDispatcher,
@@ -99,7 +103,7 @@ func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberM
 		return "", "", 0, err
 	}
 
-	user, _ := s.UserRepo.GetUserByEmail(email)
+	user, _ := s.UserRepo.FindUserByEmail(nil, email)
 	if user == nil {
 		err = errors.New("user data unavailable")
 		return "", "", 0, err
@@ -152,6 +156,63 @@ func (s *AuthService) GetCurrentUser(c *gin.Context) (*models.User, error) {
 	}
 
 	return nil, fmt.Errorf("no refresh token found")
+}
+
+
+func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) error {
+
+	// Validation
+	if form.Password != form.PasswordConfirmation {
+		return errors.New("password and password confirmation do not match")
+	}
+
+	existingUser, _ := s.UserRepo.FindUserByEmail(nil, form.Email)
+
+	password, passwordErr := utils.ValidatePasswordStrength(form.Password)
+	if passwordErr != nil {
+		return passwordErr
+	}
+
+	hashedPass, err := utils.HashAndSaltPassword(password)
+	if err != nil {
+		return err
+	}
+
+	if existingUser == nil {
+
+		tx := s.UserRepo.DB.Begin()
+		if tx.Error != nil {
+			return tx.Error
+		}
+
+		role, err := s.RoleRepo.FindRoleByName("member")
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		user := &models.User{
+			DisplayName: form.DisplayName,
+			Email:       form.Email,
+			Password:    hashedPass,
+			RoleID:      role.ID,
+			CreatedAt:   time.Now().UTC(),
+			UpdatedAt:   time.Now().UTC(),
+		}
+
+		_, err = s.UserRepo.InsertUser(tx, user)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			return err
+		}
+
+	}
+
+	return nil
 }
 
 func (s *AuthService) RegisterUser(form models.RegisterForm, userAgent, ip string) error {
