@@ -1,6 +1,7 @@
 package config
 
 type Config struct {
+	Api        ApiConfig        `mapstructure:"api"`
 	Release    bool             `mapstructure:"release"`
 	WebClient  WebClientConfig  `mapstructure:"web_client"`
 	HttpServer HttpServerConfig `mapstructure:"http_server"`
@@ -9,6 +10,10 @@ type Config struct {
 	JWT        JWTConfig
 	CORS       CorsConfig `mapstructure:"cors"`
 	Seed       SeedConfig `mapstructure:"seed"`
+}
+
+type ApiConfig struct {
+	Version string `mapstructure:"version" validate:"required"`
 }
 
 type WebClientConfig struct {
