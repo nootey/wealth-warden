@@ -158,6 +158,20 @@ func (s *AuthService) GetCurrentUser(c *gin.Context) (*models.User, error) {
 	return nil, fmt.Errorf("no refresh token found")
 }
 
+func (s *AuthService) ValidateInvitation(hash string) error {
+	if hash == "" {
+		err := errors.New("validation token is required")
+		return err
+	}
+
+	// Do additional validation if needed, for now, confirming it exists is enough
+	_, err := s.UserRepo.FindUserInvitationByHash(nil, hash)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) error {
 

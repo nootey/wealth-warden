@@ -6,6 +6,7 @@ import (
 )
 
 func PublicAuthRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) {
+	apiGroup.GET("/validate-email", handler.ValidateEmail)
 	apiGroup.POST("/login", handler.LoginUser)
 	apiGroup.POST("/logout", handler.LogoutUser)
 	apiGroup.POST("/signup", handler.SignUp)

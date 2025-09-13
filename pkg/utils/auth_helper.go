@@ -129,6 +129,25 @@ func GenerateHttpReleaseLink(cfg *config.Config) string {
 
 	return fmt.Sprintf("%s/api/v%s/", base, version)
 }
+
+func GenerateWebClientReleaseLink(cfg *config.Config, subdomain string) string {
+	domain := cfg.WebClient.Domain
+	port := cfg.WebClient.Port
+	production := cfg.Release
+	prefix := "http://"
+
+	if production {
+		prefix = "https://"
+		port = ""
+	}
+
+	if subdomain != "" {
+		subdomain += "/"
+	}
+
+	return fmt.Sprintf("%s%s:%s/%s", prefix, domain, port, subdomain)
+}
+
 func ValidatePasswordStrength(password string) (string, error) {
 
 	const minLength = 8

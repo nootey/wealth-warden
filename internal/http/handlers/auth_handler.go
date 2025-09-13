@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"wealth-warden/internal/models"
@@ -60,6 +61,22 @@ func (h *AuthHandler) LogoutUser(c *gin.Context) {
 	c.SetCookie("access", "", -1, "/", h.Service.Config.WebClient.Domain, true, true)
 	c.SetCookie("refresh", "", -1, "/", h.Service.Config.WebClient.Domain, true, true)
 	utils.SuccessMessage(c, "", "Logged out", http.StatusOK)
+}
+
+func (h *AuthHandler) ValidateEmail(c *gin.Context) {
+	queryParams := c.Request.URL.Query()
+	hash := queryParams.Get("token")
+
+	err := h.Service.ValidateInvitation(hash)
+	if err == nil {
+		redirectUrl := utils.GenerateWebClientReleaseLink(h.Service.Config, "")
+		c.Redirect(http.StatusFound, fmt.Sprintf("%s%s?token=%s", redirectUrl, "register", hash))
+	} else {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Email has been validated", "Success", http.StatusOK)
 }
 
 func (h *AuthHandler) SignUp(c *gin.Context) {
