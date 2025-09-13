@@ -17,11 +17,19 @@ export const useAuthStore = defineStore('auth', {
         isInitialized: (state) => state.initialized,
     },
     actions: {
-        async login(authForm: AuthForm) {
+        async login(form: AuthForm) {
             try {
-                const response = await apiClient.post(`${this.apiPrefix}/login`, authForm);
+                const response = await apiClient.post(`${this.apiPrefix}/login`, form);
                 await this.init();
                 return response;
+            } catch (error) {
+                throw error;
+            }
+        },
+
+        async signUp(form: AuthForm) {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/signup`, form);
             } catch (error) {
                 throw error;
             }

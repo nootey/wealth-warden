@@ -7,9 +7,9 @@ import ValidationError from "../../components/validation/ValidationError.vue";
 import AuthSkeleton from "../../components/layout/AuthSkeleton.vue";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import type {AuthForm} from "../../../models/auth_models.ts";
-import {useUserStore} from "../../../services/stores/user_store.ts";
+import {useAuthStore} from "../../../services/stores/auth_store.ts";
 
-const userStore = useUserStore();
+const authStore = useAuthStore();
 const toastStore = useToastStore()
 
 const router = useRouter();
@@ -79,7 +79,7 @@ async function createInvitation() {
     loading.value = true;
 
     try {
-        await userStore.createInvitation(form.value);
+        await authStore.signUp(form.value);
         await router.push({name: "Login"})
     } catch (error) {
         toastStore.errorResponseToast(error)

@@ -49,8 +49,8 @@ async function login() {
   }
 }
 
-function register() {
-  router.push({name: "Register"});
+function signUp() {
+  router.push({name: "Sign up"});
 }
 
 function forgotPassword() {
@@ -121,7 +121,7 @@ function forgotPassword() {
                   Don't have an account?
                 </span>
                 <span class="text-sm hover-icon hover-dim"
-                      @click="register">
+                      @click="signUp">
                         Create account</span>
             </div>
         </div>
