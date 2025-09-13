@@ -48,6 +48,22 @@ func (r *UserRepository) GetUserByEmail(email string) (*models.User, error) {
 	return &user, nil
 }
 
+func (r *UserRepository) FindUserInvitationByHash(tx *gorm.DB, hash string) (*models.Invitation, error) {
+
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var record models.Invitation
+
+	err := r.DB.Where("hash =?", hash).First(&record).Error
+	if err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
 func (r *UserRepository) GetAllUsers() ([]models.User, error) {
 	var users []models.User
 
@@ -58,6 +74,18 @@ func (r *UserRepository) GetAllUsers() ([]models.User, error) {
 		return nil, err
 	}
 	return users, nil
+}
+
+func (r *UserRepository) InsertInvitation(tx *gorm.DB, record *models.Invitation) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Create(&record).Error; err != nil {
+		return 0, err
+	}
+	return record.ID, nil
 }
 
 func (r *UserRepository) CreateUser(user *models.User) error {

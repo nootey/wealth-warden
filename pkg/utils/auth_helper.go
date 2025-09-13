@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -96,4 +98,12 @@ func SanitizeStruct(s interface{}) error {
 	}
 
 	return nil
+}
+
+func GenerateSecureToken(nBytes int) (string, error) {
+	bytes := make([]byte, nBytes)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }

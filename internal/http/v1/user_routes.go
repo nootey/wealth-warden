@@ -8,4 +8,5 @@ import (
 func UserRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler) {
 	apiGroup.GET("", handler.GetUsers)
 	apiGroup.GET("/:id", handler.GetUserById)
+	apiGroup.PUT("invitations/:id", handler.CreateInvitation)
 }

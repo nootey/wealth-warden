@@ -59,6 +59,40 @@ func (h *UserHandler) GetUserById(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": user})
 }
 
+func (h *UserHandler) CreateInvitation(c *gin.Context) {
+	var req models.InvitationRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	validator := validators.NewValidator()
+	if err := validator.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := utils.SanitizeStruct(&req); err != nil {
+		utils.ErrorMessage(c, "Sanitization error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	invitation := &models.Invitation{
+		Username: req.Username,
+		Email:    req.Email,
+		RoleID:   req.Role.ID,
+	}
+
+	err := h.Service.CreateInvitation(invitation)
+	if err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "User invited", "Invitation link has been sent successfully.", http.StatusOK)
+}
+
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var user models.User
 
