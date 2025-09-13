@@ -77,7 +77,7 @@ func (h *AuthHandler) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.RegisterUser(form.Email, form.Password, form.PasswordConfirmation, userAgent, loginIP)
+	err := h.Service.RegisterUser(form, userAgent, loginIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Registration failed", err.Error(), http.StatusUnauthorized, err)
 		return

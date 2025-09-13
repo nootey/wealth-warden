@@ -150,7 +150,7 @@ func (s *AuthService) GetCurrentUser(c *gin.Context) (*models.User, error) {
 	return nil, fmt.Errorf("no refresh token found")
 }
 
-func (s *AuthService) RegisterUser(email, password, passwordConfirmation, userAgent, ip string) error {
+func (s *AuthService) RegisterUser(form models.RegisterForm, userAgent, ip string) error {
 
 	return nil
 }
