@@ -8,8 +8,9 @@ type Config struct {
 	Host       string           `mapstructure:"host"`
 	Postgres   PostgresConfig   `mapstructure:"postgres"`
 	JWT        JWTConfig
-	CORS       CorsConfig `mapstructure:"cors"`
-	Seed       SeedConfig `mapstructure:"seed"`
+	CORS       CorsConfig   `mapstructure:"cors"`
+	Seed       SeedConfig   `mapstructure:"seed"`
+	Mailer     MailerConfig `mapstructure:"mailer"`
 }
 
 type ApiConfig struct {
@@ -49,4 +50,11 @@ type SeedConfig struct {
 	SuperAdminPassword string `mapstructure:"super_admin_password"`
 	MemberUserEmail    string `mapstructure:"member_user_email"`
 	MemberUserPassword string `mapstructure:"member_user_password"`
+}
+
+type MailerConfig struct {
+	Host     string `mapstructure:"host" validate:"required"`
+	Port     int    `mapstructure:"port" validate:"required"`
+	Username string `mapstructure:"username" validate:"required"`
+	Password string `mapstructure:"password" validate:"required"`
 }

@@ -30,6 +30,12 @@ cors:
   wildcardSuffixes: []
   allowedSchemes: ["http"]
 
+mailer:
+  host: "smtp.x.y"
+  port: 587
+  username: "example@email.com"
+  password: "aaaa bbbb cccc dddd"
+
 seed:
   super_admin_email: "admin@email.com"
   super_admin_password: "password"
