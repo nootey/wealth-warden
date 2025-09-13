@@ -46,9 +46,9 @@ func SeedRootUser(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 	// If the user doesn't exist, insert them with the global role "super-admin"
 	if userID == 0 {
 		err = db.Exec(`
-			INSERT INTO users (username, email, password, display_name, role_id, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, "Support", email, hashedPassword, "Super Admin", globalRoleID, time.Now(), time.Now()).Error
+			INSERT INTO users (username, email, password, display_name, role_id, email_confirmed, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, "Support", email, hashedPassword, "Super Admin", globalRoleID, time.Now(), time.Now(), time.Now()).Error
 		if err != nil {
 			return fmt.Errorf("failed to insert super admin user: %w", err)
 		}
