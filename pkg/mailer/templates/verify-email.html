@@ -5,122 +5,118 @@
     <meta name="author" content="wealthwarden">
     <style>
         body {
-            margin: 0; padding: 0;
-            font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-            background: #0f1116;
-            color: #e7e9ef;
+          margin: 0; padding: 0;
+          font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+          background: #0f1116;
+          color: #fff;
         }
         .outer {
-            width: 100%;
-            padding: 32px 0;
-            background: linear-gradient(135deg,#0f1116 0%,#151a23 50%,#0f1116 100%);
+          width: 100%;
+          padding: 32px 0;
+          background: linear-gradient(135deg,#0f1116 0%,#151a23 50%,#0f1116 100%);
         }
         .card {
-            width: 92%;
-            max-width: 720px;
-            margin: 0 auto;
-            background: #141824;
-            border: 1px solid #232938;
-            border-radius: 24px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.35);
-            overflow: hidden;
+          width: 92%;
+          max-width: 720px;
+          margin: 0 auto;
+          background: #141824;
+          border: 1px solid #232938;
+          border-radius: 24px;
+          box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+          overflow: hidden;
         }
         .brand {
-            text-align: center;
-            padding: 28px 20px;
-            background: linear-gradient(135deg,#7986CB 0%,#3F51B5 100%);
-            color: #fff;
+          text-align: center;
+          padding: 28px 20px;
+          background: linear-gradient(135deg,#7986CB 0%,#3F51B5 100%);
+          color: #fff;
         }
         .brand .logo {
-            width: 80px; height: 80px; margin: 0 auto 10px;
-            background: rgba(255,255,255,0.15);
-            border-radius: 18px;
-            display: flex; align-items: center; justify-content: center;
-            backdrop-filter: blur(4px);
+          width: 80px; height: 80px; margin: 0 auto 10px;
+          background: rgba(255,255,255,0.15);
+          border-radius: 18px;
+          display: flex; flex-direction: row; align-items: center; justify-content: center;
+          backdrop-filter: blur(4px);
         }
         .brand .title {
-            margin: 6px 0 2px; font-size: 22px; font-weight: 800; letter-spacing: -0.02em;
+          margin: 6px 0 2px; font-size: 22px; font-weight: 800; letter-spacing: -0.02em;
         }
         .brand .subtitle {
-            margin: 0; font-size: 13px; opacity: 0.9;
+          margin: 0; font-size: 13px; opacity: 0.9;
         }
         .content {
-            padding: 28px 26px 24px;
-            background: #141824;
-            color: #e7e9ef;
+          padding: 28px 26px 24px;
+          background: #141824;
+          color: #ffff;
         }
         .content h3 {
-            margin: 0 0 10px; font-size: 18px; color: #e7e9ef; letter-spacing: -0.015em;
+          margin: 0 0 10px; font-size: 18px; color: #ffff; letter-spacing: -0.015em;
         }
         .content p {
-            margin: 10px 0; font-size: 14px; line-height: 1.55; color: #9aa3b2;
+          margin: 10px 0; font-size: 14px; line-height: 1.55; color: #9aa3b2;
         }
-        .cta-wrap { text-align: center; margin: 18px 0 6px; }
+        .cta-wrap { text-align: center; margin: 18px 0 6px; color: #fff; }
         .cta {
-            display: inline-block;
-            text-decoration: none;
-            padding: 12px 22px;
-            border-radius: 14px;
-            font-weight: 700;
-            font-size: 14px;
-            letter-spacing: 0.2px;
-            color: #e7e9ef;
-            background: linear-gradient(135deg,#3F51B5 0%,#7986CB 100%);
-            box-shadow: 0 8px 18px rgba(11,19,36,0.35);
+          display: inline-block;
+          text-decoration: none;
+          padding: 12px 22px;
+          border-radius: 14px;
+          font-weight: 700;
+          font-size: 14px;
+          letter-spacing: 0.2px;
+          color: #fff;
+          background: linear-gradient(135deg,#3F51B5 0%,#7986CB 100%);
+          box-shadow: 0 8px 18px rgba(11,19,36,0.35);
         }
         .fallback {
-            margin-top: 18px; font-size: 12px; color: #b9c2d0; text-align: center;
-            padding: 0 8px;
-            word-break: break-word;
+          margin-top: 18px; font-size: 10px; color: #b9c2d0; text-align: center;
+          padding: 0 8px;
+          word-break: break-word;
         }
         .footer {
-            text-align: center; color: #7f8a9b; font-size: 11px; padding: 18px 12px 26px;
+          text-align: center; color: #b9c2d0; font-size: 11px; padding: 18px 12px 26px;
         }
         @media (max-width: 520px) {
-            .content { padding: 22px 18px; }
-            .brand { padding: 22px 16px; }
-            .brand .title { font-size: 18px; }
-            .cta { width: 70%; }
-        }
-        .cta:hover { filter: brightness(1.03); }
+          .content { padding: 22px 18px; }
+          .brand { padding: 22px 16px; }
+          .brand .title { font-size: 18px; }
+          .cta { width: 70%; }
+          }
+          .cta:hover { filter: brightness(1.03); }
     </style>
 </head>
 
 <body>
-
-<div class="outer_body">
-    <div class="card">
-        <div class="brand">
-            <div class="logo">
-                <span style="font-size:2rem; font-weight:900;">W</span>
-            </div>
-            <div class="title">Wealth Warden</div>
-        </div>
-
-        <div class="content">
-            <h3>Hello {{ .subjectName }}!</h3>
-            <span>Please click the button below to verify your email address:</span>
-
-            <div class="cta-wrap">
-                <a href="{{ .verifyLink }}" class="cta">Verify Email Address</a>
+    <div class="outer_body">
+        <div class="card">
+            <div class="brand">
+                <div class="logo">
+                <span style="font-size:2.25rem; font-weight:900; width: 50%; margin: 0 auto; text-align: center;">W</span>
+                </div>
+                <div class="title">Wealth Warden</div>
             </div>
 
-            <p style="margin-top:14px;">If you did not create an account, no further action is required. This email is automated.</p>
+            <div class="content">
+                <h3>Hello {{ .subjectName }}!</h3>
+                <span>Please click the button below to verify your email address:</span>
 
-            <div class="fallback">
-                Having trouble with the button? Paste this URL into your browser:<br>
-                {{ .verifyLink }}
+                <div class="cta-wrap" style="margin-bottom: 14px;">
+                    <a href="{{ .verifyLink }}" class="cta">Verify Email Address</a>
+                </div>
+
+                <p style="width: 70%; margin: 0 auto; text-align: center;">If you did not create an account, no further action is required. This email is automated.</p>
+
+                <div class="fallback">
+                    Having trouble with the button? Paste this URL into your browser:<br>
+                    {{ .verifyLink }}
+                </div>
             </div>
         </div>
+
+        <div class="footer">
+            © {{ .year }} | Wealth Warden | All rights reserved
         </div>
-</div>
-
-<div class="footer">
-    © {{ .year }} | Wealth Warden | All rights reserved
-</div>
-
-</div>
-
+    </div>
 </body>
 
 </html>

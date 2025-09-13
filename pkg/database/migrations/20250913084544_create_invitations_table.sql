@@ -12,10 +12,6 @@ CREATE TABLE IF NOT EXISTS invitations (
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE UNIQUE INDEX invitations_username_role_id_unique
-    ON invitations (username, role_id)
-    WHERE username IS NOT NULL;
-
 CREATE TRIGGER set_invitations_updated_at
     BEFORE UPDATE ON invitations
     FOR EACH ROW
