@@ -12,5 +12,5 @@ type LoginForm struct {
 
 type RegisterForm struct {
 	AuthForm
-	PasswordConfirmation string `json:"passwordConfirmation" binding:"required"`
+	PasswordConfirmation string `json:"password_confirmation" binding:"required"`
 }

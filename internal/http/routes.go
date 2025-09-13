@@ -48,7 +48,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 	authRL := middleware.NewRateLimiter(5.0/60.0, 5) // 5 per minute, burst 3
 
 	// Protected routes
-	authGroup := _v1.Group("/", r.Container.AuthService.WebClientMiddleware.WebClientAuthentication())
+	authGroup := _v1.Group("", r.Container.AuthService.WebClientMiddleware.WebClientAuthentication())
 	{
 		authRoutes := authGroup.Group("/auth", authRL.Middleware())
 		v1.AuthRoutes(authRoutes, authHandler)
@@ -78,6 +78,9 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 	{
 		publicAuthRoutes := publicGroup.Group("/auth", authRL.Middleware())
 		v1.PublicAuthRoutes(publicAuthRoutes, authHandler)
+
+		publicUserRoutes := publicGroup.Group("/users")
+		v1.PublicUserRoutes(publicUserRoutes, userHandler)
 	}
 }
 

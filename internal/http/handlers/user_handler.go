@@ -79,9 +79,10 @@ func (h *UserHandler) CreateInvitation(c *gin.Context) {
 	}
 
 	invitation := &models.Invitation{
-		Username: req.Username,
-		Email:    req.Email,
-		RoleID:   req.Role.ID,
+		Username:    req.Username,
+		DisplayName: req.DisplayName,
+		Email:       req.Email,
+		RoleID:      req.Role.ID,
 	}
 
 	err := h.Service.CreateInvitation(invitation)

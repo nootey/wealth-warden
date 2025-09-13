@@ -67,10 +67,10 @@ func (s *UserService) CreateInvitation(invitation *models.Invitation) error {
 		return err
 	}
 
-	//err = s.Mailer.SendRegistrationEmail(invitation.Email, hash)
-	//if err != nil {
-	//	return err
-	//}
+	err = s.Ctx.AuthService.mailer.SendRegistrationEmail(invitation.Email, invitation.DisplayName, hash)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
