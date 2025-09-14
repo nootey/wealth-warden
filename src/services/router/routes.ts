@@ -3,10 +3,12 @@ import DashboardPage from "../../_vue/pages/DashboardPage.vue";
 import Login from "../../_vue/features/auth/Login.vue";
 import SignUp from "../../_vue/features/auth/SignUp.vue";
 import ConfirmEmail from "../../_vue/features/auth/ConfirmEmail.vue";
+import ForgotPassword from '../../_vue/features/auth/ForgotPassword.vue';
 import ActivityLogsPage from "../../_vue/pages/ActivityLogsPage.vue";
 import TransactionsPage from "../../_vue/pages/TransactionsPage.vue";
 import AccountsPage from "../../_vue/pages/AccountsPage.vue";
 import SettingsPage from "../../_vue/pages/SettingsPage.vue";
+import ResetPassword from "../../_vue/features/auth/ResetPassword.vue";
 
 declare module 'vue-router' {
     interface RouteMeta {
@@ -40,6 +42,18 @@ const routes: RouteRecordRaw[] = [
         name: 'sign.up',
         meta: {title: 'Sign up', guestOnly: true},
         component: SignUp,
+    },
+    {
+        path: '/forgot-password',
+        name: 'forgot.password',
+        meta: { title: 'Forgot password', guestOnly: true },
+        component: ForgotPassword,
+    },
+    {
+        path: '/reset-password/:token',
+        name: 'reset.password',
+        meta: { title: 'Reset password', guestOnly: true },
+        component: ResetPassword,
     },
     {
         path: '/accounts',

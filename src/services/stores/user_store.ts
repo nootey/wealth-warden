@@ -7,6 +7,18 @@ export const useUserStore = defineStore('user', {
         apiPrefix: "users",
     }),
     actions: {
+        async getUserByToken(tokenType: string, tokenValue: string) {
+            try {
+                return await apiClient.get(`${this.apiPrefix}/token`, {
+                    params: {
+                        type: tokenType,
+                        value: tokenValue,
+                    },
+                });
+            } catch (error) {
+                throw error;
+            }
+        },
         async createInvitation(authForm: AuthForm) {
             try {
                 return await apiClient.put(`${this.apiPrefix}/invitations`, authForm);

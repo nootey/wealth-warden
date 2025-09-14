@@ -44,6 +44,22 @@ export const useAuthStore = defineStore('auth', {
             }
         },
 
+        async requestPasswordReset(email?: string) {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/request-password-reset`, {email: email});
+            } catch (error) {
+                console.error(error)
+            }
+        },
+
+        async resetPassword(form: AuthForm) {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/reset-password`, form);
+            } catch (error) {
+                console.error(error)
+            }
+        },
+
         async getAuthUser(set = true) {
             try {
                 const response = await apiClient.get(`${this.apiPrefix}/current`, {params: {withSecrets: true}});
