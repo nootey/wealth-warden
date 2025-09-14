@@ -10,17 +10,14 @@ const toastStore = useToastStore()
 const loading = ref(false);
 
 async function resendConfirmationEmail() {
-
     loading.value = true;
-    const response = await authStore.resendConfirmationEmail(authStore.user?.email)
-    toastStore.successResponseToast(response)
     try {
-
+        const response = await authStore.resendConfirmationEmail(authStore.user?.email)
+        toastStore.successResponseToast(response)
     } catch (error) {
         toastStore.errorResponseToast(error);
         loading.value = false;
-    } finally
-    {
+    } finally {
         loading.value = false;
     }
 }
@@ -71,12 +68,6 @@ async function resendConfirmationEmail() {
 </template>
 
 <style scoped>
-
-@media (max-width: 768px) {
-    #hideOnMobile {
-        display: none;
-    }
-}
 
 .hover-dim {
     color: var(--accent-primary);
