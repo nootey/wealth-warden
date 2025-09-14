@@ -226,6 +226,13 @@ func UnwrapToken(token *models.Token, key string) (interface{}, error) {
 	return val, nil
 }
 
+func capitalize(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
 func EmailToName(email string) string {
 	parts := strings.SplitN(email, "@", 2)
 	if len(parts) == 0 {
@@ -234,5 +241,6 @@ func EmailToName(email string) string {
 	local := parts[0]
 	local = strings.ReplaceAll(local, ".", "")
 	local = strings.ReplaceAll(local, "-", "")
-	return local
+
+	return capitalize(local)
 }
