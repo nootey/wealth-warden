@@ -36,7 +36,10 @@ func (r *UserRepository) FindUserByID(tx *gorm.DB, id int64) (*models.User, erro
 
 	query := r.DB
 
-	err := query.Where("id = ?", id).First(&record).Error
+	err := query.
+		Preload("Role.Permissions").
+		Where("id = ?", id).
+		First(&record).Error
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +58,10 @@ func (r *UserRepository) FindUserByEmail(tx *gorm.DB, email string) (*models.Use
 
 	query := r.DB
 
-	err := query.Where("email = ?", email).First(&record).Error
+	err := query.
+		Preload("Role.Permissions").
+		Where("email = ?", email).
+		First(&record).Error
 	if err != nil {
 		return nil, err
 	}
