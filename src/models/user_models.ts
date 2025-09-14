@@ -12,18 +12,11 @@ export interface Role {
     id: number;
     name: string;
     description: string | null;
-    permissions: RolePermissions[];
+    permissions: Permission[];
 }
 
 export interface Permission {
     id: number;
     name: string;
     description: string | null;
-}
-
-export interface RolePermissions {
-    id: number;
-    role_id: number;
-    permission_id: number;
-    permission: Permission;
 }

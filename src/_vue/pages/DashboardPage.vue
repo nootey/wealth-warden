@@ -27,7 +27,6 @@ async function backfillBalances(){
 </script>
 
 <template>
-
     <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
 
         <div class="flex flex-column justify-content-center p-2 w-full gap-3 border-round-md"

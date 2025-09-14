@@ -22,7 +22,7 @@ router.beforeEach(async (to) => {
     }
 
     if (requiresAdmin && auth.isAuthenticated) {
-        if (auth.user?.role?.name !== 'admin') {
+        if (!auth.isAdmin) {
             return { name: 'dashboard' };
         }
     }

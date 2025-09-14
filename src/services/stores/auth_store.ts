@@ -16,6 +16,7 @@ export const useAuthStore = defineStore('auth', {
         isAuthenticated: (s) => s.authenticated,
         isInitialized:  (s) => s.initialized,
         isValidated:     (s) => !!s.user?.email_confirmed,
+        isAdmin: (s) => s.user?.role?.name == "super-admin" || s.user?.role?.name == "admin",
     },
     actions: {
         async login(form: AuthForm) {

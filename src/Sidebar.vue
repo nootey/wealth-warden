@@ -22,14 +22,11 @@ const menuItems: MenuItem[] = [
   {to: "/", icon: "pi-home", text: "Home"},
   {to: "/accounts", icon: "pi-hashtag", text: "Accounts"},
   {to: "/transactions", icon: "pi-credit-card", text: "Transactions"},
-  {to: "/logs", icon: "pi-address-book", text: "Logging", roleBlock: authStore.user?.role?.name !== "admin"},
+  {to: "/logs", icon: "pi-address-book", text: "Logging", roleBlock: !authStore.isAdmin},
 ];
 
 const visibleMenuItems = computed(() =>
-    menuItems.filter(item => {
-        return !(item.roleBlock);
-
-    })
+    menuItems.filter(item => !item.roleBlock || authStore.isAdmin)
 );
 
 const profileMenuRef = ref<any>(null);
@@ -53,7 +50,6 @@ function toggleProfileMenu(event: any) {
         <i class="pi pi-wallet" style="color: white;" />
       </div>
     </div>
-
     <div class="flex-1">
       <div class="menu flex flex-column h-full">
         <router-link v-for="(item, index) in visibleMenuItems" :key="index" :to="item.to"
