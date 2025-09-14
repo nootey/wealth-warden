@@ -10,6 +10,7 @@ const router = createRouter({
 router.beforeEach(async (to) => {
     const auth = useAuthStore();
     const requiresAuth = to.matched.some(r => r.meta.requiresAuth);
+    const requiresAdmin = to.matched.some(r => r.meta.requiresAdmin);
     const guestOnly = to.matched.some(r => r.meta.guestOnly);
     const emailValidated = to.matched.some(r => r.meta.emailValidated);
 
@@ -19,12 +20,20 @@ router.beforeEach(async (to) => {
     if (requiresAuth && !auth.isAuthenticated) {
         return {name: 'Login', query: {redirect: to.fullPath}};
     }
+
+    if (requiresAdmin && auth.isAuthenticated) {
+        if (auth.user?.role?.name !== 'admin') {
+            return { name: 'dashboard' };
+        }
+    }
+
     // Logged in but NOT verified
     if (requiresAuth && auth.isAuthenticated && !auth.isValidated && !emailValidated) {
         if (to.name !== 'Confirm email') {
             return { name: 'Confirm email', query: { redirect: to.fullPath } };
         }
     }
+
     if (guestOnly && auth.isAuthenticated) {
         return {name: 'Dashboard'};
     }

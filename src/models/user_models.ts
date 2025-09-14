@@ -5,4 +5,10 @@ export interface User {
     email: string;
     email_confirmed?: Date | null;
     role_id: number;
+    role?: Role;
+}
+
+export interface Role {
+    id: number;
+    name: string,
 }

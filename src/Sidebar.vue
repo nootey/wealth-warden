@@ -2,7 +2,7 @@
 import {useThemeStore} from './services/stores/theme_store.ts';
 import {useAuthStore} from './services/stores/auth_store.ts';
 import {storeToRefs} from "pinia";
-import {ref} from 'vue';
+import {computed, ref} from 'vue';
 import {useRouter} from "vue-router";
 
 const themeStore = useThemeStore();
@@ -15,14 +15,22 @@ interface MenuItem {
   to: string;
   icon: string;
   text: string;
+  roleBlock?: boolean;
 }
 
 const menuItems: MenuItem[] = [
   {to: "/", icon: "pi-home", text: "Home"},
   {to: "/accounts", icon: "pi-hashtag", text: "Accounts"},
   {to: "/transactions", icon: "pi-credit-card", text: "Transactions"},
-  {to: "/logs", icon: "pi-address-book", text: "Logging"},
+  {to: "/logs", icon: "pi-address-book", text: "Logging", roleBlock: authStore.user?.role?.name !== "admin"},
 ];
+
+const visibleMenuItems = computed(() =>
+    menuItems.filter(item => {
+        return !(item.roleBlock);
+
+    })
+);
 
 const profileMenuRef = ref<any>(null);
 
@@ -48,7 +56,7 @@ function toggleProfileMenu(event: any) {
 
     <div class="flex-1">
       <div class="menu flex flex-column h-full">
-        <router-link v-for="(item, index) in menuItems" :key="index" :to="item.to"
+        <router-link v-for="(item, index) in visibleMenuItems" :key="index" :to="item.to"
             class="flex flex-column align-items-center p-1 border-round-lg"
             style="text-decoration: none; transition: all 0.2s ease; color: var(--text-secondary);"
             :style="{

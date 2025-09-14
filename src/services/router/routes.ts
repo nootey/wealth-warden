@@ -13,6 +13,7 @@ import ResetPassword from "../../_vue/features/auth/ResetPassword.vue";
 declare module 'vue-router' {
     interface RouteMeta {
         requiresAuth?: boolean;
+        requiresAdmin?: boolean;
         guestOnly?: boolean;
         emailConfirmed?: boolean;
     }
@@ -22,7 +23,7 @@ const routes: RouteRecordRaw[] = [
     {
         path: '/',
         name: 'dashboard',
-        meta: {title: 'Dash', requiresAuth: true},
+        meta: { title: 'Dash', requiresAuth: true },
         component: DashboardPage,
     },
     {
@@ -34,13 +35,13 @@ const routes: RouteRecordRaw[] = [
     {
         path: '/login',
         name: 'login',
-        meta: {title: 'Login', guestOnly: true},
+        meta: { title: 'Login', guestOnly: true },
         component: Login,
     },
     {
         path: '/signup',
         name: 'sign.up',
-        meta: {title: 'Sign up', guestOnly: true},
+        meta: { title: 'Sign up', guestOnly: true },
         component: SignUp,
     },
     {
@@ -58,19 +59,19 @@ const routes: RouteRecordRaw[] = [
     {
         path: '/accounts',
         name: 'accounts',
-        meta: {title: 'Accounts', requiresAuth: true},
+        meta: { title: 'Accounts', requiresAuth: true},
         component: AccountsPage,
     },
     {
         path: '/transactions',
         name: 'transactions',
-        meta: {title: 'Transactions', requiresAuth: true},
+        meta: { title: 'Transactions', requiresAuth: true },
         component: TransactionsPage,
     },
     {
         path: '/logs',
         name: 'logs',
-        meta: {title: 'Audit', requiresAuth: true},
+        meta: { title: 'Audit', requiresAuth: true, requiresAdmin: true },
         component: ActivityLogsPage,
     },
     { path: '/settings', redirect: '/settings/profile' },
@@ -78,7 +79,7 @@ const routes: RouteRecordRaw[] = [
     {
         path: '/settings/:section(general|profile|preferences|accounts|categories)',
         name: 'settings.section',
-        meta: {title: 'Settings', requiresAuth: true},
+        meta: { title: 'Settings', requiresAuth: true},
         component: SettingsPage,
         props: true,
     },
