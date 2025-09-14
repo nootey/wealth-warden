@@ -29,6 +29,14 @@ var FieldMap = map[string]map[string]FieldMetadata{
 			OrEquals:     true,
 		},
 	},
+	"users": {
+		"role": {
+			Column:       "roles.name",
+			FilterColumn: "roles.id",
+			Join:         "", // empty, so we don't add a 2nd join
+			OrEquals:     true,
+		},
+	},
 }
 
 var reDateOnly = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
