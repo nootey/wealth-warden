@@ -64,7 +64,7 @@ async function resendConfirmationEmail() {
                 </span>
                 <span class="text-sm hover-icon hover-dim"
                       @click="authStore.logoutUser()">
-                        Log out</span>
+                        Log in</span>
             </div>
         </div>
     </AuthSkeleton>

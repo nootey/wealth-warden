@@ -166,7 +166,7 @@ function login() {
                 </span>
                 <span class="text-sm hover-icon hover-dim"
                       @click="login">
-                        Login</span>
+                        Log in</span>
             </div>
         </div>
     </AuthSkeleton>
