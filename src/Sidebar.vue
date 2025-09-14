@@ -22,6 +22,7 @@ const menuItems: MenuItem[] = [
   {to: "/", icon: "pi-home", text: "Home"},
   {to: "/accounts", icon: "pi-hashtag", text: "Accounts"},
   {to: "/transactions", icon: "pi-credit-card", text: "Transactions"},
+  {to: "/users", icon: "pi-users", text: "Users", roleBlock: !authStore.isAdmin},
   {to: "/logs", icon: "pi-address-book", text: "Logging", roleBlock: !authStore.isAdmin},
 ];
 

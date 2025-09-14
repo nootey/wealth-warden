@@ -9,6 +9,7 @@ import TransactionsPage from "../../_vue/pages/TransactionsPage.vue";
 import AccountsPage from "../../_vue/pages/AccountsPage.vue";
 import SettingsPage from "../../_vue/pages/SettingsPage.vue";
 import ResetPassword from "../../_vue/features/auth/ResetPassword.vue";
+import UsersPage from "../../_vue/pages/UsersPage.vue";
 
 declare module 'vue-router' {
     interface RouteMeta {
@@ -67,6 +68,12 @@ const routes: RouteRecordRaw[] = [
         name: 'transactions',
         meta: { title: 'Transactions', requiresAuth: true },
         component: TransactionsPage,
+    },
+    {
+        path: '/users',
+        name: 'users',
+        meta: { title: 'Users', requiresAuth: true, requiresAdmin: true },
+        component: UsersPage,
     },
     {
         path: '/logs',
