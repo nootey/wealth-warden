@@ -735,6 +735,7 @@ func (s *TransactionService) DeleteTransaction(userID int64, id int64) error {
 	// Load the transaction + relations
 	tr, err := s.Repo.FindTransactionByID(tx, id, userID, false)
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("can't find transaction with given id %w", err)
 	}
 
@@ -837,6 +838,7 @@ func (s *TransactionService) DeleteTransfer(userID int64, id int64) error {
 	// Load the transfer
 	transfer, err := s.Repo.FindTransferByID(tx, id, userID)
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("can't find transfer with given id %w", err)
 	}
 
@@ -1026,6 +1028,7 @@ func (s *TransactionService) RestoreTransaction(userID int64, id int64) error {
 	// Load the transaction
 	tr, err := s.Repo.FindTransactionByID(tx, id, userID, true)
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("can't find inflow transaction with given id %w", err)
 	}
 	if tr.DeletedAt == nil {
@@ -1115,6 +1118,7 @@ func (s *TransactionService) RestoreCategory(userID int64, id int64) error {
 	// Load the record
 	cat, err := s.Repo.FindCategoryByID(tx, id, &userID, true)
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("can't find existing category with given id %w", err)
 	}
 	if cat.DeletedAt == nil {
@@ -1169,6 +1173,7 @@ func (s *TransactionService) RestoreCategoryName(userID int64, id int64) error {
 	// Load the record
 	cat, err := s.Repo.FindCategoryByID(tx, id, &userID, true)
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("can't find existing category with given id %w", err)
 	}
 
