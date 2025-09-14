@@ -3,7 +3,6 @@ import {useSharedStore} from "../../services/stores/shared_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import {computed, onMounted, provide, ref} from "vue";
 import {useConfirm} from "primevue/useconfirm";
-import {useRouter} from "vue-router";
 import {useUserStore} from "../../services/stores/user_store.ts";
 import type {Role, User} from "../../models/user_models.ts";
 import filterHelper from "../../utils/filter_helper.ts";
@@ -12,12 +11,12 @@ import type {FilterObj} from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import ActionRow from "../components/layout/ActionRow.vue";
-import vueHelper from "../../utils/vue_helper.ts";
 import dateHelper from "../../utils/date_helper.ts";
 import LoadingSpinner from "../components/base/LoadingSpinner.vue";
-import IconDisplay from "../components/base/IconDisplay.vue";
 import ColumnHeader from "../components/base/ColumnHeader.vue";
 import CustomPaginator from "../components/base/CustomPaginator.vue";
+import UserForm from "../components/forms/UserForm.vue";
+import TransactionForm from "../components/forms/TransactionForm.vue";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -28,7 +27,6 @@ onMounted(async () => {
 })
 
 const confirm = useConfirm();
-const router = useRouter();
 const apiPrefix = userStore.apiPrefix;
 
 const createModal = ref(false);
@@ -101,6 +99,37 @@ async function getData(new_page: number|null = null) {
         loading.value = false;
     } catch (error) {
         toastStore.errorResponseToast(error);
+    }
+}
+
+function manipulateDialog(modal: string, value: any) {
+    switch (modal) {
+        case 'inviteUser': {
+            createModal.value = value;
+            break;
+        }
+        case 'updateUser': {
+            updateModal.value = true;
+            updateUserID.value = value;
+            break;
+        }
+        default: {
+            break;
+        }
+    }
+}
+
+async function handleEmit(emitType: any) {
+    switch (emitType) {
+        case 'completeOperation': {
+            createModal.value = false;
+            updateModal.value = false;
+            await getData();
+            break;
+        }
+        default: {
+            break;
+        }
     }
 }
 
@@ -201,14 +230,21 @@ provide("removeFilter", removeFilter);
         </div>
     </Popover>
 
-    <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
+    <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{'501px': '90vw'}"
+            :modal="true" :style="{width: '500px'}" header="Invite user">
+        <UserForm mode="create" :roles="roles"
+                  @completeOperation="handleEmit('completeOperation')">
+        </UserForm>
+    </Dialog>
 
+    <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
         <div class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
              style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;">
 
             <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
                 <div style="font-weight: bold;">Users</div>
-                <Button label="New user" icon="pi pi-plus" class="main-button"></Button>
+                <Button label="New user" icon="pi pi-plus" class="main-button"
+                        @click="manipulateDialog('inviteUser', true)"></Button>
             </div>
 
             <div class="flex flex-row justify-content-between align-items-center p-1 gap-3 w-full border-round-md"
