@@ -43,9 +43,9 @@ func SeedMemberUser(ctx context.Context, db *gorm.DB, logger *zap.Logger) error 
 	// If the user doesn't exist, insert them with the global role "member"
 	if userID == 0 {
 		err = db.Exec(`
-			INSERT INTO users (username, email, password, display_name, role_id, email_confirmed, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		`, "Member", email, hashedPassword, "Member", globalRoleID, time.Now(), time.Now(), time.Now()).Error
+			INSERT INTO users (email, password, display_name, role_id, email_confirmed, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, email, hashedPassword, "Member", globalRoleID, time.Now(), time.Now(), time.Now()).Error
 		if err != nil {
 			return fmt.Errorf("failed to insert user: %w", err)
 		}

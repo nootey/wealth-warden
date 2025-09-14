@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-	"strings"
 	"time"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/middleware"
@@ -285,11 +284,8 @@ func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) err
 			return err
 		}
 
-		username := strings.ReplaceAll(strings.ToLower(form.DisplayName), " ", "")
-
 		user := &models.User{
 			DisplayName: form.DisplayName,
-			Username:    username,
 			Email:       form.Email,
 			Password:    hashedPass,
 			RoleID:      role.ID,

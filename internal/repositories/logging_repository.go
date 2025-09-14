@@ -135,10 +135,8 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 			if err := r.DB.Where("id IN ? AND deleted_at IS NULL", causerIDs).Find(&users).Error; err == nil {
 				for _, u := range users {
 					causers = append(causers, map[string]interface{}{
-						"id":       u.ID,
-						"username": u.Username,
-						// add a generic "name" for consistency with optionLabel: 'name'
-						"name": u.Username,
+						"id":   u.ID,
+						"name": u.DisplayName,
 					})
 				}
 			}

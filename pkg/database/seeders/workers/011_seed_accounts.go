@@ -33,14 +33,14 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 
 	var users []models.User
 	if err := db.WithContext(ctx).
-		Where("username IN ?", usernames).
+		Where("display_name IN ?", usernames).
 		Find(&users).Error; err != nil {
 		return err
 	}
 
 	usersByName := map[string]models.User{}
 	for _, u := range users {
-		usersByName[u.Username] = u
+		usersByName[u.DisplayName] = u
 	}
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -111,7 +111,7 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 			}
 
 			logger.Info("seeded account",
-				zap.String("username", uname),
+				zap.String("display_name", uname),
 				zap.String("name", s.Name),
 				zap.String("start_balance", s.StartBalance.StringFixed(2)),
 			)
