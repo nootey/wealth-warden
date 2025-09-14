@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
@@ -11,30 +12,59 @@ import (
 )
 
 type UserService struct {
-	Config *config.Config
-	Ctx    *DefaultServiceContext
-	Repo   *repositories.UserRepository
+	Config      *config.Config
+	Ctx         *DefaultServiceContext
+	Repo        *repositories.UserRepository
+	RoleService *RolePermissionService
 }
 
 func NewUserService(
 	cfg *config.Config,
 	ctx *DefaultServiceContext,
 	repo *repositories.UserRepository,
+	roleService *RolePermissionService,
 ) *UserService {
 	return &UserService{
-		Ctx:    ctx,
-		Config: cfg,
-		Repo:   repo,
+		Ctx:         ctx,
+		Config:      cfg,
+		Repo:        repo,
+		RoleService: roleService,
 	}
 }
 
-func (s *UserService) GetAllUsers() ([]models.User, error) {
-	users, err := s.Repo.GetAllUsers()
+func (s *UserService) FetchUsersPaginated(p utils.PaginationParams, includeDeleted bool) ([]models.User, *utils.Paginator, error) {
+
+	totalRecords, err := s.Repo.CountUsers(p.Filters, includeDeleted)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return users, nil
+	offset := (p.PageNumber - 1) * p.RowsPerPage
+
+	records, err := s.Repo.FindUsers(offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeDeleted)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	from := offset + 1
+	if from > int(totalRecords) {
+		from = int(totalRecords)
+	}
+
+	to := offset + len(records)
+	if to > int(totalRecords) {
+		to = int(totalRecords)
+	}
+
+	paginator := &utils.Paginator{
+		CurrentPage:  p.PageNumber,
+		RowsPerPage:  p.RowsPerPage,
+		TotalRecords: int(totalRecords),
+		From:         from,
+		To:           to,
+	}
+
+	return records, paginator, nil
 }
 
 func (s *UserService) FetchUserByID(ID int64) (*models.User, error) {
@@ -85,7 +115,7 @@ func (s *UserService) FetchInvitationByHash(hash string) (*models.Invitation, er
 	return record, nil
 }
 
-func (s *UserService) CreateInvitation(invitation *models.Invitation) error {
+func (s *UserService) InsertInvitation(invitation *models.Invitation) error {
 
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
@@ -112,6 +142,147 @@ func (s *UserService) CreateInvitation(invitation *models.Invitation) error {
 	err = s.Ctx.AuthService.mailer.SendRegistrationEmail(invitation.Email, invitation.DisplayName, hash)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (s *UserService) UpdateUser(userID, id int64, req *models.UserReq) error {
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Load existing user
+	exUsr, err := s.Repo.FindUserByID(tx, id)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find user with given id %w", err)
+	}
+
+	// Load old relations
+	oldRole, err := s.RoleService.Repo.FindRoleByID(tx, exUsr.RoleID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find existing role: %w", err)
+	}
+
+	// Resolve new relations
+	newRole, err := s.RoleService.Repo.FindRoleByID(tx, req.RoleID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find role wit given id: %w", err)
+	}
+
+	usr := models.User{
+		ID:          exUsr.ID,
+		DisplayName: req.DisplayName,
+		RoleID:      newRole.ID,
+	}
+
+	if req.Password != nil {
+		if req.Password != req.PasswordConfirmation {
+			tx.Rollback()
+			return errors.New("password confirmation must match provided password")
+		}
+
+		hashedPassword, err := utils.HashAndSaltPassword(*req.Password)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to hash password: %w", err)
+		}
+
+		usr.Password = hashedPassword
+	}
+
+	_, err = s.Repo.UpdateUser(tx, usr)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(oldRole.Name, newRole.Name, changes, "role")
+	utils.CompareChanges(exUsr.DisplayName, usr.DisplayName, changes, "display_name")
+
+	if !changes.IsEmpty() {
+		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.Repo,
+			Logger:      s.Ctx.Logger,
+			Event:       "update",
+			Category:    "user",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *UserService) DeleteUser(userID, id int64) error {
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	usr, err := s.Repo.FindUserByID(tx, id)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find user with given id %w", err)
+	}
+
+	role, err := s.RoleService.Repo.FindRoleByID(tx, usr.RoleID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find role wit given id: %w", err)
+	}
+
+	if err := s.Repo.DeleteUser(tx, usr.ID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(role.Name, "", changes, "role")
+	utils.CompareChanges(usr.DisplayName, "", changes, "display_name")
+
+	if !changes.IsEmpty() {
+		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.Repo,
+			Logger:      s.Ctx.Logger,
+			Event:       "delete",
+			Category:    "user",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		}); err != nil {
+			return err
+		}
 	}
 
 	return nil

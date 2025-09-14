@@ -41,4 +41,13 @@ type Token struct {
 type InvitationReq struct {
 	DisplayName string `json:"display_name" validate:"required"`
 	Email       string `json:"email" validate:"required,email"`
+	RoleID      int64  `json:"role_id" validate:"required"`
+}
+
+type UserReq struct {
+	Email                string  `json:"email" validate:"required,email"`
+	DisplayName          string  `json:"display_name" validate:"required"`
+	RoleID               int64   `json:"role_id" validate:"required"`
+	Password             *string `json:"password"`
+	PasswordConfirmation *string `json:"password_confirmation"`
 }

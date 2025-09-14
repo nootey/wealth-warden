@@ -33,13 +33,25 @@ func (r *RolePermissionRepository) FindAllPermissions() ([]models.Permission, er
 	return records, result.Error
 }
 
-func (r *RolePermissionRepository) FindRoleByID(id int64) (*models.Role, error) {
+func (r *RolePermissionRepository) FindRoleByID(tx *gorm.DB, id int64) (*models.Role, error) {
+
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
 	var record models.Role
 	result := r.DB.Where("id =?", id).Find(&record)
 	return &record, result.Error
 }
 
-func (r *RolePermissionRepository) FindRoleByName(roleName string) (*models.Role, error) {
+func (r *RolePermissionRepository) FindRoleByName(tx *gorm.DB, roleName string) (*models.Role, error) {
+
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
 	var record models.Role
 	result := r.DB.Where("name =?", roleName).Find(&record)
 	return &record, result.Error

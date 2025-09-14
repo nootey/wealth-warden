@@ -16,6 +16,66 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 	return &UserRepository{DB: db}
 }
 
+func (r *UserRepository) FindUsers(offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool) ([]models.User, error) {
+
+	var records []models.User
+
+	q := r.DB.Model(&models.User{}).
+		Preload("Role").
+		Joins("JOIN roles ON roles.id = users.role_id").
+		Where("roles.name != ?", "super-admin")
+
+	if !includeDeleted {
+		q = q.Where("users.deleted_at IS NULL")
+	}
+
+	joins := utils.GetRequiredJoins(filters)
+	orderBy := utils.ConstructOrderByClause(&joins, "users", sortField, sortOrder)
+
+	for _, join := range joins {
+		q = q.Joins(join)
+	}
+
+	q = utils.ApplyFilters(q, filters)
+
+	err := q.
+		Order(orderBy).
+		Limit(limit).
+		Offset(offset).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (r *UserRepository) CountUsers(filters []utils.Filter, includeDeleted bool) (int64, error) {
+	var totalRecords int64
+
+	q := r.DB.Model(&models.User{}).
+		Preload("Role").
+		Joins("JOIN roles ON roles.id = users.role_id").
+		Where("roles.name != ?", "super-admin")
+
+	if !includeDeleted {
+		q = q.Where("users.deleted_at IS NULL")
+	}
+
+	joins := utils.GetRequiredJoins(filters)
+	for _, join := range joins {
+		q = q.Joins(join)
+	}
+
+	q = utils.ApplyFilters(q, filters)
+
+	err := q.Count(&totalRecords).Error
+	if err != nil {
+		return 0, err
+	}
+	return totalRecords, nil
+}
+
 func (r *UserRepository) GetPasswordByEmail(email string) (string, error) {
 	var password string
 	err := r.DB.Model(&models.User{}).Select("password").Where("email = ?", email).Scan(&password).Error
@@ -190,16 +250,33 @@ func (r *UserRepository) UpdateUser(tx *gorm.DB, record models.User) (int64, err
 	if err := db.Model(models.User{}).
 		Where("id = ?", record.ID).
 		Updates(map[string]interface{}{
-			"password":   record.Password,
-			"updated_at": time.Now(),
+			"password":     record.Password,
+			"display_name": record.DisplayName,
+			"role_id":      record.RoleID,
+			"updated_at":   time.Now(),
 		}).Error; err != nil {
 		return 0, err
 	}
 	return record.ID, nil
 }
 
-func (r *UserRepository) DeleteUser(id int64) error {
-	return r.DB.Delete(&models.User{}, id).Error
+func (r *UserRepository) DeleteUser(tx *gorm.DB, id int64) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	res := db.Model(&models.User{}).
+		Where("id = ? AND deleted_at IS NULL", id).
+		Updates(map[string]any{
+			"deleted_at": time.Now(),
+			"updated_at": time.Now(),
+		})
+
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
 }
 
 func (r *UserRepository) DeleteTokenByData(tx *gorm.DB, tokenType, dataIndex string, dataValue interface{}) error {

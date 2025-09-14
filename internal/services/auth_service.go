@@ -278,7 +278,7 @@ func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) err
 			return tx.Error
 		}
 
-		role, err := s.RoleRepo.FindRoleByName("member")
+		role, err := s.RoleRepo.FindRoleByName(tx, "member")
 		if err != nil {
 			tx.Rollback()
 			return err
