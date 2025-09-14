@@ -139,7 +139,9 @@ func (s *UserService) InsertInvitation(invitation *models.Invitation) error {
 		return err
 	}
 
-	err = s.Ctx.AuthService.mailer.SendRegistrationEmail(invitation.Email, invitation.DisplayName, hash)
+	name := utils.EmailToName(invitation.Email)
+
+	err = s.Ctx.AuthService.mailer.SendRegistrationEmail(invitation.Email, name, hash)
 	if err != nil {
 		return err
 	}

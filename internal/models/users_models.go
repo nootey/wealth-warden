@@ -20,13 +20,12 @@ type User struct {
 }
 
 type Invitation struct {
-	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	DisplayName string    `gorm:"not null" json:"display_name"`
-	Email       string    `gorm:"type:varchar(255);index:idx_email_role,unique" json:"email"`
-	Hash        string    `gorm:"type:varchar(255);not null" json:"hash"`
-	RoleID      int64     `gorm:"not null;index:idx_email_role,unique" json:"role_id"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID        int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	Email     string    `gorm:"type:varchar(255);index:idx_email_role,unique" json:"email"`
+	Hash      string    `gorm:"type:varchar(255);not null" json:"hash"`
+	RoleID    int64     `gorm:"not null;index:idx_email_role,unique" json:"role_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type Token struct {
@@ -39,9 +38,8 @@ type Token struct {
 }
 
 type InvitationReq struct {
-	DisplayName string `json:"display_name" validate:"required"`
-	Email       string `json:"email" validate:"required,email"`
-	RoleID      int64  `json:"role_id" validate:"required"`
+	Email  string `json:"email" validate:"required,email"`
+	RoleID int64  `json:"role_id" validate:"required"`
 }
 
 type UserReq struct {

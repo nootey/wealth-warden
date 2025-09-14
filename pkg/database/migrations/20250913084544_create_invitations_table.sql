@@ -2,7 +2,6 @@
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS invitations (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    display_name VARCHAR(192) NOT NULL,
     email VARCHAR(255) NOT NULL,
     hash VARCHAR(255) NOT NULL,
     role_id BIGINT NOT NULL,

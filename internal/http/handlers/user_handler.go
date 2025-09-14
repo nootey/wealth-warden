@@ -139,9 +139,8 @@ func (h *UserHandler) InsertInvitation(c *gin.Context) {
 	}
 
 	invitation := &models.Invitation{
-		DisplayName: req.DisplayName,
-		Email:       req.Email,
-		RoleID:      req.RoleID,
+		Email:  req.Email,
+		RoleID: req.RoleID,
 	}
 
 	err := h.Service.InsertInvitation(invitation)

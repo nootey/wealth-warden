@@ -225,3 +225,14 @@ func UnwrapToken(token *models.Token, key string) (interface{}, error) {
 	}
 	return val, nil
 }
+
+func EmailToName(email string) string {
+	parts := strings.SplitN(email, "@", 2)
+	if len(parts) == 0 {
+		return ""
+	}
+	local := parts[0]
+	local = strings.ReplaceAll(local, ".", "")
+	local = strings.ReplaceAll(local, "-", "")
+	return local
+}
