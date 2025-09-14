@@ -36,7 +36,7 @@ func (m *Mailer) SendConfirmationEmail(to, displayName, token string) error {
 }
 
 func (m *Mailer) SendPasswordResetEmail(to, displayName, token string) error {
-	link := m.buildLink("auth", "password-reset?token="+token)
+	link := m.buildLink("auth", "validate-password-reset?token="+token)
 	body, err := renderTemplate("reset-password.html", map[string]string{
 		"subjectName": displayName,
 		"resetLink":   link,

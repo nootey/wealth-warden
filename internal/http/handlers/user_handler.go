@@ -59,6 +59,18 @@ func (h *UserHandler) GetUserById(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": user})
 }
 
+func (h *UserHandler) GetUserByToken(c *gin.Context) {
+	tokenType := c.Query("type")
+	tokenValue := c.Query("value")
+
+	user, err := h.Service.FetchUserByToken(tokenType, tokenValue)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, user)
+}
+
 func (h *UserHandler) GetInvitationByHash(c *gin.Context) {
 
 	hash := c.Param("hash")

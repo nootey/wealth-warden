@@ -1,6 +1,9 @@
 package services
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
@@ -41,6 +44,36 @@ func (s *UserService) FetchUserByID(ID int64) (*models.User, error) {
 	}
 
 	return record, nil
+}
+
+func (s *UserService) FetchUserByToken(tokenType, tokenValue string) (*models.User, error) {
+
+	token, err := s.Repo.FindTokenByValue(nil, tokenType, tokenValue)
+	if err != nil {
+		return nil, err
+	}
+
+	if token == nil {
+		return nil, errors.New("no valid token found")
+	}
+
+	raw, err := utils.UnwrapToken(token, "user_id")
+	if err != nil {
+		return nil, fmt.Errorf("no user_id in token data")
+	}
+
+	num := raw.(json.Number)
+	userID, err := num.Int64()
+	if err != nil {
+		return nil, fmt.Errorf("invalid user_id in token data: %v", err)
+	}
+
+	user, err := s.Repo.FindUserByID(nil, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }
 
 func (s *UserService) FetchInvitationByHash(hash string) (*models.Invitation, error) {

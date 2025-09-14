@@ -186,13 +186,13 @@ func (s *AuthService) dispatchConfirmationEmail(user *models.User) error {
 	}
 
 	// Always ensure only one active token for this user/type
-	if err := s.UserRepo.DeleteTokenByData(tx, "confirm_email", "user_id", user.ID); err != nil {
+	if err := s.UserRepo.DeleteTokenByData(tx, "confirm-email", "user_id", user.ID); err != nil {
 		_ = tx.Rollback()
 		return err
 	}
 
 	// Insert new token
-	newToken, err := s.UserRepo.InsertToken(tx, "confirm_email", "user_id", user.ID)
+	newToken, err := s.UserRepo.InsertToken(tx, "confirm-email", "user_id", user.ID)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
@@ -205,6 +205,39 @@ func (s *AuthService) dispatchConfirmationEmail(user *models.User) error {
 
 	// Send email after commit
 	if err := s.mailer.SendConfirmationEmail(user.Email, user.DisplayName, newToken.TokenValue); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *AuthService) dispatchPasswordResetEmail(user *models.User) error {
+
+	tx := s.UserRepo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	// Always ensure only one active token for this user/type
+	if err := s.UserRepo.DeleteTokenByData(tx, "password-reset", "user_id", user.ID); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	// Insert new token
+	newToken, err := s.UserRepo.InsertToken(tx, "password-reset", "user_id", user.ID)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	// Commit before sending email
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Send email after commit
+	if err := s.mailer.SendPasswordResetEmail(user.Email, user.DisplayName, newToken.TokenValue); err != nil {
 		return err
 	}
 
@@ -322,7 +355,7 @@ func (s *AuthService) ConfirmEmail(tokenValue, userAgent, ip string) error {
 		return tx.Error
 	}
 
-	token, err := s.UserRepo.FindTokenByValue(tx, "confirm_email", tokenValue)
+	token, err := s.UserRepo.FindTokenByValue(tx, "confirm-email", tokenValue)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
@@ -360,7 +393,7 @@ func (s *AuthService) ConfirmEmail(tokenValue, userAgent, ip string) error {
 		return err
 	}
 
-	if err := s.UserRepo.DeleteTokenByData(tx, "confirm_email", "user_id", userID); err != nil {
+	if err := s.UserRepo.DeleteTokenByData(tx, "confirm-email", "user_id", userID); err != nil {
 		_ = tx.Rollback()
 		return err
 	}
@@ -370,6 +403,122 @@ func (s *AuthService) ConfirmEmail(tokenValue, userAgent, ip string) error {
 	}
 
 	logErr := s.log("confirm-email", user.Email, userAgent, ip, "success", nil, &user.ID)
+	if logErr != nil {
+		return logErr
+	}
+
+	return nil
+}
+
+func (s *AuthService) RequestPasswordReset(email, userAgent, ip string) error {
+
+	user, err := s.UserRepo.FindUserByEmail(nil, email)
+	if err != nil {
+		return err
+	}
+
+	if user.ID == 0 {
+		return errors.New("no user found for given email")
+	}
+
+	err = s.dispatchPasswordResetEmail(user)
+	if err != nil {
+		return err
+	}
+
+	desc := "Requested a password reset"
+	logErr := s.log("password-reset", user.Email, userAgent, ip, "success", &desc, &user.ID)
+	if logErr != nil {
+		return logErr
+	}
+
+	return nil
+}
+
+func (s *AuthService) ValidatePasswordReset(tokenValue string) (string, error) {
+
+	token, err := s.UserRepo.FindTokenByValue(nil, "password-reset", tokenValue)
+	if err != nil {
+		return "", err
+	}
+
+	if token == nil {
+		return "", errors.New("no valid token found")
+	}
+
+	raw, err := utils.UnwrapToken(token, "user_id")
+	if err != nil {
+		return "", fmt.Errorf("no user_id in token data")
+	}
+
+	num := raw.(json.Number)
+	userID, err := num.Int64()
+	if err != nil {
+		return "", fmt.Errorf("invalid user_id in token data: %v", err)
+	}
+
+	user, err := s.UserRepo.FindUserByID(nil, userID)
+	if err != nil {
+		return "", err
+	}
+
+	if user == nil {
+		return "", errors.New("user not found for given token")
+	}
+
+	return token.TokenValue, nil
+}
+
+func (s *AuthService) ResetPassword(form models.ResetPasswordForm, userAgent, ip string) error {
+
+	if form.Password != form.PasswordConfirmation {
+		return errors.New("password and password confirmation do not match")
+	}
+
+	tx := s.UserRepo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	user, err := s.UserRepo.FindUserByEmail(tx, form.Email)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	password, passwordErr := utils.ValidatePasswordStrength(form.Password)
+	if passwordErr != nil {
+		return passwordErr
+	}
+
+	hashedPass, err := utils.HashAndSaltPassword(password)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	userObj := models.User{
+		ID:       user.ID,
+		Password: hashedPass,
+	}
+
+	_, err = s.UserRepo.UpdateUser(tx, userObj)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	if err := s.UserRepo.DeleteTokenByData(tx, "password-reset", "user_id", user.ID); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	desc := "Reset password successfully"
+	logErr := s.log("password-reset", user.Email, userAgent, ip, "success", &desc, &user.ID)
 	if logErr != nil {
 		return logErr
 	}

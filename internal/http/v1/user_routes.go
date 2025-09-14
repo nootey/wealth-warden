@@ -13,4 +13,5 @@ func UserRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler) {
 func PublicUserRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler) {
 	apiGroup.GET("/invitations/:hash", handler.GetInvitationByHash)
 	apiGroup.PUT("invitations", handler.CreateInvitation)
+	apiGroup.GET("/token", handler.GetUserByToken)
 }

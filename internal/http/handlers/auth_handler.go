@@ -44,7 +44,7 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 	c.SetCookie("access", accessToken, int(constants.AccessCookieTTL.Seconds()), "/", h.Service.Config.WebClient.Domain, true, true)
 	c.SetCookie("refresh", refreshToken, expiresAt, "/", h.Service.Config.WebClient.Domain, true, true)
 
-	utils.SuccessMessage(c, "200", "Logged in", http.StatusOK)
+	utils.SuccessMessage(c, "", "Logged in", http.StatusOK)
 }
 
 func (h *AuthHandler) GetAuthUser(c *gin.Context) {
@@ -84,7 +84,7 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(c, "200", "Account created successfully!", http.StatusOK)
+	utils.SuccessMessage(c, "", "Account created successfully!", http.StatusOK)
 }
 
 func (h *AuthHandler) ValidateInvitationEmail(c *gin.Context) {
@@ -101,6 +101,105 @@ func (h *AuthHandler) ValidateInvitationEmail(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Email has been validated", "Success", http.StatusOK)
+}
+
+func (h *AuthHandler) ResendConfirmationEmail(c *gin.Context) {
+
+	reqIP := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+
+	var req models.ReqEmail
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	err := h.Service.ResendConfirmationEmail(req.Email, userAgent, reqIP)
+	if err != nil {
+		utils.ErrorMessage(c, "Dispatch failed", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "", "Email dispatched", http.StatusOK)
+}
+
+func (h *AuthHandler) ConfirmEmail(c *gin.Context) {
+
+	reqIP := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	queryParams := c.Request.URL.Query()
+	token := queryParams.Get("token")
+
+	err := h.Service.ConfirmEmail(token, userAgent, reqIP)
+	if err == nil {
+		redirectUrl := utils.GenerateWebClientReleaseLink(h.Service.Config, "")
+		c.Redirect(http.StatusFound, redirectUrl)
+	} else {
+		utils.ErrorMessage(c, "Error confirming email", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "", "Email confirmed", http.StatusOK)
+}
+
+func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
+
+	reqIP := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+
+	var req models.ReqEmail
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	err := h.Service.RequestPasswordReset(req.Email, userAgent, reqIP)
+	if err != nil {
+		utils.ErrorMessage(c, "Dispatch failed", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "", "Email dispatched", http.StatusOK)
+}
+
+func (h *AuthHandler) ValidatePasswordReset(c *gin.Context) {
+
+	queryParams := c.Request.URL.Query()
+	tokenValue := queryParams.Get("token")
+
+	token, err := h.Service.ValidatePasswordReset(tokenValue)
+	if err != nil {
+		utils.ErrorMessage(c, "Dispatch failed", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	redirectUrl := utils.GenerateWebClientReleaseLink(h.Service.Config, "")
+	c.Redirect(http.StatusFound, fmt.Sprintf("%sreset-password/%s", redirectUrl, token))
+}
+
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+
+	loginIP := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+
+	var form models.ResetPasswordForm
+	if err := c.ShouldBindJSON(&form); err != nil {
+		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := utils.SanitizeStruct(&form); err != nil {
+		utils.ErrorMessage(c, "Sanitization error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	err := h.Service.ResetPassword(form, userAgent, loginIP)
+	if err != nil {
+		utils.ErrorMessage(c, "Password reset failed", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "", "Password reset complete", http.StatusOK)
 }
 
 func (h *AuthHandler) RegisterUser(c *gin.Context) {
@@ -124,44 +223,5 @@ func (h *AuthHandler) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(c, "200", "Registration complete", http.StatusOK)
-}
-
-func (h *AuthHandler) ResendConfirmationEmail(c *gin.Context) {
-
-	reqIP := c.ClientIP()
-	userAgent := c.GetHeader("User-Agent")
-
-	var req models.ReqEmail
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	err := h.Service.ResendConfirmationEmail(req.Email, userAgent, reqIP)
-	if err != nil {
-		utils.ErrorMessage(c, "Dispatch failed", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
-
-	utils.SuccessMessage(c, "200", "Email dispatched", http.StatusOK)
-}
-
-func (h *AuthHandler) ConfirmEmail(c *gin.Context) {
-
-	reqIP := c.ClientIP()
-	userAgent := c.GetHeader("User-Agent")
-	queryParams := c.Request.URL.Query()
-	token := queryParams.Get("token")
-
-	err := h.Service.ConfirmEmail(token, userAgent, reqIP)
-	if err == nil {
-		redirectUrl := utils.GenerateWebClientReleaseLink(h.Service.Config, "")
-		c.Redirect(http.StatusFound, redirectUrl)
-	} else {
-		utils.ErrorMessage(c, "Error confirming email", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-
-	utils.SuccessMessage(c, "200", "Email confirmed", http.StatusOK)
+	utils.SuccessMessage(c, "", "Registration complete", http.StatusOK)
 }

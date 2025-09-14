@@ -3,6 +3,7 @@ package repositories
 import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
 )
@@ -174,8 +175,21 @@ func (r *UserRepository) InsertUser(tx *gorm.DB, record *models.User) (int64, er
 	return record.ID, nil
 }
 
-func (r *UserRepository) UpdateUser(user *models.User) error {
-	return r.DB.Save(user).Error
+func (r *UserRepository) UpdateUser(tx *gorm.DB, record models.User) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Model(models.User{}).
+		Where("id = ?", record.ID).
+		Updates(map[string]interface{}{
+			"password":   record.Password,
+			"updated_at": time.Now(),
+		}).Error; err != nil {
+		return 0, err
+	}
+	return record.ID, nil
 }
 
 func (r *UserRepository) DeleteUser(id int64) error {

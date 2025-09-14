@@ -11,6 +11,9 @@ func PublicAuthRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) 
 	apiGroup.POST("/logout", handler.LogoutUser)
 	apiGroup.POST("/signup", handler.SignUp)
 	apiGroup.POST("/register", handler.RegisterUser)
+	apiGroup.POST("/request-password-reset", handler.RequestPasswordReset)
+	apiGroup.GET("/validate-password-reset", handler.ValidatePasswordReset)
+	apiGroup.POST("/reset-password", handler.ResetPassword)
 }
 
 func AuthRoutes(apiGroup *gin.RouterGroup, handler *handlers.AuthHandler) {
