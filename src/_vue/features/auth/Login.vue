@@ -42,7 +42,7 @@ async function login() {
   try {
     await authStore.login(form.value);
     if (authStore.authenticated){
-      await router.push({name: "Dashboard"})
+      await router.push({name: "dashboard"})
     }
   } catch (error) {
     toastStore.errorResponseToast(error)
@@ -50,7 +50,7 @@ async function login() {
 }
 
 function signUp() {
-  router.push({name: "Sign up"});
+  router.push({name: "sign.up"});
 }
 
 function forgotPassword() {

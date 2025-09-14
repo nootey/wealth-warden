@@ -19,43 +19,43 @@ declare module 'vue-router' {
 const routes: RouteRecordRaw[] = [
     {
         path: '/',
-        name: 'Dashboard',
+        name: 'dashboard',
         meta: {title: 'Dash', requiresAuth: true},
         component: DashboardPage,
     },
     {
         path: '/confirm-email',
-        name: 'Confirm email',
+        name: 'confirm.email',
         meta: { title: 'Confirm email', requiresAuth: true, emailConfirmed: false },
         component: ConfirmEmail,
     },
     {
         path: '/login',
-        name: 'Login',
+        name: 'login',
         meta: {title: 'Login', guestOnly: true},
         component: Login,
     },
     {
         path: '/signup',
-        name: 'Sign up',
+        name: 'sign.up',
         meta: {title: 'Sign up', guestOnly: true},
         component: SignUp,
     },
     {
         path: '/accounts',
-        name: 'Accounts',
+        name: 'accounts',
         meta: {title: 'Accounts', requiresAuth: true},
         component: AccountsPage,
     },
     {
         path: '/transactions',
-        name: 'Transactions',
+        name: 'transactions',
         meta: {title: 'Transactions', requiresAuth: true},
         component: TransactionsPage,
     },
     {
         path: '/logs',
-        name: 'Logs',
+        name: 'logs',
         meta: {title: 'Audit', requiresAuth: true},
         component: ActivityLogsPage,
     },
@@ -63,7 +63,7 @@ const routes: RouteRecordRaw[] = [
     // one component, different URLs
     {
         path: '/settings/:section(general|profile|preferences|accounts|categories)',
-        name: 'SettingsSection',
+        name: 'settings.section',
         meta: {title: 'Settings', requiresAuth: true},
         component: SettingsPage,
         props: true,

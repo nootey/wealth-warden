@@ -230,7 +230,7 @@ onMounted(getData)
                     <span>
                         No data yet - connect an
                     </span>
-                    <span class="hover-icon font-bold text-base" @click="router.push({name: 'Accounts'})"> account </span>
+                    <span class="hover-icon font-bold text-base" @click="router.push({name: 'accounts'})"> account </span>
                     <span> to see your net worth over time. </span>
                 </div>
             </div>

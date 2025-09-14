@@ -80,7 +80,7 @@ async function createInvitation() {
 
     try {
         await authStore.signUp(form.value);
-        await router.push({name: "Login"})
+        await router.push({name: "login"})
     } catch (error) {
         toastStore.errorResponseToast(error)
     } finally
@@ -90,7 +90,7 @@ async function createInvitation() {
 }
 
 function login() {
-    router.push({name: "Login"});
+    router.push({name: "login"});
 }
 
 
