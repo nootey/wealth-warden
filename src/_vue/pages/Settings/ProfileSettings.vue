@@ -56,12 +56,6 @@ async function initUser() {
                     <div class="w-full flex flex-row gap-2 w-full">
                         <div class="flex flex-column flex-1 min-w-0">
                             <IftaLabel class="w-full" variant="in">
-                                <InputText class="w-full" id="in_label" :value="currentUser.username" />
-                                <label for="in_label">Username</label>
-                            </IftaLabel>
-                        </div>
-                        <div class="flex flex-column flex-1 min-w-0">
-                            <IftaLabel class="w-full" variant="in">
                                 <InputText class="w-full" id="in_label" :value="currentUser.display_name" />
                                 <label for="in_label">Display name</label>
                             </IftaLabel>

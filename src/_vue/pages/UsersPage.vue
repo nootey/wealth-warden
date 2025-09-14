@@ -16,7 +16,6 @@ import LoadingSpinner from "../components/base/LoadingSpinner.vue";
 import ColumnHeader from "../components/base/ColumnHeader.vue";
 import CustomPaginator from "../components/base/CustomPaginator.vue";
 import UserForm from "../components/forms/UserForm.vue";
-import TransactionForm from "../components/forms/TransactionForm.vue";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
