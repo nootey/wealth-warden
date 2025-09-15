@@ -40,7 +40,7 @@ const CurrentView = computed(() => allowed[section.value]);
             <h6 class="text-xs font-bold uppercase mb-2" style="color: var(--text-primary);">General</h6>
 
             <RouterLink
-                    :to="{ name: 'SettingsSection', params: { section: 'general' } }"
+                    :to="{ name: 'settings.section', params: { section: 'general' } }"
                     class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
                     style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);"
                     :class="{ 'active': section === 'general' }">
@@ -49,7 +49,7 @@ const CurrentView = computed(() => allowed[section.value]);
             </RouterLink>
 
             <RouterLink
-                    :to="{ name: 'SettingsSection', params: { section: 'profile' } }"
+                    :to="{ name: 'settings.section', params: { section: 'profile' } }"
                     class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
                     style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);"
                     :class="{ 'active': section === 'profile' }">
@@ -58,7 +58,7 @@ const CurrentView = computed(() => allowed[section.value]);
             </RouterLink>
 
             <RouterLink
-                    :to="{ name: 'SettingsSection', params: { section: 'preferences' } }"
+                    :to="{ name: 'settings.section', params: { section: 'preferences' } }"
                     class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
                     style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);"
                     :class="{ 'active': section === 'preferences' }">
@@ -69,7 +69,7 @@ const CurrentView = computed(() => allowed[section.value]);
             <h6 class="text-xs font-bold uppercase mb-2" style="color: var(--text-primary);">Transactions</h6>
 
             <RouterLink
-                    :to="{ name: 'SettingsSection', params: { section: 'accounts' } }"
+                    :to="{ name: 'settings.section', params: { section: 'accounts' } }"
                     class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
                     style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);"
                     :class="{ 'active': section === 'accounts' }">
@@ -78,7 +78,7 @@ const CurrentView = computed(() => allowed[section.value]);
             </RouterLink>
 
             <RouterLink
-                    :to="{ name: 'SettingsSection', params: { section: 'categories' } }"
+                    :to="{ name: 'settings.section', params: { section: 'categories' } }"
                     class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
                     style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);"
                     :class="{ 'active': section === 'categories' }">
