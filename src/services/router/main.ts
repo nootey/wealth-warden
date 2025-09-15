@@ -18,7 +18,7 @@ router.beforeEach(async (to) => {
         await auth.init();
     }
     if (requiresAuth && !auth.isAuthenticated) {
-        return {name: 'Login', query: {redirect: to.fullPath}};
+        return {name: 'login', query: {redirect: to.fullPath}};
     }
 
     if (requiresAdmin && auth.isAuthenticated) {
@@ -29,13 +29,13 @@ router.beforeEach(async (to) => {
 
     // Logged in but NOT verified
     if (requiresAuth && auth.isAuthenticated && !auth.isValidated && !emailValidated) {
-        if (to.name !== 'Confirm email') {
-            return { name: 'Confirm email', query: { redirect: to.fullPath } };
+        if (to.name !== 'confirm.email') {
+            return { name: 'confirm.email', query: { redirect: to.fullPath } };
         }
     }
 
     if (guestOnly && auth.isAuthenticated) {
-        return {name: 'Dashboard'};
+        return {name: 'dashboard'};
     }
 });
 
