@@ -38,5 +38,12 @@ export const useUserStore = defineStore('user', {
                 throw error;
             }
         },
+        async resendInvitation(id: number) {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/invitations/resend/${id}`);
+            } catch (error) {
+                throw error;
+            }
+        },
     },
 });

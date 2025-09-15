@@ -16,6 +16,7 @@ import LoadingSpinner from "../components/base/LoadingSpinner.vue";
 import ColumnHeader from "../components/base/ColumnHeader.vue";
 import CustomPaginator from "../components/base/CustomPaginator.vue";
 import UserForm from "../components/forms/UserForm.vue";
+import InvitationsPaginated from "../components/data/InvitationsPaginated.vue";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -64,6 +65,8 @@ const activeColumns = computed<Column[]>(() => [
     { field: 'role', header: 'Role', type: 'enum', options: roles.value, optionLabel: 'name'},
     { field: 'email_confirmed', header: 'Date', type: "date" },
 ]);
+
+const invRef = ref<InstanceType<typeof InvitationsPaginated> | null>(null);
 
 onMounted(async () => {
     await init();
@@ -300,6 +303,11 @@ provide("removeFilter", removeFilter);
                         </Column>
                     </DataTable>
                 </div>
+            </div>
+
+            <label>Invitations</label>
+            <div class="flex flex-row gap-2 w-full">
+                <InvitationsPaginated ref="invRef"></InvitationsPaginated>
             </div>
 
         </div>

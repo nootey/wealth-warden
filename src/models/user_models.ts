@@ -8,6 +8,14 @@ export interface User {
     deleted_at?: Date | null;
 }
 
+export interface Invitation {
+    id?: number;
+    email: string;
+    role_id?: number;
+    role?: Role;
+    created_at?: Date;
+}
+
 export interface Role {
     id?: number;
     name: string;
