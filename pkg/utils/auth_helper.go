@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"reflect"
+	"regexp"
 	"strings"
 	"unicode"
 	"wealth-warden/internal/models"
@@ -239,8 +240,17 @@ func EmailToName(email string) string {
 		return ""
 	}
 	local := parts[0]
-	local = strings.ReplaceAll(local, ".", "")
-	local = strings.ReplaceAll(local, "-", "")
+
+	// cut off at the first digit
+	re := regexp.MustCompile(`[0-9].*`)
+	local = re.ReplaceAllString(local, "")
+
+	// split by . or - and take the first token
+	separators := regexp.MustCompile(`[.\-]`)
+	tokens := separators.Split(local, -1)
+	if len(tokens) > 0 {
+		local = tokens[0]
+	}
 
 	return capitalize(local)
 }
