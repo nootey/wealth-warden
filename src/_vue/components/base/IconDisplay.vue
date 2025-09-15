@@ -12,7 +12,7 @@ const properties = ref<any>({
     'delete': { icon: 'pi pi-trash' },
     'confirm-email': { icon: 'pi pi-envelope' },
     'password-reset': { icon: 'pi pi-undo' },
-    'restore': { icon: 'pi pi-sync' },
+    'resend': { icon: 'pi pi-sync' },
   },
 });
 
