@@ -6,7 +6,6 @@ import (
 	"wealth-warden/internal/bootstrap"
 	httpHandlers "wealth-warden/internal/http/handlers"
 	"wealth-warden/internal/http/v1"
-	"wealth-warden/internal/middleware"
 	"wealth-warden/pkg/validators"
 )
 
@@ -46,12 +45,12 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 	chartingHandler := httpHandlers.NewChartingHandler(r.Container.ChartingService, validator)
 	roleHandler := httpHandlers.NewRolePermissionHandler(r.Container.RoleService, validator)
 
-	authRL := middleware.NewRateLimiter(5.0/60.0, 5) // 5 per minute, burst 3
+	//authRL := middleware.NewRateLimiter(5.0/60.0, 5) // 5 per minute, burst 3
 
 	// Protected routes
 	authGroup := _v1.Group("", r.Container.AuthService.WebClientMiddleware.WebClientAuthentication())
 	{
-		authRoutes := authGroup.Group("/auth", authRL.Middleware())
+		authRoutes := authGroup.Group("/auth")
 		v1.AuthRoutes(authRoutes, authHandler)
 
 		userRoutes := authGroup.Group("/users")
