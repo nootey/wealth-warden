@@ -127,6 +127,7 @@ async function handleEmit(emitType: any) {
             createModal.value = false;
             updateModal.value = false;
             await getData();
+            invRef.value?.refresh();
             break;
         }
         default: {
@@ -239,6 +240,13 @@ provide("removeFilter", removeFilter);
         </UserForm>
     </Dialog>
 
+    <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal" :breakpoints="{'501px': '90vw'}"
+            :modal="true" :style="{width: '500px'}" header="User details">
+        <UserForm mode="update" :roles="roles" :recordId="updateUserID"
+                  @completeOperation="handleEmit('completeOperation')">
+        </UserForm>
+    </Dialog>
+
     <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
         <div class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
              style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;">
@@ -283,6 +291,11 @@ provide("removeFilter", removeFilter);
                             <template #body="{ data, field }">
                                 <template v-if="field === 'email_confirmed'">
                                     {{ dateHelper.formatDate(data?.email_confirmed, true) }}
+                                </template>
+                                <template v-else-if="field === 'display_name'">
+                                    <span class="hover-icon font-bold" @click="manipulateDialog('updateUser', data.id)">
+                                        {{ data[field] }}
+                                    </span>
                                 </template>
                                 <template v-else-if="field === 'role'">
                                     <span>

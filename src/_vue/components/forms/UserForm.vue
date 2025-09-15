@@ -4,7 +4,7 @@ import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {nextTick, onMounted, ref} from "vue";
 import type {Role, User} from "../../../models/user_models.ts";
-import {email, required} from "@vuelidate/validators";
+import {email, required, requiredIf} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import {useUserStore} from "../../../services/stores/user_store.ts";
 import toastHelper from "../../../utils/toast_helper.ts";
@@ -45,6 +45,7 @@ const rules = {
             }
         },
         display_name: {
+            required: requiredIf(() => props.mode === "update"),
             $autoDirty: true
         },
         email: {
@@ -85,7 +86,6 @@ async function loadRecord(id: number) {
     try {
         loading.value = true;
         const data = await sharedStore.getRecordByID("users", id);
-
         record.value = {
             ...initData(),
             ...data,
@@ -113,10 +113,13 @@ async function manageRecord() {
     }
     if (!await isRecordValid()) return;
 
-    const recordData = {
+    loading.value = true;
+
+    let recordData = {
         email: record.value.email,
         role_id: record.value?.role?.id,
-    }
+        ...(props.mode === "update" && { display_name: record.value.display_name }),
+    };
 
     try {
         let response = null;
@@ -136,10 +139,12 @@ async function manageRecord() {
                 );
                 break;
             default:
+                loading.value = false;
                 emit("completeOperation")
                 break;
         }
 
+        loading.value = false;
         v$.value.record.$reset();
         toastStore.successResponseToast(response);
         emit("completeOperation")
@@ -159,6 +164,16 @@ async function manageRecord() {
         </div>
 
         <div class="flex flex-column gap-3">
+
+            <div v-if="mode === 'update'" class="flex flex-row w-full">
+                <div class="flex flex-column gap-1 w-full">
+                    <ValidationError :isRequired="true" :message="v$.record.display_name.$errors[0]?.$message">
+                        <label>Display name</label>
+                    </ValidationError>
+                    <InputText :disabled="readOnly" size="small" v-model="record.display_name"
+                               placeholder="Change display name"></InputText>
+                </div>
+            </div>
 
             <div class="flex flex-row w-full">
                 <div class="flex flex-column gap-1 w-full">
