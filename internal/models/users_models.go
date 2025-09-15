@@ -24,6 +24,7 @@ type Invitation struct {
 	Email     string    `gorm:"type:varchar(255);index:idx_email_role,unique" json:"email"`
 	Hash      string    `gorm:"type:varchar(255);not null" json:"hash"`
 	RoleID    int64     `gorm:"not null;index:idx_email_role,unique" json:"role_id"`
+	Role      Role      `gorm:"foreignKey:RoleID" json:"role"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

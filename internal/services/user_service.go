@@ -67,6 +67,41 @@ func (s *UserService) FetchUsersPaginated(p utils.PaginationParams, includeDelet
 	return records, paginator, nil
 }
 
+func (s *UserService) FetchInvitationsPaginated(p utils.PaginationParams) ([]models.Invitation, *utils.Paginator, error) {
+
+	totalRecords, err := s.Repo.CountInvitations(p.Filters)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	offset := (p.PageNumber - 1) * p.RowsPerPage
+
+	records, err := s.Repo.FindInvitations(offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	from := offset + 1
+	if from > int(totalRecords) {
+		from = int(totalRecords)
+	}
+
+	to := offset + len(records)
+	if to > int(totalRecords) {
+		to = int(totalRecords)
+	}
+
+	paginator := &utils.Paginator{
+		CurrentPage:  p.PageNumber,
+		RowsPerPage:  p.RowsPerPage,
+		TotalRecords: int(totalRecords),
+		From:         from,
+		To:           to,
+	}
+
+	return records, paginator, nil
+}
+
 func (s *UserService) FetchUserByID(ID int64) (*models.User, error) {
 	record, err := s.Repo.FindUserByID(nil, ID)
 	if err != nil {
@@ -115,7 +150,7 @@ func (s *UserService) FetchInvitationByHash(hash string) (*models.Invitation, er
 	return record, nil
 }
 
-func (s *UserService) InsertInvitation(invitation *models.Invitation) error {
+func (s *UserService) InsertInvitation(userID int64, req models.InvitationReq) error {
 
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
@@ -127,7 +162,11 @@ func (s *UserService) InsertInvitation(invitation *models.Invitation) error {
 		return err
 	}
 
-	invitation.Hash = hash
+	invitation := &models.Invitation{
+		Email:  req.Email,
+		RoleID: req.RoleID,
+		Hash:   hash,
+	}
 
 	_, err = s.Repo.InsertInvitation(tx, invitation)
 	if err != nil {
@@ -139,8 +178,30 @@ func (s *UserService) InsertInvitation(invitation *models.Invitation) error {
 		return err
 	}
 
-	name := utils.EmailToName(invitation.Email)
+	changes := utils.InitChanges()
 
+	role, err := s.RoleService.Repo.FindRoleByID(tx, invitation.RoleID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find role wit given id: %w", err)
+	}
+
+	utils.CompareChanges("", role.Name, changes, "role")
+	utils.CompareChanges("", invitation.Email, changes, "email")
+
+	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "update",
+		Category:    "user",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		return err
+	}
+
+	name := utils.EmailToName(invitation.Email)
 	err = s.Ctx.AuthService.mailer.SendRegistrationEmail(invitation.Email, name, hash)
 	if err != nil {
 		return err
@@ -279,6 +340,141 @@ func (s *UserService) DeleteUser(userID, id int64) error {
 			Logger:      s.Ctx.Logger,
 			Event:       "delete",
 			Category:    "user",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *UserService) ResendInvitation(userID, id int64) error {
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	invitation, err := s.Repo.FindInvitationByID(tx, id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	if invitation == nil {
+		tx.Rollback()
+		return errors.New("invitation with the given ID does not exist")
+	}
+
+	hash, err := utils.GenerateSecureToken(64)
+	if err != nil {
+		return err
+	}
+
+	newInv := &models.Invitation{
+		Email:  invitation.Email,
+		RoleID: invitation.RoleID,
+		Hash:   hash,
+	}
+
+	// Delete existing invitation
+	err = s.Repo.DeleteInvitation(tx, id)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Insert new invitation
+	_, err = s.Repo.InsertInvitation(tx, newInv)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit().Error
+	if err != nil {
+		return err
+	}
+
+	name := utils.EmailToName(newInv.Email)
+
+	err = s.Ctx.AuthService.mailer.SendRegistrationEmail(newInv.Email, name, hash)
+	if err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+
+	role, err := s.RoleService.Repo.FindRoleByID(tx, newInv.RoleID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find role wit given id: %w", err)
+	}
+
+	utils.CompareChanges("", role.Name, changes, "role")
+	utils.CompareChanges("", newInv.Email, changes, "email")
+
+	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "resend",
+		Category:    "invitation",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *UserService) DeleteInvitation(userID, id int64) error {
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	inv, err := s.Repo.FindInvitationByID(tx, id)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find invitation with given id %w", err)
+	}
+
+	role, err := s.RoleService.Repo.FindRoleByID(tx, inv.RoleID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find role wit given id: %w", err)
+	}
+
+	if err := s.Repo.DeleteInvitation(tx, inv.ID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(inv.Email, "", changes, "email")
+	utils.CompareChanges(role.Name, "", changes, "role")
+
+	if !changes.IsEmpty() {
+		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.Repo,
+			Logger:      s.Ctx.Logger,
+			Event:       "delete",
+			Category:    "invitation",
 			Description: nil,
 			Payload:     changes,
 			Causer:      &userID,

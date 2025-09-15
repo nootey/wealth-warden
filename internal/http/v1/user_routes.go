@@ -9,9 +9,12 @@ func UserRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler) {
 	apiGroup.GET("", handler.GetUsersPaginated)
 	apiGroup.GET("roles", handler.GetRoles)
 	apiGroup.GET("/:id", handler.GetUserById)
-	apiGroup.PUT("invitations", handler.InsertInvitation)
 	apiGroup.PUT(":id", handler.UpdateUser)
 	apiGroup.DELETE(":id", handler.DeleteUser)
+	apiGroup.GET("invitations", handler.GetInvitationsPaginated)
+	apiGroup.PUT("invitations", handler.InsertInvitation)
+	apiGroup.POST("invitations/resend/:id", handler.ResendInvitation)
+	apiGroup.DELETE("invitations/:id", handler.DeleteInvitation)
 }
 
 func PublicUserRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler) {

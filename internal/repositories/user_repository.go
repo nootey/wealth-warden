@@ -76,6 +76,54 @@ func (r *UserRepository) CountUsers(filters []utils.Filter, includeDeleted bool)
 	return totalRecords, nil
 }
 
+func (r *UserRepository) FindInvitations(offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.Invitation, error) {
+
+	var records []models.Invitation
+
+	q := r.DB.Model(&models.Invitation{}).
+		Preload("Role")
+
+	joins := utils.GetRequiredJoins(filters)
+	orderBy := utils.ConstructOrderByClause(&joins, "invitations", sortField, sortOrder)
+
+	for _, join := range joins {
+		q = q.Joins(join)
+	}
+
+	q = utils.ApplyFilters(q, filters)
+
+	err := q.
+		Order(orderBy).
+		Limit(limit).
+		Offset(offset).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (r *UserRepository) CountInvitations(filters []utils.Filter) (int64, error) {
+	var totalRecords int64
+
+	q := r.DB.Model(&models.Invitation{}).
+		Preload("Role")
+
+	joins := utils.GetRequiredJoins(filters)
+	for _, join := range joins {
+		q = q.Joins(join)
+	}
+
+	q = utils.ApplyFilters(q, filters)
+
+	err := q.Count(&totalRecords).Error
+	if err != nil {
+		return 0, err
+	}
+	return totalRecords, nil
+}
+
 func (r *UserRepository) GetPasswordByEmail(email string) (string, error) {
 	var password string
 	err := r.DB.Model(&models.User{}).Select("password").Where("email = ?", email).Scan(&password).Error
@@ -126,6 +174,22 @@ func (r *UserRepository) FindUserByEmail(tx *gorm.DB, email string) (*models.Use
 		return nil, err
 	}
 
+	return &record, nil
+}
+
+func (r *UserRepository) FindInvitationByID(tx *gorm.DB, id int64) (*models.Invitation, error) {
+
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var record models.Invitation
+
+	err := r.DB.Where("id =?", id).First(&record).Error
+	if err != nil {
+		return nil, err
+	}
 	return &record, nil
 }
 
@@ -277,6 +341,11 @@ func (r *UserRepository) DeleteUser(tx *gorm.DB, id int64) error {
 		return res.Error
 	}
 	return nil
+}
+
+func (r *UserRepository) DeleteInvitation(tx *gorm.DB, id int64) error {
+	return tx.Where("id = ?", id).
+		Delete(&models.Invitation{}).Error
 }
 
 func (r *UserRepository) DeleteTokenByData(tx *gorm.DB, tokenType, dataIndex string, dataValue interface{}) error {
