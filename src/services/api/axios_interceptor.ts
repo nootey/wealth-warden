@@ -6,7 +6,10 @@ let isRetrying = false;
 apiClient.interceptors.response.use(
     (response) => response,
     async (error) => {
+
         const { config, response } = error;
+        const url: string = error?.config?.url ?? '';
+
         if (!response) return Promise.reject(error);
 
         if (response.status === 401 && !config.__retried) {
@@ -21,10 +24,16 @@ apiClient.interceptors.response.use(
 
         if (response.status === 401) {
             const auth = useAuthStore();
+
+
             if (auth.isAuthenticated && !isRetrying) {
                 isRetrying = true;
                 try {
-                    await auth.logoutUser();
+                    const isAuthEndpoint = /\/auth\/(current|logout|login)/.test(url);
+                    if (!isAuthEndpoint) {
+                        await auth.logoutUser();
+                    }
+
                 } finally {
                     isRetrying = false;
                 }
