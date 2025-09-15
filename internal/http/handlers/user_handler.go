@@ -109,7 +109,7 @@ func (h *UserHandler) GetUserById(c *gin.Context) {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": user})
+	c.JSON(http.StatusOK, user)
 }
 
 func (h *UserHandler) GetUserByToken(c *gin.Context) {
