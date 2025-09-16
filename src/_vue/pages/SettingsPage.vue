@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useRoute, RouterLink } from 'vue-router';
+import {useRoute, RouterLink, useRouter} from 'vue-router';
 import vueHelper from "../../utils/vue_helper.ts";
 import {useAuthStore} from "../../services/stores/auth_store.ts";
 
+const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 
@@ -35,6 +36,13 @@ const pageTitle = computed(() => {
 });
 
 const isActive = (name: SettingsMenuItem['name']) => route.name === name;
+
+function goBack() {
+    const hasBack = !!(router.options.history.state && router.options.history.state.back);
+    if (hasBack) router.back();
+    else router.push({ name: 'dashboard' });
+}
+
 </script>
 
 <template>
@@ -43,7 +51,7 @@ const isActive = (name: SettingsMenuItem['name']) => route.name === name;
             <div class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable"
                  style="color: var(--text-primary)">
                 <i class="pi pi-angle-left"></i>
-                <span>Back</span>
+                <span @click="goBack">Back</span>
             </div>
 
             <h6 class="text-xs font-bold uppercase mb-2" style="color: var(--text-primary);">General</h6>
