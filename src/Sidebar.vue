@@ -27,7 +27,7 @@ const menuItems: MenuItem[] = [
 ];
 
 const visibleMenuItems = computed(() =>
-    menuItems.filter(item => !item.roleBlock || authStore.isAdmin)
+    menuItems.filter(item => !item.roleBlock)
 );
 
 const profileMenuRef = ref<any>(null);
