@@ -11,11 +11,17 @@ import SettingsPage from "../../_vue/pages/SettingsPage.vue";
 import ResetPassword from "../../_vue/features/auth/ResetPassword.vue";
 import UsersPage from "../../_vue/pages/UsersPage.vue";
 import NotFound from "../../_vue/components/base/NotFound.vue";
+import GeneralSettings from "../../_vue/pages/Settings/GeneralSettings.vue";
+import ProfileSettings from "../../_vue/pages/Settings/ProfileSettings.vue";
+import PreferencesSettings from "../../_vue/pages/Settings/PreferencesSettings.vue";
+import AccountsSettings from "../../_vue/pages/Settings/AccountsSettings.vue";
+import CategoriesSettings from "../../_vue/pages/Settings/CategoriesSettings.vue";
 
 declare module 'vue-router' {
     interface RouteMeta {
         requiresAuth?: boolean;
         requiresAdmin?: boolean;
+        requiresSuperAdmin?: boolean;
         guestOnly?: boolean;
         emailConfirmed?: boolean;
     }
@@ -82,14 +88,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Audit', requiresAuth: true, requiresAdmin: true },
         component: ActivityLogsPage,
     },
-    { path: '/settings', redirect: '/settings/profile' },
-    // one component, different URLs
     {
-        path: '/settings/:section(general|profile|preferences|accounts|categories)',
-        name: 'settings.section',
-        meta: { title: 'Settings', requiresAuth: true},
+        path: '/settings',
         component: SettingsPage,
-        props: true,
+        meta: { title: 'Settings', requiresAuth: true },
+        children: [
+            { path: '', redirect: { name: 'settings.profile' } },
+            { path: 'general',     name: 'settings.general',     component: GeneralSettings,     meta: { title: 'General',     requiresAdmin: true } },
+            { path: 'profile',     name: 'settings.profile',     component: ProfileSettings,     meta: { title: 'Profile' } },
+            { path: 'preferences', name: 'settings.preferences', component: PreferencesSettings, meta: { title: 'Preferences' } },
+            { path: 'accounts',    name: 'settings.accounts',    component: AccountsSettings,    meta: { title: 'Accounts' } },
+            { path: 'categories',  name: 'settings.categories',  component: CategoriesSettings,  meta: { title: 'Categories' } },
+        ],
     },
     {
         path: '/:pathMatch(.*)*',

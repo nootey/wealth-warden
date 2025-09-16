@@ -11,6 +11,7 @@ router.beforeEach(async (to) => {
     const auth = useAuthStore();
     const requiresAuth = to.matched.some(r => r.meta.requiresAuth);
     const requiresAdmin = to.matched.some(r => r.meta.requiresAdmin);
+    const requiresSuperAdmin = to.matched.some(r => r.meta.requiresSuperAdmin);
     const guestOnly = to.matched.some(r => r.meta.guestOnly);
     const emailValidated = to.matched.some(r => r.meta.emailValidated);
 
@@ -19,6 +20,12 @@ router.beforeEach(async (to) => {
     }
     if (requiresAuth && !auth.isAuthenticated) {
         return {name: 'login', query: {redirect: to.fullPath}};
+    }
+
+    if (requiresSuperAdmin && auth.isAuthenticated) {
+        if (!auth.isSuperAdmin) {
+            return { name: 'dashboard' };
+        }
     }
 
     if (requiresAdmin && auth.isAuthenticated) {
