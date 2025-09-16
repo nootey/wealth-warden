@@ -10,6 +10,7 @@ import AccountsPage from "../../_vue/pages/AccountsPage.vue";
 import SettingsPage from "../../_vue/pages/SettingsPage.vue";
 import ResetPassword from "../../_vue/features/auth/ResetPassword.vue";
 import UsersPage from "../../_vue/pages/UsersPage.vue";
+import NotFound from "../../_vue/components/base/NotFound.vue";
 
 declare module 'vue-router' {
     interface RouteMeta {
@@ -90,6 +91,11 @@ const routes: RouteRecordRaw[] = [
         component: SettingsPage,
         props: true,
     },
+    {
+        path: '/:pathMatch(.*)*',
+        name: 'NotFound',
+        component: NotFound,
+        meta: {title: '404'}}
 ];
 
 export default routes
