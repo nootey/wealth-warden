@@ -16,6 +16,7 @@ import ProfileSettings from "../../_vue/pages/Settings/ProfileSettings.vue";
 import PreferencesSettings from "../../_vue/pages/Settings/PreferencesSettings.vue";
 import AccountsSettings from "../../_vue/pages/Settings/AccountsSettings.vue";
 import CategoriesSettings from "../../_vue/pages/Settings/CategoriesSettings.vue";
+import RolesSettings from "../../_vue/pages/Settings/RolesSettings.vue";
 
 declare module 'vue-router' {
     interface RouteMeta {
@@ -99,6 +100,7 @@ const routes: RouteRecordRaw[] = [
             { path: 'preferences', name: 'settings.preferences', component: PreferencesSettings, meta: { title: 'Preferences' } },
             { path: 'accounts',    name: 'settings.accounts',    component: AccountsSettings,    meta: { title: 'Accounts' } },
             { path: 'categories',  name: 'settings.categories',  component: CategoriesSettings,  meta: { title: 'Categories' } },
+            { path: 'roles',  name: 'settings.roles',  component: RolesSettings,  meta: { title: 'Roles' } },
         ],
     },
     {

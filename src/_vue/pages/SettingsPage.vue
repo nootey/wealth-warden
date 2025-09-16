@@ -24,6 +24,8 @@ const items: SettingsMenuItem[] = [
     { name: '', label: 'Transactions', separator: true },
     { name: 'settings.accounts',    label: 'Accounts',    icon: 'pi-book' },
     { name: 'settings.categories',  label: 'Categories',  icon: 'pi-box' },
+    { name: '', label: 'Roles', separator: true, roleBlock: !authStore.isSuperAdmin },
+    { name: 'settings.roles',    label: 'Roles',    icon: 'pi-unlock', roleBlock: !authStore.isSuperAdmin },
 ];
 
 const visibleItems = computed(() =>
