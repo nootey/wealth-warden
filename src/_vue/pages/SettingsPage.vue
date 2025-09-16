@@ -11,15 +11,17 @@ const authStore = useAuthStore();
 type SettingsMenuItem = {
     name: string;
     label: string;
-    icon: string;
+    icon?: string;
     adminOnly?: boolean;
     roleBlock?: boolean;
+    separator?: boolean;
 };
 
 const items: SettingsMenuItem[] = [
     { name: 'settings.general',     label: 'General',     icon: 'pi-cog' , roleBlock: !authStore.isAdmin },
     { name: 'settings.profile',     label: 'Profile',     icon: 'pi-user' },
     { name: 'settings.preferences', label: 'Preferences', icon: 'pi-cog' },
+    { name: '', label: 'Transactions', separator: true },
     { name: 'settings.accounts',    label: 'Accounts',    icon: 'pi-book' },
     { name: 'settings.categories',  label: 'Categories',  icon: 'pi-box' },
 ];
@@ -56,15 +58,26 @@ function goBack() {
 
             <h6 class="text-xs font-bold uppercase mb-2" style="color: var(--text-primary);">General</h6>
 
-            <RouterLink v-for="item in visibleItems" :key="item.name" :to="{ name: item.name }"
-                        class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
-                        :class="{ active: isActive(item.name) }"
-                        style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);"
-            >
+            <template v-for="item in visibleItems" :key="item.name ?? item.label">
 
-                <i class="pi text-sm" :class="item.icon" style="color: var(--text-secondary)"></i>
-                <span>{{ item.label }}</span>
-            </RouterLink>
+                <h6 v-if="item.separator"
+                    class="text-xs font-bold uppercase mb-2 mt-3"
+                    style="color: var(--text-primary);">
+                    {{ item.label }}
+                </h6>
+
+                <RouterLink
+                        v-else
+                        :to="{ name: item.name }"
+                        class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
+                        :class="{ active: isActive(item.name!) }"
+                        style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);"
+                >
+
+                    <i class="pi text-sm" :class="item.icon" style="color: var(--text-secondary)"></i>
+                    <span>{{ item.label }}</span>
+                </RouterLink>
+            </template>
         </aside>
 
         <main class="w-full flex-1 pt-3" style="max-width: 850px; margin: 0 auto;">
