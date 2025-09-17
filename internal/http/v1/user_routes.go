@@ -18,6 +18,10 @@ func UserRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler, roleHa
 
 	apiGroup.GET("roles", roleHandler.GetAllRoles)
 	apiGroup.GET("permissions", roleHandler.GetAllPermissions)
+	apiGroup.GET("roles/:id", roleHandler.GetRoleById)
+	apiGroup.PUT("roles", roleHandler.InsertRole)
+	apiGroup.PUT("roles/:id", roleHandler.UpdateRole)
+	apiGroup.DELETE("roles/:id", roleHandler.DeleteRole)
 }
 
 func PublicUserRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler) {

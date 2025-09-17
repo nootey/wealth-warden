@@ -123,8 +123,8 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 		if roleID == 0 {
 			// Insert role with is_global flag set to true.
 			err = db.Exec(
-				`INSERT INTO roles (name, created_at, updated_at) VALUES (?, ?, ?)`,
-				role.Name, time.Now(), time.Now(),
+				`INSERT INTO roles (name, is_default, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+				role.Name, true, time.Now(), time.Now(),
 			).Error
 			if err != nil {
 				return fmt.Errorf("error inserting role %s: %w", role.Name, err)

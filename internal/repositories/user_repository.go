@@ -344,7 +344,12 @@ func (r *UserRepository) DeleteUser(tx *gorm.DB, id int64) error {
 }
 
 func (r *UserRepository) DeleteInvitation(tx *gorm.DB, id int64) error {
-	return tx.Where("id = ?", id).
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	return db.Where("id = ?", id).
 		Delete(&models.Invitation{}).Error
 }
 
