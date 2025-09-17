@@ -20,6 +20,13 @@ type Permission struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type RolePermission struct {
+	RoleID       int64     `gorm:"primaryKey;column:role_id"`
+	PermissionID int64     `gorm:"primaryKey;column:permission_id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 type RoleReq struct {
 	Name        string       `json:"name" validate:"required"`
 	IsDefault   bool         `json:"is_default"`

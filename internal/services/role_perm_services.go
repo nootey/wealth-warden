@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"wealth-warden/internal/jobs"
@@ -36,8 +37,8 @@ func (s *RolePermissionService) FetchAllPermissions() ([]models.Permission, erro
 	return s.Repo.FindAllPermissions()
 }
 
-func (s *RolePermissionService) FetchRoleByID(ID int64) (*models.Role, error) {
-	record, err := s.Repo.FindRoleByID(nil, ID)
+func (s *RolePermissionService) FetchRoleByID(ID int64, withPermissions bool) (*models.Role, error) {
+	record, err := s.Repo.FindRoleByID(nil, ID, withPermissions)
 	if err != nil {
 		return nil, err
 	}
@@ -63,6 +64,20 @@ func (s *RolePermissionService) InsertRole(userID int64, req models.RoleReq) err
 		return err
 	}
 
+	permIDs := make([]int64, 0, len(req.Permissions))
+	for _, p := range req.Permissions {
+		if p.ID > 0 {
+			permIDs = append(permIDs, p.ID)
+		}
+	}
+	if err = s.Repo.EnsurePermissionsExist(tx, permIDs); err != nil {
+		return err
+	}
+
+	if err = s.Repo.AttachPermissionIDs(tx, role.ID, permIDs); err != nil {
+		return err
+	}
+
 	err = tx.Commit().Error
 	if err != nil {
 		return err
@@ -70,8 +85,25 @@ func (s *RolePermissionService) InsertRole(userID int64, req models.RoleReq) err
 
 	changes := utils.InitChanges()
 
+	var desc string
+	if role.Description != nil {
+		desc = *role.Description
+	}
+
 	utils.CompareChanges("", role.Name, changes, "name")
-	utils.CompareChanges("", *role.Description, changes, "description")
+	utils.CompareChanges("", desc, changes, "description")
+
+	addedPerms := make([]map[string]interface{}, 0, len(req.Permissions))
+	for _, p := range req.Permissions {
+		addedPerms = append(addedPerms, map[string]interface{}{
+			"name": p.Name,
+		})
+	}
+
+	permBytes, _ := json.Marshal(addedPerms)
+	permString := string(permBytes)
+
+	utils.CompareChanges("", permString, changes, "permissions")
 
 	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
 		LoggingRepo: s.Ctx.LoggingService.Repo,
@@ -101,7 +133,7 @@ func (s *RolePermissionService) UpdateRole(userID, id int64, req *models.RoleReq
 	}()
 
 	// Load existing user
-	exRole, err := s.Repo.FindRoleByID(tx, id)
+	exRole, err := s.Repo.FindRoleByID(tx, id, true)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find user with given id %w", err)
@@ -172,7 +204,7 @@ func (s *RolePermissionService) DeleteRole(userID, id int64) error {
 		}
 	}()
 
-	role, err := s.Repo.FindRoleByID(tx, id)
+	role, err := s.Repo.FindRoleByID(tx, id, false)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find user with given id %w", err)

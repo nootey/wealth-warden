@@ -1,7 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS role_permissions (
-    id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     role_id BIGINT NOT NULL,
     permission_id BIGINT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

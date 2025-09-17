@@ -49,14 +49,8 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 		{"view_data", "View generic app data (global)", "data"},
 
 		// -> Logging module
-		{"view_audit_logs", "View audit logs (global)", "logs"},
-		{"delete_audit_logs", "Delete audit logs (global)", "logs"},
-		{"view_access_logs", "View access logs (global)", "logs"},
-		{"delete_access_logs", "Delete access logs (global)", "logs"},
-
-		// -> Heart rate module
-		{"view_heart_rate_data", "View heart rate data", "heart_rate"},
-		{"analyze_heart_rate_data", "Access HR analytics", "heart_rate"},
+		{"view_activity_logs", "View activity logs (global)", "logs"},
+		{"delete_activity_logs", "Delete activity logs (global)", "logs"},
 
 		// Exporting
 		{"create_exports", "Create exports (global)", "export"},
@@ -82,10 +76,8 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 				"manage_roles",
 				"manage_subscriptions",
 				"view_data",
-				"view_audit_logs",
-				"delete_audit_logs",
-				"view_access_logs",
-				"delete_access_logs",
+				"view_activity_logs",
+				"delete_activity_logs",
 				"create_exports",
 				"delete_exports",
 				"create_reports",
@@ -97,7 +89,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 			Permissions: []string{
 				"manage_subscriptions",
 				"view_data",
-				"view_audit_logs",
+				"view_activity_logs",
 				"create_exports",
 				"create_reports",
 			},

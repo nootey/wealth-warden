@@ -53,6 +53,8 @@ func (h *RolePermissionHandler) GetAllPermissions(c *gin.Context) {
 func (h *RolePermissionHandler) GetRoleById(c *gin.Context) {
 
 	idStr := c.Param("id")
+	qp := c.Request.URL.Query()
+	wp := strings.EqualFold(qp.Get("with_permissions"), "true")
 
 	if idStr == "" {
 		err := errors.New("invalid id provided")
@@ -66,7 +68,7 @@ func (h *RolePermissionHandler) GetRoleById(c *gin.Context) {
 		return
 	}
 
-	user, err := h.Service.FetchRoleByID(id)
+	user, err := h.Service.FetchRoleByID(id, wp)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

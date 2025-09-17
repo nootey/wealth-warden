@@ -1,7 +1,9 @@
 package repositories
 
 import (
+	"fmt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"time"
 	"wealth-warden/internal/models"
 )
@@ -43,11 +45,16 @@ func (r *RolePermissionRepository) FindAllRoles(withPermissions bool) ([]models.
 
 func (r *RolePermissionRepository) FindAllPermissions() ([]models.Permission, error) {
 	var records []models.Permission
-	result := r.DB.Find(&records)
-	return records, result.Error
+	query := r.DB.Model(&models.Permission{})
+
+	query = query.Where("name != ?", "root_access")
+
+	query = query.Find(&records)
+
+	return records, query.Error
 }
 
-func (r *RolePermissionRepository) FindRoleByID(tx *gorm.DB, id int64) (*models.Role, error) {
+func (r *RolePermissionRepository) FindRoleByID(tx *gorm.DB, id int64, withPermissions bool) (*models.Role, error) {
 
 	db := tx
 	if db == nil {
@@ -55,8 +62,14 @@ func (r *RolePermissionRepository) FindRoleByID(tx *gorm.DB, id int64) (*models.
 	}
 
 	var record models.Role
-	result := r.DB.Where("id =?", id).Find(&record)
-	return &record, result.Error
+	q := r.DB.Where("id =?", id)
+
+	if withPermissions {
+		q.Preload("Permissions")
+	}
+
+	q.Find(&record)
+	return &record, q.Error
 }
 
 func (r *RolePermissionRepository) FindRoleByName(tx *gorm.DB, roleName string) (*models.Role, error) {
@@ -81,6 +94,33 @@ func (r *RolePermissionRepository) InsertRole(tx *gorm.DB, record *models.Role) 
 		return 0, err
 	}
 	return record.ID, nil
+}
+
+func (r *RolePermissionRepository) EnsurePermissionsExist(tx *gorm.DB, ids []int64) error {
+	if len(ids) == 0 {
+		return fmt.Errorf("at least one permission is required")
+	}
+	var count int64
+	if err := tx.Model(&models.Permission{}).Where("id IN ?", ids).Count(&count).Error; err != nil {
+		return err
+	}
+	if count != int64(len(ids)) {
+		return fmt.Errorf("some permissions do not exist")
+	}
+	return nil
+}
+
+func (r *RolePermissionRepository) AttachPermissionIDs(tx *gorm.DB, roleID int64, permIDs []int64) error {
+	if len(permIDs) == 0 {
+		return fmt.Errorf("at least one permission is required")
+	}
+
+	rows := make([]models.RolePermission, 0, len(permIDs))
+	for _, pid := range permIDs {
+		rows = append(rows, models.RolePermission{RoleID: roleID, PermissionID: pid})
+	}
+
+	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error
 }
 
 func (r *RolePermissionRepository) UpdateRole(tx *gorm.DB, record models.Role) (int64, error) {

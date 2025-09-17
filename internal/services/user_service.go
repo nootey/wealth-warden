@@ -180,7 +180,7 @@ func (s *UserService) InsertInvitation(userID int64, req models.InvitationReq) e
 
 	changes := utils.InitChanges()
 
-	role, err := s.RoleService.Repo.FindRoleByID(tx, invitation.RoleID)
+	role, err := s.RoleService.Repo.FindRoleByID(tx, invitation.RoleID, false)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find role wit given id: %w", err)
@@ -230,14 +230,14 @@ func (s *UserService) UpdateUser(userID, id int64, req *models.UserReq) error {
 	}
 
 	// Load old relations
-	oldRole, err := s.RoleService.Repo.FindRoleByID(tx, exUsr.RoleID)
+	oldRole, err := s.RoleService.Repo.FindRoleByID(tx, exUsr.RoleID, false)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find existing role: %w", err)
 	}
 
 	// Resolve new relations
-	newRole, err := s.RoleService.Repo.FindRoleByID(tx, req.RoleID)
+	newRole, err := s.RoleService.Repo.FindRoleByID(tx, req.RoleID, false)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find role wit given id: %w", err)
@@ -315,7 +315,7 @@ func (s *UserService) DeleteUser(userID, id int64) error {
 		return fmt.Errorf("can't find user with given id %w", err)
 	}
 
-	role, err := s.RoleService.Repo.FindRoleByID(tx, usr.RoleID)
+	role, err := s.RoleService.Repo.FindRoleByID(tx, usr.RoleID, false)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find role wit given id: %w", err)
@@ -406,7 +406,7 @@ func (s *UserService) ResendInvitation(userID, id int64) error {
 
 	changes := utils.InitChanges()
 
-	role, err := s.RoleService.Repo.FindRoleByID(tx, newInv.RoleID)
+	role, err := s.RoleService.Repo.FindRoleByID(tx, newInv.RoleID, false)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find role wit given id: %w", err)
@@ -450,7 +450,7 @@ func (s *UserService) DeleteInvitation(userID, id int64) error {
 		return fmt.Errorf("can't find invitation with given id %w", err)
 	}
 
-	role, err := s.RoleService.Repo.FindRoleByID(tx, inv.RoleID)
+	role, err := s.RoleService.Repo.FindRoleByID(tx, inv.RoleID, false)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find role wit given id: %w", err)
