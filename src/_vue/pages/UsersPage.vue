@@ -17,6 +17,7 @@ import ColumnHeader from "../components/base/ColumnHeader.vue";
 import CustomPaginator from "../components/base/CustomPaginator.vue";
 import UserForm from "../components/forms/UserForm.vue";
 import InvitationsPaginated from "../components/data/InvitationsPaginated.vue";
+import {useRouter} from "vue-router";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -26,6 +27,7 @@ onMounted(async () => {
     await userStore.getRoles();
 })
 
+const router = useRouter();
 const confirm = useConfirm();
 const apiPrefix = userStore.apiPrefix;
 
@@ -253,6 +255,7 @@ provide("removeFilter", removeFilter);
 
             <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
                 <div style="font-weight: bold;">Users</div>
+                <i class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/roles')" v-tooltip="'Go to roles settings.'"></i>
                 <Button label="New user" icon="pi pi-plus" class="main-button"
                         @click="manipulateDialog('inviteUser', true)"></Button>
             </div>
