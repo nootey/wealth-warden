@@ -192,8 +192,8 @@ func (s *UserService) InsertInvitation(userID int64, req models.InvitationReq) e
 	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
 		LoggingRepo: s.Ctx.LoggingService.Repo,
 		Logger:      s.Ctx.Logger,
-		Event:       "update",
-		Category:    "user",
+		Event:       "create",
+		Category:    "invitation",
 		Description: nil,
 		Payload:     changes,
 		Causer:      &userID,
