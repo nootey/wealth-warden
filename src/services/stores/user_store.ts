@@ -1,12 +1,13 @@
 import {defineStore} from "pinia";
 import type {AuthForm} from "../../models/auth_models.ts";
 import apiClient from "../api/axios_interceptor.ts";
-import type {Role} from "../../models/user_models.ts";
+import type {Permission, Role} from "../../models/user_models.ts";
 
 export const useUserStore = defineStore('user', {
     state: () => ({
         apiPrefix: "users",
         roles: [] as Role[],
+        permissions: [] as Permission[],
     }),
     actions: {
         async getRoles(withPerms: boolean = false) {
@@ -15,6 +16,14 @@ export const useUserStore = defineStore('user', {
                     params: {withPerms}
                 });
                 this.roles = response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
+        async getPermissions() {
+            try {
+                const response = await apiClient.get(`${this.apiPrefix}/permissions`);
+                this.permissions = response.data;
             } catch (err) {
                 throw err;
             }

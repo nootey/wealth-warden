@@ -63,6 +63,7 @@ function initData(): User {
     return {
         role: {
             name: "",
+            is_default: false,
         },
         display_name: "",
         email: "",
