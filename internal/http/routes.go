@@ -54,7 +54,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 		v1.AuthRoutes(authRoutes, authHandler)
 
 		userRoutes := authGroup.Group("/users")
-		v1.UserRoutes(userRoutes, userHandler)
+		v1.UserRoutes(userRoutes, userHandler, roleHandler)
 
 		loggingRoutes := authGroup.Group("/logs")
 		v1.LoggingRoutes(loggingRoutes, loggingHandler)
@@ -70,10 +70,6 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 
 		chartingRoutes := authGroup.Group("/charts")
 		v1.ChartingRoutes(chartingRoutes, chartingHandler)
-
-		roleRoutes := authGroup.Group("/roles")
-		v1.RoleRoutes(roleRoutes, roleHandler)
-
 	}
 
 	// Public routes

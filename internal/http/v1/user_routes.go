@@ -5,16 +5,19 @@ import (
 	"wealth-warden/internal/http/handlers"
 )
 
-func UserRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler) {
+func UserRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler, roleHandler *handlers.RolePermissionHandler) {
 	apiGroup.GET("", handler.GetUsersPaginated)
-	apiGroup.GET("roles", handler.GetRoles)
 	apiGroup.GET("/:id", handler.GetUserById)
 	apiGroup.PUT(":id", handler.UpdateUser)
 	apiGroup.DELETE(":id", handler.DeleteUser)
+
 	apiGroup.GET("invitations", handler.GetInvitationsPaginated)
 	apiGroup.PUT("invitations", handler.InsertInvitation)
 	apiGroup.POST("invitations/resend/:id", handler.ResendInvitation)
 	apiGroup.DELETE("invitations/:id", handler.DeleteInvitation)
+
+	apiGroup.GET("roles", roleHandler.GetAllRoles)
+	apiGroup.GET("permissions", roleHandler.GetAllPermissions)
 }
 
 func PublicUserRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler) {

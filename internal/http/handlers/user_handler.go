@@ -51,20 +51,6 @@ func (h *UserHandler) GetUsersPaginated(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (h *UserHandler) GetRoles(c *gin.Context) {
-
-	q := c.Request.URL.Query()
-	withPermissions := strings.EqualFold(q.Get("with_permissions"), "true")
-
-	records, err := h.Service.RoleService.FetchAllRoles(withPermissions)
-	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-	c.JSON(http.StatusOK, records)
-
-}
-
 func (h *UserHandler) GetInvitationsPaginated(c *gin.Context) {
 
 	qp := c.Request.URL.Query()
