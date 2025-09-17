@@ -258,7 +258,7 @@ func (r *TransactionRepository) CountActiveTransactionsForCategory(tx *gorm.DB, 
 
 	var cnt int64
 	err := db.Model(&models.Transaction{}).
-		Where("user_id = ? AND category_id = ? AND deleted_at IS NULL", userID, categoryID).
+		Where("user_id = ? AND category_id = ?", userID, categoryID).
 		Count(&cnt).Error
 	return cnt, err
 }
