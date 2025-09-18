@@ -139,20 +139,6 @@ func (s *RolePermissionService) UpdateRole(userID, id int64, req *models.RoleReq
 		return fmt.Errorf("can't find user with given id %w", err)
 	}
 
-	//// Load old relations
-	//oldRole, err := s.Repo.FindRoleByID(tx, exUsr.RoleID)
-	//if err != nil {
-	//	tx.Rollback()
-	//	return fmt.Errorf("can't find existing role: %w", err)
-	//}
-	//
-	//// Resolve new relations
-	//newRole, err := s.RoleService.Repo.FindRoleByID(tx, req.RoleID)
-	//if err != nil {
-	//	tx.Rollback()
-	//	return fmt.Errorf("can't find role wit given id: %w", err)
-	//}
-
 	role := models.Role{
 		ID:          exRole.ID,
 		Name:        req.Name,
@@ -165,6 +151,23 @@ func (s *RolePermissionService) UpdateRole(userID, id int64, req *models.RoleReq
 		return err
 	}
 
+	if !role.IsDefault {
+		permIDs := make([]int64, 0, len(req.Permissions))
+		for _, p := range req.Permissions {
+			if p.ID > 0 {
+				permIDs = append(permIDs, p.ID)
+			}
+		}
+		if err := s.Repo.EnsurePermissionsExist(tx, permIDs); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := s.Repo.ReplaceRolePermissions(tx, role.ID, permIDs); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
@@ -172,6 +175,21 @@ func (s *RolePermissionService) UpdateRole(userID, id int64, req *models.RoleReq
 	changes := utils.InitChanges()
 	utils.CompareChanges(exRole.Name, role.Name, changes, "name")
 	utils.CompareChanges(utils.SafeString(exRole.Description), utils.SafeString(role.Description), changes, "description")
+
+	if !role.IsDefault {
+		prevPerms := make([]map[string]interface{}, 0, len(exRole.Permissions))
+		for _, p := range exRole.Permissions {
+			prevPerms = append(prevPerms, map[string]interface{}{"name": p.Name})
+		}
+		newPerms := make([]map[string]interface{}, 0, len(req.Permissions))
+		for _, p := range req.Permissions {
+			newPerms = append(newPerms, map[string]interface{}{"name": p.Name})
+		}
+
+		prevBytes, _ := json.Marshal(prevPerms)
+		newBytes, _ := json.Marshal(newPerms)
+		utils.CompareChanges(string(prevBytes), string(newBytes), changes, "permissions")
+	}
 
 	if !changes.IsEmpty() {
 		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{

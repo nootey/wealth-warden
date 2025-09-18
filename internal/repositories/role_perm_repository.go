@@ -123,6 +123,26 @@ func (r *RolePermissionRepository) AttachPermissionIDs(tx *gorm.DB, roleID int64
 	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error
 }
 
+func (r *RolePermissionRepository) ReplaceRolePermissions(tx *gorm.DB, roleID int64, permIDs []int64) error {
+	if len(permIDs) == 0 {
+		return fmt.Errorf("at least one permission is required")
+	}
+
+	// Remove permissions that are no longer present.
+	if err := tx.
+		Where("role_id = ? AND permission_id NOT IN ?", roleID, permIDs).
+		Delete(&models.RolePermission{}).Error; err != nil {
+		return err
+	}
+
+	// Add any missing permissions.
+	rows := make([]models.RolePermission, 0, len(permIDs))
+	for _, pid := range permIDs {
+		rows = append(rows, models.RolePermission{RoleID: roleID, PermissionID: pid})
+	}
+	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&rows).Error
+}
+
 func (r *RolePermissionRepository) UpdateRole(tx *gorm.DB, record models.Role) (int64, error) {
 	db := tx
 	if db == nil {
