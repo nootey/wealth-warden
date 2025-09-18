@@ -41,12 +41,17 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 
 		// User management
 		{"manage_users", "Manage users (global)", "users"},
+		{"delete_users", "Delete users (global)", "users"},
+
 		{"manage_roles", "Manage roles (global)", "users"},
+		{"delete_roles", "Delete non default roles (global)", "users"},
+
 		{"manage_subscriptions", "Manage subscription (global)", "users"},
 
 		// Data modules
 		// -> General data viewing
 		{"view_data", "View generic app data (global)", "data"},
+		{"manage_data", "Create, update and delete generic app data (global)", "data"},
 
 		// -> Logging module
 		{"view_activity_logs", "View activity logs (global)", "logs"},
@@ -73,8 +78,10 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 			Role: "admin",
 			Permissions: []string{
 				"manage_users",
+				"delete_users",
 				"manage_subscriptions",
 				"view_data",
+				"manage_data",
 				"view_activity_logs",
 				"delete_activity_logs",
 				"create_exports",
@@ -88,6 +95,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 			Permissions: []string{
 				"manage_subscriptions",
 				"view_data",
+				"manage_data",
 				"create_exports",
 				"create_reports",
 			},
