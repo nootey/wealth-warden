@@ -73,7 +73,6 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 			Role: "admin",
 			Permissions: []string{
 				"manage_users",
-				"manage_roles",
 				"manage_subscriptions",
 				"view_data",
 				"view_activity_logs",
@@ -89,7 +88,6 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 			Permissions: []string{
 				"manage_subscriptions",
 				"view_data",
-				"view_activity_logs",
 				"create_exports",
 				"create_reports",
 			},
