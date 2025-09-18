@@ -7,7 +7,6 @@ import type {Role, User} from "../../../models/user_models.ts";
 import {email, required, requiredIf} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import {useUserStore} from "../../../services/stores/user_store.ts";
-import toastHelper from "../../../utils/toast_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import ValidationError from "../validation/ValidationError.vue";
 import {usePermissions} from "../../../utils/use_permissions.ts";
