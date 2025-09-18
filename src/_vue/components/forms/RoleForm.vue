@@ -176,7 +176,7 @@ async function manageRecord() {
             <span class="text-sm" style="color: var(--text-secondary)">This role is a default. Permissions are not editable.</span>
         </div>
 
-        <div class="flex flex-row gap-2 w-full">
+        <div v-if="!record.is_default" class="flex flex-row gap-2 w-full">
             <div class="flex flex-column w-full">
                 <ValidationError :isRequired="true" :message="v$.selectedPermissions.$errors[0]?.$message">
                     <label>Permissions</label>

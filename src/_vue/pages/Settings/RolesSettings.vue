@@ -127,6 +127,16 @@ async function deleteRecord(id: number) {
                                 sortable>
                         </Column>
 
+                        <Column header="Permissions">
+                            <template #body="{ data }">
+                                <div class="flex flex-row align-items-center gap-2"
+                                     v-tooltip="'This role has ' + (data?.permissions?.length ?? 0) + ' permissions'">
+                                    <i class="pi pi-eye"></i>
+                                    <span>{{ data?.permissions?.length ?? 0 }}</span>
+                                </div>
+                            </template>
+                        </Column>
+
                         <Column header="Actions">
                             <template #body="{ data }">
                                 <div class="flex flex-row align-items-center gap-2">

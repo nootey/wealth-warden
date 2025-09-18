@@ -10,10 +10,10 @@ export const useUserStore = defineStore('user', {
         permissions: [] as Permission[],
     }),
     actions: {
-        async getRoles(withPerms: boolean = false) {
+        async getRoles(with_permissions: boolean = false) {
             try {
                 const response = await apiClient.get(`${this.apiPrefix}/roles`, {
-                    params: {withPerms}
+                    params: {with_permissions}
                 });
                 this.roles = response.data;
             } catch (err) {
