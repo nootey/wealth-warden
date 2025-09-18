@@ -492,13 +492,7 @@ func (s *AuthService) ResetPassword(form models.ResetPasswordForm, userAgent, ip
 		_ = tx.Rollback()
 		return err
 	}
-
-	userObj := models.User{
-		ID:       user.ID,
-		Password: hashedPass,
-	}
-
-	_, err = s.UserRepo.UpdateUser(tx, userObj)
+	err = s.UserRepo.UpdateUserPassword(tx, user.ID, hashedPass)
 	if err != nil {
 		_ = tx.Rollback()
 		return err

@@ -314,7 +314,6 @@ func (r *UserRepository) UpdateUser(tx *gorm.DB, record models.User) (int64, err
 	if err := db.Model(models.User{}).
 		Where("id = ?", record.ID).
 		Updates(map[string]interface{}{
-			"password":     record.Password,
 			"display_name": record.DisplayName,
 			"role_id":      record.RoleID,
 			"updated_at":   time.Now(),
@@ -322,6 +321,23 @@ func (r *UserRepository) UpdateUser(tx *gorm.DB, record models.User) (int64, err
 		return 0, err
 	}
 	return record.ID, nil
+}
+
+func (r *UserRepository) UpdateUserPassword(tx *gorm.DB, id int64, password string) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Model(models.User{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"password":   password,
+			"updated_at": time.Now(),
+		}).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *UserRepository) DeleteUser(tx *gorm.DB, id int64) error {

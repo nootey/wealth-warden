@@ -249,6 +249,12 @@ func (s *UserService) UpdateUser(userID, id int64, req *models.UserReq) error {
 		RoleID:      newRole.ID,
 	}
 
+	_, err = s.Repo.UpdateUser(tx, usr)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	if req.Password != nil {
 		if req.Password != req.PasswordConfirmation {
 			tx.Rollback()
@@ -261,13 +267,11 @@ func (s *UserService) UpdateUser(userID, id int64, req *models.UserReq) error {
 			return fmt.Errorf("failed to hash password: %w", err)
 		}
 
-		usr.Password = hashedPassword
-	}
-
-	_, err = s.Repo.UpdateUser(tx, usr)
-	if err != nil {
-		tx.Rollback()
-		return err
+		err = s.Repo.UpdateUserPassword(tx, exUsr.ID, hashedPassword)
+		if err != nil {
+			_ = tx.Rollback()
+			return err
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
