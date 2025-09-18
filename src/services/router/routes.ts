@@ -21,10 +21,10 @@ import RolesSettings from "../../_vue/pages/Settings/RolesSettings.vue";
 declare module 'vue-router' {
     interface RouteMeta {
         requiresAuth?: boolean;
-        requiresAdmin?: boolean;
-        requiresSuperAdmin?: boolean;
         guestOnly?: boolean;
         emailConfirmed?: boolean;
+        permsAny?: string[]   // allow if the user has ANY of these
+        permsAll?: string[]   // allow only if the user has ALL of these
     }
 }
 
@@ -80,13 +80,13 @@ const routes: RouteRecordRaw[] = [
     {
         path: '/users',
         name: 'users',
-        meta: { title: 'Users', requiresAuth: true, requiresAdmin: true },
+        meta: { title: 'Users', requiresAuth: true, permsAny: ['manage_users'] },
         component: UsersPage,
     },
     {
         path: '/logs',
         name: 'logs',
-        meta: { title: 'Audit', requiresAuth: true, requiresAdmin: true },
+        meta: { title: 'Audit', requiresAuth: true, permsAny: ['view_activity_logs'] },
         component: ActivityLogsPage,
     },
     {
@@ -95,12 +95,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Settings', requiresAuth: true },
         children: [
             { path: '', redirect: { name: 'settings.profile' } },
-            { path: 'general',     name: 'settings.general',     component: GeneralSettings,     meta: { title: 'General',     requiresAdmin: true } },
+            { path: 'general',     name: 'settings.general',     component: GeneralSettings,     meta: { title: 'General', permsAny: ['root_access']} },
             { path: 'profile',     name: 'settings.profile',     component: ProfileSettings,     meta: { title: 'Profile' } },
             { path: 'preferences', name: 'settings.preferences', component: PreferencesSettings, meta: { title: 'Preferences' } },
-            { path: 'accounts',    name: 'settings.accounts',    component: AccountsSettings,    meta: { title: 'Accounts' } },
-            { path: 'categories',  name: 'settings.categories',  component: CategoriesSettings,  meta: { title: 'Categories' } },
-            { path: 'roles',  name: 'settings.roles',  component: RolesSettings,  meta: { title: 'Roles' } },
+            { path: 'accounts',    name: 'settings.accounts',    component: AccountsSettings,    meta: { title: 'Accounts', permsAny: ['manage_data'] } },
+            { path: 'categories',  name: 'settings.categories',  component: CategoriesSettings,  meta: { title: 'Categories', permsAny: ['manage_data'] } },
+            { path: 'roles',  name: 'settings.roles',  component: RolesSettings,  meta: { title: 'Roles', permsAny: ['manage_roles'] } },
         ],
     },
     {

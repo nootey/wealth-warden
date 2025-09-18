@@ -9,10 +9,12 @@ import CategoriesDisplay from "../../components/data/CategoriesDisplay.vue";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import CategoryForm from "../../components/forms/CategoryForm.vue";
 import {useConfirm} from "primevue/useconfirm";
+import {usePermissions} from "../../../utils/use_permissions.ts";
 
 const transactionStore = useTransactionStore();
 const toastStore = useToastStore();
 const sharedStore = useSharedStore();
+const { hasPermission } = usePermissions();
 
 onMounted(async () => {
     await transactionStore.getCategories();
@@ -39,6 +41,12 @@ async function handleEmit(type: string, data?: any) {
             break;
         }
         case 'openCreate': {
+
+            if(!hasPermission("manage_data")) {
+                toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+                return;
+            }
+
             createModal.value = true;
             break;
         }
@@ -63,6 +71,12 @@ async function deleteConfirmation(id: number, name: string, deleted: Date | null
 }
 
 async function deleteRecord(id: number) {
+
+    if(!hasPermission("manage_data")) {
+        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+        return;
+    }
+
     try {
         let response = await sharedStore.deleteRecord(
             "transactions/categories",

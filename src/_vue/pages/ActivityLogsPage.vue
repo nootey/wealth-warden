@@ -17,10 +17,12 @@ import type {FilterObj} from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
 import {useSharedStore} from "../../services/stores/shared_store.ts";
 import CustomPaginator from "../components/base/CustomPaginator.vue";
+import {usePermissions} from "../../utils/use_permissions.ts";
 
 const toastStore = useToastStore();
 const loggingStore = useLoggingStore();
 const sharedStore = useSharedStore();
+const { hasPermission } = usePermissions();
 
 const loadingRecords = ref(true);
 const records = ref<ActivityLog[]>([]);
@@ -179,6 +181,12 @@ async function deleteConfirmation(id: number) {
 }
 
 async function deleteRecord(id: number) {
+
+    if(!hasPermission("delete_activity_logs")) {
+        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+        return;
+    }
+
     try {
         let response = await sharedStore.deleteRecord(
             apiPrefix,
@@ -247,8 +255,9 @@ provide("removeFilter", removeFilter);
 
                         <Column header="Actions">
                             <template #body="slotProps">
-                                <i class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                                <i v-if="hasPermission('delete_activity_logs')" class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                                    @click="deleteConfirmation(slotProps.data?.id)"></i>
+                                <i v-else class="pi pi-ban hover-icon" v-tooltip="'No action currently available.'"></i>
                             </template>
                         </Column>
 

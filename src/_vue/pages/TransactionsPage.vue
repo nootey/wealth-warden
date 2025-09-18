@@ -17,6 +17,7 @@ import type {Account} from "../../models/account_models.ts";
 import TransfersPaginated from "../components/data/TransfersPaginated.vue";
 import TransactionsPaginated from "../components/data/TransactionsPaginated.vue";
 import {useRouter} from "vue-router";
+import {usePermissions} from "../../utils/use_permissions.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -30,6 +31,8 @@ onMounted(async () => {
 
 const confirm = useConfirm();
 const router = useRouter();
+const { hasPermission } = usePermissions();
+
 const apiPrefix = "transactions";
 
 const trRef = ref<InstanceType<typeof TransfersPaginated> | null>(null);
@@ -75,13 +78,21 @@ async function loadTransactionsPage({ page, rows, sort: s, filters: f, include_d
 function manipulateDialog(modal: string, value: any) {
   switch (modal) {
     case 'addTransaction': {
-      createModal.value = value;
-      break;
+        if(!hasPermission("manage_data")) {
+            toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+            return;
+        }
+        createModal.value = value;
+        break;
     }
     case 'updateTransaction': {
-      updateModal.value = true;
-      updateTransactionID.value = value;
-      break;
+        if(!hasPermission("manage_data")) {
+            toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+            return;
+        }
+        updateModal.value = true;
+        updateTransactionID.value = value;
+        break;
     }
     default: {
       break;
@@ -167,7 +178,13 @@ async function deleteConfirmation(id: number, tx_type: string) {
 }
 
 async function deleteRecord(id: number, tx_type: string) {
-  try {
+
+    if(!hasPermission("manage_data")) {
+        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+        return;
+    }
+
+    try {
     let response = await sharedStore.deleteRecord(
         tx_type === "transfer" ? "transactions/transfers" : "transactions",
         id,
@@ -219,7 +236,7 @@ provide("removeFilter", removeFilter);
 
         <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
           <div style="font-weight: bold;">Transactions</div>
-          <i class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/categories')" v-tooltip="'Go to categories settings.'"></i>
+          <i v-if="hasPermission('manage_data')" class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/categories')" v-tooltip="'Go to categories settings.'"></i>
           <Button label="New transaction" icon="pi pi-plus" class="main-button" @click="manipulateDialog('addTransaction', true)"></Button>
       </div>
 

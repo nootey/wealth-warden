@@ -10,10 +10,12 @@ import {useConfirm} from "primevue/useconfirm";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import type {Invitation} from "../../../models/user_models.ts";
 import {useUserStore} from "../../../services/stores/user_store.ts";
+import {usePermissions} from "../../../utils/use_permissions.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const userStore = useUserStore();
+const { hasPermission } = usePermissions();
 
 const confirm = useConfirm();
 
@@ -99,6 +101,12 @@ async function resendConfirmation(id: number) {
 }
 
 async function deleteRecord(id: number) {
+
+    if(!hasPermission("delete_users")) {
+        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+        return;
+    }
+
     try {
         let response = await sharedStore.deleteRecord(
             apiPrefix,
@@ -165,7 +173,7 @@ defineExpose({ refresh });
                         <div class="flex flex-row gap-2 align-items-center">
                             <i class="pi pi-refresh hover-icon text-sm" v-tooltip="'Resend email'"
                                @click="resendConfirmation(data?.id)"></i>
-                            <i class="pi pi-trash hover-icon text-sm" v-tooltip="'Delete invitation'" style="color: var(--p-red-300);"
+                            <i v-if="hasPermission('delete_users')" class="pi pi-trash hover-icon text-sm" v-tooltip="'Delete invitation'" style="color: var(--p-red-300);"
                                @click="deleteConfirmation(data?.id)"></i>
                         </div>
                     </template>

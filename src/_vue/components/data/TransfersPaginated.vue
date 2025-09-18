@@ -10,9 +10,11 @@ import type {Transfer} from "../../../models/transaction_models.ts";
 import type {Column} from "../../../services/filter_registry.ts";
 import {useConfirm} from "primevue/useconfirm";
 import CustomPaginator from "../base/CustomPaginator.vue";
+import {usePermissions} from "../../../utils/use_permissions.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
+const { hasPermission } = usePermissions();
 
 const confirm = useConfirm();
 
@@ -90,6 +92,12 @@ async function deleteConfirmation(id: number) {
 }
 
 async function deleteRecord(id: number) {
+
+    if(!hasPermission("manage_data")) {
+        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+        return;
+    }
+
     try {
         let response = await sharedStore.deleteRecord(
             apiPrefix,
@@ -150,7 +158,7 @@ defineExpose({ refresh });
 
                 <Column header="Actions">
                     <template #body="{ data }">
-                        <i v-if="canDelete(data)"
+                        <i v-if="hasPermission('manage_data') && canDelete(data)"
                            class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                            @click="deleteConfirmation(data?.id)"></i>
                         <i v-else class="pi pi-exclamation-circle" style="font-size: 0.875rem;"

@@ -3,13 +3,23 @@ import AccountsPanel from '../features/AccountsPanel.vue';
 import AccountForm from "../components/forms/AccountForm.vue";
 import {ref} from "vue";
 import {useRouter} from "vue-router";
+import {usePermissions} from "../../utils/use_permissions.ts";
+import {useToastStore} from "../../services/stores/toast_store.ts";
 
 const createModal = ref(false);
 const router = useRouter();
+const { hasPermission } = usePermissions();
+const toastStore = useToastStore();
 
 const accountsPanelRef = ref<InstanceType<typeof AccountsPanel> | null>(null);
 
 function openCreate() {
+
+    if(!hasPermission("manage_data")) {
+        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+        return;
+    }
+
     createModal.value = true;
 }
 
@@ -34,7 +44,7 @@ async function handleCreate() {
             
             <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
                 <div class="font-bold">Accounts</div>
-                <i class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/accounts')" v-tooltip="'Go to accounts settings.'"></i>
+                <i v-if="hasPermission('manage_data')" class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/accounts')" v-tooltip="'Go to accounts settings.'"></i>
                 <Button class="main-button" label="New Account" icon="pi pi-plus" @click="openCreate"/>
             </div>
 

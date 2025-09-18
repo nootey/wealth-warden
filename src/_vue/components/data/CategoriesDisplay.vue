@@ -6,6 +6,7 @@ import LoadingSpinner from "../base/LoadingSpinner.vue";
 import {computed, ref} from "vue";
 import type {Column} from "../../../services/filter_registry.ts";
 import CategoryForm from "../forms/CategoryForm.vue";
+import {usePermissions} from "../../../utils/use_permissions.ts";
 
 const props = defineProps<{
     categories: Category[];
@@ -15,6 +16,8 @@ const emit = defineEmits<{
     (e: "completeOperation"): void;
     (e: "deleteCategory", id: number, name: string, deleted_at: Date | null): void;
 }>();
+
+const { hasPermission } = usePermissions();
 
 const localCategories = computed(() => {
     return props.categories.filter(
@@ -107,11 +110,12 @@ function showDeleteButton(data: Category) {
         <Column header="Actions">
             <template #body="{ data }">
                 <div class="flex flex-row align-items-center gap-2">
-                    <i class="pi pi-pen-to-square hover-icon text-xs" v-tooltip="'Edit category'"
+                    <i v-if="hasPermission('manage_data')" class="pi pi-pen-to-square hover-icon text-xs" v-tooltip="'Edit category'"
                        @click="openModal('update', data.id!)"/>
-                    <i v-if="showDeleteButton(data)" class="pi pi-trash hover-icon text-xs" v-tooltip="'Delete category'"
+                    <i v-if="hasPermission('manage_data') && showDeleteButton(data)" class="pi pi-trash hover-icon text-xs" v-tooltip="'Delete category'"
                        style="color: var(--p-red-300);"
                        @click="handleEmit('deleteCategory', data)"></i>
+                    <i v-if="!hasPermission('manage_data')" class="pi pi-ban hover-icon" v-tooltip="'No action currently available.'"></i>
                 </div>
             </template>
         </Column>

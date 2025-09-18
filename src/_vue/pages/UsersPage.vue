@@ -18,10 +18,12 @@ import CustomPaginator from "../components/base/CustomPaginator.vue";
 import UserForm from "../components/forms/UserForm.vue";
 import InvitationsPaginated from "../components/data/InvitationsPaginated.vue";
 import {useRouter} from "vue-router";
+import {usePermissions} from "../../utils/use_permissions.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const userStore = useUserStore();
+const { hasPermission } = usePermissions();
 
 onMounted(async () => {
     await userStore.getRoles();
@@ -203,6 +205,12 @@ async function deleteConfirmation(id: number) {
 }
 
 async function deleteRecord(id: number) {
+
+    if(!hasPermission("delete_users")) {
+        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+        return;
+    }
+
     try {
         let response = await sharedStore.deleteRecord(
             apiPrefix,
@@ -255,7 +263,7 @@ provide("removeFilter", removeFilter);
 
             <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
                 <div style="font-weight: bold;">Users</div>
-                <i class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/roles')" v-tooltip="'Go to roles settings.'"></i>
+                <i v-if="hasPermission('manage_roles')" class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/roles')" v-tooltip="'Go to roles settings.'"></i>
                 <Button label="New user" icon="pi pi-plus" class="main-button"
                         @click="manipulateDialog('inviteUser', true)"></Button>
             </div>
@@ -313,8 +321,9 @@ provide("removeFilter", removeFilter);
 
                         <Column header="Actions">
                             <template #body="slotProps">
-                                <i class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                                <i v-if="hasPermission('delete_users')" class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                                    @click="deleteConfirmation(slotProps.data?.id)"></i>
+                                <i v-else class="pi pi-ban hover-icon" v-tooltip="'No action currently available.'"></i>
                             </template>
                         </Column>
                     </DataTable>

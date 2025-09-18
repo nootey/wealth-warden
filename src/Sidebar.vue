@@ -4,10 +4,12 @@ import {useAuthStore} from './services/stores/auth_store.ts';
 import {storeToRefs} from "pinia";
 import {computed, ref} from 'vue';
 import {useRouter} from "vue-router";
+import {usePermissions} from "./utils/use_permissions.ts";
 
 const themeStore = useThemeStore();
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
+const { hasPermission } = usePermissions();
 
 const router = useRouter();
 
@@ -15,19 +17,19 @@ interface MenuItem {
   to: string;
   icon: string;
   text: string;
-  roleBlock?: boolean;
+  block?: boolean;
 }
 
 const menuItems: MenuItem[] = [
   {to: "/", icon: "pi-home", text: "Home"},
   {to: "/accounts", icon: "pi-hashtag", text: "Accounts"},
   {to: "/transactions", icon: "pi-credit-card", text: "Transactions"},
-  {to: "/users", icon: "pi-users", text: "Users", roleBlock: !authStore.isAdmin},
-  {to: "/logs", icon: "pi-address-book", text: "Logging", roleBlock: !authStore.isAdmin},
+  {to: "/users", icon: "pi-users", text: "Users", block: !hasPermission('manage_users')},
+  {to: "/logs", icon: "pi-address-book", text: "Logging", block: !hasPermission('view_activity_logs')},
 ];
 
 const visibleMenuItems = computed(() =>
-    menuItems.filter(item => !item.roleBlock)
+    menuItems.filter(item => !item.block)
 );
 
 const profileMenuRef = ref<any>(null);

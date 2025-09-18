@@ -10,6 +10,7 @@ import {useUserStore} from "../../../services/stores/user_store.ts";
 import toastHelper from "../../../utils/toast_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import ValidationError from "../validation/ValidationError.vue";
+import {usePermissions} from "../../../utils/use_permissions.ts";
 
 const props = defineProps<{
     mode?: "create" | "update";
@@ -23,6 +24,7 @@ const emit = defineEmits<{
 const sharedStore = useSharedStore();
 const userStore = useUserStore();
 const toastStore = useToastStore();
+const { hasPermission } = usePermissions();
 
 onMounted(async () => {
     if (props.mode === "update" && props.recordId) {
@@ -108,10 +110,16 @@ async function isRecordValid() {
 
 async function manageRecord() {
 
-    if (readOnly.value) {
-        toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
+    if(!hasPermission("manage_users")) {
+        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
         return;
     }
+
+    if (readOnly.value) {
+        toastStore.createInfoToast("Not allowed", "This record is read only!");
+        return;
+    }
+
     if (!await isRecordValid()) return;
 
     loading.value = true;

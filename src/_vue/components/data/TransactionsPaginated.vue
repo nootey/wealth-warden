@@ -9,6 +9,7 @@ import type {Column} from "../../../services/filter_registry.ts";
 import {computed, onMounted, ref, watch} from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
 import type { SortObj } from "../../../models/shared_models.ts";
+import {usePermissions} from "../../../utils/use_permissions.ts";
 
 const props = defineProps<{
     columns: Column[];
@@ -32,6 +33,8 @@ const emits = defineEmits<{
     (e: "rowClick", id: number): void;
     (e: "deleteClick", payload: { id: number; tx_type: string }): void;
 }>();
+
+const { hasPermission } = usePermissions();
 
 const rowsOptions = computed(() => props.rows ?? [25, 50, 100]);
 const pageLocal = ref(1);
@@ -140,7 +143,7 @@ defineExpose({ refresh });
         <Column v-if="!readOnly" header="Actions">
             <template #body="{ data }">
                 <div class="flex flex-row align-items-center gap-2">
-                    <i v-if="!data.deleted_at && (!data.account.deleted_at && data.account.is_active)"
+                    <i v-if="hasPermission('manage_data') && !data.deleted_at && (!data.account.deleted_at && data.account.is_active)"
                        class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                        @click="$emit('deleteClick', { id: data.id, tx_type: data.transaction_type })"></i>
                     <i v-else class="pi pi-exclamation-circle" style="font-size: 0.875rem;" v-tooltip="'This transaction is in read only state!'"></i>

@@ -41,6 +41,7 @@ export const useToastStore = defineStore('toast', () => {
             });
         }
     };
+
     const infoResponseToast = (response: any) => {
         const data = response?.data || response;
         if (data?.title || data?.message) {
@@ -53,10 +54,22 @@ export const useToastStore = defineStore('toast', () => {
         }
     };
 
+    const createInfoToast = (title: string, msg: string) => {
+        if (title && msg) {
+            toast.add({
+                severity: 'info',
+                summary: title,
+                detail: msg,
+                life: 3000,
+            });
+        }
+    };
+
     return {
         errorResponseToast,
         successResponseToast,
-        infoResponseToast
+        infoResponseToast,
+        createInfoToast,
     };
     
 });

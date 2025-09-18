@@ -7,10 +7,12 @@ import {useToastStore} from "../../../services/stores/toast_store.ts";
 import type {Account} from "../../../models/account_models.ts";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {ref} from "vue";
+import {usePermissions} from "../../../utils/use_permissions.ts";
 
 const accountStore = useAccountStore();
 const toastStore = useToastStore();
 const sharedStore = useSharedStore();
+const { hasPermission } = usePermissions();
 
 const accRef = ref<InstanceType<typeof AccountsPanel> | null>(null);
 
@@ -31,6 +33,12 @@ async function toggleEnabled(acc: Account, nextValue: boolean): Promise<boolean>
 }
 
 async function closeAccount(id: number) {
+
+    if(!hasPermission("manage_data")) {
+        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+        return;
+    }
+
     try {
         let response = await sharedStore.deleteRecord(
             "accounts",

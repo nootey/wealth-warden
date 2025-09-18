@@ -10,6 +10,7 @@ import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
 import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
+import {usePermissions} from "../../../utils/use_permissions.ts";
 
 const props = defineProps<{
     mode?: "create" | "update";
@@ -25,6 +26,7 @@ const apiPrefix = "transactions/categories"
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
+const { hasPermission } = usePermissions();
 
 onMounted(async () => {
     if (props.mode === "update" && props.recordId) {
@@ -90,6 +92,11 @@ async function isRecordValid() {
 }
 
 async function manageRecord() {
+
+    if(!hasPermission("manage_data")) {
+        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+        return;
+    }
 
     if (readOnly.value) {
         toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))

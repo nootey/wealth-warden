@@ -11,6 +11,7 @@ import type { Account } from "../../models/account_models.ts";
 import AccountDetails from "../components/AccountDetails.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
 import {colorForAccountType} from "../../style/theme/accountColors.ts";
+import {usePermissions} from "../../utils/use_permissions.ts";
 
 const props = withDefaults(defineProps<{
     advanced?: boolean;
@@ -31,6 +32,7 @@ const emit = defineEmits<{
 const accountStore = useAccountStore();
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
+const { hasPermission } = usePermissions();
 
 const apiPrefix = "accounts";
 
@@ -131,6 +133,11 @@ const totals = computed(() => {
 function openModal(type: string, data: any) {
     switch (type) {
         case "update": {
+            if(!hasPermission("manage_data")) {
+                toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+                return;
+            }
+
             if (!props.allowEdit) return;
             updateModal.value = true;
             selectedID.value = data;
@@ -272,7 +279,7 @@ defineExpose({ refresh: getData });
                     </div>
 
                     <!-- Edit icon -->
-                    <i class="ml-3 pi pi-pen-to-square text-xs hover-icon edit-icon"
+                    <i v-if="hasPermission('manage_data')" class="ml-3 pi pi-pen-to-square text-xs hover-icon edit-icon"
                        style="color: var(--text-secondary)"
                        @click="openModal('update', account.id!)"
                        v-tooltip="'Edit account'" />
@@ -285,7 +292,7 @@ defineExpose({ refresh: getData });
                     </div>
 
                     <template v-if="advanced">
-                        <ToggleSwitch style="transform: scale(0.675)"
+                        <ToggleSwitch v-if="hasPermission('manage_data')" style="transform: scale(0.675)"
                                       v-model="account.is_active"
                                       @update:modelValue="(v) => onToggleEnabled(account, v)" />
                     </template>

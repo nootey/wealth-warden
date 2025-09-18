@@ -2,34 +2,33 @@
 import { computed } from 'vue';
 import {useRoute, RouterLink, useRouter} from 'vue-router';
 import vueHelper from "../../utils/vue_helper.ts";
-import {useAuthStore} from "../../services/stores/auth_store.ts";
+import {usePermissions} from "../../utils/use_permissions.ts";
 
 const router = useRouter();
 const route = useRoute();
-const authStore = useAuthStore();
+const { hasPermission } = usePermissions();
 
 type SettingsMenuItem = {
     name: string;
     label: string;
     icon?: string;
-    adminOnly?: boolean;
-    roleBlock?: boolean;
+    block?: boolean;
     separator?: boolean;
 };
 
 const items: SettingsMenuItem[] = [
-    { name: 'settings.general',     label: 'General',     icon: 'pi-cog' , roleBlock: !authStore.isAdmin },
+    { name: 'settings.general',     label: 'General',     icon: 'pi-cog' , block: !hasPermission("root_access") },
     { name: 'settings.profile',     label: 'Profile',     icon: 'pi-user' },
     { name: 'settings.preferences', label: 'Preferences', icon: 'pi-cog' },
-    { name: '', label: 'Transactions', separator: true },
-    { name: 'settings.accounts',    label: 'Accounts',    icon: 'pi-book' },
-    { name: 'settings.categories',  label: 'Categories',  icon: 'pi-box' },
-    { name: '', label: 'Roles', separator: true, roleBlock: !authStore.isSuperAdmin },
-    { name: 'settings.roles',    label: 'Roles',    icon: 'pi-unlock', roleBlock: !authStore.isSuperAdmin },
+    { name: '', label: 'Transactions', separator: true, block: !hasPermission("manage_data") },
+    { name: 'settings.accounts',    label: 'Accounts',    icon: 'pi-book', block: !hasPermission("manage_data") },
+    { name: 'settings.categories',  label: 'Categories',  icon: 'pi-box', block: !hasPermission("manage_data") },
+    { name: '', label: 'Roles', separator: true, block: !hasPermission("manage_roles") },
+    { name: 'settings.roles',    label: 'Roles',    icon: 'pi-unlock', block: !hasPermission("manage_roles") },
 ];
 
 const visibleItems = computed(() =>
-    items.filter(item => !item.roleBlock)
+    items.filter(item => !item.block)
 );
 
 const pageTitle = computed(() => {
