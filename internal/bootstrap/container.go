@@ -3,10 +3,12 @@ package bootstrap
 import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"time"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/mailer"
 )
@@ -23,6 +25,7 @@ type Container struct {
 	SettingsService    *services.SettingsService
 	ChartingService    *services.ChartingService
 	RoleService        *services.RolePermissionService
+	AuthzService       *authz.Service
 }
 
 func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Container, error) {
@@ -37,6 +40,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	// Can later be swapped to Redis/Kafka with zero change to service layer
 	jobQueue := jobs.NewJobQueue(1, 25)
 	jobDispatcher := &jobs.InMemoryDispatcher{Queue: jobQueue}
+	authzSvc := authz.NewService(db, 5*time.Minute)
 
 	// Initialize repositories
 	loggingRepo := repositories.NewLoggingRepository(db)
@@ -78,5 +82,6 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 		SettingsService:    settingsService,
 		ChartingService:    chartingService,
 		RoleService:        roleService,
+		AuthzService:       authzSvc,
 	}, nil
 }
