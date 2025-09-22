@@ -7,15 +7,16 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"strconv"
 	"time"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/constants"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+	"go.uber.org/zap"
 )
 
 var (
@@ -48,7 +49,7 @@ func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 			if err == nil {
 				userID, err := m.DecodeWebClientUserID(claims.UserID)
 				if err == nil {
-					c.Set("userID", userID)
+					c.Set("user_id", userID)
 					c.Next()
 					return
 				}
@@ -85,7 +86,7 @@ func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 		// if rotated:
 		//     m.issueRefreshCookie(c, userID, newRefreshToken)
 
-		c.Set("userID", userID)
+		c.Set("user_id", userID)
 		c.Next()
 	}
 }
