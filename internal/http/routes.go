@@ -1,12 +1,14 @@
 package http
 
 import (
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"wealth-warden/internal/bootstrap"
 	httpHandlers "wealth-warden/internal/http/handlers"
 	"wealth-warden/internal/http/v1"
+	"wealth-warden/internal/middleware"
 	"wealth-warden/pkg/validators"
+
+	"github.com/gin-gonic/gin"
 )
 
 type RouteInitializerHTTP struct {
@@ -47,40 +49,43 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 
 	//authRL := middleware.NewRateLimiter(5.0/60.0, 5) // 5 per minute, burst 3
 
-	// Protected routes
-	authGroup := _v1.Group("",
+	// Auth only routes
+	authenticated := _v1.Group("",
 		r.Container.AuthService.WebClientMiddleware.WebClientAuthentication(),
 	)
-	{
-		authRoutes := authGroup.Group("/auth")
-		v1.AuthRoutes(authRoutes, authHandler)
+	authRoutes := authenticated.Group("/auth")
+	v1.AuthRoutes(authRoutes, authHandler)
 
-		userRoutes := authGroup.Group("/users")
-		v1.UserRoutes(userRoutes, userHandler, roleHandler)
+	// Auth + Permission gated routes
+	protected := authenticated.Group("",
+		middleware.InjectPerms(r.Container.AuthzService),
+	)
 
-		loggingRoutes := authGroup.Group("/logs")
-		v1.LoggingRoutes(loggingRoutes, loggingHandler)
+	userRoutes := protected.Group("/users")
+	v1.UserRoutes(userRoutes, userHandler, roleHandler)
 
-		accountRoutes := authGroup.Group("/accounts")
-		v1.AccountRoutes(accountRoutes, accountHandler)
+	loggingRoutes := protected.Group("/logs")
+	v1.LoggingRoutes(loggingRoutes, loggingHandler)
 
-		transactionRoutes := authGroup.Group("/transactions")
-		v1.TransactionRoutes(transactionRoutes, transactionHandler)
+	accountRoutes := protected.Group("/accounts")
+	v1.AccountRoutes(accountRoutes, accountHandler)
 
-		settingsRoutes := authGroup.Group("/settings")
-		v1.SettingsRoutes(settingsRoutes, settingsHandler)
+	transactionRoutes := protected.Group("/transactions")
+	v1.TransactionRoutes(transactionRoutes, transactionHandler)
 
-		chartingRoutes := authGroup.Group("/charts")
-		v1.ChartingRoutes(chartingRoutes, chartingHandler)
-	}
+	settingsRoutes := protected.Group("/settings")
+	v1.SettingsRoutes(settingsRoutes, settingsHandler)
+
+	chartingRoutes := protected.Group("/charts")
+	v1.ChartingRoutes(chartingRoutes, chartingHandler)
 
 	// Public routes
-	publicGroup := _v1.Group("")
+	public := _v1.Group("")
 	{
-		publicAuthRoutes := publicGroup.Group("/auth")
+		publicAuthRoutes := public.Group("/auth")
 		v1.PublicAuthRoutes(publicAuthRoutes, authHandler)
 
-		publicUserRoutes := publicGroup.Group("/users")
+		publicUserRoutes := public.Group("/users")
 		v1.PublicUserRoutes(publicUserRoutes, userHandler)
 	}
 }
