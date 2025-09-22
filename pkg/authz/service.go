@@ -2,10 +2,14 @@ package authz
 
 import (
 	"context"
-	"gorm.io/gorm"
+	"errors"
 	"sync"
 	"time"
+
+	"gorm.io/gorm"
 )
+
+const CtxPermsKey = "perms"
 
 type Service struct {
 	DB        *gorm.DB
@@ -22,45 +26,52 @@ func NewService(db *gorm.DB, ttl time.Duration) *Service {
 	return &Service{DB: db, ttl: ttl, roleCache: make(map[int64]cachedPerms)}
 }
 
-func (s *Service) LoadPrincipal(ctx context.Context, userID int64) (*Principal, error) {
-	type row struct {
-		UserID   int64
-		RoleID   int64
-		RoleName string
+func (s *Service) PermsForUser(ctx context.Context, userID int64) (map[string]struct{}, error) {
+	// find role for the user
+	var row struct {
+		RoleID int64
 	}
-	var r row
 	if err := s.DB.WithContext(ctx).
-		Table("users u").
-		Select("u.id as user_id, r.id as role_id, r.name as role_name").
-		Joins("JOIN roles r ON r.id = u.role_id").
+		Table("users AS u").
+		Select("u.role_id AS role_id").
 		Where("u.id = ?", userID).
-		First(&r).Error; err != nil {
+		First(&row).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, gorm.ErrRecordNotFound
+		}
 		return nil, err
 	}
-	perms := s.getPermsForRole(ctx, r.RoleID)
-	return &Principal{UserID: r.UserID, RoleID: r.RoleID, RoleName: r.RoleName, Perms: perms}, nil
+	return s.permsForRole(ctx, row.RoleID)
 }
 
-func (s *Service) getPermsForRole(ctx context.Context, roleID int64) map[string]struct{} {
+func (s *Service) permsForRole(ctx context.Context, roleID int64) (map[string]struct{}, error) {
+	// serve from cache
 	s.mu.RLock()
-	e, ok := s.roleCache[roleID]
-	s.mu.RUnlock()
-	if ok && time.Since(e.by) < s.ttl {
-		return e.perms
+	if e, ok := s.roleCache[roleID]; ok && time.Since(e.by) < s.ttl {
+		s.mu.RUnlock()
+		return e.perms, nil
 	}
+	s.mu.RUnlock()
+
+	// load from DB
 	var names []string
-	_ = s.DB.WithContext(ctx).
-		Table("permissions p").
+	if err := s.DB.WithContext(ctx).
+		Table("permissions AS p").
 		Select("p.name").
 		Joins("JOIN role_permissions rp ON rp.permission_id = p.id").
 		Where("rp.role_id = ?", roleID).
-		Scan(&names)
+		Scan(&names).Error; err != nil {
+		return nil, err
+	}
+
 	set := make(map[string]struct{}, len(names))
 	for _, n := range names {
 		set[n] = struct{}{}
 	}
+
+	// cache
 	s.mu.Lock()
 	s.roleCache[roleID] = cachedPerms{perms: set, by: time.Now()}
 	s.mu.Unlock()
-	return set
+	return set, nil
 }

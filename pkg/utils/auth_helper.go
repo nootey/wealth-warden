@@ -6,14 +6,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 	"reflect"
 	"regexp"
 	"strings"
 	"unicode"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/config"
+
+	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func HashAndSaltPassword(password string) (string, error) {
@@ -52,7 +53,7 @@ func DetermineServiceSource(userAgent string) string {
 }
 
 func UserIDFromCtx(c *gin.Context) (int64, error) {
-	v, ok := c.Get("userID")
+	v, ok := c.Get("user_id")
 	if !ok {
 		return 0, errors.New("unauthenticated")
 	}
