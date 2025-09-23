@@ -1,0 +1,19 @@
+# Stage 1: Build the Vite app
+FROM node:20-alpine as build
+WORKDIR /app
+
+ARG API_BASE_URL
+ARG PRODUCTION_MODE
+
+ENV VITE_API_BASE_URL=$API_BASE_URL
+ENV VITE_APP_PRODUCTION_MODE=$PRODUCTION_MODE
+
+COPY . ./
+RUN --mount=type=cache,target=/root/.npm npm install
+RUN npm run build
+
+# Stage 2: Serve with Nginx
+FROM nginx:alpine
+
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/nginx.conf /etc/nginx/conf.d/default.conf

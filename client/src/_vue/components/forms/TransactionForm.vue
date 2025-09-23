@@ -1,0 +1,477 @@
+<script setup lang="ts">
+import {useSharedStore} from "../../../services/stores/shared_store.ts";
+import {useToastStore} from "../../../services/stores/toast_store.ts";
+import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
+import {computed, nextTick, onMounted, ref} from "vue";
+import type {Category, Transaction, Transfer} from "../../../models/transaction_models.ts";
+import {required} from "@vuelidate/validators";
+import {decimalValid, decimalMin, decimalMax} from "../../../validators/currency.ts";
+import useVuelidate from "@vuelidate/core";
+import ValidationError from "../validation/ValidationError.vue";
+import {useAccountStore} from "../../../services/stores/account_store.ts";
+import type {Account} from "../../../models/account_models.ts";
+import dayjs from "dayjs";
+import dateHelper from "../../../utils/date_helper.ts";
+import currencyHelper from "../../../utils/currency_helper.ts";
+import TransferForm from "./TransferForm.vue";
+import toastHelper from "../../../utils/toast_helper.ts";
+import ShowLoading from "../base/ShowLoading.vue";
+
+const props = defineProps<{
+  mode?: "create" | "update";
+  recordId?: number | null;
+}>();
+
+const emit = defineEmits<{
+    (event: 'completeTxOperation'): void;
+    (event: 'completeTrOperation'): void;
+}>();
+
+const sharedStore = useSharedStore();
+const toastStore = useToastStore();
+const transactionStore = useTransactionStore();
+const accountStore = useAccountStore();
+
+onMounted(async () => {
+    if (props.mode === "update" && props.recordId) {
+        await loadRecord(props.recordId);
+    }
+});
+
+const isGlobalReadOnly = computed(() =>
+    !!record.value.deleted_at || !!record.value.is_adjustment
+);
+
+const isAccountRestricted = computed<boolean>(() => {
+    const acc = record.value.account as Account | null | undefined;
+    return !!acc && typeof acc === 'object' && (!!acc.deleted_at || !acc.is_active);
+});
+
+const isFormReadOnly = computed<boolean>(() =>
+    isGlobalReadOnly.value || isAccountRestricted.value
+);
+
+const isAccountPickerDisabled = computed<boolean>(() =>
+    isGlobalReadOnly.value
+);
+
+const isTxnDeleted = computed(() => !!record.value.deleted_at);
+const isAccountDeleted = computed(() => !!record.value.account?.deleted_at);
+const isAccountActive = computed(() => !!record.value.account?.is_active);
+
+const canRestore = computed(() =>
+    isFormReadOnly.value && isTxnDeleted.value && !isAccountDeleted.value && isAccountActive.value
+);
+
+const showCantRestore = computed(() =>
+    isFormReadOnly.value && isTxnDeleted.value && !canRestore.value
+);
+
+const isTransferSelected = computed(() =>
+    (selectedParentCategory.value?.name ?? '').toLowerCase() === 'transfer'
+);
+
+const loading = ref(false);
+
+const accounts = computed<Account[]>(() => accountStore.accounts);
+const transfer = ref<Transfer>({
+    source_id: null,
+    destination_id: null,
+    amount: null,
+    notes: null,
+    deleted_at: null,
+    from: null,
+    to: null,
+});
+const transferFormRef = ref<InstanceType<typeof TransferForm> | null>(null);
+
+const record = ref<Transaction>(initData());
+const amountRef = computed({
+  get: () => record.value.amount,
+  set: v => record.value.amount = v
+});
+const { number: amountNumber } = currencyHelper.useMoneyField(amountRef, 2);
+
+const allCategories = computed<Category[]>(() => transactionStore.categories);
+const parentCategories = computed(() => {
+    const base = allCategories.value.filter(c =>
+        c.display_name === "Expense" || c.display_name === "Income"
+    );
+
+    if(props.mode === "update") {
+        return base
+    }
+
+    return [
+        ...base,
+        {
+            id: -1,
+            name: "transfer",
+            display_name: "Transfer",
+            classification: "Transfer",
+            parent_id: null
+        } as Category
+    ];
+});
+
+const selectedParentCategory = ref<Category | null>(
+    parentCategories.value.find(cat => cat.name === "expense") || null
+);
+
+const availableCategories = computed<Category[]>(() => {
+  return allCategories.value.filter(
+      (category) => category.parent_id === selectedParentCategory.value?.id
+  );
+});
+
+const filteredCategories = ref<Category[]>([]);
+const filteredAccounts = ref<Account[]>([]);
+
+const rules = {
+  record: {
+    category: {
+        name: {
+          $autoDirty: true
+        }
+    },
+    account: {
+      name: {
+        required,
+        $autoDirty: true
+      }
+    },
+    transaction_type: {
+        required,
+        $autoDirty: true
+    },
+    amount: {
+      required,
+      decimalValid,
+      decimalMin: decimalMin(0),
+      decimalMax: decimalMax(1_000_000_000),
+      $autoDirty: true
+    },
+    txn_date: {
+      required,
+      $autoDirty: true,
+    },
+    description: {
+      $autoDirty: true,
+    }
+  },
+};
+
+const v$ = useVuelidate(rules, { record });
+
+function initData(): Transaction {
+
+  return {
+    id: null,
+    account_id: null,
+    category_id: null,
+    category: {
+      id: null,
+      name: "",
+      display_name: "",
+      classification: "",
+      is_default: true,
+      parent_id: null,
+      deleted_at: null,
+    },
+    account: {
+      id: null,
+      name: "",
+      is_active: true,
+      deleted_at: null,
+      account_type: {
+        id: null,
+        name: "",
+        type: "",
+        sub_type: "",
+        classification: "",
+      },
+      balance: {
+        id: null,
+        as_of: null,
+        start_balance: null,
+        end_balance: null,
+      }
+    },
+    transaction_type: "Expense",
+    amount: null,
+    txn_date: dayjs().toDate(),
+    description: null,
+    deleted_at: null,
+    is_adjustment: false,
+  };
+}
+
+const todayUtcMidnight = computed(() => {
+    const now = new Date()
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+})
+
+function updateSelectedParentCategory($event: any) {
+    if ($event) {
+        selectedParentCategory.value = $event;
+        record.value.category = null;
+        filteredCategories.value = [];
+    }
+}
+
+const searchCategory = (event: { query: string }) => {
+    setTimeout(() => {
+        if (!event.query.trim().length) {
+            filteredCategories.value = [...availableCategories.value];
+        } else {
+            filteredCategories.value = availableCategories.value.filter((record) => {
+                return record.name.toLowerCase().startsWith(event.query.toLowerCase());
+            });
+        }
+    }, 250);
+}
+
+const searchAccount = (event: { query: string }) => {
+    setTimeout(() => {
+        if (!event.query.trim().length) {
+            filteredAccounts.value = [...accounts.value];
+        } else {
+            filteredAccounts.value = accounts.value.filter((record) => {
+                return record.name.toLowerCase().startsWith(event.query.toLowerCase());
+            });
+        }
+    }, 250);
+}
+
+async function isRecordValid() {
+    const isValid = await v$.value.record.$validate();
+    if (!isValid) return false;
+    return true;
+}
+
+async function loadRecord(id: number) {
+  try {
+    loading.value = true;
+    const data = await transactionStore.getTransactionByID(id, true);
+
+    record.value = {
+      ...initData(),
+      ...data,
+      txn_date: data.txn_date ? dayjs(data.txn_date).toDate() : dayjs().toDate(),
+    };
+
+    selectedParentCategory.value =
+        parentCategories.value.find(
+            p =>
+                (p.classification?.toLowerCase?.() === String(data.transaction_type).toLowerCase()) ||
+                (p.name?.toLowerCase?.() === String(data.transaction_type).toLowerCase())
+        ) || null;
+
+    await nextTick();
+    loading.value = false;
+
+  } catch (err) {
+    toastStore.errorResponseToast(err);
+  }
+}
+
+async function manageRecord() {
+
+    if (isFormReadOnly.value) {
+        toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
+        return;
+    }
+
+    if (selectedParentCategory.value == null) {
+    return;
+    }
+    
+    if (selectedParentCategory.value.name.toLowerCase() == "transfer") {
+        await startTransferOperation();
+    } else {
+        if (!await isRecordValid()) return;
+        await startTransactionOperation();
+    }
+
+}
+
+async function startTransactionOperation() {
+    const txn_date = dateHelper.mergeDateWithCurrentTime(dayjs(record.value.txn_date).format('YYYY-MM-DD'))
+    const recordData = {
+        account_id: record.value.account.id,
+        category_id: record.value.category?.id,
+        transaction_type: selectedParentCategory.value?.classification,
+        amount: record.value.amount,
+        txn_date: txn_date,
+        description: record.value.description,
+    }
+
+    try {
+
+        let response = null;
+
+        switch (props.mode) {
+            case "create":
+                response = await sharedStore.createRecord(
+                    transactionStore.apiPrefix,
+                    recordData
+                );
+                break;
+            case "update":
+                response = await sharedStore.updateRecord(
+                    transactionStore.apiPrefix,
+                    record.value.id!,
+                    recordData
+                );
+                break;
+            default:
+                emit("completeTxOperation")
+                break;
+        }
+
+        // record.value = initData();
+        v$.value.record.$reset();
+        toastStore.successResponseToast(response);
+        emit("completeTxOperation")
+
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
+}
+
+async function startTransferOperation() {
+    const isValid = await transferFormRef.value?.v$.$validate();
+    if (!isValid) return;
+
+    try {
+        const response = await transactionStore.startTransfer(transfer.value);
+        toastStore.successResponseToast(response);
+        v$.value.record.$reset();
+        emit("completeTrOperation");
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
+}
+
+async function restoreTransaction() {
+
+    try {
+
+        let response = await transactionStore.restoreTransaction(
+            props.recordId!
+        );
+
+        v$.value.record.$reset();
+        toastStore.successResponseToast(response);
+        emit("completeTxOperation")
+
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
+}
+
+</script>
+
+<template>
+
+  <div v-if="!loading" class="flex flex-column gap-3 p-1">
+
+      <div v-if="!isFormReadOnly" class="flex flex-row w-full justify-content-center">
+          <div class="flex flex-column w-50">
+                <SelectButton style="font-size: 0.875rem;" size="small"
+                              v-model="selectedParentCategory"
+                              :options="parentCategories" optionLabel="display_name" :allowEmpty="false"
+                              @update:modelValue="updateSelectedParentCategory($event)" />
+          </div>
+      </div>
+      <div v-else>
+          <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
+      </div>
+
+      <div class="flex flex-column gap-3" v-if="isTransferSelected && !isFormReadOnly">
+          <TransferForm ref="transferFormRef" v-model:transfer="transfer" :accounts="accounts" />
+      </div>
+
+      <div class="flex flex-column gap-3" v-else>
+
+          <div class="flex flex-row w-full">
+              <div class="flex flex-column gap-1 w-full">
+                  <ValidationError :isRequired="true" :message="v$.record.account.name.$errors[0]?.$message">
+                      <label>Account</label>
+                  </ValidationError>
+                  <AutoComplete :readonly="isAccountPickerDisabled || isFormReadOnly" :disabled="isAccountPickerDisabled || isFormReadOnly" size="small"
+                                v-model="record.account" :suggestions="filteredAccounts"
+                                @complete="searchAccount" optionLabel="name" forceSelection
+                                placeholder="Select account" dropdown>
+                  </AutoComplete>
+              </div>
+          </div>
+
+          <div class="flex flex-row w-full">
+              <div class="flex flex-column gap-1 w-full">
+                  <ValidationError :isRequired="true" :message="v$.record.amount.$errors[0]?.$message">
+                      <label>Amount</label>
+                  </ValidationError>
+                  <InputNumber :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
+              </div>
+          </div>
+
+          <div class="flex flex-row w-full">
+              <div class="flex flex-column gap-1 w-full">
+                  <ValidationError :isRequired="false" :message="v$.record.category.name.$errors[0]?.$message">
+                      <label>Category</label>
+                  </ValidationError>
+                  <AutoComplete :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small" v-model="record.category" :suggestions="filteredCategories"
+                                @complete="searchCategory" optionLabel="display_name"
+                                placeholder="Select category" dropdown>
+                  </AutoComplete>
+              </div>
+          </div>
+
+          <div class="flex flex-row w-full">
+              <div class="flex flex-column gap-1 w-full">
+                  <ValidationError :isRequired="true" :message="v$.record.txn_date.$errors[0]?.$message">
+                      <label>Date</label>
+                  </ValidationError>
+                  <DatePicker v-model="record.txn_date" date-format="dd/mm/yy"
+                              showIcon fluid iconDisplay="input" size="small"
+                               :readonly="isFormReadOnly" :disabled="isFormReadOnly"
+                              :maxDate="todayUtcMidnight"
+                  />
+              </div>
+          </div>
+
+          <div class="flex flex-row w-full">
+              <div class="flex flex-column gap-1 w-full">
+                  <ValidationError :isRequired="false" :message="v$.record.description.$errors[0]?.$message">
+                      <label>Description</label>
+                  </ValidationError>
+                  <InputText :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small" v-model="record.description" placeholder="Describe transaction"></InputText>
+              </div>
+          </div>
+
+      </div>
+
+      <div v-if="!record.is_adjustment" class="flex flex-row gap-2 w-full" >
+          <div class="flex flex-column w-full">
+              <Button v-if="!isFormReadOnly" class="main-button"
+                      :label="(selectedParentCategory?.name.toLowerCase() == 'transfer' ? 'Start transfer' :
+                      (mode == 'create' ? 'Add' : 'Update') +  ' transaction')"
+                      @click="manageRecord" style="height: 42px;" />
+              <Button v-else-if="canRestore" class="main-button"
+                      label="Restore"
+                      @click="restoreTransaction" style="height: 42px;" />
+              <h5 v-else-if="showCantRestore" style="color: var(--text-secondary)">Transaction can not be restored!</h5>
+          </div>
+      </div>
+
+
+
+  </div>
+  <ShowLoading v-else :numFields="7" />
+
+</template>
+
+<style scoped>
+
+</style>

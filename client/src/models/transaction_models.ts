@@ -1,0 +1,35 @@
+import type {Account} from "./account_models.ts";
+
+export interface Transaction {
+    id: number | null;
+    account_id: number | null;
+    category_id: number | null;
+    category: Category | null;
+    transaction_type: string;
+    amount: string | null;
+    txn_date: Date | null;
+    description: string | null;
+    account: Account;
+    deleted_at: Date | null;
+    is_adjustment: Boolean;
+}
+
+export interface Transfer {
+    source_id: number | null;
+    destination_id: number | null;
+    amount: string | null;
+    notes: string | null;
+    deleted_at: Date | null;
+    from: Transaction | null;
+    to: Transaction | null;
+}
+
+export interface Category {
+    id: number | null;
+    name: string;
+    display_name: string;
+    classification: string;
+    parent_id: number | null;
+    is_default: boolean;
+    deleted_at: Date | null;
+}
