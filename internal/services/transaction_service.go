@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/shopspring/decimal"
 	"strings"
 	"time"
 	"wealth-warden/internal/jobs"
@@ -12,6 +11,8 @@ import (
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
+
+	"github.com/shopspring/decimal"
 )
 
 type TransactionService struct {
@@ -154,6 +155,17 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
+	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	if err != nil {
+		return fmt.Errorf("can't fetch user settings %w", err)
+	}
+
+	// pick the user's timezone from settings; fall back to UTC
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
 	// block transactions before opening date
 	openAsOf, err := s.AccountService.Repo.GetAccountOpeningAsOf(tx, account.ID)
 	if err != nil {
@@ -164,21 +176,26 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 		return err
 	}
 
-	txnDay := req.TxnDate.UTC().Truncate(24 * time.Hour)
-	if txnDay.Before(openAsOf) {
+	txnInstant := req.TxnDate.UTC() // store normalized as UTC
+
+	// Use local dates for comparisons
+	txnLocalDay := txnInstant.In(loc).Truncate(24 * time.Hour)
+	openAsOfLocal := openAsOf.In(loc).Truncate(24 * time.Hour)
+	todayLocal := time.Now().In(loc).Truncate(24 * time.Hour)
+
+	if txnLocalDay.Before(openAsOfLocal) {
 		tx.Rollback()
 		return fmt.Errorf(
 			"transaction date (%s) cannot be before account opening date (%s)",
-			txnDay.Format("2006-01-02"), openAsOf.Format("2006-01-02"),
+			txnLocalDay.Format("2006-01-02"), openAsOfLocal.Format("2006-01-02"),
 		)
 	}
 
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	if txnDay.After(today) {
+	if txnLocalDay.After(todayLocal) {
 		tx.Rollback()
 		return fmt.Errorf(
 			"transaction date (%s) cannot be in the future (>%s)",
-			txnDay.Format("2006-01-02"), today.Format("2006-01-02"),
+			txnLocalDay.Format("2006-01-02"), todayLocal.Format("2006-01-02"),
 		)
 	}
 
@@ -202,7 +219,7 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 		TransactionType: strings.ToLower(req.TransactionType),
 		Amount:          req.Amount,
 		Currency:        models.DefaultCurrency,
-		TxnDate:         txnDay,
+		TxnDate:         txnInstant,
 		Description:     req.Description,
 	}
 
@@ -498,8 +515,17 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		}
 	}
 
-	// normalize edited date and block before opening
-	txnDay := req.TxnDate.UTC().Truncate(24 * time.Hour)
+	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	if err != nil {
+		return fmt.Errorf("can't fetch user settings %w", err)
+	}
+
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	// Block before opening
 	openAsOf, err := s.AccountService.Repo.GetAccountOpeningAsOf(tx, newAccount.ID)
 	if err != nil {
 		tx.Rollback()
@@ -508,20 +534,26 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		}
 		return err
 	}
-	if txnDay.Before(openAsOf) {
+
+	txnInstant := req.TxnDate.UTC()
+	oldLocalDay := exTr.TxnDate.In(loc).Truncate(24 * time.Hour)
+	newLocalDay := txnInstant.In(loc).Truncate(24 * time.Hour)
+	openAsOfLocal := openAsOf.In(loc).Truncate(24 * time.Hour)
+	todayLocal := time.Now().In(loc).Truncate(24 * time.Hour)
+
+	if newLocalDay.Before(openAsOfLocal) {
 		tx.Rollback()
 		return fmt.Errorf(
 			"transaction date (%s) cannot be before account opening date (%s)",
-			txnDay.Format("2006-01-02"), openAsOf.Format("2006-01-02"),
+			newLocalDay.Format("2006-01-02"), openAsOfLocal.Format("2006-01-02"),
 		)
 	}
 
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	if txnDay.After(today) {
+	if newLocalDay.After(todayLocal) {
 		tx.Rollback()
 		return fmt.Errorf(
 			"transaction date (%s) cannot be in the future (>%s)",
-			txnDay.Format("2006-01-02"), today.Format("2006-01-02"),
+			newLocalDay.Format("2006-01-02"), todayLocal.Format("2006-01-02"),
 		)
 	}
 
@@ -534,7 +566,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		TransactionType: strings.ToLower(req.TransactionType),
 		Amount:          req.Amount,
 		Currency:        exTr.Currency,
-		TxnDate:         txnDay,
+		TxnDate:         txnInstant,
 		Description:     req.Description,
 	}
 	_, err = s.Repo.UpdateTransaction(tx, tr)
@@ -567,7 +599,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 	newEffect := signed(tr.TransactionType, tr.Amount)
 
 	// handle account change OR date change explicitly
-	dateChanged := !exTr.TxnDate.UTC().Truncate(24 * time.Hour).Equal(txnDay)
+	dateChanged := !exTr.TxnDate.UTC().Truncate(24 * time.Hour).Equal(newLocalDay)
 
 	switch {
 	case oldAccount.ID != newAccount.ID || dateChanged:
@@ -583,7 +615,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		// Apply the new posting on the new day & account
 		if !newEffect.IsZero() {
 			if err := s.AccountService.UpdateAccountCashBalance(
-				tx, &newAccount, txnDay, dirFor(newEffect), newEffect.Abs(),
+				tx, &newAccount, txnInstant, dirFor(newEffect), newEffect.Abs(),
 			); err != nil {
 				tx.Rollback()
 				return err
@@ -591,11 +623,11 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		}
 
 	default:
-		// Same account AND same day -> net delta is safe
+		// Same account & same local day → post only the net delta once
 		delta := newEffect.Sub(oldEffect)
 		if !delta.IsZero() {
 			if err := s.AccountService.UpdateAccountCashBalance(
-				tx, &newAccount, txnDay, dirFor(delta), delta.Abs(),
+				tx, &newAccount, txnInstant, dirFor(delta), delta.Abs(),
 			); err != nil {
 				tx.Rollback()
 				return err
