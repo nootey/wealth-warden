@@ -451,7 +451,7 @@ func (r *AccountRepository) UpsertSnapshotsFromBalances(
 		LEFT JOIN LATERAL (
 			SELECT b.end_balance
 			FROM balances b
-			WHERE b.account_id = ? AND b.as_of <= d.day
+			WHERE b.account_id = ? AND b.as_of::date <= d.day
 			ORDER BY b.as_of DESC
 			LIMIT 1
 		) lb ON TRUE
