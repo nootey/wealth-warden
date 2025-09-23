@@ -2,13 +2,14 @@ package workers
 
 import (
 	"context"
-	"github.com/shopspring/decimal"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
 	"math/rand"
 	"strings"
 	"time"
 	"wealth-warden/internal/models"
+
+	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
@@ -90,7 +91,7 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 				Name:          s.Name,
 				AccountTypeID: at.ID,
 				Currency:      strings.ToUpper(s.Currency),
-				CreatedAt:     asOf,
+				OpenedAt:      asOf,
 				UpdatedAt:     asOf,
 			}
 			if err := db.WithContext(ctx).Create(&acc).Error; err != nil {

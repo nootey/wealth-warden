@@ -3,8 +3,6 @@ package services
 import (
 	"errors"
 	"fmt"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +11,9 @@ import (
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
+
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 type AccountService struct {
@@ -539,7 +540,7 @@ func (s *AccountService) CloseAccount(userID int64, id int64) error {
 		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
 			LoggingRepo: s.Ctx.LoggingService.Repo,
 			Logger:      s.Ctx.Logger,
-			Event:       "delete",
+			Event:       "close",
 			Category:    "account",
 			Description: nil,
 			Payload:     changes,

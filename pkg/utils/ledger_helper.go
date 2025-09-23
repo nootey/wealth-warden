@@ -3,10 +3,11 @@ package utils
 import (
 	"database/sql"
 	"fmt"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 	"time"
 	"wealth-warden/internal/models"
+
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 func GetEndBalanceAsOf(tx *gorm.DB, accountID int64, t time.Time) (decimal.Decimal, error) {
@@ -37,7 +38,7 @@ func GetEndBalanceAsOf(tx *gorm.DB, accountID int64, t time.Time) (decimal.Decim
 }
 
 func ValidateAccount(acc *models.Account, role string) error {
-	if acc.DeletedAt != nil {
+	if acc.ClosedAt != nil {
 		return fmt.Errorf("%s account (ID=%d) is closed and cannot be used", role, acc.ID)
 	}
 	if !acc.IsActive {

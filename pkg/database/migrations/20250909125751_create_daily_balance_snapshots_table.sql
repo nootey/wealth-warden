@@ -22,24 +22,30 @@ CREATE INDEX idx_ads_account_asof  ON account_daily_snapshots(account_id, as_of)
 -- Fast per-currency charts (common in multi-currency)
 CREATE INDEX idx_ads_user_ccy_asof ON account_daily_snapshots(user_id, currency, as_of);
 
--- Per-user daily net worth from snapshots (currency-separated)
-CREATE OR REPLACE VIEW v_user_daily_networth_snapshots AS
-SELECT
-    user_id,
-    as_of,
-    currency,
-    SUM(end_balance)::NUMERIC(19,4) AS end_balance
-FROM account_daily_snapshots
-GROUP BY user_id, as_of, currency;
-
 CREATE OR REPLACE VIEW v_user_account_daily_snapshots AS
 SELECT
-    user_id,
-    account_id,
-    as_of,
-    currency,
-    end_balance::NUMERIC(19,4) AS end_balance
-FROM account_daily_snapshots;
+    s.user_id,
+    s.account_id,
+    s.as_of,
+    s.currency,
+    s.end_balance::NUMERIC(19,4) AS end_balance
+FROM account_daily_snapshots s
+         JOIN accounts a
+              ON a.id = s.account_id
+WHERE
+    a.include_in_net_worth = TRUE
+    AND (a.opened_at IS NULL OR s.as_of::date >= a.opened_at::date)
+    AND (a.closed_at IS NULL OR s.as_of::date <= a.closed_at::date);
+
+-- Aggregate per-user net worth from the filtered per-account view
+CREATE OR REPLACE VIEW v_user_daily_networth_snapshots AS
+SELECT
+    s.user_id,
+    s.as_of,
+    s.currency,
+    SUM(s.end_balance)::NUMERIC(19,4) AS end_balance
+FROM v_user_account_daily_snapshots s
+GROUP BY s.user_id, s.as_of, s.currency;
 
 -- +goose StatementEnd
 
