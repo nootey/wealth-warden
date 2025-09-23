@@ -3,11 +3,12 @@ package repositories
 import (
 	"database/sql"
 	"fmt"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
+
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 type AccountRepository struct {
@@ -72,7 +73,7 @@ func (r *AccountRepository) FindAccounts(
 			lb.end_balance AS balance_end,
 			lb.currency    AS balance_currency
 		`).
-		Where("accounts.user_id = ? AND accounts.deleted_at IS NULL", userID)
+		Where("accounts.user_id = ? AND accounts.closed_at IS NULL", userID)
 
 	if classification != nil && *classification != "" {
 		q = q.Where("at.classification = ?", *classification)
@@ -143,7 +144,7 @@ func (r *AccountRepository) CountAccounts(userID int64, filters []utils.Filter, 
 
 	query := r.DB.Model(&models.Account{}).
 		Where("user_id = ?", userID).
-		Where("deleted_At is NULL")
+		Where("closed_at is NULL")
 
 	if classification != nil && *classification != "" {
 		query = query.Joins("JOIN account_types at ON at.id = accounts.account_type_id").
@@ -177,7 +178,7 @@ func (r *AccountRepository) FindAllAccounts(tx *gorm.DB, userID int64, includeIn
 
 	var records []models.Account
 	query := r.DB.Where("user_id = ?", userID).
-		Where("deleted_at is NULL")
+		Where("closed_at is NULL")
 
 	if !includeInactive {
 		query = query.Where("is_active = ?", true)
@@ -321,10 +322,10 @@ func (r *AccountRepository) CloseAccount(tx *gorm.DB, id, userID int64) error {
 	}
 
 	res := db.Model(&models.Account{}).
-		Where("id = ? AND user_id = ? AND deleted_at IS NULL", id, userID).
+		Where("id = ? AND user_id = ? AND closed_at IS NULL", id, userID).
 		Updates(map[string]any{
 			"is_active":  false,
-			"deleted_at": time.Now(),
+			"closed_at":  time.Now(),
 			"updated_at": time.Now(),
 		})
 
@@ -450,7 +451,7 @@ func (r *AccountRepository) UpsertSnapshotsFromBalances(
 		LEFT JOIN LATERAL (
 			SELECT b.end_balance
 			FROM balances b
-			WHERE b.account_id = ? AND b.as_of <= d.day
+			WHERE b.account_id = ? AND b.as_of::date <= d.day
 			ORDER BY b.as_of DESC
 			LIMIT 1
 		) lb ON TRUE
@@ -468,7 +469,7 @@ func (r *AccountRepository) GetUserFirstBalanceDate(tx *gorm.DB, userID int64) (
         SELECT MIN(b.as_of)::date
         FROM balances b
         JOIN accounts a ON a.id = b.account_id
-        WHERE a.user_id = ? AND a.deleted_at IS NULL
+        WHERE a.user_id = ?
     `, userID).Row().Scan(&d)
 	if err != nil && err != sql.ErrNoRows {
 		return time.Time{}, err
@@ -485,7 +486,7 @@ func (r *AccountRepository) GetUserFirstTxnDate(tx *gorm.DB, userID int64) (time
         SELECT MIN(t.txn_date)::date
         FROM transactions t
         JOIN accounts a ON a.id = t.account_id
-        WHERE a.user_id = ? AND t.deleted_at IS NULL AND a.deleted_at IS NULL
+        WHERE a.user_id = ? AND t.deleted_at IS NULL
     `, userID).Row().Scan(&d)
 	if err != nil && err != sql.ErrNoRows {
 		return time.Time{}, err

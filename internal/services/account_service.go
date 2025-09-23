@@ -3,8 +3,6 @@ package services
 import (
 	"errors"
 	"fmt"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +11,9 @@ import (
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
+
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 type AccountService struct {
@@ -525,6 +526,20 @@ func (s *AccountService) CloseAccount(userID int64, id int64) error {
 		return err
 	}
 
+	// Materialize a real snapshot for today so charts don’t copy yesterday’s value
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	// Upsert for the just-closed account
+	_ = s.Repo.UpsertSnapshotsFromBalances(tx, userID, acc.ID, acc.Currency, today, today)
+
+	// Upsert for all still-open accounts for today (so the view has a “today” row)
+	openAccs, err := s.Repo.FindAllAccounts(tx, userID, false)
+	if err == nil {
+		for _, a := range openAccs {
+			_ = s.Repo.UpsertSnapshotsFromBalances(tx, userID, a.ID, a.Currency, today, today)
+		}
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
@@ -539,7 +554,7 @@ func (s *AccountService) CloseAccount(userID int64, id int64) error {
 		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
 			LoggingRepo: s.Ctx.LoggingService.Repo,
 			Logger:      s.Ctx.Logger,
-			Event:       "delete",
+			Event:       "close",
 			Category:    "account",
 			Description: nil,
 			Payload:     changes,
@@ -650,4 +665,14 @@ func (s *AccountService) backfillAccountRange(
 		dfrom,
 		dto,
 	)
+}
+
+func (s *AccountService) materializeTodaySnapshot(
+	tx *gorm.DB, userID, accountID int64, currency string, from time.Time,
+) error {
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	if from.IsZero() || from.After(today) {
+		from = today
+	}
+	return s.Repo.UpsertSnapshotsFromBalances(tx, userID, accountID, currency, from, today)
 }

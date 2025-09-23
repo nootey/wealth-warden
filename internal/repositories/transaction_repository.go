@@ -2,13 +2,14 @@ package repositories
 
 import (
 	"fmt"
-	"gorm.io/gorm"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
+
+	"gorm.io/gorm"
 )
 
 type TransactionRepository struct {
@@ -230,7 +231,7 @@ func (r *TransactionRepository) FindTransactionByID(tx *gorm.DB, ID, userID int6
 		Where("id = ? AND user_id = ?", ID, userID)
 
 	if !includeDeleted {
-		q = q.Where("deleted_at IS NULL")
+		q = q.Where("transactions.deleted_at IS NULL")
 	}
 
 	q = q.First(&record)

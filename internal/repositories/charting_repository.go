@@ -2,10 +2,11 @@ package repositories
 
 import (
 	"fmt"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 	"time"
 	"wealth-warden/internal/models"
+
+	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 type ChartingRepository struct {
@@ -71,7 +72,9 @@ func (r *ChartingRepository) FetchNetWorthSeries(
 		    SELECT date_trunc('week', as_of)::date AS bucket, as_of, end_balance
 		    FROM s
 		  )
-		  SELECT DISTINCT ON (bucket) bucket AS date, end_balance::text AS value
+		  SELECT DISTINCT ON (bucket) 
+			as_of::date      AS date, 
+			end_balance::text AS value
 		  FROM b
 		  ORDER BY bucket, as_of DESC
 		`
@@ -97,7 +100,9 @@ func (r *ChartingRepository) FetchNetWorthSeries(
 		    SELECT date_trunc('month', as_of)::date AS bucket, as_of, end_balance
 		    FROM s
 		  )
-		  SELECT DISTINCT ON (bucket) bucket AS date, end_balance::text AS value
+		  SELECT DISTINCT ON (bucket)
+			  as_of::date       AS date,
+			  end_balance::text AS value
 		  FROM b
 		  ORDER BY bucket, as_of DESC
 		`
