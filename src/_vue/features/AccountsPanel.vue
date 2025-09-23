@@ -73,7 +73,7 @@ async function getData(new_page: number | null = null) {
     try {
         const paginationResponse = await sharedStore.getRecordsPaginated(
             apiPrefix,
-            { ...params.value, inactive: props.advanced },
+            { ...params.value, inactive: true }, // props.advanced
             page.value
         );
         accounts.value = paginationResponse.data;
@@ -116,9 +116,9 @@ const groupTotal = (group: Account[]) =>
     group.reduce((sum, acc) => sum.add(new Decimal(acc.balance.end_balance || 0)), new Decimal(0));
 
 const totals = computed(() => {
-    const activeAccounts = accounts.value.filter(a => a.is_active);
+    // const activeAccounts = accounts.value.filter(a => a.is_active);
 
-    const vals = activeAccounts.map(a => new Decimal(a.balance.end_balance || 0));
+    const vals = accounts.value.map(a => new Decimal(a.balance.end_balance || 0));
     const total = vals.reduce((s, v) => s.add(v), new Decimal(0));
     const positive = vals.reduce((s, v) => (v.greaterThan(0) ? s.add(v) : s), new Decimal(0));
     const negative = vals.reduce((s, v) => (v.lessThan(0) ? s.add(v) : s), new Decimal(0));
@@ -248,7 +248,8 @@ defineExpose({ refresh: getData });
 
             <div v-for="(account, i) in group" :key="account.id ?? i"
                  class="account-row flex align-items-center justify-content-between p-2 border-round-md mt-1 bordered"
-                 :class="{ advanced, inactive: advanced && !account.is_active }">
+                 :class="{ advanced, inactive: !account.is_active }">
+                <!--                 :class="{ advanced, inactive: advanced && !account.is_active }"-->
 
                 <div class="flex align-items-center">
                     <!-- Avatar -->
@@ -274,12 +275,12 @@ defineExpose({ refresh: getData });
                         </div>
 
                         <div class="text-sm" style="color: var(--text-secondary)">
-                            {{ vueHelper.formatString(account.account_type?.sub_type) }}
+                            {{ vueHelper.formatString(account.account_type?.sub_type) }}  {{ !account.is_active ? " - Inactive" : "" }}
                         </div>
                     </div>
 
                     <!-- Edit icon -->
-                    <i v-if="hasPermission('manage_data')" class="ml-3 pi pi-pen-to-square text-xs hover-icon edit-icon"
+                    <i v-if="hasPermission('manage_data') && account.is_active" class="ml-3 pi pi-pen-to-square text-xs hover-icon edit-icon"
                        style="color: var(--text-secondary)"
                        @click="openModal('update', account.id!)"
                        v-tooltip="'Edit account'" />
