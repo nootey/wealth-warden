@@ -10,7 +10,7 @@ import (
 func TransactionRoutes(ap *gin.RouterGroup, h *handlers.TransactionHandler) {
 	ap.GET("", authz.RequireAllMW("view_data"), h.GetTransactionsPaginated)
 	ap.GET(":id", authz.RequireAllMW("view_data"), h.GetTransactionByID)
-	ap.POST("", authz.RequireAllMW("manage_data"), h.InsertTransaction)
+	ap.PUT("", authz.RequireAllMW("manage_data"), h.InsertTransaction)
 	ap.PUT("/:id", authz.RequireAllMW("manage_data"), h.UpdateTransaction)
 	ap.DELETE("/:id", authz.RequireAllMW("manage_data"), h.DeleteTransaction)
 	ap.GET("transfers", authz.RequireAllMW("view_data"), h.GetTransfersPaginated)
