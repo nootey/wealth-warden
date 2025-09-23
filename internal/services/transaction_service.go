@@ -536,7 +536,6 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 	}
 
 	txnInstant := req.TxnDate.UTC()
-	oldLocalDay := exTr.TxnDate.In(loc).Truncate(24 * time.Hour)
 	newLocalDay := txnInstant.In(loc).Truncate(24 * time.Hour)
 	openAsOfLocal := openAsOf.In(loc).Truncate(24 * time.Hour)
 	todayLocal := time.Now().In(loc).Truncate(24 * time.Hour)
