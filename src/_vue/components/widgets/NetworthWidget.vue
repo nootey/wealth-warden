@@ -210,8 +210,8 @@ onMounted(getData)
                 </div>
 
                 <span class="text-sm" style="color: var(--text-secondary)">
-          {{ displayNetworthChange(periodLabels[selectedKey]) }}
-        </span>
+                    {{ displayNetworthChange(periodLabels[selectedKey]) }}
+                </span>
             </div>
 
             <NetworthChart

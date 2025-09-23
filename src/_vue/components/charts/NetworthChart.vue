@@ -25,8 +25,6 @@ ChartJS.register(
 )
 const hoverXByChart = new WeakMap<any, number | null>()
 
-// ChartJS.register(hoverGuidePlugin)
-
 const props = withDefaults(defineProps<{
     dataPoints: ChartPoint[]
     currency?: string
@@ -143,15 +141,64 @@ const options = computed(() => ({
     plugins: {
         legend: { display: false },
         tooltip: {
+            backgroundColor: 'rgba(31,31,35,0.95)',
+            borderColor: '#2a2a2e',
+            borderWidth: 1,
+            padding: 12,
+            cornerRadius: 12,
             displayColors: false,
+
+            titleColor: '#9ca3af',
+            bodyColor: '#e5e7eb',
+            titleFont: { weight: '600', size: 12 },
+            bodyFont:  { weight: '600', size: 14 },
+            footerFont:{ weight: '600', size: 12 },
+            footerSpacing: 1,
+
             callbacks: {
                 title: (items: any[]) => {
                     const v = items?.[0]?.parsed?.x ?? items?.[0]?.raw?.date
                     const ms = typeof v === 'number' ? v : new Date(v).getTime()
                     return dateHelper.formatDate(ms, false, 'MMM D, YYYY', true)
                 },
+
+                // current value
                 label: (ctx: any) => vueHelper.displayAsCurrency(ctx.parsed.y),
-            }
+
+                // change vs previous point
+                footer: (items: any[]) => {
+                    const it = items?.[0]; if (!it) return ''
+                    const i = it.dataIndex
+                    const data = it.dataset?.data || []
+                    if (i <= 0 || !data[i - 1]) return '(no previous point)'
+
+                    const curr = Number(it.parsed?.y ?? it.raw?.value)
+                    const prev = Number(data[i - 1]?.value ?? data[i - 1]?.y ?? 0)
+                    const diff = curr - prev
+                    const pct  = prev !== 0 ? (diff / prev) * 100 : null
+
+                    const up   = diff >= 0
+                    const icon = up ? '+' : '-'
+
+                    const absStr = vueHelper.displayAsCurrency(Math.abs(diff))
+                    const pctStr = pct == null ? '' : ` (${Math.abs(pct).toFixed(1)}%)`
+
+                    // Use markers for custom styling in footerColor
+                    return `${icon} ${absStr} ${pctStr}`
+                }
+            },
+
+            footerColor: (ctx: any) => {
+                const it = ctx?.tooltip?.dataPoints?.[0]
+                if (!it) return '#9ca3af'
+                const i = it.dataIndex
+                const data = it.dataset?.data || []
+                if (i <= 0 || !data[i - 1]) return '#9ca3af'
+
+                const curr = Number(it.parsed?.y ?? it.raw?.value)
+                const prev = Number(data[i - 1]?.value ?? data[i - 1]?.y ?? 0)
+                return (curr - prev) >= 0 ? '#22c55e' : '#ef4444'
+            },
         },
         hoverGuide: {
             dashColor: 'rgba(255,255,255,0.35)',
