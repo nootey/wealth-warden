@@ -34,8 +34,8 @@ FROM account_daily_snapshots s
               ON a.id = s.account_id
 WHERE
     a.include_in_net_worth = TRUE
-    AND (a.opened_at IS NULL OR s.as_of::date >= a.opened_at::date)
-    AND (a.closed_at IS NULL OR s.as_of::date <= a.closed_at::date);
+    AND (a.opened_at IS NULL OR s.as_of::date >= a.opened_at::date)   -- inclusive
+    AND (a.closed_at IS NULL OR s.as_of::date <  a.closed_at::date);  -- exclusive
 
 -- Aggregate per-user net worth from the filtered per-account view
 CREATE OR REPLACE VIEW v_user_daily_networth_snapshots AS

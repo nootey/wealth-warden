@@ -203,7 +203,7 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		userID,
 		accountID,
 		models.DefaultCurrency,
-		asOf, // from opening day
+		asOf,                                    // from opening day
 		time.Now().UTC().Truncate(24*time.Hour), // to today
 	); err != nil {
 		tx.Rollback()
@@ -526,6 +526,20 @@ func (s *AccountService) CloseAccount(userID int64, id int64) error {
 		return err
 	}
 
+	// Materialize a real snapshot for today so charts don’t copy yesterday’s value
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	// Upsert for the just-closed account
+	_ = s.Repo.UpsertSnapshotsFromBalances(tx, userID, acc.ID, acc.Currency, today, today)
+
+	// Upsert for all still-open accounts for today (so the view has a “today” row)
+	openAccs, err := s.Repo.FindAllAccounts(tx, userID, false)
+	if err == nil {
+		for _, a := range openAccs {
+			_ = s.Repo.UpsertSnapshotsFromBalances(tx, userID, a.ID, a.Currency, today, today)
+		}
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
@@ -651,4 +665,14 @@ func (s *AccountService) backfillAccountRange(
 		dfrom,
 		dto,
 	)
+}
+
+func (s *AccountService) materializeTodaySnapshot(
+	tx *gorm.DB, userID, accountID int64, currency string, from time.Time,
+) error {
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	if from.IsZero() || from.After(today) {
+		from = today
+	}
+	return s.Repo.UpsertSnapshotsFromBalances(tx, userID, accountID, currency, from, today)
 }
