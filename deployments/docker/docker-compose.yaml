@@ -11,7 +11,7 @@ services:
     volumes:
       - db:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-wealth_warden}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-wealth_warden}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,15 +22,35 @@ services:
     build:
       context: ../..
       dockerfile: ./build/Dockerfile
+      args:
+        - API_BASE_URL=localhost:2000/api/v1
+        - PRODUCTION_MODE=false
     #command: ["http"]
     restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "2000:2000"
     volumes:
       - ../../logs:/app/logs
       - ../../pkg/config/override:/app/pkg/config/override:ro
+    networks:
+      - wealth-warden
+
+  client:
+    build:
+      context: ../../
+      dockerfile: ./build/Dockerfile.client
+      args:
+        - API_BASE_URL=localhost:2000/api/v1
+        - PRODUCTION_MODE=false
+    ports:
+      - "5000:80"
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
     networks:
       - wealth-warden
 

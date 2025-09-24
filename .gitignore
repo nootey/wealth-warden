@@ -28,3 +28,7 @@ go.work.sum
 
 # Volumes
 /logs
+
+/client/node_modules
+/client/dist
+/client/.env
