@@ -18,13 +18,10 @@ services:
     networks:
       - wealth-warden
 
-  app:
+  server:
     build:
       context: ../..
       dockerfile: ./build/Dockerfile
-      args:
-        - API_BASE_URL=localhost:2000/api/v1
-        - PRODUCTION_MODE=false
     #command: ["http"]
     restart: unless-stopped
     depends_on:
@@ -46,10 +43,10 @@ services:
         - API_BASE_URL=localhost:2000/api/v1
         - PRODUCTION_MODE=false
     ports:
-      - "5000:80"
+      - "3030:80"
     restart: unless-stopped
     depends_on:
-      app:
+      server:
         condition: service_healthy
     networks:
       - wealth-warden
