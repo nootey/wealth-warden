@@ -1,32 +1,38 @@
 package config
 
 import (
-	"github.com/spf13/viper"
+	"os"
 	"path/filepath"
+
+	"github.com/spf13/viper"
 )
 
 func LoadConfig(configPath *string) (*Config, error) {
 
-	// Default config search paths
-	if configPath == nil {
-		overridePath := filepath.Join("pkg", "config", "override")
-		defaultPath := filepath.Join("pkg", "config")
+	v := viper.New()
+	cfgName := "dev"
 
-		viper.AddConfigPath(overridePath)
-		viper.AddConfigPath(defaultPath)
+	// Default config search paths
+	if configPath != nil && *configPath != "" {
+		v.SetConfigFile(filepath.Join(*configPath, cfgName+".yaml"))
 	} else {
-		viper.AddConfigPath(*configPath)
+		overrideFile := filepath.Join("pkg", "config", "override", cfgName+".yaml")
+		defaultFile := filepath.Join("pkg", "config", cfgName+".yaml")
+
+		// Prefer override if present
+		if _, err := os.Stat(overrideFile); err == nil {
+			v.SetConfigFile(overrideFile)
+		} else {
+			v.SetConfigFile(defaultFile)
+		}
 	}
 
-	viper.SetConfigName("dev")
-	viper.SetConfigType("yaml")
-
-	if err := viper.ReadInConfig(); err != nil {
+	if err := v.ReadInConfig(); err != nil {
 		return nil, err
 	}
 
 	var cfg Config
-	if err := viper.Unmarshal(&cfg); err != nil {
+	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
 

@@ -3,13 +3,6 @@ package http
 import (
 	"context"
 	"errors"
-	"github.com/gin-contrib/cors"
-	ginzap "github.com/gin-contrib/zap"
-	"github.com/gin-gonic/gin"
-	healthcheck "github.com/tavsec/gin-healthcheck"
-	"github.com/tavsec/gin-healthcheck/checks"
-	"github.com/tavsec/gin-healthcheck/config"
-	"go.uber.org/zap"
 	"net"
 	"net/http"
 	"net/url"
@@ -17,6 +10,14 @@ import (
 	"time"
 	"wealth-warden/internal/bootstrap"
 	appConfig "wealth-warden/pkg/config"
+
+	"github.com/gin-contrib/cors"
+	ginzap "github.com/gin-contrib/zap"
+	"github.com/gin-gonic/gin"
+	healthcheck "github.com/tavsec/gin-healthcheck"
+	"github.com/tavsec/gin-healthcheck/checks"
+	"github.com/tavsec/gin-healthcheck/config"
+	"go.uber.org/zap"
 )
 
 type Server struct {
@@ -70,14 +71,10 @@ func (s *Server) Shutdown() error {
 
 func NewRouter(container *bootstrap.Container, logger *zap.Logger) *gin.Engine {
 
-	var r *gin.Engine
 	if container.Config.Release {
 		gin.SetMode(gin.ReleaseMode)
-		r = gin.New()
-	} else {
-		gin.SetMode(gin.DebugMode)
-		r = gin.Default()
 	}
+	r := gin.New()
 
 	// Logging & recovery
 	r.Use(container.Middleware.ErrorLogger())

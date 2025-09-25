@@ -24,11 +24,16 @@ docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden up d
 For the first time setup, you must run migrations!
 
 ```sh
-docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden run --rm app migrate fresh-seed-basic
+docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden --profile migrate run --rm migrate migrate fresh-seed-basic
 ```
 
-To run the app, which will serve HTTP, use:
+Alternate command
+```sh
+docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden run --rm server migrate fresh-seed-basic
+```
+
+To run the app, which will run all docker services, use:
 
 ```sh
-docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden up app -d
+docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden up -d
 ```
