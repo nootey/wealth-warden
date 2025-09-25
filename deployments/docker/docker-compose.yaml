@@ -1,4 +1,29 @@
 services:
+  traefik:
+    image: traefik:latest
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      # Redirect HTTP → HTTPS
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      # ACME
+      - --certificatesresolvers.le.acme.email=${TRAEFIK_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge=true
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+    networks:
+      - wealth-warden
+
   db:
     image: postgres:latest
     restart: unless-stopped
@@ -18,20 +43,38 @@ services:
     networks:
       - wealth-warden
 
+  migrate:
+    profiles: ["migrate"]
+    build:
+      context: ../..
+      dockerfile: ./build/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["server"]
+    command: ["migrate", "fresh-seed-basic" ]        # default args
+    networks:
+      - wealth-warden
+
   server:
     build:
       context: ../..
       dockerfile: ./build/Dockerfile
-    #command: ["http"]
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "2000:2000"
+#    ports:
+#      - ${API_PORT:-2000}:${API_PORT:-2000}
     volumes:
       - ../../logs:/app/logs
       - ../../pkg/config/override:/app/pkg/config/override:ro
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.rule=Host(`${API_HOST:-localhost}`) && PathPrefix(`/api`)
+      - traefik.http.routers.api.entrypoints=websecure
+      - traefik.http.routers.api.tls.certresolver=le
+      - traefik.http.services.api.loadbalancer.server.port=2000
     networks:
       - wealth-warden
 
@@ -40,19 +83,26 @@ services:
       context: ../../
       dockerfile: ./build/Dockerfile.client
       args:
-        - API_BASE_URL=localhost:2000/api/v1
-        - PRODUCTION_MODE=false
-    ports:
-      - "3030:80"
+        - API_BASE_URL=${API_PORT-/api/v1}
+        - PRODUCTION_MODE=${RELEASE-false}
+#    ports:
+#      - ${CLIENT_PORT:-3030}:80
     restart: unless-stopped
     depends_on:
       server:
         condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.client.rule=Host(`${CLIENT_HOST:-localhost}`) && PathPrefix(`/`)
+      - traefik.http.routers.client.entrypoints=websecure
+      - traefik.http.routers.client.tls.certresolver=le
+      - traefik.http.services.client.loadbalancer.server.port=80
     networks:
       - wealth-warden
 
 volumes:
   db:
+  traefik_letsencrypt:
 
 networks:
   wealth-warden:
