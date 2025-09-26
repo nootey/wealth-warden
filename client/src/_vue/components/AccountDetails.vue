@@ -4,12 +4,15 @@ import SettingsSkeleton from "./layout/SettingsSkeleton.vue";
 import type {Account} from "../../models/account_models.ts";
 import vueHelper from "../../utils/vue_helper.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
-import {computed, ref} from "vue";
+import {computed, onMounted, ref} from "vue";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import TransactionsPaginated from "./data/TransactionsPaginated.vue";
 import type {Column} from "../../services/filter_registry.ts";
 import {useConfirm} from "primevue/useconfirm";
 import NetworthWidget from "./widgets/NetworthWidget.vue";
+import {useStatisticsStore} from "../../services/stores/statistics_store.ts";
+import type {BasicAccountStats} from "../../models/statistics_models.ts";
+import ShowLoading from "./base/ShowLoading.vue";
 
 const props = defineProps<{
     account: Account;
@@ -19,8 +22,19 @@ const emit = defineEmits<{
     (event: 'closeAccount', id: number): void;
 }>();
 
+const accBasicStats = ref<BasicAccountStats | null>(null);
+
+onMounted(async () => {
+    try {
+        accBasicStats.value = await statsStore.getBasicStatisticsForAccount(props.account.id!, 2025);
+    } catch (e) {
+        toastStore.errorResponseToast(e);
+    }
+});
+
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
+const statsStore = useStatisticsStore();
 
 const confirm = useConfirm();
 const nWidgetRef = ref<InstanceType<typeof NetworthWidget> | null>(null);
@@ -62,11 +76,34 @@ async function confirmCloseAccount(id: number) {
 <template>
     <div class="flex flex-column w-full gap-3">
         <div class="flex flex-row gap-2 align-items-center justify-content-between">
-            <span>{{ account.name }}</span>
+            <h3>{{ account.name }}</h3>
             <Button size="small" label="Close account" severity="danger" style="color: white;" @click="confirmCloseAccount(account.id!)"></Button>
         </div>
 
         <NetworthWidget ref="nWidgetRef" :accountId="account.id" :chartHeight="200"/>
+
+        <SettingsSkeleton class="w-full">
+            <div v-if="accBasicStats" class="w-full flex flex-column gap-3 p-2">
+                <div class="w-full flex flex-column gap-2">
+                    <h3 style="color: var(--text-primary)">Stats</h3>
+                </div>
+
+                <div class="flex flex-row gap-2">
+                    Inflows: {{ vueHelper.displayAsCurrency(accBasicStats.inflow) }}
+                </div>
+                <div class="flex flex-row gap-2">
+                    Outflows: {{ vueHelper.displayAsCurrency(accBasicStats.outflow) }}
+                </div>
+                <div class="flex flex-row gap-2">
+                    Average monthly inflows: {{ vueHelper.displayAsCurrency(accBasicStats.avg_monthly_inflow) }}
+                </div>
+                <div class="flex flex-row gap-2">
+                    Average monthly outflows: {{ vueHelper.displayAsCurrency(accBasicStats.avg_monthly_outflow) }}
+                </div>
+
+            </div>
+            <ShowLoading v-else :numFields="5" />
+        </SettingsSkeleton>
 
         <SettingsSkeleton class="w-full">
             <div class="w-full flex flex-column gap-3 p-2">
