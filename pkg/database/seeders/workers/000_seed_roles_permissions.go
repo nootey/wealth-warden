@@ -3,8 +3,9 @@ package workers
 import (
 	"context"
 	"fmt"
-	"go.uber.org/zap"
 	"time"
+
+	"go.uber.org/zap"
 
 	"gorm.io/gorm"
 )
@@ -53,6 +54,10 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 		{"view_data", "View generic app data (global)", "data"},
 		{"manage_data", "Create, update and delete generic app data (global)", "data"},
 
+		// -> Statistics
+		{"view_basic_statistics", "View basic statistics (global)", "data"},
+		{"view_advanced_statistics", "Gain access to advanced statistics (global)", "data"},
+
 		// -> Logging module
 		{"view_activity_logs", "View activity logs (global)", "logs"},
 		{"delete_activity_logs", "Delete activity logs (global)", "logs"},
@@ -82,6 +87,8 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 				"manage_subscriptions",
 				"view_data",
 				"manage_data",
+				"view_basic_statistics",
+				"view_advanced_statistics",
 				"view_activity_logs",
 				"delete_activity_logs",
 				"create_exports",
@@ -96,6 +103,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 				"manage_subscriptions",
 				"view_data",
 				"manage_data",
+				"view_basic_statistics",
 				"create_exports",
 				"create_reports",
 			},
@@ -104,6 +112,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 			Role: "guest",
 			Permissions: []string{
 				"view_data",
+				"view_basic_statistics",
 			},
 		},
 	}
