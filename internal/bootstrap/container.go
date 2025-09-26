@@ -1,8 +1,6 @@
 package bootstrap
 
 import (
-	"go.uber.org/zap"
-	"gorm.io/gorm"
 	"time"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/middleware"
@@ -11,12 +9,16 @@ import (
 	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/mailer"
+
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 type Container struct {
 	Config             *config.Config
 	DB                 *gorm.DB
 	Middleware         *middleware.WebClientMiddleware
+	AuthzService       *authz.Service
 	AuthService        *services.AuthService
 	UserService        *services.UserService
 	LoggingService     *services.LoggingService
@@ -25,7 +27,7 @@ type Container struct {
 	SettingsService    *services.SettingsService
 	ChartingService    *services.ChartingService
 	RoleService        *services.RolePermissionService
-	AuthzService       *authz.Service
+	StatsService       *services.StatisticsService
 }
 
 func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Container, error) {
@@ -50,6 +52,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	transactionRepo := repositories.NewTransactionRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
 	chartingRepo := repositories.NewChartingRepository(db)
+	statsRepo := repositories.NewStatisticsRepository(db)
 
 	// Initialize services
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
@@ -69,11 +72,13 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	transactionService := services.NewTransactionService(cfg, ctx, transactionRepo, accountService)
 	settingsService := services.NewSettingsService(cfg, ctx, settingsRepo)
 	chartingService := services.NewChartingService(cfg, ctx, chartingRepo)
+	statsService := services.NewStatisticsService(cfg, ctx, statsRepo)
 
 	return &Container{
 		Config:             cfg,
 		DB:                 db,
 		Middleware:         webClientMiddleware,
+		AuthzService:       authzSvc,
 		AuthService:        authService,
 		UserService:        userService,
 		LoggingService:     loggingService,
@@ -82,6 +87,6 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 		SettingsService:    settingsService,
 		ChartingService:    chartingService,
 		RoleService:        roleService,
-		AuthzService:       authzSvc,
+		StatsService:       statsService,
 	}, nil
 }
