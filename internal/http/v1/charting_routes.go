@@ -8,5 +8,5 @@ import (
 )
 
 func ChartingRoutes(apiGroup *gin.RouterGroup, handler *handlers.ChartingHandler) {
-	apiGroup.GET("/networth", authz.RequireAllMW("view_data"), handler.NetWorthChart)
+	apiGroup.GET("/networth", authz.RequireAllMW("view_basic_statistics"), handler.NetWorthChart)
 }
