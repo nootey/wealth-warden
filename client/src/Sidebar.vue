@@ -43,7 +43,8 @@ function toggleProfileMenu(event: any) {
 </script>
 
 <template>
-  <aside v-if="authStore.authenticated && authStore.isValidated" class="flex flex-column overflow-hidden min-h-screen"
+  <aside v-if="authStore.authenticated && authStore.isValidated"
+         class="flex flex-column overflow-hidden h-screen fixed left-0 top-0"
          style="width: 80px; background-color: var(--background-secondary); color: var(--text-primary); padding: 1rem 0;">
     <div class="logo-section flex align-items-center justify-content-center mb-3 p-2">
       <div class="flex align-items-center justify-content-center"

@@ -43,10 +43,12 @@ onMounted(async () => {
                   </template>
               </ConfirmDialog>
         <Sidebar v-if="isAuthenticated && isInitialized && !isGuestOnlyView" />
-        <div v-if="requiresAuthView && !isInitialized" class="w-full h-full flex items-center justify-center">
-            <i class="pi pi-spin pi-spinner text-2xl"></i>
+        <div class="flex-1" style="margin-left: 80px;">
+            <div v-if="requiresAuthView && !isInitialized" class="w-full h-full flex items-center justify-center">
+                <i class="pi pi-spin pi-spinner text-2xl"></i>
+            </div>
+            <router-view v-else/>
         </div>
-        <router-view v-else/>
     </div>
 </template>
 
