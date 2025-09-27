@@ -9,6 +9,7 @@ import ComparativePieChart from "./ComparativePieChart.vue";
 
 const props = defineProps<{
   accID?: number | null;
+  pieChartSize: number;
 }>();
 
 const accBasicStats = ref<BasicAccountStats | null>(null);
@@ -140,7 +141,7 @@ const pieOptions = computed(() => ({
                             <div class="flex flex-column justify-content-center align-items-center">
                                 <ComparativePieChart
                                         v-if="slotProps.data.type === 'inflows'"
-                                        :size="250"
+                                        :size="pieChartSize"
                                         :showLegend="false"
                                         :options="pieOptions"
                                         :values="inflowValues"
@@ -148,7 +149,7 @@ const pieOptions = computed(() => ({
                                 />
                                 <ComparativePieChart
                                         v-else
-                                        :size="250"
+                                        :size="pieChartSize"
                                         :showLegend="false"
                                         :options="pieOptions"
                                         :values="outflowValues"

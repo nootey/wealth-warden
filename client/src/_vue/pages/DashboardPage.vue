@@ -30,7 +30,7 @@ async function backfillBalances(){
 <template>
     <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
 
-        <div class="flex flex-column justify-content-center p-2 w-full gap-3 border-round-md"
+        <div class="flex flex-column justify-content-center p-3 w-full gap-2 border-round-md"
              style="max-width: 1000px;">
 
             <SlotSkeleton bg="transparent">
@@ -64,7 +64,7 @@ async function backfillBalances(){
             </div>
 
             <SlotSkeleton bg="secondary">
-                <BasicStats />
+                <BasicStats :pieChartSize="300" />
             </SlotSkeleton>
 
     </div>

@@ -76,7 +76,7 @@ async function confirmCloseAccount(id: number) {
             <h3 style="color: var(--text-primary)">Stats</h3>
         </div>
         <SlotSkeleton class="w-full">
-            <BasicStats :accID="account.id" />
+            <BasicStats :accID="account.id" :pieChartSize="250" />
         </SlotSkeleton>
 
         <div class="w-full flex flex-column gap-2">
