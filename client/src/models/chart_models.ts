@@ -18,4 +18,5 @@ export type NetworthResponse = {
     points: ChartPoint[];
     current: ChartPoint;
     change?: Change;
+    asset_type?: string
 };

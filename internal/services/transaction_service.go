@@ -229,7 +229,7 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 		return err
 	}
 
-	err = s.AccountService.UpdateAccountCashBalance(tx, &account, tr.TxnDate, tr.TransactionType, tr.Amount)
+	err = s.AccountService.UpdateAccountCashBalance(tx, account, tr.TxnDate, tr.TransactionType, tr.Amount)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -273,7 +273,7 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 		change = tr.Amount
 	}
 
-	if err := s.AccountService.LogBalanceChange(&account, userID, change); err != nil {
+	if err := s.AccountService.LogBalanceChange(account, userID, change); err != nil {
 		return err
 	}
 
@@ -362,11 +362,11 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 	}
 
 	// Update balances
-	if err := s.AccountService.UpdateAccountCashBalance(tx, &fromAccount, outflow.TxnDate, "expense", req.Amount); err != nil {
+	if err := s.AccountService.UpdateAccountCashBalance(tx, fromAccount, outflow.TxnDate, "expense", req.Amount); err != nil {
 		tx.Rollback()
 		return err
 	}
-	if err := s.AccountService.UpdateAccountCashBalance(tx, &toAccount, inflow.TxnDate, "income", req.Amount); err != nil {
+	if err := s.AccountService.UpdateAccountCashBalance(tx, toAccount, inflow.TxnDate, "income", req.Amount); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -395,10 +395,10 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 	}
 
 	// Log balance updates for both accounts
-	if err := s.AccountService.LogBalanceChange(&fromAccount, userID, req.Amount.Neg()); err != nil {
+	if err := s.AccountService.LogBalanceChange(fromAccount, userID, req.Amount.Neg()); err != nil {
 		return err
 	}
-	if err := s.AccountService.LogBalanceChange(&toAccount, userID, req.Amount); err != nil {
+	if err := s.AccountService.LogBalanceChange(toAccount, userID, req.Amount); err != nil {
 		return err
 	}
 
@@ -605,7 +605,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		// Reverse the old posting on its original day & account
 		if !oldEffect.IsZero() {
 			if err := s.AccountService.UpdateAccountCashBalance(
-				tx, &oldAccount, exTr.TxnDate, reverseDirFor(oldEffect), oldEffect.Abs(),
+				tx, oldAccount, exTr.TxnDate, reverseDirFor(oldEffect), oldEffect.Abs(),
 			); err != nil {
 				tx.Rollback()
 				return err
@@ -614,7 +614,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		// Apply the new posting on the new day & account
 		if !newEffect.IsZero() {
 			if err := s.AccountService.UpdateAccountCashBalance(
-				tx, &newAccount, txnInstant, dirFor(newEffect), newEffect.Abs(),
+				tx, newAccount, txnInstant, dirFor(newEffect), newEffect.Abs(),
 			); err != nil {
 				tx.Rollback()
 				return err
@@ -626,7 +626,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		delta := newEffect.Sub(oldEffect)
 		if !delta.IsZero() {
 			if err := s.AccountService.UpdateAccountCashBalance(
-				tx, &newAccount, txnInstant, dirFor(delta), delta.Abs(),
+				tx, newAccount, txnInstant, dirFor(delta), delta.Abs(),
 			); err != nil {
 				tx.Rollback()
 				return err
@@ -672,12 +672,12 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 			delta = newEffect
 		}
 		if !delta.IsZero() {
-			if err := s.AccountService.LogBalanceChange(&newAccount, userID, delta); err != nil {
+			if err := s.AccountService.LogBalanceChange(newAccount, userID, delta); err != nil {
 				return err
 			}
 		}
 		if oldAccount.ID != newAccount.ID && !oldEffect.IsZero() {
-			if err := s.AccountService.LogBalanceChange(&oldAccount, userID, oldEffect.Neg()); err != nil {
+			if err := s.AccountService.LogBalanceChange(oldAccount, userID, oldEffect.Neg()); err != nil {
 				return err
 			}
 		}
@@ -806,7 +806,7 @@ func (s *TransactionService) DeleteTransaction(userID int64, id int64) error {
 
 	if !inverse.IsZero() {
 		dir := map[bool]string{true: "expense", false: "income"}[inverse.IsNegative()]
-		if err := s.AccountService.UpdateAccountCashBalance(tx, &account, tr.TxnDate, dir, inverse.Abs()); err != nil {
+		if err := s.AccountService.UpdateAccountCashBalance(tx, account, tr.TxnDate, dir, inverse.Abs()); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -844,7 +844,7 @@ func (s *TransactionService) DeleteTransaction(userID int64, id int64) error {
 
 	// Dispatch balance change on the affected account activity log
 	if !inverse.IsZero() {
-		if err := s.AccountService.LogBalanceChange(&account, userID, inverse); err != nil {
+		if err := s.AccountService.LogBalanceChange(account, userID, inverse); err != nil {
 			return err
 		}
 	}
@@ -896,19 +896,19 @@ func (s *TransactionService) DeleteTransfer(userID int64, id int64) error {
 		return fmt.Errorf("can't find destination account %w", err)
 	}
 
-	if err := utils.ValidateAccount(&fromAcc, "source"); err != nil {
+	if err := utils.ValidateAccount(fromAcc, "source"); err != nil {
 		return err
 	}
-	if err := utils.ValidateAccount(&toAcc, "destination"); err != nil {
+	if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
 		return err
 	}
 
 	// Reverse balances
-	if err := s.AccountService.UpdateAccountCashBalance(tx, &fromAcc, inflow.TxnDate, "income", outflow.Amount); err != nil {
+	if err := s.AccountService.UpdateAccountCashBalance(tx, fromAcc, inflow.TxnDate, "income", outflow.Amount); err != nil {
 		tx.Rollback()
 		return err
 	}
-	if err := s.AccountService.UpdateAccountCashBalance(tx, &toAcc, outflow.TxnDate, "expense", inflow.Amount); err != nil {
+	if err := s.AccountService.UpdateAccountCashBalance(tx, toAcc, outflow.TxnDate, "expense", inflow.Amount); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -956,10 +956,10 @@ func (s *TransactionService) DeleteTransfer(userID int64, id int64) error {
 	}
 
 	// Log balance changes
-	if err := s.AccountService.LogBalanceChange(&fromAcc, userID, outflow.Amount); err != nil {
+	if err := s.AccountService.LogBalanceChange(fromAcc, userID, outflow.Amount); err != nil {
 		return err
 	}
-	if err := s.AccountService.LogBalanceChange(&toAcc, userID, inflow.Amount.Neg()); err != nil {
+	if err := s.AccountService.LogBalanceChange(toAcc, userID, inflow.Amount.Neg()); err != nil {
 		return err
 	}
 
@@ -1088,7 +1088,7 @@ func (s *TransactionService) RestoreTransaction(userID int64, id int64) error {
 	// Reverse balances
 	if !origEffect.IsZero() {
 		dir := map[bool]string{true: "expense", false: "income"}[origEffect.IsNegative()]
-		if err := s.AccountService.UpdateAccountCashBalance(tx, &acc, tr.TxnDate, dir, origEffect.Abs()); err != nil {
+		if err := s.AccountService.UpdateAccountCashBalance(tx, acc, tr.TxnDate, dir, origEffect.Abs()); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1124,7 +1124,7 @@ func (s *TransactionService) RestoreTransaction(userID int64, id int64) error {
 
 	// Log balance changes
 	if !origEffect.IsZero() {
-		if err := s.AccountService.LogBalanceChange(&acc, userID, origEffect); err != nil {
+		if err := s.AccountService.LogBalanceChange(acc, userID, origEffect); err != nil {
 			return err
 		}
 	}

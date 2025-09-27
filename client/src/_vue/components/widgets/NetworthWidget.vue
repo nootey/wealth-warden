@@ -102,7 +102,9 @@ const displayPoints = computed<ChartPoint[]>(() => {
             ]
         }
     }
-    return pts
+
+    const isLiability = payload.value?.asset_type === 'liability'
+    return isLiability ? pts.map(p => ({ ...p, value: Math.abs(p.value) })) : pts
 })
 
 function searchDaterange(event: any) {
@@ -118,8 +120,23 @@ function displayNetworthChange(change: string) {
 }
 
 const pctStr = computed(() => {
-    const p = payload.value?.change?.pct ?? 0
-    return (p * 100).toFixed(1) + '%'
+    const c = payload.value?.change
+    if (!c) return '0.0%'
+    const prev = Number(c.prev_period_end_value || 0)
+    const isLiability = payload.value?.asset_type === 'liability'
+    const denom = isLiability ? Math.abs(prev) : (prev || 0)
+    const pct = denom !== 0 ? (effectiveAbs.value / Math.abs(denom)) * 100 : 0
+    return pct.toFixed(1) + '%'
+})
+
+const effectiveAbs = computed(() => {
+    const c = payload.value?.change
+    if (!c) return 0
+    const prev = Number(c.prev_period_end_value || 0)
+    const curr = Number(c.current_end_value || 0)
+    const isLiability = payload.value?.asset_type === 'liability'
+
+    return isLiability ? Math.abs(prev) - Math.abs(curr) : (curr - prev)
 })
 
 async function getData() {
@@ -155,7 +172,7 @@ async function getNetworthData(opts?: { rangeKey?: RangeKey; from?: string; to?:
         }
 
         payload.value = res
-        activeColor.value = (res?.change?.abs ?? 0) >= 0 ? '#22c55e' : '#ef4444'
+        activeColor.value = effectiveAbs.value >= 0 ? '#22c55e' : '#ef4444'
     } catch (err) {
         toastStore.errorResponseToast(err)
     }
@@ -201,16 +218,16 @@ onMounted(getData)
     <div v-if="payload?.change && hasSeries"
          class="flex flex-row gap-2 align-items-center"
          :style="{ color: activeColor }">
-      <span>{{ vueHelper.displayAsCurrency(Math.abs(payload.change.abs)) }}</span>
+      <span>{{ vueHelper.displayAsCurrency(Math.abs(effectiveAbs)) }}</span>
 
       <div class="flex flex-row gap-1 align-items-center">
-        <i class="text-sm" :class="payload.change.abs >= 0 ? 'pi pi-angle-double-up' : 'pi pi-angle-double-down'"></i>
+        <i class="text-sm" :class="effectiveAbs >= 0 ? 'pi pi-angle-double-up' : 'pi pi-angle-double-down'"></i>
         <span>({{ pctStr }})</span>
       </div>
 
       <span class="text-sm" style="color: var(--text-secondary)">
-                    {{ displayNetworthChange(periodLabels[selectedKey]) }}
-                </span>
+          {{ displayNetworthChange(periodLabels[selectedKey]) }}
+      </span>
     </div>
 
     <NetworthChart
@@ -219,6 +236,7 @@ onMounted(getData)
         :dataPoints="displayPoints"
         :currency="payload.currency"
         :activeColor="activeColor"
+        :isLiability="payload?.asset_type === 'liability'"
     />
 
     <div v-else

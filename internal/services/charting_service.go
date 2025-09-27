@@ -5,29 +5,33 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/shopspring/decimal"
 	"sort"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
+
+	"github.com/shopspring/decimal"
 )
 
 type ChartingService struct {
-	Config *config.Config
-	Ctx    *DefaultServiceContext
-	Repo   *repositories.ChartingRepository
+	Config  *config.Config
+	Ctx     *DefaultServiceContext
+	Repo    *repositories.ChartingRepository
+	AccRepo *repositories.AccountRepository
 }
 
 func NewChartingService(
 	cfg *config.Config,
 	ctx *DefaultServiceContext,
 	repo *repositories.ChartingRepository,
+	accRepo *repositories.AccountRepository,
 ) *ChartingService {
 	return &ChartingService{
-		Ctx:    ctx,
-		Config: cfg,
-		Repo:   repo,
+		Ctx:     ctx,
+		Config:  cfg,
+		Repo:    repo,
+		AccRepo: accRepo,
 	}
 }
 
@@ -175,14 +179,23 @@ func (s *ChartingService) GetNetWorthSeries(
 		currentEndDate = points[len(points)-1].Date
 		currentEndVal = points[len(points)-1].Value
 		abs = currentEndVal
-		pct = decimal.NewFromInt(1) // 100% gain; set to decimal.Zero if you prefer 0%
+		pct = decimal.NewFromInt(1) // 100% gain
+	}
+
+	var acc *models.Account
+	if accountID != nil {
+		acc, err = s.AccRepo.FindAccountByID(tx, *accountID, userID, false)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
 
-	return &models.NetWorthResponse{
+	nwRes := &models.NetWorthResponse{
 		Currency: currency,
 		Points:   points,
 		Current:  models.ChartPoint{Date: curDate, Value: curDec},
@@ -194,5 +207,11 @@ func (s *ChartingService) GetNetWorthSeries(
 			Abs:                abs,
 			Pct:                pct,
 		},
-	}, nil
+	}
+
+	if acc != nil {
+		nwRes.AssetType = &acc.AccountType.Classification
+	}
+
+	return nwRes, nil
 }

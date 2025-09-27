@@ -1,8 +1,9 @@
 package models
 
 import (
-	"github.com/shopspring/decimal"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type ChartPoint struct {
@@ -20,8 +21,9 @@ type Change struct {
 }
 
 type NetWorthResponse struct {
-	Currency string       `json:"currency"`
-	Points   []ChartPoint `json:"points"`
-	Current  ChartPoint   `json:"current"`
-	Change   *Change      `json:"change,omitempty"`
+	Currency  string       `json:"currency"`
+	Points    []ChartPoint `json:"points"`
+	Current   ChartPoint   `json:"current"`
+	Change    *Change      `json:"change,omitempty"`
+	AssetType *string      `json:"asset_type"`
 }

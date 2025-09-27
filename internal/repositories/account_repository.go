@@ -203,7 +203,7 @@ func (r *AccountRepository) FindAllAccountTypes(tx *gorm.DB, userID *int64) ([]m
 	return records, result.Error
 }
 
-func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID int64, withBalance bool) (models.Account, error) {
+func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID int64, withBalance bool) (*models.Account, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
@@ -219,7 +219,7 @@ func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID int64, withB
 	}
 
 	result := query.First(&record)
-	return record, result.Error
+	return &record, result.Error
 }
 
 func (r *AccountRepository) FindAccountTypeByID(tx *gorm.DB, ID int64) (models.AccountType, error) {

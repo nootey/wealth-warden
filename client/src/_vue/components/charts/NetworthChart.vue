@@ -30,11 +30,13 @@ const props = withDefaults(defineProps<{
     currency?: string
     activeColor?: string
     height: number
+    isLiability: boolean
 }>(), {
     dataPoints: () => [],
     currency: 'EUR',
     activeColor: "#ef4444",
     height: 300,
+    isLiability: false
 })
 
 defineEmits<{
@@ -163,7 +165,11 @@ const options = computed(() => ({
                 },
 
                 // current value
-                label: (ctx: any) => vueHelper.displayAsCurrency(ctx.parsed.y),
+                label: (ctx: any) => {
+                    const y = Number(ctx.parsed?.y ?? ctx.raw?.value)
+                    const displayY = props.isLiability ? -Math.abs(y) : y
+                    return vueHelper.displayAsCurrency(displayY)
+                },
 
                 // change vs previous point
                 footer: (items: any[]) => {
@@ -174,16 +180,17 @@ const options = computed(() => ({
 
                     const curr = Number(it.parsed?.y ?? it.raw?.value)
                     const prev = Number(data[i - 1]?.value ?? data[i - 1]?.y ?? 0)
-                    const diff = curr - prev
-                    const pct  = prev !== 0 ? (diff / prev) * 100 : null
+
+                    const rawDiff = curr - prev
+                    const diff = props.isLiability ? -rawDiff : rawDiff
+                    const pct  = prev !== 0 ? (diff / Math.abs(prev)) * 100 : null
 
                     const up   = diff >= 0
                     const icon = up ? '+' : '-'
 
                     const absStr = vueHelper.displayAsCurrency(Math.abs(diff))
                     const pctStr = pct == null ? '' : ` (${Math.abs(pct).toFixed(1)}%)`
-
-                    // Use markers for custom styling in footerColor
+                    
                     return `${icon} ${absStr} ${pctStr}`
                 }
             },
@@ -197,7 +204,9 @@ const options = computed(() => ({
 
                 const curr = Number(it.parsed?.y ?? it.raw?.value)
                 const prev = Number(data[i - 1]?.value ?? data[i - 1]?.y ?? 0)
-                return (curr - prev) >= 0 ? '#22c55e' : '#ef4444'
+                const rawDiff = curr - prev
+                const diff = props.isLiability ? -rawDiff : rawDiff
+                return diff >= 0 ? '#22c55e' : '#ef4444'
             },
         },
         hoverGuide: {
