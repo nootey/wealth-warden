@@ -31,7 +31,7 @@ func NewStatisticsService(
 	}
 }
 
-func (s *StatisticsService) GetAccountBasicStatistics(accID, userID int64, year int) (*models.BasicAccountStats, error) {
+func (s *StatisticsService) GetAccountBasicStatistics(accID *int64, userID int64, year int) (*models.BasicAccountStats, error) {
 
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
@@ -45,12 +45,13 @@ func (s *StatisticsService) GetAccountBasicStatistics(accID, userID int64, year 
 		}
 	}()
 
-	acc, err := s.AccRepo.FindAccountByID(tx, accID, userID, true)
-	if err != nil {
-		return nil, err
+	if accID != nil {
+		if _, err := s.AccRepo.FindAccountByID(tx, *accID, userID, true); err != nil {
+			return nil, err
+		}
 	}
 
-	tot, err := s.Repo.FetchYearlyTotals(tx, userID, &acc.ID, year)
+	tot, err := s.Repo.FetchYearlyTotals(tx, userID, accID, year)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -60,7 +61,7 @@ func (s *StatisticsService) GetAccountBasicStatistics(accID, userID int64, year 
 	outflow, _ := decimal.NewFromString(tot.OutflowText)
 	net, _ := decimal.NewFromString(tot.NetText)
 
-	mrows, err := s.Repo.FetchMonthlyTotals(tx, userID, &acc.ID, year)
+	mrows, err := s.Repo.FetchMonthlyTotals(tx, userID, accID, year)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -113,7 +114,7 @@ func (s *StatisticsService) GetAccountBasicStatistics(accID, userID int64, year 
 		avgOut = outflow.Div(decimal.NewFromInt(int64(activeMonths)))
 	}
 
-	rows, err := s.Repo.FetchYearlyCategoryTotals(tx, userID, &acc.ID, year)
+	rows, err := s.Repo.FetchYearlyCategoryTotals(tx, userID, accID, year)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -154,7 +155,7 @@ func (s *StatisticsService) GetAccountBasicStatistics(accID, userID int64, year 
 
 	return &models.BasicAccountStats{
 		UserID:             userID,
-		AccountID:          &acc.ID,
+		AccountID:          accID,
 		Currency:           models.DefaultCurrency,
 		Year:               year,
 		Inflow:             inflow,

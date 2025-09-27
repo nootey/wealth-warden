@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"wealth-warden/internal/services"
@@ -33,19 +32,7 @@ func (h *StatisticsHandler) GetAccountBasicStatistics(c *gin.Context) {
 		return
 	}
 
-	idStr := c.Param("id")
-	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
-		return
-	}
-
+	// year (required)
 	y := c.Query("year")
 	if y == "" {
 		utils.ErrorMessage(c, "param error", "year is required", http.StatusBadRequest, nil)
@@ -57,7 +44,18 @@ func (h *StatisticsHandler) GetAccountBasicStatistics(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.Service.GetAccountBasicStatistics(id, userID, year)
+	// accId (optional)
+	var accID *int64
+	if s := c.Query("accId"); s != "" && s != "null" && s != "undefined" {
+		v, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			utils.ErrorMessage(c, "param error", "accId must be a valid integer", http.StatusBadRequest, err)
+			return
+		}
+		accID = &v
+	}
+
+	stats, err := h.Service.GetAccountBasicStatistics(accID, userID, year)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", "Error getting basic statistics for account", http.StatusBadRequest, err)
 		return

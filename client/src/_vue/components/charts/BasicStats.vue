@@ -8,17 +8,17 @@ import vueHelper from "../../../utils/vue_helper.ts";
 import ComparativePieChart from "./ComparativePieChart.vue";
 
 const props = defineProps<{
-  accID: number | null;
+  accID?: number | null;
 }>();
 
 const accBasicStats = ref<BasicAccountStats | null>(null);
 
 onMounted(async () => {
-  try {
-    accBasicStats.value = await statsStore.getBasicStatisticsForAccount(props.accID!, 2025);
-  } catch (e) {
-    toastStore.errorResponseToast(e);
-  }
+    try {
+        accBasicStats.value = await statsStore.getBasicStatisticsForAccount(props.accID ?? null, 2025);
+    } catch (e) {
+        toastStore.errorResponseToast(e);
+    }
 });
 
 const statsStore = useStatisticsStore();
@@ -91,10 +91,6 @@ const pieOptions = computed(() => ({
 
 <template>
     <div v-if="accBasicStats" class="w-full flex flex-column gap-3 p-3">
-        <div class="w-full flex flex-column gap-2">
-          <h3 style="color: var(--text-primary)">Stats</h3>
-        </div>
-
         <div class="flex flex-row w-full justify-content-center p-1">
             <div class="flex flex-column w-5 gap-3">
                 <h4 style="color: var(--text-primary)">Basic</h4>

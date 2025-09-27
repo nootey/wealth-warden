@@ -72,14 +72,20 @@ async function confirmCloseAccount(id: number) {
           <NetworthWidget ref="nWidgetRef" :accountId="account.id" :chartHeight="200"/>
         </SlotSkeleton>
 
+        <div class="w-full flex flex-column gap-2">
+            <h3 style="color: var(--text-primary)">Stats</h3>
+        </div>
         <SlotSkeleton class="w-full">
             <BasicStats :accID="account.id" />
         </SlotSkeleton>
 
+        <div class="w-full flex flex-column gap-2">
+            <h3 style="color: var(--text-primary)">Activity</h3>
+        </div>
         <SlotSkeleton class="w-full">
             <div class="w-full flex flex-column gap-3 p-3">
                 <div class="w-full flex flex-column gap-2">
-                    <h3 style="color: var(--text-primary)">Activity</h3>
+                    <h4 style="color: var(--text-primary)">Transactions</h4>
                 </div>
 
                 <div class="flex flex-row gap-2">

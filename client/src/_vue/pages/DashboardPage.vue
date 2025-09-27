@@ -6,6 +6,7 @@ import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
 import NetworthWidget from "../components/widgets/NetworthWidget.vue";
 import {ref} from "vue";
 import AccountAllocations from "../components/charts/AccountAllocations.vue";
+import BasicStats from "../components/charts/BasicStats.vue";
 
 const authStore = useAuthStore();
 const accountStore = useAccountStore();
@@ -56,6 +57,14 @@ async function backfillBalances(){
 
             <SlotSkeleton bg="secondary">
                 <AccountAllocations title="Liablities" classification="liability" />
+            </SlotSkeleton>
+
+            <div class="w-full flex flex-row justify-content-between p-2 gap-2">
+                <h3>Stats</h3>
+            </div>
+
+            <SlotSkeleton bg="secondary">
+                <BasicStats />
             </SlotSkeleton>
 
     </div>

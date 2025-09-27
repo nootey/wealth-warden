@@ -7,12 +7,14 @@ export const useStatisticsStore = defineStore('statistics', {
         apiPrefix: 'statistics',
     }),
     actions: {
-        async getBasicStatisticsForAccount(accID: number, year: number) {
-            const res = await apiClient.get<BasicAccountStats>(
-                `${this.apiPrefix}/account/${accID}`,
-                { params: { year } }
-            );
+        async getBasicStatisticsForAccount(accID: number | null | undefined, year: number) {
+            const res = await apiClient.get<BasicAccountStats>("statistics/account", {
+                params: {
+                    year,
+                    accId: accID ?? undefined,
+                },
+            });
             return res.data;
-        },
+        }
     },
 });
