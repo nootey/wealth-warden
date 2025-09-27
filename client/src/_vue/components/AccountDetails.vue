@@ -1,18 +1,14 @@
 <script setup lang="ts">
 
-import SettingsSkeleton from "./layout/SettingsSkeleton.vue";
 import type {Account} from "../../models/account_models.ts";
 import vueHelper from "../../utils/vue_helper.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
-import {computed, onMounted, ref} from "vue";
+import {computed, ref} from "vue";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import TransactionsPaginated from "./data/TransactionsPaginated.vue";
 import type {Column} from "../../services/filter_registry.ts";
 import {useConfirm} from "primevue/useconfirm";
 import NetworthWidget from "./widgets/NetworthWidget.vue";
-import {useStatisticsStore} from "../../services/stores/statistics_store.ts";
-import type {BasicAccountStats} from "../../models/statistics_models.ts";
-import ShowLoading from "./base/ShowLoading.vue";
 import BasicStats from "./charts/BasicStats.vue";
 import SlotSkeleton from "./layout/SlotSkeleton.vue";
 
