@@ -80,7 +80,7 @@ async function confirmCloseAccount(id: number) {
         </SlotSkeleton>
 
         <SlotSkeleton class="w-full">
-            <div class="w-full flex flex-column gap-3 p-2">
+            <div class="w-full flex flex-column gap-3 p-3">
                 <div class="w-full flex flex-column gap-2">
                     <h3 style="color: var(--text-primary)">Activity</h3>
                 </div>

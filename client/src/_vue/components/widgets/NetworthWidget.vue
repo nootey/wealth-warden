@@ -173,69 +173,67 @@ onMounted(getData)
 </script>
 
 <template>
-    <SlotSkeleton bg="secondary">
-        <div v-if="payload" class="w-full flex flex-column justify-content-center p-3 gap-1">
-            <div class="flex flex-row gap-2 w-full justify-content-between">
-                <div class="flex flex-column gap-2">
-                    <div class="flex flex-row">
-                        <span class="text-sm" style="color: var(--text-secondary)">{{ title }}</span>
-                    </div>
-                    <div class="flex flex-row">
-                        <strong>{{ vueHelper.displayAsCurrency(payload.current.value) }}</strong>
-                    </div>
-                </div>
+  <div v-if="payload" class="w-full flex flex-column justify-content-center p-3 gap-1">
+    <div class="flex flex-row gap-2 w-full justify-content-between">
+      <div class="flex flex-column gap-2">
+        <div class="flex flex-row">
+          <span class="text-sm" style="color: var(--text-secondary)">{{ title }}</span>
+        </div>
+        <div class="flex flex-row">
+          <strong>{{ vueHelper.displayAsCurrency(payload.current.value) }}</strong>
+        </div>
+      </div>
 
-                <div class="flex flex-column gap-2">
-                    <AutoComplete
-                            size="small"
-                            style="width: 90px;"
-                            v-model="selectedDTO"
-                            :suggestions="filteredDateRanges"
-                            dropdown
-                            @complete="searchDaterange"
-                            optionLabel="name"
-                            forceSelection
-                    />
-                </div>
-            </div>
+      <div class="flex flex-column gap-2">
+        <AutoComplete
+            size="small"
+            style="width: 90px;"
+            v-model="selectedDTO"
+            :suggestions="filteredDateRanges"
+            dropdown
+            @complete="searchDaterange"
+            optionLabel="name"
+            forceSelection
+        />
+      </div>
+    </div>
 
-            <div v-if="payload?.change && hasSeries"
-                    class="flex flex-row gap-2 align-items-center"
-                    :style="{ color: activeColor }">
-                <span>{{ vueHelper.displayAsCurrency(Math.abs(payload.change.abs)) }}</span>
+    <div v-if="payload?.change && hasSeries"
+         class="flex flex-row gap-2 align-items-center"
+         :style="{ color: activeColor }">
+      <span>{{ vueHelper.displayAsCurrency(Math.abs(payload.change.abs)) }}</span>
 
-                <div class="flex flex-row gap-1 align-items-center">
-                    <i class="text-sm" :class="payload.change.abs >= 0 ? 'pi pi-angle-double-up' : 'pi pi-angle-double-down'"></i>
-                    <span>({{ pctStr }})</span>
-                </div>
+      <div class="flex flex-row gap-1 align-items-center">
+        <i class="text-sm" :class="payload.change.abs >= 0 ? 'pi pi-angle-double-up' : 'pi pi-angle-double-down'"></i>
+        <span>({{ pctStr }})</span>
+      </div>
 
-                <span class="text-sm" style="color: var(--text-secondary)">
+      <span class="text-sm" style="color: var(--text-secondary)">
                     {{ displayNetworthChange(periodLabels[selectedKey]) }}
                 </span>
-            </div>
+    </div>
 
-            <NetworthChart
-                    v-if="hasSeries"
-                    :height="chartHeight"
-                    :dataPoints="displayPoints"
-                    :currency="payload.currency"
-                    :activeColor="activeColor"
-            />
+    <NetworthChart
+        v-if="hasSeries"
+        :height="chartHeight"
+        :dataPoints="displayPoints"
+        :currency="payload.currency"
+        :activeColor="activeColor"
+    />
 
-            <div v-else
-                 class="flex flex-column align-items-center justify-content-center border-1 border-dashed border-round-md surface-border"
-                 :style="{ height: (chartHeight/2) + 'px' }">
-                <i class="pi pi-inbox text-2xl mb-2" style="color: var(--text-secondary)"></i>
-                <div class="text-sm" style="color: var(--text-secondary)">
+    <div v-else
+         class="flex flex-column align-items-center justify-content-center border-1 border-dashed border-round-md surface-border"
+         :style="{ height: (chartHeight/2) + 'px' }">
+      <i class="pi pi-inbox text-2xl mb-2" style="color: var(--text-secondary)"></i>
+      <div class="text-sm" style="color: var(--text-secondary)">
                     <span>
                         No data yet - connect an
                     </span>
-                    <span class="hover-icon font-bold text-base" @click="router.push({name: 'accounts'})"> account </span>
-                    <span> to see your net worth over time. </span>
-                </div>
-            </div>
+        <span class="hover-icon font-bold text-base" @click="router.push({name: 'accounts'})"> account </span>
+        <span> to see your net worth over time. </span>
+      </div>
+    </div>
 
-        </div>
-        <ShowLoading v-else :numFields="6" />
-    </SlotSkeleton>
+  </div>
+  <ShowLoading v-else :numFields="6" />
 </template>

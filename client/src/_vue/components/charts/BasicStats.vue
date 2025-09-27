@@ -90,13 +90,13 @@ const pieOptions = computed(() => ({
 </script>
 
 <template>
-    <div v-if="accBasicStats" class="w-full flex flex-column gap-3 p-2">
+    <div v-if="accBasicStats" class="w-full flex flex-column gap-3 p-3">
         <div class="w-full flex flex-column gap-2">
           <h3 style="color: var(--text-primary)">Stats</h3>
         </div>
 
         <div class="flex flex-row w-full justify-content-center p-1">
-            <div class="flex flex-column w-4 gap-2">
+            <div class="flex flex-column w-5 gap-3">
                 <h4 style="color: var(--text-primary)">Basic</h4>
                 <div class="flex flex-row gap-2">
                     <span>Total inflows:</span>
@@ -114,9 +114,25 @@ const pieOptions = computed(() => ({
                     <span>Avg. monthly outflows:</span>
                     <b>{{ vueHelper.displayAsCurrency(accBasicStats.avg_monthly_outflow) }}</b>
                 </div>
+                <div class="flex flex-row gap-2">
+                    <span>Take home:</span>
+                    <b>{{ vueHelper.displayAsCurrency(accBasicStats.take_home) }}</b>
+                </div>
+                <div class="flex flex-row gap-2">
+                    <span>Overflow:</span>
+                    <b>{{ vueHelper.displayAsCurrency(accBasicStats.overflow) }}</b>
+                </div>
+                <div class="flex flex-row gap-2">
+                    <span>Avg. monthly take home:</span>
+                    <b>{{ vueHelper.displayAsCurrency(accBasicStats.avg_monthly_take_home) }}</b>
+                </div>
+                <div class="flex flex-row gap-2">
+                    <span>Avg. monthly overflow:</span>
+                    <b>{{ vueHelper.displayAsCurrency(accBasicStats.avg_monthly_overflow) }}</b>
+                </div>
             </div>
 
-            <div class="flex flex-column w-8 justify-content-center align-items-center gap-2">
+            <div class="flex flex-column w-7 justify-content-center align-items-center gap-2">
                 <h4 style="color: var(--text-primary)">Category breakdown</h4>
                 <div class="flex flex-column justify-content-center w-10">
                     <Carousel v-if="hasInflowData && hasOutflowData"

@@ -18,6 +18,10 @@ export interface BasicAccountStats {
     net: string;
     avg_monthly_inflow: string;
     avg_monthly_outflow: string;
+    take_home: string;
+    overflow: string;
+    avg_monthly_take_home: string;
+    avg_monthly_overflow: string;
     active_months: number;
     categories?: CategoryStat[];
     generated_at: Date;
