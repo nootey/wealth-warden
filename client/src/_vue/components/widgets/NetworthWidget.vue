@@ -3,7 +3,6 @@ import { ref, computed, watch, onMounted } from 'vue'
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useChartStore} from "../../../services/stores/chart_store.ts";
 import type {NetworthResponse, ChartPoint} from "../../../models/chart_models.ts";
-import SlotSkeleton from "../layout/SlotSkeleton.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import NetworthChart from "../charts/NetworthChart.vue";
 import ShowLoading from "../base/ShowLoading.vue";
@@ -104,7 +103,7 @@ const displayPoints = computed<ChartPoint[]>(() => {
     }
 
     const isLiability = payload.value?.asset_type === 'liability'
-    return isLiability ? pts.map(p => ({ ...p, value: Math.abs(p.value) })) : pts
+    return isLiability ? pts.map(p => ({ ...p, value: Math.abs(Number(p.value)) })) : pts
 })
 
 function searchDaterange(event: any) {
