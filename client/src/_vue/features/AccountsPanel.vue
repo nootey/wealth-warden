@@ -175,13 +175,6 @@ async function onToggleEnabled(acc: Account, nextValue: boolean) {
     }
 }
 
-function handlePrimaryClick(acc: Account) {
-    if (props.advanced) {
-        openModal("details", acc);
-    }
-    // non-advanced: do nothing
-}
-
 defineExpose({ refresh: getData });
 
 </script>
@@ -268,9 +261,8 @@ defineExpose({ refresh: getData });
 
                     <!-- Name + subtype -->
                     <div class="ml-2">
-                        <div class="font-bold"
-                             :class="{ clickable: advanced }"
-                             @click="handlePrimaryClick(account)">
+                        <div class="font-bold clickable"
+                             @click="openModal('details', account)">
                             {{ account.name }}
                         </div>
 
@@ -316,7 +308,7 @@ defineExpose({ refresh: getData });
 
 .clickable { cursor: pointer; }
 
-.account-row.advanced .font-bold.clickable:hover {
+.account-row .font-bold.clickable:hover {
     text-decoration: underline;
 }
 
