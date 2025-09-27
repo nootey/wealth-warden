@@ -13,6 +13,8 @@ import NetworthWidget from "./widgets/NetworthWidget.vue";
 import {useStatisticsStore} from "../../services/stores/statistics_store.ts";
 import type {BasicAccountStats} from "../../models/statistics_models.ts";
 import ShowLoading from "./base/ShowLoading.vue";
+import BasicStats from "./charts/BasicStats.vue";
+import SlotSkeleton from "./layout/SlotSkeleton.vue";
 
 const props = defineProps<{
     account: Account;
@@ -22,19 +24,8 @@ const emit = defineEmits<{
     (event: 'closeAccount', id: number): void;
 }>();
 
-const accBasicStats = ref<BasicAccountStats | null>(null);
-
-onMounted(async () => {
-    try {
-        accBasicStats.value = await statsStore.getBasicStatisticsForAccount(props.account.id!, 2025);
-    } catch (e) {
-        toastStore.errorResponseToast(e);
-    }
-});
-
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
-const statsStore = useStatisticsStore();
 
 const confirm = useConfirm();
 const nWidgetRef = ref<InstanceType<typeof NetworthWidget> | null>(null);
@@ -80,32 +71,15 @@ async function confirmCloseAccount(id: number) {
             <Button size="small" label="Close account" severity="danger" style="color: white;" @click="confirmCloseAccount(account.id!)"></Button>
         </div>
 
-        <NetworthWidget ref="nWidgetRef" :accountId="account.id" :chartHeight="200"/>
+        <SlotSkeleton class="w-full">
+          <NetworthWidget ref="nWidgetRef" :accountId="account.id" :chartHeight="200"/>
+        </SlotSkeleton>
 
-        <SettingsSkeleton class="w-full">
-            <div v-if="accBasicStats" class="w-full flex flex-column gap-3 p-2">
-                <div class="w-full flex flex-column gap-2">
-                    <h3 style="color: var(--text-primary)">Stats</h3>
-                </div>
+        <SlotSkeleton class="w-full">
+            <BasicStats :accID="account.id" />
+        </SlotSkeleton>
 
-                <div class="flex flex-row gap-2">
-                    Inflows: {{ vueHelper.displayAsCurrency(accBasicStats.inflow) }}
-                </div>
-                <div class="flex flex-row gap-2">
-                    Outflows: {{ vueHelper.displayAsCurrency(accBasicStats.outflow) }}
-                </div>
-                <div class="flex flex-row gap-2">
-                    Average monthly inflows: {{ vueHelper.displayAsCurrency(accBasicStats.avg_monthly_inflow) }}
-                </div>
-                <div class="flex flex-row gap-2">
-                    Average monthly outflows: {{ vueHelper.displayAsCurrency(accBasicStats.avg_monthly_outflow) }}
-                </div>
-
-            </div>
-            <ShowLoading v-else :numFields="5" />
-        </SettingsSkeleton>
-
-        <SettingsSkeleton class="w-full">
+        <SlotSkeleton class="w-full">
             <div class="w-full flex flex-column gap-3 p-2">
                 <div class="w-full flex flex-column gap-2">
                     <h3 style="color: var(--text-primary)">Activity</h3>
@@ -122,7 +96,7 @@ async function confirmCloseAccount(id: number) {
                 </div>
 
             </div>
-        </SettingsSkeleton>
+        </SlotSkeleton>
     </div>
 </template>
 
