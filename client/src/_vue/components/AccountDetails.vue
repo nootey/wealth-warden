@@ -14,6 +14,7 @@ import SlotSkeleton from "./layout/SlotSkeleton.vue";
 
 const props = defineProps<{
     account: Account;
+    advanced: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -64,7 +65,7 @@ async function confirmCloseAccount(id: number) {
     <div class="flex flex-column w-full gap-3">
         <div class="flex flex-row gap-2 align-items-center justify-content-between">
             <h3>{{ account.name }}</h3>
-            <Button size="small" label="Close account" severity="danger" style="color: white;" @click="confirmCloseAccount(account.id!)"></Button>
+            <Button v-if="advanced" size="small" label="Close account" severity="danger" style="color: white;" @click="confirmCloseAccount(account.id!)"></Button>
         </div>
 
         <SlotSkeleton class="w-full">
