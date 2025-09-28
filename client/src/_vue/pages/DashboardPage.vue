@@ -3,10 +3,10 @@ import {useAuthStore} from "../../services/stores/auth_store.ts";
 import {useAccountStore} from "../../services/stores/account_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
-import NetworthWidget from "../components/widgets/NetworthWidget.vue";
+import NetworthWidget from "../features/NetworthWidget.vue";
 import {ref} from "vue";
-import AccountAllocations from "../components/charts/AccountAllocations.vue";
-import BasicStats from "../components/charts/BasicStats.vue";
+import AccountAllocations from "../features/AccountAllocations.vue";
+import AccountBasicStats from "../features/AccountBasicStats.vue";
 
 const authStore = useAuthStore();
 const accountStore = useAccountStore();
@@ -64,7 +64,7 @@ async function backfillBalances(){
             </div>
 
             <SlotSkeleton bg="secondary">
-                <BasicStats :pieChartSize="300" />
+                <AccountBasicStats :pieChartSize="300" />
             </SlotSkeleton>
 
     </div>

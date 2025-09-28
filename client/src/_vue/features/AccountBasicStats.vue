@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import {computed, onMounted, ref} from "vue";
-import type {BasicAccountStats, CategoryStat} from "../../../models/statistics_models.ts";
-import {useStatisticsStore} from "../../../services/stores/statistics_store.ts";
-import {useToastStore} from "../../../services/stores/toast_store.ts";
-import ShowLoading from "../base/ShowLoading.vue";
-import vueHelper from "../../../utils/vue_helper.ts";
-import ComparativePieChart from "./ComparativePieChart.vue";
+import type {BasicAccountStats, CategoryStat} from "../../models/statistics_models.ts";
+import {useStatisticsStore} from "../../services/stores/statistics_store.ts";
+import {useToastStore} from "../../services/stores/toast_store.ts";
+import ShowLoading from "../components/base/ShowLoading.vue";
+import vueHelper from "../../utils/vue_helper.ts";
+import ComparativePieChart from "../components/charts/ComparativePieChart.vue";
 
 const props = defineProps<{
   accID?: number | null;

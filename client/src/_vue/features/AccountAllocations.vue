@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import {computed, onMounted, ref, watch} from "vue";
-import type {Account} from "../../../models/account_models.ts";
-import {useAccountStore} from "../../../services/stores/account_store.ts";
-import {useSharedStore} from "../../../services/stores/shared_store.ts";
-import {useToastStore} from "../../../services/stores/toast_store.ts";
-import vueHelper from "../../../utils/vue_helper.ts";
-import {colorForAccountType} from "../../../style/theme/accountColors.ts";
+import type {Account} from "../../models/account_models.ts";
+import {useAccountStore} from "../../services/stores/account_store.ts";
+import {useSharedStore} from "../../services/stores/shared_store.ts";
+import {useToastStore} from "../../services/stores/toast_store.ts";
+import vueHelper from "../../utils/vue_helper.ts";
+import {colorForAccountType} from "../../style/theme/accountColors.ts";
 
 const props = defineProps<{
     title: string;

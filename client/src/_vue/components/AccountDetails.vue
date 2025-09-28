@@ -8,8 +8,8 @@ import {useToastStore} from "../../services/stores/toast_store.ts";
 import TransactionsPaginated from "./data/TransactionsPaginated.vue";
 import type {Column} from "../../services/filter_registry.ts";
 import {useConfirm} from "primevue/useconfirm";
-import NetworthWidget from "./widgets/NetworthWidget.vue";
-import BasicStats from "./charts/BasicStats.vue";
+import NetworthWidget from "../features/NetworthWidget.vue";
+import AccountBasicStats from "../features/AccountBasicStats.vue";
 import SlotSkeleton from "./layout/SlotSkeleton.vue";
 
 const props = defineProps<{
@@ -76,7 +76,7 @@ async function confirmCloseAccount(id: number) {
             <h3 style="color: var(--text-primary)">Stats</h3>
         </div>
         <SlotSkeleton class="w-full">
-            <BasicStats :accID="account.id" :pieChartSize="250" />
+            <AccountBasicStats :accID="account.id" :pieChartSize="250" />
         </SlotSkeleton>
 
         <div class="w-full flex flex-column gap-2">
