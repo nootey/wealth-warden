@@ -11,7 +11,15 @@ export const useStatisticsStore = defineStore('statistics', {
             const res = await apiClient.get<BasicAccountStats>("statistics/account", {
                 params: {
                     year,
-                    accId: accID ?? undefined,
+                    acc_id: accID ?? undefined,
+                },
+            });
+            return res.data;
+        },
+        async getAvailableStatsYears(accID: number | null | undefined) {
+            const res = await apiClient.get<number[]>("statistics/years", {
+                params: {
+                    acc_id: accID ?? undefined,
                 },
             });
             return res.data;

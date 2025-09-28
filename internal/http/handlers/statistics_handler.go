@@ -46,7 +46,7 @@ func (h *StatisticsHandler) GetAccountBasicStatistics(c *gin.Context) {
 
 	// accId (optional)
 	var accID *int64
-	if s := c.Query("accId"); s != "" && s != "null" && s != "undefined" {
+	if s := c.Query("acc_id"); s != "" && s != "null" && s != "undefined" {
 		v, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
 			utils.ErrorMessage(c, "param error", "accId must be a valid integer", http.StatusBadRequest, err)
@@ -62,4 +62,30 @@ func (h *StatisticsHandler) GetAccountBasicStatistics(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
+}
+
+func (h *StatisticsHandler) GetAvailableStatsYears(c *gin.Context) {
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	var accID *int64
+	if s := c.Query("acc_id"); s != "" && s != "null" && s != "undefined" {
+		v, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			utils.ErrorMessage(c, "param error", "accId must be a valid integer", http.StatusBadRequest, err)
+			return
+		}
+		accID = &v
+	}
+
+	years, err := h.Service.GetAvailableStatsYears(accID, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", "Error getting available years", http.StatusBadRequest, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, years)
 }

@@ -167,3 +167,35 @@ func (r *StatisticsRepository) FetchMonthlyTotals(
 	}
 	return rows, nil
 }
+
+func (r *StatisticsRepository) GetAvailableStatsYears(accID *int64, userID int64) ([]int64, error) {
+	var (
+		query string
+		args  []any
+	)
+
+	if accID == nil {
+		query = `
+			SELECT DISTINCT EXTRACT(YEAR FROM txn_date)::int AS year
+			FROM transactions
+			WHERE user_id = ?
+			ORDER BY year;
+		`
+		args = []any{userID}
+	} else {
+		query = `
+			SELECT DISTINCT EXTRACT(YEAR FROM txn_date)::int AS year
+			FROM transactions
+			WHERE user_id = ?
+			  AND account_id = ?
+			ORDER BY year;
+		`
+		args = []any{userID, *accID}
+	}
+
+	var years []int64
+	if err := r.DB.Raw(query, args...).Scan(&years).Error; err != nil {
+		return nil, fmt.Errorf("querying available stats years: %w", err)
+	}
+	return years, nil
+}

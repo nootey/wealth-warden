@@ -172,3 +172,7 @@ func (s *StatisticsService) GetAccountBasicStatistics(accID *int64, userID int64
 		GeneratedAt:        time.Now().UTC(),
 	}, nil
 }
+
+func (s *StatisticsService) GetAvailableStatsYears(accID *int64, userID int64) ([]int64, error) {
+	return s.Repo.GetAvailableStatsYears(accID, userID)
+}
