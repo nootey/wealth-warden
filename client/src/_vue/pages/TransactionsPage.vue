@@ -18,6 +18,7 @@ import TransfersPaginated from "../components/data/TransfersPaginated.vue";
 import TransactionsPaginated from "../components/data/TransactionsPaginated.vue";
 import {useRouter} from "vue-router";
 import {usePermissions} from "../../utils/use_permissions.ts";
+import TransactionTemplates from "../features/TransactionTemplates.vue";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -40,6 +41,7 @@ const txRef = ref<InstanceType<typeof TransactionsPaginated> | null>(null);
 
 const createModal = ref(false);
 const updateModal = ref(false);
+const templateModal = ref(false);
 const updateTransactionID = ref(null);
 const includeDeleted = ref(false);
 
@@ -83,6 +85,14 @@ function manipulateDialog(modal: string, value: any) {
             return;
         }
         createModal.value = value;
+        break;
+    }
+    case 'openTemplateView': {
+        if(!hasPermission("manage_data")) {
+            toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+            return;
+        }
+        templateModal.value = value;
         break;
     }
     case 'updateTransaction': {
@@ -203,20 +213,25 @@ provide("removeFilter", removeFilter);
 
 <template>
 
-  <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{'501px': '90vw'}"
+    <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{'501px': '90vw'}"
           :modal="true" :style="{width: '500px'}" header="Add transaction">
     <TransactionForm mode="create"
                      @completeTxOperation="handleEmit('completeTxOperation')"
                      @completeTrOperation="handleEmit('completeTrOperation')"></TransactionForm>
-  </Dialog>
+    </Dialog>
 
-  <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal" :breakpoints="{'501px': '90vw'}"
+    <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal" :breakpoints="{'501px': '90vw'}"
           :modal="true" :style="{width: '500px'}" header="Transaction details">
     <TransactionForm mode="update" :recordId="updateTransactionID"
                      @completeTxOperation="handleEmit('completeTxOperation')"></TransactionForm>
-  </Dialog>
+    </Dialog>
 
-  <Popover ref="filterOverlayRef" class="rounded-popover">
+    <Dialog class="rounded-dialog" v-model:visible="templateModal" :breakpoints="{'801px': '90vw'}"
+            :modal="true" :style="{width: '800px'}" header="Transaction templates">
+        <TransactionTemplates></TransactionTemplates>
+    </Dialog>
+
+    <Popover ref="filterOverlayRef" class="rounded-popover">
     <div class="flex flex-column gap-2" style="width: 400px">
       <FilterMenu
           v-model:value="filters"
@@ -227,9 +242,9 @@ provide("removeFilter", removeFilter);
           @cancel="cancelFilters"
       />
     </div>
-  </Popover>
+    </Popover>
 
-  <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
+    <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
 
       <div class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
            style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;">
@@ -237,8 +252,11 @@ provide("removeFilter", removeFilter);
         <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
           <div style="font-weight: bold;">Transactions</div>
           <i v-if="hasPermission('manage_data')" class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/categories')" v-tooltip="'Go to categories settings.'"></i>
-          <Button label="New transaction" icon="pi pi-plus" class="main-button" @click="manipulateDialog('addTransaction', true)"></Button>
-      </div>
+          <Button label="Templates" icon="pi pi-database" class="outline-button"
+                  @click="manipulateDialog('openTemplateView', true)" />
+            <Button label="New transaction" icon="pi pi-plus" class="main-button"
+                    @click="manipulateDialog('addTransaction', true)" />
+        </div>
 
         <div class="flex flex-row w-full">
         <ActionRow>
@@ -282,7 +300,7 @@ provide("removeFilter", removeFilter);
         </div>
 
     </div>
-  </main>
+    </main>
 </template>
 
 <style scoped>

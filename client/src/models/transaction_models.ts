@@ -33,3 +33,26 @@ export interface Category {
     is_default: boolean;
     deleted_at: Date | null;
 }
+
+export interface TransactionTemplate {
+    id: number | null;
+    name: string;
+    account_id: number | null;
+    category_id: number | null;
+    transaction_type: string;
+    amount: string | null;
+    period: string;
+    interval: number;
+    day_of_week: number | null;
+    day_of_month: number | null;
+    run_time: string;
+    timezone: string;
+    next_run_at: Date;
+    last_run_at: Date | null;
+    run_count: number;
+    end_date: Date | null;
+    max_runs: number | null;
+    is_active: boolean;
+    category: Category | null;
+    account: Account;
+}

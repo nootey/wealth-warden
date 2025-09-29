@@ -1234,3 +1234,48 @@ func (s *TransactionService) RestoreCategoryName(userID int64, id int64) error {
 
 	return nil
 }
+
+func (s *TransactionService) FetchTemplatesPaginated(userID int64, p utils.PaginationParams) ([]models.TransactionTemplate, *utils.Paginator, error) {
+
+	totalRecords, err := s.Repo.CountTemplates(userID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	offset := (p.PageNumber - 1) * p.RowsPerPage
+
+	records, err := s.Repo.FindTemplates(userID, offset, p.RowsPerPage)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	from := offset + 1
+	if from > int(totalRecords) {
+		from = int(totalRecords)
+	}
+
+	to := offset + len(records)
+	if to > int(totalRecords) {
+		to = int(totalRecords)
+	}
+
+	paginator := &utils.Paginator{
+		CurrentPage:  p.PageNumber,
+		RowsPerPage:  p.RowsPerPage,
+		TotalRecords: int(totalRecords),
+		From:         from,
+		To:           to,
+	}
+
+	return records, paginator, nil
+}
+
+func (s *TransactionService) InsertTemplate(userID int64, req *models.TransactionTemplateReq) error {
+
+	return nil
+}
+
+func (s *TransactionService) DeleteTemplate(userID int64, id int64) error {
+
+	return nil
+}

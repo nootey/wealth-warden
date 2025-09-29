@@ -1,8 +1,9 @@
 package models
 
 import (
-	"github.com/shopspring/decimal"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type Transaction struct {
@@ -39,6 +40,32 @@ type Transfer struct {
 	// Relations
 	TransactionInflow  Transaction `gorm:"foreignKey:TransactionInflowID;references:ID" json:"from"`
 	TransactionOutflow Transaction `gorm:"foreignKey:TransactionOutflowID;references:ID" json:"to"`
+}
+
+type TransactionTemplate struct {
+	ID              int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name            string          `gorm:"varchar(150)" json:"name"`
+	UserID          int64           `gorm:"not null;index:idx_transactions_user_date" json:"user_id"`
+	AccountID       int64           `gorm:"not null;index:idx_transactions_account_date" json:"account_id"`
+	CategoryID      *int64          `gorm:"index:idx_transactions_category" json:"category_id,omitempty"`
+	TransactionType string          `gorm:"not null;enum(income,expense)" json:"transaction_type"`
+	Amount          decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
+	Period          string          `gorm:"not null:enum(week,month)" json:"period"`
+	Interval        int             `gorm:"not null" json:"interval"`
+	DayOfWeek       *int            `gorm:"between(0,6)" json:"day_of_week"`
+	DayOfMonth      *int            `gorm:"between(1,31)" json:"day_of_month"`
+	RunTime         time.Time       `gorm:"not null;default:'03:00'" json:"run_time"`
+	Timezone        string          `gorm:"not null;default:'UTC'" json:"timezone"`
+	NextRunAt       time.Time       `gorm:"not null" json:"next_run_at"`
+	LastRunAt       *time.Time      `json:"last_run_at"`
+	RunCount        int             `gorm:"not null;default:0" json:"run_count"`
+	EndDate         *time.Time      `json:"end_date"`
+	MaxRuns         *int            `json:"max_runs"`
+	IsActive        bool            `gorm:"not null;default:true" json:"is_active"`
+	Account         Account         `json:"account"`
+	Category        Category        `json:"category,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
 }
 
 type Category struct {
@@ -85,4 +112,11 @@ type TrRestoreReq struct {
 type CategoryReq struct {
 	DisplayName    string `json:"display_name" validate:"required"`
 	Classification string `json:"classification" validate:"required"`
+}
+
+type TransactionTemplateReq struct {
+	AccountID       int64           `json:"account_id" validate:"required"`
+	CategoryID      *int64          `json:"category_id,omitempty"`
+	TransactionType string          `json:"transaction_type" validate:"required"`
+	Amount          decimal.Decimal `json:"amount" validate:"required"`
 }

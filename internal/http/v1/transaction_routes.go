@@ -24,4 +24,7 @@ func TransactionRoutes(ap *gin.RouterGroup, h *handlers.TransactionHandler) {
 	ap.DELETE("categories/:id", authz.RequireAllMW("manage_data"), h.DeleteCategory)
 	ap.POST("categories/restore", authz.RequireAllMW("manage_data"), h.RestoreCategory)
 	ap.POST("categories/restore/name", authz.RequireAllMW("manage_data"), h.RestoreCategoryName)
+	ap.GET("templates", authz.RequireAllMW("view_data"), h.GetTemplatesPaginated)
+	ap.PUT("templates", authz.RequireAllMW("manage_data"), h.InsertTemplate)
+	ap.DELETE("templates/:id", authz.RequireAllMW("manage_data"), h.DeleteTemplate)
 }

@@ -503,3 +503,33 @@ func (r *TransactionRepository) RestoreCategoryName(tx *gorm.DB, id int64, userI
 
 	return res.Error
 }
+
+func (r *TransactionRepository) FindTemplates(userID int64, offset, limit int) ([]models.TransactionTemplate, error) {
+
+	var records []models.TransactionTemplate
+	err := r.DB.Model(&models.TransactionTemplate{}).
+		Where("user_id = ?", userID).
+		Preload("Category").
+		Preload("Account").
+		Order("created_at desc").
+		Limit(limit).
+		Offset(offset).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (r *TransactionRepository) CountTemplates(userID int64) (int64, error) {
+	var totalRecords int64
+
+	q := r.DB.Model(&models.TransactionTemplate{}).
+		Where("user_id = ?", userID)
+
+	if err := q.Count(&totalRecords).Error; err != nil {
+		return 0, err
+	}
+	return totalRecords, nil
+}

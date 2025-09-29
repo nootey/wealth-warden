@@ -7,6 +7,15 @@
   padding: 0.5rem 1rem;
 }
 
+.p-button.outline-button{
+  background-color: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--text-primary);
+  border-radius: 10px;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+}
+
 .p-dialog.rounded-dialog{
   border-radius: 20px;
   padding: 0.33rem;
@@ -21,6 +30,15 @@ button.p-button.main-button:hover {
   background-color: var(--text-secondary);
   border-color: var(--border-color);
   border: none;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+}
+
+button.p-button.outline-button:hover {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--text-secondary);
   border-radius: 10px;
   font-size: 0.875rem;
   padding: 0.5rem 1rem;

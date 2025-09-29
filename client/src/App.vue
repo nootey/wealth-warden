@@ -43,7 +43,7 @@ onMounted(async () => {
                   </template>
               </ConfirmDialog>
         <Sidebar v-if="isAuthenticated && isInitialized && !isGuestOnlyView" />
-        <div class="flex-1" style="margin-left: 80px;">
+        <div class="flex-1" :style="{ 'margin-left': (isAuthenticated && isInitialized && !isGuestOnlyView) ? '80px' : '0px' }">
             <div v-if="requiresAuthView && !isInitialized" class="w-full h-full flex items-center justify-center">
                 <i class="pi pi-spin pi-spinner text-2xl"></i>
             </div>
