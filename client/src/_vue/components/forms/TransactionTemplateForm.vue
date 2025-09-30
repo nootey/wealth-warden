@@ -272,6 +272,8 @@ async function loadRecord(id: number) {
       frequency: vueHelper.capitalize(data.frequency),
     };
 
+    if(!record.value.is_active) isReadOnly.value = true;
+
     selectedParentCategory.value =
         parentCategories.value.find(
             p =>
@@ -365,8 +367,22 @@ async function startOperation() {
                               @update:modelValue="updateSelectedParentCategory($event)" />
           </div>
       </div>
-      <div v-else>
-          <h5 style="color: var(--text-secondary)">Some parts of the record are immutable.</h5>
+      <h5 v-else style="color: var(--text-secondary)">Some parts of the record are immutable.</h5>
+      <h5 v-if="isReadOnly" style="color: var(--text-secondary)">Record is read-only.</h5>
+
+      <div v-if="mode === 'update'" class="flex flex-row w-full gap-2 pb-3" style="border-bottom: 1px solid var(--border-color)">
+          <div class="flex flex-column gap-1 w-6">
+              <small>Last ran at</small>
+              <span style="color: var(--text-secondary); border: 1px solid var(--border-color);
+              padding: 0.5rem; border-radius: 8px; background: var(--background-secondary);">
+                  {{ record.last_run_at ?? "Not ran yet" }}</span>
+          </div>
+          <div class="flex flex-column gap-1 w-6">
+              <small>Run count</small>
+              <span style="color: var(--text-secondary); border: 1px solid var(--border-color);
+              padding: 0.5rem; border-radius: 8px; background: var(--background-secondary);">
+                  {{ record.run_count }}</span>
+          </div>
       </div>
 
       <div class="flex flex-column gap-3">
