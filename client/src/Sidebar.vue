@@ -24,8 +24,8 @@ const menuItems: MenuItem[] = [
   {to: "/", icon: "pi-home", text: "Home"},
   {to: "/accounts", icon: "pi-hashtag", text: "Accounts"},
   {to: "/transactions", icon: "pi-credit-card", text: "Transactions"},
+  {to: "/charts", icon: "pi-chart-bar", text: "Charts"},
   {to: "/users", icon: "pi-users", text: "Users", block: !hasPermission('manage_users')},
-  {to: "/logs", icon: "pi-address-book", text: "Logging", block: !hasPermission('view_activity_logs')},
 ];
 
 const visibleMenuItems = computed(() =>
@@ -38,6 +38,16 @@ function toggleProfileMenu(event: any) {
   if (profileMenuRef.value) {
     profileMenuRef.value.toggle(event);
   }
+}
+
+function checkAccess(route: string){
+    switch(route){
+        case 'logs':
+            if(hasPermission('view_activity_logs')) {
+                router.push('/logs');
+            }
+            break;
+    }
 }
 
 </script>
@@ -101,7 +111,15 @@ function toggleProfileMenu(event: any) {
 
         <div class="flex flex-column gap-2 p-1">
 
-          <div id="profileMenuItem" class="flex align-items-center gap-2 p-1 border-round-md"
+          <div id="profileMenuItem" v-if="hasPermission('view_activity_logs')"
+               class="flex align-items-center gap-2 p-1 border-round-md"
+               style="cursor: pointer; transition: all 0.2s ease; color: var(--text-primary);"
+               @click="checkAccess('logs')">
+            <i class="pi pi-address-book"></i>
+            <span class="text-sm">Activity logs</span>
+          </div>
+
+            <div id="profileMenuItem" class="flex align-items-center gap-2 p-1 border-round-md"
                style="cursor: pointer; transition: all 0.2s ease; color: var(--text-primary);"
                @click="router.push('/settings')">
             <i class="pi pi-cog"></i>
