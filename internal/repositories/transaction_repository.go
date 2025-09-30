@@ -562,3 +562,25 @@ func (r *TransactionRepository) InsertTransactionTemplate(tx *gorm.DB, newRecord
 	}
 	return newRecord.ID, nil
 }
+
+func (r *TransactionRepository) UpdateTransactionTemplate(tx *gorm.DB, record models.TransactionTemplate) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Model(models.TransactionTemplate{}).
+		Where("id = ?", record.ID).
+		Updates(map[string]interface{}{
+			"name":        record.Name,
+			"amount":      record.Amount,
+			"next_run_at": record.NextRunAt,
+			"end_date":    record.EndDate,
+			"max_runs":    record.MaxRuns,
+			"is_active":   record.IsActive,
+			"updated_at":  time.Now(),
+		}).Error; err != nil {
+		return 0, err
+	}
+	return record.ID, nil
+}

@@ -12,8 +12,10 @@ import CustomPaginator from "../components/base/CustomPaginator.vue";
 import LoadingSpinner from "../components/base/LoadingSpinner.vue";
 import TransactionTemplateForm from "../components/forms/TransactionTemplateForm.vue";
 import vueHelper from "../../utils/vue_helper.ts";
+import {useTransactionStore} from "../../services/stores/transaction_store.ts";
 
 const sharedStore = useSharedStore();
+const transactionStore = useTransactionStore();
 const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
 
@@ -162,6 +164,22 @@ async function handleEmit(emitType: any, data?: any) {
     }
 }
 
+async function toggleActive(tp: TransactionTemplate, nextValue: boolean): Promise<boolean> {
+    const previous = tp.is_active;
+    tp.is_active = nextValue;
+    try {
+        const response = await transactionStore.toggleTemplateActiveState(tp.id!);
+        toastStore.successResponseToast(response);
+        return true;
+    } catch (error) {
+        // add a small delay for the toggle animation to complete
+        await new Promise(resolve => setTimeout(resolve, 300));
+        tp.is_active = previous;
+        toastStore.errorResponseToast(error);
+        return false;
+    }
+}
+
 defineExpose({ refresh });
 
 </script>
@@ -225,11 +243,16 @@ defineExpose({ refresh });
 
                 <Column header="Actions">
                     <template #body="{ data }">
-                        <i v-if="hasPermission('manage_data')"
-                           class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
-                           @click="deleteConfirmation(data?.id, data?.name)"></i>
-                        <i v-else class="pi pi-exclamation-circle" style="font-size: 0.875rem;"
-                           v-tooltip="'No action available'"></i>
+                        <div class="flex flex-row align-items-center gap-2">
+                            <ToggleSwitch v-if="hasPermission('manage_data')" style="transform: scale(0.675)"
+                                          v-model="data.is_active"
+                                          @update:modelValue="(v) => toggleActive(data, v)" />
+                            <i v-if="hasPermission('manage_data')"
+                               class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                               @click="deleteConfirmation(data?.id, data?.name)"></i>
+                            <i v-else class="pi pi-exclamation-circle" style="font-size: 0.875rem;"
+                               v-tooltip="'No action available'"></i>
+                        </div>
                     </template>
                 </Column>
 

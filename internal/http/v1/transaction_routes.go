@@ -27,5 +27,7 @@ func TransactionRoutes(ap *gin.RouterGroup, h *handlers.TransactionHandler) {
 	ap.GET("templates", authz.RequireAllMW("view_data"), h.GetTransactionTemplatesPaginated)
 	ap.GET("templates/:id", authz.RequireAllMW("manage_data"), h.GetTransactionTemplateByID)
 	ap.PUT("templates", authz.RequireAllMW("manage_data"), h.InsertTransactionTemplate)
+	ap.PUT("templates/:id", authz.RequireAllMW("manage_data"), h.UpdateTransactionTemplate)
+	ap.POST("templates/:id/active", authz.RequireAllMW("manage_data"), h.ToggleTransactionTemplateActiveState)
 	ap.DELETE("templates/:id", authz.RequireAllMW("manage_data"), h.DeleteTransactionTemplate)
 }

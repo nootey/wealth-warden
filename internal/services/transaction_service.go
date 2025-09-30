@@ -1406,6 +1406,189 @@ func (s *TransactionService) InsertTransactionTemplate(userID int64, req *models
 	return nil
 }
 
+func (s *TransactionService) UpdateTransactionTemplate(userID, id int64, req *models.TransactionTemplateReq) error {
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	changes := utils.InitChanges()
+
+	// Load existing transaction template
+	exTp, err := s.Repo.FindTransactionTemplateByID(tx, id, userID)
+	if err != nil {
+		return fmt.Errorf("can't find transaction template with given id %w", err)
+	}
+
+	nextRun := time.Date(
+		req.NextRunAt.Year(), req.NextRunAt.Month(), req.NextRunAt.Day(),
+		0, 0, 0, 0, time.UTC,
+	)
+	firstValidDay := time.Now().In(time.UTC).Truncate(24 * time.Hour)
+	if nextRun.Before(firstValidDay) {
+		tx.Rollback()
+		return fmt.Errorf("next run cannot be today or earlier (%s)", firstValidDay.Format("2006-01-02"))
+	}
+
+	if req.MaxRuns != nil {
+		if *req.MaxRuns < 0 || *req.MaxRuns > 99999 {
+			tx.Rollback()
+			return fmt.Errorf("max runs out of bounds %w", err)
+		}
+	}
+
+	var endDate *time.Time
+	if req.EndDate != nil {
+		e := time.Date(
+			req.EndDate.Year(), req.EndDate.Month(), req.EndDate.Day(),
+			0, 0, 0, 0,
+			time.UTC,
+		)
+		endDate = &e
+	}
+
+	tp := models.TransactionTemplate{
+		ID:              exTp.ID,
+		Name:            req.Name,
+		UserID:          userID,
+		AccountID:       exTp.AccountID,
+		CategoryID:      exTp.CategoryID,
+		TransactionType: strings.ToLower(exTp.TransactionType),
+		Amount:          req.Amount,
+		Frequency:       exTp.Frequency,
+		NextRunAt:       nextRun,
+		EndDate:         endDate,
+		MaxRuns:         req.MaxRuns,
+		RunCount:        exTp.RunCount,
+		IsActive:        exTp.IsActive,
+	}
+
+	_, err = s.Repo.UpdateTransactionTemplate(tx, tp)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Dispatch transaction activity log
+
+	exAmountString := exTp.Amount.StringFixed(2)
+	amountString := tp.Amount.StringFixed(2)
+	exNextRunStr := tp.NextRunAt.UTC().Format(time.RFC3339)
+	nextRunStr := tp.NextRunAt.UTC().Format(time.RFC3339)
+	exIsActiveStr := strconv.FormatBool(exTp.IsActive)
+	isActiveStr := strconv.FormatBool(tp.IsActive)
+
+	utils.CompareChanges(exTp.Name, tp.Name, changes, "name")
+	utils.CompareChanges(exAmountString, amountString, changes, "amount")
+	utils.CompareChanges(exNextRunStr, nextRunStr, changes, "next_run")
+	utils.CompareChanges(exIsActiveStr, isActiveStr, changes, "is_active")
+
+	if tp.EndDate != nil {
+		var exEndDateStr string
+		if exTp.EndDate != nil {
+			exEndDateStr = tp.EndDate.UTC().Format(time.RFC3339)
+		} else {
+			exEndDateStr = ""
+		}
+		endDateStr := tp.EndDate.UTC().Format(time.RFC3339)
+		utils.CompareChanges(exEndDateStr, endDateStr, changes, "end_date")
+	}
+
+	if tp.MaxRuns != nil {
+		var exMaxRunsStr string
+		if exTp.MaxRuns != nil {
+			exMaxRunsStr = tp.EndDate.UTC().Format(time.RFC3339)
+		} else {
+			exMaxRunsStr = ""
+		}
+		maxRunsStr := strconv.FormatInt(int64(*tp.MaxRuns), 10)
+		utils.CompareChanges(exMaxRunsStr, maxRunsStr, changes, "max_runs")
+	}
+
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "update",
+		Category:    "transaction_template",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *TransactionService) ToggleTransactionTemplateActiveState(userID int64, id int64) error {
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Load record to confirm it exists
+	exTp, err := s.Repo.FindTransactionTemplateByID(tx, id, userID)
+	if err != nil {
+		return fmt.Errorf("can't find transaction template with given id %w", err)
+	}
+
+	tp := models.TransactionTemplate{
+		ID:       exTp.ID,
+		UserID:   userID,
+		IsActive: !exTp.IsActive,
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(strconv.FormatBool(exTp.IsActive), strconv.FormatBool(tp.IsActive), changes, "is_active")
+
+	_, err = s.Repo.UpdateTransactionTemplate(tx, tp)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	if !changes.IsEmpty() {
+		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.Repo,
+			Logger:      s.Ctx.Logger,
+			Event:       "update",
+			Category:    "transaction_template",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *TransactionService) DeleteTransactionTemplate(userID int64, id int64) error {
 
 	return nil

@@ -71,5 +71,12 @@ export const useTransactionStore = defineStore('transaction', {
                 throw err;
             }
         },
+        async toggleTemplateActiveState(id: number) {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/templates/${id}/active`);
+            } catch (err) {
+                throw err;
+            }
+        },
     },
 });

@@ -289,7 +289,7 @@ async function loadRecord(id: number) {
 
 async function manageRecord() {
 
-    if (isImmutable.value || isReadOnly.value || isAccountRestricted.value) {
+    if (isReadOnly.value || isAccountRestricted.value) {
         toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
         return;
     }

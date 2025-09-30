@@ -119,4 +119,5 @@ type TransactionTemplateReq struct {
 	NextRunAt       time.Time       `gorm:"not null" json:"next_run_at" validate:"required"`
 	EndDate         *time.Time      `json:"end_date"`
 	MaxRuns         *int            `json:"max_runs"`
+	IsActive        bool            `json:"is_active" validate:"required"`
 }
