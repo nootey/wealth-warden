@@ -1470,7 +1470,7 @@ func (s *TransactionService) UpdateTransactionTemplate(userID, id int64, req *mo
 		IsActive:        exTp.IsActive,
 	}
 
-	_, err = s.Repo.UpdateTransactionTemplate(tx, tp)
+	_, err = s.Repo.UpdateTransactionTemplate(tx, tp, false)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -1479,8 +1479,6 @@ func (s *TransactionService) UpdateTransactionTemplate(userID, id int64, req *mo
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
-
-	// Dispatch transaction activity log
 
 	exAmountString := exTp.Amount.StringFixed(2)
 	amountString := tp.Amount.StringFixed(2)
@@ -1561,7 +1559,7 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(userID int64, 
 	changes := utils.InitChanges()
 	utils.CompareChanges(strconv.FormatBool(exTp.IsActive), strconv.FormatBool(tp.IsActive), changes, "is_active")
 
-	_, err = s.Repo.UpdateTransactionTemplate(tx, tp)
+	_, err = s.Repo.UpdateTransactionTemplate(tx, tp, true)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -1590,6 +1588,68 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(userID int64, 
 }
 
 func (s *TransactionService) DeleteTransactionTemplate(userID int64, id int64) error {
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Confirm existence
+	tp, err := s.Repo.FindTransactionTemplateByID(tx, id, userID)
+	if err != nil {
+		return fmt.Errorf("can't find transaction template with given id %w", err)
+	}
+
+	err = s.Repo.DeleteTransactionTemplate(tx, tp.ID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Dispatch transaction activity log
+	changes := utils.InitChanges()
+	amountString := tp.Amount.StringFixed(2)
+	firstRunStr := tp.NextRunAt.UTC().Format(time.RFC3339)
+
+	utils.CompareChanges(tp.Name, "", changes, "name")
+	utils.CompareChanges(tp.Account.Name, "", changes, "account")
+	utils.CompareChanges(tp.Category.Name, "", changes, "category")
+	utils.CompareChanges(tp.TransactionType, "", changes, "type")
+	utils.CompareChanges(amountString, "", changes, "amount")
+	utils.CompareChanges(firstRunStr, "", changes, "first_run")
+
+	if tp.EndDate != nil {
+		endDateStr := tp.EndDate.UTC().Format(time.RFC3339)
+		utils.CompareChanges(endDateStr, "", changes, "end_date")
+	}
+
+	if tp.MaxRuns != nil {
+		maxRunsStr := strconv.FormatInt(int64(*tp.MaxRuns), 10)
+		utils.CompareChanges(maxRunsStr, "", changes, "max_runs")
+	}
+
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "delete",
+		Category:    "transaction_template",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

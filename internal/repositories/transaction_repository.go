@@ -563,24 +563,44 @@ func (r *TransactionRepository) InsertTransactionTemplate(tx *gorm.DB, newRecord
 	return newRecord.ID, nil
 }
 
-func (r *TransactionRepository) UpdateTransactionTemplate(tx *gorm.DB, record models.TransactionTemplate) (int64, error) {
+func (r *TransactionRepository) UpdateTransactionTemplate(tx *gorm.DB, record models.TransactionTemplate, onlyActive bool) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
 
-	if err := db.Model(models.TransactionTemplate{}).
-		Where("id = ?", record.ID).
-		Updates(map[string]interface{}{
-			"name":        record.Name,
-			"amount":      record.Amount,
-			"next_run_at": record.NextRunAt,
-			"end_date":    record.EndDate,
-			"max_runs":    record.MaxRuns,
-			"is_active":   record.IsActive,
-			"updated_at":  time.Now(),
-		}).Error; err != nil {
-		return 0, err
+	if onlyActive {
+		updates := map[string]interface{}{}
+		updates["is_active"] = record.IsActive
+		updates["updated_at"] = time.Now()
+		db.Model(&models.TransactionTemplate{}).Where("id = ?", record.ID).Updates(updates)
+	} else {
+		if err := db.Model(models.TransactionTemplate{}).
+			Where("id = ?", record.ID).
+			Updates(map[string]interface{}{
+				"name":        record.Name,
+				"amount":      record.Amount,
+				"next_run_at": record.NextRunAt,
+				"end_date":    record.EndDate,
+				"max_runs":    record.MaxRuns,
+				"updated_at":  time.Now(),
+			}).Error; err != nil {
+			return 0, err
+		}
 	}
+
 	return record.ID, nil
+}
+
+func (r *TransactionRepository) DeleteTransactionTemplate(tx *gorm.DB, id int64) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Where("id = ?", id).
+		Delete(&models.TransactionTemplate{}).Error; err != nil {
+		return err
+	}
+	return nil
 }
