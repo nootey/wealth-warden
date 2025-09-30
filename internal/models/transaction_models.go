@@ -110,8 +110,13 @@ type CategoryReq struct {
 }
 
 type TransactionTemplateReq struct {
+	Name            string          `json:"name" validate:"required"`
 	AccountID       int64           `json:"account_id" validate:"required"`
 	CategoryID      *int64          `json:"category_id,omitempty"`
 	TransactionType string          `json:"transaction_type" validate:"required"`
 	Amount          decimal.Decimal `json:"amount" validate:"required"`
+	Frequency       string          `gorm:"not null:enum(weekly,biweekly,monthly,quarterly,annually)" json:"frequency" validate:"required"`
+	NextRunAt       time.Time       `gorm:"not null" json:"next_run_at" validate:"required"`
+	EndDate         *time.Time      `json:"end_date"`
+	MaxRuns         *int            `json:"max_runs"`
 }

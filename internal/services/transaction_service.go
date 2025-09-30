@@ -1271,7 +1271,7 @@ func (s *TransactionService) FetchTemplatesPaginated(userID int64, p utils.Pagin
 }
 
 func (s *TransactionService) InsertTemplate(userID int64, req *models.TransactionTemplateReq) error {
-
+	fmt.Println(req.Name)
 	return nil
 }
 

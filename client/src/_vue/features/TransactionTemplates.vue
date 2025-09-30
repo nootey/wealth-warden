@@ -10,6 +10,7 @@ import type {Column} from "../../services/filter_registry.ts";
 import dateHelper from "../../utils/date_helper.ts";
 import CustomPaginator from "../components/base/CustomPaginator.vue";
 import LoadingSpinner from "../components/base/LoadingSpinner.vue";
+import TransactionTemplateForm from "../components/forms/TransactionTemplateForm.vue";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -25,6 +26,9 @@ onMounted(async () => {
 
 const loadingRecords = ref(true);
 const records = ref<TransactionTemplate[]>([]);
+const createModal = ref(false);
+const updateModal = ref(false);
+const updateRecordID = ref(null);
 
 const params = computed(() => {
     return {
@@ -111,18 +115,70 @@ async function deleteRecord(id: number) {
 
 function refresh() { getData(); }
 
+function manipulateDialog(modal: string, value: any) {
+    switch (modal) {
+        case 'addTemplate': {
+            if(!hasPermission("manage_data")) {
+                toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+                return;
+            }
+            createModal.value = value;
+            break;
+        }
+        case 'updateTemplate': {
+            if(!hasPermission("manage_data")) {
+                toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+                return;
+            }
+            updateModal.value = true;
+            updateRecordID.value = value;
+            break;
+        }
+        default: {
+            break;
+        }
+    }
+}
+
+async function handleEmit(emitType: any) {
+    switch (emitType) {
+        case 'completeOperation': {
+            createModal.value = false;
+            updateModal.value = false;
+            await getData();
+            break;
+        }
+        default: {
+            break;
+        }
+    }
+}
+
 defineExpose({ refresh });
 
 </script>
 
 <template>
+
+    <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{'501px': '90vw'}"
+            :modal="true" :style="{width: '500px'}" header="Add template">
+        <TransactionTemplateForm mode="create"
+                         @completeOperation="handleEmit('completeTxOperation')" />
+    </Dialog>
+
+    <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal" :breakpoints="{'501px': '90vw'}"
+            :modal="true" :style="{width: '500px'}" header="Template details">
+        <TransactionTemplateForm mode="update" :recordId="updateRecordID"
+                         @completeOperation="handleEmit('completeTxOperation')" />
+    </Dialog>
+
     <div class="flex flex-column justify-content-center w-full gap-3"
          style="max-width: 1000px;">
 
         <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
             <span style="color: var(--text-secondary)">Create and manage custom templates, for executing transactions.</span>
             <Button label="New template" icon="pi pi-plus" class="main-button ml-auto"
-                     />
+                    @click="manipulateDialog('addTemplate', true)" />
         </div>
 
         <div class="flex flex-row gap-2 w-full">
