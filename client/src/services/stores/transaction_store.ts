@@ -78,5 +78,12 @@ export const useTransactionStore = defineStore('transaction', {
                 throw err;
             }
         },
+        async getTransactionTemplateCount() {
+            try {
+                return await apiClient.get(`${this.apiPrefix}/templates/count`);
+            } catch (err) {
+                throw err;
+            }
+        },
     },
 });

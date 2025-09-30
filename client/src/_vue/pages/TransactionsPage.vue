@@ -28,6 +28,7 @@ const accountStore = useAccountStore();
 onMounted(async () => {
     await transactionStore.getCategories();
     await accountStore.getAllAccounts();
+    await getTrTemplateCount();
 })
 
 const confirm = useConfirm();
@@ -38,6 +39,7 @@ const apiPrefix = "transactions";
 
 const trRef = ref<InstanceType<typeof TransfersPaginated> | null>(null);
 const txRef = ref<InstanceType<typeof TransactionsPaginated> | null>(null);
+const tpRef = ref<InstanceType<typeof TransactionTemplates> | null>(null);
 
 const createModal = ref(false);
 const updateModal = ref(false);
@@ -47,6 +49,7 @@ const includeDeleted = ref(false);
 
 const categories = computed<Category[]>(() => transactionStore.categories);
 const accounts = computed<Account[]>(() => accountStore.accounts);
+const trTemplateCount = ref<number>(0);
 
 const sort = ref(filterHelper.initSort());
 const filterStorageIndex = ref(apiPrefix+"-filters");
@@ -60,6 +63,16 @@ const activeColumns = computed<Column[]>(() => [
   { field: 'txn_date', header: 'Date', type: "date" },
   { field: 'description', header: 'Description', type: "text" },
 ]);
+
+async function getTrTemplateCount() {
+
+    try {
+        let res = await transactionStore.getTransactionTemplateCount();
+        trTemplateCount.value = res.data;
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
+}
 
 async function loadTransactionsPage({ page, rows, sort: s, filters: f, include_deleted }: any) {
     let response = null;
@@ -121,6 +134,10 @@ async function handleEmit(emitType: any) {
     case 'completeTrOperation': {
         createModal.value = false;
         trRef.value?.refresh();
+        break;
+    }
+    case 'refreshTemplateCount': {
+        await getTrTemplateCount();
         break;
     }
     default: {
@@ -228,7 +245,7 @@ provide("removeFilter", removeFilter);
 
     <Dialog class="rounded-dialog" v-model:visible="templateModal" :breakpoints="{'901px': '90vw'}"
             :modal="true" :style="{width: '900px'}" header="Transaction templates">
-        <TransactionTemplates></TransactionTemplates>
+        <TransactionTemplates ref="tpRef" @refreshTemplateCount="handleEmit('refreshTemplateCount')"></TransactionTemplates>
     </Dialog>
 
     <Popover ref="filterOverlayRef" class="rounded-popover">
@@ -252,7 +269,7 @@ provide("removeFilter", removeFilter);
         <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
           <div style="font-weight: bold;">Transactions</div>
           <i v-if="hasPermission('manage_data')" class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/categories')" v-tooltip="'Go to categories settings.'"></i>
-          <Button label="Templates" icon="pi pi-database" class="outline-button"
+          <Button :label="`Templates (${trTemplateCount})`" icon="pi pi-database" class="outline-button"
                   @click="manipulateDialog('openTemplateView', true)" />
             <Button label="New transaction" icon="pi pi-plus" class="main-button"
                     @click="manipulateDialog('addTransaction', true)" />

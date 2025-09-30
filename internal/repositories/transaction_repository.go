@@ -522,11 +522,15 @@ func (r *TransactionRepository) FindTransactionTemplates(userID int64, offset, l
 	return records, nil
 }
 
-func (r *TransactionRepository) CountTransactionTemplates(userID int64) (int64, error) {
+func (r *TransactionRepository) CountTransactionTemplates(userID int64, onlyActive bool) (int64, error) {
 	var totalRecords int64
 
 	q := r.DB.Model(&models.TransactionTemplate{}).
 		Where("user_id = ?", userID)
+
+	if onlyActive {
+		q = q.Where("is_active = ?", true)
+	}
 
 	if err := q.Count(&totalRecords).Error; err != nil {
 		return 0, err

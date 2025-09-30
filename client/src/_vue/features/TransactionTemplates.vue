@@ -14,6 +14,10 @@ import TransactionTemplateForm from "../components/forms/TransactionTemplateForm
 import vueHelper from "../../utils/vue_helper.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
 
+const emit = defineEmits<{
+    (event: 'refreshTemplateCount'): void;
+}>();
+
 const sharedStore = useSharedStore();
 const transactionStore = useTransactionStore();
 const toastStore = useToastStore();
@@ -151,6 +155,7 @@ async function handleEmit(emitType: any, data?: any) {
             createModal.value = false;
             updateModal.value = false;
             await getData();
+            emit("refreshTemplateCount");
             break;
         }
         case 'updateTemplate': {
@@ -164,12 +169,13 @@ async function handleEmit(emitType: any, data?: any) {
     }
 }
 
-async function toggleActive(tp: TransactionTemplate, nextValue: boolean): Promise<boolean> {
+async function toggleActiveTemplate(tp: TransactionTemplate, nextValue: boolean): Promise<boolean> {
     const previous = tp.is_active;
     tp.is_active = nextValue;
     try {
         const response = await transactionStore.toggleTemplateActiveState(tp.id!);
         toastStore.successResponseToast(response);
+        emit("refreshTemplateCount");
         return true;
     } catch (error) {
         // add a small delay for the toggle animation to complete
@@ -232,7 +238,7 @@ defineExpose({ refresh });
                         <template v-else-if="field === 'category'">
                             {{ data[field].display_name }}
                         </template>
-                        <template v-else-if="field === 'transaction_type'">
+                        <template v-else-if="field === 'transaction_type' || field === 'frequency'">
                             {{ vueHelper.capitalize(data[field]) }}
                         </template>
                         <template v-else>
@@ -246,7 +252,7 @@ defineExpose({ refresh });
                         <div class="flex flex-row align-items-center gap-2">
                             <ToggleSwitch v-if="hasPermission('manage_data')" style="transform: scale(0.675)"
                                           v-model="data.is_active"
-                                          @update:modelValue="(v) => toggleActive(data, v)" />
+                                          @update:modelValue="(v) => toggleActiveTemplate(data, v)" />
                             <i v-if="hasPermission('manage_data')"
                                class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                                @click="deleteConfirmation(data?.id, data?.name)"></i>

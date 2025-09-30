@@ -703,3 +703,20 @@ func (h *TransactionHandler) DeleteTransactionTemplate(c *gin.Context) {
 
 	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
 }
+
+func (h *TransactionHandler) GetTransactionTemplateCount(c *gin.Context) {
+
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	record, err := h.Service.GetTransactionTemplateCount(userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, record)
+}

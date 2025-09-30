@@ -1242,7 +1242,7 @@ func (s *TransactionService) RestoreCategoryName(userID int64, id int64) error {
 
 func (s *TransactionService) FetchTransactionTemplatesPaginated(userID int64, p utils.PaginationParams) ([]models.TransactionTemplate, *utils.Paginator, error) {
 
-	totalRecords, err := s.Repo.CountTransactionTemplates(userID)
+	totalRecords, err := s.Repo.CountTransactionTemplates(userID, false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1652,4 +1652,8 @@ func (s *TransactionService) DeleteTransactionTemplate(userID int64, id int64) e
 	}
 
 	return nil
+}
+
+func (s *TransactionService) GetTransactionTemplateCount(userID int64) (int64, error) {
+	return s.Repo.CountTransactionTemplates(userID, true)
 }
