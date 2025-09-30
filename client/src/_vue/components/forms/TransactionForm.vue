@@ -252,7 +252,7 @@ async function isRecordValid() {
 async function loadRecord(id: number) {
   try {
     loading.value = true;
-    const data = await transactionStore.getTransactionByID(id, true);
+    const data = await sharedStore.getRecordByID("transactions", id, {deleted: true});
 
     record.value = {
       ...initData(),

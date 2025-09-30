@@ -226,8 +226,8 @@ provide("removeFilter", removeFilter);
                      @completeTxOperation="handleEmit('completeTxOperation')"></TransactionForm>
     </Dialog>
 
-    <Dialog class="rounded-dialog" v-model:visible="templateModal" :breakpoints="{'801px': '90vw'}"
-            :modal="true" :style="{width: '800px'}" header="Transaction templates">
+    <Dialog class="rounded-dialog" v-model:visible="templateModal" :breakpoints="{'901px': '90vw'}"
+            :modal="true" :style="{width: '900px'}" header="Transaction templates">
         <TransactionTemplates></TransactionTemplates>
     </Dialog>
 

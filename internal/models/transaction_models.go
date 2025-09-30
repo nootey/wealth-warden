@@ -45,9 +45,9 @@ type Transfer struct {
 type TransactionTemplate struct {
 	ID              int64           `gorm:"primaryKey;autoIncrement" json:"id"`
 	Name            string          `gorm:"varchar(150)" json:"name"`
-	UserID          int64           `gorm:"not null;index:idx_transactions_user_date" json:"user_id"`
-	AccountID       int64           `gorm:"not null;index:idx_transactions_account_date" json:"account_id"`
-	CategoryID      *int64          `gorm:"index:idx_transactions_category" json:"category_id,omitempty"`
+	UserID          int64           `gorm:"not null" json:"user_id"`
+	AccountID       int64           `gorm:"not null" json:"account_id"`
+	CategoryID      int64           `gorm:"not null;" json:"category_id,omitempty"`
 	TransactionType string          `gorm:"not null;enum(income,expense)" json:"transaction_type"`
 	Amount          decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
 	Frequency       string          `gorm:"not null:enum(weekly,biweekly,monthly,quarterly,annually)" json:"frequency"`
@@ -112,7 +112,7 @@ type CategoryReq struct {
 type TransactionTemplateReq struct {
 	Name            string          `json:"name" validate:"required"`
 	AccountID       int64           `json:"account_id" validate:"required"`
-	CategoryID      *int64          `json:"category_id,omitempty"`
+	CategoryID      int64           `json:"category_id" validate:"required"`
 	TransactionType string          `json:"transaction_type" validate:"required"`
 	Amount          decimal.Decimal `json:"amount" validate:"required"`
 	Frequency       string          `gorm:"not null:enum(weekly,biweekly,monthly,quarterly,annually)" json:"frequency" validate:"required"`

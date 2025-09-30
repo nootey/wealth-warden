@@ -39,16 +39,6 @@ export const useTransactionStore = defineStore('transaction', {
                 throw err;
             }
         },
-        async getTransactionByID(id: number, deleted: boolean=false) {
-            try {
-                const response = await apiClient.get(`${this.apiPrefix}/${id}`, {
-                    params: { deleted }
-                });
-                return response.data;
-            } catch (err) {
-                throw err;
-            }
-        },
         async startTransfer(record: object) {
             try {
                 const response = await apiClient.put(`${this.apiPrefix}/transfers`, record);

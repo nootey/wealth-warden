@@ -514,7 +514,7 @@ func (h *TransactionHandler) RestoreCategoryName(c *gin.Context) {
 	utils.SuccessMessage(c, "Record restored", "Success", http.StatusOK)
 }
 
-func (h *TransactionHandler) GetTemplatesPaginated(c *gin.Context) {
+func (h *TransactionHandler) GetTransactionTemplatesPaginated(c *gin.Context) {
 
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
@@ -525,7 +525,7 @@ func (h *TransactionHandler) GetTemplatesPaginated(c *gin.Context) {
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
 
-	records, paginator, err := h.Service.FetchTemplatesPaginated(userID, p)
+	records, paginator, err := h.Service.FetchTransactionTemplatesPaginated(userID, p)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -543,35 +543,7 @@ func (h *TransactionHandler) GetTemplatesPaginated(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (h *TransactionHandler) InsertTemplate(c *gin.Context) {
-
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
-
-	var record *models.TransactionTemplateReq
-
-	if err := c.ShouldBindJSON(&record); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	if err := h.v.ValidateStruct(record); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
-		return
-	}
-
-	if err := h.Service.InsertTemplate(userID, record); err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-
-	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
-}
-
-func (h *TransactionHandler) DeleteTemplate(c *gin.Context) {
+func (h *TransactionHandler) GetTransactionTemplateByID(c *gin.Context) {
 
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
@@ -593,7 +565,66 @@ func (h *TransactionHandler) DeleteTemplate(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.DeleteTemplate(userID, id); err != nil {
+	record, err := h.Service.FetchTransactionTemplateByID(userID, id)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, record)
+}
+
+func (h *TransactionHandler) InsertTransactionTemplate(c *gin.Context) {
+
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	var record *models.TransactionTemplateReq
+
+	if err := c.ShouldBindJSON(&record); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(record); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.Service.InsertTransactionTemplate(userID, record); err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
+}
+
+func (h *TransactionHandler) DeleteTransactionTemplate(c *gin.Context) {
+
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.DeleteTransactionTemplate(userID, id); err != nil {
 		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

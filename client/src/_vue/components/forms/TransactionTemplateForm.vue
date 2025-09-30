@@ -4,7 +4,7 @@ import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
 import {computed, nextTick, onMounted, ref, watch} from "vue";
 import type {Category, TransactionTemplate} from "../../../models/transaction_models.ts";
-import {required} from "@vuelidate/validators";
+import {maxValue, minValue, required} from "@vuelidate/validators";
 import {decimalValid, decimalMin, decimalMax} from "../../../validators/currency.ts";
 import useVuelidate from "@vuelidate/core";
 import ValidationError from "../validation/ValidationError.vue";
@@ -14,6 +14,7 @@ import dayjs from "dayjs";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import toastHelper from "../../../utils/toast_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
+import vueHelper from "../../../utils/vue_helper.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -35,20 +36,13 @@ onMounted(async () => {
     }
 });
 
-const isGlobalReadOnly = ref(false);
+const isReadOnly = ref(false);
+const isImmutable = ref(false);
 
 const isAccountRestricted = computed<boolean>(() => {
     const acc = record.value.account as Account | null | undefined;
     return !!acc && typeof acc === 'object' && (!!acc.deleted_at || !acc.is_active);
 });
-
-const isFormReadOnly = computed<boolean>(() =>
-    isGlobalReadOnly.value || isAccountRestricted.value
-);
-
-const isAccountPickerDisabled = computed<boolean>(() =>
-    isGlobalReadOnly.value
-);
 
 const loading = ref(false);
 
@@ -131,6 +125,8 @@ const rules = {
       },
       max_runs: {
           $autoDirty: true,
+          min: minValue(1),
+          max: maxValue(99999),
       },
       is_active: {
           required,
@@ -266,13 +262,14 @@ async function isRecordValid() {
 
 async function loadRecord(id: number) {
   try {
+    isImmutable.value = true;
     loading.value = true;
-    const data = await transactionStore.getTransactionByID(id, true);
+    const data = await sharedStore.getRecordByID("transactions/templates", id);
 
     record.value = {
       ...initData(),
       ...data,
-      txn_date: data.txn_date ? dayjs(data.txn_date).toDate() : dayjs().toDate(),
+      frequency: vueHelper.capitalize(data.frequency),
     };
 
     selectedParentCategory.value =
@@ -292,7 +289,7 @@ async function loadRecord(id: number) {
 
 async function manageRecord() {
 
-    if (isFormReadOnly.value) {
+    if (isImmutable.value || isReadOnly.value || isAccountRestricted.value) {
         toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
         return;
     }
@@ -360,7 +357,7 @@ async function startOperation() {
 
   <div v-if="!loading" class="flex flex-column gap-3 p-1">
 
-      <div v-if="!isFormReadOnly" class="flex flex-row w-full justify-content-center">
+      <div v-if="!isImmutable" class="flex flex-row w-full justify-content-center">
           <div class="flex flex-column w-50">
                 <SelectButton style="font-size: 0.875rem;" size="small"
                               v-model="selectedParentCategory"
@@ -369,7 +366,7 @@ async function startOperation() {
           </div>
       </div>
       <div v-else>
-          <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
+          <h5 style="color: var(--text-secondary)">Some parts of the record are immutable.</h5>
       </div>
 
       <div class="flex flex-column gap-3">
@@ -379,7 +376,7 @@ async function startOperation() {
                   <ValidationError :isRequired="true" :message="v$.record.name.$errors[0]?.$message">
                       <label>Name</label>
                   </ValidationError>
-                  <InputText :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small" v-model="record.name" placeholder="Input name"></InputText>
+                  <InputText :readonly="isReadOnly" :disabled="isReadOnly" size="small" v-model="record.name" placeholder="Input name"></InputText>
               </div>
           </div>
 
@@ -388,7 +385,7 @@ async function startOperation() {
                   <ValidationError :isRequired="true" :message="v$.record.account.name.$errors[0]?.$message">
                       <label>Account</label>
                   </ValidationError>
-                  <AutoComplete :readonly="isAccountPickerDisabled || isFormReadOnly" :disabled="isAccountPickerDisabled || isFormReadOnly" size="small"
+                  <AutoComplete :readonly="isAccountRestricted || isReadOnly || isImmutable" :disabled="isAccountRestricted || isReadOnly || isImmutable" size="small"
                                 v-model="record.account" :suggestions="filteredAccounts"
                                 @complete="searchAccount" optionLabel="name" forceSelection
                                 placeholder="Select account" dropdown>
@@ -401,7 +398,7 @@ async function startOperation() {
                   <ValidationError :isRequired="true" :message="v$.record.amount.$errors[0]?.$message">
                       <label>Amount</label>
                   </ValidationError>
-                  <InputNumber :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
+                  <InputNumber :readonly="isReadOnly " :disabled="isReadOnly" size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
               </div>
           </div>
 
@@ -410,7 +407,7 @@ async function startOperation() {
                   <ValidationError :isRequired="false" :message="v$.record.category.name.$errors[0]?.$message">
                       <label>Category</label>
                   </ValidationError>
-                  <AutoComplete :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small" v-model="record.category" :suggestions="filteredCategories"
+                  <AutoComplete :readonly="isImmutable" :disabled="isImmutable" size="small" v-model="record.category" :suggestions="filteredCategories"
                                 @complete="searchCategory" optionLabel="display_name"
                                 placeholder="Select category" dropdown>
                   </AutoComplete>
@@ -422,7 +419,8 @@ async function startOperation() {
                   <ValidationError :isRequired="true" :message="v$.record.frequency.$errors[0]?.$message">
                       <label>Frequency</label>
                   </ValidationError>
-                  <AutoComplete :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small" v-model="record.frequency" :suggestions="filteredFrequencies"
+                  <AutoComplete :readonly="isImmutable" :disabled="isImmutable" size="small"
+                                v-model="record.frequency" :suggestions="filteredFrequencies"
                                 @complete="searchFrequency"
                                 placeholder="Select frequency" dropdown>
                   </AutoComplete>
@@ -436,7 +434,7 @@ async function startOperation() {
                   </ValidationError>
                   <DatePicker v-model="record.next_run_at" date-format="dd/mm/yy"
                               showIcon fluid iconDisplay="input" size="small"
-                              :readonly="isFormReadOnly" :disabled="isFormReadOnly"
+                              :readonly="isReadOnly" :disabled="isReadOnly"
                               :minDate="tomorrowUtcMidnight"
                   />
               </div>
@@ -449,7 +447,7 @@ async function startOperation() {
                   </ValidationError>
                   <DatePicker v-model="record.end_date" date-format="dd/mm/yy"
                               showIcon fluid iconDisplay="input" size="small"
-                              :readonly="isFormReadOnly" :disabled="isFormReadOnly"
+                              :readonly="isReadOnly" :disabled="isReadOnly"
                               :minDate="endDateMin"
                   />
               </div>
@@ -457,7 +455,7 @@ async function startOperation() {
                   <ValidationError :isRequired="false" :message="v$.record.max_runs.$errors[0]?.$message">
                       <label>Max runs</label>
                   </ValidationError>
-                  <InputNumber :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small"
+                  <InputNumber :readonly="isReadOnly" :disabled="isReadOnly" size="small"
                                v-model="record.max_runs" placeholder="1">
                   </InputNumber>
               </div>
@@ -467,7 +465,7 @@ async function startOperation() {
 
       <div class="flex flex-row gap-2 w-full" >
           <div class="flex flex-column w-full">
-              <Button v-if="!isFormReadOnly" class="main-button"
+              <Button v-if="!isReadOnly" class="main-button"
                       :label="(mode == 'create' ? 'Add' : 'Update') +  ' template'"
                       @click="manageRecord" style="height: 42px;" />
           </div>

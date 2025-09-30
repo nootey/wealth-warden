@@ -44,7 +44,6 @@ export interface TransactionTemplate {
     period: string;
     frequency: string;
     next_run_at?: Date | null;
-    last_run_at?: Date | null;
     run_count?: number;
     end_date?: Date | null;
     max_runs?: number | null;

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"wealth-warden/internal/jobs"
@@ -152,11 +153,13 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 
 	account, err := s.AccountService.Repo.FindAccountByID(tx, req.AccountID, userID, false)
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
 	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("can't fetch user settings %w", err)
 	}
 
@@ -203,11 +206,13 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 	if req.CategoryID != nil {
 		category, err = s.Repo.FindCategoryByID(tx, *req.CategoryID, &userID, false)
 		if err != nil {
+			tx.Rollback()
 			return fmt.Errorf("can't find category with given id %w", err)
 		}
 	} else {
 		category, err = s.Repo.FindCategoryByClassification(tx, "uncategorized", &userID)
 		if err != nil {
+			tx.Rollback()
 			return fmt.Errorf("can't find default category %w", err)
 		}
 	}
@@ -1235,16 +1240,16 @@ func (s *TransactionService) RestoreCategoryName(userID int64, id int64) error {
 	return nil
 }
 
-func (s *TransactionService) FetchTemplatesPaginated(userID int64, p utils.PaginationParams) ([]models.TransactionTemplate, *utils.Paginator, error) {
+func (s *TransactionService) FetchTransactionTemplatesPaginated(userID int64, p utils.PaginationParams) ([]models.TransactionTemplate, *utils.Paginator, error) {
 
-	totalRecords, err := s.Repo.CountTemplates(userID)
+	totalRecords, err := s.Repo.CountTransactionTemplates(userID)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
 
-	records, err := s.Repo.FindTemplates(userID, offset, p.RowsPerPage)
+	records, err := s.Repo.FindTransactionTemplates(userID, offset, p.RowsPerPage)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1270,12 +1275,138 @@ func (s *TransactionService) FetchTemplatesPaginated(userID int64, p utils.Pagin
 	return records, paginator, nil
 }
 
-func (s *TransactionService) InsertTemplate(userID int64, req *models.TransactionTemplateReq) error {
-	fmt.Println(req.Name)
+func (s *TransactionService) FetchTransactionTemplateByID(userID int64, id int64) (*models.TransactionTemplate, error) {
+
+	record, err := s.Repo.FindTransactionTemplateByID(nil, id, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &record, nil
+}
+
+func (s *TransactionService) InsertTransactionTemplate(userID int64, req *models.TransactionTemplateReq) error {
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	account, err := s.AccountService.Repo.FindAccountByID(tx, req.AccountID, userID, false)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	category, err := s.Repo.FindCategoryByID(tx, req.CategoryID, &userID, false)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find category with given id %w", err)
+	}
+
+	firstRun := time.Date(
+		req.NextRunAt.Year(), req.NextRunAt.Month(), req.NextRunAt.Day(),
+		0, 0, 0, 0,
+		time.UTC,
+	)
+
+	firstValidDay := time.Now().In(time.UTC).Truncate(24 * time.Hour)
+
+	if firstRun.Before(firstValidDay) {
+		tx.Rollback()
+		return fmt.Errorf(
+			"first itteration of template cannot be executed in the same day (%s)",
+			firstValidDay.Format("2006-01-02"),
+		)
+	}
+
+	if req.MaxRuns != nil {
+		if *req.MaxRuns < 0 || *req.MaxRuns > 99999 {
+			tx.Rollback()
+			return fmt.Errorf("max runs out of bounds %w", err)
+		}
+	}
+
+	var endDate *time.Time
+	if req.EndDate != nil {
+		e := time.Date(
+			req.EndDate.Year(), req.EndDate.Month(), req.EndDate.Day(),
+			0, 0, 0, 0,
+			time.UTC,
+		)
+		endDate = &e
+	}
+
+	tp := models.TransactionTemplate{
+		Name:            req.Name,
+		UserID:          userID,
+		AccountID:       account.ID,
+		CategoryID:      category.ID,
+		TransactionType: strings.ToLower(req.TransactionType),
+		Amount:          req.Amount,
+		Frequency:       strings.ToLower(req.Frequency),
+		NextRunAt:       firstRun,
+		EndDate:         endDate,
+		MaxRuns:         req.MaxRuns,
+		RunCount:        0,
+		IsActive:        true,
+	}
+
+	_, err = s.Repo.InsertTransactionTemplate(tx, &tp)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Dispatch transaction activity log
+	changes := utils.InitChanges()
+	amountString := tp.Amount.StringFixed(2)
+	firstRunStr := tp.NextRunAt.UTC().Format(time.RFC3339)
+
+	utils.CompareChanges("", tp.Name, changes, "name")
+	utils.CompareChanges("", account.Name, changes, "account")
+	utils.CompareChanges("", category.Name, changes, "category")
+	utils.CompareChanges("", tp.TransactionType, changes, "type")
+	utils.CompareChanges("", amountString, changes, "amount")
+	utils.CompareChanges("", firstRunStr, changes, "first_run")
+
+	if tp.EndDate != nil {
+		endDateStr := tp.EndDate.UTC().Format(time.RFC3339)
+		utils.CompareChanges("", endDateStr, changes, "end_date")
+	}
+
+	if tp.MaxRuns != nil {
+		maxRunsStr := strconv.FormatInt(int64(*tp.MaxRuns), 10)
+		utils.CompareChanges("", maxRunsStr, changes, "max_runs")
+	}
+
+	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "transaction_template",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (s *TransactionService) DeleteTemplate(userID int64, id int64) error {
+func (s *TransactionService) DeleteTransactionTemplate(userID int64, id int64) error {
 
 	return nil
 }

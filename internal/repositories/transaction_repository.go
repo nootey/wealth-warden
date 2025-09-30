@@ -504,7 +504,7 @@ func (r *TransactionRepository) RestoreCategoryName(tx *gorm.DB, id int64, userI
 	return res.Error
 }
 
-func (r *TransactionRepository) FindTemplates(userID int64, offset, limit int) ([]models.TransactionTemplate, error) {
+func (r *TransactionRepository) FindTransactionTemplates(userID int64, offset, limit int) ([]models.TransactionTemplate, error) {
 
 	var records []models.TransactionTemplate
 	err := r.DB.Model(&models.TransactionTemplate{}).
@@ -522,7 +522,7 @@ func (r *TransactionRepository) FindTemplates(userID int64, offset, limit int) (
 	return records, nil
 }
 
-func (r *TransactionRepository) CountTemplates(userID int64) (int64, error) {
+func (r *TransactionRepository) CountTransactionTemplates(userID int64) (int64, error) {
 	var totalRecords int64
 
 	q := r.DB.Model(&models.TransactionTemplate{}).
@@ -532,4 +532,33 @@ func (r *TransactionRepository) CountTemplates(userID int64) (int64, error) {
 		return 0, err
 	}
 	return totalRecords, nil
+}
+
+func (r *TransactionRepository) FindTransactionTemplateByID(tx *gorm.DB, ID, userID int64) (models.TransactionTemplate, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var record models.TransactionTemplate
+	q := db.
+		Preload("Category").
+		Preload("Account").
+		Where("id = ? AND user_id = ?", ID, userID)
+
+	q = q.First(&record)
+
+	return record, q.Error
+}
+
+func (r *TransactionRepository) InsertTransactionTemplate(tx *gorm.DB, newRecord *models.TransactionTemplate) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Create(&newRecord).Error; err != nil {
+		return 0, err
+	}
+	return newRecord.ID, nil
 }

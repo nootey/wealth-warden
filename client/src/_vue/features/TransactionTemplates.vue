@@ -11,6 +11,7 @@ import dateHelper from "../../utils/date_helper.ts";
 import CustomPaginator from "../components/base/CustomPaginator.vue";
 import LoadingSpinner from "../components/base/LoadingSpinner.vue";
 import TransactionTemplateForm from "../components/forms/TransactionTemplateForm.vue";
+import vueHelper from "../../utils/vue_helper.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -52,8 +53,10 @@ const activeColumns = computed<Column[]>(() => [
     { field: 'name', header: 'Name'},
     { field: 'account', header: 'Account'},
     { field: 'category', header: 'Category'},
+    { field: 'transaction_type', header: 'Type'},
     { field: 'amount', header: 'Amount'},
-    { field: 'interval', header: 'Interval'},
+    { field: 'frequency', header: 'Frequency'},
+    { field: 'next_run_at', header: 'Next run'},
 ]);
 
 async function getData(new_page = null) {
@@ -140,12 +143,17 @@ function manipulateDialog(modal: string, value: any) {
     }
 }
 
-async function handleEmit(emitType: any) {
+async function handleEmit(emitType: any, data?: any) {
     switch (emitType) {
         case 'completeOperation': {
             createModal.value = false;
             updateModal.value = false;
             await getData();
+            break;
+        }
+        case 'updateTemplate': {
+            updateModal.value = true;
+            updateRecordID.value = data;
             break;
         }
         default: {
@@ -163,13 +171,13 @@ defineExpose({ refresh });
     <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{'501px': '90vw'}"
             :modal="true" :style="{width: '500px'}" header="Add template">
         <TransactionTemplateForm mode="create"
-                         @completeOperation="handleEmit('completeTxOperation')" />
+                         @completeOperation="handleEmit('completeOperation')" />
     </Dialog>
 
     <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal" :breakpoints="{'501px': '90vw'}"
             :modal="true" :style="{width: '500px'}" header="Template details">
         <TransactionTemplateForm mode="update" :recordId="updateRecordID"
-                         @completeOperation="handleEmit('completeTxOperation')" />
+                         @completeOperation="handleEmit('completeOperation')" />
     </Dialog>
 
     <div class="flex flex-column justify-content-center w-full gap-3"
@@ -192,8 +200,22 @@ defineExpose({ refresh });
 
                 <Column v-for="col of activeColumns" :key="col.field" :header="col.header" :field="col.field" style="width: 25%" >
                     <template #body="{ data, field }">
-                        <template v-if="field === 'created_at'">
-                            {{ dateHelper.formatDate(data?.created_at, true) }}
+                        <template v-if="field === 'next_run_at' || field === 'end_date'">
+                            {{ dateHelper.formatDate(data[field], false) }}
+                        </template>
+                        <template v-else-if="field === 'name'">
+                            <span class="hover" @click="handleEmit('updateTemplate', data.id)">
+                                {{ data[field] }}
+                            </span>
+                        </template>
+                        <template v-else-if="field === 'account'">
+                            {{ data[field].name}}
+                        </template>
+                        <template v-else-if="field === 'category'">
+                            {{ data[field].display_name }}
+                        </template>
+                        <template v-else-if="field === 'transaction_type'">
+                            {{ vueHelper.capitalize(data[field]) }}
                         </template>
                         <template v-else>
                             {{ data[field] }}
@@ -218,5 +240,6 @@ defineExpose({ refresh });
 </template>
 
 <style scoped>
-
+.hover { font-weight: bold; }
+.hover:hover { cursor: pointer; text-decoration: underline; }
 </style>
