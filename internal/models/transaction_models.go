@@ -50,12 +50,7 @@ type TransactionTemplate struct {
 	CategoryID      *int64          `gorm:"index:idx_transactions_category" json:"category_id,omitempty"`
 	TransactionType string          `gorm:"not null;enum(income,expense)" json:"transaction_type"`
 	Amount          decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
-	Period          string          `gorm:"not null:enum(week,month)" json:"period"`
-	Interval        int             `gorm:"not null" json:"interval"`
-	DayOfWeek       *int            `gorm:"between(0,6)" json:"day_of_week"`
-	DayOfMonth      *int            `gorm:"between(1,31)" json:"day_of_month"`
-	RunTime         time.Time       `gorm:"not null;default:'03:00'" json:"run_time"`
-	Timezone        string          `gorm:"not null;default:'UTC'" json:"timezone"`
+	Frequency       string          `gorm:"not null:enum(weekly,biweekly,monthly,quarterly,annually)" json:"frequency"`
 	NextRunAt       time.Time       `gorm:"not null" json:"next_run_at"`
 	LastRunAt       *time.Time      `json:"last_run_at"`
 	RunCount        int             `gorm:"not null;default:0" json:"run_count"`

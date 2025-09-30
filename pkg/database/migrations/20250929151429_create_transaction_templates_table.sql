@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TYPE schedule_period_enum AS ENUM ('week', 'month');
+CREATE TYPE frequency_enum AS ENUM ('weekly', 'biweekly', 'monthly', 'quarterly', 'annually');
 
 CREATE TABLE transaction_templates (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -10,20 +10,7 @@ CREATE TABLE transaction_templates (
     category_id BIGINT NULL,
     transaction_type transaction_type_enum NOT NULL DEFAULT 'expense',
     amount      NUMERIC(19,4) NOT NULL,
-
-    -- Recurrence
-    period      schedule_period_enum NOT NULL,
-    interval    SMALLINT NOT NULL DEFAULT 1 CHECK (interval >= 1),
-
-    -- Schedule options
-    day_of_week SMALLINT NULL CHECK (day_of_week BETWEEN 0 AND 6),
-    day_of_month SMALLINT NULL CHECK (day_of_month BETWEEN 1 AND 31),
-
-    -- Anchoring
-    run_time    TIME WITHOUT TIME ZONE NOT NULL DEFAULT '03:00',
-    timezone    TEXT NOT NULL DEFAULT 'UTC',
-
-    -- Lifecycle
+    frequency      frequency_enum NOT NULL,
     next_run_at TIMESTAMPTZ NOT NULL,
     last_run_at TIMESTAMPTZ NULL,
     run_count   INTEGER NOT NULL DEFAULT 0,
