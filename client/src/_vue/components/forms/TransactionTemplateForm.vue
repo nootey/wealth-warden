@@ -176,6 +176,7 @@ function initData(): TransactionTemplate {
       amount: null,
       period: "",
       run_count: 0,
+      next_run_at: null,
       end_date: null,
       is_active: true,
       frequency: "",
