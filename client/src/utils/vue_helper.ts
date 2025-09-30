@@ -9,7 +9,7 @@ type Change = { prop: string; oldVal: any; newVal: any };
 
 type Causer = {
     id: number;
-    username: string;
+    name: string;
 };
 
 const vueHelper = {
@@ -88,7 +88,7 @@ const vueHelper = {
     displayCauserFromId(causerId: number | null, availableCausers: Causer[]) {
         if (!causerId || !availableCausers) return '';
         const causer = availableCausers.find(c => c.id === causerId);
-        return causer ? causer.username : "Deleted user";
+        return causer ? causer.name : "Deleted user";
     },
     deletedRowClass<T extends { deleted_at?: string | null }>(data: T) {
         return data?.deleted_at ? 'row-deleted' : '';
