@@ -14,11 +14,11 @@ type ActivityLogJob struct {
 	Category    string
 	Description *string
 	Payload     *utils.Changes
-	CauserID    *int64
+	Causer      *int64
 }
 
 func (j *ActivityLogJob) Process() {
-	err := j.LoggingRepo.InsertActivityLog(nil, j.Event, j.Category, j.Description, j.Payload, j.CauserID)
+	err := j.LoggingRepo.InsertActivityLog(nil, j.Event, j.Category, j.Description, j.Payload, j.Causer)
 	if err != nil {
 		j.Logger.Error("Error processing activity log", zap.Error(err))
 	}
