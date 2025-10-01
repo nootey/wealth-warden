@@ -1,6 +1,6 @@
 export interface Causer {
     id: number;
-    username: string;
+    name: string;
 }
 
 export interface ActivityLog {
