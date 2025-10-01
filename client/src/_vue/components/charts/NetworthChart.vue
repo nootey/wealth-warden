@@ -15,6 +15,7 @@ import 'chartjs-adapter-date-fns'
 import dateHelper from "../../../utils/date_helper.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import {useThemeStore} from "../../../services/stores/theme_store.ts";
+import {useChartColors} from "../../../style/theme/chartColors.ts";
 
 ChartJS.register(
     LineController,
@@ -43,6 +44,8 @@ defineEmits<{
     (e: 'point-select', payload: { x: string | number | Date; y: number }): void
 }>()
 
+const { colors } = useChartColors();
+
 const chartRef = ref<any>(null);
 
 onUnmounted(() => {
@@ -50,10 +53,6 @@ onUnmounted(() => {
 })
 
 const themeStore = useThemeStore();
-
-const dimColor = computed(() =>
-    themeStore.darkModeActive ? hexToRgba("#9C9C9C") : hexToRgba("#1C1919")
-)
 
 const hoverGuidePlugin = {
     id: 'hoverGuide',
@@ -89,7 +88,7 @@ const hoverGuidePlugin = {
         ctx.save()
         ctx.setLineDash(opts?.dash ?? [4, 6])
         ctx.lineWidth = opts?.lineWidth ?? 1
-        ctx.strokeStyle = opts?.dashColor ?? dimColor.value
+        ctx.strokeStyle = colors.value.guide
         ctx.beginPath()
         ctx.moveTo(x, top)
         ctx.lineTo(x, bottom)
@@ -126,7 +125,7 @@ const data = computed(() => ({
                 const hv = hoverXByChart.get(ctx.chart) ?? null
                 if (hv == null) return props.activeColor
                 const x0 = ctx.p0?.parsed?.x
-                return x0 >= hv ? dimColor.value : props.activeColor
+                return x0 >= hv ? colors.value.dim : props.activeColor
             }
         }
     }]
@@ -143,15 +142,15 @@ const options = computed(() => ({
     plugins: {
         legend: { display: false },
         tooltip: {
-            backgroundColor: 'rgba(31,31,35,0.95)',
-            borderColor: '#2a2a2e',
+            backgroundColor: colors.value.ttipBg,
+            borderColor: colors.value.ttipBorder,
             borderWidth: 1,
             padding: 12,
             cornerRadius: 12,
             displayColors: false,
 
-            titleColor: '#9ca3af',
-            bodyColor: '#e5e7eb',
+            titleColor: colors.value.ttipTitle,
+            bodyColor:  colors.value.ttipText,
             titleFont: { weight: '600', size: 12 },
             bodyFont:  { weight: '600', size: 14 },
             footerFont:{ weight: '600', size: 12 },
@@ -197,16 +196,16 @@ const options = computed(() => ({
 
             footerColor: (ctx: any) => {
                 const it = ctx?.tooltip?.dataPoints?.[0]
-                if (!it) return '#9ca3af'
+                if (!it) return colors.value.axisText
                 const i = it.dataIndex
                 const data = it.dataset?.data || []
-                if (i <= 0 || !data[i - 1]) return '#9ca3af'
+                if (i <= 0 || !data[i - 1]) return colors.value.axisText
 
                 const curr = Number(it.parsed?.y ?? it.raw?.value)
                 const prev = Number(data[i - 1]?.value ?? data[i - 1]?.y ?? 0)
                 const rawDiff = curr - prev
                 const diff = props.isLiability ? -rawDiff : rawDiff
-                return diff >= 0 ? '#22c55e' : '#ef4444'
+                return diff >= 0 ? colors.value.pos : colors.value.neg
             },
         },
         hoverGuide: {
@@ -230,17 +229,19 @@ const options = computed(() => ({
                 autoSkip: false,
                 maxRotation: 0,
                 minRotation: 0,
-                color: 'grey',
+                color: colors.value.axisText,
                 callback: (_: any, i: number, ticks: any[]) =>
                     (i !== 0 && i !== ticks.length - 1) ? '' :
                         dateHelper.formatDate(ticks[i].value, false, 'MMM D, YYYY', true),
             },
-            time: { unit: 'day' }
+            time: { unit: 'day' },
+            border: { color: colors.value.axisBorder }
         },
         y: {
             beginAtZero: false,
             ticks: { display: false },
-            grid: { display: false, drawBorder: false }
+            grid: { display: false, drawBorder: false },
+            border: { color: colors.value.axisBorder }
         }
     }
 }))

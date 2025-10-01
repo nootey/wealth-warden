@@ -7,32 +7,14 @@ import {
     LinearScale, CategoryScale,
     Tooltip, Legend, Filler
 } from "chart.js";
-import { useThemeStore } from "../../../services/stores/theme_store";
 import type { MonthlyCashFlowResponse } from "../../../models/chart_models";
 import vueHelper from "../../../utils/vue_helper.ts";
+import {useChartColors} from "../../../style/theme/chartColors.ts";
 
 ChartJS.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend, Filler);
 
 const props = defineProps<{ data: MonthlyCashFlowResponse }>();
-const themeStore = useThemeStore();
-const isDark = computed(() => themeStore.darkModeActive);
-
-const colors = computed(() => ({
-
-    inflow:  "#22c55e",
-    outflow: "#f43f5e",
-    dim:     isDark.value ? "rgba(156,163,175,0.55)" : "rgba(107,114,128,0.6)",
-    axisText: isDark.value ? "#9ca3af" : "#6b7280",
-    axisBorder: isDark.value ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.35)",
-    // tooltip
-    ttipBg:   isDark.value ? "rgba(31,31,35,0.95)" : "rgba(255,255,255,0.95)",
-    ttipText: isDark.value ? "#e5e7eb" : "#111827",
-    ttipTitle: isDark.value ? "#9ca3af" : "#374151",
-    ttipBorder: isDark.value ? "#2a2a2e" : "#e5e7eb",
-    guide:   isDark.value ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
-    pos: "#22c55e",
-    neg: "#ef4444"
-}));
+const { colors } = useChartColors();
 
 function toNumber(v: string | string[] | undefined): number {
     if (Array.isArray(v)) return v.reduce((a, s) => a + (parseFloat(s) || 0), 0);
@@ -90,7 +72,7 @@ const chartData = computed(() => ({
         {
             label: "Inflows",
             data: inflowsArr.value,
-            borderColor: colors.value.inflow,
+            borderColor: colors.value.pos,
             borderWidth: 3,
             tension: 0.35,
             pointRadius: 0,
@@ -100,16 +82,16 @@ const chartData = computed(() => ({
             segment: {
                 borderColor: (ctx: any) => {
                     const hv = hoverXByChart.get(ctx.chart) ?? null;
-                    if (hv == null) return colors.value.inflow;
+                    if (hv == null) return colors.value.pos;
                     const x0 = ctx.p0?.parsed?.x;
-                    return x0 >= hv ? colors.value.dim : colors.value.inflow;
+                    return x0 >= hv ? colors.value.dim : colors.value.pos;
                 }
             }
         },
         {
             label: "Outflows",
             data: outflowsArr.value,
-            borderColor: colors.value.outflow,
+            borderColor: colors.value.neg,
             borderWidth: 3,
             tension: 0.35,
             pointRadius: 0,
@@ -119,9 +101,9 @@ const chartData = computed(() => ({
             segment: {
                 borderColor: (ctx: any) => {
                     const hv = hoverXByChart.get(ctx.chart) ?? null;
-                    if (hv == null) return colors.value.outflow;
+                    if (hv == null) return colors.value.neg;
                     const x0 = ctx.p0?.parsed?.x;
-                    return x0 >= hv ? colors.value.dim : colors.value.outflow;
+                    return x0 >= hv ? colors.value.dim : colors.value.neg;
                 }
             }
         }
