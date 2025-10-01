@@ -19,6 +19,7 @@ type ChartingService struct {
 	Ctx     *DefaultServiceContext
 	Repo    *repositories.ChartingRepository
 	AccRepo *repositories.AccountRepository
+	TxRepo  *repositories.TransactionRepository
 }
 
 func NewChartingService(
@@ -26,12 +27,14 @@ func NewChartingService(
 	ctx *DefaultServiceContext,
 	repo *repositories.ChartingRepository,
 	accRepo *repositories.AccountRepository,
+	txRepo *repositories.TransactionRepository,
 ) *ChartingService {
 	return &ChartingService{
 		Ctx:     ctx,
 		Config:  cfg,
 		Repo:    repo,
 		AccRepo: accRepo,
+		TxRepo:  txRepo,
 	}
 }
 
@@ -214,4 +217,45 @@ func (s *ChartingService) GetNetWorthSeries(
 	}
 
 	return nwRes, nil
+}
+
+func (s *ChartingService) GetMonthlyCashFlowForYear(userID int64, year int, accountID *int64) (*models.MonthlyCashflowResponse, error) {
+	// fetch transactions for user, year, (and optionally account)
+	txs, err := s.TxRepo.GetTransactionsForYear(userID, year, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	// init months map
+	months := make(map[int]*models.MonthlyCashflow)
+	for m := 1; m <= 12; m++ {
+		months[m] = &models.MonthlyCashflow{
+			Month:    m,
+			Inflows:  decimal.NewFromInt(0),
+			Outflows: decimal.NewFromInt(0),
+			Net:      decimal.NewFromInt(0),
+		}
+	}
+
+	// aggregate inflows/outflows
+	for _, tx := range txs {
+		month := int(tx.TxnDate.Month())
+		if tx.TransactionType == "income" {
+			months[month].Inflows = months[month].Inflows.Add(tx.Amount)
+		} else if tx.TransactionType == "expense" {
+			months[month].Outflows = months[month].Outflows.Add(tx.Amount)
+		}
+	}
+
+	// compute net
+	series := make([]models.MonthlyCashflow, 0, 12)
+	for m := 1; m <= 12; m++ {
+		months[m].Net = months[m].Inflows.Sub(months[m].Outflows)
+		series = append(series, *months[m])
+	}
+
+	return &models.MonthlyCashflowResponse{
+		Year:   year,
+		Series: series,
+	}, nil
 }

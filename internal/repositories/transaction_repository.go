@@ -608,3 +608,17 @@ func (r *TransactionRepository) DeleteTransactionTemplate(tx *gorm.DB, id int64)
 	}
 	return nil
 }
+
+func (r *TransactionRepository) GetTransactionsForYear(userID int64, year int, accountID *int64) ([]models.Transaction, error) {
+	query := r.DB.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ?", userID, year)
+
+	if accountID != nil {
+		query = query.Where("account_id = ?", *accountID)
+	}
+
+	var txs []models.Transaction
+	if err := query.Find(&txs).Error; err != nil {
+		return nil, err
+	}
+	return txs, nil
+}

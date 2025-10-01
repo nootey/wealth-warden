@@ -20,3 +20,15 @@ export type NetworthResponse = {
     change?: Change;
     asset_type?: string
 };
+
+export type MonthlyCashFlow = {
+    month: number;
+    inflows: string[];
+    outflows: string[];
+    net: string;
+}
+
+export type MonthlyCashFlowResponse = {
+    year: number;
+    series: MonthlyCashFlow[];
+}

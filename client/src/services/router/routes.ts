@@ -17,6 +17,7 @@ import PreferencesSettings from "../../_vue/pages/Settings/PreferencesSettings.v
 import AccountsSettings from "../../_vue/pages/Settings/AccountsSettings.vue";
 import CategoriesSettings from "../../_vue/pages/Settings/CategoriesSettings.vue";
 import RolesSettings from "../../_vue/pages/Settings/RolesSettings.vue";
+import ChartsPage from "../../_vue/pages/ChartsPage.vue";
 
 declare module 'vue-router' {
     interface RouteMeta {
@@ -88,6 +89,12 @@ const routes: RouteRecordRaw[] = [
         name: 'logs',
         meta: { title: 'Audit', requiresAuth: true, permsAny: ['view_activity_logs'] },
         component: ActivityLogsPage,
+    },
+    {
+        path: '/charts',
+        name: 'charts',
+        meta: { title: 'Charts', requiresAuth: true, },
+        component: ChartsPage,
     },
     {
         path: '/settings',

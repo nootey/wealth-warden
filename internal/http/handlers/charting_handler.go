@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,6 +8,8 @@ import (
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
+
+	"github.com/gin-gonic/gin"
 )
 
 type ChartingHandler struct {
@@ -74,6 +75,41 @@ func (h *ChartingHandler) NetWorthChart(c *gin.Context) {
 	}
 
 	series, err := h.Service.GetNetWorthSeries(userID, currency, r, from, to, accID)
+	if err != nil {
+		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, series)
+}
+
+func (h *ChartingHandler) GetMonthlyCashFlowForYear(c *gin.Context) {
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	p := c.QueryMap("params")
+
+	yearStr := c.Query("year")
+	year, err := strconv.Atoi(yearStr)
+
+	accStr := c.Query("account")
+	if accStr == "" {
+		accStr = p["account"]
+	}
+
+	var accID *int64
+	if strings.TrimSpace(accStr) != "" {
+		v, err := strconv.ParseInt(accStr, 10, 64)
+		if err != nil {
+			utils.ErrorMessage(c, "param error", "account must be a valid integer", http.StatusBadRequest, err)
+			return
+		}
+		accID = &v
+	}
+
+	series, err := h.Service.GetMonthlyCashFlowForYear(userID, year, accID)
 	if err != nil {
 		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
 		return

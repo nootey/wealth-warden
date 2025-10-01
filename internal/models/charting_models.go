@@ -27,3 +27,15 @@ type NetWorthResponse struct {
 	Change    *Change      `json:"change,omitempty"`
 	AssetType *string      `json:"asset_type"`
 }
+
+type MonthlyCashflow struct {
+	Month    int             `json:"month"`
+	Inflows  decimal.Decimal `json:"inflows"`
+	Outflows decimal.Decimal `json:"outflows"`
+	Net      decimal.Decimal `json:"net"`
+}
+
+type MonthlyCashflowResponse struct {
+	Year   int               `json:"year"`
+	Series []MonthlyCashflow `json:"series"`
+}
