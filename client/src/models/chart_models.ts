@@ -32,3 +32,18 @@ export type MonthlyCashFlowResponse = {
     year: number;
     series: MonthlyCashFlow[];
 }
+
+export interface MonthlyCategoryUsage {
+    month: number;
+    category_id: number;
+    category: string;
+    amount: string;
+    percentage?: string;
+}
+
+export interface CategoryUsageResponse {
+    year: number;
+    class: "income" | "expense";
+    series: MonthlyCategoryUsage[];
+    compare?: MonthlyCategoryUsage[];
+}

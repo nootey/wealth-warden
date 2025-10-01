@@ -39,3 +39,18 @@ type MonthlyCashflowResponse struct {
 	Year   int               `json:"year"`
 	Series []MonthlyCashflow `json:"series"`
 }
+
+type MonthlyCategoryUsage struct {
+	Month      int              `json:"month"`
+	CategoryID int64            `json:"category_id"`
+	Category   string           `json:"category"`
+	Amount     decimal.Decimal  `json:"amount"`
+	Percentage *decimal.Decimal `json:"percentage,omitempty"`
+}
+
+type CategoryUsageResponse struct {
+	Year    int                    `json:"year"`
+	Class   string                 `json:"classification"`
+	Series  []MonthlyCategoryUsage `json:"series"`
+	Compare []MonthlyCategoryUsage `json:"compare,omitempty"`
+}

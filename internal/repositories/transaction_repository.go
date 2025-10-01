@@ -622,3 +622,18 @@ func (r *TransactionRepository) GetTransactionsForYear(userID int64, year int, a
 	}
 	return txs, nil
 }
+
+func (r *TransactionRepository) GetTransactionsByYearAndClass(
+	userID int64, year int, class string, accountID *int64,
+) ([]models.Transaction, error) {
+	q := r.DB.
+		Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ? AND transaction_type = ?", userID, year, class)
+
+	if accountID != nil {
+		q = q.Where("account_id = ?", *accountID)
+	}
+
+	var txs []models.Transaction
+	err := q.Find(&txs).Error
+	return txs, err
+}

@@ -220,13 +220,11 @@ func (s *ChartingService) GetNetWorthSeries(
 }
 
 func (s *ChartingService) GetMonthlyCashFlowForYear(userID int64, year int, accountID *int64) (*models.MonthlyCashflowResponse, error) {
-	// fetch transactions for user, year, (and optionally account)
 	txs, err := s.TxRepo.GetTransactionsForYear(userID, year, accountID)
 	if err != nil {
 		return nil, err
 	}
 
-	// init months map
 	months := make(map[int]*models.MonthlyCashflow)
 	for m := 1; m <= 12; m++ {
 		months[m] = &models.MonthlyCashflow{
@@ -237,7 +235,6 @@ func (s *ChartingService) GetMonthlyCashFlowForYear(userID int64, year int, acco
 		}
 	}
 
-	// aggregate inflows/outflows
 	for _, tx := range txs {
 		month := int(tx.TxnDate.Month())
 		if tx.TransactionType == "income" {
@@ -247,7 +244,6 @@ func (s *ChartingService) GetMonthlyCashFlowForYear(userID int64, year int, acco
 		}
 	}
 
-	// compute net
 	series := make([]models.MonthlyCashflow, 0, 12)
 	for m := 1; m <= 12; m++ {
 		months[m].Net = months[m].Inflows.Sub(months[m].Outflows)
@@ -257,5 +253,71 @@ func (s *ChartingService) GetMonthlyCashFlowForYear(userID int64, year int, acco
 	return &models.MonthlyCashflowResponse{
 		Year:   year,
 		Series: series,
+	}, nil
+}
+
+func (s *ChartingService) GetCategoryUsageForYear(
+	userID int64,
+	year int,
+	class string,
+	accID *int64,
+	compareYear *int,
+	asPercent bool,
+) (*models.CategoryUsageResponse, error) {
+
+	txs, err := s.TxRepo.GetTransactionsByYearAndClass(userID, year, class, accID)
+	if err != nil {
+		return nil, err
+	}
+
+	months := make(map[int]map[int64]decimal.Decimal)
+	totals := make(map[int]decimal.Decimal)
+
+	for m := 1; m <= 12; m++ {
+		months[m] = make(map[int64]decimal.Decimal)
+		totals[m] = decimal.NewFromInt(0)
+	}
+
+	for _, tx := range txs {
+		month := int(tx.TxnDate.Month())
+		catID := int64(0)
+		if tx.CategoryID != nil {
+			catID = *tx.CategoryID
+		}
+		months[month][catID] = months[month][catID].Add(tx.Amount)
+		totals[month] = totals[month].Add(tx.Amount)
+	}
+
+	var series []models.MonthlyCategoryUsage
+	for m := 1; m <= 12; m++ {
+		for catID, amt := range months[m] {
+			entry := models.MonthlyCategoryUsage{
+				Month:      m,
+				CategoryID: catID,
+				Category:   "",
+				Amount:     amt,
+			}
+			if asPercent && !totals[m].IsZero() {
+				perc := amt.Div(totals[m]).Mul(decimal.NewFromInt(100))
+				entry.Percentage = &perc
+			}
+			series = append(series, entry)
+		}
+	}
+
+	var compareSeries []models.MonthlyCategoryUsage
+	if compareYear != nil {
+		compare, err := s.GetCategoryUsageForYear(userID, *compareYear, class, accID, nil, asPercent)
+		if err != nil {
+			return nil, err
+		}
+		compareSeries = compare.Series
+	}
+
+	return &models.CategoryUsageResponse{
+		Year:    year,
+		Class:   class,
+		Series:  series,
+		Compare: compareSeries,
 	}, nil
 }
