@@ -17,19 +17,39 @@ const years = ref<number[]>([]);
 const selectedYear = ref<number>(new Date().getFullYear());
 const filteredYears = ref<number[]>([]);
 
+const isLoadingYears = ref(false);
+const isLoadingStats = ref(false);
+const isLoading = computed(() => isLoadingYears.value || isLoadingStats.value);
+
 const loadStats = async () => {
-    accBasicStats.value = await statsStore.getBasicStatisticsForAccount(
-        props.accID ?? null,
-        selectedYear.value
-    );
+    isLoadingStats.value = true;
+    try {
+        const res = await statsStore.getBasicStatisticsForAccount(
+            props.accID ?? null,
+            selectedYear.value
+        );
+
+        accBasicStats.value = res;
+    } finally {
+        isLoadingStats.value = false;
+    }
 };
 
 const loadYears = async () => {
-    years.value = await statsStore.getAvailableStatsYears(props.accID ?? null);
-    const current = new Date().getFullYear();
-    selectedYear.value = years.value.includes(current)
-        ? current
-        : (years.value[0] ?? current);
+    isLoadingYears.value = true;
+    try {
+        const result = await statsStore.getAvailableStatsYears(props.accID ?? null);
+        years.value = Array.isArray(result) ? result : [];
+
+        const current = new Date().getFullYear();
+        selectedYear.value = years.value.includes(current)
+            ? current
+            : (years.value[0] ?? current);
+
+        filteredYears.value = [...years.value];
+    } finally {
+        isLoadingYears.value = false;
+    }
 };
 
 onMounted(async () => {
@@ -193,39 +213,51 @@ function searchYear(event: any) {
             </div>
             <div class="flex flex-column w-6 justify-content-center align-items-center gap-2">
                 <div class="flex flex-column justify-content-center w-12">
-                    <Carousel v-if="hasInflowData && hasOutflowData"
-                              :value="chartItems" :numVisible="1" :numScroll="1">
-                        <template #item="slotProps">
-                            <div class="flex flex-column justify-content-center align-items-center">
-                                {{ vueHelper.capitalize(slotProps.data.type) }}
-                            </div>
-                            <div class="flex flex-column justify-content-center align-items-center">
-                                <ComparativePieChart
-                                        v-if="slotProps.data.type === 'inflows'"
-                                        :size="pieChartSize"
-                                        :showLegend="false"
-                                        :options="pieOptions"
-                                        :values="inflowValues"
-                                        :labels="inflowLabels"
-                                />
-                                <ComparativePieChart
-                                        v-else
-                                        :size="pieChartSize"
-                                        :showLegend="false"
-                                        :options="pieOptions"
-                                        :values="outflowValues"
-                                        :labels="outflowLabels"
-                                />
-                            </div>
-                        </template>
-                    </Carousel>
-                    <ShowLoading v-else :numFields="4" />
+                    <ShowLoading v-if="isLoading" :numFields="4" />
+                    <template v-else>
+                        <Carousel v-if="hasInflowData && hasOutflowData"
+                                  :value="chartItems" :numVisible="1" :numScroll="1">
+                            <template #item="slotProps">
+                                <div class="flex flex-column justify-content-center align-items-center">
+                                    {{ vueHelper.capitalize(slotProps.data.type) }}
+                                </div>
+                                <div class="flex flex-column justify-content-center align-items-center">
+                                    <ComparativePieChart
+                                            v-if="slotProps.data.type === 'inflows'"
+                                            :size="pieChartSize"
+                                            :showLegend="false"
+                                            :options="pieOptions"
+                                            :values="inflowValues"
+                                            :labels="inflowLabels"
+                                    />
+                                    <ComparativePieChart
+                                            v-else
+                                            :size="pieChartSize"
+                                            :showLegend="false"
+                                            :options="pieOptions"
+                                            :values="outflowValues"
+                                            :labels="outflowLabels"
+                                    />
+                                </div>
+                            </template>
+                        </Carousel>
+                        <div v-else class="flex flex-column align-items-center justify-content-center p-3"
+                             style="border: 1px dashed var(--border-color); border-radius: 16px;">
+                              <span class="text-sm" style="color: var(--text-secondary);">
+                                    Not enough transactions found for {{ selectedYear }}.
+                              </span>
+                             <span class="text-sm" style="color: var(--text-secondary);">
+                                    Keep inserting transactions to see the chart.
+                              </span>
+                        </div>
+                    </template>
+
                 </div>
             </div>
         </div>
 
     </div>
-  <ShowLoading v-else :numFields="5" />
+    <ShowLoading v-else :numFields="5" />
 </template>
 
 <style scoped>

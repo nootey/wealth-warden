@@ -20,11 +20,16 @@ const statsStore = useStatisticsStore();
 const toastStore = useToastStore();
 
 const loadYears = async () => {
-    years.value = await statsStore.getAvailableStatsYears(null);
+    const result = await statsStore.getAvailableStatsYears(null);
+
+    years.value = Array.isArray(result) ? result : [];
+
     const current = new Date().getFullYear();
     selectedYear.value = years.value.includes(current)
         ? current
         : (years.value[0] ?? current);
+
+    filteredYears.value = [...years.value];
 };
 
 function searchYear(event: any) {

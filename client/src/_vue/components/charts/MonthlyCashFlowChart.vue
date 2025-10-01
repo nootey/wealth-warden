@@ -30,6 +30,12 @@ const labels = computed(() =>
 const inflowsArr = computed(() => props.data.series.map(m => toNumber(m.inflows)));
 const outflowsArr = computed(() => props.data.series.map(m => toNumber(m.outflows)));
 
+const hasAnyData = computed(() => {
+    const totalIn = inflowsArr.value.reduce((a, b) => a + b, 0);
+    const totalOut = outflowsArr.value.reduce((a, b) => a + b, 0);
+    return totalIn !== 0 || totalOut !== 0;
+});
+
 const hoverXByChart = new WeakMap<any, number | null>();
 const hoverGuidePlugin = {
     id: "hoverGuide",
@@ -190,6 +196,7 @@ onUnmounted(() => chartRef.value?.chart?.destroy?.());
 
 <template>
     <Chart
+            v-if="hasAnyData"
             ref="chartRef"
             type="line"
             :data="chartData"
@@ -197,4 +204,14 @@ onUnmounted(() => chartRef.value?.chart?.destroy?.());
             :plugins="[hoverGuidePlugin]"
             style="width: 100%; height: 400px"
     />
+    <div v-else class="flex flex-column align-items-center justify-content-center mt-3 p-3 w-6"
+         style="border: 1px dashed var(--border-color); border-radius: 16px; margin: 0 auto;">
+        <span class="text-sm" style="color: var(--text-secondary);">
+            No cash flow data available for {{ props.data.year }}.
+        </span>
+
+        <span class="text-sm" style="color: var(--text-secondary);">
+            Add transactions to see your monthly inflows and outflows.
+        </span>
+    </div>
 </template>
