@@ -22,8 +22,8 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   {to: "/", icon: "pi-home", text: "Home"},
-  {to: "/accounts", icon: "pi-hashtag", text: "Accounts"},
-  {to: "/transactions", icon: "pi-credit-card", text: "Transactions"},
+  {to: "/accounts", icon: "pi-hashtag", text: "Acc"},
+  {to: "/transactions", icon: "pi-credit-card", text: "Txn"},
   {to: "/charts", icon: "pi-chart-bar", text: "Charts"},
   {to: "/users", icon: "pi-users", text: "Users", block: !hasPermission('manage_users')},
 ];
@@ -55,8 +55,8 @@ function checkAccess(route: string){
 <template>
   <aside v-if="authStore.authenticated && authStore.isValidated"
          class="flex flex-column overflow-hidden h-screen fixed left-0 top-0"
-         style="width: 80px; background-color: var(--background-secondary); color: var(--text-primary); padding: 1rem 0;">
-    <div class="logo-section flex align-items-center justify-content-center mb-3 p-2">
+         style="width: 80px; color: var(--text-primary); padding: 1rem 0;">
+    <div class="logo-section flex align-items-center justify-content-center mb-2 p-1">
       <div class="flex align-items-center justify-content-center"
            style="
             width: 32px; height: 32px; border-radius: 8px;box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -67,14 +67,10 @@ function checkAccess(route: string){
     <div class="flex-1">
       <div class="menu flex flex-column h-full">
         <router-link v-for="(item, index) in visibleMenuItems" :key="index" :to="item.to"
-            class="flex flex-column align-items-center p-1 border-round-lg"
-            style="text-decoration: none; transition: all 0.2s ease; color: var(--text-secondary);"
-            :style="{
-              backgroundColor: $route.path === item.to ? 'var(--background-primary)' : 'transparent',
-              color: $route.path === item.to ? 'var(--text-primary)' : 'var(--text-secondary)'}">
-          <i :class="['pi', item.icon]" class="text-0" style="transition: all 0.2s ease;" />
-          <span class="text-xs font-bold text-align-center">
-            {{ item.text }}</span>
+            class="flex flex-column align-items-center p-1"
+            style="text-decoration: none; transition: all 0.2s ease; color: var(--text-secondary);">
+            <i :class="['pi', item.icon]" class="text-sm" style="transition: all 0.2s ease;" />
+            <span class="text-xs text-align-center">{{ item.text }}</span>
         </router-link>
 
         <div id="user-menu-trigger" @click="toggleProfileMenu($event)"
@@ -156,20 +152,30 @@ function checkAccess(route: string){
 aside .menu a,
 aside .menu div {
   padding: 0.75rem 0.5rem;
-  border-radius: 0.5rem;
 }
 
 aside .menu a:hover,
 aside .menu div:hover {
   background-color: var(--background-primary) !important;
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .router-link-exact-active {
-  background-color: var(--background-primary) !important;
+  font-weight: bold;
   color: var(--text-primary) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+.router-link-exact-active::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 16px;
+  border-radius: 25px;
+  background-color: var(--text-secondary);
 }
 
 #user-menu-trigger {
@@ -194,6 +200,14 @@ aside .menu div:hover {
     background-color: var(--background-secondary) !important;
     border-top: 1px solid var(--border-color);
     z-index: 1000;
+  }
+
+  .router-link-exact-active::before {
+    left: 50%;
+    top: 80%;
+    transform: translateX(-50%);
+    width: 16px;
+    height: 4px;
   }
 
   .logo-section {
