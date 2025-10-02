@@ -11,6 +11,7 @@ import {useConfirm} from "primevue/useconfirm";
 import NetworthWidget from "../features/NetworthWidget.vue";
 import AccountBasicStats from "../features/AccountBasicStats.vue";
 import SlotSkeleton from "./layout/SlotSkeleton.vue";
+import dateHelper from "../../utils/date_helper.ts";
 
 const props = defineProps<{
     account: Account;
@@ -63,10 +64,40 @@ async function confirmCloseAccount(id: number) {
 
 <template>
     <div class="flex flex-column w-full gap-3">
-        <div class="flex flex-row gap-2 align-items-center justify-content-between">
+        <div class="flex flex-row gap-2 align-items-center text-center">
+            <i :class="['pi', account.account_type.classification === 'liability' ? 'pi-credit-card' : 'pi-wallet']">
+            </i>
             <h3>{{ account.name }}</h3>
-            <Button v-if="advanced" size="small" label="Close account" severity="danger" style="color: white;" @click="confirmCloseAccount(account.id!)"></Button>
+            <Tag :severity="!account.is_active ? 'secondary' : 'success'" style="transform: scale(0.8)">
+                {{ !account.is_active ? 'Inactive' : 'Active' }}
+            </Tag>
+            <Button v-if="advanced" size="small" label="Close account" severity="danger" style="color: white; margin-left: auto;" @click="confirmCloseAccount(account.id!)"></Button>
         </div>
+
+        <SlotSkeleton class="w-full" bg="opt">
+            <div class="flex flex-column gap-2 p-3 w-full">
+                <h4>KPI</h4>
+                <span> Start balance: <b>{{ vueHelper.displayAsCurrency(account.balance.start_balance) }} </b> </span>
+                <span> Currency: <b>{{ account.currency }} </b> </span>
+                <span> Opened: <b>{{ dateHelper.formatDate(account.opened_at!, true) }} </b> </span>
+                <span v-if="account.closed_at"> Closed: <b>{{ dateHelper.formatDate(account.closed_at!, true) }} </b> </span>
+            </div>
+        </SlotSkeleton>
+
+        <SlotSkeleton class="w-full" bg="opt">
+            <div class="flex flex-column gap-2 p-3 w-full">
+                <h4>Details</h4>
+                <span> Type: <b>{{ vueHelper.capitalize(vueHelper.denormalize(account.account_type.type)) }} </b> </span>
+                <span> Subtype: <b>{{ vueHelper.capitalize(account.account_type.sub_type) }} </b> </span>
+                <span> Classification:
+                    <Tag :severity="account.account_type.classification === 'liability' ? 'danger' : 'success'" style="transform: scale(0.8)">
+                        {{ vueHelper.capitalize(account.account_type.classification) }}
+                    </Tag>
+                </span>
+            </div>
+        </SlotSkeleton>
+
+        <Divider />
 
         <SlotSkeleton class="w-full">
           <NetworthWidget ref="nWidgetRef" :accountId="account.id" :chartHeight="200"/>
