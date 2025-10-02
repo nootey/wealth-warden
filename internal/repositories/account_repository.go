@@ -28,115 +28,74 @@ func (r *AccountRepository) FindAccounts(
 	classification *string,
 ) ([]models.Account, error) {
 
-	type row struct {
-		models.Account
+	var accounts []models.Account
 
-		AT_ID             int64     `gorm:"column:at_id"`
-		AT_Type           string    `gorm:"column:at_type"`
-		AT_Subtype        string    `gorm:"column:at_subtype"`
-		AT_Classification string    `gorm:"column:at_classification"`
-		AT_CreatedAt      time.Time `gorm:"column:at_created_at"`
-		AT_UpdatedAt      time.Time `gorm:"column:at_updated_at"`
-
-		BalanceID       *int64           `gorm:"column:balance_id"`
-		BalanceAsOf     *time.Time       `gorm:"column:balance_as_of"`
-		BalanceEnd      *decimal.Decimal `gorm:"column:balance_end"`
-		BalanceCurrency *string          `gorm:"column:balance_currency"`
-	}
-
-	var rows []row
-
+	// Base query: accounts + preload AccountType
 	q := r.DB.
-		Table("accounts").
-		Joins(`INNER JOIN account_types at ON at.id = accounts.account_type_id`).
-		Joins(`
-			LEFT JOIN LATERAL (
-				SELECT b.id, b.as_of, b.end_balance, b.currency
-				FROM balances b
-				WHERE b.account_id = accounts.id
-				ORDER BY b.as_of DESC
-				LIMIT 1
-			) lb ON TRUE
-		`).
-		Select(`
-			accounts.*,
-
-			at.id             AS at_id,
-			at.type           AS at_type,
-			at.sub_type       AS at_subtype,
-			at.classification AS at_classification,
-			at.created_at     AS at_created_at,
-			at.updated_at     AS at_updated_at,
-
-			lb.id          AS balance_id,
-			lb.as_of       AS balance_as_of,
-			lb.end_balance AS balance_end,
-			lb.currency    AS balance_currency
-		`).
-		Where("accounts.user_id = ? AND accounts.closed_at IS NULL", userID)
+		Model(&models.Account{}).
+		Preload("AccountType").
+		Where("user_id = ? AND closed_at IS NULL", userID)
 
 	if classification != nil && *classification != "" {
-		q = q.Where("at.classification = ?", *classification)
+		q = q.Joins("JOIN account_types at ON at.id = accounts.account_type_id").
+			Where("at.classification = ?", *classification)
 	}
 
 	if !includeInactive {
-		q = q.Where("accounts.is_active = TRUE")
+		q = q.Where("is_active = TRUE")
 	}
 
+	// Apply filters
 	joins := utils.GetRequiredJoins(filters)
-	orderBy := utils.ConstructOrderByClause(&joins, "accounts", sortField, sortOrder)
 	for _, j := range joins {
 		q = q.Joins(j)
 	}
 	q = utils.ApplyFilters(q, filters)
 
+	orderBy := utils.ConstructOrderByClause(&joins, "accounts", sortField, sortOrder)
+
+	// fetch accounts
 	if err := q.
 		Order(orderBy).
 		Limit(limit).
 		Offset(offset).
-		Scan(&rows).Error; err != nil {
+		Find(&accounts).Error; err != nil {
 		return nil, err
 	}
 
-	records := make([]models.Account, 0, len(rows))
-	for _, r := range rows {
-		a := r.Account
-
-		a.AccountType = models.AccountType{
-			ID:             r.AT_ID,
-			Type:           r.AT_Type,
-			Subtype:        r.AT_Subtype,
-			Classification: r.AT_Classification,
-			CreatedAt:      r.AT_CreatedAt,
-			UpdatedAt:      r.AT_UpdatedAt,
-		}
-
-		if r.BalanceID != nil {
-			end := decimal.Zero
-			if r.BalanceEnd != nil {
-				end = *r.BalanceEnd
-			}
-			cur := ""
-			if r.BalanceCurrency != nil {
-				cur = *r.BalanceCurrency
-			}
-			asOf := time.Time{}
-			if r.BalanceAsOf != nil {
-				asOf = *r.BalanceAsOf
-			}
-			a.Balance = models.Balance{
-				ID:         *r.BalanceID,
-				AccountID:  a.ID,
-				AsOf:       asOf,
-				EndBalance: end,
-				Currency:   cur,
-			}
-		}
-
-		records = append(records, a)
+	if len(accounts) == 0 {
+		return accounts, nil
 	}
 
-	return records, nil
+	// fetch latest balances for all accounts
+	accountIDs := make([]int64, len(accounts))
+	for i, acc := range accounts {
+		accountIDs[i] = acc.ID
+	}
+
+	var latestBalances []models.Balance
+	if err := r.DB.Raw(`
+		SELECT DISTINCT ON (account_id) *
+		FROM balances
+		WHERE account_id IN ?
+		ORDER BY account_id, as_of DESC
+	`, accountIDs).Scan(&latestBalances).Error; err != nil {
+		return nil, err
+	}
+
+	// map balances back into accounts
+	balanceMap := make(map[int64]models.Balance, len(latestBalances))
+	for _, b := range latestBalances {
+		balanceMap[b.AccountID] = b
+	}
+
+	for i := range accounts {
+		if b, ok := balanceMap[accounts[i].ID]; ok {
+			accounts[i].Balance = b
+		}
+	}
+
+	return accounts, nil
 }
 
 func (r *AccountRepository) CountAccounts(userID int64, filters []utils.Filter, includeInactive bool, classification *string) (int64, error) {

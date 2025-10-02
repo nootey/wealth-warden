@@ -53,7 +53,10 @@ const paginator = ref({
     rowsPerPage: default_rows.value,
 });
 const page = ref(1);
-const sort = ref(filterHelper.initSort());
+const sort = ref({
+    order: -1,
+    field: 'opened_at'
+});
 
 const params = computed(() => ({
     rowsPerPage: paginator.value.rowsPerPage,
