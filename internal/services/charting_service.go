@@ -261,7 +261,7 @@ func (s *ChartingService) GetCategoryUsageForYear(
 	year int,
 	class string,
 	accID *int64,
-	compareYear *int,
+	catID *int64,
 	asPercent bool,
 ) (*models.CategoryUsageResponse, error) {
 
@@ -279,12 +279,19 @@ func (s *ChartingService) GetCategoryUsageForYear(
 	}
 
 	for _, tx := range txs {
-		month := int(tx.TxnDate.Month())
-		catID := int64(0)
-		if tx.CategoryID != nil {
-			catID = *tx.CategoryID
+
+		if catID != nil {
+			if tx.CategoryID == nil || *tx.CategoryID != *catID {
+				continue
+			}
 		}
-		months[month][catID] = months[month][catID].Add(tx.Amount)
+
+		month := int(tx.TxnDate.Month())
+		var categoryID int64 = 0
+		if tx.CategoryID != nil {
+			categoryID = *tx.CategoryID
+		}
+		months[month][categoryID] = months[month][categoryID].Add(tx.Amount)
 		totals[month] = totals[month].Add(tx.Amount)
 	}
 
@@ -305,19 +312,35 @@ func (s *ChartingService) GetCategoryUsageForYear(
 		}
 	}
 
-	var compareSeries []models.MonthlyCategoryUsage
-	if compareYear != nil {
-		compare, err := s.GetCategoryUsageForYear(userID, *compareYear, class, accID, nil, asPercent)
+	return &models.CategoryUsageResponse{
+		Year:   year,
+		Class:  class,
+		Series: series,
+	}, nil
+}
+
+func (s *ChartingService) GetCategoryUsageForYears(
+	userID int64,
+	years []int,
+	class string,
+	accID *int64,
+	catID *int64,
+	asPercent bool,
+) (*models.MultiYearCategoryUsageResponse, error) {
+
+	byYear := make(map[int]models.CategoryUsageResponse, len(years))
+
+	for _, y := range years {
+		one, err := s.GetCategoryUsageForYear(userID, y, class, accID, catID, asPercent)
 		if err != nil {
 			return nil, err
 		}
-		compareSeries = compare.Series
+		byYear[y] = *one
 	}
 
-	return &models.CategoryUsageResponse{
-		Year:    year,
-		Class:   class,
-		Series:  series,
-		Compare: compareSeries,
+	return &models.MultiYearCategoryUsageResponse{
+		Years:  years,
+		Class:  class,
+		ByYear: byYear,
 	}, nil
 }

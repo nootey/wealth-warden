@@ -40,10 +40,3 @@ export interface MonthlyCategoryUsage {
     amount: string;
     percentage?: string;
 }
-
-export interface CategoryUsageResponse {
-    year: number;
-    class: "income" | "expense";
-    series: MonthlyCategoryUsage[];
-    compare?: MonthlyCategoryUsage[];
-}

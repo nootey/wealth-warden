@@ -46,26 +46,23 @@ export const useChartStore = defineStore('chart', {
             }
         },
 
-        async getMonthlyCategoryBreakdown(params?: {
-            year: number;
-            compare_year?: number | null;
+        async getMultiYearMonthlyCategoryBreakdown(params: {
+            years: number[];
             account?: number | string | null;
             class?: "income" | "expense";
             percent?: boolean;
+            category?: number | string | null;
         }) {
-            try {
-                const q: Record<string, any> = {}
-                if (params) {
-                    for (const [k, v] of Object.entries(params)) {
-                        if (v !== undefined && v !== null && v !== '') q[k] = v
-                    }
-                }
+            const q: Record<string, any> = {};
+            q["years"] = params.years.join(",");
+            if (params.account != null && params.account !== "") q["account"] = params.account;
+            if (params.class) q["class"] = params.class;
+            if (typeof params.percent === "boolean") q["percent"] = params.percent;
+            if (params.category != null && params.category !== "") q["category"] = params.category;
 
-                const response = await apiClient.get(`${this.apiPrefix}/monthly-category-breakdown`, { params: q })
-                return response.data
-            } catch (err) {
-                throw err
-            }
+            const response = await apiClient.get(`${this.apiPrefix}/monthly-category-breakdown`, { params: q });
+            return response.data;
         }
+
     },
 });

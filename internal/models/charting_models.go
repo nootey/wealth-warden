@@ -49,8 +49,13 @@ type MonthlyCategoryUsage struct {
 }
 
 type CategoryUsageResponse struct {
-	Year    int                    `json:"year"`
-	Class   string                 `json:"classification"`
-	Series  []MonthlyCategoryUsage `json:"series"`
-	Compare []MonthlyCategoryUsage `json:"compare,omitempty"`
+	Year   int                    `json:"year"`
+	Class  string                 `json:"classification"`
+	Series []MonthlyCategoryUsage `json:"series"`
+}
+
+type MultiYearCategoryUsageResponse struct {
+	Years  []int                         `json:"years"`
+	Class  string                        `json:"classification"`
+	ByYear map[int]CategoryUsageResponse `json:"by_year"`
 }
