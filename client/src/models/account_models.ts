@@ -18,6 +18,8 @@ export interface Account {
     name: string;
     account_type: AccountType,
     balance: Balance;
+    currency?: string;
     is_active: boolean;
-    deleted_at: Date | null;
+    opened_at?: Date;
+    closed_at: Date | null;
 }

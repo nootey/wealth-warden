@@ -207,7 +207,7 @@ function initData(): Account {
     id: null,
     name: "",
     is_active: true,
-    deleted_at: null,
+    closed_at: null,
     account_type: {
       id: null,
       name: "",

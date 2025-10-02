@@ -44,7 +44,7 @@ const isGlobalReadOnly = computed(() =>
 
 const isAccountRestricted = computed<boolean>(() => {
     const acc = record.value.account as Account | null | undefined;
-    return !!acc && typeof acc === 'object' && (!!acc.deleted_at || !acc.is_active);
+    return !!acc && typeof acc === 'object' && (!!acc.closed_at || !acc.is_active);
 });
 
 const isFormReadOnly = computed<boolean>(() =>
@@ -56,7 +56,7 @@ const isAccountPickerDisabled = computed<boolean>(() =>
 );
 
 const isTxnDeleted = computed(() => !!record.value.deleted_at);
-const isAccountDeleted = computed(() => !!record.value.account?.deleted_at);
+const isAccountDeleted = computed(() => !!record.value.account?.closed_at);
 const isAccountActive = computed(() => !!record.value.account?.is_active);
 
 const canRestore = computed(() =>
@@ -182,7 +182,7 @@ function initData(): Transaction {
       id: null,
       name: "",
       is_active: true,
-      deleted_at: null,
+      closed_at: null,
       account_type: {
         id: null,
         name: "",

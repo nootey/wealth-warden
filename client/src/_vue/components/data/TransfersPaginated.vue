@@ -113,9 +113,9 @@ async function deleteRecord(id: number) {
 function canDelete(tr: Transfer) {
     return !tr.deleted_at &&
         (
-            (!tr?.from?.account?.deleted_at && tr?.from?.account?.is_active)
+            (!tr?.from?.account?.closed_at && tr?.from?.account?.is_active)
             &&
-            (!tr?.to?.account?.deleted_at && tr?.to?.account?.is_active)
+            (!tr?.to?.account?.closed_at && tr?.to?.account?.is_active)
         )
 }
 

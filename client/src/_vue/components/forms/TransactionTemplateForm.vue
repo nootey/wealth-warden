@@ -41,7 +41,7 @@ const isImmutable = ref(false);
 
 const isAccountRestricted = computed<boolean>(() => {
     const acc = record.value.account as Account | null | undefined;
-    return !!acc && typeof acc === 'object' && (!!acc.deleted_at || !acc.is_active);
+    return !!acc && typeof acc === 'object' && (!!acc.closed_at || !acc.is_active);
 });
 
 const loading = ref(false);
@@ -157,7 +157,7 @@ function initData(): TransactionTemplate {
           id: null,
           name: "",
           is_active: true,
-          deleted_at: null,
+          closed_at: null,
           account_type: {
               id: null,
               name: "",
