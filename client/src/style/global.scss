@@ -5,6 +5,7 @@
   /* Light mode colors using Material preset variables */
   --background-primary: var(--p-surface-0);
   --background-secondary: var(--p-surface-100);
+  --background-alt: var(--p-surface-300);
   --text-primary: var(--p-surface-950);
   --text-secondary: var(--p-surface-600);
   --accent-primary: var(--p-primary-700);
@@ -17,6 +18,7 @@
   /* Dark mode colors using Material preset variables */
   --background-primary: var(--p-surface-950);
   --background-secondary: #212121;
+  --background-alt: #121212;
   --text-primary: var(--p-surface-50);
   --text-secondary: var(--p-surface-300);
   --accent-primary: var(--p-primary-300);

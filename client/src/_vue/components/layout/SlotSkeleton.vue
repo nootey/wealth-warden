@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-withDefaults(defineProps<{ bg?: 'primary' | 'secondary' | 'transparent' }>(), {
+withDefaults(defineProps<{ bg?: 'primary' | 'secondary' | 'transparent' | 'opt'}>(), {
     bg: 'secondary'
 })
 
@@ -19,6 +19,7 @@ withDefaults(defineProps<{ bg?: 'primary' | 'secondary' | 'transparent' }>(), {
 .panel--primary { background-color: var(--background-primary); border: 1px solid var(--background-primary); }
 .panel--secondary { background-color: var(--background-secondary); border: 1px solid var(--border-color); }
 .panel--transparent { background-color: transparent; }
+.panel--opt { background-color: var(--background-alt); }
 
 .animate-enter-active, .animate-leave-active { transition: all .2s ease; }
 .animate-enter-from, .animate-leave-to { opacity: 0; transform: translateY(4px); }
