@@ -3,7 +3,7 @@
 import type {Account} from "../../models/account_models.ts";
 import vueHelper from "../../utils/vue_helper.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
-import {computed, ref} from "vue";
+import {computed, nextTick, onMounted, ref} from "vue";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import TransactionsPaginated from "./data/TransactionsPaginated.vue";
 import type {Column} from "../../services/filter_registry.ts";
@@ -12,11 +12,17 @@ import NetworthWidget from "../features/NetworthWidget.vue";
 import AccountBasicStats from "../features/AccountBasicStats.vue";
 import SlotSkeleton from "./layout/SlotSkeleton.vue";
 import dateHelper from "../../utils/date_helper.ts";
+import {useSharedStore} from "../../services/stores/shared_store.ts";
+import ShowLoading from "./base/ShowLoading.vue";
 
 const props = defineProps<{
-    account: Account;
+    accID: number;
     advanced: boolean;
 }>();
+
+onMounted(async () => {
+    await loadRecord(props.accID);
+})
 
 const emit = defineEmits<{
     (event: 'closeAccount', id: number): void;
@@ -24,9 +30,11 @@ const emit = defineEmits<{
 
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
+const sharedStore = useSharedStore();
 
 const confirm = useConfirm();
 const nWidgetRef = ref<InstanceType<typeof NetworthWidget> | null>(null);
+const account = ref<Account | null>(null);
 
 const transactionColumns = computed<Column[]>(() => [
     { field: 'category', header: 'Category'},
@@ -35,6 +43,17 @@ const transactionColumns = computed<Column[]>(() => [
     { field: 'description', header: 'Description'},
 ]);
 
+async function loadRecord(id: number) {
+    try {
+        account.value = await sharedStore.getRecordByID("accounts", id, {initial_balance: true});
+
+        await nextTick();
+
+    } catch (err) {
+        toastStore.errorResponseToast(err);
+    }
+}
+
 async function loadTransactionsPage({ page, rows, sort: s, filters: f, include_deleted }: any) {
     let response = null;
 
@@ -42,7 +61,7 @@ async function loadTransactionsPage({ page, rows, sort: s, filters: f, include_d
         response = await transactionStore.getPaginatedTransactionsForAccount(
             { rowsPerPage: rows, sort: s, filters: f, include_deleted },
             page,
-            props.account.id!
+            props.accID!
         );
     } catch (e) {
         toastStore.errorResponseToast(e);
@@ -63,7 +82,7 @@ async function confirmCloseAccount(id: number) {
 </script>
 
 <template>
-    <div class="flex flex-column w-full gap-3">
+    <div v-if="account" class="flex flex-column w-full gap-3">
         <div class="flex flex-row gap-2 align-items-center text-center">
             <i :class="['pi', account.account_type.classification === 'liability' ? 'pi-credit-card' : 'pi-wallet']">
             </i>
@@ -132,6 +151,7 @@ async function confirmCloseAccount(id: number) {
             </div>
         </SlotSkeleton>
     </div>
+    <ShowLoading v-else :numFields="7" />
 </template>
 
 <style scoped>

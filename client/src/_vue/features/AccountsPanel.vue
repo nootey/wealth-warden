@@ -6,7 +6,6 @@ import { useAccountStore } from "../../services/stores/account_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../services/stores/shared_store.ts";
 import vueHelper from "../../utils/vue_helper.ts";
-import filterHelper from "../../utils/filter_helper.ts";
 import type { Account } from "../../models/account_models.ts";
 import AccountDetails from "../components/AccountDetails.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
@@ -192,7 +191,7 @@ defineExpose({ refresh: getData });
 
     <Dialog position="top" class="rounded-dialog" v-model:visible="detailsModal"
             :breakpoints="{ '851px': '90vw' }" :modal="true" :style="{ width: '850px' }" header="Account details">
-        <AccountDetails :account="selectedAccount!" :advanced="advanced"
+        <AccountDetails :accID="selectedAccount?.id!" :advanced="advanced"
                         @closeAccount="(id) => handleEmit('closeAccount', id)"></AccountDetails>
     </Dialog>
 

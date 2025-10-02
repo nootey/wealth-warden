@@ -174,8 +174,28 @@ func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID int64, withB
 		Preload("AccountType")
 
 	if withBalance {
-		query = query.Preload("Balance")
+		query = query.Preload("Balance", func(db *gorm.DB) *gorm.DB {
+			return db.Order("as_of desc").Limit(1)
+		})
 	}
+
+	result := query.First(&record)
+	return &record, result.Error
+}
+
+func (r *AccountRepository) FindAccountByIDWithInitialBalance(tx *gorm.DB, ID, userID int64) (*models.Account, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var record models.Account
+
+	query := db.Where("id = ? AND user_id = ?", ID, userID).
+		Preload("AccountType").
+		Preload("Balance", func(db *gorm.DB) *gorm.DB {
+			return db.Order("as_of asc").Limit(1)
+		})
 
 	result := query.First(&record)
 	return &record, result.Error

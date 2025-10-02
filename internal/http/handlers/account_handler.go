@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,6 +9,8 @@ import (
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
+
+	"github.com/gin-gonic/gin"
 )
 
 type AccountHandler struct {
@@ -98,7 +99,11 @@ func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
 		return
 	}
-	records, err := h.Service.FetchAccountByID(userID, id)
+
+	qp := c.Request.URL.Query()
+	initialBalance := strings.EqualFold(qp.Get("initial_balance"), "true")
+
+	records, err := h.Service.FetchAccountByID(userID, id, initialBalance)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

@@ -98,8 +98,15 @@ func (s *AccountService) FetchAccountsPaginated(userID int64, p utils.Pagination
 	return records, paginator, nil
 }
 
-func (s *AccountService) FetchAccountByID(userID int64, id int64) (*models.Account, error) {
+func (s *AccountService) FetchAccountByID(userID int64, id int64, initialBalance bool) (*models.Account, error) {
 
+	if initialBalance {
+		record, err := s.Repo.FindAccountByIDWithInitialBalance(nil, id, userID)
+		if err != nil {
+			return nil, err
+		}
+		return record, nil
+	}
 	record, err := s.Repo.FindAccountByID(nil, id, userID, true)
 	if err != nil {
 		return nil, err
@@ -203,7 +210,7 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		userID,
 		accountID,
 		models.DefaultCurrency,
-		asOf,                                    // from opening day
+		asOf, // from opening day
 		time.Now().UTC().Truncate(24*time.Hour), // to today
 	); err != nil {
 		tx.Rollback()
