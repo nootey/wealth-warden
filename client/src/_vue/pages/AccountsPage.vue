@@ -44,7 +44,7 @@ async function handleCreate() {
             
             <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
                 <div class="font-bold">Accounts</div>
-                <i v-if="hasPermission('manage_data')" class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/accounts')" v-tooltip="'Go to accounts settings.'"></i>
+                <i v-if="hasPermission('manage_data')" class="pi pi-external-link hover-icon mr-auto text-sm" @click="router.push('settings/accounts')" v-tooltip="'Go to accounts settings.'"></i>
                 <Button class="main-button" label="New Account" icon="pi pi-plus" @click="openCreate"/>
             </div>
 

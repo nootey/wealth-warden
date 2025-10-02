@@ -263,7 +263,7 @@ provide("removeFilter", removeFilter);
 
             <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
                 <div style="font-weight: bold;">Users</div>
-                <i v-if="hasPermission('manage_roles')" class="pi pi-map hover-icon mr-auto text-sm" @click="router.push('settings/roles')" v-tooltip="'Go to roles settings.'"></i>
+                <i v-if="hasPermission('manage_roles')" class="pi pi-external-link hover-icon mr-auto text-sm" @click="router.push('settings/roles')" v-tooltip="'Go to roles settings.'"></i>
                 <Button label="New user" icon="pi pi-plus" class="main-button"
                         @click="manipulateDialog('inviteUser', true)"></Button>
             </div>
