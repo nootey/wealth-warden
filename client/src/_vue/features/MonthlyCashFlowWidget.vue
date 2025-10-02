@@ -5,19 +5,35 @@ import type {MonthlyCashFlowResponse} from "../../models/chart_models.ts";
 import {onMounted, ref, watch} from "vue";
 import {useStatisticsStore} from "../../services/stores/statistics_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
+import {useChartStore} from "../../services/stores/chart_store.ts";
 
-defineProps<{ cashFlow: MonthlyCashFlowResponse }>();
-
-const emit = defineEmits<{
-    (e: 'refresh', year: number): void;
-}>();
+const statsStore = useStatisticsStore();
+const toastStore = useToastStore();
+const chartStore = useChartStore();
 
 const years = ref<number[]>([]);
 const selectedYear = ref<number>(new Date().getFullYear());
 const filteredYears = ref<number[]>([]);
+const monthlyCashFlow = ref<MonthlyCashFlowResponse>({ year: 0, series: [] })
 
-const statsStore = useStatisticsStore();
-const toastStore = useToastStore();
+
+
+onMounted(async () => {
+    await fetchMonthlyCashFlows(null);
+});
+
+async function fetchMonthlyCashFlows(year: number | null) {
+
+    if(!year) {
+        year = new Date().getFullYear();
+    }
+
+    try {
+        monthlyCashFlow.value = await chartStore.getMonthlyCashFlowForYear({year: year});
+    } catch (error) {
+        toastStore.errorResponseToast(error)
+    }
+}
 
 const loadYears = async () => {
     const result = await statsStore.getAvailableStatsYears(null);
@@ -54,7 +70,7 @@ onMounted(async () => {
 watch(selectedYear, async (newVal, oldVal) => {
     if (newVal !== oldVal) {
         try {
-            emit("refresh", newVal);
+            await fetchMonthlyCashFlows(newVal);
         } catch (e) {
             toastStore.errorResponseToast(e);
         }
@@ -87,7 +103,7 @@ watch(selectedYear, async (newVal, oldVal) => {
             </div>
         </div>
 
-        <MonthlyCashFlowChart v-if="cashFlow.series" :data="cashFlow" />
+        <MonthlyCashFlowChart v-if="monthlyCashFlow.series" :data="monthlyCashFlow" />
     </div>
 </template>
 
