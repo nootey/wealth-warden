@@ -83,7 +83,7 @@ func (s *StatisticsService) GetAccountBasicStatistics(accID *int64, userID int64
 		if netm.GreaterThan(decimal.Zero) {
 			takeHomeYear = takeHomeYear.Add(netm)
 		} else if netm.LessThan(decimal.Zero) {
-			overflowYear = overflowYear.Add(netm.Neg())
+			overflowYear = overflowYear.Add(netm)
 		}
 	}
 
