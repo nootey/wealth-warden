@@ -47,8 +47,8 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	const minDaysBack = 370 // strictly > 365
-	const maxDaysBack = 430
+	const minDaysBack = 365*1 + 1
+	const maxDaysBack = 365*5 + 7
 
 	for _, uname := range usernames {
 		u, ok := usersByName[uname]

@@ -2,14 +2,16 @@ package workers
 
 import (
 	"context"
-	"github.com/shopspring/decimal"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
+	"math"
 	"math/rand"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
+
+	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
@@ -23,13 +25,24 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 
 	accRepo := repositories.NewAccountRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
+	accService := services.NewAccountService(nil, nil, accRepo, txnRepo)
 
-	accService := services.NewAccountService(
-		nil,
-		nil,
-		accRepo,
-		txnRepo,
-	)
+	var incCats, expCats []models.Category
+	_ = db.WithContext(ctx).Where("classification = ?", "income").Find(&incCats).Error
+	_ = db.WithContext(ctx).Where("classification = ?", "expense").Find(&expCats).Error
+	var uncategorized models.Category
+	_ = db.WithContext(ctx).Where("classification = ?", "uncategorized").First(&uncategorized).Error
+
+	pick := func(cs []models.Category) *int64 {
+		if len(cs) == 0 {
+			if uncategorized.ID == 0 {
+				return nil
+			}
+			return &uncategorized.ID
+		}
+		id := cs[rng.Intn(len(cs))].ID
+		return &id
+	}
 
 	for _, u := range users {
 
@@ -45,8 +58,10 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 			continue
 		}
 
-		totalTxns := 250
-		perAcc := totalTxns / len(accounts)
+		const yearsSpan = 5
+		const txnsPerYear = 100
+		totalTxns := yearsSpan * txnsPerYear
+		perAcc := int(math.Max(1, float64(totalTxns)/float64(len(accounts))))
 
 		for _, acc := range accounts {
 			// fetch latest balance row for starting balance
@@ -60,18 +75,22 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 
 			currBal := bal.StartBalance
 
+			openDays := int(today.Sub(acc.OpenedAt.UTC().Truncate(24*time.Hour)).Hours() / 24)
+			maxBack := int(math.Min(float64(openDays), float64(365*yearsSpan+7)))
+			if maxBack < 1 {
+				maxBack = 1
+			}
+
 			for i := 0; i < perAcc; i++ {
-				daysAgo := rng.Intn(365)
+				daysAgo := rng.Intn(maxBack)
 				date := today.AddDate(0, 0, -daysAgo)
 
-				var ttype string
-				if rng.Float64() < 0.4 {
+				ttype := "expense"
+				if rng.Float64() < 0.40 {
 					ttype = "income"
-				} else {
-					ttype = "expense"
 				}
 
-				amt := decimal.NewFromFloat(10 + rng.Float64()*1000).Round(2)
+				amt := decimal.NewFromFloat(10 + rng.Float64()*5000).Round(2)
 
 				// prevent asset accounts from going negative
 				if acc.AccountType.Classification == "asset" && ttype == "expense" {
@@ -84,23 +103,21 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 					}
 				}
 
-				desc := "Random " + ttype
-
-				var category models.Category
-				_ = db.Model(&models.Category{}).
-					Where("classification = ?", "uncategorized").
-					Order("name").
-					First(&category)
+				var catID *int64
+				if ttype == "income" {
+					catID = pick(incCats)
+				} else {
+					catID = pick(expCats)
+				}
 
 				t := models.Transaction{
 					UserID:          u.ID,
 					AccountID:       acc.ID,
 					TransactionType: ttype,
-					CategoryID:      &category.ID,
+					CategoryID:      catID,
 					Amount:          amt,
 					Currency:        acc.Currency,
 					TxnDate:         date,
-					Description:     &desc,
 					IsAdjustment:    false,
 					CreatedAt:       time.Now(),
 					UpdatedAt:       time.Now(),
