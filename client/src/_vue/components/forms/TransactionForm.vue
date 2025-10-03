@@ -16,6 +16,8 @@ import currencyHelper from "../../../utils/currency_helper.ts";
 import TransferForm from "./TransferForm.vue";
 import toastHelper from "../../../utils/toast_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
+import {useConfirm} from "primevue/useconfirm";
+import {usePermissions} from "../../../utils/use_permissions.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -25,12 +27,16 @@ const props = defineProps<{
 const emit = defineEmits<{
     (event: 'completeTxOperation'): void;
     (event: 'completeTrOperation'): void;
+    (event: "completeTxDelete"): void;
 }>();
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
+
+const confirm = useConfirm();
+const { hasPermission } = usePermissions();
 
 onMounted(async () => {
     if (props.mode === "update" && props.recordId) {
@@ -370,6 +376,36 @@ async function restoreTransaction() {
     }
 }
 
+async function deleteConfirmation(id: number, tx_type: string) {
+    const txt = tx_type === "transfer" ? tx_type : "transaction";
+    confirm.require({
+        header: 'Delete record?',
+        message: `This will delete transaction: "${txt} : ${id}".`,
+        rejectProps: { label: 'Cancel' },
+        acceptProps: { label: 'Delete', severity: 'danger' },
+        accept: () => deleteRecord(id, tx_type),
+    });
+}
+
+async function deleteRecord(id: number, tx_type: string) {
+
+    if(!hasPermission("manage_data")) {
+        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+        return;
+    }
+
+    try {
+        let response = await sharedStore.deleteRecord(
+            tx_type === "transfer" ? "transactions/transfers" : "transactions",
+            id,
+        );
+        toastStore.successResponseToast(response);
+        emit("completeTxDelete");
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
+}
+
 </script>
 
 <template>
@@ -453,7 +489,7 @@ async function restoreTransaction() {
       </div>
 
       <div v-if="!record.is_adjustment" class="flex flex-row gap-2 w-full" >
-          <div class="flex flex-column w-full">
+          <div class="flex flex-column w-full gap-2">
               <Button v-if="!isFormReadOnly" class="main-button"
                       :label="(selectedParentCategory?.name.toLowerCase() == 'transfer' ? 'Start transfer' :
                       (mode == 'create' ? 'Add' : 'Update') +  ' transaction')"
@@ -461,11 +497,12 @@ async function restoreTransaction() {
               <Button v-else-if="canRestore" class="main-button"
                       label="Restore"
                       @click="restoreTransaction" style="height: 42px;" />
+              <Button v-if="!isFormReadOnly && mode == 'update'"
+                      label="Delete transaction" class="delete-button"
+                      @click="deleteConfirmation(record.id!, record.transaction_type)" style="height: 42px;" />
               <h5 v-else-if="showCantRestore" style="color: var(--text-secondary)">Transaction can not be restored!</h5>
           </div>
       </div>
-
-
 
   </div>
   <ShowLoading v-else :numFields="7" />

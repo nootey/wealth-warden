@@ -16,14 +16,13 @@
   padding: 0.5rem 1rem;
 }
 
-.p-dialog.rounded-dialog{
-  border-radius: 20px;
-  padding: 0.33rem;
-}
-
-.p-popover.rounded-popover{
-  border-radius: 20px;
-  padding: 0.33rem;
+.p-button.delete-button{
+  background-color: #DB5139;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
 }
 
 button.p-button.main-button:hover {
@@ -39,6 +38,15 @@ button.p-button.outline-button:hover {
   background-color: transparent;
   color: var(--text-secondary);
   border: 1px solid var(--text-secondary);
+  border-radius: 10px;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+}
+
+button.p-button.delete-button:hover {
+  background-color: #AD301D;
+  color: white;
+  border: none;
   border-radius: 10px;
   font-size: 0.875rem;
   padding: 0.5rem 1rem;
@@ -66,4 +74,14 @@ button.p-button.auth-accent-button:hover {
   background-position: right center;
   color: white;
   text-decoration: none;
+}
+
+.p-dialog.rounded-dialog{
+  border-radius: 20px;
+  padding: 0.33rem;
+}
+
+.p-popover.rounded-popover{
+  border-radius: 20px;
+  padding: 0.33rem;
 }

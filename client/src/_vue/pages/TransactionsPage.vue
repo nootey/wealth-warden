@@ -11,7 +11,6 @@ import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import filterHelper from "../../utils/filter_helper.ts";
 import type {Category} from "../../models/transaction_models.ts";
 import type {Column} from "../../services/filter_registry.ts";
-import {useConfirm} from "primevue/useconfirm";
 import {useAccountStore} from "../../services/stores/account_store.ts";
 import type {Account} from "../../models/account_models.ts";
 import TransfersPaginated from "../components/data/TransfersPaginated.vue";
@@ -31,7 +30,6 @@ onMounted(async () => {
     await getTrTemplateCount();
 })
 
-const confirm = useConfirm();
 const router = useRouter();
 const { hasPermission } = usePermissions();
 
@@ -58,10 +56,10 @@ const filterOverlayRef = ref<any>(null);
 
 const activeColumns = computed<Column[]>(() => [
   { field: 'account', header: 'Account', type: 'enum', options: accounts.value, optionLabel: 'name'},
-  { field: 'category', header: 'Category', type: 'enum', options: categories.value, optionLabel: 'name'},
+  { field: 'category', header: 'Category', type: 'enum', options: categories.value, optionLabel: 'name', hideOnMobile: true },
   { field: 'amount', header: 'Amount', type: "number" },
   { field: 'txn_date', header: 'Date', type: "date" },
-  { field: 'description', header: 'Description', type: "text" },
+  { field: 'description', header: 'Description', type: "text", hideOnMobile: true },
 ]);
 
 async function getTrTemplateCount() {
@@ -140,6 +138,12 @@ async function handleEmit(emitType: any) {
         await getTrTemplateCount();
         break;
     }
+    case 'deleteTxn': {
+        createModal.value = false;
+        updateModal.value = false;
+        txRef.value?.refresh();
+        break;
+    }
     default: {
       break;
     }
@@ -193,36 +197,6 @@ function toggleFilterOverlay(event: any) {
   filterOverlayRef.value.toggle(event);
 }
 
-async function deleteConfirmation(id: number, tx_type: string) {
-    const txt = tx_type === "transfer" ? tx_type : "transaction";
-    confirm.require({
-        header: 'Delete record?',
-        message: `This will delete transaction: "${txt} : ${id}".`,
-        rejectProps: { label: 'Cancel' },
-        acceptProps: { label: 'Delete', severity: 'danger' },
-        accept: () => deleteRecord(id, tx_type),
-    });
-}
-
-async function deleteRecord(id: number, tx_type: string) {
-
-    if(!hasPermission("manage_data")) {
-        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
-        return;
-    }
-
-    try {
-    let response = await sharedStore.deleteRecord(
-        tx_type === "transfer" ? "transactions/transfers" : "transactions",
-        id,
-    );
-    toastStore.successResponseToast(response);
-    txRef.value?.refresh();
-  } catch (error) {
-    toastStore.errorResponseToast(error);
-  }
-}
-
 provide("switchSort", switchSort);
 provide("removeFilter", removeFilter);
 
@@ -234,13 +208,16 @@ provide("removeFilter", removeFilter);
           :modal="true" :style="{width: '500px'}" header="Add transaction">
     <TransactionForm mode="create"
                      @completeTxOperation="handleEmit('completeTxOperation')"
-                     @completeTrOperation="handleEmit('completeTrOperation')"></TransactionForm>
+                     @completeTrOperation="handleEmit('completeTrOperation')"
+    />
     </Dialog>
 
     <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal" :breakpoints="{'501px': '90vw'}"
           :modal="true" :style="{width: '500px'}" header="Transaction details">
     <TransactionForm mode="update" :recordId="updateTransactionID"
-                     @completeTxOperation="handleEmit('completeTxOperation')"></TransactionForm>
+                     @completeTxOperation="handleEmit('completeTxOperation')"
+                     @completeTxDelete="handleEmit('deleteTxn')"
+    />
     </Dialog>
 
     <Dialog class="rounded-dialog" v-model:visible="templateModal" :breakpoints="{'901px': '90vw'}"
@@ -261,9 +238,8 @@ provide("removeFilter", removeFilter);
     </div>
     </Popover>
 
-    <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
-
-      <div class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
+    <main class="flex flex-column w-full p-2 align-items-center" style="height: 100%;">
+      <div id="mobile-container" class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
            style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;">
 
         <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
@@ -296,7 +272,7 @@ provide("removeFilter", removeFilter);
         </ActionRow>
       </div>
 
-        <div class="flex flex-row gap-2 w-full">
+        <div id="mobile-row" class="flex flex-row gap-2 w-full">
             <TransactionsPaginated
                     ref="txRef"
                     :readOnly="false"
@@ -307,14 +283,13 @@ provide("removeFilter", removeFilter);
                     :fetchPage="loadTransactionsPage"
                     @sortChange="switchSort"
                     @rowClick="(id) => manipulateDialog('updateTransaction', id)"
-                    @deleteClick="({ id, tx_type }) => deleteConfirmation(id, tx_type)"
             />
         </div>
 
-        <label>Transfers</label>
-        <div class="flex flex-row gap-2 w-full">
-            <TransfersPaginated ref="trRef"></TransfersPaginated>
-        </div>
+<!--        <label>Transfers</label>-->
+<!--        <div class="flex flex-row gap-2 w-full">-->
+<!--            <TransfersPaginated ref="trRef"></TransfersPaginated>-->
+<!--        </div>-->
 
     </div>
     </main>

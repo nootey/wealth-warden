@@ -13,6 +13,7 @@ export type Column = {
     options?: any[];
     optionLabel?: string;
     optionValue?: string;
+    hideOnMobile?: boolean;
 };
 
 export type PanelDef<M=any> = {

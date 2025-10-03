@@ -9,7 +9,6 @@ import type {Column} from "../../../services/filter_registry.ts";
 import {computed, onMounted, ref, watch} from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
 import type { SortObj } from "../../../models/shared_models.ts";
-import {usePermissions} from "../../../utils/use_permissions.ts";
 
 const props = defineProps<{
     columns: Column[];
@@ -31,10 +30,7 @@ const emits = defineEmits<{
     (e: "onPage", payload: { page: number; rows: number }): void;
     (e: "sortChange", column: string): void;
     (e: "rowClick", id: number): void;
-    (e: "deleteClick", payload: { id: number; tx_type: string }): void;
 }>();
-
-const { hasPermission } = usePermissions();
 
 const rowsOptions = computed(() => props.rows ?? [25, 50, 100]);
 const pageLocal = ref(1);
@@ -100,58 +96,51 @@ defineExpose({ refresh });
 </script>
 
 <template>
-    <DataTable class="w-full enhanced-table" dataKey="id"
-               :loading="loading" :value="recordsLocal" scrollable scroll-height="50vh"
-               :rowClass="vueHelper.deletedRowClass">
-        <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-        <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-        <template #footer>
-            <CustomPaginator :paginator="derivedPaginator" :rows="rowsOptions" @onPage="handlePage"/>
-        </template>
-
-        <Column v-for="col of columns" :key="col.field" :field="col.field" style="width: 20%">
-            <template #header >
-                <ColumnHeader :header="col.header" :field="col.field" :sort="localSort"
-                              :sortable="!!sort"
-                              @click="!sort && triggerSort(col.field as string)">
-                </ColumnHeader>
+    <div class="flex w-full">
+        <DataTable class="w-full enhanced-table" dataKey="id"
+                   :loading="loading" :value="recordsLocal" scrollable scrollHeight="50vh"
+                   :rowClass="vueHelper.deletedRowClass" columnResizeMode="fit"
+                   scrollDirection="both">
+            <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
+            <template #loading> <LoadingSpinner></LoadingSpinner> </template>
+            <template #footer>
+                <CustomPaginator :paginator="derivedPaginator" :rows="rowsOptions" @onPage="handlePage"/>
             </template>
-            <template #body="{ data, field }">
-                <template v-if="field === 'amount'">
-                    {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
+
+            <Column v-for="col of columns" :key="col.field" :field="col.field"
+                    :headerClass="col.hideOnMobile ? 'col-hide-sm' : ''"
+                    :bodyClass="col.hideOnMobile ? 'col-hide-sm' : ''">
+                <template #header >
+                    <ColumnHeader :header="col.header" :field="col.field" :sort="localSort"
+                                  :sortable="!!sort"
+                                  @click="!sort && triggerSort(col.field as string)">
+                    </ColumnHeader>
                 </template>
-                <template v-else-if="field === 'txn_date'">
-                    {{ dateHelper.formatDate(data?.txn_date, true) }}
-                </template>
-                <template v-else-if="field === 'account'">
-                    <div class="flex flex-row gap-2 align-items-center account-row">
+                <template #body="{ data, field }">
+                    <template v-if="field === 'amount'">
+                        {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
+                    </template>
+                    <template v-else-if="field === 'txn_date'">
+                        {{ dateHelper.formatDate(data?.txn_date, true) }}
+                    </template>
+                    <template v-else-if="field === 'account'">
+                        <div class="flex flex-row gap-2 align-items-center account-row">
                         <span class="hover" @click="$emit('rowClick', data.id)">
                             {{ data[field]["name"] }}
                         </span>
-                        <i v-if="data[field]['deleted_at']" class="pi pi-ban popup-icon hover-icon" v-tooltip="'This account is closed.'"/>
-                    </div>
+                            <i v-if="data[field]['deleted_at']" class="pi pi-ban popup-icon hover-icon" v-tooltip="'This account is closed.'"/>
+                        </div>
+                    </template>
+                    <template v-else-if="field === 'category'">
+                        {{ data[field]["display_name"] }}
+                    </template>
+                    <template v-else>
+                        {{ data[field] }}
+                    </template>
                 </template>
-                <template v-else-if="field === 'category'">
-                    {{ data[field]["display_name"] }}
-                </template>
-                <template v-else>
-                    {{ data[field] }}
-                </template>
-            </template>
-        </Column>
-
-        <Column v-if="!readOnly" header="Actions">
-            <template #body="{ data }">
-                <div class="flex flex-row align-items-center gap-2">
-                    <i v-if="hasPermission('manage_data') && !data.deleted_at && (!data.account.deleted_at && data.account.is_active)"
-                       class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
-                       @click="$emit('deleteClick', { id: data.id, tx_type: data.transaction_type })"></i>
-                    <i v-else class="pi pi-exclamation-circle" style="font-size: 0.875rem;" v-tooltip="'This transaction is in read only state!'"></i>
-                </div>
-            </template>
-        </Column>
-
-    </DataTable>
+            </Column>
+        </DataTable>
+    </div>
 </template>
 
 <style scoped>
@@ -168,6 +157,10 @@ defineExpose({ refresh });
 
 .account-row.advanced .popup-icon {
     opacity: 1;
+}
+
+@media (max-width: 768px) {
+    :deep(th.col-hide-sm), :deep(td.col-hide-sm) { display: none; }
 }
 
 </style>

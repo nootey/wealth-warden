@@ -29,7 +29,6 @@ async function backfillBalances(){
 
 <template>
     <main class="flex flex-column w-full p-2 align-items-center">
-
         <div id="mobile-container" class="flex flex-column justify-content-center p-3 w-full gap-2 border-round-md"
              style="max-width: 1000px;">
 

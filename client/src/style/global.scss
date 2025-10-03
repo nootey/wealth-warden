@@ -40,15 +40,6 @@ html {
   --p-primary-900: var(--p-indigo-900) !important;
   --p-primary-950: var(--p-indigo-950) !important;
 
-  /* Prevent mobile auto text zoom that changes layout scale */
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-}
-
-/* Also ensure we never trigger “fit to larger than viewport” weirdness */
-html, body, #app {
-  max-width: 100%;
-  overflow-x: hidden;
 }
 
 * {
