@@ -14,7 +14,7 @@ onMounted(async () => {
 </script>
 
 <template>
-    <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
+    <main class="flex flex-column w-full p-2 align-items-center" style="height: 100%;">
 
         <div class="flex flex-column justify-content-center p-3 w-full gap-2 border-round-md"
              style="max-width: 1000px;">
@@ -36,7 +36,7 @@ onMounted(async () => {
                 <MonthlyCashFlowWidget />
             </SlotSkeleton>
 
-            <div class="w-full flex flex-row justify-content-between p-2 gap-2">
+            <div class="w-full flex flex-row justify-content-between p-1">
                 <h4>Monthly category display</h4>
             </div>
             <SlotSkeleton bg="secondary">

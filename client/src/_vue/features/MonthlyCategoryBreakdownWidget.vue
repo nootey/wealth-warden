@@ -111,48 +111,69 @@ watch(selectedCategory, async () => {
 
 <template>
     <div class="flex flex-column w-full p-3">
-        <div class="flex flex-row gap-2 w-full justify-content-between align-items-center">
-            <div class="flex flex-column gap-1">
-        <span class="text-sm" style="color: var(--text-secondary)">
-          View and compare category totals by month.
-        </span>
-            </div>
-            <div class="flex flex-row align-items-center gap-2">
-                <AutoComplete
-                        v-model="selectedCategory"
-                        size="small"
-                        :suggestions="filteredCategories"
-                        @complete="searchCategory"
-                        optionLabel="display_name"
-                        placeholder="Select category"
-                        forceSelection
-                        dropdown
-                />
+        <div id="mobile-row" class="flex flex-row gap-2 w-full justify-content-between align-items-center">
 
-                <MultiSelect
-                        v-model="selectedYears"
-                        :options="yearOptions"
-                        :maxSelectedLabels="3"
-                        :selectionLimit="3"
-                        display="chip"
-                        placeholder="Years"
-                        optionLabel="label"
-                        optionValue="value"
-                        style="width: 310px"
-                />
+            <div id="filter-row" class="flex flex-row w-full align-items-center gap-2 justify-content-between">
+
+                <div class="flex flex-column gap-1">
+                <span class="text-sm" style="color: var(--text-secondary)">
+                  View and compare category totals by month.
+                </span>
+                </div>
+
+                <div class="flex flex-column">
+                    <AutoComplete
+                            v-model="selectedCategory"
+                            size="small"
+                            :suggestions="filteredCategories"
+                            @complete="searchCategory"
+                            optionLabel="display_name"
+                            placeholder="Select category"
+                            forceSelection
+                            dropdown
+                    />
+                </div>
+
+                <div class="flex flex-column">
+                    <MultiSelect
+                            v-model="selectedYears"
+                            :options="yearOptions"
+                            :maxSelectedLabels="3"
+                            :selectionLimit="3"
+                            display="chip"
+                            placeholder="Years"
+                            optionLabel="label"
+                            optionValue="value"
+                            style="width: 310px"
+                    />
+                </div>
+
+
             </div>
         </div>
 
-        <CategoryBreakdownChart v-if="hasAnyData" :series="series" />
-        <div v-else class="flex flex-column align-items-center justify-content-center mt-3"
-             style="height: 400px">
-
-            <span class="text-sm p-3" style="color: var(--text-secondary); border: 1px dashed var(--border-color); border-radius: 16px;">
-                Not enough data to display for:
-                {{ selectedCategory?.display_name ?? 'any category' }}
-                in {{ selectedYears.join(', ') }}.
-            </span>
+        <div id="mobile-row" class="flex flex-row w-full justify-content-center align-items-center">
+            <CategoryBreakdownChart v-if="hasAnyData" :series="series" />
+            <div v-else class="flex flex-column align-items-center justify-content-center mt-3"
+                 style="height: 400px">
+                <span class="text-sm p-3" style="color: var(--text-secondary); border: 1px dashed var(--border-color); border-radius: 16px;">
+                    Not enough data to display for:
+                    {{ selectedCategory?.display_name ?? 'any category' }}
+                    in {{ selectedYears.join(', ') }}.
+                </span>
+            </div>
         </div>
 
     </div>
 </template>
+
+<style scoped>
+@media (max-width: 768px) {
+
+    #filter-row {
+        flex-direction: column !important;
+        align-items: center !important;
+        min-width: 0 !important;
+    }
+}
+</style>

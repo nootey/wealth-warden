@@ -81,7 +81,9 @@ watch(selectedYear, async (newVal, oldVal) => {
 
 <template>
     <div class="flex flex-column w-full p-3">
-        <div class="flex flex-row gap-2 w-full justify-content-between align-items-center">
+
+        <div id="mobile-row" class="flex flex-row gap-2 w-full justify-content-between align-items-center">
+
             <div class="flex flex-column gap-1">
                 <div class="flex flex-row">
                     <span class="text-sm" style="color: var(--text-secondary)">
@@ -104,6 +106,7 @@ watch(selectedYear, async (newVal, oldVal) => {
         </div>
 
         <MonthlyCashFlowChart v-if="monthlyCashFlow.series" :data="monthlyCashFlow" />
+
     </div>
 </template>
 

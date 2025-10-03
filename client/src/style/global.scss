@@ -85,21 +85,21 @@ html, body, #app {
   opacity: 0.6;                       /* optional: make the row faded */
 }
 
-#page-container {
+#mobile-container {
   max-width: 1000px;
   margin: 0 auto;
 }
 
 @media (max-width: 768px) {
-  #page-container {
+  #mobile-container {
     max-width: 100% !important;
     padding: 0.5rem !important;
   }
 
-  #page-container canvas,
-  #page-container .p-chart {
+  #mobile-row {
     width: 100% !important;
-    max-width: 100% !important;
+    min-width: 0 !important;
   }
+
 }
 
