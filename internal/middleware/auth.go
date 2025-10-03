@@ -40,6 +40,18 @@ func NewWebClientMiddleware(cfg *config.Config, logger *zap.Logger) *WebClientMi
 	}
 }
 
+func (m *WebClientMiddleware) CookieDomainForEnv() string {
+	cfg := m.config
+	if !cfg.Release {
+		return ""
+	}
+	return cfg.WebClient.Domain
+}
+
+func (m *WebClientMiddleware) CookieSecure() bool {
+	return m.config.Release
+}
+
 func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Try access
@@ -99,10 +111,9 @@ func (m *WebClientMiddleware) issueAccessCookie(c *gin.Context, userID int64) er
 		return err
 	}
 
-	secure := m.config.Release
 	c.SetSameSite(http.SameSiteLaxMode)
 	maxAge := int(time.Until(accessExp).Seconds())
-	c.SetCookie("access", token, maxAge, "/", m.config.WebClient.Domain, secure, true)
+	c.SetCookie("access", token, maxAge, "/", m.CookieDomainForEnv(), m.CookieSecure(), true)
 	return nil
 }
 
@@ -118,10 +129,9 @@ func (m *WebClientMiddleware) issueRefreshCookie(c *gin.Context, userID int64, r
 		return err
 	}
 
-	secure := m.config.Release
 	c.SetSameSite(http.SameSiteLaxMode)
 	maxAge := int(time.Until(refreshExp).Seconds())
-	c.SetCookie("refresh", token, maxAge, "/", m.config.WebClient.Domain, secure, true)
+	c.SetCookie("refresh", token, maxAge, "/", m.CookieDomainForEnv(), m.CookieSecure(), true)
 	return nil
 }
 

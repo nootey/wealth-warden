@@ -2,12 +2,13 @@ package handlers
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/constants"
 	"wealth-warden/pkg/utils"
+
+	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
@@ -41,8 +42,10 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 	// Set cookies and return success message
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("access", accessToken, int(constants.AccessCookieTTL.Seconds()), "/", h.Service.Config.WebClient.Domain, true, true)
-	c.SetCookie("refresh", refreshToken, expiresAt, "/", h.Service.Config.WebClient.Domain, true, true)
+	domain := h.Service.WebClientMiddleware.CookieDomainForEnv()
+	secure := h.Service.WebClientMiddleware.CookieSecure()
+	c.SetCookie("access", accessToken, int(constants.AccessCookieTTL.Seconds()), "/", domain, secure, true)
+	c.SetCookie("refresh", refreshToken, expiresAt, "/", domain, secure, true)
 
 	utils.SuccessMessage(c, "", "Logged in", http.StatusOK)
 }
@@ -58,8 +61,10 @@ func (h *AuthHandler) GetAuthUser(c *gin.Context) {
 }
 
 func (h *AuthHandler) LogoutUser(c *gin.Context) {
-	c.SetCookie("access", "", -1, "/", h.Service.Config.WebClient.Domain, true, true)
-	c.SetCookie("refresh", "", -1, "/", h.Service.Config.WebClient.Domain, true, true)
+	domain := h.Service.WebClientMiddleware.CookieDomainForEnv()
+	secure := h.Service.WebClientMiddleware.CookieSecure()
+	c.SetCookie("access", "", -1, "/", domain, secure, true)
+	c.SetCookie("refresh", "", -1, "/", domain, secure, true)
 	utils.SuccessMessage(c, "", "Logged out", http.StatusOK)
 }
 

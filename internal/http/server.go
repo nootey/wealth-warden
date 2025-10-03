@@ -93,8 +93,11 @@ func NewRouter(container *bootstrap.Container, logger *zap.Logger) *gin.Engine {
 	healthcheck.New(r, config.DefaultConfig(), []checks.Check{sqlCheck})
 
 	// CORS
-	c := defineCORS(container.Config)
-	r.Use(cors.New(c))
+	if container.Config.Release {
+		// Skip CORS in dev mode
+		c := defineCORS(container.Config)
+		r.Use(cors.New(c))
+	}
 
 	routeInitializer := NewRouteInitializerHTTP(r, container)
 	routeInitializer.InitEndpoints()
