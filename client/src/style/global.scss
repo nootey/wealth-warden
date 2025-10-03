@@ -39,6 +39,16 @@ html {
   --p-primary-800: var(--p-indigo-800) !important;
   --p-primary-900: var(--p-indigo-900) !important;
   --p-primary-950: var(--p-indigo-950) !important;
+
+  /* Prevent mobile auto text zoom that changes layout scale */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Also ensure we never trigger “fit to larger than viewport” weirdness */
+html, body, #app {
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 * {
@@ -46,6 +56,12 @@ html {
   padding: 0;
   box-sizing: border-box;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+#app {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 .label {
@@ -69,4 +85,21 @@ html {
   opacity: 0.6;                       /* optional: make the row faded */
 }
 
+#page-container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  #page-container {
+    max-width: 100% !important;
+    padding: 0.5rem !important;
+  }
+
+  #page-container canvas,
+  #page-container .p-chart {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
 

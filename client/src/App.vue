@@ -31,7 +31,8 @@ onMounted(async () => {
         <ConfirmDialog unstyled>
                   <template #container="{ message, acceptCallback, rejectCallback }">
                       <div class="flex justify-content-center align-items-center p-overlay-mask p-overlay-mask-enter">
-                          <div class="flex flex-column p-5 gap-4 min-w-30rem border-round-lg" style="background-color: var(--background-secondary)">
+                          <div class="flex flex-column p-5 gap-4 border-round-lg"
+                               style="background-color: var(--background-secondary);">
                               <span class="font-bold text-xl" style="color: var(--text-primary);">{{ message.header }}</span>
                               <span style="color: var(--text-primary);">{{ message.message }}</span>
                               <div class="flex justify-content-end gap-2"  >
@@ -43,7 +44,7 @@ onMounted(async () => {
                   </template>
               </ConfirmDialog>
         <Sidebar v-if="isAuthenticated && isInitialized && !isGuestOnlyView" />
-        <div class="flex-1" :style="{ 'margin-left': (isAuthenticated && isInitialized && !isGuestOnlyView) ? '80px' : '0px' }">
+        <div class="flex-1 app-content" :style="{ 'margin-left': (isAuthenticated && isInitialized && !isGuestOnlyView) ? '80px' : '0px' }">
             <div v-if="requiresAuthView && !isInitialized" class="w-full h-full flex items-center justify-center">
                 <i class="pi pi-spin pi-spinner text-2xl"></i>
             </div>
@@ -56,13 +57,21 @@ onMounted(async () => {
 
 .app {
   display: flex;
+
   main {
     flex: 1 1 0;
     padding: 2rem;
 
     @media (max-width: 768px) {
-      padding-left: 6rem;
+      padding-left: 0;
     }
+  }
+}
+
+@media (max-width: 768px) {
+  .app-content {
+    margin-left: 0 !important;
+    padding-bottom: 72px;
   }
 }
 </style>

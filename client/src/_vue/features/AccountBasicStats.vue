@@ -176,7 +176,7 @@ function searchYear(event: any) {
             </div>
         </div>
 
-        <div class="flex flex-row w-full justify-content-center p-1">
+        <div id="stats-row" class="flex flex-row w-full justify-content-center p-1">
             <div class="flex flex-column w-6 gap-3">
                 <div class="flex flex-row gap-2">
                     <span>Total inflows:</span>
@@ -215,7 +215,7 @@ function searchYear(event: any) {
                 <div class="flex flex-column justify-content-center w-12">
                     <ShowLoading v-if="isLoading" :numFields="4" />
                     <template v-else>
-                        <Carousel v-if="hasInflowData && hasOutflowData"
+                        <Carousel v-if="hasInflowData && hasOutflowData" id="stats-carousel"
                                   :value="chartItems" :numVisible="1" :numScroll="1">
                             <template #item="slotProps">
                                 <div class="flex flex-column justify-content-center align-items-center">
@@ -261,15 +261,48 @@ function searchYear(event: any) {
 </template>
 
 <style scoped>
+
 :deep([data-pc-section="indicatorlist"]) { margin-top: 6px; gap: 6px; }
 :deep([data-pc-section="content"]) { padding: 0; }
 :deep([data-pc-section="indicatorbutton"]) {
     transform: scale(0.6);
-    background-color: var(--border-color); /* inactive color */
+    background-color: var(--border-color);
     border-radius: 50%;
 }
-
 :deep([data-p-active="true"] [data-pc-section="indicatorbutton"]) {
-    background-color: var(--text-primary); /* active color */
+    background-color: var(--text-primary);
+}
+
+@media (max-width: 768px) {
+
+    #stats-row {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        min-width: 0 !important;
+    }
+    #stats-row > div {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+    #stats-row > div:last-child { margin-top: 1rem; }
+
+    :deep(#stats-carousel button[aria-label="Previous Page"]),
+    :deep(#stats-carousel button[aria-label="Next Page"]),
+    :deep(#stats-carousel button[data-pc-group="navigator"]) {
+        display: none !important;
+    }
+
+    :deep(#stats-carousel .flex.justify-content-center.align-items-center) {
+        width: 100% !important;
+        height: auto !important;
+        padding: 0 !important;
+        transform: scale(0.9);
+        transform-origin: center top;
+    }
+
+    :deep(#stats-carousel canvas) {
+        width: 100% !important;
+        height: auto !important;
+    }
 }
 </style>
