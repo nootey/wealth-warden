@@ -19,25 +19,33 @@ const emit = defineEmits<{
 <template>
     <Paginator v-model:first="paginator.from" v-model:rows="paginator.rowsPerPage"
             :rowsPerPageOptions="rows" :totalRecords="paginator.total" @page="e => emit('onPage', e)"
-               :pt="{
-                      root: { class: 'p-0 text-sm' },
-                      pages: { class: 'm-0 p-0' },
-                      pageButton: { class: 'p-0 text-sm' },
-                      firstPageButton: { class: 'p-0 text-sm' },
-                      prevPageButton:  { class: 'p-0 text-sm' },
-                      nextPageButton:  { class: 'p-0 text-sm' },
-                      lastPageButton:  { class: 'p-0 text-sm' },
-                      rowsPerPageDropdown:        { class: 'p-0 text-sm' },
-                      rowsPerPageDropdownTrigger: { class: 'p-0' },
-                      rowsPerPageDropdownLabel:   { class: 'p-0 m-0' },
-                      rowsPerPageDropdownPanel:   { class: 'p-0 text-sm' },
-                      rowsPerPageDropdownItem:    { class: 'py-0 px-1 text-sm' },
-                      currentPageReport: { class: 'ml-1 text-sm' }
-                }">
+               :template="{
+                        '640px': 'PrevPageLink CurrentPageReport NextPageLink',
+                        '960px': 'FirstPageLink PrevPageLink CurrentPageReport NextPageLink LastPageLink',
+                        '1300px': 'FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink',
+                        default: 'FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink'
+                    }">
         <template #end>
-            <div class="ml-2 text-sm">
+            <div id="end" class="ml-2 text-sm">
                 {{ `Showing ${paginator.from} to ${paginator.to} out of ${paginator.total} records` }}
             </div>
         </template>
     </Paginator>
 </template>
+
+<style scoped lang="scss">
+@media (max-width: 640px) {
+  :deep(.p-paginator-content-end) {
+    flex: 1 1 100% !important;
+    display: flex !important;
+    justify-content: center !important;
+    text-align: center !important;
+    margin-top: 0.25rem !important;
+  }
+
+  #end {
+    margin: 0 auto !important;
+    text-align: center !important;
+  }
+}
+</style>
