@@ -222,20 +222,18 @@ provide("removeFilter", removeFilter);
 
     <Dialog class="rounded-dialog" v-model:visible="templateModal" :breakpoints="{'901px': '90vw'}"
             :modal="true" :style="{width: '900px'}" header="Transaction templates">
-        <TransactionTemplates ref="tpRef" @refreshTemplateCount="handleEmit('refreshTemplateCount')"></TransactionTemplates>
+        <TransactionTemplates ref="tpRef" @refreshTemplateCount="handleEmit('refreshTemplateCount')" />
     </Dialog>
 
-    <Popover ref="filterOverlayRef" class="rounded-popover">
-    <div class="flex flex-column gap-2" style="width: 400px">
-      <FilterMenu
-          v-model:value="filters"
-          :columns="activeColumns"
-          :apiSource="apiPrefix"
-          @apply="(list) => applyFilters(list)"
-          @clear="clearFilters"
-          @cancel="cancelFilters"
-      />
-    </div>
+    <Popover ref="filterOverlayRef" class="rounded-popover" :style="{width: '420px'}" :breakpoints="{'775px': '90vw'}">
+        <FilterMenu
+                v-model:value="filters"
+                :columns="activeColumns"
+                :apiSource="apiPrefix"
+                @apply="(list) => applyFilters(list)"
+                @clear="clearFilters"
+                @cancel="cancelFilters"
+        />
     </Popover>
 
     <main class="flex flex-column w-full p-2 align-items-center" style="height: 100%;">
@@ -245,8 +243,13 @@ provide("removeFilter", removeFilter);
         <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
           <div style="font-weight: bold;">Transactions</div>
           <i v-if="hasPermission('manage_data')" class="pi pi-external-link hover-icon mr-auto text-sm" @click="router.push('settings/categories')" v-tooltip="'Go to categories settings.'"></i>
-          <Button :label="`Templates (${trTemplateCount})`" icon="pi pi-database" class="outline-button"
-                  @click="manipulateDialog('openTemplateView', true)" />
+            <Button class="outline-button"
+                  @click="manipulateDialog('openTemplateView', true)">
+                  <div class="flex flex-row gap-1 align-items-center">
+                      <i class="pi pi-database"></i>
+                      <span><span class="mobile-hide"> Templates </span> {{  "(" + trTemplateCount + ")" }}</span>
+                  </div>
+            </Button>
             <Button label="New transaction" icon="pi pi-plus" class="main-button"
                     @click="manipulateDialog('addTransaction', true)" />
         </div>
@@ -272,7 +275,7 @@ provide("removeFilter", removeFilter);
         </ActionRow>
       </div>
 
-        <div id="mobile-row" class="flex flex-row gap-2 w-full">
+        <div id="mobile-row" class="flex flex-row w-full">
             <TransactionsPaginated
                     ref="txRef"
                     :readOnly="false"
@@ -286,10 +289,10 @@ provide("removeFilter", removeFilter);
             />
         </div>
 
-<!--        <label>Transfers</label>-->
-<!--        <div class="flex flex-row gap-2 w-full">-->
-<!--            <TransfersPaginated ref="trRef"></TransfersPaginated>-->
-<!--        </div>-->
+        <label>Transfers</label>
+        <div id="mobile-row" class="flex flex-row w-full">
+            <TransfersPaginated ref="trRef"></TransfersPaginated>
+        </div>
 
     </div>
     </main>

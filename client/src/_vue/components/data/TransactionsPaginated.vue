@@ -96,51 +96,49 @@ defineExpose({ refresh });
 </script>
 
 <template>
-    <div class="flex w-full">
-        <DataTable class="w-full enhanced-table" dataKey="id"
-                   :loading="loading" :value="recordsLocal" scrollable scrollHeight="50vh"
-                   :rowClass="vueHelper.deletedRowClass" columnResizeMode="fit"
-                   scrollDirection="both">
-            <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-            <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-            <template #footer>
-                <CustomPaginator :paginator="derivedPaginator" :rows="rowsOptions" @onPage="handlePage"/>
-            </template>
+    <DataTable class="w-full enhanced-table" dataKey="id"
+               :loading="loading" :value="recordsLocal" scrollable scrollHeight="50vh"
+               :rowClass="vueHelper.deletedRowClass" columnResizeMode="fit"
+               scrollDirection="both">
+        <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
+        <template #loading> <LoadingSpinner></LoadingSpinner> </template>
+        <template #footer>
+            <CustomPaginator :paginator="derivedPaginator" :rows="rowsOptions" @onPage="handlePage"/>
+        </template>
 
-            <Column v-for="col of columns" :key="col.field" :field="col.field"
-                    :headerClass="col.hideOnMobile ? 'col-hide-sm' : ''"
-                    :bodyClass="col.hideOnMobile ? 'col-hide-sm' : ''">
-                <template #header >
-                    <ColumnHeader :header="col.header" :field="col.field" :sort="localSort"
-                                  :sortable="!!sort"
-                                  @click="!sort && triggerSort(col.field as string)">
-                    </ColumnHeader>
+        <Column v-for="col of columns" :key="col.field" :field="col.field"
+                :headerClass="col.hideOnMobile ? 'mobile-hide ' : ''"
+                :bodyClass="col.hideOnMobile ? 'mobile-hide ' : ''">
+            <template #header >
+                <ColumnHeader :header="col.header" :field="col.field" :sort="localSort"
+                              :sortable="!!sort"
+                              @click="!sort && triggerSort(col.field as string)">
+                </ColumnHeader>
+            </template>
+            <template #body="{ data, field }">
+                <template v-if="field === 'amount'">
+                    {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
                 </template>
-                <template #body="{ data, field }">
-                    <template v-if="field === 'amount'">
-                        {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
-                    </template>
-                    <template v-else-if="field === 'txn_date'">
-                        {{ dateHelper.formatDate(data?.txn_date, true) }}
-                    </template>
-                    <template v-else-if="field === 'account'">
-                        <div class="flex flex-row gap-2 align-items-center account-row">
+                <template v-else-if="field === 'txn_date'">
+                    {{ dateHelper.formatDate(data?.txn_date, true) }}
+                </template>
+                <template v-else-if="field === 'account'">
+                    <div class="flex flex-row gap-2 align-items-center account-row">
                         <span class="hover" @click="$emit('rowClick', data.id)">
                             {{ data[field]["name"] }}
                         </span>
-                            <i v-if="data[field]['deleted_at']" class="pi pi-ban popup-icon hover-icon" v-tooltip="'This account is closed.'"/>
-                        </div>
-                    </template>
-                    <template v-else-if="field === 'category'">
-                        {{ data[field]["display_name"] }}
-                    </template>
-                    <template v-else>
-                        {{ data[field] }}
-                    </template>
+                        <i v-if="data[field]['deleted_at']" class="pi pi-ban popup-icon hover-icon" v-tooltip="'This account is closed.'"/>
+                    </div>
                 </template>
-            </Column>
-        </DataTable>
-    </div>
+                <template v-else-if="field === 'category'">
+                    {{ data[field]["display_name"] }}
+                </template>
+                <template v-else>
+                    {{ data[field] }}
+                </template>
+            </template>
+        </Column>
+    </DataTable>
 </template>
 
 <style scoped>
@@ -157,10 +155,6 @@ defineExpose({ refresh });
 
 .account-row.advanced .popup-icon {
     opacity: 1;
-}
-
-@media (max-width: 768px) {
-    :deep(th.col-hide-sm), :deep(td.col-hide-sm) { display: none; }
 }
 
 </style>
