@@ -3,6 +3,8 @@ import { useToast } from 'primevue/usetoast';
 
 export const useToastStore = defineStore('toast', () => {
     const toast = useToast();
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    const group = isMobile ? 'bc' : 'br';
 
     const errorResponseToast = (error: any) => {
 
@@ -26,7 +28,8 @@ export const useToastStore = defineStore('toast', () => {
             severity: 'error',
             summary,
             detail,
-            life: 5000,
+            life: isMobile ? 2500 : 5000,
+            group
         });
     };
 
@@ -37,7 +40,8 @@ export const useToastStore = defineStore('toast', () => {
                 severity: 'success',
                 summary: data.title ?? 'Success',
                 detail: data.message ?? '',
-                life: 3000,
+                life: isMobile ? 1500 : 3000,
+                group
             });
         }
     };
@@ -49,7 +53,8 @@ export const useToastStore = defineStore('toast', () => {
                 severity: 'info',
                 summary: data.title ?? 'Info',
                 detail: data.message ?? '',
-                life: 3000,
+                life: isMobile ? 1000 : 2000,
+                group
             });
         }
     };
@@ -60,7 +65,8 @@ export const useToastStore = defineStore('toast', () => {
                 severity: 'info',
                 summary: title,
                 detail: msg,
-                life: 3000,
+                life: isMobile ? 1000 : 2000,
+                group
             });
         }
     };

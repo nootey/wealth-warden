@@ -26,8 +26,9 @@ onMounted(async () => {
 </script>
 
 <template>
+    <Toast position="top-center" group="bc" />
+    <Toast position="bottom-right" group="br" />
     <div id="app">
-        <Toast position="bottom-right"/>
         <ConfirmDialog unstyled>
                   <template #container="{ message, acceptCallback, rejectCallback }">
                       <div class="flex justify-content-center align-items-center p-overlay-mask p-overlay-mask-enter">
@@ -67,4 +68,5 @@ main {
     padding-bottom: 72px;
   }
 }
+
 </style>
