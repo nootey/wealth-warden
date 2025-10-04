@@ -206,20 +206,18 @@ provide("removeFilter", removeFilter);
 
 <template>
 
-    <Popover ref="filterOverlayRef" class="rounded-popover">
-        <div class="flex flex-column gap-2" style="width: 400px">
-            <FilterMenu
-                    v-model:value="filters"
-                    :columns="activeColumns"
-                    :apiSource="apiPrefix"
-                    @apply="(list) => applyFilters(list)"
-                    @clear="clearFilters"
-                    @cancel="cancelFilters"
-            />
-        </div>
+    <Popover ref="filterOverlayRef" class="rounded-popover" :style="{width: '420px'}" :breakpoints="{'775px': '90vw'}">
+        <FilterMenu
+                v-model:value="filters"
+                :columns="activeColumns"
+                :apiSource="apiPrefix"
+                @apply="(list) => applyFilters(list)"
+                @clear="clearFilters"
+                @cancel="cancelFilters"
+        />
     </Popover>
 
-    <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
+    <main class="flex flex-column w-full p-2 align-items-center">
 
         <div class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
              style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;">
@@ -253,7 +251,10 @@ provide("removeFilter", removeFilter);
                             <CustomPaginator :paginator="paginator" :rows="rows" @onPage="onPage"/>
                         </template>
 
-                        <Column header="Actions">
+                        <Column>
+                            <template #header>
+                                <span class="mobile-hide">Actions</span>
+                            </template>
                             <template #body="slotProps">
                                 <i v-if="hasPermission('delete_activity_logs')" class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                                    @click="deleteConfirmation(slotProps.data?.id)"></i>
@@ -261,32 +262,11 @@ provide("removeFilter", removeFilter);
                             </template>
                         </Column>
 
-                        <Column v-for="col of activeColumns" :key="col.field" :field="col.field" style="width: 25%">
-                            <template #header >
-                                <ColumnHeader  :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
-                            </template>
-                            <template #body="{ data, field }">
-                                <template v-if="field === 'created_at'">
-                                    {{ dateHelper.formatDate(data?.created_at, true) }}
-                                </template>
-                                <template v-else-if="field === 'causer_id'">
-                                    {{ vueHelper.displayCauserFromId(data.causer_id, availableCausers) }}
-                                </template>
-                                <template v-else-if="field === 'event'">
-                                    <IconDisplay :event="data.event"></IconDisplay>
-                                </template>
-                                <template v-else-if="field === 'category'">
-                                    <span class="formal">
-                                        {{ data[field] }}
-                                    </span>
-                                </template>
-                                <template v-else>
-                                    {{ data[field] }}
-                                </template>
+                        <Column :expander="true">
+                            <template #header>
+                                <span class="mobile-hide">Metadata</span>
                             </template>
                         </Column>
-
-                        <Column :expander="true" header="Metadata" style="width: 80px;"></Column>
                         <template #expansion="slotProps">
                             <div>
                                 <div>
@@ -305,6 +285,31 @@ provide("removeFilter", removeFilter);
                                 <div v-else>{{ "Payload is empty" }}</div>
                             </div>
                         </template>
+
+                        <Column v-for="col of activeColumns" :key="col.field" :field="col.field">
+                            <template #header >
+                                <ColumnHeader  :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
+                            </template>
+                            <template #body="{ data, field }">
+                                <template v-if="field === 'created_at'">
+                                    {{ dateHelper.formatDate(data?.created_at, true) }}
+                                </template>
+                                <template v-else-if="field === 'causer_id'">
+                                    {{ vueHelper.displayCauserFromId(data.causer_id, availableCausers) }}
+                                </template>
+                                <template v-else-if="field === 'event'">
+                                    <IconDisplay :event="data.event"></IconDisplay>
+                                </template>
+                                <template v-else-if="field === 'category'">
+                                    <span id="category-row" class="formal" style="display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                        {{ data[field] }}
+                                    </span>
+                                </template>
+                                <template v-else>
+                                    {{ data[field] }}
+                                </template>
+                            </template>
+                        </Column>
                     </DataTable>
                 </div>
             </div>
@@ -315,7 +320,7 @@ provide("removeFilter", removeFilter);
 
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 
 .formal {
     font-size: 0.75rem;
@@ -327,6 +332,20 @@ provide("removeFilter", removeFilter);
 .truncate-text {
     margin-bottom: 8px;
     word-break: break-word;
+}
+
+@media (max-width: 768px) {
+    :deep(.p-datatable) {
+        font-size: 0.875rem;
+    }
+
+    :deep(.p-datatable .p-datatable-thead > tr > th),
+    :deep(.p-datatable .p-datatable-tbody > tr > td) {
+        padding: 0.4rem 0.5rem;
+    }
+    #category-row {
+      max-width: 117px;
+    }
 }
 
 </style>
