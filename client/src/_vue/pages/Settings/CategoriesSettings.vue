@@ -106,7 +106,7 @@ async function deleteRecord(id: number) {
                 <div class="flex flex-row justify-content-between align-items-center gap-3">
                     <div class="w-full flex flex-column gap-2">
                         <h3>Categories</h3>
-                        <h5 style="color: var(--text-secondary)">View and manage transaction categories.</h5>
+                        <h5 class="mobile-hide" style="color: var(--text-secondary)">View and manage transaction categories.</h5>
                     </div>
 
                     <div class="flex align-items-center gap-2" style="margin-left: auto;">
@@ -114,7 +114,13 @@ async function deleteRecord(id: number) {
                         <ToggleSwitch style="transform: scale(0.75)" v-model="includeDeleted"
                             @update:model-value="getCategories()"/>
                     </div>
-                    <Button class="main-button w-4" label="New category" icon="pi pi-plus" @click="handleEmit('openCreate')"/>
+                    <Button class="main-button w-4"
+                            @click="handleEmit('openCreate')">
+                        <div class="flex flex-row gap-1 align-items-center">
+                            <i class="pi pi-plus"></i>
+                            <span class="mobile-hide"> New category </span>
+                        </div>
+                    </Button>
                 </div>
 
 

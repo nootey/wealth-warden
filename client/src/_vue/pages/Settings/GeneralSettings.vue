@@ -76,7 +76,6 @@ async function initSettings() {
                 </div>
             </div>
         </SettingsSkeleton>
-
     </div>
 </template>
 

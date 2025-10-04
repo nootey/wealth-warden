@@ -114,7 +114,7 @@ async function initUser() {
                         <h5 style="color: var(--text-secondary)">Resetting your account will delete all your accounts, categories, and other data, but keep your user account intact.</h5>
                     </div>
                     <div class="flex flex-column w-3">
-                        <Button size="small" label="Reset account" severity="danger"></Button>
+                        <Button size="small" label="Reset account" class="delete-button"></Button>
                     </div>
                 </div>
 
@@ -124,7 +124,7 @@ async function initUser() {
                         <h5 style="color: var(--text-secondary)">Deleting your account will permanently remove all your data and cannot be undone.</h5>
                     </div>
                     <div class="flex flex-column w-3">
-                        <Button size="small" label="Delete account" severity="danger"></Button>
+                        <Button size="small" label="Delete account" class="delete-button"></Button>
                     </div>
                 </div>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import {computed, ref} from 'vue';
 import {useRoute, RouterLink, useRouter} from 'vue-router';
 import vueHelper from "../../utils/vue_helper.ts";
 import {usePermissions} from "../../utils/use_permissions.ts";
@@ -7,6 +7,7 @@ import {usePermissions} from "../../utils/use_permissions.ts";
 const router = useRouter();
 const route = useRoute();
 const { hasPermission } = usePermissions();
+const collapsed = ref(false);
 
 type SettingsMenuItem = {
     name: string;
@@ -50,19 +51,22 @@ function goBack() {
 
 <template>
     <div class="settings flex p-2 w-full">
-        <aside class="w-16rem text-white h-full flex flex-column gap-2 p-3">
+        <aside id="settings-menu" class="text-white h-full flex flex-column gap-2 p-3"
+                :style="{ width: collapsed ? '50px' : '16rem', transition: 'width 0.2s ease' }"
+        >
             <div class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable"
                  style="color: var(--text-primary)">
                 <i class="pi pi-angle-left"></i>
-                <span @click="goBack">Back</span>
+                <span v-if="!collapsed" class="mobile-hide" @click="goBack">Back</span>
+                <i class="pi pi-bars ml-auto mobile-hide" @click="collapsed = !collapsed"></i>
             </div>
 
-            <h6 class="text-xs font-bold uppercase mb-2" style="color: var(--text-primary);">General</h6>
+            <h6 v-if="!collapsed" class="mobile-hide text-xs font-bold uppercase mb-2" style="color: var(--text-primary);">General</h6>
 
             <template v-for="item in visibleItems" :key="item.name ?? item.label">
 
-                <h6 v-if="item.separator"
-                    class="text-xs font-bold uppercase mb-2 mt-3"
+                <h6 v-if="item.separator && !collapsed"
+                    class="mobile-hide text-xs font-bold uppercase mb-2 mt-3"
                     style="color: var(--text-primary);">
                     {{ item.label }}
                 </h6>
@@ -76,7 +80,7 @@ function goBack() {
                 >
 
                     <i class="pi text-sm" :class="item.icon" style="color: var(--text-secondary)"></i>
-                    <span>{{ item.label }}</span>
+                    <span v-if="!collapsed" class="mobile-hide">{{ item.label }}</span>
                 </RouterLink>
             </template>
         </aside>
@@ -100,5 +104,11 @@ function goBack() {
     font-weight: bold;
     background-color: var(--background-secondary);
     border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+    #settings-menu {
+        width: 50px !important;
+    }
 }
 </style>

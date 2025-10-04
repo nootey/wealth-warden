@@ -330,4 +330,10 @@ defineExpose({ refresh: getData });
     filter: grayscale(100%);
     opacity: 0.6;
 }
+
+@media (max-width: 768px) {
+    .account-row .edit-icon {
+        opacity: 1 !important;
+    }
+}
 </style>
