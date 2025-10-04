@@ -26,7 +26,7 @@ onMounted(async () => {
 </script>
 
 <template>
-    <div id="app" class="app">
+    <div id="app">
         <Toast position="bottom-right"/>
         <ConfirmDialog unstyled>
                   <template #container="{ message, acceptCallback, rejectCallback }">
@@ -55,16 +55,9 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 
-.app {
-  display: flex;
-
-  main {
-    flex: 1 1 0;
-    padding: 2rem;
-
-    @media (max-width: 768px) {
-      padding-left: 0;
-    }
+main {
+  @media (max-width: 768px) {
+    padding-left: 0;
   }
 }
 
