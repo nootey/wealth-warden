@@ -7,7 +7,6 @@ import {usePermissions} from "../../utils/use_permissions.ts";
 const router = useRouter();
 const route = useRoute();
 const { hasPermission } = usePermissions();
-const collapsed = ref(false);
 
 type SettingsMenuItem = {
     name: string;
@@ -39,6 +38,8 @@ const pageTitle = computed(() => {
     return vueHelper.capitalize(last);
 });
 
+const settingsMenuRef = ref<any>(null);
+
 const isActive = (name: SettingsMenuItem['name']) => route.name === name;
 
 function goBack() {
@@ -47,53 +48,84 @@ function goBack() {
     else router.push({ name: 'dashboard' });
 }
 
+function toggleOverlay(event: any) {
+    if(window.innerWidth > 768) return;
+    settingsMenuRef.value.toggle(event);
+}
+
 </script>
 
 <template>
     <div class="settings flex p-2 w-full">
-        <aside id="settings-menu" class="text-white h-full flex flex-column gap-2 p-3"
-                :style="{ width: collapsed ? '50px' : '16rem', transition: 'width 0.2s ease' }"
-        >
+        <aside class="no-mobile text-white h-full flex flex-column gap-2 p-3 w-12rem">
+
             <div class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable"
                  style="color: var(--text-primary)">
                 <i class="pi pi-angle-left"></i>
-                <span v-if="!collapsed" class="mobile-hide" @click="goBack">Back</span>
-                <i class="pi pi-bars ml-auto mobile-hide" @click="collapsed = !collapsed"></i>
+                <span @click="goBack">Back</span>
             </div>
 
-            <h6 v-if="!collapsed" class="mobile-hide text-xs font-bold uppercase mb-2" style="color: var(--text-primary);">General</h6>
+            <h6 class="text-xs font-bold uppercase mb-2" style="color: var(--text-primary);">General</h6>
 
             <template v-for="item in visibleItems" :key="item.name ?? item.label">
 
-                <h6 v-if="item.separator && !collapsed"
-                    class="mobile-hide text-xs font-bold uppercase mb-2 mt-3"
+                <h6 v-if="item.separator"
+                    class="text-xs font-bold uppercase mb-2 mt-3"
                     style="color: var(--text-primary);">
                     {{ item.label }}
                 </h6>
 
-                <RouterLink
-                        v-else
-                        :to="{ name: item.name }"
+                <RouterLink v-else :to="{ name: item.name }"
                         class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
                         :class="{ active: isActive(item.name!) }"
-                        style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);"
-                >
+                        style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);">
 
                     <i class="pi text-sm" :class="item.icon" style="color: var(--text-secondary)"></i>
-                    <span v-if="!collapsed" class="mobile-hide">{{ item.label }}</span>
+                    <span class="no-mobile">{{ item.label }}</span>
                 </RouterLink>
             </template>
         </aside>
 
         <main class="w-full flex-1 pt-3" style="max-width: 850px; margin: 0 auto;">
-            <div class="flex flex-row gap-2 mb-2 align-items-center">
-                <span class="text-sm" style="color: var(--text-secondary)">Home</span>
-                <i class="pi pi-angle-right"></i>
+            <div class="flex flex-row gap-2 mb-2 align-items-center text-center">
+                <i class="pi pi-ellipsis-v mobile-only text-xs" @click="toggleOverlay" style="cursor:pointer;" />
+                <span @click="toggleOverlay" class="text-sm" style="color: var(--text-secondary)">Home</span>
+                <i class="pi pi-angle-right" />
                 <span style="color: var(--text-primary)">{{ pageTitle }}</span>
             </div>
 
             <router-view />
         </main>
+
+        <Popover ref="settingsMenuRef" class="rounded-popover" :style="{width: '200px'}" :breakpoints="{'226px': '90vw'}">
+
+            <div class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable"
+                 style="color: var(--text-primary)">
+                <i class="pi pi-angle-left"></i>
+                <span @click="goBack">Back</span>
+            </div>
+
+            <h6 class="text-xs font-bold uppercase mb-2" style="color: var(--text-primary);">General</h6>
+
+            <template v-for="item in visibleItems" :key="item.name ?? item.label">
+
+                <h6 v-if="item.separator"
+                    class="text-xs font-bold uppercase mb-2 mt-3"
+                    style="color: var(--text-primary);">
+                    {{ item.label }}
+                </h6>
+
+                <RouterLink v-else :to="{ name: item.name }"
+                            class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
+                            :class="{ active: isActive(item.name!) }"
+                            style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);"
+                            @click="toggleOverlay">
+
+                    <i class="pi text-sm" :class="item.icon" style="color: var(--text-secondary)"></i>
+                    <span>{{ item.label }}</span>
+                </RouterLink>
+            </template>
+        </Popover>
     </div>
 </template>
 
@@ -106,9 +138,11 @@ function goBack() {
     border-radius: 8px;
 }
 
-@media (max-width: 768px) {
-    #settings-menu {
-        width: 50px !important;
-    }
+.mobile-only { display: none; }
+
+@media (max-width: 875px) {
+    .mobile-only { display: inline-block; }
+    .settings { padding: 0 1rem 0 1rem !important; }
+    .no-mobile { display: none !important; }
 }
 </style>

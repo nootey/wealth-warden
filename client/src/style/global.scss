@@ -91,7 +91,7 @@ html, body, #app {
   }
 
   .mobile-hide {
-    display: none;
+    display: none !important;
   }
 
 }
