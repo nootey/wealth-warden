@@ -50,6 +50,31 @@ function checkAccess(route: string){
     }
 }
 
+function handleMenuClick(source: string) {
+    switch(source) {
+        case 'logs': {
+            checkAccess('logs')
+            break;
+        }
+        case 'settings': {
+            router.push('/settings');
+            break;
+        }
+        case 'theme': {
+            themeStore.toggleDarkMode();
+            break;
+        }
+        case 'logout': {
+            authStore.logoutUser();
+            break;
+        }
+        default: {
+            break;
+        }
+    }
+    toggleProfileMenu(false);
+}
+
 </script>
 
 <template>
@@ -111,28 +136,28 @@ function checkAccess(route: string){
             <div id="profileMenuItem" v-if="hasPermission('view_activity_logs')"
                class="flex align-items-center gap-2 p-1 border-round-md"
                style="cursor: pointer; transition: all 0.2s ease; color: var(--text-primary);"
-               @click="checkAccess('logs')">
+               @click="handleMenuClick('logs')">
             <i class="pi pi-address-book"></i>
             <span class="text-sm">Activity logs</span>
           </div>
 
             <div id="profileMenuItem" class="flex align-items-center gap-2 p-1 border-round-md"
                style="cursor: pointer; transition: all 0.2s ease; color: var(--text-primary);"
-               @click="router.push('/settings')">
+               @click="handleMenuClick('settings')">
                 <i class="pi pi-cog"></i>
                 <span class="text-sm">Settings</span>
             </div>
 
             <div id="profileMenuItem" class="flex align-items-center gap-2 p-1 border-round-md"
                style="cursor: pointer; transition: all 0.2s ease;"
-               @click="themeStore.toggleDarkMode()">
+               @click="handleMenuClick('theme')">
             <i class="pi" :class="themeStore.darkModeActive ? 'pi-sun' : 'pi-moon'"></i>
             <span class="text-sm">Theme</span>
           </div>
 
             <div id="profileMenuItem" class="flex align-items-center gap-2 p-1 border-round-md"
                style="cursor: pointer; transition: all 0.2s ease;color: #ef4444;"
-               @click="authStore.logoutUser()">
+               @click="handleMenuClick('logout')">
             <i class="pi pi-sign-out"></i>
             <span class="text-sm">Sign out</span>
           </div>
