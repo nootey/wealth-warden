@@ -10,6 +10,7 @@ import {useUserStore} from "../../../services/stores/user_store.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import ValidationError from "../validation/ValidationError.vue";
 import {usePermissions} from "../../../utils/use_permissions.ts";
+import {useConfirm} from "primevue/useconfirm";
 
 const props = defineProps<{
     mode?: "create" | "update";
@@ -18,12 +19,15 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
     (event: 'completeOperation'): void;
+    (event: "completeUserDelete"): void;
 }>();
 
 const sharedStore = useSharedStore();
 const userStore = useUserStore();
 const toastStore = useToastStore();
+
 const { hasPermission } = usePermissions();
+const confirm = useConfirm();
 
 onMounted(async () => {
     if (props.mode === "update" && props.recordId) {
@@ -163,6 +167,35 @@ async function manageRecord() {
 
 }
 
+async function deleteConfirmation(id: number) {
+    confirm.require({
+        header: 'Delete record?',
+        message: `This will delete record: "${id}".`,
+        rejectProps: { label: 'Cancel' },
+        acceptProps: { label: 'Delete', severity: 'danger' },
+        accept: () => deleteRecord(id),
+    });
+}
+
+async function deleteRecord(id: number) {
+
+    if(!hasPermission("delete_users")) {
+        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+        return;
+    }
+
+    try {
+        let response = await sharedStore.deleteRecord(
+            "users",
+            id,
+        );
+        toastStore.successResponseToast(response);
+        emit("completeUserDelete");
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
+}
+
 </script>
 
 <template>
@@ -207,10 +240,13 @@ async function manageRecord() {
             </div>
 
             <div class="flex flex-row gap-2 w-full" >
-                <div class="flex flex-column w-full">
+                <div class="flex flex-column w-full gap-2">
                     <Button v-if="!readOnly" class="main-button"
                             :label="(mode == 'create' ? 'Invite' : 'Update') +  ' user'"
                             @click="manageRecord" style="height: 42px;" />
+                    <Button v-if="!readOnly && mode == 'update'"
+                            label="Delete user" class="delete-button"
+                            @click="deleteConfirmation(record.id!)" style="height: 42px;" />
                 </div>
             </div>
 

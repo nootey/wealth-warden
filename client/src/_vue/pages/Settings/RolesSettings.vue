@@ -1,10 +1,7 @@
 <script setup lang="ts">
 
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
-import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {computed, onMounted, ref} from "vue";
-import {useSharedStore} from "../../../services/stores/shared_store.ts";
-import {useConfirm} from "primevue/useconfirm";
 import {useUserStore} from "../../../services/stores/user_store.ts";
 import type {Role} from "../../../models/user_models.ts";
 import type {Column} from "../../../services/filter_registry.ts";
@@ -13,14 +10,12 @@ import LoadingSpinner from "../../components/base/LoadingSpinner.vue";
 import RoleForm from "../../components/forms/RoleForm.vue";
 
 const userStore = useUserStore();
-const toastStore = useToastStore();
-const sharedStore = useSharedStore();
 
 onMounted(async () => {
     await getRoles();
 });
 
-const confirm = useConfirm();
+
 const createModal = ref(false);
 const updateModal = ref(false);
 const selectedID = ref<number | null>(null);
@@ -29,7 +24,7 @@ const roles = computed<Role[]>(() => userStore.roles);
 
 const columns = computed<Column[]>(() => [
     { field: 'name', header: 'Name'},
-    { field: 'description', header: 'Description'},
+    { field: 'description', header: 'Description', hideOnMobile: true },
 ]);
 
 async function getRoles() {
@@ -53,8 +48,10 @@ async function handleEmit(type: string, data?: any) {
             selectedID.value = data;
             break;
         }
-        case 'deleteOperation': {
-            await deleteConfirmation(data.id, data.name);
+        case 'deleteRole': {
+            createModal.value = false;
+            updateModal.value = false;
+            await getRoles();
             break;
         }
         default: {
@@ -63,29 +60,7 @@ async function handleEmit(type: string, data?: any) {
     }
 }
 
-async function deleteConfirmation(id: number, name: string) {
-    confirm.require({
-        header: 'Confirm operation',
-        message: `You are about to delete role: "${name}". This action is irreversible!`,
-        rejectProps: { label: 'Cancel' },
-        acceptProps: { label: 'Continue', severity: 'danger' },
-        accept: () => deleteRecord(id),
-    });
-}
 
-async function deleteRecord(id: number) {
-    try {
-        let response = await sharedStore.deleteRecord(
-            "users/roles",
-            id,
-        );
-        toastStore.successResponseToast(response);
-        await getRoles();
-
-    } catch (err) {
-        toastStore.errorResponseToast(err)
-    }
-}
 
 </script>
 
@@ -100,7 +75,8 @@ async function deleteRecord(id: number) {
     <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal"
             :breakpoints="{ '501px': '90vw' }" :modal="true" :style="{ width: '500px' }" header="Update role">
         <RoleForm mode="update" :recordId="selectedID"
-                  @completeOperation="handleEmit('completeOperation')"/>
+                  @completeOperation="handleEmit('completeOperation')"
+                  @completeRoleDelete="handleEmit('deleteRole')"/>
     </Dialog>
 
     <div class="flex flex-column w-full gap-3">
@@ -111,7 +87,13 @@ async function deleteRecord(id: number) {
                         <h3>Roles</h3>
                         <h5 style="color: var(--text-secondary)">View and manage roles and permissions.</h5>
                     </div>
-                    <Button class="main-button w-4" label="New role" icon="pi pi-plus" @click="handleEmit('openCreate')"/>
+                    <Button class="main-button" @click="handleEmit('openCreate')">
+                        <div class="flex flex-row gap-1 align-items-center">
+                            <i class="pi pi-plus"></i>
+                            <span> New </span>
+                            <span class="mobile-hide"> Role </span>
+                        </div>
+                    </Button>
                 </div>
 
 
@@ -124,7 +106,13 @@ async function deleteRecord(id: number) {
 
                         <Column v-for="col of columns" :key="col.field"
                                 :field="col.field" :header="col.header"
-                                sortable>
+                                sortable :headerClass="col.hideOnMobile ? 'mobile-hide ' : ''"
+                                :bodyClass="col.hideOnMobile ? 'mobile-hide ' : ''">
+                            <template #body="{ data, field }">
+                               <span class="hover" @click="handleEmit('openUpdate', data.id!)">
+                                    {{ data[field] }}
+                                </span>
+                            </template>
                         </Column>
 
                         <Column header="Permissions">
@@ -137,18 +125,6 @@ async function deleteRecord(id: number) {
                             </template>
                         </Column>
 
-                        <Column header="Actions">
-                            <template #body="{ data }">
-                                <div class="flex flex-row align-items-center gap-2">
-                                    <i class="pi pi-pen-to-square hover-icon text-xs" v-tooltip="'Edit role'"
-                                       @click="handleEmit('openUpdate', data.id!)"/>
-                                    <i class="pi pi-trash hover-icon text-xs" v-tooltip="'Delete role'"
-                                       style="color: var(--p-red-300);"
-                                       @click="handleEmit('deleteOperation', data)"></i>
-                                </div>
-                            </template>
-                        </Column>
-
                     </DataTable>
                 </div>
             </div>
@@ -157,5 +133,6 @@ async function deleteRecord(id: number) {
 </template>
 
 <style scoped>
-
+    .hover { font-weight: bold; }
+    .hover:hover { cursor: pointer; text-decoration: underline; }
 </style>

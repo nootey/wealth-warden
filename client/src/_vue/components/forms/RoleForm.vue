@@ -9,6 +9,7 @@ import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
 import type {Permission, Role} from "../../../models/user_models.ts";
 import {useUserStore} from "../../../services/stores/user_store.ts";
+import {useConfirm} from "primevue/useconfirm";
 
 const props = defineProps<{
     mode?: "create" | "update";
@@ -17,6 +18,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (event: 'completeOperation'): void;
+    (event: 'completeRoleDelete'): void;
 }>();
 
 const apiPrefix = "users/roles"
@@ -24,6 +26,8 @@ const apiPrefix = "users/roles"
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const userStore = useUserStore();
+
+const confirm = useConfirm();
 
 onMounted(async () => {
     try {
@@ -140,6 +144,30 @@ async function manageRecord() {
     }
 }
 
+async function deleteConfirmation(id: number, name: string) {
+    confirm.require({
+        header: 'Confirm operation',
+        message: `You are about to delete role: "${name}". This action is irreversible!`,
+        rejectProps: { label: 'Cancel' },
+        acceptProps: { label: 'Continue', severity: 'danger' },
+        accept: () => deleteRecord(id),
+    });
+}
+
+async function deleteRecord(id: number) {
+    try {
+        let response = await sharedStore.deleteRecord(
+            "users/roles",
+            id,
+        );
+        toastStore.successResponseToast(response);
+        emit("completeRoleDelete");
+
+    } catch (err) {
+        toastStore.errorResponseToast(err)
+    }
+}
+
 </script>
 
 <template>
@@ -204,9 +232,12 @@ async function manageRecord() {
         </div>
 
         <div class="flex flex-row gap-2 w-full">
-            <div class="flex flex-column w-full">
+            <div class="flex flex-column w-full gap-2">
                 <Button v-if="!readOnly" class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' role'"
                         @click="manageRecord" style="height: 42px;" />
+                <Button v-if="!readOnly && mode == 'update'"
+                        label="Delete role" class="delete-button"
+                        @click="deleteConfirmation(record.id!, record.name)" style="height: 42px;" />
             </div>
         </div>
 

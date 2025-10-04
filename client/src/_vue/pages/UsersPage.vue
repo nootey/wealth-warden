@@ -2,7 +2,6 @@
 import {useSharedStore} from "../../services/stores/shared_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import {computed, onMounted, provide, ref} from "vue";
-import {useConfirm} from "primevue/useconfirm";
 import {useUserStore} from "../../services/stores/user_store.ts";
 import type {Role, User} from "../../models/user_models.ts";
 import filterHelper from "../../utils/filter_helper.ts";
@@ -30,7 +29,6 @@ onMounted(async () => {
 })
 
 const router = useRouter();
-const confirm = useConfirm();
 const apiPrefix = userStore.apiPrefix;
 
 const createModal = ref(false);
@@ -134,6 +132,12 @@ async function handleEmit(emitType: any) {
             invRef.value?.refresh();
             break;
         }
+        case 'deleteUser': {
+            createModal.value = false;
+            updateModal.value = false;
+            await getData();
+            break;
+        }
         default: {
             break;
         }
@@ -194,35 +198,6 @@ function toggleFilterOverlay(event: any) {
     filterOverlayRef.value.toggle(event);
 }
 
-async function deleteConfirmation(id: number) {
-    confirm.require({
-        header: 'Delete record?',
-        message: `This will delete record: "${id}".`,
-        rejectProps: { label: 'Cancel' },
-        acceptProps: { label: 'Delete', severity: 'danger' },
-        accept: () => deleteRecord(id),
-    });
-}
-
-async function deleteRecord(id: number) {
-
-    if(!hasPermission("delete_users")) {
-        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
-        return;
-    }
-
-    try {
-        let response = await sharedStore.deleteRecord(
-            apiPrefix,
-            id,
-        );
-        toastStore.successResponseToast(response);
-        await getData();
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    }
-}
-
 provide("switchSort", switchSort);
 provide("removeFilter", removeFilter);
 
@@ -230,17 +205,15 @@ provide("removeFilter", removeFilter);
 
 <template>
 
-    <Popover ref="filterOverlayRef" class="rounded-popover">
-        <div class="flex flex-column gap-2" style="width: 400px">
-            <FilterMenu
-                    v-model:value="filters"
-                    :columns="activeColumns"
-                    :apiSource="apiPrefix"
-                    @apply="(list) => applyFilters(list)"
-                    @clear="clearFilters"
-                    @cancel="cancelFilters"
-            />
-        </div>
+    <Popover ref="filterOverlayRef" class="rounded-popover" :style="{width: '420px'}" :breakpoints="{'775px': '90vw'}">
+        <FilterMenu
+                v-model:value="filters"
+                :columns="activeColumns"
+                :apiSource="apiPrefix"
+                @apply="(list) => applyFilters(list)"
+                @clear="clearFilters"
+                @cancel="cancelFilters"
+        />
     </Popover>
 
     <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{'501px': '90vw'}"
@@ -253,7 +226,8 @@ provide("removeFilter", removeFilter);
     <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal" :breakpoints="{'501px': '90vw'}"
             :modal="true" :style="{width: '500px'}" header="User details">
         <UserForm mode="update" :roles="roles" :recordId="updateUserID"
-                  @completeOperation="handleEmit('completeOperation')">
+                  @completeOperation="handleEmit('completeOperation')"
+                  @completeUserDelete="handleEmit('deleteUser')">
         </UserForm>
     </Dialog>
 
@@ -264,8 +238,14 @@ provide("removeFilter", removeFilter);
             <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
                 <div style="font-weight: bold;">Users</div>
                 <i v-if="hasPermission('manage_roles')" class="pi pi-external-link hover-icon mr-auto text-sm" @click="router.push('settings/roles')" v-tooltip="'Go to roles settings.'"></i>
-                <Button label="New user" icon="pi pi-plus" class="main-button"
-                        @click="manipulateDialog('inviteUser', true)"></Button>
+                <Button class="main-button"
+                        @click="manipulateDialog('inviteUser', true)">
+                    <div class="flex flex-row gap-1 align-items-center">
+                        <i class="pi pi-plus"></i>
+                        <span> New </span>
+                        <span class="mobile-hide"> User </span>
+                    </div>
+                </Button>
             </div>
 
             <div class="flex flex-row justify-content-between align-items-center p-1 gap-3 w-full border-round-md"
@@ -316,14 +296,6 @@ provide("removeFilter", removeFilter);
                                 <template v-else>
                                     {{ data[field] }}
                                 </template>
-                            </template>
-                        </Column>
-
-                        <Column header="Actions">
-                            <template #body="slotProps">
-                                <i v-if="hasPermission('delete_users')" class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
-                                   @click="deleteConfirmation(slotProps.data?.id)"></i>
-                                <i v-else class="pi pi-ban hover-icon" v-tooltip="'No action currently available.'"></i>
                             </template>
                         </Column>
                     </DataTable>

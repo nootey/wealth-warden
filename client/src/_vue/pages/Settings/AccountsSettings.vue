@@ -56,7 +56,7 @@ async function closeAccount(id: number) {
 <template>
     <div class="flex flex-column w-full gap-3">
         <SettingsSkeleton class="w-full">
-            <div class="w-full flex flex-column gap-3 p-2">
+            <div id="main-col" class="w-full flex flex-column gap-3 p-2">
                 <div class="w-full flex flex-column gap-2">
                     <h3>Accounts</h3>
                     <h5 style="color: var(--text-secondary)">Manage administrative details for your accounts, like status and closure.</h5>
@@ -76,5 +76,9 @@ async function closeAccount(id: number) {
 </template>
 
 <style scoped>
-
+@media (max-width: 768px) {
+    #main-col {
+        padding: 0 !important;
+    }
+}
 </style>

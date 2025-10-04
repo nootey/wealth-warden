@@ -215,7 +215,7 @@ defineExpose({ refresh: getData });
         </div>
     </div>
 
-    <div class="flex-1 w-full border-round-md p-2 bordered overflow-y-auto"
+    <div class="flex-1 w-full border-round-md overflow-y-auto"
          :style="{ maxWidth: '1000px', maxHeight: `${maxHeight}vh` }">
 
         <template v-if="loading">
@@ -245,7 +245,6 @@ defineExpose({ refresh: getData });
             <div v-for="(account, i) in group" :key="account.id ?? i"
                  class="account-row flex align-items-center justify-content-between p-2 border-round-md mt-1 bordered"
                  :class="{ advanced, inactive: !account.is_active }">
-                <!--                 :class="{ advanced, inactive: advanced && !account.is_active }"-->
 
                 <div class="flex align-items-center">
                     <!-- Avatar -->
@@ -332,8 +331,28 @@ defineExpose({ refresh: getData });
 }
 
 @media (max-width: 768px) {
-    .account-row .edit-icon {
-        opacity: 1 !important;
+
+    .account-row { padding: .5rem !important; }
+
+    .account-row > .flex:first-child > div:first-child {
+        width: 26px !important; height: 26px !important;
     }
+
+    .account-row > .flex:first-child .font-bold {
+        font-size: 0.8rem !important;
+    }
+    .account-row > .flex:first-child .text-sm {
+        font-size: 0.7rem !important;
+    }
+
+    .account-row > .flex:last-child .font-bold {
+        font-size: 0.85rem !important;
+        white-space: nowrap !important;
+    }
+
+    .account-row .ml-2 { margin-left: .5rem !important; }
+    .account-row .ml-3 { margin-left: .4rem !important; }
+
+    .account-row .edit-icon { opacity: 1 !important; }
 }
 </style>

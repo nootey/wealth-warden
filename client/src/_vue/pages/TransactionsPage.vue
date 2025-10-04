@@ -250,8 +250,14 @@ provide("removeFilter", removeFilter);
                       <span><span class="mobile-hide"> Templates </span> {{  "(" + trTemplateCount + ")" }}</span>
                   </div>
             </Button>
-            <Button label="New transaction" icon="pi pi-plus" class="main-button"
-                    @click="manipulateDialog('addTransaction', true)" />
+            <Button class="main-button"
+                    @click="manipulateDialog('addTransaction', true)">
+                <div class="flex flex-row gap-1 align-items-center">
+                    <i class="pi pi-plus"></i>
+                    <span> New </span>
+                    <span class="mobile-hide"> Transaction </span>
+                </div>
+            </Button>
         </div>
 
         <div class="flex flex-row w-full">
@@ -299,11 +305,5 @@ provide("removeFilter", removeFilter);
 </template>
 
 <style scoped>
-.hover {
-  font-weight: bold;
-}
-.hover:hover {
-  cursor: pointer;
-  text-decoration: underline;
-}
+
 </style>

@@ -37,15 +37,20 @@ async function handleCreate() {
         <AccountForm mode="create" @completeOperation="handleCreate" />
     </Dialog>
 
-    <main class="flex flex-column w-full p-2 align-items-center">
-
-        <div class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
+    <main id="main-row" class="flex flex-column w-full p-2 align-items-center">
+        <div id="inner-row" class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
              style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;">
             
             <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
                 <div class="font-bold">Accounts</div>
                 <i v-if="hasPermission('manage_data')" class="pi pi-external-link hover-icon mr-auto text-sm" @click="router.push('settings/accounts')" v-tooltip="'Go to accounts settings.'"></i>
-                <Button class="main-button" label="New Account" icon="pi pi-plus" @click="openCreate"/>
+                <Button class="main-button" @click="openCreate">
+                    <div class="flex flex-row gap-1 align-items-center">
+                        <i class="pi pi-plus"></i>
+                        <span> New </span>
+                        <span class="mobile-hide"> Account </span>
+                    </div>
+                </Button>
             </div>
 
             <AccountsPanel ref="accountsPanelRef"
@@ -54,22 +59,18 @@ async function handleCreate() {
                            :maxHeight="80"
             />
         </div>
-
     </main>
-
 
 </template>
 
 <style scoped>
-.bordered {
-    border: 1px solid var(--border-color);
-    background: var(--background-secondary);
-}
-.hover {
-    font-weight: bold;
-}
-.hover:hover {
-    cursor: pointer;
-    text-decoration: underline;
+@media (max-width: 768px) {
+    #main-row {
+        padding: 0 !important;
+    }
+    #inner-row {
+        padding: 0.75rem !important;
+        margin-bottom: -7px !important;
+    }
 }
 </style>
