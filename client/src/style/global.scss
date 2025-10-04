@@ -42,6 +42,10 @@ html {
 
 }
 
+html, body, #app {
+  background-color: var(--background-primary);
+}
+
 * {
   margin: 0;
   padding: 0;
