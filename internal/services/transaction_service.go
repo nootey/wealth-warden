@@ -321,13 +321,26 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 		return fmt.Errorf("can't find destination account %w", err)
 	}
 
+	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't fetch user settings %w", err)
+	}
+
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	txnInstant := time.Now().In(loc).UTC()
+
 	outflow := models.Transaction{
 		UserID:          userID,
 		AccountID:       fromAccount.ID,
 		TransactionType: "expense",
 		Amount:          req.Amount,
 		Currency:        models.DefaultCurrency,
-		TxnDate:         time.Now(),
+		TxnDate:         txnInstant,
 		Description:     req.Notes,
 	}
 
@@ -342,7 +355,7 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 		TransactionType: "income",
 		Amount:          req.Amount,
 		Currency:        models.DefaultCurrency,
-		TxnDate:         time.Now(),
+		TxnDate:         txnInstant,
 		Description:     req.Notes,
 	}
 
@@ -366,12 +379,7 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 		return err
 	}
 
-	// Update balances
-	if err := s.AccountService.UpdateAccountCashBalance(tx, fromAccount, outflow.TxnDate, "expense", req.Amount); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.AccountService.UpdateAccountCashBalance(tx, toAccount, inflow.TxnDate, "income", req.Amount); err != nil {
+	if err := s.AccountService.UpdateBalancesForTransfer(tx, fromAccount, toAccount, txnInstant, req.Amount); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -908,12 +916,13 @@ func (s *TransactionService) DeleteTransfer(userID int64, id int64) error {
 		return err
 	}
 
-	// Reverse balances
-	if err := s.AccountService.UpdateAccountCashBalance(tx, fromAcc, inflow.TxnDate, "income", outflow.Amount); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.AccountService.UpdateAccountCashBalance(tx, toAcc, outflow.TxnDate, "expense", inflow.Amount); err != nil {
+	if err := s.AccountService.UpdateBalancesForTransfer(
+		tx,
+		fromAcc,
+		toAcc,
+		outflow.TxnDate,
+		outflow.Amount.Neg(),
+	); err != nil {
 		tx.Rollback()
 		return err
 	}

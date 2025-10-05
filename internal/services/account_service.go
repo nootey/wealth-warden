@@ -210,7 +210,7 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		userID,
 		accountID,
 		models.DefaultCurrency,
-		asOf, // from opening day
+		asOf,                                    // from opening day
 		time.Now().UTC().Truncate(24*time.Hour), // to today
 	); err != nil {
 		tx.Rollback()
@@ -430,6 +430,23 @@ func (s *AccountService) UpdateAccountCashBalance(
 		asOf.UTC().Truncate(24*time.Hour),
 		time.Now().UTC().Truncate(24*time.Hour),
 	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *AccountService) UpdateBalancesForTransfer(
+	tx *gorm.DB,
+	fromAcc, toAcc *models.Account,
+	when time.Time,
+	amount decimal.Decimal,
+) error {
+	if err := s.UpdateAccountCashBalance(tx, fromAcc, when, "expense", amount); err != nil {
+		return err
+	}
+
+	if err := s.UpdateAccountCashBalance(tx, toAcc, when, "income", amount); err != nil {
 		return err
 	}
 
