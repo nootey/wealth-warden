@@ -234,7 +234,7 @@ provide("removeFilter", removeFilter);
     <main class="flex flex-column w-full p-2 align-items-center">
 
         <div id="mobile-container" class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
-             style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;">
+             style="border: 1px solid var(--border-color); background: var(--background-secondary);" >
 
             <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
 

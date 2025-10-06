@@ -20,6 +20,8 @@ const {isAuthenticated, isInitialized} = storeToRefs(authStore);
 const requiresAuthView = computed<boolean>(() => route.matched.some(r => r.meta.requiresAuth));
 const isGuestOnlyView = computed<boolean>(() => route.matched.some(r => r.meta.guestOnly));
 
+const sidebarRef = ref<InstanceType<typeof AppSideBar> | null>(null);
+
 onMounted(async () => {
   if (isAuthenticated.value) {
     await authStore.init();
@@ -71,7 +73,7 @@ const isSettingsView = computed(() => route.path.startsWith('/settings'));
         </template>
     </ConfirmDialog>
 
-    <div id="app" class="flex w-full">
+    <div id="app" class="flex w-full flex-row">
         <AppNavBar v-if="isAuthenticated && isInitialized && !isGuestOnlyView" />
         <div class="w-full flex-1 app-content"
              :style="{ 'margin-left': (isAuthenticated && isInitialized && !isGuestOnlyView) ? '80px' : '0px' }">
@@ -79,7 +81,7 @@ const isSettingsView = computed(() => route.path.startsWith('/settings'));
                 <i class="pi pi-spin pi-spinner text-2xl"></i>
             </div>
             <div v-else>
-                <div v-if="!isSettingsView" id="breadcrumb" class="flex flex-row gap-2 mb-2 align-items-center justify-content-between"
+                <div v-if="!isSettingsView && isAuthenticated && isInitialized" id="breadcrumb" class="flex flex-row gap-2 mb-2 align-items-center justify-content-between"
                      style="max-width: 1000px; margin: 0 auto;padding: 1rem 0 0 0">
 
                     <div class="flex gap-1 text-center align-items-center">
@@ -96,13 +98,14 @@ const isSettingsView = computed(() => route.path.startsWith('/settings'));
                         </template>
                     </div>
 
-                    <i class="mobile-hide pi pi-book hover-icon" style="margin-left: 0;" />
+                    <i class="mobile-hide pi pi-book hover-icon" style="margin-left: 0;"
+                       @click="sidebarRef?.toggle && sidebarRef.toggle()"/>
                 </div>
                 <router-view />
             </div>
 
         </div>
-        <AppSideBar v-if="isAuthenticated && isInitialized && !isGuestOnlyView"/>
+        <AppSideBar ref="sidebarRef" v-if="isAuthenticated && isInitialized && !isGuestOnlyView"/>
     </div>
 </template>
 
