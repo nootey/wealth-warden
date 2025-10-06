@@ -237,6 +237,7 @@ provide("removeFilter", removeFilter);
     </Popover>
 
     <main class="flex flex-column w-full p-2 align-items-center" style="height: 100%;">
+
       <div id="mobile-container" class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
            style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;">
 

@@ -2,9 +2,10 @@
 import {computed, onMounted} from 'vue';
 import { useAuthStore } from './services/stores/auth_store.ts';
 import { useThemeStore } from './services/stores/theme_store.ts';
-import Sidebar from "./Sidebar.vue";
+import AppNavBar from "./AppNavBar.vue";
 import {storeToRefs} from "pinia";
 import {useRoute} from 'vue-router';
+import AppSideBar from "./AppSideBar.vue";
 
 const authStore = useAuthStore();
 const themeStore = useThemeStore();
@@ -44,12 +45,18 @@ onMounted(async () => {
                       </div>
                   </template>
               </ConfirmDialog>
-        <Sidebar v-if="isAuthenticated && isInitialized && !isGuestOnlyView" />
-        <div class="flex-1 app-content" :style="{ 'margin-left': (isAuthenticated && isInitialized && !isGuestOnlyView) ? '80px' : '0px' }">
-            <div v-if="requiresAuthView && !isInitialized" class="w-full h-full flex items-center justify-center">
-                <i class="pi pi-spin pi-spinner text-2xl"></i>
+        <AppNavBar v-if="isAuthenticated && isInitialized && !isGuestOnlyView" />
+
+        <div class="flex w-full">
+            <div class="flex-1 app-content"
+                 :style="{ 'margin-left': (isAuthenticated && isInitialized && !isGuestOnlyView) ? '80px' : '0px' }">
+                <div v-if="requiresAuthView && !isInitialized" class="w-full h-full flex items-center justify-center">
+                    <i class="pi pi-spin pi-spinner text-2xl"></i>
+                </div>
+                <router-view v-else/>
             </div>
-            <router-view v-else/>
+
+            <AppSideBar v-if="isAuthenticated && isInitialized && !isGuestOnlyView"/>
         </div>
     </div>
 </template>

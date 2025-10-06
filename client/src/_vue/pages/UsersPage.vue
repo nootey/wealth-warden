@@ -231,12 +231,15 @@ provide("removeFilter", removeFilter);
         </UserForm>
     </Dialog>
 
-    <main class="flex flex-column w-full p-2 align-items-center" style="height: 100vh;">
-        <div class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
+    <main class="flex flex-column w-full p-2 align-items-center">
+
+        <div id="mobile-container" class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
              style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;">
 
             <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
+
                 <div style="font-weight: bold;">Users</div>
+
                 <i v-if="hasPermission('manage_roles')" class="pi pi-external-link hover-icon mr-auto text-sm" @click="router.push('settings/roles')" v-tooltip="'Go to roles settings.'"></i>
                 <Button class="main-button"
                         @click="manipulateDialog('inviteUser', true)">
@@ -265,41 +268,39 @@ provide("removeFilter", removeFilter);
                 </ActionRow>
             </div>
 
-            <div class="flex flex-row gap-2 w-full">
-                <div class="w-full">
-                    <DataTable class="w-full enhanced-table" dataKey="id" :loading="loading" :value="records"
-                               :rowHover="true" :showGridlines="false">
-                        <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-                        <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-                        <template #footer>
-                            <CustomPaginator :paginator="paginator" :rows="rows" @onPage="onPage"/>
-                        </template>
+            <div id="mobile-row" class="flex flex-row gap-2 w-full">
+                <DataTable class="w-full enhanced-table" dataKey="id" :loading="loading" :value="records"
+                           :rowHover="true" :showGridlines="false" scrollable columnResizeMode="fit">
+                    <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
+                    <template #loading> <LoadingSpinner></LoadingSpinner> </template>
+                    <template #footer>
+                        <CustomPaginator :paginator="paginator" :rows="rows" @onPage="onPage"/>
+                    </template>
 
-                        <Column v-for="col of activeColumns" :key="col.field" :field="col.field" style="width: 25%">
-                            <template #header >
-                                <ColumnHeader  :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
+                    <Column v-for="col of activeColumns" :key="col.field" :field="col.field">
+                        <template #header >
+                            <ColumnHeader  :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
+                        </template>
+                        <template #body="{ data, field }">
+                            <template v-if="field === 'email_confirmed'">
+                                {{ dateHelper.formatDate(data?.email_confirmed, true) }}
                             </template>
-                            <template #body="{ data, field }">
-                                <template v-if="field === 'email_confirmed'">
-                                    {{ dateHelper.formatDate(data?.email_confirmed, true) }}
-                                </template>
-                                <template v-else-if="field === 'display_name'">
+                            <template v-else-if="field === 'display_name'">
                                     <span class="hover-icon font-bold" @click="manipulateDialog('updateUser', data.id)">
                                         {{ data[field] }}
                                     </span>
-                                </template>
-                                <template v-else-if="field === 'role'">
+                            </template>
+                            <template v-else-if="field === 'role'">
                                     <span>
                                         {{ data[field]["name"] }}
                                     </span>
-                                </template>
-                                <template v-else>
-                                    {{ data[field] }}
-                                </template>
                             </template>
-                        </Column>
-                    </DataTable>
-                </div>
+                            <template v-else>
+                                {{ data[field] }}
+                            </template>
+                        </template>
+                    </Column>
+                </DataTable>
             </div>
 
             <label>Invitations</label>
