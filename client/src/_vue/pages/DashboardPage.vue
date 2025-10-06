@@ -28,12 +28,11 @@ async function backfillBalances(){
 </script>
 
 <template>
-    <main class="flex flex-column w-full p-2 align-items-center">
-        <div id="mobile-container" class="flex flex-column justify-content-center p-3 w-full gap-2 border-round-md"
-             style="max-width: 1000px;">
+    <main class="flex flex-column w-full align-items-center">
+        <div id="mobile-container" class="flex flex-column justify-content-center w-full gap-2 border-round-md">
 
             <SlotSkeleton bg="transparent">
-                <div class="w-full flex flex-row justify-content-between p-2 gap-2 align-items-center">
+                <div class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center">
                     <div class="w-full flex flex-column gap-2">
                         <div style="font-weight: bold;"> Welcome back {{ authStore?.user?.display_name }} </div>
                         <div>{{ "Here's what's happening with your finances." }} </div>

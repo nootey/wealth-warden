@@ -31,13 +31,6 @@ const visibleItems = computed(() =>
     items.filter(item => !item.block)
 );
 
-const pageTitle = computed(() => {
-    if (!route.name) return 'Settings';
-    const parts = String(route.name).split('.');
-    const last = parts[parts.length - 1];
-    return vueHelper.capitalize(last);
-});
-
 const settingsMenuRef = ref<any>(null);
 
 const isActive = (name: SettingsMenuItem['name']) => route.name === name;
@@ -52,6 +45,13 @@ function toggleOverlay(event: any) {
     if(window.innerWidth > 768) return;
     settingsMenuRef.value.toggle(event);
 }
+
+const pageTitle = computed(() => {
+    if (!route.name) return 'Settings';
+    const parts = String(route.name).split('.');
+    const last = parts[parts.length - 1];
+    return vueHelper.capitalize(last);
+});
 
 </script>
 
@@ -87,6 +87,7 @@ function toggleOverlay(event: any) {
         </aside>
 
         <main class="w-full flex-1 pt-3" style="max-width: 850px; margin: 0 auto;">
+
             <div class="flex flex-row gap-2 mb-2 align-items-center text-center">
                 <i class="pi pi-ellipsis-v mobile-only text-xs" @click="toggleOverlay" style="cursor:pointer;" />
                 <span @click="toggleOverlay" class="text-sm" style="color: var(--text-secondary)">Home</span>
@@ -145,4 +146,5 @@ function toggleOverlay(event: any) {
     .settings { padding: 0 1rem 0 1rem !important; }
     .no-mobile { display: none !important; }
 }
+
 </style>

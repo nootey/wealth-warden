@@ -37,7 +37,7 @@ async function handleCreate() {
         <AccountForm mode="create" @completeOperation="handleCreate" />
     </Dialog>
 
-    <main id="main-row" class="flex flex-column w-full p-2 align-items-center">
+    <main class="flex flex-column w-full p-2 align-items-center">
         <div id="inner-row" class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
              style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;">
             
@@ -63,11 +63,8 @@ async function handleCreate() {
 
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 @media (max-width: 768px) {
-    #main-row {
-        padding: 0 !important;
-    }
     #inner-row {
         padding: 0.75rem !important;
         margin-bottom: -7px !important;

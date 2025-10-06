@@ -14,13 +14,11 @@ onMounted(async () => {
 </script>
 
 <template>
-    <main class="flex flex-column w-full p-2 align-items-center" style="height: 100%;">
-
-        <div class="flex flex-column justify-content-center p-3 w-full gap-2 border-round-md"
-             style="max-width: 1000px;">
+    <main class="flex flex-column w-full align-items-center">
+        <div id="mobile-container" class="flex flex-column justify-content-center w-full gap-1 border-round-md">
 
             <SlotSkeleton bg="transparent">
-                <div class="w-full flex flex-row justify-content-between p-1 gap-2">
+                <div class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center">
                     <div class="w-full flex flex-column gap-2">
                         <h3 style="font-weight: bold;"> Chart view </h3>
                         <div> A better look at your cash-flow. </div>
@@ -43,9 +41,6 @@ onMounted(async () => {
                 <MonthlyCategoryBreakdownWidget />
             </SlotSkeleton>
         </div>
-
-
-
     </main>
 </template>
 
