@@ -73,16 +73,16 @@ const isSettingsView = computed(() => route.path.startsWith('/settings'));
         </template>
     </ConfirmDialog>
 
-    <div id="app" class="flex w-full flex-row">
+    <div id="app">
         <AppNavBar v-if="isAuthenticated && isInitialized && !isGuestOnlyView" />
-        <div class="w-full flex-1 app-content"
-             :style="{ 'margin-left': (isAuthenticated && isInitialized && !isGuestOnlyView) ? '80px' : '0px' }">
+
+        <div class="flex-1 app-content" :style="{ 'margin-left': (isAuthenticated && isInitialized && !isGuestOnlyView) ? '80px' : '0px' }">
             <div v-if="requiresAuthView && !isInitialized" class="w-full h-full flex items-center justify-center">
                 <i class="pi pi-spin pi-spinner text-2xl"></i>
             </div>
             <div v-else>
                 <div v-if="!isSettingsView && isAuthenticated && isInitialized" id="breadcrumb" class="flex flex-row gap-2 mb-2 align-items-center justify-content-between"
-                     style="max-width: 1000px; margin: 0 auto;padding: 1rem 0 0 0">
+                     style="max-width: 1000px; margin: 0 auto;padding: 1rem 0.5rem 0 0;">
 
                     <div class="flex gap-1 text-center align-items-center">
                         <i class="pi pi-ellipsis-v mobile-only text-xs hover-icon" />
@@ -103,8 +103,8 @@ const isSettingsView = computed(() => route.path.startsWith('/settings'));
                 </div>
                 <router-view />
             </div>
-
         </div>
+
         <AppSideBar ref="sidebarRef" v-if="isAuthenticated && isInitialized && !isGuestOnlyView"/>
     </div>
 </template>
@@ -127,6 +127,11 @@ main {
   .no-mobile { display: none !important; }
   #breadcrumb {
      padding: 1rem 0.7rem 0 0.7rem !important;
+  }
+}
+@media (max-width: 1111px) {
+  #breadcrumb {
+    padding: 1rem 0.5rem 0 0.5rem !important;
   }
 }
 .mobile-only { display: none; }

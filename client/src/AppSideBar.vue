@@ -1,33 +1,20 @@
 <template>
-    <div class="mobile-hide flex flex-column flex-shrink-0"
-         style="background-color: var(--background-secondary); transition: width .2s ease; overflow: hidden;"
-         :style="{
-         width: open ? '350px' : '0px',
-         minWidth: open ? '350px' : '0px',
-         flexShrink: 0
-     }"
-    >
-        <!-- sidebar content -->
-    </div>
+    <Drawer v-model:visible="open" header="Monthly stats" position="right" style="width: 400px;">
+        <template #container="{ closeCallback }">
+            <div class="flex flex-column h-full w-full p-2">
+                <div class="flex flex-row justify-content-between p-2">
+                    <h3>Monthly stats</h3>
+                    <i class="pi pi-times hover-icon" @click="closeCallback" />
+                </div>
+            </div>
+        </template>
+    </Drawer>
 </template>
 
 <script setup lang="ts">
-import { ref, defineExpose, watch, onMounted } from 'vue';
+import { ref, defineExpose } from 'vue';
 
-const STORAGE_KEY = 'sidebar-open';
-
-const open = ref(true);
-
-onMounted(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved !== null) {
-        open.value = saved === 'true';
-    }
-});
-
-watch(open, (val) => {
-    localStorage.setItem(STORAGE_KEY, String(val));
-});
+const open = ref(false);
 
 const toggle = () => (open.value = !open.value);
 
