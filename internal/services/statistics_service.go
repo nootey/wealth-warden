@@ -176,3 +176,65 @@ func (s *StatisticsService) GetAccountBasicStatistics(accID *int64, userID int64
 func (s *StatisticsService) GetAvailableStatsYears(accID *int64, userID int64) ([]int64, error) {
 	return s.Repo.GetAvailableStatsYears(accID, userID)
 }
+
+func (s *StatisticsService) GetCurrentMonthStats(userID int64) (*models.CurrentMonthStats, error) {
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	now := time.Now().UTC()
+	year := now.Year()
+	month := int(now.Month())
+
+	mrows, err := s.Repo.FetchMonthlyTotals(tx, userID, nil, year)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	inflow := decimal.Zero
+	outflow := decimal.Zero
+	net := decimal.Zero
+
+	for _, mr := range mrows {
+		if mr.Month == month {
+			inflow, _ = decimal.NewFromString(mr.InflowText)
+			outflow, _ = decimal.NewFromString(mr.OutflowText)
+			net, _ = decimal.NewFromString(mr.NetText)
+			break
+		}
+	}
+
+	takeHome := decimal.Zero
+	overflow := decimal.Zero
+	if net.GreaterThan(decimal.Zero) {
+		takeHome = net
+	} else if net.LessThan(decimal.Zero) {
+		overflow = net
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return &models.CurrentMonthStats{
+		UserID:      userID,
+		AccountID:   nil,
+		Currency:    models.DefaultCurrency,
+		Year:        year,
+		Month:       month,
+		Inflow:      inflow,
+		Outflow:     outflow,
+		Net:         net,
+		TakeHome:    takeHome,
+		Overflow:    overflow,
+		GeneratedAt: time.Now().UTC(),
+	}, nil
+}

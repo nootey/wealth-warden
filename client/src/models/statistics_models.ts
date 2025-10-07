@@ -26,3 +26,16 @@ export interface BasicAccountStats {
     categories?: CategoryStat[];
     generated_at: Date;
 }
+
+export interface MonthlyStats {
+    user_id: number;
+    account_id?: number | null;
+    currency: string;
+    year: number;
+    inflow: string;
+    outflow: string;
+    net: string;
+    take_home: string;
+    overflow: string;
+    generated_at: Date;
+}

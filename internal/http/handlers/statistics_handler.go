@@ -89,3 +89,19 @@ func (h *StatisticsHandler) GetAvailableStatsYears(c *gin.Context) {
 
 	c.JSON(http.StatusOK, years)
 }
+
+func (h *StatisticsHandler) GetCurrentMonthStats(c *gin.Context) {
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	records, err := h.Service.GetCurrentMonthStats(userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", "Error getting monthly stats", http.StatusBadRequest, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, records)
+}

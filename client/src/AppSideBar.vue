@@ -6,6 +6,10 @@
                     <h3>Monthly stats</h3>
                     <i class="pi pi-times hover-icon" @click="closeCallback" />
                 </div>
+
+                <div class="flex flex-column w-full p-2">
+                    <MonthlyStats></MonthlyStats>
+                </div>
             </div>
         </template>
     </Drawer>
@@ -13,6 +17,7 @@
 
 <script setup lang="ts">
 import { ref, defineExpose } from 'vue';
+import MonthlyStats from "./_vue/components/data/MonthlyStats.vue";
 
 const open = ref(false);
 

@@ -58,3 +58,17 @@ type MonthlyTotalsRow struct {
 	OutflowText string
 	NetText     string
 }
+
+type CurrentMonthStats struct {
+	UserID      int64           `json:"user_id"`
+	AccountID   *int64          `json:"account_id,omitempty"`
+	Currency    string          `json:"currency"`
+	Year        int             `json:"year"`
+	Month       int             `json:"month"`
+	Inflow      decimal.Decimal `json:"inflow"`
+	Outflow     decimal.Decimal `json:"outflow"`
+	Net         decimal.Decimal `json:"net"`
+	TakeHome    decimal.Decimal `json:"take_home"`
+	Overflow    decimal.Decimal `json:"overflow"`
+	GeneratedAt time.Time       `json:"generated_at"`
+}
