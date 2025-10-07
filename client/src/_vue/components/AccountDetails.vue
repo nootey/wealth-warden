@@ -90,7 +90,14 @@ async function confirmCloseAccount(id: number) {
             <Tag :severity="!account.is_active ? 'secondary' : 'success'" style="transform: scale(0.8)">
                 {{ !account.is_active ? 'Inactive' : 'Active' }}
             </Tag>
-            <Button v-if="advanced" size="small" label="Close account" severity="danger" style="color: white; margin-left: auto;" @click="confirmCloseAccount(account.id!)"></Button>
+            <Button v-if="advanced" size="small"
+                    label="Close account" class="delete-button" style="margin-left: auto;"
+                    @click="confirmCloseAccount(account.id!)">
+                    <div class="flex flex-row gap-1 align-items-center">
+                        <span> Close </span>
+                        <span class="mobile-hide"> account </span>
+                    </div>
+            </Button>
         </div>
 
         <SlotSkeleton class="w-full" bg="opt">

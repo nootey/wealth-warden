@@ -42,8 +42,11 @@ function goBack() {
 }
 
 function toggleOverlay(event: any) {
-    if(window.innerWidth > 768) return;
-    settingsMenuRef.value.toggle(event);
+    if(window.innerWidth > 768){
+        router.push({ name: 'settings.profile' });
+    } else {
+        settingsMenuRef.value.toggle(event);
+    }
 }
 
 const pageTitle = computed(() => {
@@ -90,7 +93,9 @@ const pageTitle = computed(() => {
 
             <div class="flex flex-row gap-2 mb-2 align-items-center text-center">
                 <i class="pi pi-ellipsis-v mobile-only text-xs" @click="toggleOverlay" style="cursor:pointer;" />
-                <span @click="toggleOverlay" class="text-sm" style="color: var(--text-secondary)">Home</span>
+                <span @click="toggleOverlay" class="text-sm hover-icon" style="color: var(--text-secondary)">
+                    Settings
+                </span>
                 <i class="pi pi-angle-right" />
                 <span style="color: var(--text-primary)">{{ pageTitle }}</span>
             </div>
