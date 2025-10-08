@@ -27,6 +27,14 @@ export const useAccountStore = defineStore('account', {
                 throw err;
             }
         },
+        async getAccountsBySubtype(subtype: string) {
+            try {
+                const response = await apiClient.get(`${this.apiPrefix}/subtype/${subtype}`);
+                return response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
         async toggleActiveState(id: number) {
             try {
                 return await apiClient.post(`${this.apiPrefix}/${id}/active`);

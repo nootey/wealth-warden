@@ -97,7 +97,7 @@ func (h *StatisticsHandler) GetCurrentMonthStats(c *gin.Context) {
 		return
 	}
 
-	records, err := h.Service.GetCurrentMonthStats(userID)
+	records, err := h.Service.GetCurrentMonthStats(userID, nil)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", "Error getting monthly stats", http.StatusBadRequest, err)
 		return
