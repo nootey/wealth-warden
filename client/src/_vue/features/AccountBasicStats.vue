@@ -128,7 +128,7 @@ const pieOptions = computed(() => ({
                     const total = (data as (number | string)[])
                         .map(v => Number(v))
                         .reduce((a, b) => a + b, 0);
-                    const pct = total ? (value / total) * 100 : 0;
+                    const pct = total ? (value / total) : 0;
 
                     return `${label}: ${vueHelper.displayAsCurrency(value)} · ${vueHelper.displayAsPercentage(pct)}`;
                 }

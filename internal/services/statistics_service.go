@@ -15,6 +15,7 @@ type StatisticsService struct {
 	Ctx     *DefaultServiceContext
 	Repo    *repositories.StatisticsRepository
 	AccRepo *repositories.AccountRepository
+	TxRepo  *repositories.TransactionRepository
 }
 
 func NewStatisticsService(
@@ -22,12 +23,14 @@ func NewStatisticsService(
 	ctx *DefaultServiceContext,
 	repo *repositories.StatisticsRepository,
 	accRepo *repositories.AccountRepository,
+	txRepo *repositories.TransactionRepository,
 ) *StatisticsService {
 	return &StatisticsService{
 		Ctx:     ctx,
 		Config:  cfg,
 		Repo:    repo,
 		AccRepo: accRepo,
+		TxRepo:  txRepo,
 	}
 }
 
@@ -195,29 +198,31 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64)
 
 	var mrows []models.MonthlyTotalsRow
 	var err error
+	var checkingAccounts []models.Account
 
 	if accountID != nil {
-		mrows, err = s.Repo.FetchMonthlyTotals(tx, userID, accountID, year)
-	} else {
-
-		accounts, errAcc := s.AccRepo.FindAccountsBySubtype(tx, userID, "checking", true)
+		acc, errAcc := s.AccRepo.FindAccountByID(tx, *accountID, userID, false)
 		if errAcc != nil {
 			tx.Rollback()
 			return nil, errAcc
 		}
-
-		if len(accounts) == 0 {
-			if len(accounts) == 0 {
-				tx.Commit()
-				return nil, nil
-			}
+		checkingAccounts = []models.Account{*acc}
+		mrows, err = s.Repo.FetchMonthlyTotals(tx, userID, accountID, year)
+	} else {
+		checkingAccounts, err = s.AccRepo.FindAccountsBySubtype(tx, userID, "checking", true)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if len(checkingAccounts) == 0 {
+			tx.Commit()
+			return nil, nil
 		}
 
-		accountIDs := make([]int64, len(accounts))
-		for i, a := range accounts {
+		accountIDs := make([]int64, len(checkingAccounts))
+		for i, a := range checkingAccounts {
 			accountIDs[i] = a.ID
 		}
-
 		mrows, err = s.Repo.FetchMonthlyTotalsCheckingOnly(tx, userID, accountIDs, year)
 	}
 
@@ -229,7 +234,6 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64)
 	inflow := decimal.Zero
 	outflow := decimal.Zero
 	net := decimal.Zero
-
 	for _, mr := range mrows {
 		if mr.Month == month {
 			inflow, _ = decimal.NewFromString(mr.InflowText)
@@ -239,12 +243,45 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64)
 		}
 	}
 
-	takeHome := decimal.Zero
+	takeHome := net
 	overflow := decimal.Zero
-	if net.GreaterThan(decimal.Zero) {
-		takeHome = net
-	} else if net.LessThan(decimal.Zero) {
-		overflow = net
+
+	accountIDs := make([]int64, len(checkingAccounts))
+	for i, a := range checkingAccounts {
+		accountIDs[i] = a.ID
+	}
+
+	transfers, err := s.TxRepo.GetMonthlyTransfersFromChecking(tx, userID, accountIDs, year, month)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	savingsTotal := decimal.Zero
+	investmentsTotal := decimal.Zero
+
+	for _, tr := range transfers {
+
+		if tr.TransactionInflow.Account.AccountType.Subtype == "savings" {
+			savingsTotal = savingsTotal.Add(tr.Amount)
+		}
+		if tr.TransactionInflow.Account.AccountType.Type == "investment" {
+			investmentsTotal = investmentsTotal.Add(tr.Amount)
+		}
+
+		takeHome = takeHome.Sub(tr.Amount)
+	}
+
+	savingsRate := decimal.Zero
+	investRate := decimal.Zero
+	if !inflow.IsZero() {
+		savingsRate = savingsTotal.Div(inflow)
+		investRate = investmentsTotal.Div(inflow)
+	}
+
+	if takeHome.LessThan(decimal.Zero) {
+		overflow = takeHome
+		takeHome = decimal.Zero
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -262,6 +299,10 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64)
 		Net:         net,
 		TakeHome:    takeHome,
 		Overflow:    overflow,
+		Savings:     savingsTotal,
+		Investments: investmentsTotal,
+		SavingsRate: savingsRate,
+		InvestRate:  investRate,
 		GeneratedAt: time.Now().UTC(),
 	}, nil
 }

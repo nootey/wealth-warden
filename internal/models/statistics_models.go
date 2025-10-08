@@ -70,5 +70,9 @@ type CurrentMonthStats struct {
 	Net         decimal.Decimal `json:"net"`
 	TakeHome    decimal.Decimal `json:"take_home"`
 	Overflow    decimal.Decimal `json:"overflow"`
+	Savings     decimal.Decimal `json:"savings"`
+	Investments decimal.Decimal `json:"investments"`
+	SavingsRate decimal.Decimal `json:"savings_rate"`
+	InvestRate  decimal.Decimal `json:"investments_rate"`
 	GeneratedAt time.Time       `json:"generated_at"`
 }

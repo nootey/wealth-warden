@@ -149,6 +149,7 @@ func (r *StatisticsRepository) FetchMonthlyTotals(
 	  FROM transactions
 	  WHERE user_id = ? %s
 	    AND is_adjustment = false
+	    AND is_transfer = false
 	    AND txn_date >= make_date(?,1,1) AND txn_date < make_date(?+1,1,1)
 	  GROUP BY month
 	  ORDER BY month;
@@ -192,6 +193,7 @@ func (r *StatisticsRepository) FetchMonthlyTotalsCheckingOnly(
 	  FROM transactions
 	  WHERE user_id = ?
 	    AND is_adjustment = false
+	    AND is_transfer = false
 	    AND txn_date >= make_date(?,1,1)
 	    AND txn_date < make_date(?+1,1,1)
 	    AND account_id IN ?

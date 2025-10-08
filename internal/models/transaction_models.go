@@ -16,7 +16,8 @@ type Transaction struct {
 	Currency        string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	TxnDate         time.Time       `gorm:"not null;index" json:"txn_date"`
 	Description     *string         `gorm:"type:varchar(255)" json:"description,omitempty"`
-	IsAdjustment    bool            `gorm:"not null;type:boolean" json:"is_adjustment""`
+	IsAdjustment    bool            `gorm:"not null;type:boolean" json:"is_adjustment"`
+	IsTransfer      bool            `gorm:"not null;type:boolean" json:"is_transfer"`
 	Account         Account         `json:"account"`
 	Category        Category        `json:"category,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`

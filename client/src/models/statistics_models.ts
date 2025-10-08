@@ -37,5 +37,9 @@ export interface MonthlyStats {
     net: string;
     take_home: string;
     overflow: string;
+    savings: string;
+    investments: string;
+    savings_rate: string;
+    investments_rate: string;
     generated_at: Date;
 }

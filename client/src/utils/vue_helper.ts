@@ -51,13 +51,13 @@ const vueHelper = {
             maximumFractionDigits: 2
         }) + "€";
     },
-    displayAsPercentage: (value: number | string | null) => {
+    displayAsPercentage: (value: number | string | null, decimals = 1) => {
         if (value === null || value === undefined) return null;
-
         const num = Number(value);
         if (isNaN(num)) return "Invalid Percentage";
 
-        return num.toFixed(1) + " %";
+        const pct = num * 100; 
+        return pct.toFixed(decimals) + " %";
     },
     formatChanges(payload: any): Change[] | null {
         if (!payload) return null;

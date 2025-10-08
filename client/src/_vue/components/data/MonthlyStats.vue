@@ -51,41 +51,39 @@ async function loadStats() {
         <div v-if="monthlyStats" class="flex flex-column">
             <div class="flex flex-row gap-2 align-items-center">
                 <span>Inflows:</span>
-                <span>{{ vueHelper.displayAsCurrency(monthlyStats?.inflow!) }}</span>
+                <span><b>{{ vueHelper.displayAsCurrency(monthlyStats?.inflow!) }}</b></span>
             </div>
             <div class="flex flex-row gap-2 align-items-center">
                 <span>Outflows:</span>
-                <span>{{ vueHelper.displayAsCurrency(monthlyStats?.outflow!) }}</span>
+                <span><b>{{ vueHelper.displayAsCurrency(monthlyStats?.outflow!) }}</b></span>
             </div>
             <div class="flex flex-row gap-2 align-items-center">
                 <span>Take home:</span>
-                <span>{{ vueHelper.displayAsCurrency(monthlyStats?.take_home!) }}</span>
+                <span><b>{{ vueHelper.displayAsCurrency(monthlyStats?.take_home!) }}</b></span>
             </div>
             <div class="flex flex-row gap-2 align-items-center">
                 <span>Overflow:</span>
-                <span>{{ vueHelper.displayAsCurrency(monthlyStats?.overflow!) }}</span>
+                <span><b>{{ vueHelper.displayAsCurrency(monthlyStats?.overflow!) }}</b></span>
             </div>
 
             <br>
 
             <div class="flex flex-row gap-2 align-items-center">
-                <span>Savings:TBD</span>
+                <span>Savings:</span>
+                <span><b>{{ vueHelper.displayAsCurrency(monthlyStats.savings) }}</b></span>
             </div>
             <div class="flex flex-row gap-2 align-items-center">
-                <span>-> Rate: TBD</span>
-            </div>
-            <div class="flex flex-row gap-2 align-items-center">
-                <span>-> Avg. rate: TBD</span>
+                <span>Savings rate:</span>
+                <span><b>{{ vueHelper.displayAsPercentage(monthlyStats.savings_rate) }}</b></span>
             </div>
 
             <div class="flex flex-row gap-2 align-items-center">
-                <span>Investments: TBD</span>
+                <span>Investments</span>
+                <span><b>{{ vueHelper.displayAsCurrency(monthlyStats.investments) }}</b></span>
             </div>
             <div class="flex flex-row gap-2 align-items-center">
-                <span>-> Rate: TBD</span>
-            </div>
-            <div class="flex flex-row gap-2 align-items-center">
-                <span>-> Avg. rate: TBD</span>
+                <span>Investment rate</span>
+                <span><b>{{ vueHelper.displayAsPercentage(monthlyStats.investments_rate) }}</b></span>
             </div>
         </div>
         <div v-else>

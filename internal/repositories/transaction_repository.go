@@ -123,6 +123,32 @@ func (r *TransactionRepository) FindTransfers(userID int64, offset, limit int, i
 	return records, nil
 }
 
+func (r *TransactionRepository) GetMonthlyTransfersFromChecking(
+	tx *gorm.DB,
+	userID int64,
+	checkingAccountIDs []int64,
+	year int,
+	month int,
+) ([]models.Transfer, error) {
+	var transfers []models.Transfer
+
+	start := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(0, 1, 0)
+
+	q := r.baseTransferQuery(tx, userID, false).
+		Preload("TransactionOutflow.Account.AccountType").
+		Preload("TransactionInflow.Account.AccountType")
+
+	q = q.Joins("JOIN transactions AS tx_out ON tx_out.id = transfers.transaction_outflow_id")
+
+	err := q.
+		Where("tx_out.account_id IN ?", checkingAccountIDs).
+		Where("transfers.created_at >= ? AND transfers.created_at < ?", start, end).
+		Find(&transfers).Error
+
+	return transfers, err
+}
+
 func (r *TransactionRepository) CountTransactions(userID int64, filters []utils.Filter, includeDeleted bool, accountID *int64) (int64, error) {
 	var totalRecords int64
 

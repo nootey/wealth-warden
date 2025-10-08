@@ -342,6 +342,7 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 		Currency:        models.DefaultCurrency,
 		TxnDate:         txnInstant,
 		Description:     req.Notes,
+		IsTransfer:      true,
 	}
 
 	if _, err := s.Repo.InsertTransaction(tx, &outflow); err != nil {
@@ -357,6 +358,7 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 		Currency:        models.DefaultCurrency,
 		TxnDate:         txnInstant,
 		Description:     req.Notes,
+		IsTransfer:      true,
 	}
 
 	if _, err := s.Repo.InsertTransaction(tx, &inflow); err != nil {
