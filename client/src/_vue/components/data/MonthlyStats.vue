@@ -1,40 +1,48 @@
 <script setup lang="ts">
 
 import {useStatisticsStore} from "../../../services/stores/statistics_store.ts";
-import {onMounted, ref} from "vue";
+import {onMounted, ref, watch} from "vue";
 import type {MonthlyStats} from "../../../models/statistics_models.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
+import {useAccountStore} from "../../../services/stores/account_store.ts";
+import type {Account} from "../../../models/account_models.ts";
+import MultiSelect from "primevue/multiselect";
 
 const statsStore = useStatisticsStore();
 const toastStore = useToastStore();
 
 const loading = ref(false);
+
 const monthlyStats = ref<MonthlyStats | null>(null);
 
 onMounted(async () => {
     await loadStats();
 })
 
+
+
 async function loadStats() {
     try {
         loading.value = true;
         monthlyStats.value = await statsStore.getCurrentMonthsStats(null);
     } catch (e) {
-        toastStore.errorResponseToast(e)
+        toastStore.errorResponseToast(e);
     } finally {
         loading.value = false;
     }
 }
+
 </script>
 
 <template>
     <div v-if="!loading" class="flex flex-column p-2 gap-2">
-        <div class="flex flex-row gap-2 align-items-center">
-            <span>Main account:</span>
-            <span style="color: var(--text-secondary)">Select main account</span>
-        </div>
+        <h4>Accounts</h4>
+        <span style="color: var(--text-secondary)">Monthly stats are computed for all checking accounts, which are treated as main accounts.</span>
+
+        <br>
+
         <div class="flex flex-row gap-2 align-items-center">
             <span>Inflows:</span>
             <span>{{ vueHelper.displayAsCurrency(monthlyStats?.inflow!) }}</span>
@@ -52,7 +60,7 @@ async function loadStats() {
             <span>{{ vueHelper.displayAsCurrency(monthlyStats?.overflow!) }}</span>
         </div>
 
-        <div style="border-bottom: 1px solid var(--border-color)"></div>
+        <br>
 
         <div class="flex flex-row gap-2 align-items-center">
             <span>Savings:TBD</span>

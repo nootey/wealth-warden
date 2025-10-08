@@ -168,6 +168,41 @@ func (r *StatisticsRepository) FetchMonthlyTotals(
 	return rows, nil
 }
 
+func (r *StatisticsRepository) FetchMonthlyTotalsCheckingOnly(
+	tx *gorm.DB, userID int64, accountIDs []int64, year int,
+) ([]models.MonthlyTotalsRow, error) {
+	var rows []models.MonthlyTotalsRow
+
+	if len(accountIDs) == 0 {
+		return rows, nil
+	}
+
+	query := `
+	  SELECT
+	    EXTRACT(MONTH FROM txn_date)::int AS month,
+	    COALESCE(SUM(CASE WHEN transaction_type='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
+	    COALESCE(SUM(CASE WHEN transaction_type='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
+	    COALESCE(SUM(
+	      CASE
+	        WHEN transaction_type='income'  THEN amount
+	        WHEN transaction_type='expense' THEN -amount
+	        ELSE 0
+	      END
+	    ),0)::text AS net_text
+	  FROM transactions
+	  WHERE user_id = ?
+	    AND is_adjustment = false
+	    AND txn_date >= make_date(?,1,1)
+	    AND txn_date < make_date(?+1,1,1)
+	    AND account_id IN ?
+	  GROUP BY month
+	  ORDER BY month;
+	`
+
+	err := tx.Raw(query, userID, year, year, accountIDs).Scan(&rows).Error
+	return rows, err
+}
+
 func (r *StatisticsRepository) GetAvailableStatsYears(accID *int64, userID int64) ([]int64, error) {
 	var (
 		query string

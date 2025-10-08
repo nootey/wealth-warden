@@ -123,6 +123,10 @@ func (s *AccountService) FetchAllAccountTypes() ([]models.AccountType, error) {
 	return s.Repo.FindAllAccountTypes(nil, nil)
 }
 
+func (s *AccountService) FetchAccountsBySubtype(userID int64, subtype string) ([]models.Account, error) {
+	return s.Repo.FindAccountsBySubtype(nil, userID, subtype)
+}
+
 func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) error {
 
 	changes := utils.InitChanges()
@@ -210,7 +214,7 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		userID,
 		accountID,
 		models.DefaultCurrency,
-		asOf,                                    // from opening day
+		asOf, // from opening day
 		time.Now().UTC().Truncate(24*time.Hour), // to today
 	); err != nil {
 		tx.Rollback()

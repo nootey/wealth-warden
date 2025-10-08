@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"sort"
 	"time"
 	"wealth-warden/internal/models"
@@ -177,7 +178,7 @@ func (s *StatisticsService) GetAvailableStatsYears(accID *int64, userID int64) (
 	return s.Repo.GetAvailableStatsYears(accID, userID)
 }
 
-func (s *StatisticsService) GetCurrentMonthStats(userID int64) (*models.CurrentMonthStats, error) {
+func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64) (*models.CurrentMonthStats, error) {
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
 		return nil, tx.Error
@@ -193,7 +194,32 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64) (*models.CurrentM
 	year := now.Year()
 	month := int(now.Month())
 
-	mrows, err := s.Repo.FetchMonthlyTotals(tx, userID, nil, year)
+	var mrows []models.MonthlyTotalsRow
+	var err error
+
+	if accountID != nil {
+		mrows, err = s.Repo.FetchMonthlyTotals(tx, userID, accountID, year)
+	} else {
+		// Get checkings accounts first
+		accounts, errAcc := s.AccRepo.FindAccountsBySubtype(tx, userID, "checking")
+		if errAcc != nil {
+			tx.Rollback()
+			return nil, errAcc
+		}
+
+		if len(accounts) == 0 {
+			tx.Rollback()
+			return nil, fmt.Errorf("no checkings accounts found")
+		}
+
+		accountIDs := make([]int64, len(accounts))
+		for i, a := range accounts {
+			accountIDs[i] = a.ID
+		}
+
+		mrows, err = s.Repo.FetchMonthlyTotalsCheckingOnly(tx, userID, accountIDs, year)
+	}
+
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -226,7 +252,7 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64) (*models.CurrentM
 
 	return &models.CurrentMonthStats{
 		UserID:      userID,
-		AccountID:   nil,
+		AccountID:   accountID,
 		Currency:    models.DefaultCurrency,
 		Year:        year,
 		Month:       month,
