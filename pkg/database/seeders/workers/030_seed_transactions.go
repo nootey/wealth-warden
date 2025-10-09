@@ -81,25 +81,64 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 				maxBack = 1
 			}
 
+			class := acc.AccountType.Classification
+			var incomeProb float64
+			var dampWrong decimal.Decimal
+			var boostRight decimal.Decimal
+
+			switch class {
+			case "asset":
+				incomeProb = 0.65
+				dampWrong = decimal.NewFromFloat(0.5)
+				boostRight = decimal.NewFromFloat(1.0)
+			case "liability":
+				incomeProb = 0.30
+				dampWrong = decimal.NewFromFloat(0.5)
+				boostRight = decimal.NewFromFloat(1.15)
+			default:
+				incomeProb = 0.50
+				dampWrong = decimal.NewFromFloat(0.9)
+				boostRight = decimal.NewFromFloat(1.0)
+			}
+
 			for i := 0; i < perAcc; i++ {
 				daysAgo := rng.Intn(maxBack)
 				date := today.AddDate(0, 0, -daysAgo)
 
 				ttype := "expense"
-				if rng.Float64() < 0.40 {
+				if rng.Float64() < incomeProb {
 					ttype = "income"
 				}
 
 				amt := decimal.NewFromFloat(10 + rng.Float64()*5000).Round(2)
+				isRightDir := (class == "asset" && ttype == "income") || (class == "liability" && ttype == "expense")
+				if isRightDir {
+					amt = amt.Mul(boostRight).Round(2)
+				} else {
+					amt = amt.Mul(dampWrong).Round(2)
+				}
+				if amt.LessThanOrEqual(decimal.Zero) {
+					amt = decimal.NewFromInt(1)
+				}
 
 				// prevent asset accounts from going negative
-				if acc.AccountType.Classification == "asset" && ttype == "expense" {
+				if class == "asset" && ttype == "expense" {
 					if currBal.LessThanOrEqual(decimal.Zero) {
-						// no money left, force income txn instead
-						ttype = "income"
+						ttype = "income" // force inflow if nothing left
 					} else if amt.GreaterThan(currBal) {
-						// shrink expense to available balance
-						amt = currBal
+						amt = currBal // shrink expense to available balance
+					}
+				}
+				// liabilities should not go positive
+				if class == "liability" && ttype == "income" {
+					next := currBal.Add(amt)
+					if next.GreaterThan(decimal.Zero) {
+						capAmt := currBal.Abs().Mul(decimal.NewFromFloat(0.8)).Round(2)
+						if capAmt.LessThan(decimal.NewFromInt(1)) {
+							ttype = "expense"
+						} else {
+							amt = capAmt
+						}
 					}
 				}
 

@@ -100,7 +100,7 @@ const searchSubtype = (event: { query: string }) => {
   filteredSubtypeOptions.value = !q ? [...all] : all.filter(s => s.toLowerCase().startsWith(q));
 };
 
-const rules = {
+const rules = computed(() => ({
     record: {
         name: { required, $autoDirty: true },
         account_type: {
@@ -111,20 +111,20 @@ const rules = {
             start_balance: props.mode === "create" ? {
                 required,
                 decimalValid,
-                decimalMin: decimalMin(0),
+                ...(selectedClassification.value === "Asset" ? { decimalMin: decimalMin(0) } : {}),
                 decimalMax: decimalMax(1_000_000_000),
                 $autoDirty: true,
             } : {},
             end_balance: props.mode === "update" ? {
                 required,
                 decimalValid,
-                decimalMin: decimalMin(0),
+                ...(selectedClassification.value === "Asset" ? { decimalMin: decimalMin(0) } : {}),
                 decimalMax: decimalMax(1_000_000_000),
                 $autoDirty: true,
             } : {},
         },
     },
-};
+}));
 
 const v$ = useVuelidate(rules, { record });
 
@@ -386,7 +386,7 @@ async function manageRecord() {
             <label>Current balance</label>
           </ValidationError>
           <InputNumber :readonly="readOnly" :disabled="readOnly" size="small" v-model="balanceNumber"
-                       mode="currency" currency="EUR" locale="de-DE" :min="0"
+                       mode="currency" currency="EUR" locale="de-DE" :min="selectedClassification === 'Asset' ? 0 : -999999999999999"
                        placeholder="0,00 €" :minFractionDigits="2" :maxFractionDigits="2"
                        @update:model-value="balanceAdjusted = true">
           </InputNumber>
