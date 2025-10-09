@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, onUnmounted, ref} from 'vue'
+import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
 import Chart from 'primevue/chart'
 import type {ChartPoint} from "../../../models/chart_models.ts";
 
@@ -48,8 +48,44 @@ const { colors } = useChartColors();
 
 const chartRef = ref<any>(null);
 
+const mql = typeof window !== 'undefined'
+    ? window.matchMedia('(max-width: 640px)')
+    : ({ matches: false, addEventListener(){}, removeEventListener(){} } as any)
+
+const pinnedTooltipOnMobile = ref(mql.matches)
+
+const onMqlChange = (e: MediaQueryListEvent) => {
+    pinnedTooltipOnMobile.value = e.matches
+}
+
+onMounted(() => {
+    const pos = (Tooltip as any).positioners as Record<string, Function>
+    if (!pos.pinned) {
+        pos.pinned = function (items: any[]) {
+            const chart = items?.[0]?.chart
+            const area  = chart?.chartArea
+            if (!chart || !area) return { x: 0, y: 0 }
+            const padding = 12
+            const x = area.left + (area.right - area.left) / 2
+            const y = area.top + padding
+            return { x, y }
+        }
+    }
+
+    mql.addEventListener?.('change', onMqlChange)
+})
+
 onUnmounted(() => {
+    mql.removeEventListener?.('change', onMqlChange)
     chartRef.value?.chart?.destroy?.()
+})
+
+watch(pinnedTooltipOnMobile, (isMobile) => {
+    const chart = chartRef.value?.chart
+    if (!chart) return
+
+    chart.options.plugins.tooltip.position = isMobile ? 'pinned' : 'average'
+    chart.update('none')
 })
 
 const themeStore = useThemeStore();
@@ -135,13 +171,17 @@ const options = computed(() => ({
     responsive: true,
     maintainAspectRatio: false,
     parsing: { xAxisKey: 'date', yAxisKey: 'value' },
-    interaction: { mode: 'nearest', intersect: false },
+    interaction: { mode: 'index', intersect: false },
     events: ['mousemove', 'mouseout', 'touchstart', 'touchmove'],
     onClick: undefined,
 
     plugins: {
         legend: { display: false },
         tooltip: {
+            position: pinnedTooltipOnMobile.value ? 'pinned' : 'average',
+            xAlign: 'center',              // keeps it centered at the pinned x
+            yAlign: 'top',                 // keeps it pinned near the top
+            caretSize: 0,                  // cleaner look when pinned
             backgroundColor: colors.value.ttipBg,
             borderColor: colors.value.ttipBorder,
             borderWidth: 1,
@@ -251,7 +291,7 @@ const options = computed(() => ({
 <template>
     <Chart
             ref="chartRef"
-            :key="`nw-${themeStore.darkModeActive}-${dataPoints?.length}`"
+            :key="`nw-${themeStore.darkModeActive}-${dataPoints?.length}-${pinnedTooltipOnMobile}`"
             type="line"
             :data="data"
             :options="options"
