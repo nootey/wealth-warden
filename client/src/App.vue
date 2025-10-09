@@ -98,7 +98,7 @@ const isSettingsView = computed(() => route.path.startsWith('/settings'));
                         </template>
                     </div>
 
-                    <i class="mobile-hide pi pi-book hover-icon" style="margin-left: 0;"
+                    <i class="pi pi-book hover-icon" style="margin-left: 0;"
                        @click="sidebarRef?.toggle && sidebarRef.toggle()"/>
                 </div>
                 <router-view />

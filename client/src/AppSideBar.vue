@@ -1,5 +1,5 @@
 <template>
-    <Drawer v-model:visible="open" header="Monthly stats" position="right" style="width: 400px;">
+    <Drawer v-model:visible="open" header="Monthly stats" position="right" style="width: 100%; max-width: 420px;">
         <template #container="{ closeCallback }">
             <div class="flex flex-column h-full w-full p-2">
                 <div class="flex flex-row justify-content-between p-2">
@@ -27,7 +27,5 @@ defineExpose({ open, toggle });
 </script>
 
 <style scoped lang="scss">
-@media (max-width: 1400px) {
 
-}
 </style>
