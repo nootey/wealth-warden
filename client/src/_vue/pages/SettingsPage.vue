@@ -20,6 +20,7 @@ const items: SettingsMenuItem[] = [
     { name: 'settings.general',     label: 'General',     icon: 'pi-cog' , block: !hasPermission("root_access") },
     { name: 'settings.profile',     label: 'Profile',     icon: 'pi-user' },
     { name: 'settings.preferences', label: 'Preferences', icon: 'pi-cog' },
+    { name: 'settings.data', label: 'Data', icon: 'pi-eject' },
     { name: '', label: 'Transactions', separator: true, block: !hasPermission("manage_data") },
     { name: 'settings.accounts',    label: 'Accounts',    icon: 'pi-book', block: !hasPermission("manage_data") },
     { name: 'settings.categories',  label: 'Categories',  icon: 'pi-box', block: !hasPermission("manage_data") },

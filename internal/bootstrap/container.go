@@ -28,6 +28,7 @@ type Container struct {
 	ChartingService    *services.ChartingService
 	RoleService        *services.RolePermissionService
 	StatsService       *services.StatisticsService
+	ImportService      *services.ImportService
 }
 
 func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Container, error) {
@@ -53,6 +54,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	settingsRepo := repositories.NewSettingsRepository(db)
 	chartingRepo := repositories.NewChartingRepository(db)
 	statsRepo := repositories.NewStatisticsRepository(db)
+	importRepo := repositories.NewImportRepository(db)
 
 	// Initialize services
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
@@ -73,6 +75,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	settingsService := services.NewSettingsService(cfg, ctx, settingsRepo)
 	chartingService := services.NewChartingService(cfg, ctx, chartingRepo, accountRepo, transactionRepo)
 	statsService := services.NewStatisticsService(cfg, ctx, statsRepo, accountRepo, transactionRepo)
+	importService := services.NewImportService(cfg, ctx, importRepo)
 
 	return &Container{
 		Config:             cfg,
@@ -88,5 +91,6 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 		ChartingService:    chartingService,
 		RoleService:        roleService,
 		StatsService:       statsService,
+		ImportService:      importService,
 	}, nil
 }
