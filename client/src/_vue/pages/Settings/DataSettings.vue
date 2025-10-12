@@ -1,6 +1,7 @@
 <script setup lang="ts">
 
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
+import ImportModule from "../../features/ImportModule.vue";
 
 </script>
 
@@ -13,13 +14,9 @@ import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
                     <h5 style="color: var(--text-secondary)">Manage your imported data.</h5>
                 </div>
 
-                <div class="w-full flex flex-row gap-2">
-                    <Button class="main-button w-full" label="Import data" icon="pi pi-image"></Button>
-                </div>
+                <ImportModule />
 
-                <div class="w-full flex flex-row gap-2 justify-content-center">
-                    <span style="color: var(--text-secondary)"> No imports yet </span>
-                </div>
+
             </div>
         </SettingsSkeleton>
 
