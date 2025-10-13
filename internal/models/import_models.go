@@ -6,6 +6,7 @@ import (
 
 type Import struct {
 	ID          int64      `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name        string     `gorm:"size:128;not null" json:"name"`
 	UserID      int64      `gorm:"not null" json:"user_id"`
 	AccountID   int64      `gorm:"not null" json:"account_id"`
 	ImportType  string     `gorm:"not null" json:"import_type"`
@@ -24,7 +25,7 @@ type CustomImportPayload struct {
 }
 
 type ImportTotals struct {
-	Inflow      string  `json:"inflow"`
+	Inflow      string  `json:"income"`
 	Expense     string  `json:"expense"`
 	Investments string  `json:"investments"`
 	Savings     *string `json:"savings"`

@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
@@ -25,6 +27,24 @@ func NewImportHandler(
 		Service: service,
 		v:       v,
 	}
+}
+
+func (h *ImportHandler) GetImportsByImportType(c *gin.Context) {
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	importType := c.Param("import_type")
+
+	records, err := h.Service.FetchImportsByImportType(userID, importType)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, records)
 }
 
 func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
@@ -59,7 +79,7 @@ func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 		}
 
 		tt := strings.ToLower(t.TransactionType)
-		if tt != "inflow" && tt != "expense" && tt != "investments" && tt != "savings" {
+		if tt != "income" && tt != "expense" && tt != "investments" && tt != "savings" {
 			utils.ErrorMessage(c, "Validation Error",
 				fmt.Sprintf("Transaction[%d]: invalid transaction_type '%s'", i, tt),
 				http.StatusBadRequest, nil)
@@ -90,5 +110,65 @@ func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 }
 
 func (h *ImportHandler) ImportFromJSON(c *gin.Context) {
-	
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	checkAccIDStr := c.Query("check_acc_id")
+	investAccIDStr := c.Query("invest_acc_id")
+	if checkAccIDStr == "" || investAccIDStr == "" {
+		utils.ErrorMessage(c, "param error", "missing account ids", http.StatusBadRequest, nil)
+		return
+	}
+
+	checkAccID, err := strconv.ParseInt(checkAccIDStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "check acc id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+	investAccID, err := strconv.ParseInt(investAccIDStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "invest acc id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	var payload models.CustomImportPayload
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+
+	ct := c.GetHeader("Content-Type")
+	if strings.HasPrefix(ct, "multipart/form-data") {
+		fileHeader, err := c.FormFile("file")
+		if err != nil {
+			utils.ErrorMessage(c, "Invalid upload", "file is required", http.StatusBadRequest, err)
+			return
+		}
+
+		f, err := fileHeader.Open()
+		if err != nil {
+			utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
+			return
+		}
+		defer f.Close()
+
+		dec := json.NewDecoder(f)
+		if err := dec.Decode(&payload); err != nil {
+			utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+			return
+		}
+	} else {
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+			return
+		}
+	}
+
+	if err := h.Service.ImportFromJSON(userID, checkAccID, investAccID, payload); err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "JSON import successful", "Success", http.StatusOK)
 }

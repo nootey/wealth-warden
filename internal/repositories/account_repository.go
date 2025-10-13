@@ -188,6 +188,32 @@ func (r *AccountRepository) FindAccountsBySubtype(tx *gorm.DB, userID int64, sub
 	return records, err
 }
 
+func (r *AccountRepository) FetchAccountsByType(tx *gorm.DB, userID int64, t string, activeOnly bool) ([]models.Account, error) {
+
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var records []models.Account
+
+	query := db.
+		Model(&models.Account{}).
+		Joins(`JOIN account_types AS at ON at.id = accounts.account_type_id`).
+		Where(`at.type = ? AND accounts.user_id = ?`, t, userID)
+
+	if activeOnly {
+		query = query.Where(`accounts.is_active = ?`, true)
+	}
+
+	err := query.
+		Preload("AccountType").
+		Find(&records).
+		Error
+
+	return records, err
+}
+
 func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID int64, withBalance bool) (*models.Account, error) {
 	db := tx
 	if db == nil {

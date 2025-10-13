@@ -127,6 +127,10 @@ func (s *AccountService) FetchAccountsBySubtype(userID int64, subtype string) ([
 	return s.Repo.FindAccountsBySubtype(nil, userID, subtype, false)
 }
 
+func (s *AccountService) FetchAccountsByType(userID int64, t string) ([]models.Account, error) {
+	return s.Repo.FetchAccountsByType(nil, userID, t, false)
+}
+
 func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) error {
 
 	changes := utils.InitChanges()
@@ -703,4 +707,58 @@ func (s *AccountService) materializeTodaySnapshot(
 		from = today
 	}
 	return s.Repo.UpsertSnapshotsFromBalances(tx, userID, accountID, currency, from, today)
+}
+
+func (s *AccountService) FrontfillBalancesFrom(
+	tx *gorm.DB, accountID int64, from time.Time,
+) error {
+	db := tx
+	if db == nil {
+		db = s.Repo.DB
+	}
+	from = from.UTC().Truncate(24 * time.Hour)
+
+	var seed struct{ EndBalance decimal.Decimal }
+	if err := db.
+		Model(&models.Balance{}).
+		Select("end_balance").
+		Where("account_id = ? AND as_of < ?", accountID, from).
+		Order("as_of DESC").
+		Limit(1).
+		Scan(&seed).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	prevEnd := seed.EndBalance
+
+	var ids []int64
+	if err := db.
+		Model(&models.Balance{}).
+		Where("account_id = ? AND as_of >= ?", accountID, from).
+		Order("as_of ASC").
+		Pluck("id", &ids).Error; err != nil {
+		return err
+	}
+
+	for _, id := range ids {
+		if err := db.Model(&models.Balance{}).
+			Where("id = ?", id).
+			Updates(map[string]any{
+				"start_balance": prevEnd,
+				"updated_at":    time.Now(),
+			}).Error; err != nil {
+			return err
+		}
+
+		var eb struct{ EndBalance decimal.Decimal }
+		if err := db.
+			Model(&models.Balance{}).
+			Select("end_balance").
+			Where("id = ?", id).
+			First(&eb).Error; err != nil {
+			return err
+		}
+		prevEnd = eb.EndBalance
+	}
+
+	return nil
 }

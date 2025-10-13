@@ -2,6 +2,7 @@
 
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
 import ImportModule from "../../features/ImportModule.vue";
+import ImportList from "../../components/data/ImportList.vue";
 
 </script>
 
@@ -16,6 +17,8 @@ import ImportModule from "../../features/ImportModule.vue";
 
                 <ImportModule />
 
+                <h3>Imports</h3>
+                <ImportList />
 
             </div>
         </SettingsSkeleton>

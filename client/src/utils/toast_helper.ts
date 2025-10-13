@@ -15,14 +15,12 @@ const toastHelper = {
     formatInfoToast(title: string, msg: string) {
         let message = {
             'data': {
-                'messages': {
-                    'info': [] as string[]
-                },
+                'message': {},
                 'title': {}
             }
         }
         message['data']['title'] = title;
-        message['data']['messages']['info'].push(msg);
+        message['data']['message'] = msg;
         return message;
     },
     formatErrorToast(title: string, msg: string){

@@ -123,7 +123,7 @@ func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
 
 }
 
-func (h *AccountHandler) GetAccountBySubtype(c *gin.Context) {
+func (h *AccountHandler) GetAccountsBySubtype(c *gin.Context) {
 
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
@@ -139,6 +139,30 @@ func (h *AccountHandler) GetAccountBySubtype(c *gin.Context) {
 	}
 
 	records, err := h.Service.FetchAccountsBySubtype(userID, sub)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, records)
+
+}
+
+func (h *AccountHandler) GetAccountsByType(c *gin.Context) {
+
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	t := c.Param("type")
+	if t == "" {
+		err := errors.New("invalid type provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	records, err := h.Service.FetchAccountsByType(userID, t)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

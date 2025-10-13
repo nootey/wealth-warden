@@ -12,3 +12,14 @@ export type CustomImportValidationResponse = {
     sample: TxnSample;
     valid: boolean;
 }
+
+export type Import = {
+    user_id: number;
+    account_id: number;
+    name: string;
+    status: string;
+    import_type: string;
+    currency: string;
+    started_at: Date;
+    completed_at: Date | null;
+}

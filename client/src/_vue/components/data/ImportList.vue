@@ -1,0 +1,61 @@
+<script setup lang="ts">
+
+import type {Import} from "../../../models/dataio_models.ts";
+import {computed, onMounted, ref} from "vue";
+import {useDataStore} from "../../../services/stores/data_store.ts";
+import {useToastStore} from "../../../services/stores/toast_store.ts";
+import LoadingSpinner from "../base/LoadingSpinner.vue";
+import vueHelper from "../../../utils/vue_helper.ts";
+import type {Column} from "../../../services/filter_registry.ts";
+
+const dataStore = useDataStore();
+const toastStore = useToastStore();
+
+const imports = ref<Import[]>([]);
+const loading = ref(false);
+
+onMounted(async () => {
+    try {
+        imports.value = await dataStore.getImports("custom");
+    } catch (e) {
+        toastStore.errorResponseToast(e)
+    }
+})
+
+const activeColumns = computed<Column[]>(() => [
+    { field: 'name', header: 'Name'},
+    { field: 'import_type', header: 'Type'},
+    { field: 'status', header: 'Status'},
+    { field: 'currency', header: 'Currency'},
+    { field: 'started_at', header: 'Started'},
+    { field: 'completed_at', header: 'Completed'},
+]);
+
+</script>
+
+<template>
+    <div class="w-full flex flex-row gap-2 justify-content-center">
+        <DataTable dataKey="id" class="w-full enhanced-table" :loading="loading" :value="imports"
+                   scrollable scroll-height="50vh" columnResizeMode="fit"
+                   scrollDirection="both">
+            <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
+            <template #loading> <LoadingSpinner></LoadingSpinner> </template>
+            <Column v-for="col of activeColumns" :key="col.field" :header="col.header" :field="col.field"
+                    :headerClass="col.hideOnMobile ? 'mobile-hide ' : ''"
+                    :bodyClass="col.hideOnMobile ? 'mobile-hide ' : ''">
+                <template #body="{ data, field }">
+                    <template v-if="field === 'amount'">
+                        {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
+                    </template>
+                    <template v-else>
+                        {{ data[field] }}
+                    </template>
+                </template>
+            </Column>
+        </DataTable>
+    </div>
+</template>
+
+<style scoped>
+
+</style>

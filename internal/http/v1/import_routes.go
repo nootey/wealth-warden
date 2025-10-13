@@ -8,6 +8,7 @@ import (
 )
 
 func ImportRoutes(apiGroup *gin.RouterGroup, handler *handlers.ImportHandler) {
+	apiGroup.GET("/:import_type", authz.RequireAllMW("view_data"), handler.GetImportsByImportType)
 	apiGroup.POST("custom/validate", authz.RequireAllMW("manage_data"), handler.ValidateCustomImport)
 	apiGroup.POST("custom/json", authz.RequireAllMW("manage_data"), handler.ImportFromJSON)
 }

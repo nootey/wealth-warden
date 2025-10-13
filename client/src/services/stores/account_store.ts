@@ -35,6 +35,14 @@ export const useAccountStore = defineStore('account', {
                 throw err;
             }
         },
+        async getAccountsByType(type: string) {
+            try {
+                const response = await apiClient.get(`${this.apiPrefix}/type/${type}`);
+                return response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
         async toggleActiveState(id: number) {
             try {
                 return await apiClient.post(`${this.apiPrefix}/${id}/active`);
