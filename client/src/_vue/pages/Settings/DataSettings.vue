@@ -3,6 +3,13 @@
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
 import ImportModule from "../../features/ImportModule.vue";
 import ImportList from "../../components/data/ImportList.vue";
+import {ref} from "vue";
+
+const importListRef = ref<InstanceType<typeof ImportList> | null>(null);
+
+async function updateList() {
+    importListRef.value?.refresh();
+}
 
 </script>
 
@@ -15,10 +22,10 @@ import ImportList from "../../components/data/ImportList.vue";
                     <h5 style="color: var(--text-secondary)">Manage your imported data.</h5>
                 </div>
 
-                <ImportModule />
+                <ImportModule @completeImport="updateList"/>
 
                 <h3>Imports</h3>
-                <ImportList />
+                <ImportList ref="importListRef" />
 
             </div>
         </SettingsSkeleton>

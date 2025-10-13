@@ -13,6 +13,7 @@ CREATE TABLE imports (
     error TEXT,
 
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     started_at TIMESTAMPTZ NULL,
     completed_at TIMESTAMPTZ NULL,
 

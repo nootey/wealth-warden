@@ -26,14 +26,14 @@ export const useDataStore = defineStore('data', {
             }
         },
 
-        async importFromJSON(file: File, checkID: number, investID: number) {
+        async importFromJSON(file: File, checkID: number) {
             const form = new FormData();
             form.append("file", file);
 
             const { data } = await apiClient.post(
                 `${this.importPrefix}/custom/json`,
                 form,
-                { params: { check_acc_id: checkID, invest_acc_id: investID } }
+                { params: { check_acc_id: checkID } }
             );
             return data;
         },

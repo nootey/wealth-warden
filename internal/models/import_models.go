@@ -13,6 +13,7 @@ type Import struct {
 	Status      string     `gorm:"not null" json:"status"`
 	Currency    string     `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 	StartedAt   *time.Time `json:"started_at"`
 	CompletedAt *time.Time `json:"completed_at"`
 }

@@ -9,34 +9,29 @@ import ShowLoading from "../components/base/ShowLoading.vue";
 import {useAccountStore} from "../../services/stores/account_store.ts";
 import type {Account} from "../../models/account_models.ts";
 
+const emit = defineEmits<{
+    (e: 'completeImport'): void;
+}>();
+
 const dataStore = useDataStore();
 const toastStore = useToastStore();
 const accStore = useAccountStore();
 
 const checkingAccs = ref<Account[]>([]);
-const investmentAccs = ref<Account[]>([]);
 const selectedCheckingAcc = ref<Account | null>(null);
-const selectedInvestmentAcc = ref<Account | null>(null);
 const filteredCheckingAccs = ref<Account[]>([]);
-const filteredInvestmentAccs = ref<Account[]>([]);
 
 const lists: Record<string, Ref<Account[]>> = {
     checking: checkingAccs,
-    investment: investmentAccs,
 };
 
 const filteredLists: Record<string, Ref<Account[]>> = {
     checking: filteredCheckingAccs,
-    investment: filteredInvestmentAccs,
 };
 
 onMounted(async () => {
     try {
         checkingAccs.value = await accStore.getAccountsBySubtype("checking");
-        investmentAccs.value = await accStore.getAccountsByType("investment");
-        if (investmentAccs.value.length == 0) {
-            toastStore.infoResponseToast(toastHelper.formatInfoToast("No accounts", "Please create at least one checking account"));
-        }
         if (checkingAccs.value.length == 0) {
             toastStore.infoResponseToast(toastHelper.formatInfoToast("No accounts", "Please create at least one checking account"));
         }
@@ -77,14 +72,13 @@ const onUpload = async () => {
         const res = await dataStore.importFromJSON(
             selectedFiles.value[0],
             selectedCheckingAcc.value?.id!,
-            selectedInvestmentAcc.value?.id!
         );
+        emit("completeImport");
         toastStore.successResponseToast(res);
         selectedFiles.value = [];
         fileValidated.value = false;
         validatedResponse.value = null;
         selectedCheckingAcc.value = null;
-        selectedInvestmentAcc.value = null;
     } catch (error) {
         toastStore.errorResponseToast(error);
     } finally {
@@ -118,7 +112,7 @@ function searchAccount(event: { query: string }, accType: string) {
 <template>
     <div class="flex flex-column w-full gap-3 p-1">
         <h3>Create a new import</h3>
-        <span v-if="investmentAccs.length == 0 || checkingAccs.length == 0" style="color: var(--text-secondary)">At least one checking and investment account is required to proceed!</span>
+        <span v-if="checkingAccs.length == 0" style="color: var(--text-secondary)">At least one checking account is required to proceed!</span>
         <FileUpload v-if="!importing" ref="uploadImportRef" accept=".json, application/json"
                     :maxFileSize="10485760" :multiple="false"
                     customUpload
@@ -128,16 +122,16 @@ function searchAccount(event: { query: string }, accType: string) {
             <template #header="{ chooseCallback }" class="w-full">
                 <div class="w-full flex flex-wrap justify-content-between gap-3">
                     <Button class="main-button" @click="chooseCallback()"
-                            :disabled="investmentAccs.length == 0 || checkingAccs.length == 0"
+                            :disabled="checkingAccs.length == 0"
                             label="Upload" />
                     <Button v-if="!fileValidated" class="main-button"
                             @click="validateFile"
-                            :disabled="selectedFiles.length === 0 || (investmentAccs.length == 0 || checkingAccs.length == 0)"
+                            :disabled="selectedFiles.length === 0 || checkingAccs.length == 0"
                             label="Validate"
                     />
                     <Button v-if="fileValidated" class="main-button"
                             @click="onUpload"
-                            :disabled="selectedFiles.length === 0 || (investmentAccs.length == 0 || checkingAccs.length == 0) || (!selectedCheckingAcc || !selectedInvestmentAcc)"
+                            :disabled="selectedFiles.length === 0 || checkingAccs.length == 0 || !selectedCheckingAcc"
                             label="Import"
                     />
 
@@ -194,22 +188,14 @@ function searchAccount(event: { query: string }, accType: string) {
 
                         <div class="flex flex-row w-full p-2 gap-2 align-items-center">
                             <span style="color: var(--text-secondary)">
-                                Select which checking and investment accounts will receive the data from the import.
+                                Select which checking account will receive the data from the import.
                             </span>
-                            <div class="flex flex-column gap-1 w-6">
+                            <div class="flex flex-column gap-1 w-full">
                                 <label>Checking account</label>
                                 <AutoComplete size="small"
                                               v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
                                               @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
                                               placeholder="Select checking account" dropdown>
-                                </AutoComplete>
-                            </div>
-                            <div class="flex flex-column gap-1 w-6">
-                                <label>Investment account</label>
-                                <AutoComplete size="small"
-                                              v-model="selectedInvestmentAcc" :suggestions="filteredInvestmentAccs"
-                                              @complete="searchAccount($event, 'investment')" optionLabel="name" forceSelection
-                                              placeholder="Select investment account" dropdown>
                                 </AutoComplete>
                             </div>
                         </div>

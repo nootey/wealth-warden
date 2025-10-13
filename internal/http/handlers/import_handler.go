@@ -117,8 +117,7 @@ func (h *ImportHandler) ImportFromJSON(c *gin.Context) {
 	}
 
 	checkAccIDStr := c.Query("check_acc_id")
-	investAccIDStr := c.Query("invest_acc_id")
-	if checkAccIDStr == "" || investAccIDStr == "" {
+	if checkAccIDStr == "" {
 		utils.ErrorMessage(c, "param error", "missing account ids", http.StatusBadRequest, nil)
 		return
 	}
@@ -126,11 +125,6 @@ func (h *ImportHandler) ImportFromJSON(c *gin.Context) {
 	checkAccID, err := strconv.ParseInt(checkAccIDStr, 10, 64)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", "check acc id must be a valid integer", http.StatusBadRequest, err)
-		return
-	}
-	investAccID, err := strconv.ParseInt(investAccIDStr, 10, 64)
-	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "invest acc id must be a valid integer", http.StatusBadRequest, err)
 		return
 	}
 
@@ -165,7 +159,7 @@ func (h *ImportHandler) ImportFromJSON(c *gin.Context) {
 		}
 	}
 
-	if err := h.Service.ImportFromJSON(userID, checkAccID, investAccID, payload); err != nil {
+	if err := h.Service.ImportFromJSON(userID, checkAccID, payload); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

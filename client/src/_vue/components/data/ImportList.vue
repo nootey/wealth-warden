@@ -7,6 +7,7 @@ import {useToastStore} from "../../../services/stores/toast_store.ts";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import type {Column} from "../../../services/filter_registry.ts";
+import dateHelper from "../../../utils/date_helper.ts";
 
 const dataStore = useDataStore();
 const toastStore = useToastStore();
@@ -15,12 +16,20 @@ const imports = ref<Import[]>([]);
 const loading = ref(false);
 
 onMounted(async () => {
+        await getData()
+})
+
+async function getData() {
     try {
         imports.value = await dataStore.getImports("custom");
     } catch (e) {
         toastStore.errorResponseToast(e)
     }
-})
+}
+
+function refresh() { getData(); }
+
+defineExpose({ refresh });
 
 const activeColumns = computed<Column[]>(() => [
     { field: 'name', header: 'Name'},
@@ -46,6 +55,9 @@ const activeColumns = computed<Column[]>(() => [
                 <template #body="{ data, field }">
                     <template v-if="field === 'amount'">
                         {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
+                    </template>
+                    <template v-else-if="field === 'started_at' || field === 'completed_at'">
+                        {{ dateHelper.formatDate(data[field], true) }}
                     </template>
                     <template v-else>
                         {{ data[field] }}
