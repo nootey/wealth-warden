@@ -304,6 +304,9 @@ func (r *AccountRepository) UpdateAccount(tx *gorm.DB, record *models.Account) (
 		updates["account_type_id"] = record.AccountTypeID
 	}
 	updates["is_active"] = record.IsActive
+	if !record.OpenedAt.IsZero() {
+		updates["opened_at"] = record.OpenedAt
+	}
 
 	db.Model(&models.Account{}).Where("id = ?", record.ID).Updates(updates)
 

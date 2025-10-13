@@ -15,6 +15,8 @@ import {useConfirm} from "primevue/useconfirm";
 import toastHelper from "../../../utils/toast_helper.ts";
 import Decimal from "decimal.js";
 import ShowLoading from "../base/ShowLoading.vue";
+import dayjs from "dayjs";
+import dateHelper from "../../../utils/date_helper.ts";
 
 const props = defineProps<{
     mode?: "create" | "update";
@@ -106,6 +108,10 @@ const rules = computed(() => ({
         account_type: {
             type: { required, $autoDirty: true },
             sub_type: { required, $autoDirty: true },
+        },
+        opened_at: {
+            required,
+            $autoDirty: true,
         },
         balance: {
             start_balance: props.mode === "create" ? {
@@ -207,6 +213,7 @@ function initData(): Account {
     id: null,
     name: "",
     is_active: true,
+    opened_at: dayjs().toDate(),
     closed_at: null,
     account_type: {
       id: null,
@@ -234,6 +241,7 @@ async function loadRecord(id: number) {
         record.value = {
             ...initData(),
             ...data,
+            opened_at: data.opened_at ? dayjs(data.opened_at).toDate() : dayjs().toDate(),
         };
 
         selectedClassification.value = vueHelper.capitalize(
@@ -307,12 +315,15 @@ async function manageRecord() {
             ? record.value.balance.start_balance
             : record.value.balance.end_balance
 
+    const opened_at = dateHelper.mergeDateWithCurrentTime(dayjs(record.value.opened_at).format('YYYY-MM-DD'))
+
     const recordData: any = {
         account_type_id: at.id,
         name: record.value.name,
         type: at.type,
         sub_type: at.sub_type,
         classification: at.classification,
+        opened_at: opened_at,
     }
 
     if (props.mode === "create") {
@@ -423,6 +434,17 @@ async function manageRecord() {
               </template>
             </AutoComplete>
           </div>
+        </div>
+
+        <div class="flex flex-row w-full">
+            <div class="flex flex-column gap-1 w-full">
+                <ValidationError :isRequired="true" :message="v$.record.opened_at.$errors[0]?.$message">
+                    <label>Opening date</label>
+                </ValidationError>
+                <DatePicker v-model="record.opened_at" date-format="dd/mm/yy"
+                            showIcon fluid iconDisplay="input" size="small"
+                />
+            </div>
         </div>
 
         <div class="flex flex-row gap-2 w-full">

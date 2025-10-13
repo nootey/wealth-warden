@@ -165,6 +165,19 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		}
 	}()
 
+	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't fetch user settings %w", err)
+	}
+
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	openedAt := req.OpenedAt.UTC()
+
 	accType, err := s.Repo.FindAccountTypeByID(tx, req.AccountTypeID)
 	if err != nil {
 		return fmt.Errorf("can't find account_type for given id %w", err)
@@ -175,15 +188,19 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		Currency:      models.DefaultCurrency,
 		AccountTypeID: accType.ID,
 		UserID:        userID,
+		OpenedAt:      openedAt,
 	}
 
 	balanceAmountString := req.Balance.StringFixed(2)
+	dateStr := account.OpenedAt.UTC().Format(time.RFC3339)
 
 	utils.CompareChanges("", account.Name, changes, "name")
 	utils.CompareChanges("", accType.Type, changes, "account_type")
 	utils.CompareChanges("", accType.Subtype, changes, "account_subtype")
 	utils.CompareChanges("", account.Currency, changes, "currency")
 	utils.CompareChanges("", balanceAmountString, changes, "current_balance")
+	utils.CompareChanges("", balanceAmountString, changes, "current_balance")
+	utils.CompareChanges("", dateStr, changes, "opened_at")
 
 	accountID, err := s.Repo.InsertAccount(tx, account)
 	if err != nil {
@@ -259,6 +276,17 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 		}
 	}()
 
+	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't fetch user settings %w", err)
+	}
+
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
 	// Load record
 	exAcc, err := s.Repo.FindAccountByID(tx, id, userID, true)
 	if err != nil {
@@ -281,6 +309,10 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 		return fmt.Errorf("can't find account type with given id %w", err)
 	}
 
+	exDate := exAcc.OpenedAt.In(loc).Format("2006-01-02")
+	newDate := req.OpenedAt.In(loc).Format("2006-01-02")
+	updateOpenedAt := exDate != newDate
+
 	acc := &models.Account{
 		ID:            id,
 		Name:          req.Name,
@@ -296,6 +328,15 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 	utils.CompareChanges(exAccType.Type, newAccType.Type, changes, "account_type")
 	utils.CompareChanges(exAccType.Subtype, newAccType.Subtype, changes, "account_subtype")
 	utils.CompareChanges(exAcc.Currency, acc.Currency, changes, "currency")
+
+	if updateOpenedAt {
+		y, m, d := req.OpenedAt.In(loc).Date()
+		acc.OpenedAt = time.Date(y, m, d, 0, 0, 0, 0, loc).UTC()
+
+		utils.CompareChanges(exDate, newDate, changes, "opened_at")
+	} else {
+		acc.OpenedAt = time.Time{}
+	}
 
 	var delta decimal.Decimal
 
