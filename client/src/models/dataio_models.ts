@@ -11,6 +11,7 @@ export type CustomImportValidationResponse = {
     count: number;
     sample: TxnSample;
     valid: boolean;
+    categories: string[];
 }
 
 export type Import = {

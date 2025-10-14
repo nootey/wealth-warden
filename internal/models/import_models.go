@@ -19,10 +19,11 @@ type Import struct {
 }
 
 type CustomImportPayload struct {
-	Year        int          `json:"year"`
-	GeneratedAt time.Time    `json:"generated_at"`
-	Totals      ImportTotals `json:"totals"`
-	Txns        []JSONTxn    `json:"transactions"`
+	Year             int               `json:"year"`
+	GeneratedAt      time.Time         `json:"generated_at"`
+	Totals           ImportTotals      `json:"totals"`
+	Txns             []JSONTxn         `json:"transactions"`
+	CategoryMappings []CategoryMapping `json:"category_mappings"`
 }
 
 type ImportTotals struct {
@@ -39,4 +40,9 @@ type JSONTxn struct {
 	TxnDate         time.Time `json:"txn_date"`
 	Category        string    `json:"category"`
 	Description     string    `json:"description"`
+}
+
+type CategoryMapping struct {
+	Name       string `json:"name"`
+	CategoryID *int64 `json:"category_id"`
 }

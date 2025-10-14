@@ -1,8 +1,10 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -33,6 +35,62 @@ func NewImportService(
 		TxnRepo:    txnRepo,
 		accService: accService,
 	}
+}
+
+func (s *ImportService) ValidateCustomImport(payload *models.CustomImportPayload) ([]string, error) {
+	if payload.Year == 0 {
+		return nil, errors.New("missing or invalid 'year' field")
+	}
+
+	if payload.GeneratedAt.IsZero() {
+		return nil, errors.New("missing or invalid 'generated_at' field")
+	}
+
+	if len(payload.Txns) == 0 {
+		return nil, errors.New("no transactions found")
+	}
+
+	for _, t := range payload.Txns {
+		if t.TransactionType == "" {
+			return nil, errors.New("missing transaction_type")
+		}
+
+		tt := strings.ToLower(t.TransactionType)
+		if tt != "income" && tt != "expense" && tt != "investments" && tt != "savings" {
+			return nil, errors.New("invalid transaction_type")
+		}
+
+		if t.Amount == "" {
+			return nil, errors.New("missing amount")
+		}
+
+		if t.TxnDate.IsZero() {
+			return nil, errors.New("missing or invalid txn_date")
+		}
+	}
+
+	unique := make(map[string]bool)
+
+	for _, t := range payload.Txns {
+		tt := strings.ToLower(strings.TrimSpace(t.TransactionType))
+		if tt != "income" && tt != "expense" {
+			continue
+		}
+
+		cat := strings.TrimSpace(t.Category)
+		if cat == "" {
+			continue
+		}
+
+		unique[cat] = true
+	}
+
+	categories := make([]string, 0, len(unique))
+	for cat := range unique {
+		categories = append(categories, cat)
+	}
+
+	return categories, nil
 }
 
 func (s *ImportService) markImportFailed(importID int64) {
@@ -96,11 +154,38 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 
 		txnDate := txn.TxnDate.UTC().Truncate(24 * time.Hour)
 
+		var category models.Category
+		var found bool
+
+		for _, m := range payload.CategoryMappings {
+			if strings.EqualFold(strings.TrimSpace(m.Name), strings.TrimSpace(txn.Category)) {
+				if m.CategoryID != nil {
+					category, err = s.TxnRepo.FindCategoryByID(tx, *m.CategoryID, &userID, false)
+					if err != nil {
+						tx.Rollback()
+						return fmt.Errorf("can't find category id %d: %w", *m.CategoryID, err)
+					}
+					found = true
+				}
+				break
+			}
+		}
+
+		// Fallback if no mapping or category_id is nil
+		if !found {
+			category, err = s.TxnRepo.FindCategoryByClassification(tx, "uncategorized", &userID)
+			if err != nil {
+				tx.Rollback()
+				return fmt.Errorf("can't find default category: %w", err)
+			}
+		}
+
 		if txn.TransactionType == "income" || txn.TransactionType == "expense" {
 
 			t := models.Transaction{
 				UserID:          userID,
 				AccountID:       checkingAcc.ID,
+				CategoryID:      &category.ID,
 				TransactionType: txn.TransactionType,
 				Amount:          amount,
 				Currency:        models.DefaultCurrency,

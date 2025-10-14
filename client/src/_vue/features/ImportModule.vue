@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {onMounted, type Ref, ref} from "vue";
+import {computed, onMounted, type Ref, ref} from "vue";
 import {useDataStore} from "../../services/stores/data_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import toastHelper from "../../utils/toast_helper.ts";
@@ -8,6 +8,9 @@ import vueHelper from "../../utils/vue_helper.ts";
 import ShowLoading from "../components/base/ShowLoading.vue";
 import {useAccountStore} from "../../services/stores/account_store.ts";
 import type {Account} from "../../models/account_models.ts";
+import {useTransactionStore} from "../../services/stores/transaction_store.ts";
+import ImportCategoryMapping from "../components/base/ImportCategoryMapping.vue";
+import type {Category} from "../../models/transaction_models.ts";
 
 const emit = defineEmits<{
     (e: 'completeImport'): void;
@@ -16,6 +19,7 @@ const emit = defineEmits<{
 const dataStore = useDataStore();
 const toastStore = useToastStore();
 const accStore = useAccountStore();
+const transactionStore = useTransactionStore();
 
 const checkingAccs = ref<Account[]>([]);
 const selectedCheckingAcc = ref<Account | null>(null);
@@ -29,8 +33,20 @@ const filteredLists: Record<string, Ref<Account[]>> = {
     checking: filteredCheckingAccs,
 };
 
+const allCategories = computed<Category[]>(() => transactionStore.categories);
+const filteredCategories = computed(() =>
+    allCategories.value.filter(cat => {
+        const isTopLevel = cat.parent_id == null;
+        const isUncategorized = cat.name === '(uncategorized)';
+        return !isTopLevel || isUncategorized;
+    })
+);
+
+const categoryMappings = ref<Record<string, number | null>>({})
+
 onMounted(async () => {
     try {
+        await transactionStore.getCategories();
         checkingAccs.value = await accStore.getAccountsBySubtype("checking");
         if (checkingAccs.value.length == 0) {
             toastStore.infoResponseToast(toastHelper.formatInfoToast("No accounts", "Please create at least one checking account"));
@@ -69,11 +85,23 @@ const onUpload = async () => {
     if (!selectedFiles.value.length) return;
     importing.value = true;
     try {
-        const res = await dataStore.importFromJSON(
-            selectedFiles.value[0],
-            selectedCheckingAcc.value?.id!,
+        const fileText = await selectedFiles.value[0].text();
+        const filePayload = JSON.parse(fileText);
+
+        const categoryMappingsArray = Object.entries(categoryMappings.value).map(
+            ([name, id]) => ({
+                name,
+                category_id: id,
+            })
         );
+        const payload = {
+            ...filePayload,
+            category_mappings: categoryMappingsArray,
+        };
+        const res = await dataStore.importFromJSON(payload, selectedCheckingAcc.value?.id!);
+
         emit("completeImport");
+        
         toastStore.successResponseToast(res);
         selectedFiles.value = [];
         fileValidated.value = false;
@@ -105,6 +133,10 @@ function searchAccount(event: { query: string }, accType: string) {
     filteredLists[accType].value = q
         ? all.filter(a => a.name.toLowerCase().includes(q))
         : [...all];
+}
+
+function onSaveMapping(map: Record<string, number | null>) {
+    categoryMappings.value = map
 }
 
 </script>
@@ -158,46 +190,38 @@ function searchAccount(event: { query: string }, accType: string) {
                     </div>
 
                     <div v-if="validatedResponse" class="flex flex-column gap-2 w-full">
-                        <h4>Validation response</h4>
-                        <div class="flex flex-row gap-1 align-items-center">
-                            <span>Year: </span>
-                            <span>{{ validatedResponse.year }} </span>
-                        </div>
-                        <div class="flex flex-row gap-1 align-items-center">
-                            <span>Txn count: </span>
-                            <span>{{ validatedResponse.count }} </span>
-                        </div>
 
-                        <h4>Sample transaction</h4>
-                        <div class="flex flex-row gap-1 align-items-center">
-                            <span>Txn. type: </span>
-                            <span>{{ validatedResponse.sample.transaction_type }} </span>
-                        </div>
-                        <div class="flex flex-row gap-1 align-items-center">
-                            <span>Txn. amount: </span>
-                            <span>{{ vueHelper.displayAsCurrency(validatedResponse.sample.amount) }} </span>
-                        </div>
-                        <div class="flex flex-row gap-1 align-items-center">
-                            <span>Txn. category: </span>
-                            <span>{{ validatedResponse.sample.category }} </span>
-                        </div>
-                        <div class="flex flex-row gap-1 align-items-center">
-                            <span>Txn. description: </span>
-                            <span>{{ validatedResponse.sample.description }} </span>
+                        <div class="flex flex-row w-full align-items-center">
+                            <div class="flex flex-column w-6 p-2 gap-2 align-items-center">
+                                <h4>Validation response</h4>
+                                <div class="flex flex-row gap-1 align-items-center">
+                                    <span>Year: </span>
+                                    <span>{{ validatedResponse.year }} </span>
+                                </div>
+                                <div class="flex flex-row gap-1 align-items-center">
+                                    <span>Txn count: </span>
+                                    <span>{{ validatedResponse.count }} </span>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-column w-6 p-2 gap-2 align-items-center">
+                                <div class="flex flex-column gap-1 w-full">
+                                    <label>Checking account</label>
+                                    <AutoComplete size="small"
+                                                  v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
+                                                  @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
+                                                  placeholder="Select checking account" dropdown>
+                                    </AutoComplete>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="flex flex-row w-full p-2 gap-2 align-items-center">
-                            <span style="color: var(--text-secondary)">
-                                Select which checking account will receive the data from the import.
-                            </span>
-                            <div class="flex flex-column gap-1 w-full">
-                                <label>Checking account</label>
-                                <AutoComplete size="small"
-                                              v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
-                                              @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
-                                              placeholder="Select checking account" dropdown>
-                                </AutoComplete>
-                            </div>
+                            <ImportCategoryMapping
+                                    :importedCategories="validatedResponse.categories"
+                                    :appCategories="filteredCategories"
+                                    @save="onSaveMapping"
+                            />
                         </div>
 
                     </div>
