@@ -47,24 +47,29 @@ func (h *ImportHandler) GetImportsByImportType(c *gin.Context) {
 }
 
 func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
+
+	step := strings.ToLower(strings.TrimSpace(c.Query("step")))
+
 	var payload models.CustomImportPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		utils.ErrorMessage(c, "Invalid Request", "Invalid JSON format", http.StatusBadRequest, err)
 		return
 	}
 
-	categories, apiErr := h.Service.ValidateCustomImport(&payload)
+	categories, filteredCount, apiErr := h.Service.ValidateCustomImport(&payload, step)
 	if apiErr != nil {
 		utils.ErrorMessage(c, "Error occurred", apiErr.Error(), http.StatusInternalServerError, nil)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"valid":      true,
-		"year":       payload.Year,
-		"count":      len(payload.Txns),
-		"sample":     payload.Txns[0],
-		"categories": categories, // simple map[string][]string
+		"valid":          true,
+		"year":           payload.Year,
+		"count":          len(payload.Txns),
+		"filtered_count": filteredCount,
+		"sample":         payload.Txns[0],
+		"categories":     categories,
+		"step":           step,
 	})
 }
 

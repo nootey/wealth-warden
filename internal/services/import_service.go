@@ -38,66 +38,88 @@ func NewImportService(
 	}
 }
 
-func (s *ImportService) ValidateCustomImport(payload *models.CustomImportPayload) ([]string, error) {
+func (s *ImportService) ValidateCustomImport(payload *models.CustomImportPayload, step string) ([]string, int, error) {
+
 	if payload.Year == 0 {
-		return nil, errors.New("missing or invalid 'year' field")
+		return nil, 0, errors.New("missing or invalid 'year' field")
 	}
-
 	if payload.GeneratedAt.IsZero() {
-		return nil, errors.New("missing or invalid 'generated_at' field")
+		return nil, 0, errors.New("missing or invalid 'generated_at' field")
 	}
-
 	if len(payload.Txns) == 0 {
-		return nil, errors.New("no transactions found")
+		return nil, 0, errors.New("no transactions found")
 	}
 
 	for _, t := range payload.Txns {
 		if t.TransactionType == "" {
-			return nil, errors.New("missing transaction_type")
+			return nil, 0, errors.New("missing transaction_type")
 		}
-
-		tt := strings.ToLower(t.TransactionType)
+		tt := strings.ToLower(strings.TrimSpace(t.TransactionType))
 		if tt != "income" && tt != "expense" && tt != "investments" && tt != "savings" {
-			return nil, errors.New("invalid transaction_type")
+			return nil, 0, errors.New("invalid transaction_type")
 		}
-
 		if t.Amount == "" {
-			return nil, errors.New("missing amount")
+			return nil, 0, errors.New("missing amount")
 		}
-
 		if t.TxnDate.IsZero() {
-			return nil, errors.New("missing or invalid txn_date")
+			return nil, 0, errors.New("missing or invalid txn_date")
 		}
 	}
 
+	step = strings.ToLower(strings.TrimSpace(step))
+	if step == "" {
+		step = "cash"
+	}
+
+	allowed := map[string]bool{}
+	switch step {
+	case "cash":
+		allowed["income"] = true
+		allowed["expense"] = true
+	case "investment", "investments":
+		allowed["investments"] = true
+	default:
+		allowed["income"] = true
+		allowed["expense"] = true
+		step = "cash"
+	}
+
 	unique := make(map[string]bool)
+	filteredCount := 0
 
 	for _, t := range payload.Txns {
 		tt := strings.ToLower(strings.TrimSpace(t.TransactionType))
-		if tt != "income" && tt != "expense" {
+		if !allowed[tt] {
 			continue
 		}
+		filteredCount++
 
 		cat := strings.TrimSpace(t.Category)
-		if cat == "" {
-			continue
+		if cat != "" {
+			unique[cat] = true
 		}
-
-		unique[cat] = true
 	}
 
 	categories := make([]string, 0, len(unique))
 	for cat := range unique {
 		categories = append(categories, cat)
 	}
+	sort.Strings(categories)
 
-	return categories, nil
+	return categories, filteredCount, nil
 }
 
-func (s *ImportService) markImportFailed(importID int64) {
+func (s *ImportService) markImportFailed(importID int64, cause error) {
+
+	msg := ""
+	if cause != nil {
+		msg = cause.Error()
+	}
+
 	_ = s.Repo.UpdateImport(nil, importID, map[string]interface{}{
 		"status":       "failed",
 		"completed_at": nil,
+		"error":        msg,
 	})
 }
 
@@ -130,13 +152,14 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 	// create the import as PENDING
 	l.Info("creating import row", zap.String("status", "pending"))
 	started := time.Now().UTC()
-	importName := fmt.Sprintf("Custom import created on %s", started.Format("2006-01-02 15:04:05"))
+	importName := fmt.Sprintf("Custom - year: %d - txns: %d", payload.Year, len(payload.Txns))
 	importID, err := s.Repo.InsertImport(nil, models.Import{
 		Name:       importName,
 		UserID:     userID,
 		AccountID:  checkingAcc.ID,
 		ImportType: "custom",
 		Status:     "pending",
+		Step:       "cash",
 		Currency:   models.DefaultCurrency,
 		StartedAt:  &started,
 	})
@@ -153,7 +176,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 	defer func() {
 		if p := recover(); p != nil {
 			tx.Rollback()
-			s.markImportFailed(importID)
+			s.markImportFailed(importID, nil)
 			panic(p)
 		}
 	}()
@@ -168,7 +191,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 		amount, err := decimal.NewFromString(txn.Amount)
 		if err != nil {
 			tx.Rollback()
-			s.markImportFailed(importID)
+			s.markImportFailed(importID, err)
 			return fmt.Errorf("invalid amount %q: %w", txn.Amount, err)
 		}
 
@@ -183,7 +206,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 					category, err = s.TxnRepo.FindCategoryByID(tx, *m.CategoryID, &userID, false)
 					if err != nil {
 						tx.Rollback()
-						s.markImportFailed(importID)
+						s.markImportFailed(importID, err)
 						l.Error("can't find category id", zap.Error(err))
 						return fmt.Errorf(" %d: %w", *m.CategoryID, err)
 					}
@@ -198,7 +221,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 			category, err = s.TxnRepo.FindCategoryByClassification(tx, "uncategorized", &userID)
 			if err != nil {
 				tx.Rollback()
-				s.markImportFailed(importID)
+				s.markImportFailed(importID, err)
 				l.Error("can't find default category", zap.Error(err))
 				return fmt.Errorf(": %w", err)
 			}
@@ -220,7 +243,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 			if _, err := s.TxnRepo.InsertTransaction(tx, &t); err != nil {
 				l.Error("failed to insert transaction", zap.Error(err))
 				tx.Rollback()
-				s.markImportFailed(importID)
+				s.markImportFailed(importID, err)
 				return err
 			}
 
@@ -228,7 +251,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 			if err != nil {
 				l.Error("failed to update account balances", zap.Error(err))
 				tx.Rollback()
-				s.markImportFailed(importID)
+				s.markImportFailed(importID, err)
 				return err
 			}
 
@@ -250,7 +273,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 		frontfillFrom,
 	); err != nil {
 		tx.Rollback()
-		s.markImportFailed(importID)
+		s.markImportFailed(importID, err)
 		l.Error("failed to frontfill balances", zap.Error(err))
 		return err
 	}
@@ -261,7 +284,9 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 
 	if err := s.Repo.UpdateImport(nil, importID, map[string]interface{}{
 		"status":       "success",
+		"step":         "investments",
 		"completed_at": time.Now().UTC(),
+		"error":        "",
 	}); err != nil {
 		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
 	}

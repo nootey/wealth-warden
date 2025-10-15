@@ -6,9 +6,16 @@ import ImportList from "../../components/data/ImportList.vue";
 import {ref} from "vue";
 
 const importListRef = ref<InstanceType<typeof ImportList> | null>(null);
+const externalStep = ref<'1' | '2' | '3'>('1');
+const externalImportId = ref<string | null>(null);
 
 async function updateList() {
     importListRef.value?.refresh();
+}
+
+function onMigrateInvestments(id: string) {
+    externalImportId.value = id;
+    externalStep.value = '3';
 }
 
 </script>
@@ -22,10 +29,12 @@ async function updateList() {
                     <h5 style="color: var(--text-secondary)">Manage your imported data.</h5>
                 </div>
 
-                <ImportModule @completeImport="updateList"/>
+                <ImportModule :externalStep="externalStep"
+                              :externalImportId="externalImportId"
+                              @completeImport="updateList"/>
 
                 <h3>Imports</h3>
-                <ImportList ref="importListRef" />
+                <ImportList ref="importListRef" @migrateInvestments="onMigrateInvestments" />
 
             </div>
         </SettingsSkeleton>

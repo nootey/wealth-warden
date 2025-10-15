@@ -17,9 +17,12 @@ export const useDataStore = defineStore('data', {
             }
         },
 
-        async validateImport(importType: string, record: object) {
+        async validateImport(importType: string, record: object, importStep: string) {
             try {
-                const response = await apiClient.post(`${this.importPrefix}/${importType}/validate`, record);
+                const response = await apiClient.post(
+                    `${this.importPrefix}/${importType}/validate?step=${encodeURIComponent(importStep)}`,
+                    record
+                );
                 return response.data;
             } catch (err) {
                 throw err;

@@ -11,6 +11,7 @@ CREATE TABLE imports (
     status import_status_enum NOT NULL DEFAULT 'pending',
     currency CHAR(3) NOT NULL DEFAULT 'EUR',
     error TEXT,
+    step VARCHAR(64),
 
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

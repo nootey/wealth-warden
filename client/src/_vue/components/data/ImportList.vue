@@ -9,6 +9,10 @@ import vueHelper from "../../../utils/vue_helper.ts";
 import type {Column} from "../../../services/filter_registry.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 
+const emit = defineEmits<{
+    (e: 'migrateInvestments', importId: string): void;
+}>();
+
 const dataStore = useDataStore();
 const toastStore = useToastStore();
 
@@ -36,8 +40,7 @@ const activeColumns = computed<Column[]>(() => [
     { field: 'import_type', header: 'Type'},
     { field: 'status', header: 'Status'},
     { field: 'currency', header: 'Currency'},
-    { field: 'started_at', header: 'Started'},
-    { field: 'completed_at', header: 'Completed'},
+    { field: 'step', header: 'Step'},
 ]);
 
 </script>
@@ -49,6 +52,15 @@ const activeColumns = computed<Column[]>(() => [
                    scrollDirection="both">
             <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
             <template #loading> <LoadingSpinner></LoadingSpinner> </template>
+            <Column header="Actions">
+                <template #body="{ data }">
+                    <div class="flex flex-row align-items-center gap-2">
+                        <i v-if="data['step'] === 'investments'" class="pi pi-cart-plus hover-icon text-xs" v-tooltip="'Migrate investments'"
+                           @click="emit('migrateInvestments', data.id)"/>
+                        <i v-else>/</i>
+                    </div>
+                </template>
+            </Column>
             <Column v-for="col of activeColumns" :key="col.field" :header="col.header" :field="col.field"
                     :headerClass="col.hideOnMobile ? 'mobile-hide ' : ''"
                     :bodyClass="col.hideOnMobile ? 'mobile-hide ' : ''">

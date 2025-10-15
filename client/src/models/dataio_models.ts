@@ -9,7 +9,9 @@ type TxnSample = {
 export type CustomImportValidationResponse = {
     year: number;
     count: number;
+    filtered_count: number;
     sample: TxnSample;
+    step: string;
     valid: boolean;
     categories: string[];
 }
