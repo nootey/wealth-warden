@@ -240,6 +240,18 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 		return err
 	}
 
+	// forward-fill the balance chain when the txn is back-dated
+	from := tr.TxnDate.UTC().Truncate(24 * time.Hour)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	if from.Before(today) {
+		if err := s.AccountService.FrontfillBalancesForAccount(
+			tx, userID, account.ID, models.DefaultCurrency, from,
+		); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
