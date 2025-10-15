@@ -749,3 +749,29 @@ func (s *AccountService) materializeTodaySnapshot(
 	}
 	return s.Repo.UpsertSnapshotsFromBalances(tx, userID, accountID, currency, from, today)
 }
+
+func (s *AccountService) FrontfillBalancesForAccount(
+	tx *gorm.DB,
+	userID, accountID int64,
+	currency string,
+	from time.Time,
+) error {
+
+	from = from.UTC().Truncate(24 * time.Hour)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	if err := s.Repo.FrontfillBalances(tx, accountID, currency, from); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// recompute snapshots
+	if err := s.Repo.UpsertSnapshotsFromBalances(
+		tx, userID, accountID, currency, from, today,
+	); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return nil
+}

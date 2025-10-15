@@ -553,3 +553,36 @@ func (r *AccountRepository) GetAccountOpeningAsOf(
 	t := open.UTC().Truncate(24 * time.Hour)
 	return t, nil
 }
+
+func (r *AccountRepository) FrontfillBalances(
+	tx *gorm.DB,
+	accountID int64,
+	currency string,
+	from time.Time,
+) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	from = from.UTC().Truncate(24 * time.Hour)
+
+	return db.Exec(`
+		WITH lagged AS (
+			SELECT b.account_id, b.as_of,
+				   LAG(b.end_balance) OVER (
+					  PARTITION BY b.account_id ORDER BY b.as_of
+				   ) AS prev_end
+			FROM balances b
+			WHERE b.account_id = ? AND b.as_of >= (?::date - INTERVAL '1 day')
+		)
+		UPDATE balances AS b
+		SET start_balance = COALESCE(l.prev_end, 0),
+			updated_at    = NOW()
+		FROM lagged l
+		WHERE b.account_id = l.account_id
+		  AND b.as_of      = l.as_of
+		  AND b.account_id = ?
+		  AND b.as_of     >= ?::date
+	`, accountID, from, accountID, from).Error
+}

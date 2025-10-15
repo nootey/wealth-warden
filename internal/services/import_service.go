@@ -11,6 +11,7 @@ import (
 	"wealth-warden/pkg/config"
 
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
 type ImportService struct {
@@ -106,6 +107,15 @@ func (s *ImportService) FetchImportsByImportType(userID int64, importType string
 
 func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.CustomImportPayload) error {
 
+	start := time.Now().UTC()
+	l := s.Ctx.Logger.With(
+		zap.String("op", "ImportFromJSON"),
+		zap.Int64("user_id", userID),
+		zap.Int64("account_id", checkID),
+		zap.Int("import_year", payload.Year),
+	)
+	l.Info("started custom JSON import")
+
 	checkingAcc, err := s.accService.FetchAccountByID(userID, checkID, false)
 	if err != nil {
 		return err
@@ -118,6 +128,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 	}
 
 	// create the import as PENDING
+	l.Info("creating import row", zap.String("status", "pending"))
 	started := time.Now().UTC()
 	importName := fmt.Sprintf("Custom import created on %s", started.Format("2006-01-02 15:04:05"))
 	importID, err := s.Repo.InsertImport(nil, models.Import{
@@ -130,12 +141,12 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 		StartedAt:  &started,
 	})
 	if err != nil {
+		l.Error("failed to create import row", zap.Error(err))
 		return err
 	}
 
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
-		s.markImportFailed(importID)
 		return tx.Error
 	}
 
@@ -151,10 +162,13 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 		return payload.Txns[i].TxnDate.Before(payload.Txns[j].TxnDate)
 	})
 
+	l.Info("inserting transactions and updating balances")
 	for _, txn := range payload.Txns {
 
 		amount, err := decimal.NewFromString(txn.Amount)
 		if err != nil {
+			tx.Rollback()
+			s.markImportFailed(importID)
 			return fmt.Errorf("invalid amount %q: %w", txn.Amount, err)
 		}
 
@@ -169,7 +183,9 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 					category, err = s.TxnRepo.FindCategoryByID(tx, *m.CategoryID, &userID, false)
 					if err != nil {
 						tx.Rollback()
-						return fmt.Errorf("can't find category id %d: %w", *m.CategoryID, err)
+						s.markImportFailed(importID)
+						l.Error("can't find category id", zap.Error(err))
+						return fmt.Errorf(" %d: %w", *m.CategoryID, err)
 					}
 					found = true
 				}
@@ -182,7 +198,9 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 			category, err = s.TxnRepo.FindCategoryByClassification(tx, "uncategorized", &userID)
 			if err != nil {
 				tx.Rollback()
-				return fmt.Errorf("can't find default category: %w", err)
+				s.markImportFailed(importID)
+				l.Error("can't find default category", zap.Error(err))
+				return fmt.Errorf(": %w", err)
 			}
 		}
 
@@ -200,6 +218,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 			}
 
 			if _, err := s.TxnRepo.InsertTransaction(tx, &t); err != nil {
+				l.Error("failed to insert transaction", zap.Error(err))
 				tx.Rollback()
 				s.markImportFailed(importID)
 				return err
@@ -207,6 +226,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 
 			err := s.accService.UpdateAccountCashBalance(tx, checkingAcc, t.TxnDate, t.TransactionType, t.Amount)
 			if err != nil {
+				l.Error("failed to update account balances", zap.Error(err))
 				tx.Rollback()
 				s.markImportFailed(importID)
 				return err
@@ -215,8 +235,27 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 		}
 	}
 
-	if err := tx.Commit().Error; err != nil {
+	frontfillFrom := payload.Txns[0].TxnDate.UTC().Truncate(24 * time.Hour)
+	l.Info("frontfilling balances",
+		zap.Int64("import_id", importID),
+		zap.Time("from", frontfillFrom),
+		zap.String("currency", models.DefaultCurrency),
+	)
+
+	if err := s.accService.FrontfillBalancesForAccount(
+		tx,
+		userID,
+		checkingAcc.ID,
+		models.DefaultCurrency,
+		frontfillFrom,
+	); err != nil {
+		tx.Rollback()
 		s.markImportFailed(importID)
+		l.Error("failed to frontfill balances", zap.Error(err))
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
@@ -226,6 +265,12 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 	}); err != nil {
 		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
 	}
+
+	l.Info("import completed successfully",
+		zap.Int64("import_id", importID),
+		zap.Duration("elapsed", time.Since(start)),
+		zap.String("status", "success"),
+	)
 
 	return nil
 }
