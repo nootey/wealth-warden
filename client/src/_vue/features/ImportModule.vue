@@ -4,13 +4,13 @@ import {useDataStore} from "../../services/stores/data_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import toastHelper from "../../utils/toast_helper.ts";
 import type { CustomImportValidationResponse } from "../../models/dataio_models"
-import vueHelper from "../../utils/vue_helper.ts";
 import ShowLoading from "../components/base/ShowLoading.vue";
 import {useAccountStore} from "../../services/stores/account_store.ts";
 import type {Account} from "../../models/account_models.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
 import ImportCategoryMapping from "../components/base/ImportCategoryMapping.vue";
 import type {Category} from "../../models/transaction_models.ts";
+import dayjs from "dayjs";
 
 const emit = defineEmits<{
     (e: 'completeImport'): void;
@@ -139,6 +139,15 @@ function onSaveMapping(map: Record<string, number | null>) {
     categoryMappings.value = map
 }
 
+function checkCheckingAccDateValidity(): boolean {
+
+    const openedAtYear = dayjs(selectedCheckingAcc.value?.opened_at).year()
+    const responseYear = validatedResponse.value?.year!
+
+    return openedAtYear >= responseYear;
+
+}
+
 </script>
 
 <template>
@@ -163,7 +172,7 @@ function onSaveMapping(map: Record<string, number | null>) {
                     />
                     <Button v-if="fileValidated" class="main-button"
                             @click="onUpload"
-                            :disabled="selectedFiles.length === 0 || checkingAccs.length == 0 || !selectedCheckingAcc"
+                            :disabled="selectedFiles.length === 0 || checkingAccs.length == 0 || !selectedCheckingAcc || checkCheckingAccDateValidity()"
                             label="Import"
                     />
 
@@ -212,6 +221,15 @@ function onSaveMapping(map: Record<string, number | null>) {
                                                   @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
                                                   placeholder="Select checking account" dropdown>
                                     </AutoComplete>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-column w-6 p-2 gap-2 align-items-center">
+                                <div class="flex flex-column gap-1 w-full">
+                                    <label>Account status</label>
+                                    <span v-if="!selectedCheckingAcc" style="color: var(--text-secondary)">Please select an account.</span>
+                                    <span v-else-if="checkCheckingAccDateValidity()" style="color: var(--text-secondary)">Account was opened after the year of this import!</span>
+                                    <span v-else style="color: var(--text-secondary)">Account's opening date is valid.</span>
                                 </div>
                             </div>
                         </div>

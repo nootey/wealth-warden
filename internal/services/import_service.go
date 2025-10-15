@@ -111,6 +111,12 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 		return err
 	}
 
+	openedYear := checkingAcc.OpenedAt.Year()
+
+	if openedYear >= payload.Year {
+		return fmt.Errorf("account opened in %d cannot import data for year %d or earlier", openedYear, payload.Year)
+	}
+
 	// create the import as PENDING
 	started := time.Now().UTC()
 	importName := fmt.Sprintf("Custom import created on %s", started.Format("2006-01-02 15:04:05"))
