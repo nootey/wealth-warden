@@ -27,7 +27,6 @@ const accStore = useAccountStore();
 const transactionStore = useTransactionStore();
 
 const activeStep = ref<'1' | '2' | '3'>('1');
-const selectedImportIdForInvestments = ref<string | null>(null);
 
 watch(
     () => props.externalStep,
@@ -71,6 +70,7 @@ onMounted(async () => {
 })
 
 const importing = ref(false);
+const transfering = ref(false);
 const uploadImportRef = ref<{ files: File[] } | null>(null);
 
 const fileValidated = ref(false);
@@ -170,7 +170,41 @@ function checkCheckingAccDateValidity(): boolean {
 }
 
 async function transferInvestments() {
-    console.log("hello")
+
+    return;
+
+    if (!selectedFiles.value.length) return;
+    transfering.value = true;
+
+    try {
+        const fileText = await selectedFiles.value[0].text();
+        const filePayload = JSON.parse(fileText);
+
+        const categoryMappingsArray = Object.entries(categoryMappings.value).map(
+            ([name, id]) => ({
+                name,
+                category_id: id,
+            })
+        );
+        const payload = {
+            ...filePayload,
+            category_mappings: categoryMappingsArray,
+        };
+        const res = await dataStore.importFromJSON(payload, selectedCheckingAcc.value?.id!);
+
+        emit("completeImport");
+
+        toastStore.successResponseToast(res);
+        selectedFiles.value = [];
+        fileValidated.value = false;
+        validatedResponse.value = null;
+        selectedCheckingAcc.value = null;
+
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    } finally {
+        transfering.value = false;
+    }
 }
 
 
@@ -194,7 +228,7 @@ async function transferInvestments() {
                         <h3>Create a new custom import</h3>
                         <span v-if="checkingAccs.length == 0" style="color: var(--text-secondary)">At least one checking account is required to proceed!</span>
 
-                        <FileUpload v-if="!importing" ref="uploadImportRef" accept=".json, application/json"
+                        <FileUpload v-if="!importing && !transfering" ref="uploadImportRef" accept=".json, application/json"
                                     :maxFileSize="10485760" :multiple="false"
                                     customUpload
                                     :showUploadButton="false" :showCancelButton="false"
@@ -202,7 +236,7 @@ async function transferInvestments() {
                             <template #header="{ chooseCallback }" class="w-full">
                                 <div class="w-full flex flex-wrap justify-content-between gap-3">
                                     <Button class="main-button" @click="chooseCallback()"
-                                            :disabled="checkingAccs.length == 0"
+                                            :disabled="checkingAccs.length == 0 || importing || transfering"
                                             label="Upload" />
                                 </div>
                             </template>
@@ -240,9 +274,9 @@ async function transferInvestments() {
                             <StepPanels>
                                 <StepPanel v-slot="{ activateCallback }" value="1">
                                     <div class="flex flex-column p-3 gap-2">
-                        <span style="color: var(--text-secondary)">
-                            Once you have uploaded a document, it needs to be validated.
-                        </span>
+                                        <span style="color: var(--text-secondary)">
+                                            Once you have uploaded a document, it needs to be validated.
+                                        </span>
                                         <Button v-if="!fileValidated" class="main-button w-2"
                                                 @click="() => validateFile('cash', () => activateCallback('2'))"
                                                 :disabled="selectedFiles.length === 0 || checkingAccs.length == 0"
@@ -306,7 +340,7 @@ async function transferInvestments() {
                                     <ShowLoading v-else :numFields="5" />
                                 </StepPanel>
                                 <StepPanel value="3">
-                                    <div v-if="validatedResponse" class="flex flex-column gap-2 w-full p-2">
+                                    <div v-if="validatedResponse && !transfering" class="flex flex-column gap-2 w-full p-2">
                                         <h4>Validation response</h4>
                                         <div class="flex flex-row w-full align-items-center gap-2">
                                             <div class="flex flex-column w-6 p-2 gap-2">
@@ -328,7 +362,7 @@ async function transferInvestments() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div v-else class="flex flex-column gap-2 w-full p-2">
+                                    <div v-else-if="!transfering" class="flex flex-column gap-2 w-full p-2">
                                         <span style="color: var(--text-secondary)">Please upload and re-validate the json file, to proceed with investment migration.</span>
                                         <Button v-if="!fileValidated" class="main-button w-2"
                                                 @click="() => validateFile('investment')"
@@ -336,6 +370,7 @@ async function transferInvestments() {
                                                 label="Validate"
                                         />
                                     </div>
+                                    <ShowLoading v-else :numFields="5" />
                                 </StepPanel>
                             </StepPanels>
                         </Stepper>
