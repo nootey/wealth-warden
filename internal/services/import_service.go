@@ -130,6 +130,10 @@ func (s *ImportService) FetchImportsByImportType(userID int64, importType string
 	return s.Repo.FindImportsByImportType(nil, userID, importType)
 }
 
+func (s *ImportService) FetchImportByID(id, userID int64, importType string) (*models.Import, error) {
+	return s.Repo.FindImportByID(nil, id, userID, importType)
+}
+
 func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.CustomImportPayload) error {
 
 	start := time.Now().UTC()

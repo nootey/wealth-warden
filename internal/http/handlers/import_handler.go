@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"wealth-warden/internal/models"
@@ -44,6 +47,95 @@ func (h *ImportHandler) GetImportsByImportType(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, records)
+}
+
+func (h *ImportHandler) GetImportByID(c *gin.Context) {
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	idStr := c.Param("id")
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	importType := c.Param("import_type")
+
+	records, err := h.Service.FetchImportByID(id, userID, importType)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, records)
+}
+
+func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Bad Request", "id must be an integer", http.StatusBadRequest, err)
+		return
+	}
+
+	step := strings.ToLower(strings.TrimSpace(c.Query("step")))
+	if step == "" {
+		step = "cash"
+	}
+
+	imp, err := h.Service.FetchImportByID(id, userID, "custom")
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+	if imp == nil || imp.ImportType != "custom" {
+		utils.ErrorMessage(c, "Not found", "import not found", http.StatusNotFound, nil)
+		return
+	}
+
+	filePath := filepath.Join("storage", imp.Name+".json")
+	b, err := os.ReadFile(filePath)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	var payload models.CustomImportPayload
+	if err := json.Unmarshal(b, &payload); err != nil {
+		utils.ErrorMessage(c, "Invalid file", "invalid JSON in stored import", http.StatusBadRequest, err)
+		return
+	}
+
+	categories, filteredCount, apiErr := h.Service.ValidateCustomImport(&payload, step)
+	if apiErr != nil {
+		utils.ErrorMessage(c, "Error occurred", apiErr.Error(), http.StatusInternalServerError, nil)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"valid":          true,
+		"year":           payload.Year,
+		"count":          len(payload.Txns),
+		"filtered_count": filteredCount,
+		"sample":         payload.Txns[0],
+		"categories":     categories,
+		"step":           step,
+	})
 }
 
 func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {

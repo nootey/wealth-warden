@@ -33,6 +33,25 @@ func (r *ImportRepository) FindImportsByImportType(tx *gorm.DB, userID int64, im
 	return records, nil
 }
 
+func (r *ImportRepository) FindImportByID(tx *gorm.DB, id, userID int64, importType string) (*models.Import, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var record models.Import
+
+	q := db.Model(&models.Import{}).
+		Where("id= ? AND user_id = ? AND import_type = ?", id, userID, importType)
+
+	err := q.First(&record).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &record, nil
+}
+
 func (r *ImportRepository) InsertImport(tx *gorm.DB, record models.Import) (int64, error) {
 	db := tx
 	if db == nil {

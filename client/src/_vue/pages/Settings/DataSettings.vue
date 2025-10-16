@@ -3,7 +3,7 @@
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
 import ImportModule from "../../features/ImportModule.vue";
 import ImportList from "../../components/data/ImportList.vue";
-import {ref} from "vue";
+import {nextTick, ref} from "vue";
 
 const importListRef = ref<InstanceType<typeof ImportList> | null>(null);
 const externalStep = ref<'1' | '2' | '3'>('1');
@@ -14,8 +14,11 @@ async function updateList() {
 }
 
 function onMigrateInvestments(id: string) {
-    externalImportId.value = id;
-    externalStep.value = '3';
+    externalImportId.value = null;
+    nextTick(() => {
+        externalImportId.value = id;
+        externalStep.value = '3';
+    });
 }
 
 </script>

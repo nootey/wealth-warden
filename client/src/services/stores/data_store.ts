@@ -17,6 +17,15 @@ export const useDataStore = defineStore('data', {
             }
         },
 
+        async getCustomImportJSON(id: number | string, step: string): Promise<any> {
+            try {
+                const response = await apiClient.get(`${this.importPrefix}/custom/${id}?step=${encodeURIComponent(step)}`);
+                return response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
+
         async validateImport(importType: string, record: object, importStep: string) {
             try {
                 const response = await apiClient.post(

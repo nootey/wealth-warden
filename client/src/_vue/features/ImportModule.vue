@@ -11,6 +11,7 @@ import {useTransactionStore} from "../../services/stores/transaction_store.ts";
 import ImportCategoryMapping from "../components/base/ImportCategoryMapping.vue";
 import type {Category} from "../../models/transaction_models.ts";
 import dayjs from "dayjs";
+import {useRouter} from "vue-router";
 
 const props = defineProps<{
     externalStep?: '1' | '2' | '3';
@@ -26,12 +27,37 @@ const toastStore = useToastStore();
 const accStore = useAccountStore();
 const transactionStore = useTransactionStore();
 
+const router = useRouter();
 const activeStep = ref<'1' | '2' | '3'>('1');
 
 watch(
     () => props.externalStep,
-    (val) => { if (val) activeStep.value = val; },
+    async (val) => {
+        if (val) {
+            activeStep.value = val;
+
+            if (val === '3' && props.externalImportId) {
+                await loadExistingImport(props.externalImportId);
+            }
+        }
+    },
     { immediate: true }
+);
+
+watch(
+    () => props.externalImportId,
+    async (id, _old) => {
+        if (!id) return;
+
+        selectedFiles.value = [];
+        fileValidated.value = false;
+        validatedResponse.value = null;
+        selectedCheckingAcc.value = null;
+        categoryMappings.value = {};
+
+        await loadExistingImport(id);
+        activeStep.value = '3';
+    }
 );
 
 const checkingAccs = ref<Account[]>([]);
@@ -95,10 +121,13 @@ function removeLocalFile(index: number) {
     validatedResponse.value = null;
 }
 
-const onUpload = async (nextStep: any) => {
+const onUpload = async (_nextStep?: any) => {
+
     if (!selectedFiles.value.length) return;
     importing.value = true;
+
     try {
+        const file = selectedFiles.value[0];
         const fileText = await selectedFiles.value[0].text();
         const filePayload = JSON.parse(fileText);
 
@@ -112,17 +141,24 @@ const onUpload = async (nextStep: any) => {
             ...filePayload,
             category_mappings: categoryMappingsArray,
         };
-        const res = await dataStore.importFromJSON(payload, selectedCheckingAcc.value?.id!);
 
+        // import cash
+        const res = await dataStore.importFromJSON(payload, selectedCheckingAcc.value?.id!);
         emit("completeImport");
-        
         toastStore.successResponseToast(res);
+
+        // validate investments using the same file
+        const invRes = await dataStore.validateImport("custom", file, "investment");
+        validatedResponse.value = invRes;
+        fileValidated.value = invRes.valid;
+
+        // advance to step 3
+        activeStep.value = '3';
+
+        // clear local selections
         selectedFiles.value = [];
-        fileValidated.value = false;
-        validatedResponse.value = null;
         selectedCheckingAcc.value = null;
 
-        nextStep();
     } catch (error) {
         toastStore.errorResponseToast(error);
     } finally {
@@ -139,6 +175,7 @@ async function validateFile(type: string, nextStep?: unknown, ) {
         validatedResponse.value = res;
         toastHelper.formatSuccessToast("File validated", "Check details and proceed with import");
 
+        if (res.valid) activeStep.value = '2';
         if (typeof nextStep === 'function') {
             (nextStep as () => void)();
         }
@@ -167,6 +204,20 @@ function checkCheckingAccDateValidity(): boolean {
 
     return openedAtYear >= responseYear;
 
+}
+
+async function loadExistingImport(importId: number | string) {
+    try {
+        transfering.value = true;
+        const res = await dataStore.getCustomImportJSON(importId, 'investments');
+
+        validatedResponse.value = res;
+        fileValidated.value = res.valid;
+    } catch (e) {
+        toastStore.errorResponseToast(e);
+    } finally {
+        transfering.value = false;
+    }
 }
 
 async function transferInvestments() {
@@ -221,49 +272,51 @@ async function transferInvestments() {
             <TabPanels>
                 <TabPanel value="0">
 
-                    <div class="flex flex-column w-100 gap-2">
+                    <div v-if="checkingAccs.length > 0" class="flex flex-column w-100 gap-2">
                         <h3>About</h3>
                         <span style="color: var(--text-secondary)">Custom imports are not complete. They require a specific import format, but are not really validated. Use at your own risk. </span>
 
                         <h3>Create a new custom import</h3>
                         <span v-if="checkingAccs.length == 0" style="color: var(--text-secondary)">At least one checking account is required to proceed!</span>
 
-                        <FileUpload v-if="!importing && !transfering" ref="uploadImportRef" accept=".json, application/json"
-                                    :maxFileSize="10485760" :multiple="false"
-                                    customUpload
-                                    :showUploadButton="false" :showCancelButton="false"
-                                    @select="onSelect" @clear="onClear">
-                            <template #header="{ chooseCallback }" class="w-full">
-                                <div class="w-full flex flex-wrap justify-content-between gap-3">
-                                    <Button class="main-button" @click="chooseCallback()"
-                                            :disabled="checkingAccs.length == 0 || importing || transfering"
-                                            label="Upload" />
-                                </div>
-                            </template>
+                        <div v-if="activeStep !== '3'">
+                            <FileUpload v-if="!importing && !transfering" ref="uploadImportRef" accept=".json, application/json"
+                                        :maxFileSize="10485760" :multiple="false"
+                                        customUpload
+                                        :showUploadButton="false" :showCancelButton="false"
+                                        @select="onSelect" @clear="onClear">
+                                <template #header="{ chooseCallback }" class="w-full">
+                                    <div class="w-full flex flex-wrap justify-content-between gap-3">
+                                        <Button v-if="activeStep === '1'" class="main-button" @click="chooseCallback()"
+                                                :disabled="checkingAccs.length == 0 || importing || transfering"
+                                                label="Upload" />
+                                    </div>
+                                </template>
 
-                            <template #content>
+                                <template #content>
 
-                                <div class="flex flex-column gap-2 pt-1 w-full">
+                                    <div class="flex flex-column gap-2 pt-1 w-full">
 
-                                    <div v-if="selectedFiles.length > 0">
-                                        <h5>Pending</h5>
-                                        <div class="flex flex-wrap gap-2 w-full">
-                                            <div v-for="(file, index) in selectedFiles"
-                                                 :key="file.name + file.type + file.size"
-                                                 class="flex flex-row gap-3 p-2 w-full align-items-center">
-                                                <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden">{{ file.name }}</span>
-                                                <Badge :value="fileValidated ? 'Validated' : 'Pending'" :severity="fileValidated ? 'info' : 'warn'" />
-                                                <i class="pi pi-times hover-icon"
-                                                   @click="removeLocalFile(index)"
-                                                   style="color: var(--p-red-300)" />
+                                        <div v-if="selectedFiles.length > 0">
+                                            <h5>Pending</h5>
+                                            <div class="flex flex-wrap gap-2 w-full">
+                                                <div v-for="(file, index) in selectedFiles"
+                                                     :key="file.name + file.type + file.size"
+                                                     class="flex flex-row gap-3 p-2 w-full align-items-center">
+                                                    <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden">{{ file.name }}</span>
+                                                    <Badge :value="fileValidated ? 'Validated' : 'Pending'" :severity="fileValidated ? 'info' : 'warn'" />
+                                                    <i class="pi pi-times hover-icon"
+                                                       @click="removeLocalFile(index)"
+                                                       style="color: var(--p-red-300)" />
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
 
-                                </div>
-                            </template>
-                        </FileUpload>
-                        <ShowLoading v-else :numFields="7" />
+                                    </div>
+                                </template>
+                            </FileUpload>
+                            <ShowLoading v-else :numFields="7" />
+                        </div>
 
                         <Stepper :value="activeStep">
                             <StepList>
@@ -362,18 +415,17 @@ async function transferInvestments() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div v-else-if="!transfering" class="flex flex-column gap-2 w-full p-2">
-                                        <span style="color: var(--text-secondary)">Please upload and re-validate the json file, to proceed with investment migration.</span>
-                                        <Button v-if="!fileValidated" class="main-button w-2"
-                                                @click="() => validateFile('investment')"
-                                                :disabled="selectedFiles.length === 0 || checkingAccs.length == 0"
-                                                label="Validate"
-                                        />
-                                    </div>
                                     <ShowLoading v-else :numFields="5" />
                                 </StepPanel>
                             </StepPanels>
                         </Stepper>
+                    </div>
+                    <div v-else class="flex flex-column w-100 gap-2 justify-content-center align-items-center">
+                        <i class="pi pi-inbox text-2xl mb-2" style="color: var(--text-secondary)"></i>
+                        <span> No data yet - create a checking
+                            <span class="hover-icon font-bold text-base" @click="router.push({name: 'accounts'})"> account </span>
+                            <span> to start importing. </span>
+                        </span>
                     </div>
 
                 </TabPanel>

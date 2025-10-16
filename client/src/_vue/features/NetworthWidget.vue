@@ -243,11 +243,9 @@ onMounted(getData)
          :style="{ height: (chartHeight/2) + 'px' }">
       <i class="pi pi-inbox text-2xl mb-2" style="color: var(--text-secondary)"></i>
       <div class="text-sm" style="color: var(--text-secondary)">
-                    <span>
-                        No data yet - connect an
-                    </span>
-        <span class="hover-icon font-bold text-base" @click="router.push({name: 'accounts'})"> account </span>
-        <span> to see your net worth over time. </span>
+            <span> No data yet - connect an</span>
+            <span class="hover-icon font-bold text-base" @click="router.push({name: 'accounts'})"> account </span>
+            <span> to see your net worth over time. </span>
       </div>
     </div>
 
