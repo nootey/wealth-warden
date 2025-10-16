@@ -21,6 +21,11 @@ function onMigrateInvestments(id: string) {
     });
 }
 
+function onResetExternal() {
+    externalImportId.value = null;
+    externalStep.value = '1';
+}
+
 </script>
 
 <template>
@@ -34,7 +39,9 @@ function onMigrateInvestments(id: string) {
 
                 <ImportModule :externalStep="externalStep"
                               :externalImportId="externalImportId"
-                              @completeImport="updateList"/>
+                              @completeImport="updateList"
+                              @resetExternal="onResetExternal"
+                />
 
                 <h3>Imports</h3>
                 <ImportList ref="importListRef" @migrateInvestments="onMigrateInvestments" />

@@ -20,6 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (e: 'completeImport'): void;
+    (e: 'resetExternal'): void;
 }>();
 
 const dataStore = useDataStore();
@@ -220,6 +221,26 @@ async function loadExistingImport(importId: number | string) {
     }
 }
 
+function resetWizard() {
+    // clear local state
+    selectedFiles.value = [];
+    fileValidated.value = false;
+    validatedResponse.value = null;
+    selectedCheckingAcc.value = null;
+    categoryMappings.value = {};
+    importing.value = false;
+    transfering.value = false;
+    activeStep.value = '1';
+
+    // clear FileUpload UI
+    try {
+        (uploadImportRef.value as any)?.clear?.();
+    } catch { /* no-op */ }
+
+    // tell parent to clear externalStep/externalImportId
+    emit('resetExternal');
+}
+
 async function transferInvestments() {
 
     return;
@@ -276,7 +297,7 @@ async function transferInvestments() {
                         <h3>About</h3>
                         <span style="color: var(--text-secondary)">Custom imports are not complete. They require a specific import format, but are not really validated. Use at your own risk. </span>
 
-                        <h3>Create a new custom import</h3>
+                        <h4>Create a new import</h4>
                         <span v-if="checkingAccs.length == 0" style="color: var(--text-secondary)">At least one checking account is required to proceed!</span>
 
                         <div v-if="activeStep !== '3'">
@@ -317,7 +338,13 @@ async function transferInvestments() {
                             </FileUpload>
                             <ShowLoading v-else :numFields="7" />
                         </div>
-
+                        <Button
+                                class="outline-button w-2"
+                                icon="pi pi-eraser"
+                                label="Clear"
+                                @click="resetWizard"
+                                :disabled="importing || transfering"
+                        />
                         <Stepper :value="activeStep">
                             <StepList>
                                 <Step value="1">Validate</Step>
