@@ -1,8 +1,11 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -138,6 +141,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 	)
 	l.Info("started custom JSON import")
 
+	l.Info("validating requirements")
 	checkingAcc, err := s.accService.FetchAccountByID(userID, checkID, false)
 	if err != nil {
 		return err
@@ -149,10 +153,41 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 		return fmt.Errorf("account opened in %d cannot import data for year %d or earlier", openedYear, payload.Year)
 	}
 
+	importName := fmt.Sprintf("custom_year_%d_txns_%d", payload.Year, len(payload.Txns))
+	dir := "storage"
+	finalPath := filepath.Join(dir, importName+".json")
+	tmpPath := filepath.Join(dir, importName+".json.tmp")
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	// Hard duplicate check
+	if _, err := os.Stat(finalPath); err == nil {
+		return errors.New("import file already exists")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	// Reserve the name with an exclusive temp file (prevents races)
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return errors.New("import file already exists")
+		}
+		return err
+	}
+	reserved := true
+	defer func() {
+		if reserved {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
 	// create the import as PENDING
 	l.Info("creating import row", zap.String("status", "pending"))
 	started := time.Now().UTC()
-	importName := fmt.Sprintf("Custom - year: %d - txns: %d", payload.Year, len(payload.Txns))
+
 	importID, err := s.Repo.InsertImport(nil, models.Import{
 		Name:       importName,
 		UserID:     userID,
@@ -278,9 +313,41 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 		return err
 	}
 
+	// Write payload to the reserved temp file
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(importID, err)
+		return err
+	}
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(importID, err)
+		return err
+	}
+	if err := tmpFile.Sync(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(importID, err)
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(importID, err)
+		return err
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
+
+	// Promote the temp file to final
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		// DB already committed - mark the import failed
+		s.markImportFailed(importID, err)
+		return err
+	}
+
+	l.Info("saved import JSON file", zap.String("path", finalPath))
 
 	if err := s.Repo.UpdateImport(nil, importID, map[string]interface{}{
 		"status":       "success",
