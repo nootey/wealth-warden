@@ -74,8 +74,8 @@ function save() {
                 <Column header="Investment Account">
                     <template #body="{ data }">
                         <Select class="w-full"
-                                :modelValue="mapping[data] ?? null"
-                                @update:modelValue="val => onSelect(data, val)"
+                                :modelValue="mapping[data.name] ?? null"
+                                @update:modelValue="val => onSelect(data.name, val)"
                                 :options="investmentAccounts"
                                 optionLabel="name"
                                 optionValue="id"

@@ -281,7 +281,7 @@ async function transferInvestments() {
     try {
         const payload = {
             import_id: props.externalImportId,
-            checking_acc: selectedCheckingAcc.value.id,
+            checking_acc_id: selectedCheckingAcc.value?.id!,
             investment_mappings: Object.entries(investmentMappings.value).map(
                 ([name, account_id]) => ({ name, account_id })
             ),
@@ -482,6 +482,7 @@ async function transferInvestments() {
                                             <ImportInvestmentMapping
                                                     :importedCategories="validatedResponse.categories"
                                                     :investmentAccounts="investmentAccs" @save="onSaveInvestmentMapping"
+                                                    v-model:modelValue="investmentMappings"
                                             />
                                         </div>
                                     </div>
