@@ -43,7 +43,7 @@ function goBack() {
 }
 
 function toggleOverlay(event: any) {
-    if(window.innerWidth > 768){
+    if(window.innerWidth > 1000){
         router.push({ name: 'settings.profile' });
     } else {
         settingsMenuRef.value.toggle(event);
@@ -147,7 +147,7 @@ const pageTitle = computed(() => {
 
 .mobile-only { display: none; }
 
-@media (max-width: 875px) {
+@media (max-width: 1000px) {
     .mobile-only { display: inline-block; }
     .settings { padding: 0 1rem 0 1rem !important; }
     .no-mobile { display: none !important; }
