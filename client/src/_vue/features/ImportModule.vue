@@ -12,6 +12,7 @@ import ImportCategoryMapping from "../components/base/ImportCategoryMapping.vue"
 import type {Category} from "../../models/transaction_models.ts";
 import dayjs from "dayjs";
 import {useRouter} from "vue-router";
+import ImportInvestmentMapping from "../components/base/ImportInvestmentMapping.vue";
 
 const props = defineProps<{
     externalStep?: '1' | '2' | '3';
@@ -62,6 +63,7 @@ watch(
 );
 
 const checkingAccs = ref<Account[]>([]);
+const investmentAccs = ref<Account[]>([]);
 const selectedCheckingAcc = ref<Account | null>(null);
 const filteredCheckingAccs = ref<Account[]>([]);
 
@@ -83,6 +85,7 @@ const filteredCategories = computed(() =>
 );
 
 const categoryMappings = ref<Record<string, number | null>>({})
+const investmentMappings = ref<Record<string, number | null>>({})
 
 onMounted(async () => {
     try {
@@ -90,6 +93,22 @@ onMounted(async () => {
         checkingAccs.value = await accStore.getAccountsBySubtype("checking");
         if (checkingAccs.value.length == 0) {
             toastStore.infoResponseToast(toastHelper.formatInfoToast("No accounts", "Please create at least one checking account"));
+        }
+        const [investments, crypto] = await Promise.all([
+            accStore.getAccountsByType("investment"),
+            accStore.getAccountsByType("crypto")
+        ])
+
+        // merge and remove duplicates
+        const merged = [...investments, ...crypto]
+        investmentAccs.value = merged.filter(
+            (a, i, arr) => arr.findIndex(b => b.id === a.id) === i
+        )
+
+        if (investmentAccs.value.length === 0) {
+            toastStore.infoResponseToast(
+                toastHelper.formatInfoToast("No accounts", "Please create at least one investment or crypto account")
+            )
         }
     } catch (e) {
         toastStore.errorResponseToast(e);
@@ -198,6 +217,10 @@ function onSaveMapping(map: Record<string, number | null>) {
     categoryMappings.value = map
 }
 
+function onSaveInvestmentMapping(map: Record<string, number | null>) {
+    investmentMappings.value = map
+}
+
 function checkCheckingAccDateValidity(): boolean {
 
     const openedAtYear = dayjs(selectedCheckingAcc.value?.opened_at).year()
@@ -243,39 +266,34 @@ function resetWizard() {
 
 async function transferInvestments() {
 
-    return;
+    if (!props.externalImportId) {
+        toastStore.errorResponseToast("Missing import ID")
+        return
+    }
 
-    if (!selectedFiles.value.length) return;
-    transfering.value = true;
+    if (Object.keys(investmentMappings.value).length === 0) {
+        toastStore.errorResponseToast("Please set up your investment mappings first")
+        return
+    }
+
+    transfering.value = true
 
     try {
-        const fileText = await selectedFiles.value[0].text();
-        const filePayload = JSON.parse(fileText);
-
-        const categoryMappingsArray = Object.entries(categoryMappings.value).map(
-            ([name, id]) => ({
-                name,
-                category_id: id,
-            })
-        );
         const payload = {
-            ...filePayload,
-            category_mappings: categoryMappingsArray,
-        };
-        const res = await dataStore.importFromJSON(payload, selectedCheckingAcc.value?.id!);
+            import_id: props.externalImportId,
+            investment_mappings: Object.entries(investmentMappings.value).map(
+                ([name, account_id]) => ({ name, account_id })
+            ),
+        }
 
-        emit("completeImport");
+        const res = await dataStore.transferInvestmentsFromImport(payload)
 
-        toastStore.successResponseToast(res);
-        selectedFiles.value = [];
-        fileValidated.value = false;
-        validatedResponse.value = null;
-        selectedCheckingAcc.value = null;
-
+        toastStore.successResponseToast(res)
+        emit("completeImport")
     } catch (error) {
-        toastStore.errorResponseToast(error);
+        toastStore.errorResponseToast(error)
     } finally {
-        transfering.value = false;
+        transfering.value = false
     }
 }
 
@@ -421,27 +439,41 @@ async function transferInvestments() {
                                 </StepPanel>
                                 <StepPanel value="3">
                                     <div v-if="validatedResponse && !transfering" class="flex flex-column gap-2 w-full p-2">
+
+                                        <div class="flex flex-row gap-1 align-items-center">
+                                            <span v-if="validatedResponse.filtered_count == 0" style="color: var(--text-secondary)">No investments were found in the provided data!</span>
+                                            <Button v-else class="main-button w-3"
+                                                    @click="transferInvestments"
+                                                    label="Transfer"
+                                            />
+                                        </div>
+
                                         <h4>Validation response</h4>
                                         <div class="flex flex-row w-full align-items-center gap-2">
                                             <div class="flex flex-column w-6 p-2 gap-2">
+
                                                 <div class="flex flex-row gap-1 align-items-center">
                                                     <span>Year: </span>
                                                     <span>{{ validatedResponse.year }} </span>
                                                 </div>
+
                                                 <div class="flex flex-row gap-1 align-items-center">
                                                     <span>Investments count: </span>
                                                     <span>{{ validatedResponse.filtered_count }} </span>
                                                 </div>
-                                                <div class="flex flex-row gap-1 align-items-center">
-                                                    <span v-if="validatedResponse.filtered_count == 0" style="color: var(--text-secondary)">No investments were found in the provided data!</span>
-                                                    <Button v-else class="main-button w-3"
-                                                            @click="transferInvestments"
-                                                            label="Transfer"
-                                                    />
-                                                </div>
+
                                             </div>
                                         </div>
+
+                                        <h4>Investment mappings</h4>
+                                        <div v-if="validatedResponse.filtered_count > 0" class="flex flex-row w-full p-2 gap-2 align-items-center">
+                                            <ImportInvestmentMapping
+                                                    :importedCategories="validatedResponse.categories"
+                                                    :investmentAccounts="investmentAccs" @save="onSaveInvestmentMapping"
+                                            />
+                                        </div>
                                     </div>
+
                                     <ShowLoading v-else :numFields="5" />
                                 </StepPanel>
                             </StepPanels>

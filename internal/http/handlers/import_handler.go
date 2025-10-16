@@ -222,3 +222,33 @@ func (h *ImportHandler) ImportFromJSON(c *gin.Context) {
 
 	utils.SuccessMessage(c, "JSON import successful", "Success", http.StatusOK)
 }
+
+func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	var req struct {
+		ImportID           int64                      `json:"import_id"`
+		InvestmentMappings []models.InvestmentMapping `json:"investment_mappings"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid Request", "Invalid JSON body", http.StatusBadRequest, err)
+		return
+	}
+
+	if req.ImportID == 0 {
+		utils.ErrorMessage(c, "Invalid Request", "Missing import_id", http.StatusBadRequest, nil)
+		return
+	}
+	
+	if err := h.Service.TransferInvestmentsFromImport(userID, req.ImportID, req.InvestmentMappings); err != nil {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Investments transferred successfully", "Success", http.StatusOK)
+}

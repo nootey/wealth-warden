@@ -47,3 +47,8 @@ type CategoryMapping struct {
 	Name       string `json:"name"`
 	CategoryID *int64 `json:"category_id"`
 }
+
+type InvestmentMapping struct {
+	Name      string `json:"name"`
+	AccountID int64  `json:"account_id"`
+}

@@ -370,3 +370,8 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 
 	return nil
 }
+
+func (s *ImportService) TransferInvestmentsFromImport(userID, importID int64, mappings []models.InvestmentMapping) error {
+	// TODO: implement actual logic:
+	return nil
+}

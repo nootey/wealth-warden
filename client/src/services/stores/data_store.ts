@@ -45,7 +45,14 @@ export const useDataStore = defineStore('data', {
                 { params: { check_acc_id: checkID } }
             );
             return data;
-        }
+        },
+
+        async transferInvestmentsFromImport(payload: {
+            import_id: number | string
+            investment_mappings: { name: string; account_id: number | null }[]
+        }) {
+            return await apiClient.post(`${this.importPrefix}/custom/json/investments`, payload)
+        },
 
     },
 });
