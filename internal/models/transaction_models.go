@@ -40,8 +40,8 @@ type Transfer struct {
 	DeletedAt            *time.Time      `json:"deleted_at"`
 
 	// Relations
-	TransactionInflow  Transaction `gorm:"foreignKey:TransactionInflowID;references:ID" json:"from"`
-	TransactionOutflow Transaction `gorm:"foreignKey:TransactionOutflowID;references:ID" json:"to"`
+	TransactionInflow  Transaction `gorm:"foreignKey:TransactionInflowID;references:ID" json:"to"`
+	TransactionOutflow Transaction `gorm:"foreignKey:TransactionOutflowID;references:ID" json:"from"`
 }
 
 type TransactionTemplate struct {
