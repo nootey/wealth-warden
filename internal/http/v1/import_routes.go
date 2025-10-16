@@ -12,5 +12,5 @@ func ImportRoutes(apiGroup *gin.RouterGroup, handler *handlers.ImportHandler) {
 	apiGroup.GET("/:import_type/:id", authz.RequireAllMW("view_data"), handler.GetStoredCustomImport)
 	apiGroup.POST("custom/validate", authz.RequireAllMW("manage_data"), handler.ValidateCustomImport)
 	apiGroup.POST("custom/json", authz.RequireAllMW("manage_data"), handler.ImportFromJSON)
-	apiGroup.POST("custom/json/investments", authz.RequireAllMW("manage_data"), handler.ImportInvestmentsFromJSON)
+	apiGroup.POST("custom/json/investments", authz.RequireAllMW("manage_data"), handler.TransferInvestmentsFromImport)
 }

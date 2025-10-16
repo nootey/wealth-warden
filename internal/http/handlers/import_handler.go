@@ -232,6 +232,7 @@ func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
 
 	var req struct {
 		ImportID           int64                      `json:"import_id"`
+		CheckingAccID      int64                      `json:"checking_acc_id"`
 		InvestmentMappings []models.InvestmentMapping `json:"investment_mappings"`
 	}
 
@@ -244,7 +245,7 @@ func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
 		utils.ErrorMessage(c, "Invalid Request", "Missing import_id", http.StatusBadRequest, nil)
 		return
 	}
-	
+
 	if err := h.Service.TransferInvestmentsFromImport(userID, req.ImportID, req.InvestmentMappings); err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return

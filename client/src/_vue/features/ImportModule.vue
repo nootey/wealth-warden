@@ -281,6 +281,7 @@ async function transferInvestments() {
     try {
         const payload = {
             import_id: props.externalImportId,
+            checking_acc: selectedCheckingAcc.value.id,
             investment_mappings: Object.entries(investmentMappings.value).map(
                 ([name, account_id]) => ({ name, account_id })
             ),
@@ -462,6 +463,17 @@ async function transferInvestments() {
                                                     <span>{{ validatedResponse.filtered_count }} </span>
                                                 </div>
 
+                                            </div>
+                                        </div>
+
+                                        <div class="flex flex-row w-full p-2 gap-2 align-items-center">
+                                            <div class="flex flex-column gap-1 w-6">
+                                                <label>Checking account</label>
+                                                <AutoComplete size="small"
+                                                              v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
+                                                              @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
+                                                              placeholder="Select checking account" dropdown>
+                                                </AutoComplete>
                                             </div>
                                         </div>
 

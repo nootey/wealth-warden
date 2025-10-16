@@ -49,6 +49,7 @@ export const useDataStore = defineStore('data', {
 
         async transferInvestmentsFromImport(payload: {
             import_id: number | string
+            checking_acc_id: number
             investment_mappings: { name: string; account_id: number | null }[]
         }) {
             return await apiClient.post(`${this.importPrefix}/custom/json/investments`, payload)
