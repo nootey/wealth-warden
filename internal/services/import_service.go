@@ -15,6 +15,7 @@ import (
 
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 type ImportService struct {
@@ -130,8 +131,8 @@ func (s *ImportService) FetchImportsByImportType(userID int64, importType string
 	return s.Repo.FindImportsByImportType(nil, userID, importType)
 }
 
-func (s *ImportService) FetchImportByID(id, userID int64, importType string) (*models.Import, error) {
-	return s.Repo.FindImportByID(nil, id, userID, importType)
+func (s *ImportService) FetchImportByID(tx *gorm.DB, id, userID int64, importType string) (*models.Import, error) {
+	return s.Repo.FindImportByID(tx, id, userID, importType)
 }
 
 func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.CustomImportPayload) error {
@@ -371,7 +372,202 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 	return nil
 }
 
-func (s *ImportService) TransferInvestmentsFromImport(userID, importID int64, mappings []models.InvestmentMapping) error {
-	// TODO: implement actual logic:
+func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checkingAccID int64, mappings []models.InvestmentMapping) error {
+
+	start := time.Now().UTC()
+	l := s.Ctx.Logger.With(
+		zap.String("op", "TransferInvestmentsFromImport"),
+		zap.Int64("user_id", userID),
+		zap.Int64("account_id", checkingAccID),
+	)
+	l.Info("started investment transfer from custom import")
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			s.markImportFailed(importID, nil)
+			panic(p)
+		}
+	}()
+
+	checkingAcc, err := s.accService.Repo.FindAccountByID(tx, checkingAccID, userID, true)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find source account %w", err)
+	}
+
+	imp, err := s.FetchImportByID(tx, importID, userID, "custom")
+	if err != nil {
+		return err
+	}
+
+	filePath := filepath.Join("storage", imp.Name+".json")
+	b, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	var payload models.CustomImportPayload
+	if err := json.Unmarshal(b, &payload); err != nil {
+		return err
+	}
+
+	sort.SliceStable(payload.Txns, func(i, j int) bool {
+		return payload.Txns[i].TxnDate.Before(payload.Txns[j].TxnDate)
+	})
+
+	catToAccID := make(map[string]int64, len(mappings))
+	distinctAccIDs := make(map[int64]struct{})
+	for _, m := range mappings {
+		var id int64
+		switch {
+		case m.AccountID == 0:
+			continue
+		case m.AccountID != 0:
+			id = m.AccountID
+		}
+		if id == 0 {
+			continue
+		}
+		catToAccID[m.Name] = id
+		distinctAccIDs[id] = struct{}{}
+	}
+
+	accCache := make(map[int64]*models.Account, len(distinctAccIDs))
+	for id := range distinctAccIDs {
+		acc, err := s.accService.Repo.FindAccountByID(tx, id, userID, true)
+		if err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("destination account %d not found: %w", id, err)
+		}
+		accCache[id] = acc
+	}
+
+	// Track earliest affected date per account (for one-time frontfill)
+	earliest := map[int64]time.Time{}
+	markEarliest := func(accID int64, d time.Time) {
+		d = d.UTC().Truncate(24 * time.Hour)
+		if cur, ok := earliest[accID]; !ok || d.Before(cur) {
+			earliest[accID] = d
+		}
+	}
+
+	l.Info("transferring investments from custom import")
+	for _, txn := range payload.Txns {
+		if txn.TransactionType != "investments" {
+			continue
+		}
+
+		// find mapped destination by category
+		toAccID, ok := catToAccID[txn.Category]
+		if !ok {
+			l.Debug("skipping investment txn without mapping",
+				zap.String("category", txn.Category),
+				zap.Time("date", txn.TxnDate),
+			)
+			continue
+		}
+
+		toAccount, ok := accCache[toAccID]
+		if !ok {
+			_ = tx.Rollback()
+			return fmt.Errorf("account %d not cached (internal error)", toAccID)
+		}
+
+		amt, err := decimal.NewFromString(txn.Amount)
+		if err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("invalid amount '%s': %w", txn.Amount, err)
+		}
+
+		if amt.IsNegative() {
+			amt = amt.Abs()
+		}
+
+		desc := txn.Description
+		expense := models.Transaction{
+			UserID:          userID,
+			AccountID:       checkingAcc.ID,
+			TransactionType: "expense",
+			Amount:          amt,
+			Currency:        models.DefaultCurrency,
+			TxnDate:         txn.TxnDate,
+			Description:     &desc,
+			IsTransfer:      true,
+		}
+		if _, err := s.TxnRepo.InsertTransaction(tx, &expense); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+
+		income := models.Transaction{
+			UserID:          userID,
+			AccountID:       toAccount.ID,
+			TransactionType: "income",
+			Amount:          amt,
+			Currency:        models.DefaultCurrency,
+			TxnDate:         txn.TxnDate,
+			Description:     &desc,
+			IsTransfer:      true,
+		}
+		if _, err := s.TxnRepo.InsertTransaction(tx, &income); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+
+		transfer := models.Transfer{
+			UserID:               userID,
+			TransactionInflowID:  income.ID,
+			TransactionOutflowID: expense.ID,
+			Amount:               amt,
+			Currency:             models.DefaultCurrency,
+			Status:               "success",
+			CreatedAt:            txn.TxnDate,
+		}
+		if _, err := s.TxnRepo.InsertTransfer(tx, &transfer); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+
+		// Update balances WITHOUT snapshot recompute (per-txn)
+		if err := s.accService.UpdateDailyCashNoSnapshot(tx, checkingAcc, txn.TxnDate, "expense", amt); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if err := s.accService.UpdateDailyCashNoSnapshot(tx, toAccount, txn.TxnDate, "income", amt); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+
+		// Track earliest affected day for both accounts
+		markEarliest(checkingAcc.ID, txn.TxnDate)
+		markEarliest(toAccount.ID, txn.TxnDate)
+	}
+
+	// One-time frontfill of snapshots for all affected accounts
+	for accID, from := range earliest {
+		if err := s.accService.FrontfillBalancesForAccount(
+			tx, userID, accID, models.DefaultCurrency, from,
+		); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	l.Info("import completed successfully",
+		zap.Int64("import_id", importID),
+		zap.Duration("elapsed", time.Since(start)),
+		zap.String("status", "success"),
+	)
+
 	return nil
 }

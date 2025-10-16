@@ -775,3 +775,16 @@ func (s *AccountService) FrontfillBalancesForAccount(
 
 	return nil
 }
+
+func (s *AccountService) UpdateDailyCashNoSnapshot(
+	tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal,
+) error {
+	if err := s.Repo.EnsureDailyBalanceRow(tx, acc.ID, asOf, acc.Currency); err != nil {
+		return err
+	}
+	amt = amt.Round(4)
+	if strings.ToLower(txnType) == "expense" {
+		return s.Repo.AddToDailyBalance(tx, acc.ID, asOf, "cash_outflows", amt)
+	}
+	return s.Repo.AddToDailyBalance(tx, acc.ID, asOf, "cash_inflows", amt)
+}
