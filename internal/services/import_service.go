@@ -534,26 +534,54 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 			return err
 		}
 
-		// Update balances WITHOUT snapshot recompute (per-txn)
-		if err := s.accService.UpdateDailyCashNoSnapshot(tx, checkingAcc, txn.TxnDate, "expense", amt); err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		if err := s.accService.UpdateDailyCashNoSnapshot(tx, toAccount, txn.TxnDate, "income", amt); err != nil {
-			_ = tx.Rollback()
+		err = s.accService.UpdateBalancesForTransfer(tx, checkingAcc, toAccount, txn.TxnDate, amt)
+		if err != nil {
+			tx.Rollback()
 			return err
 		}
 
-		// Track earliest affected day for both accounts
+		// Track earliest affected day for both accounts, ensure frontfill cascades forward
 		markEarliest(checkingAcc.ID, txn.TxnDate)
 		markEarliest(toAccount.ID, txn.TxnDate)
 	}
 
 	// One-time frontfill of snapshots for all affected accounts
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
 	for accID, from := range earliest {
-		if err := s.accService.FrontfillBalancesForAccount(
-			tx, userID, accID, models.DefaultCurrency, from,
-		); err != nil {
+		// get *Account
+		acc, ok := accCache[accID]
+		if !ok || acc == nil {
+			if accID == checkingAcc.ID {
+				acc = checkingAcc
+			} else {
+				a, err := s.accService.Repo.FindAccountByID(tx, accID, userID, true)
+				if err != nil {
+					_ = tx.Rollback()
+					return err
+				}
+				acc = a
+			}
+		}
+
+		// start from min(opening_as_of, from)
+		if open, err := s.accService.Repo.GetAccountOpeningAsOf(tx, accID); err == nil && !open.IsZero() && open.Before(from) {
+			from = open
+		}
+		from = from.UTC().Truncate(24 * time.Hour)
+
+		if err := s.accService.Repo.EnsureDailyBalanceRow(tx, checkingAcc.ID, time.Now().UTC(), models.DefaultCurrency); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		// re-thread start_balance forward
+		if err := s.accService.FrontfillBalancesForAccount(tx, userID, accID, acc.Currency, from); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		// refresh snapshots from same point
+		if err := s.accService.backfillAccountRange(tx, acc, from, today); err != nil {
 			_ = tx.Rollback()
 			return err
 		}

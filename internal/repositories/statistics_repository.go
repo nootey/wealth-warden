@@ -37,6 +37,7 @@ func (r *StatisticsRepository) FetchYearlyTotals(
 		  WHERE user_id = $1
 		    AND account_id = $2
 		    AND is_adjustment = false
+		    AND is_transfer = false
 		    AND txn_date >= make_date($3,1,1) AND txn_date < make_date($3+1,1,1)
 		`
 		if err := tx.Raw(sql, userID, *accountID, year).Scan(&row).Error; err != nil {
@@ -59,6 +60,7 @@ func (r *StatisticsRepository) FetchYearlyTotals(
 		  FROM transactions
 		  WHERE user_id = $1
 		    AND is_adjustment = false
+		    AND is_transfer = false
 		    AND txn_date >= make_date($2,1,1) AND txn_date < make_date($2+1,1,1)
 		`
 		if err := tx.Raw(sql, userID, year).Scan(&row).Error; err != nil {
@@ -92,6 +94,7 @@ func (r *StatisticsRepository) FetchYearlyCategoryTotals(
 		  WHERE t.user_id = $1
 		    AND t.account_id = $2
 		    AND t.is_adjustment = false
+		    AND t.is_transfer = false
 		    AND t.txn_date >= make_date($3,1,1) AND t.txn_date < make_date($3+1,1,1)
 		  GROUP BY t.category_id, c.display_name
 		  ORDER BY t.category_id NULLS LAST
@@ -118,6 +121,7 @@ func (r *StatisticsRepository) FetchYearlyCategoryTotals(
 		  LEFT JOIN categories c ON c.id = t.category_id
 		  WHERE t.user_id = $1
 		    AND t.is_adjustment = false
+		    AND t.is_transfer = false
 		    AND t.txn_date >= make_date($2,1,1) AND t.txn_date < make_date($2+1,1,1)
 		  GROUP BY t.category_id, c.display_name
 		  ORDER BY t.category_id NULLS LAST

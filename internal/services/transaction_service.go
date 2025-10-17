@@ -345,7 +345,7 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 	}
 
 	txnInstant := time.Now().In(loc).UTC()
-	asOf := txnInstant.UTC().Truncate(24 * time.Hour)
+	//asOf := txnInstant.UTC().Truncate(24 * time.Hour)
 
 	outflow := models.Transaction{
 		UserID:          userID,
@@ -394,25 +394,12 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 		return err
 	}
 
-	// Update daily balances WITHOUT snapshot recompute (per-leg)
-	if err := s.AccountService.UpdateDailyCashNoSnapshot(tx, fromAccount, asOf, "expense", req.Amount); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.AccountService.UpdateDailyCashNoSnapshot(tx, toAccount, asOf, "income", req.Amount); err != nil {
+	err = s.AccountService.UpdateBalancesForTransfer(tx, fromAccount, toAccount, txnInstant, req.Amount)
+	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	// Frontfill once per account from the transaction day to today
-	if err := s.AccountService.FrontfillBalancesForAccount(tx, userID, fromAccount.ID, models.DefaultCurrency, asOf); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.AccountService.FrontfillBalancesForAccount(tx, userID, toAccount.ID, models.DefaultCurrency, asOf); err != nil {
-		tx.Rollback()
-		return err
-	}
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
