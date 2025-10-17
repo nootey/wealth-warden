@@ -3,21 +3,50 @@ package seeders
 import (
 	"context"
 	"fmt"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
+	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"time"
 	"wealth-warden/pkg/database/seeders/workers"
+
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 type SeederFunc func(ctx context.Context, db *gorm.DB, logger *zap.Logger) error
 
+func clearStorage() error {
+	storagePath := "./storage"
+
+	entries, err := os.ReadDir(storagePath)
+	if err != nil {
+		return fmt.Errorf("failed to read storage directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		entryPath := filepath.Join(storagePath, entry.Name())
+
+		err := os.RemoveAll(entryPath)
+		if err != nil {
+			return fmt.Errorf("failed to remove %s: %w", entryPath, err)
+		}
+	}
+
+	return nil
+}
+
 func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, seederType string) error {
 	var seeders []SeederFunc
 
+	err := clearStorage()
+	if err != nil {
+		return err
+	}
+
 	switch seederType {
 	case "full":
+
 		seeders = []SeederFunc{
 			workers.SeedDefaultSettings,
 			workers.SeedRolesAndPermissions,
@@ -34,6 +63,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, seederTy
 			workers.SeedRolesAndPermissions,
 			workers.SeedRootUser,
 			workers.SeedAccountTypes,
+			workers.SeedRootAccounts,
 			workers.SeedCategories,
 		}
 	default:
@@ -41,7 +71,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, seederTy
 	}
 
 	// Execute all seeders within a transaction
-	err := db.Transaction(func(tx *gorm.DB) error {
+	err = db.Transaction(func(tx *gorm.DB) error {
 		for _, seeder := range seeders {
 			// Get the function name using reflection
 			seederName := getFunctionName(seeder)
