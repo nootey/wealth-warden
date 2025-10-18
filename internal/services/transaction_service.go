@@ -344,8 +344,12 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 		loc = time.UTC
 	}
 
-	txnInstant := time.Now().In(loc).UTC()
-	//asOf := txnInstant.UTC().Truncate(24 * time.Hour)
+	transferInstant := req.CreatedAt
+	if transferInstant.IsZero() {
+		transferInstant = time.Now()
+	}
+	transferInstant = transferInstant.In(loc)
+	txDate := transferInstant.UTC().Truncate(24 * time.Hour)
 
 	outflow := models.Transaction{
 		UserID:          userID,
@@ -353,7 +357,7 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 		TransactionType: "expense",
 		Amount:          req.Amount,
 		Currency:        models.DefaultCurrency,
-		TxnDate:         txnInstant,
+		TxnDate:         txDate,
 		Description:     req.Notes,
 		IsTransfer:      true,
 	}
@@ -369,7 +373,7 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 		TransactionType: "income",
 		Amount:          req.Amount,
 		Currency:        models.DefaultCurrency,
-		TxnDate:         txnInstant,
+		TxnDate:         txDate,
 		Description:     req.Notes,
 		IsTransfer:      true,
 	}
@@ -395,8 +399,30 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 		return err
 	}
 
-	err = s.AccountService.UpdateBalancesForTransfer(tx, fromAccount, toAccount, txnInstant, req.Amount)
+	// touch deltas for both accounts
+	err = s.AccountService.UpdateBalancesForTransfer(tx, fromAccount, toAccount, txDate, req.Amount)
 	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// frontfill from the transfer date forward
+	if err := s.AccountService.FrontfillBalancesForAccount(tx, userID, fromAccount.ID, models.DefaultCurrency, txDate); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := s.AccountService.FrontfillBalancesForAccount(tx, userID, toAccount.ID, models.DefaultCurrency, txDate); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// refresh snapshots for both accounts to today
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	if err := s.AccountService.Repo.UpsertSnapshotsFromBalances(tx, userID, fromAccount.ID, models.DefaultCurrency, txDate, today); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := s.AccountService.Repo.UpsertSnapshotsFromBalances(tx, userID, toAccount.ID, models.DefaultCurrency, txDate, today); err != nil {
 		tx.Rollback()
 		return err
 	}
