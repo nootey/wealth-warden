@@ -387,6 +387,7 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 		Currency:             models.DefaultCurrency,
 		Status:               "success",
 		Notes:                req.Notes,
+		CreatedAt:            req.CreatedAt,
 	}
 
 	if _, err := s.Repo.InsertTransfer(tx, &transfer); err != nil {

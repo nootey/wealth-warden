@@ -8,6 +8,7 @@ import ValidationError from "../validation/ValidationError.vue";
 import {decimalMax, decimalMin, decimalValid} from "../../../validators/currency.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
+import dayjs from "dayjs";
 
 const props = defineProps<{
     accounts: Account[];
@@ -25,11 +26,13 @@ const localTransfer = ref<{
     destination: Account | null;
     amount: string | null;
     notes: string | null;
+    created_at: Date | null;
 }>({
     source: null,
     destination: null,
     amount: null,
-    notes: props.transfer.notes ?? null
+    notes: props.transfer.notes ?? null,
+    created_at: props.transfer.created_at ? dayjs(props.transfer.created_at).toDate() : dayjs().toDate()
 });
 
 const rules = {
@@ -41,6 +44,10 @@ const rules = {
             decimalValid,
             decimalMin: decimalMin(0),
             decimalMax: decimalMax(1_000_000_000),
+            $autoDirty: true
+        },
+        created_at: {
+            required,
             $autoDirty: true
         },
         notes: { $autoDirty: true },
@@ -62,7 +69,8 @@ watch(
             source_id: val.source?.id ?? null,
             destination_id: val.destination?.id ?? null,
             amount: val.amount ?? null,
-            notes: val.notes ?? null
+            notes: val.notes ?? null,
+            created_at: val.created_at ?? null
         });
     },
     { deep: true }
@@ -110,7 +118,7 @@ defineExpose({ v$, localTransfer });
                 <ValidationError :isRequired="true" :message="v$.localTransfer.source.$errors[0]?.$message">
                     <label>Source</label>
                 </ValidationError>
-                <AutoComplete
+                <AutoComplete size="small"
                         v-model="localTransfer.source"
                         :suggestions="filteredSourceAccounts"
                         optionLabel="name" @complete="(e) => searchAccount('source', e)"
@@ -123,7 +131,7 @@ defineExpose({ v$, localTransfer });
                 <ValidationError :isRequired="true" :message="v$.localTransfer.destination.$errors[0]?.$message">
                     <label>Destination</label>
                 </ValidationError>
-            <AutoComplete
+            <AutoComplete size="small"
                     v-model="localTransfer.destination"
                     :suggestions="filteredDestinationAccounts"
                     optionLabel="name" @complete="(e) => searchAccount('destination', e)"
@@ -142,11 +150,21 @@ defineExpose({ v$, localTransfer });
 
         <div class="flex flex-row w-full">
             <div class="flex flex-column gap-1 w-full">
+                <ValidationError :isRequired="true" :message="v$.localTransfer.created_at.$errors[0]?.$message">
+                    <label>Date</label>
+                </ValidationError>
+                <DatePicker v-model="localTransfer.created_at" date-format="dd/mm/yy"
+                            showIcon fluid iconDisplay="input" size="small"
+                />
+            </div>
+        </div>
+
+        <div class="flex flex-row w-full">
+            <div class="flex flex-column gap-1 w-full">
                 <ValidationError :isRequired="false" :message="v$.localTransfer.notes.$errors[0]?.$message">
                     <label>Notes</label>
                 </ValidationError>
-            <InputText
-                    v-model="localTransfer.notes" placeholder="Describe transfer"/>
+            <InputText size="small" v-model="localTransfer.notes" placeholder="Describe transfer"/>
         </div>
     </div>
 

@@ -100,6 +100,7 @@ type TransferReq struct {
 	DestinationID int64           `json:"destination_id" validate:"required"`
 	Amount        decimal.Decimal `json:"amount" validate:"required"`
 	Notes         *string         `json:"notes"`
+	CreatedAt     time.Time       `json:"created_at"`
 }
 
 type TrRestoreReq struct {

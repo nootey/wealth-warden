@@ -86,6 +86,7 @@ const transfer = ref<Transfer>({
     amount: null,
     notes: null,
     deleted_at: null,
+    created_at: null,
     from: null,
     to: null,
 });
@@ -349,8 +350,17 @@ async function startTransferOperation() {
     const isValid = await transferFormRef.value?.v$.$validate();
     if (!isValid) return;
 
+    const created_at = dateHelper.mergeDateWithCurrentTime(dayjs(transfer.value.created_at).format('YYYY-MM-DD'))
+    const recordData = {
+        source_id: transfer.value.source_id,
+        destination_id: transfer.value.destination_id,
+        amount: transfer.value.amount,
+        notes: transfer.value.notes,
+        created_at: created_at,
+    }
+
     try {
-        const response = await transactionStore.startTransfer(transfer.value);
+        const response = await transactionStore.startTransfer(recordData);
         toastStore.successResponseToast(response);
         v$.value.record.$reset();
         emit("completeTrOperation");
