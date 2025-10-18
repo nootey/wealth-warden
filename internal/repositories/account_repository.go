@@ -569,49 +569,54 @@ func (r *AccountRepository) FrontfillBalances(
 
 	return db.Exec(`
 		WITH params AS (
-			SELECT
-				?::bigint AS account_id,
-				?::date   AS from_date
+		  SELECT ?::bigint AS account_id, ?::date AS from_date
 		),
 		base AS (
-			SELECT COALESCE((
-				SELECT b.end_balance
-				FROM balances b, params p
-				WHERE b.account_id = p.account_id
-				  AND b.as_of < p.from_date
-				ORDER BY b.as_of DESC
-				LIMIT 1
-			), 0)::numeric(19,4) AS base_end
+		  SELECT COALESCE(
+			-- prefer exact 'from' day end_balance if a row exists
+			(SELECT b.end_balance
+			 FROM balances b, params p
+			 WHERE b.account_id = p.account_id
+			   AND b.as_of = p.from_date
+			 LIMIT 1),
+			-- otherwise, last end_balance before 'from'
+			(SELECT b.end_balance
+			 FROM balances b, params p
+			 WHERE b.account_id = p.account_id
+			   AND b.as_of < p.from_date
+			 ORDER BY b.as_of DESC
+			 LIMIT 1),
+			0
+		  )::numeric(19,4) AS base_end
 		),
 		series AS (
-			SELECT
-				b.account_id,
-				b.as_of,
-				-- net delta for the day
-				( b.cash_inflows
-				- b.cash_outflows
-				+ b.non_cash_inflows
-				- b.non_cash_outflows
-				+ b.net_market_flows
-				+ b.adjustments )::numeric(19,4) AS delta
-			FROM balances b, params p
-			WHERE b.account_id = p.account_id
-			  AND b.as_of >= p.from_date
-			ORDER BY b.as_of
+		  SELECT
+			b.account_id,
+			b.as_of,
+			( b.cash_inflows
+			- b.cash_outflows
+			+ b.non_cash_inflows
+			- b.non_cash_outflows
+			+ b.net_market_flows
+			+ b.adjustments )::numeric(19,4) AS delta
+		  FROM balances b, params p
+		  WHERE b.account_id = p.account_id
+			AND b.as_of > p.from_date
+		  ORDER BY b.as_of
 		),
 		chain AS (
-			SELECT
-				s.account_id,
-				s.as_of,
-				-- start_balance = base + cumulative_sum(delta up to previous row)
-				( SELECT base_end FROM base )
-				+ ( SUM(s.delta) OVER (ORDER BY s.as_of ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) - s.delta )
-				AS new_start
-			FROM series s
+		  SELECT
+			s.account_id,
+			s.as_of,
+			( SELECT base_end FROM base )
+			+ ( SUM(s.delta) OVER (ORDER BY s.as_of
+								   ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+				- s.delta ) AS new_start
+		  FROM series s
 		)
 		UPDATE balances b
 		SET start_balance = c.new_start,
-		    updated_at    = NOW()
+			updated_at    = NOW()
 		FROM chain c
 		WHERE b.account_id = c.account_id
 		  AND b.as_of      = c.as_of;
