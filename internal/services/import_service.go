@@ -277,7 +277,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 				Amount:          amount,
 				Currency:        models.DefaultCurrency,
 				TxnDate:         txnDate,
-				Description:     &txn.Description,
+				Description:     &txn.Category,
 			}
 
 			if _, err := s.TxnRepo.InsertTransaction(tx, &t); err != nil {
@@ -448,11 +448,10 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 		accCache[id] = acc
 	}
 
-	// Track earliest affected date per account (for one-time frontfill)
-	earliest := map[int64]time.Time{}
-	markEarliest := func(accID int64, d time.Time) {
-		d = d.UTC().Truncate(24 * time.Hour)
-		if cur, ok := earliest[accID]; !ok || d.Before(cur) {
+	// track earliest touched date per account
+	earliest := make(map[int64]time.Time)
+	touch := func(accID int64, d time.Time) {
+		if t, ok := earliest[accID]; !ok || d.Before(t) {
 			earliest[accID] = d
 		}
 	}
@@ -489,6 +488,9 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 			amt = amt.Abs()
 		}
 
+		// normalize date
+		txDate := txn.TxnDate.UTC().Truncate(24 * time.Hour)
+
 		desc := txn.Description
 		expense := models.Transaction{
 			UserID:          userID,
@@ -496,7 +498,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 			TransactionType: "expense",
 			Amount:          amt,
 			Currency:        models.DefaultCurrency,
-			TxnDate:         txn.TxnDate,
+			TxnDate:         txDate,
 			Description:     &desc,
 			IsTransfer:      true,
 		}
@@ -511,7 +513,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 			TransactionType: "income",
 			Amount:          amt,
 			Currency:        models.DefaultCurrency,
-			TxnDate:         txn.TxnDate,
+			TxnDate:         txDate,
 			Description:     &desc,
 			IsTransfer:      true,
 		}
@@ -527,61 +529,45 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 			Amount:               amt,
 			Currency:             models.DefaultCurrency,
 			Status:               "success",
-			CreatedAt:            txn.TxnDate,
+			CreatedAt:            txDate,
 		}
 		if _, err := s.TxnRepo.InsertTransfer(tx, &transfer); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
 
-		err = s.accService.UpdateBalancesForTransfer(tx, checkingAcc, toAccount, txn.TxnDate, amt)
+		err = s.accService.UpdateBalancesForTransfer(tx, checkingAcc, toAccount, txDate, amt)
 		if err != nil {
 			tx.Rollback()
 			return err
 		}
 
-		// Track earliest affected day for both accounts, ensure frontfill cascades forward
-		markEarliest(checkingAcc.ID, txn.TxnDate)
-		markEarliest(toAccount.ID, txn.TxnDate)
+		// record earliest touched date
+		touch(checkingAcc.ID, txDate)
+		touch(toAccount.ID, txDate)
 	}
 
-	// One-time frontfill of snapshots for all affected accounts
+	// frontfill balances
+	frontfillFrom := payload.Txns[0].TxnDate.UTC().Truncate(24 * time.Hour)
+	if err := s.accService.FrontfillBalancesForAccount(
+		tx,
+		userID,
+		checkingAcc.ID,
+		models.DefaultCurrency,
+		frontfillFrom,
+	); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Frontfill & refresh snapshots for each affected account from its earliest date
 	today := time.Now().UTC().Truncate(24 * time.Hour)
-
 	for accID, from := range earliest {
-		// get *Account
-		acc, ok := accCache[accID]
-		if !ok || acc == nil {
-			if accID == checkingAcc.ID {
-				acc = checkingAcc
-			} else {
-				a, err := s.accService.Repo.FindAccountByID(tx, accID, userID, true)
-				if err != nil {
-					_ = tx.Rollback()
-					return err
-				}
-				acc = a
-			}
-		}
-
-		// start from min(opening_as_of, from)
-		if open, err := s.accService.Repo.GetAccountOpeningAsOf(tx, accID); err == nil && !open.IsZero() && open.Before(from) {
-			from = open
-		}
-		from = from.UTC().Truncate(24 * time.Hour)
-
-		if err := s.accService.Repo.EnsureDailyBalanceRow(tx, checkingAcc.ID, time.Now().UTC(), models.DefaultCurrency); err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		// re-thread start_balance forward
-		if err := s.accService.FrontfillBalancesForAccount(tx, userID, accID, acc.Currency, from); err != nil {
+		if err := s.accService.FrontfillBalancesForAccount(tx, userID, accID, models.DefaultCurrency, from); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
-		// refresh snapshots from same point
-		if err := s.accService.backfillAccountRange(tx, acc, from, today); err != nil {
+		if err := s.accService.Repo.UpsertSnapshotsFromBalances(tx, userID, accID, models.DefaultCurrency, from, today); err != nil {
 			_ = tx.Rollback()
 			return err
 		}

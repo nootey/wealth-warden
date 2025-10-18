@@ -443,65 +443,6 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 	return nil
 }
 
-func (s *AccountService) UpdateAccountCashBalance(
-	tx *gorm.DB,
-	acc *models.Account,
-	asOf time.Time,
-	transactionType string,
-	amount decimal.Decimal,
-) error {
-	// ensure daily balance row exists for asOf
-	if err := s.Repo.EnsureDailyBalanceRow(tx, acc.ID, asOf, acc.Currency); err != nil {
-		return err
-	}
-
-	amount = amount.Round(4)
-
-	// increment the correct field on balances(as_of)
-	switch strings.ToLower(transactionType) {
-	case "expense":
-		// expense decreases cash => goes to cash_outflows
-		if err := s.Repo.AddToDailyBalance(tx, acc.ID, asOf, "cash_outflows", amount); err != nil {
-			return err
-		}
-	default:
-		// income increases cash => goes to cash_inflows
-		if err := s.Repo.AddToDailyBalance(tx, acc.ID, asOf, "cash_inflows", amount); err != nil {
-			return err
-		}
-	}
-
-	if err := s.Repo.UpsertSnapshotsFromBalances(
-		tx,
-		acc.UserID,
-		acc.ID,
-		acc.Currency,
-		asOf.UTC().Truncate(24*time.Hour),
-		time.Now().UTC().Truncate(24*time.Hour),
-	); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *AccountService) UpdateBalancesForTransfer(
-	tx *gorm.DB,
-	fromAcc, toAcc *models.Account,
-	when time.Time,
-	amount decimal.Decimal,
-) error {
-	if err := s.UpdateAccountCashBalance(tx, fromAcc, when, "expense", amount); err != nil {
-		return err
-	}
-
-	if err := s.UpdateAccountCashBalance(tx, toAcc, when, "income", amount); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (s *AccountService) ToggleAccountActiveState(userID int64, id int64) error {
 
 	tx := s.Repo.DB.Begin()
@@ -641,6 +582,64 @@ func (s *AccountService) CloseAccount(userID int64, id int64) error {
 	return nil
 }
 
+func (s *AccountService) UpdateAccountCashBalance(
+	tx *gorm.DB,
+	acc *models.Account,
+	asOf time.Time,
+	transactionType string,
+	amount decimal.Decimal,
+) error {
+	// ensure daily balance row exists for asOf
+	if err := s.Repo.EnsureDailyBalanceRow(tx, acc.ID, asOf, acc.Currency); err != nil {
+		return err
+	}
+
+	amount = amount.Round(4)
+
+	// increment the correct field on balances(as_of)
+	switch strings.ToLower(transactionType) {
+	case "expense":
+		// expense decreases cash => goes to cash_outflows
+		if err := s.Repo.AddToDailyBalance(tx, acc.ID, asOf, "cash_outflows", amount); err != nil {
+			return err
+		}
+	default:
+		// income increases cash => goes to cash_inflows
+		if err := s.Repo.AddToDailyBalance(tx, acc.ID, asOf, "cash_inflows", amount); err != nil {
+			return err
+		}
+	}
+
+	if err := s.Repo.UpsertSnapshotsFromBalances(
+		tx,
+		acc.UserID,
+		acc.ID,
+		acc.Currency,
+		asOf.UTC().Truncate(24*time.Hour),
+		time.Now().UTC().Truncate(24*time.Hour),
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *AccountService) UpdateBalancesForTransfer(
+	tx *gorm.DB,
+	fromAcc, toAcc *models.Account,
+	when time.Time,
+	amount decimal.Decimal,
+) error {
+	if err := s.UpdateAccountCashBalance(tx, fromAcc, when, "expense", amount); err != nil {
+		return err
+	}
+
+	if err := s.UpdateAccountCashBalance(tx, toAcc, when, "income", amount); err != nil {
+		return err
+	}
+
+	return nil
+}
 func (s *AccountService) BackfillBalancesForUser(userID int64, from, to string) error {
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
