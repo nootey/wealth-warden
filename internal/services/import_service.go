@@ -7,11 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
+	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
@@ -369,6 +372,27 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 		zap.String("status", "success"),
 	)
 
+	// Log
+	changes := utils.InitChanges()
+	utils.CompareChanges("", "custom", changes, "import_type")
+	utils.CompareChanges("", importName, changes, "name")
+	utils.CompareChanges("", checkingAcc.Name, changes, "checking_account")
+	utils.CompareChanges("", models.DefaultCurrency, changes, "currency")
+	utils.CompareChanges("", strconv.Itoa(payload.Year), changes, "year")
+	utils.CompareChanges("", strconv.Itoa(len(payload.Txns)), changes, "transactions_count")
+
+	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "import",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -582,6 +606,30 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 		zap.Duration("elapsed", time.Since(start)),
 		zap.String("status", "success"),
 	)
+
+	changes := utils.InitChanges()
+	utils.CompareChanges("", imp.Name, changes, "import_name")
+	utils.CompareChanges("", checkingAcc.Name, changes, "source_account")
+	utils.CompareChanges("", strconv.Itoa(len(mappings)), changes, "investment_mappings_count")
+
+	// collect destination account names for readability
+	var destNames []string
+	for _, acc := range accCache {
+		destNames = append(destNames, acc.Name)
+	}
+	utils.CompareChanges("", strings.Join(destNames, ", "), changes, "destination_accounts")
+
+	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "transfer",
+		Category:    "investment_import",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		return err
+	}
 
 	return nil
 }
