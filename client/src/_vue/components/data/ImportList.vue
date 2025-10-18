@@ -8,6 +8,9 @@ import LoadingSpinner from "../base/LoadingSpinner.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import type {Column} from "../../../services/filter_registry.ts";
 import dateHelper from "../../../utils/date_helper.ts";
+import {usePermissions} from "../../../utils/use_permissions.ts";
+import {useConfirm} from "primevue/useconfirm";
+import {useSharedStore} from "../../../services/stores/shared_store.ts";
 
 const emit = defineEmits<{
     (e: 'migrateInvestments', importId: string): void;
@@ -15,6 +18,10 @@ const emit = defineEmits<{
 
 const dataStore = useDataStore();
 const toastStore = useToastStore();
+const sharedStore = useSharedStore();
+
+const { hasPermission } = usePermissions();
+const confirm = useConfirm();
 
 const imports = ref<Import[]>([]);
 const loading = ref(false);
@@ -43,6 +50,35 @@ const activeColumns = computed<Column[]>(() => [
     { field: 'step', header: 'Step'},
 ]);
 
+async function deleteConfirmation(id: number, name: string) {
+    confirm.require({
+        header: 'Delete record?',
+        message: `This will delete import: ${name}".`,
+        rejectProps: { label: 'Cancel' },
+        acceptProps: { label: 'Delete', severity: 'danger' },
+        accept: () => deleteRecord(id),
+    });
+}
+
+async function deleteRecord(id: number) {
+
+    if(!hasPermission("manage_data")) {
+        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+        return;
+    }
+
+    try {
+        let response = await sharedStore.deleteRecord(
+            "imports",
+            id,
+        );
+        toastStore.successResponseToast(response);
+        await getData();
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
+}
+
 </script>
 
 <template>
@@ -58,6 +94,9 @@ const activeColumns = computed<Column[]>(() => [
                         <i v-if="data['step'] === 'investments'" class="pi pi-cart-plus hover-icon text-xs" v-tooltip="'Migrate investments'"
                            @click="emit('migrateInvestments', data.id)"/>
                         <i v-else>/</i>
+                        <i v-if="hasPermission('manage_data')"
+                           class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
+                           @click="deleteConfirmation(data?.id, data?.name)"></i>
                     </div>
                 </template>
             </Column>

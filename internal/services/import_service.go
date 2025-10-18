@@ -633,3 +633,66 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 
 	return nil
 }
+
+func (s *ImportService) DeleteImport(userID, id int64) error {
+	return nil
+
+	l := s.Ctx.Logger.With(
+		zap.String("op", "DeleteImport"),
+		zap.Int64("user_id", userID),
+		zap.Int64("import_id", id),
+	)
+	l.Info("deleting import")
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Fetch import row
+	imp, err := s.FetchImportByID(tx, id, userID, "custom")
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete files
+	finalPath := filepath.Join("storage", imp.Name+".json")
+	tmpPath := finalPath + ".tmp"
+
+	removeIfExists := func(path string) error {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
+
+	if err := removeIfExists(tmpPath); err != nil {
+		tx.Rollback()
+		l.Error("failed to remove temp file", zap.String("path", tmpPath), zap.Error(err))
+		return err
+	}
+	if err := removeIfExists(finalPath); err != nil {
+		tx.Rollback()
+		l.Error("failed to remove final file", zap.String("path", finalPath), zap.Error(err))
+		return err
+	}
+	l.Info("removed import files", zap.String("final", finalPath), zap.String("tmp", tmpPath))
+
+	// TODO: need to revert transactions/transfers
+
+	// TODO: delete import db record
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	l.Info("import deleted successfully")
+	return nil
+}
