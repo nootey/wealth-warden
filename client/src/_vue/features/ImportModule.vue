@@ -118,6 +118,7 @@ onMounted(async () => {
 const importing = ref(false);
 const transfering = ref(false);
 const uploadImportRef = ref<{ files: File[] } | null>(null);
+const localImportId = ref<number | string | null>(null);
 
 const fileValidated = ref(false);
 const validatedResponse = ref<CustomImportValidationResponse | null>(null);
@@ -147,7 +148,6 @@ const onUpload = async (_nextStep?: any) => {
     importing.value = true;
 
     try {
-        const file = selectedFiles.value[0];
         const fileText = await selectedFiles.value[0].text();
         const filePayload = JSON.parse(fileText);
 
@@ -164,20 +164,10 @@ const onUpload = async (_nextStep?: any) => {
 
         // import cash
         const res = await dataStore.importFromJSON(payload, selectedCheckingAcc.value?.id!);
-        emit("completeImport");
         toastStore.successResponseToast(res);
 
-        // validate investments using the same file
-        const invRes = await dataStore.validateImport("custom", file, "investment");
-        validatedResponse.value = invRes;
-        fileValidated.value = invRes.valid;
-
-        // advance to step 3
-        activeStep.value = '3';
-
-        // clear local selections
-        selectedFiles.value = [];
-        selectedCheckingAcc.value = null;
+        resetWizard();
+        emit("completeImport");
 
     } catch (error) {
         toastStore.errorResponseToast(error);
@@ -266,9 +256,10 @@ function resetWizard() {
 
 async function transferInvestments() {
 
-    if (!props.externalImportId) {
-        toastStore.errorResponseToast("Missing import ID")
-        return
+    const importId = props.externalImportId || localImportId.value;
+    if (!importId) {
+        toastStore.errorResponseToast("Missing import ID");
+        return;
     }
 
     if (Object.keys(investmentMappings.value).length === 0) {
@@ -280,17 +271,18 @@ async function transferInvestments() {
 
     try {
         const payload = {
-            import_id: props.externalImportId,
+            import_id: props.externalImportId!,
             checking_acc_id: selectedCheckingAcc.value?.id!,
             investment_mappings: Object.entries(investmentMappings.value).map(
                 ([name, account_id]) => ({ name, account_id })
             ),
         }
 
-        const res = await dataStore.transferInvestmentsFromImport(payload)
+        const res = await dataStore.transferInvestmentsFromImport(payload);
+        toastStore.successResponseToast(res);
 
-        toastStore.successResponseToast(res)
-        emit("completeImport")
+        resetWizard();
+        emit("completeImport");
     } catch (error) {
         toastStore.errorResponseToast(error)
     } finally {
@@ -439,55 +431,58 @@ async function transferInvestments() {
                                     <ShowLoading v-else :numFields="5" />
                                 </StepPanel>
                                 <StepPanel value="3">
-                                    <div v-if="validatedResponse && !transfering" class="flex flex-column gap-2 w-full p-2">
-
-                                        <div class="flex flex-row gap-1 align-items-center">
-                                            <span v-if="validatedResponse.filtered_count == 0" style="color: var(--text-secondary)">No investments were found in the provided data!</span>
-                                            <Button v-else class="main-button w-3"
-                                                    @click="transferInvestments"
-                                                    label="Transfer"
-                                            />
-                                        </div>
-
-                                        <h4>Validation response</h4>
-                                        <div class="flex flex-row w-full align-items-center gap-2">
-                                            <div class="flex flex-column w-6 p-2 gap-2">
-
-                                                <div class="flex flex-row gap-1 align-items-center">
-                                                    <span>Year: </span>
-                                                    <span>{{ validatedResponse.year }} </span>
-                                                </div>
-
-                                                <div class="flex flex-row gap-1 align-items-center">
-                                                    <span>Investments count: </span>
-                                                    <span>{{ validatedResponse.filtered_count }} </span>
-                                                </div>
-
-                                            </div>
-                                        </div>
-
-                                        <div class="flex flex-row w-full p-2 gap-2 align-items-center">
-                                            <div class="flex flex-column gap-1 w-6">
-                                                <label>Checking account</label>
-                                                <AutoComplete size="small"
-                                                              v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
-                                                              @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
-                                                              placeholder="Select checking account" dropdown>
-                                                </AutoComplete>
-                                            </div>
-                                        </div>
-
-                                        <h4>Investment mappings</h4>
-                                        <div v-if="validatedResponse.filtered_count > 0" class="flex flex-row w-full p-2 gap-2 align-items-center">
-                                            <ImportInvestmentMapping
-                                                    :importedCategories="validatedResponse.categories"
-                                                    :investmentAccounts="investmentAccs" @save="onSaveInvestmentMapping"
-                                                    v-model:modelValue="investmentMappings"
-                                            />
-                                        </div>
+                                    <div v-if="validatedResponse && validatedResponse.filtered_count == 0" class="flex flex-column gap-2 w-full p-2">
+                                        <span style="color: var(--text-secondary)">No investments were found in the provided data!</span>
                                     </div>
+                                    <div v-else>
+                                        <div v-if="validatedResponse && !transfering" class="flex flex-column gap-2 w-full p-2">
 
-                                    <ShowLoading v-else :numFields="5" />
+                                            <div class="flex flex-row gap-1 align-items-center">
+                                                <Button class="main-button w-3"
+                                                        @click="transferInvestments"
+                                                        label="Transfer"
+                                                />
+                                            </div>
+
+                                            <h4>Validation response</h4>
+                                            <div class="flex flex-row w-full align-items-center gap-2">
+                                                <div class="flex flex-column w-6 p-2 gap-2">
+
+                                                    <div class="flex flex-row gap-1 align-items-center">
+                                                        <span>Year: </span>
+                                                        <span>{{ validatedResponse.year }} </span>
+                                                    </div>
+
+                                                    <div class="flex flex-row gap-1 align-items-center">
+                                                        <span>Investments count: </span>
+                                                        <span>{{ validatedResponse.filtered_count }} </span>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+
+                                            <div class="flex flex-row w-full p-2 gap-2 align-items-center">
+                                                <div class="flex flex-column gap-1 w-6">
+                                                    <label>Checking account</label>
+                                                    <AutoComplete size="small"
+                                                                  v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
+                                                                  @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
+                                                                  placeholder="Select checking account" dropdown>
+                                                    </AutoComplete>
+                                                </div>
+                                            </div>
+
+                                            <h4>Investment mappings</h4>
+                                            <div v-if="validatedResponse.filtered_count > 0" class="flex flex-row w-full p-2 gap-2 align-items-center">
+                                                <ImportInvestmentMapping
+                                                        :importedCategories="validatedResponse.categories"
+                                                        :investmentAccounts="investmentAccs" @save="onSaveInvestmentMapping"
+                                                        v-model:modelValue="investmentMappings"
+                                                />
+                                            </div>
+                                        </div>
+                                        <ShowLoading v-else :numFields="5" />
+                                    </div>
                                 </StepPanel>
                             </StepPanels>
                         </Stepper>

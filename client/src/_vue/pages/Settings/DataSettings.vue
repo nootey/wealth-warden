@@ -9,7 +9,7 @@ const importListRef = ref<InstanceType<typeof ImportList> | null>(null);
 const externalStep = ref<'1' | '2' | '3'>('1');
 const externalImportId = ref<string | null>(null);
 
-async function updateList() {
+function updateList() {
     importListRef.value?.refresh();
 }
 
