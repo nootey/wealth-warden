@@ -304,9 +304,6 @@ func (r *AccountRepository) UpdateAccount(tx *gorm.DB, record *models.Account) (
 		updates["account_type_id"] = record.AccountTypeID
 	}
 	updates["is_active"] = record.IsActive
-	if !record.OpenedAt.IsZero() {
-		updates["opened_at"] = record.OpenedAt
-	}
 
 	db.Model(&models.Account{}).Where("id = ?", record.ID).Updates(updates)
 
@@ -378,13 +375,20 @@ func (r *AccountRepository) EnsureDailyBalanceRow(
 	}
 	asOf = asOf.UTC().Truncate(24 * time.Hour)
 
-	// Insert-if-missing with proper start_balance derived from previous end_balance
 	return db.Exec(`
         WITH prev AS (
             SELECT end_balance
             FROM balances
             WHERE account_id = ? AND as_of < ?
             ORDER BY as_of DESC
+            LIMIT 1
+        ),
+        nxt AS (
+            -- earliest future row (used when there is no previous row)
+            SELECT start_balance
+            FROM balances
+            WHERE account_id = ? AND as_of > ?
+            ORDER BY as_of ASC
             LIMIT 1
         )
         INSERT INTO balances (
@@ -393,12 +397,13 @@ func (r *AccountRepository) EnsureDailyBalanceRow(
             net_market_flows, adjustments, currency, created_at, updated_at
         )
         VALUES (
-            ?, ?, COALESCE((SELECT end_balance FROM prev), 0),
+            ?, ?, COALESCE((SELECT end_balance FROM prev),
+                           (SELECT start_balance FROM nxt), 0),
             0, 0, 0, 0,
             0, 0, ?, NOW(), NOW()
         )
         ON CONFLICT (account_id, as_of) DO NOTHING
-    `, accountID, asOf, accountID, asOf, currency).Error
+    `, accountID, asOf, accountID, asOf, accountID, asOf, currency).Error
 }
 
 func (r *AccountRepository) AddToDailyBalance(
