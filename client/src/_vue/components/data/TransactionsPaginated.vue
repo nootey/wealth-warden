@@ -9,6 +9,7 @@ import type {Column} from "../../../services/filter_registry.ts";
 import {computed, onMounted, ref, watch} from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
 import type { SortObj } from "../../../models/shared_models.ts";
+import {useChartColors} from "../../../style/theme/chartColors.ts";
 
 const props = defineProps<{
     columns: Column[];
@@ -31,6 +32,8 @@ const emits = defineEmits<{
     (e: "sortChange", column: string): void;
     (e: "rowClick", id: number): void;
 }>();
+
+const { colors } = useChartColors();
 
 const rowsOptions = computed(() => props.rows ?? [25, 50, 100]);
 const pageLocal = ref(1);
@@ -117,10 +120,17 @@ defineExpose({ refresh });
             </template>
             <template #body="{ data, field }">
                 <template v-if="field === 'amount'">
-                    {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
+                    <div class="flex flex-row gap-2 align-items-center">
+                        <i class="text-xs" :class="((data.transaction_type === 'expense' ? data.amount * -1 : data.amount) >= 0)
+                                ? 'pi pi-angle-up': 'pi pi-angle-down'"
+                            :style="{ color: ((data.transaction_type === 'expense' ? data.amount * -1 : data.amount) >= 0)
+                                ? colors.pos: colors.neg }"
+                        />
+                        <span>{{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}</span>
+                    </div>
                 </template>
                 <template v-else-if="field === 'created_at'">
-                    {{ dateHelper.formatDate(data?.created_at, true) }}
+                   {{ dateHelper.formatDate(data?.created_at, true) }}
                 </template>
                 <template v-else-if="field === 'account'">
                     <div class="flex flex-row gap-2 align-items-center account-row">
