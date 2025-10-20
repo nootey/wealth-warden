@@ -445,7 +445,7 @@ async function startOperation() {
           </div>
 
           <div class="flex flex-row w-full gap-2 align-items-center">
-              <div class="flex flex-column gap-1 w-12">
+              <div class="flex flex-column gap-1 w-full">
                   <ValidationError :isRequired="true" :message="v$.record.frequency.$errors[0]?.$message">
                       <label>{{ mode === 'create' ? "First run" : "Next run"}}</label>
                   </ValidationError>
@@ -457,18 +457,21 @@ async function startOperation() {
               </div>
           </div>
 
-          <div class="flex flex-row w-full gap-2">
-              <div class="flex flex-column gap-1 w-6">
+          <div class="flex flex-row w-full gap-2 w-full">
+              <div class="flex flex-column gap-1 w-full">
                   <ValidationError :isRequired="false" :message="v$.record.end_date.$errors[0]?.$message">
                       <label>End date</label>
                   </ValidationError>
                   <DatePicker v-model="record.end_date" date-format="dd/mm/yy"
                               showIcon fluid iconDisplay="input" size="small"
                               :readonly="isReadOnly" :disabled="isReadOnly"
-                              :minDate="endDateMin"
+                              :minDate="endDateMin" class="w-full"
                   />
               </div>
-              <div class="flex flex-column gap-1 w-6">
+          </div>
+
+          <div class="flex flex-row w-full gap-2 w-full">
+              <div class="flex flex-column gap-1 w-full">
                   <ValidationError :isRequired="false" :message="v$.record.max_runs.$errors[0]?.$message">
                       <label>Max runs</label>
                   </ValidationError>

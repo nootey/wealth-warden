@@ -24,7 +24,7 @@ const router = useRouter();
 
 type RangeKey = '1w'|'1m'|'3m'|'6m'|'ytd'|'1y'|'5y'
 
-const dateRanges = [
+const dateRanges: { name: string; key: RangeKey }[] = [
     { name: '1W',  key: '1w'  },
     { name: '1M',  key: '1m'  },
     { name: '3M',  key: '3m'  },
@@ -32,7 +32,7 @@ const dateRanges = [
     { name: 'YTD', key: 'ytd' },
     { name: '1Y',  key: '1y'  },
     { name: '5Y',  key: '5y'  },
-] as const
+]
 
 const periodLabels: Record<RangeKey,string> = {
     '1w': 'week',
@@ -49,7 +49,6 @@ const chartStore = useChartStore()
 
 const hydrating = ref(true)
 const payload = ref<NetworthResponse | null>(null)
-const filteredDateRanges = ref<typeof dateRanges[number][]>([...dateRanges])
 const selectedDTO = ref<typeof dateRanges[number] | null>(dateRanges[4]) // default YTD
 const selectedKey = computed<RangeKey>(() => (selectedDTO.value?.key ?? 'ytd') as RangeKey)
 
@@ -105,13 +104,6 @@ const displayPoints = computed<ChartPoint[]>(() => {
     const isLiability = payload.value?.asset_type === 'liability'
     return isLiability ? pts.map(p => ({ ...p, value: Math.abs(Number(p.value)) })) : pts
 })
-
-function searchDaterange(event: any) {
-    const q = (event.query ?? '').trim().toLowerCase()
-    filteredDateRanges.value = q
-        ? dateRanges.filter(o => o.name.toLowerCase().startsWith(q))
-        : [...dateRanges]
-}
 
 function displayNetworthChange(change: string) {
     if (change === 'year to date') return change
@@ -201,16 +193,12 @@ onMounted(getData)
       </div>
 
       <div class="flex flex-column gap-2">
-        <AutoComplete
-            size="small"
-            style="width: 90px;"
-            v-model="selectedDTO"
-            :suggestions="filteredDateRanges"
-            dropdown
-            @complete="searchDaterange"
-            optionLabel="name"
-            forceSelection
-        />
+          <Select size="small"
+                  style="width: 90px;"
+                  v-model="selectedDTO"
+                  :options="dateRanges"
+                  optionLabel="name"
+          />
       </div>
     </div>
 

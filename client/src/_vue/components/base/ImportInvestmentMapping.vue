@@ -84,8 +84,8 @@ function save() {
                                 placeholder="Select account">
                             <template #value="slotProps">
                                 <span v-if="slotProps.value">
-                  {{ investmentAccounts.find(a => a.id === slotProps.value)?.name || 'Select account' }}
-                </span>
+                                  {{ investmentAccounts.find(a => a.id === slotProps.value)?.name || 'Select account' }}
+                                </span>
                                 <span v-else class="text-color-secondary">Select account</span>
                             </template>
                         </Select>

@@ -209,8 +209,14 @@ defineExpose({ refresh });
 
         <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
             <span style="color: var(--text-secondary)">Create and manage custom templates, for executing transactions.</span>
-            <Button label="New template" icon="pi pi-plus" class="main-button ml-auto"
-                    @click="manipulateDialog('addTemplate', true)" />
+            <Button class="main-button ml-auto"
+                    @click="manipulateDialog('addTemplate', true)">
+                <div class="flex flex-row gap-1 align-items-center">
+                    <i class="pi pi-plus"></i>
+                    <span> New </span>
+                    <span class="mobile-hide"> Template </span>
+                </div>
+            </Button>
         </div>
 
         <div class="flex flex-row gap-2 w-full">

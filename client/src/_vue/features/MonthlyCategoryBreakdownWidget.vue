@@ -7,6 +7,7 @@ import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useChartStore } from "../../services/stores/chart_store.ts";
 import type {Category} from "../../models/transaction_models.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
+import Select from "primevue/select";
 
 const chartStore = useChartStore();
 const toastStore = useToastStore();
@@ -22,32 +23,48 @@ const yearOptions = computed(() =>
     allYears.value.map(y => ({ label: String(y), value: y }))
 );
 
-const ALL_CATEGORY = { id: undefined, name: 'All', display_name: 'All', parent_id: null } as unknown as Category;
+type OptionItem = { label: string; value: number | undefined; meta: Category }
+
+const ALL_CATEGORY = {
+    id: undefined,
+    name: 'All',
+    display_name: 'All',
+    parent_id: null
+} as unknown as Category
+
 const availableCategories = computed<Category[]>(() => [
     ALL_CATEGORY,
     ...transactionStore.categories.filter(c => !!c.parent_id)
-]);
-const selectedCategory = ref<Category | null>(ALL_CATEGORY);
-const filteredCategories = ref<Category[]>([]);
+])
+
+const selectedCategoryId = ref<number | undefined>(ALL_CATEGORY.id!)
+
+const selectedCategory = computed<Category>(() =>
+    availableCategories.value.find(c => c.id === selectedCategoryId.value) ?? ALL_CATEGORY
+)
+
+const categoryOptions = computed((): OptionItem[] => {
+    const order = ['_general', 'income', 'expense', 'investments', 'savings'] as const
+    const keyOf = (c: Category) => (c === ALL_CATEGORY ? '_general' : (c.classification ?? 'other'))
+
+    return availableCategories.value
+        .map((c): OptionItem => ({
+            label: (c.display_name ?? c.name ?? '') as string,
+            value: c.id!,
+            meta: c
+        }))
+        .sort((a, b) => {
+            const ak = order.indexOf(keyOf(a.meta) as any)
+            const bk = order.indexOf(keyOf(b.meta) as any)
+            const ai = ak === -1 ? Number.POSITIVE_INFINITY : ak
+            const bi = bk === -1 ? Number.POSITIVE_INFINITY : bk
+            return ai - bi || a.label.localeCompare(b.label)
+        })
+})
 
 const hasAnyData = computed(() =>
     series.value.some(s => s.data?.some(v => Number(v) > 0))
 );
-
-const searchCategory = (event: { query: string }) => {
-    setTimeout(() => {
-        const q = event.query.trim().toLowerCase();
-        if (!q.length) {
-            filteredCategories.value = [...availableCategories.value];
-        } else {
-            filteredCategories.value = availableCategories.value.filter((record) => {
-                const name = (record.name ?? '').toLowerCase();
-                const disp = (record.display_name ?? '').toLowerCase();
-                return name.startsWith(q) || disp.startsWith(q);
-            });
-        }
-    }, 250);
-};
 
 const loadYears = async () => {
     const now = new Date().getFullYear();
@@ -87,7 +104,7 @@ const fetchData = async () => {
             return { name: String(y), data };
         });
 
-        if (!selectedCategory.value) selectedCategory.value = ALL_CATEGORY;
+        // if (!selectedCategory.value) selectedCategory.value = ALL_CATEGORY;
 
     } catch (e) {
         toastStore.errorResponseToast(e);
@@ -121,20 +138,33 @@ watch(selectedCategory, async () => {
                 </span>
                 </div>
 
-                <div class="flex flex-column">
-                    <AutoComplete
-                            v-model="selectedCategory"
-                            size="small"
-                            :suggestions="filteredCategories"
-                            @complete="searchCategory"
-                            optionLabel="display_name"
-                            placeholder="Select category"
-                            forceSelection
-                            dropdown
-                    />
+                <div id="action-col" class="flex flex-column w-5">
+                    <Select size="small"
+                            v-model="selectedCategoryId"
+                            :options="categoryOptions"
+                            optionLabel="label"
+                            optionValue="value">
+
+                        <template #value="{ value }">
+                            {{
+                                availableCategories.find(c => c.id === value)?.display_name
+                                ?? availableCategories.find(c => c.id === value)?.name
+                                ?? (value === undefined ? 'All' : 'Select category')
+                            }}
+                        </template>
+
+                        <template #option="{ option }">
+                            <div class="flex justify-content-between w-full">
+                                <span>{{ option.label }}</span>
+                                <small class="text-color-secondary">
+                                    {{ option.meta?.classification }}
+                                </small>
+                            </div>
+                        </template>
+                    </Select>
                 </div>
 
-                <div class="flex flex-column">
+                <div id="action-col" class="flex flex-column w-5">
                     <MultiSelect
                             v-model="selectedYears"
                             :options="yearOptions"
@@ -144,7 +174,6 @@ watch(selectedCategory, async () => {
                             placeholder="Years"
                             optionLabel="label"
                             optionValue="value"
-                            style="width: 310px"
                     />
                 </div>
 
@@ -174,6 +203,10 @@ watch(selectedCategory, async () => {
         flex-direction: column !important;
         align-items: center !important;
         min-width: 0 !important;
+    }
+
+    #action-col {
+        width: 100% !important;
     }
 }
 </style>

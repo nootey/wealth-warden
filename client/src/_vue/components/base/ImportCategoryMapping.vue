@@ -157,8 +157,7 @@ function save() {
 
                 <Column header="Mapping">
                     <template #body="{ data }">
-                        <Select
-                                class="w-full"
+                        <Select class="w-full"
                                 :modelValue="mapping[data.name] ?? null"
                                 @update:modelValue="val => onSelect(data.name, { value: val } as any)"
                                 :options="groupedOptions"
@@ -168,8 +167,7 @@ function save() {
                                 optionValue="value"
                                 showClear
                                 filter
-                                placeholder="Select category"
-                        >
+                                placeholder="Select category">
 
                             <template #value="slotProps">
                                 <span v-if="slotProps.value">

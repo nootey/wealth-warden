@@ -15,7 +15,6 @@ const props = defineProps<{
 const accBasicStats = ref<BasicAccountStats | null>(null);
 const years = ref<number[]>([]);
 const selectedYear = ref<number>(new Date().getFullYear());
-const filteredYears = ref<number[]>([]);
 
 const isLoadingYears = ref(false);
 const isLoadingStats = ref(false);
@@ -46,7 +45,6 @@ const loadYears = async () => {
             ? current
             : (years.value[0] ?? current);
 
-        filteredYears.value = [...years.value];
     } finally {
         isLoadingYears.value = false;
     }
@@ -137,17 +135,6 @@ const pieOptions = computed(() => ({
     }
 }));
 
-function searchYear(event: any) {
-    const q = String((event?.query ?? "")).trim().toLowerCase();
-    if (!q) {
-        filteredYears.value = [...years.value];
-        return;
-    }
-    filteredYears.value = years.value.filter((y) =>
-        String(y).toLowerCase().includes(q)
-    );
-}
-
 </script>
 
 <template>
@@ -164,14 +151,10 @@ function searchYear(event: any) {
             </div>
 
             <div class="flex flex-column gap-2">
-                <AutoComplete
-                        size="small"
+                <Select size="small"
                         style="width: 100px;"
                         v-model="selectedYear"
-                        :suggestions="filteredYears"
-                        dropdown
-                        @complete="searchYear"
-                        forceSelection
+                        :options="years"
                 />
             </div>
         </div>
