@@ -436,7 +436,7 @@ async function manageRecord() {
           </div>
         </div>
 
-        <div class="flex flex-row w-full">
+        <div v-if="mode === 'create'" class="flex flex-row w-full">
             <div class="flex flex-column gap-1 w-full">
                 <ValidationError :isRequired="true" :message="v$.record.opened_at.$errors[0]?.$message">
                     <label>Opening date</label>

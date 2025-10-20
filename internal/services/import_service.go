@@ -224,6 +224,15 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 		}
 	}()
 
+	settings, err := s.accService.Ctx.SettingsRepo.FetchUserSettings(nil, userID)
+	if err != nil {
+		return err
+	}
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
 	sort.SliceStable(payload.Txns, func(i, j int) bool {
 		return payload.Txns[i].TxnDate.Before(payload.Txns[j].TxnDate)
 	})
@@ -238,7 +247,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 			return fmt.Errorf("invalid amount %q: %w", txn.Amount, err)
 		}
 
-		txnDate := txn.TxnDate.UTC().Truncate(24 * time.Hour)
+		txDay := utils.LocalMidnightUTC(txn.TxnDate, loc)
 
 		var category models.Category
 		var found bool
@@ -279,7 +288,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 				TransactionType: txn.TransactionType,
 				Amount:          amount,
 				Currency:        models.DefaultCurrency,
-				TxnDate:         txnDate,
+				TxnDate:         txDay,
 				Description:     &txn.Category,
 			}
 
@@ -301,7 +310,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 		}
 	}
 
-	frontfillFrom := payload.Txns[0].TxnDate.UTC().Truncate(24 * time.Hour)
+	frontfillFrom := utils.LocalMidnightUTC(payload.Txns[0].TxnDate, loc)
 	l.Info("frontfilling balances",
 		zap.Int64("import_id", importID),
 		zap.Time("from", frontfillFrom),
@@ -441,6 +450,16 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 		return err
 	}
 
+	settings, err := s.accService.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
 	sort.SliceStable(payload.Txns, func(i, j int) bool {
 		return payload.Txns[i].TxnDate.Before(payload.Txns[j].TxnDate)
 	})
@@ -513,7 +532,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 		}
 
 		// normalize date
-		txDate := txn.TxnDate.UTC().Truncate(24 * time.Hour)
+		txDay := utils.LocalMidnightUTC(txn.TxnDate, loc)
 
 		desc := txn.Description
 		expense := models.Transaction{
@@ -522,7 +541,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 			TransactionType: "expense",
 			Amount:          amt,
 			Currency:        models.DefaultCurrency,
-			TxnDate:         txDate,
+			TxnDate:         txDay,
 			Description:     &desc,
 			IsTransfer:      true,
 		}
@@ -537,7 +556,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 			TransactionType: "income",
 			Amount:          amt,
 			Currency:        models.DefaultCurrency,
-			TxnDate:         txDate,
+			TxnDate:         txDay,
 			Description:     &desc,
 			IsTransfer:      true,
 		}
@@ -553,26 +572,26 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 			Amount:               amt,
 			Currency:             models.DefaultCurrency,
 			Status:               "success",
-			CreatedAt:            txDate,
+			CreatedAt:            txDay,
 		}
 		if _, err := s.TxnRepo.InsertTransfer(tx, &transfer); err != nil {
 			_ = tx.Rollback()
 			return err
 		}
 
-		err = s.accService.UpdateBalancesForTransfer(tx, checkingAcc, toAccount, txDate, amt)
+		err = s.accService.UpdateBalancesForTransfer(tx, checkingAcc, toAccount, txDay, amt)
 		if err != nil {
 			tx.Rollback()
 			return err
 		}
 
 		// record earliest touched date
-		touch(checkingAcc.ID, txDate)
-		touch(toAccount.ID, txDate)
+		touch(checkingAcc.ID, txDay)
+		touch(toAccount.ID, txDay)
 	}
 
 	// frontfill balances
-	frontfillFrom := payload.Txns[0].TxnDate.UTC().Truncate(24 * time.Hour)
+	frontfillFrom := utils.LocalMidnightUTC(payload.Txns[0].TxnDate, loc)
 	if err := s.accService.FrontfillBalancesForAccount(
 		tx,
 		userID,

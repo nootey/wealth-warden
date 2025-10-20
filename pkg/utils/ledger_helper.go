@@ -46,3 +46,9 @@ func ValidateAccount(acc *models.Account, role string) error {
 	}
 	return nil
 }
+
+func LocalMidnightUTC(t time.Time, loc *time.Location) time.Time {
+	lt := t.In(loc)
+	lm := time.Date(lt.Year(), lt.Month(), lt.Day(), 0, 0, 0, 0, loc)
+	return lm.UTC()
+}

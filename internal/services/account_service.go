@@ -176,7 +176,11 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		loc = time.UTC
 	}
 
-	openedAt := req.OpenedAt.UTC()
+	openedAt := req.OpenedAt
+	if openedAt.IsZero() {
+		openedAt = time.Now()
+	}
+	openedDay := utils.LocalMidnightUTC(openedAt, loc)
 
 	accType, err := s.Repo.FindAccountTypeByID(tx, req.AccountTypeID)
 	if err != nil {
@@ -188,7 +192,7 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		Currency:      models.DefaultCurrency,
 		AccountTypeID: accType.ID,
 		UserID:        userID,
-		OpenedAt:      openedAt,
+		OpenedAt:      openedDay,
 	}
 
 	balanceAmountString := req.Balance.StringFixed(2)
@@ -214,7 +218,7 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		amount = amount.Neg()
 	}
 
-	asOf := time.Now().UTC().Truncate(24 * time.Hour)
+	asOf := openedDay
 
 	balance := &models.Balance{
 		AccountID:    accountID,
@@ -229,14 +233,14 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		return err
 	}
 
-	// seed snapshots
+	// seed snapshots from opened day to today
 	if err := s.Repo.UpsertSnapshotsFromBalances(
 		tx,
 		userID,
 		accountID,
 		models.DefaultCurrency,
-		asOf, // from opening day
-		time.Now().UTC().Truncate(24*time.Hour), // to today
+		asOf,
+		time.Now().UTC().Truncate(24*time.Hour),
 	); err != nil {
 		tx.Rollback()
 		return err
@@ -309,10 +313,6 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 		return fmt.Errorf("can't find account type with given id %w", err)
 	}
 
-	exDate := exAcc.OpenedAt.In(loc).Format("2006-01-02")
-	newDate := req.OpenedAt.In(loc).Format("2006-01-02")
-	updateOpenedAt := exDate != newDate
-
 	acc := &models.Account{
 		ID:            id,
 		Name:          req.Name,
@@ -328,15 +328,6 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 	utils.CompareChanges(exAccType.Type, newAccType.Type, changes, "account_type")
 	utils.CompareChanges(exAccType.Subtype, newAccType.Subtype, changes, "account_subtype")
 	utils.CompareChanges(exAcc.Currency, acc.Currency, changes, "currency")
-
-	if updateOpenedAt {
-		y, m, d := req.OpenedAt.In(loc).Date()
-		acc.OpenedAt = time.Date(y, m, d, 0, 0, 0, 0, loc).UTC()
-
-		utils.CompareChanges(exDate, newDate, changes, "opened_at")
-	} else {
-		acc.OpenedAt = time.Time{}
-	}
 
 	var delta decimal.Decimal
 

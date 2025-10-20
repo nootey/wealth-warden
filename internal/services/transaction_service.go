@@ -179,26 +179,22 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 		return err
 	}
 
-	txnInstant := req.TxnDate.UTC() // store normalized as UTC
+	txDay := utils.LocalMidnightUTC(req.TxnDate, loc)
+	openDay := utils.LocalMidnightUTC(openAsOf, loc)
+	todayDay := utils.LocalMidnightUTC(time.Now(), loc)
 
-	// Use local dates for comparisons
-	txnLocalDay := txnInstant.In(loc).Truncate(24 * time.Hour)
-	openAsOfLocal := openAsOf.In(loc).Truncate(24 * time.Hour)
-	todayLocal := time.Now().In(loc).Truncate(24 * time.Hour)
-
-	if txnLocalDay.Before(openAsOfLocal) {
+	if txDay.Before(openDay) {
 		tx.Rollback()
 		return fmt.Errorf(
 			"transaction date (%s) cannot be before account opening date (%s)",
-			txnLocalDay.Format("2006-01-02"), openAsOfLocal.Format("2006-01-02"),
+			txDay.Format("2006-01-02"), openDay.Format("2006-01-02"),
 		)
 	}
-
-	if txnLocalDay.After(todayLocal) {
+	if txDay.After(todayDay) {
 		tx.Rollback()
 		return fmt.Errorf(
 			"transaction date (%s) cannot be in the future (>%s)",
-			txnLocalDay.Format("2006-01-02"), todayLocal.Format("2006-01-02"),
+			txDay.Format("2006-01-02"), todayDay.Format("2006-01-02"),
 		)
 	}
 
@@ -224,7 +220,7 @@ func (s *TransactionService) InsertTransaction(userID int64, req *models.Transac
 		TransactionType: strings.ToLower(req.TransactionType),
 		Amount:          req.Amount,
 		Currency:        models.DefaultCurrency,
-		TxnDate:         txnInstant,
+		TxnDate:         txDay,
 		Description:     req.Description,
 	}
 
@@ -344,12 +340,12 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 		loc = time.UTC
 	}
 
-	transferInstant := req.CreatedAt
-	if transferInstant.IsZero() {
-		transferInstant = time.Now()
+	t := req.CreatedAt
+	if t.IsZero() {
+		t = time.Now()
 	}
-	transferInstant = transferInstant.In(loc)
-	txDate := transferInstant.UTC().Truncate(24 * time.Hour)
+
+	txDate := utils.LocalMidnightUTC(t, loc)
 
 	outflow := models.Transaction{
 		UserID:          userID,
@@ -591,24 +587,24 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		return err
 	}
 
-	txnInstant := req.TxnDate.UTC()
-	newLocalDay := txnInstant.In(loc).Truncate(24 * time.Hour)
-	openAsOfLocal := openAsOf.In(loc).Truncate(24 * time.Hour)
-	todayLocal := time.Now().In(loc).Truncate(24 * time.Hour)
+	newDay := utils.LocalMidnightUTC(req.TxnDate, loc)
+	oldDay := utils.LocalMidnightUTC(exTr.TxnDate, loc)
+	openDay := utils.LocalMidnightUTC(openAsOf, loc)
+	todayDay := utils.LocalMidnightUTC(time.Now(), loc)
 
-	if newLocalDay.Before(openAsOfLocal) {
+	if newDay.Before(openDay) {
 		tx.Rollback()
 		return fmt.Errorf(
 			"transaction date (%s) cannot be before account opening date (%s)",
-			newLocalDay.Format("2006-01-02"), openAsOfLocal.Format("2006-01-02"),
+			newDay.Format("2006-01-02"), openDay.Format("2006-01-02"),
 		)
 	}
 
-	if newLocalDay.After(todayLocal) {
+	if newDay.After(todayDay) {
 		tx.Rollback()
 		return fmt.Errorf(
 			"transaction date (%s) cannot be in the future (>%s)",
-			newLocalDay.Format("2006-01-02"), todayLocal.Format("2006-01-02"),
+			newDay.Format("2006-01-02"), todayDay.Format("2006-01-02"),
 		)
 	}
 
@@ -621,7 +617,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		TransactionType: strings.ToLower(req.TransactionType),
 		Amount:          req.Amount,
 		Currency:        exTr.Currency,
-		TxnDate:         txnInstant,
+		TxnDate:         newDay,
 		Description:     req.Description,
 	}
 	_, err = s.Repo.UpdateTransaction(tx, tr)
@@ -652,16 +648,14 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 
 	oldEffect := signed(exTr.TransactionType, exTr.Amount)
 	newEffect := signed(tr.TransactionType, tr.Amount)
-
-	// handle account change OR date change explicitly
-	dateChanged := !exTr.TxnDate.UTC().Truncate(24 * time.Hour).Equal(newLocalDay)
+	dateChanged := !oldDay.Equal(newDay)
 
 	switch {
 	case oldAccount.ID != newAccount.ID || dateChanged:
 		// Reverse the old posting on its original day & account
 		if !oldEffect.IsZero() {
 			if err := s.AccountService.UpdateAccountCashBalance(
-				tx, oldAccount, exTr.TxnDate, reverseDirFor(oldEffect), oldEffect.Abs(),
+				tx, oldAccount, oldDay, reverseDirFor(oldEffect), oldEffect.Abs(),
 			); err != nil {
 				tx.Rollback()
 				return err
@@ -670,7 +664,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		// Apply the new posting on the new day & account
 		if !newEffect.IsZero() {
 			if err := s.AccountService.UpdateAccountCashBalance(
-				tx, newAccount, txnInstant, dirFor(newEffect), newEffect.Abs(),
+				tx, newAccount, newDay, dirFor(newEffect), newEffect.Abs(),
 			); err != nil {
 				tx.Rollback()
 				return err
@@ -682,7 +676,7 @@ func (s *TransactionService) UpdateTransaction(userID int64, id int64, req *mode
 		delta := newEffect.Sub(oldEffect)
 		if !delta.IsZero() {
 			if err := s.AccountService.UpdateAccountCashBalance(
-				tx, newAccount, txnInstant, dirFor(delta), delta.Abs(),
+				tx, newAccount, newDay, dirFor(delta), delta.Abs(),
 			); err != nil {
 				tx.Rollback()
 				return err

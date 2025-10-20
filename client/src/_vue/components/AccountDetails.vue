@@ -105,7 +105,7 @@ async function confirmCloseAccount(id: number) {
                 <h4>KPI</h4>
                 <span> Start balance: <b>{{ vueHelper.displayAsCurrency(account.balance.start_balance) }} </b> </span>
                 <span> Currency: <b>{{ account.currency }} </b> </span>
-                <span> Opened: <b>{{ dateHelper.formatDate(account.opened_at!, true) }} </b> </span>
+                <span> Opened: <b>{{ dateHelper.formatDate(account.opened_at!, false) }} </b> </span>
                 <span v-if="account.closed_at"> Closed: <b>{{ dateHelper.formatDate(account.closed_at!, true) }} </b> </span>
             </div>
         </SlotSkeleton>
