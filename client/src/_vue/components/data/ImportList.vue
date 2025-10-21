@@ -25,6 +25,7 @@ const confirm = useConfirm();
 
 const imports = ref<Import[]>([]);
 const loading = ref(false);
+const retainTxns = ref(false);
 
 onMounted(async () => {
         await getData()
@@ -52,10 +53,14 @@ const activeColumns = computed<Column[]>(() => [
 
 async function deleteConfirmation(id: number, name: string) {
     confirm.require({
+        group: "delete-import",
         header: 'Delete record?',
         message: `This will delete import: ${name}".`,
-        rejectProps: { label: 'Cancel' },
-        acceptProps: { label: 'Delete', severity: 'danger' },
+        icon: "pi pi-exclamation-triangle",
+        acceptLabel: "Delete",
+        rejectLabel: "Cancel",
+        acceptClass: "p-button-danger",
+        rejectClass: "p-button-text",
         accept: () => deleteRecord(id),
     });
 }
@@ -70,7 +75,9 @@ async function deleteRecord(id: number) {
     try {
         let response = await sharedStore.deleteRecord(
             "imports",
-            id,
+            id, {
+                retain_txns: retainTxns.value,
+            }
         );
         toastStore.successResponseToast(response);
         await getData();
@@ -82,6 +89,28 @@ async function deleteRecord(id: number) {
 </script>
 
 <template>
+
+    <ConfirmDialog group="delete-import" class="rounded-dialog">
+        <template #container="{ message, acceptCallback, rejectCallback }">
+            <div class="flex flex-column gap-2 p-5 justify-content-center w-full">
+                <div class="flex flex-column gap-3 p-2 justify-content-center">
+                    <span class="text-sm">{{ message.message }}</span>
+                    <strong>This action is irreversible!</strong>
+                </div>
+                <div class="flex align-items-center gap-2 p-2">
+                    <Checkbox inputId="retainTxns" v-model="retainTxns" binary/>
+                    <label for="retainTxns" class="text-sm">
+                        Retain imported transactions.
+                    </label>
+                </div>
+                <div class="flex justify-content-end gap-2"  >
+                    <Button class="p-2 border-round-lg" :label="message.rejectProps?.label || 'Cancel'" variant="outlined" style="color: var(--text-primary); border-color: var(--text-primary)" @click="rejectCallback" />
+                    <Button class="p-2 border-round-lg" :label="message.acceptProps?.label || 'Confirm'" severity="danger" style="color: var(--text-primary);" @click="acceptCallback" />
+                </div>
+            </div>
+        </template>
+    </ConfirmDialog>
+
     <div class="w-full flex flex-row gap-2 justify-content-center">
         <DataTable dataKey="id" class="w-full enhanced-table" :loading="loading" :value="imports"
                    scrollable scroll-height="50vh" columnResizeMode="fit"

@@ -13,5 +13,5 @@ func ImportRoutes(apiGroup *gin.RouterGroup, handler *handlers.ImportHandler) {
 	apiGroup.POST("custom/validate", authz.RequireAllMW("manage_data"), handler.ValidateCustomImport)
 	apiGroup.POST("custom/json", authz.RequireAllMW("manage_data"), handler.ImportFromJSON)
 	apiGroup.POST("custom/json/investments", authz.RequireAllMW("manage_data"), handler.TransferInvestmentsFromImport)
-	apiGroup.DELETE("/:id/:type", authz.RequireAllMW("manage_data"), handler.DeleteImport)
+	apiGroup.DELETE("/:id", authz.RequireAllMW("manage_data"), handler.DeleteImport)
 }

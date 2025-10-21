@@ -31,6 +31,7 @@ type Transfer struct {
 	UserID               int64           `gorm:"not null" json:"user_id"`
 	TransactionInflowID  int64           `gorm:"not null;index:idx_transfer_transaction_inflow" json:"transaction_inflow_id"`
 	TransactionOutflowID int64           `gorm:"not null;index:idx_transfer_transaction_outflow" json:"transaction_outflow_id"`
+	ImportID             *int64          `json:"import_id,omitempty"`
 	Amount               decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
 	Currency             string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	Status               string          `gorm:"not null" json:"status"`

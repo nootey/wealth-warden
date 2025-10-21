@@ -275,7 +275,10 @@ func (h *ImportHandler) DeleteImport(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.DeleteImport(userID, id); err != nil {
+	qp := c.Request.URL.Query()
+	retainTxns := strings.EqualFold(qp.Get("retain_txns"), "true")
+
+	if err := h.Service.DeleteImport(userID, id, retainTxns); err != nil {
 		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

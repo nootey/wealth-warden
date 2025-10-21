@@ -290,6 +290,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 				Currency:        models.DefaultCurrency,
 				TxnDate:         txDay,
 				Description:     &txn.Category,
+				ImportID:        &importID,
 			}
 
 			if _, err := s.TxnRepo.InsertTransaction(tx, &t); err != nil {
@@ -544,6 +545,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 			TxnDate:         txDay,
 			Description:     &desc,
 			IsTransfer:      true,
+			ImportID:        &imp.ID,
 		}
 		if _, err := s.TxnRepo.InsertTransaction(tx, &expense); err != nil {
 			_ = tx.Rollback()
@@ -559,6 +561,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 			TxnDate:         txDay,
 			Description:     &desc,
 			IsTransfer:      true,
+			ImportID:        &imp.ID,
 		}
 		if _, err := s.TxnRepo.InsertTransaction(tx, &income); err != nil {
 			_ = tx.Rollback()
@@ -573,6 +576,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 			Currency:             models.DefaultCurrency,
 			Status:               "success",
 			CreatedAt:            txDay,
+			ImportID:             &imp.ID,
 		}
 		if _, err := s.TxnRepo.InsertTransfer(tx, &transfer); err != nil {
 			_ = tx.Rollback()
@@ -653,8 +657,110 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 	return nil
 }
 
-func (s *ImportService) DeleteImport(userID, id int64) error {
+func (s *ImportService) applyDeleteRecompute(tx *gorm.DB, userID, importID int64) error {
+	// fetch aggregates from ImportRepository
+	txnDeltas, err := s.Repo.AggregateImportTxnDeltas(tx, userID, importID)
+	if err != nil {
+		return err
+	}
+	trDeltas, err := s.Repo.AggregateImportTransferDeltas(tx, userID, importID)
+	if err != nil {
+		return err
+	}
+
+	// apply negative adjustments + collect earliest impacted as-of per account
+	type accInfo struct {
+		acc   *models.Account
+		minAs time.Time
+	}
+	affected := map[int64]*accInfo{}
+
+	getAcc := func(id int64) (*models.Account, error) {
+		if ai, ok := affected[id]; ok && ai.acc != nil {
+			return ai.acc, nil
+		}
+		a, err := s.accService.Repo.FindAccountByID(tx, userID, id, false)
+		if err != nil {
+			return nil, err
+		}
+		affected[id] = &accInfo{acc: a}
+		return a, nil
+	}
+	setMin := func(id int64, asOf time.Time) {
+		ai := affected[id]
+		if ai == nil {
+			return
+		}
+		asOf = asOf.UTC().Truncate(24 * time.Hour)
+		if ai.minAs.IsZero() || asOf.Before(ai.minAs) {
+			ai.minAs = asOf
+		}
+	}
+
+	for _, d := range txnDeltas {
+		acc, err := getAcc(d.AccountID)
+		if err != nil {
+			return err
+		}
+		asOf := d.AsOf.UTC().Truncate(24 * time.Hour)
+		inflows, _ := decimal.NewFromString(d.Inflows)
+		outflows, _ := decimal.NewFromString(d.Outflows)
+
+		// reverse: subtract what the import added
+		if inflows.IsPositive() {
+			if err := s.accService.UpdateDailyCashNoSnapshot(tx, acc, asOf, "income", inflows.Neg()); err != nil {
+				return err
+			}
+		}
+		if outflows.IsPositive() {
+			if err := s.accService.UpdateDailyCashNoSnapshot(tx, acc, asOf, "expense", outflows.Neg()); err != nil {
+				return err
+			}
+		}
+		setMin(acc.ID, asOf)
+	}
+
+	for _, d := range trDeltas {
+		asOf := d.AsOf.UTC().Truncate(24 * time.Hour)
+		amt, _ := decimal.NewFromString(d.Amount)
+
+		fromAcc, err := getAcc(d.FromAccountID)
+		if err != nil {
+			return err
+		}
+		toAcc, err := getAcc(d.ToAccountID)
+		if err != nil {
+			return err
+		}
+
+		// reverse transfer impact on balances
+		if err := s.accService.UpdateDailyCashNoSnapshot(tx, fromAcc, asOf, "expense", amt.Neg()); err != nil {
+			return err
+		}
+		if err := s.accService.UpdateDailyCashNoSnapshot(tx, toAcc, asOf, "income", amt.Neg()); err != nil {
+			return err
+		}
+		setMin(fromAcc.ID, asOf)
+		setMin(toAcc.ID, asOf)
+	}
+
+	// 3) frontfill + snapshots for affected accounts
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	for _, ai := range affected {
+		if ai.acc == nil || ai.minAs.IsZero() {
+			continue
+		}
+		if err := s.accService.FrontfillBalancesForAccount(tx, ai.acc.UserID, ai.acc.ID, ai.acc.Currency, ai.minAs); err != nil {
+			return err
+		}
+		if err := s.accService.Repo.UpsertSnapshotsFromBalances(tx, ai.acc.UserID, ai.acc.ID, ai.acc.Currency, ai.minAs, today); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func (s *ImportService) DeleteImport(userID, id int64, retainTxns bool) error {
 
 	l := s.Ctx.Logger.With(
 		zap.String("op", "DeleteImport"),
@@ -676,6 +782,58 @@ func (s *ImportService) DeleteImport(userID, id int64) error {
 
 	// Fetch import row
 	imp, err := s.FetchImportByID(tx, id, userID, "custom")
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Recompute balances
+	if err := s.applyDeleteRecompute(tx, userID, imp.ID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	txns, err := s.TxnRepo.FindTransactionIDsByImportID(tx, imp.ID, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	trs, err := s.TxnRepo.FindTransferIDsByImportID(tx, imp.ID, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Soft delete txns
+	err = s.TxnRepo.BulkDeleteTransactions(tx, txns, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = s.TxnRepo.BulkDeleteTransfers(tx, trs, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if !retainTxns {
+		// Hard delete
+		_, err = s.TxnRepo.PurgeImportedTransactions(tx, imp.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		_, err = s.TxnRepo.PurgeImportedTransfers(tx, imp.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	err = s.Repo.DeleteImport(tx, imp.ID, userID)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -703,10 +861,6 @@ func (s *ImportService) DeleteImport(userID, id int64) error {
 		return err
 	}
 	l.Info("removed import files", zap.String("final", finalPath), zap.String("tmp", tmpPath))
-
-	// TODO: need to revert transactions/transfers
-
-	// TODO: delete import db record
 
 	if err := tx.Commit().Error; err != nil {
 		return err

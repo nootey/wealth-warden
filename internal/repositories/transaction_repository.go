@@ -265,6 +265,21 @@ func (r *TransactionRepository) FindTransactionByID(tx *gorm.DB, ID, userID int6
 	return record, q.Error
 }
 
+func (r *TransactionRepository) FindTransactionIDsByImportID(tx *gorm.DB, importID, userID int64) ([]int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var ids []int64
+	q := db.Model(&models.Transaction{}).
+		Where("import_id = ? AND user_id = ?", importID, userID)
+
+	q = q.Pluck("id", &ids)
+
+	return ids, q.Error
+}
+
 func (r *TransactionRepository) FindTransferByID(tx *gorm.DB, ID, userID int64) (models.Transfer, error) {
 	db := tx
 	if db == nil {
@@ -275,6 +290,21 @@ func (r *TransactionRepository) FindTransferByID(tx *gorm.DB, ID, userID int64) 
 	result := db.
 		Where("id = ? AND user_id = ?", ID, userID).First(&record)
 	return record, result.Error
+}
+
+func (r *TransactionRepository) FindTransferIDsByImportID(tx *gorm.DB, importID, userID int64) ([]int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var ids []int64
+	q := db.Model(&models.Transfer{}).
+		Where("import_id = ? AND user_id = ?", importID, userID)
+
+	q = q.Pluck("id", &ids)
+
+	return ids, q.Error
 }
 
 func (r *TransactionRepository) CountActiveTransactionsForCategory(tx *gorm.DB, userID, categoryID int64) (int64, error) {
@@ -402,6 +432,54 @@ func (r *TransactionRepository) DeleteTransfer(tx *gorm.DB, id, userID int64) er
 	if res.Error != nil {
 		return res.Error
 	}
+	return nil
+}
+
+func (r *TransactionRepository) BulkDeleteTransactions(tx *gorm.DB, ids []int64, userID int64) error {
+	if len(ids) == 0 {
+		return nil // nothing to delete
+	}
+
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	res := db.Model(&models.Transaction{}).
+		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
+		Updates(map[string]any{
+			"deleted_at": time.Now(),
+			"updated_at": time.Now(),
+		})
+
+	if res.Error != nil {
+		return res.Error
+	}
+
+	return nil
+}
+
+func (r *TransactionRepository) BulkDeleteTransfers(tx *gorm.DB, ids []int64, userID int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	res := db.Model(&models.Transfer{}).
+		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
+		Updates(map[string]any{
+			"deleted_at": time.Now(),
+			"updated_at": time.Now(),
+		})
+
+	if res.Error != nil {
+		return res.Error
+	}
+
 	return nil
 }
 
@@ -662,4 +740,36 @@ func (r *TransactionRepository) GetTransactionsByYearAndClass(
 	var txs []models.Transaction
 	err := q.Find(&txs).Error
 	return txs, err
+}
+
+func (r *TransactionRepository) PurgeImportedTransactions(
+	tx *gorm.DB, importID, userID int64,
+) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	q := db.
+		Unscoped().
+		Where("user_id = ? AND import_id = ? AND deleted_at IS NOT NULL", userID, importID)
+
+	res := q.Delete(&models.Transaction{})
+	return res.RowsAffected, res.Error
+}
+
+func (r *TransactionRepository) PurgeImportedTransfers(
+	tx *gorm.DB, importID, userID int64,
+) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	q := db.
+		Unscoped().
+		Where("user_id = ? AND import_id = ? AND deleted_at IS NOT NULL", userID, importID)
+
+	res := q.Delete(&models.Transfer{})
+	return res.RowsAffected, res.Error
 }

@@ -46,9 +46,11 @@ export const useSharedStore = defineStore('shared', {
                 throw err;
             }
         },
-        async deleteRecord(prefix: string, id: number) {
+        async deleteRecord(prefix: string, id: number, params?: object) {
             try {
-                const response = await apiClient.delete(`${prefix}/${id}`);
+                const response = await apiClient.delete(`${prefix}/${id}`, {
+                    params: params
+                });
                 return response.data;
             } catch (err) {
                 throw err;
