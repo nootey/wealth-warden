@@ -750,11 +750,10 @@ func (r *TransactionRepository) PurgeImportedTransactions(
 		db = r.DB
 	}
 
-	q := db.
-		Unscoped().
-		Where("user_id = ? AND import_id = ? AND deleted_at IS NOT NULL", userID, importID)
-
-	res := q.Delete(&models.Transaction{})
+	res := db.Exec(`
+		DELETE FROM transactions
+		WHERE user_id = ? AND import_id = ?
+	`, userID, importID)
 	return res.RowsAffected, res.Error
 }
 
@@ -766,10 +765,9 @@ func (r *TransactionRepository) PurgeImportedTransfers(
 		db = r.DB
 	}
 
-	q := db.
-		Unscoped().
-		Where("user_id = ? AND import_id = ? AND deleted_at IS NOT NULL", userID, importID)
-
-	res := q.Delete(&models.Transfer{})
+	res := db.Exec(`
+		DELETE FROM transfers
+		WHERE user_id = ? AND import_id = ?
+	`, userID, importID)
 	return res.RowsAffected, res.Error
 }
