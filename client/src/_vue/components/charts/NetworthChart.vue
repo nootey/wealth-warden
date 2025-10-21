@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
+import {computed, markRaw, onMounted, onUnmounted, ref, watch} from 'vue'
 import Chart from 'primevue/chart'
 import type {ChartPoint} from "../../../models/chart_models.ts";
 
@@ -80,17 +80,9 @@ onUnmounted(() => {
     chartRef.value?.chart?.destroy?.()
 })
 
-watch(pinnedTooltipOnMobile, (isMobile) => {
-    const chart = chartRef.value?.chart
-    if (!chart) return
-
-    chart.options.plugins.tooltip.position = isMobile ? 'pinned' : 'average'
-    chart.update('none')
-})
-
 const themeStore = useThemeStore();
 
-const hoverGuidePlugin = {
+const hoverGuidePlugin = markRaw({
     id: 'hoverGuide',
 
     afterEvent(chart: any, args: any) {
@@ -108,7 +100,7 @@ const hoverGuidePlugin = {
             // Force scriptable options to be re-evaluated.
             const prevAnim = chart.options.animation
             chart.options.animation = false
-            chart.update()
+            chart.draw()
             chart.options.animation = prevAnim
         }
     },
@@ -131,7 +123,7 @@ const hoverGuidePlugin = {
         ctx.stroke()
         ctx.restore()
     }
-}
+});
 
 function hexToRgba(hex: string, alpha = 0.15) {
     const h = hex.replace('#', '')
@@ -144,7 +136,8 @@ function hexToRgba(hex: string, alpha = 0.15) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
-const data = computed(() => ({
+const data = computed(() => {
+    const d = {
     datasets: [{
         label: 'Net worth',
         data: props.dataPoints.map(p => ({ date: p.date, value: Number(p.value) })),
@@ -165,9 +158,12 @@ const data = computed(() => ({
             }
         }
     }]
-}))
+    }
+    return markRaw(d)
+    })
 
-const options = computed(() => ({
+const options = computed(() => {
+    const o = {
     responsive: true,
     maintainAspectRatio: false,
     parsing: { xAxisKey: 'date', yAxisKey: 'value' },
@@ -284,7 +280,9 @@ const options = computed(() => ({
             border: { color: colors.value.axisBorder }
         }
     }
-}))
+    }
+    return markRaw(o)
+})
 
 </script>
 
