@@ -136,12 +136,6 @@ function onClear() {
     validatedResponse.value = null;
 }
 
-function removeLocalFile(index: number) {
-    selectedFiles.value.splice(index, 1);
-    fileValidated.value = false;
-    validatedResponse.value = null;
-}
-
 const onUpload = async (_nextStep?: any) => {
 
     if (!selectedFiles.value.length) return;
@@ -235,6 +229,10 @@ async function loadExistingImport(importId: number | string) {
 }
 
 function resetWizard() {
+
+    if(importing.value || transfering.value) {
+        toastStore.infoResponseToast({"Title": "Unavailable", "Message": "An operation is currently being executed!"})
+    }
     // clear local state
     selectedFiles.value = [];
     fileValidated.value = false;
@@ -294,21 +292,19 @@ async function transferInvestments() {
 </script>
 
 <template>
-    <div class="flex flex-column w-full gap-3 p-1">
+    <div class="flex flex-column w-full gap-2 p-2">
 
         <Tabs value="0">
             <TabList>
                 <Tab value="0">Custom</Tab>
-                <Tab value="1">NLB</Tab>
+                <Tab value="1">Bank</Tab>
             </TabList>
             <TabPanels>
                 <TabPanel value="0">
 
                     <div v-if="checkingAccs.length > 0" class="flex flex-column w-100 gap-2">
-                        <h3>About</h3>
                         <span style="color: var(--text-secondary)">Custom imports are not complete. They require a specific import format, but are not really validated. Use at your own risk. </span>
-
-                        <h4>Create a new import</h4>
+                        <h4>Upload a JSON file</h4>
                         <span v-if="checkingAccs.length == 0" style="color: var(--text-secondary)">At least one checking account is required to proceed!</span>
 
                         <div v-if="activeStep !== '3'">
@@ -317,8 +313,10 @@ async function transferInvestments() {
                                         customUpload
                                         :showUploadButton="false" :showCancelButton="false"
                                         @select="onSelect" @clear="onClear">
+
                                 <template #header="{ chooseCallback }" class="w-full">
-                                    <div class="w-full flex flex-wrap justify-content-between gap-3">
+                                    <div class="w-full flex flex-wrap justify-content-between gap-3"
+                                         :class="activeStep === '1' ? 'p-0' : 'p-0 m-0 hidden'">
                                         <Button v-if="activeStep === '1'" class="main-button" @click="chooseCallback()"
                                                 :disabled="checkingAccs.length == 0 || importing || transfering"
                                                 label="Upload" />
@@ -326,36 +324,24 @@ async function transferInvestments() {
                                 </template>
 
                                 <template #content>
-
-                                    <div class="flex flex-column gap-2 pt-1 w-full">
-
-                                        <div v-if="selectedFiles.length > 0">
-                                            <h5>Pending</h5>
-                                            <div class="flex flex-wrap gap-2 w-full">
-                                                <div v-for="(file, index) in selectedFiles"
-                                                     :key="file.name + file.type + file.size"
-                                                     class="flex flex-row gap-3 p-2 w-full align-items-center">
-                                                    <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden">{{ file.name }}</span>
-                                                    <Badge :value="fileValidated ? 'Validated' : 'Pending'" :severity="fileValidated ? 'info' : 'warn'" />
-                                                    <i class="pi pi-times hover-icon"
-                                                       @click="removeLocalFile(index)"
-                                                       style="color: var(--p-red-300)" />
-                                                </div>
+                                    <div v-if="selectedFiles.length > 0" class="flex flex-column gap-1 w-full">
+                                        <h5>Pending</h5>
+                                        <div class="flex flex-wrap gap-2 w-full">
+                                            <div v-for="file in selectedFiles" :key="file.name + file.type + file.size"
+                                                 class="flex flex-row gap-2 p-1 w-full align-items-center">
+                                                <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden">{{ file.name }}</span>
+                                                <Badge :value="fileValidated ? 'Validated' : 'Pending'" :severity="fileValidated ? 'info' : 'warn'" />
+                                                <i class="pi pi-times hover-icon"
+                                                   @click="resetWizard"
+                                                   style="color: var(--p-red-300)" />
                                             </div>
                                         </div>
-
                                     </div>
                                 </template>
+
                             </FileUpload>
                             <ShowLoading v-else :numFields="7" />
                         </div>
-                        <Button
-                                class="outline-button w-2"
-                                icon="pi pi-eraser"
-                                label="Clear"
-                                @click="resetWizard"
-                                :disabled="importing || transfering"
-                        />
                         <Stepper :value="activeStep">
                             <StepList>
                                 <Step value="1">Validate</Step>
@@ -498,7 +484,7 @@ async function transferInvestments() {
                 </TabPanel>
                 <TabPanel value="1">
                     <span style="color: var(--text-secondary)">
-                        NLB imports are currently unsupported!
+                        Bank imports are currently unsupported!
                     </span>
                 </TabPanel>
             </TabPanels>
