@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, markRaw, onMounted, onUnmounted, ref, watch} from 'vue'
+import {computed, markRaw, onMounted, onUnmounted, ref} from 'vue'
 import Chart from 'primevue/chart'
 import type {ChartPoint} from "../../../models/chart_models.ts";
 
