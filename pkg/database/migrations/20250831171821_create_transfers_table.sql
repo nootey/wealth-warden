@@ -71,13 +71,17 @@ CREATE TRIGGER trg_transfer_block_update_if_deleted
 -- Soft delete
 CREATE OR REPLACE FUNCTION soft_delete_transfer()
 RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
+LANGUAGE plpgsql AS $$
 BEGIN
+  IF current_setting('ww.hard_delete', true) = 'on' THEN
+    RETURN OLD;
+END IF;
+
 UPDATE transfers
 SET deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP),
     updated_at = CURRENT_TIMESTAMP
 WHERE id = OLD.id;
+
 RETURN NULL;
 END;
 $$;

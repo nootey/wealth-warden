@@ -265,19 +265,19 @@ func (r *TransactionRepository) FindTransactionByID(tx *gorm.DB, ID, userID int6
 	return record, q.Error
 }
 
-func (r *TransactionRepository) FindTransactionIDsByImportID(tx *gorm.DB, importID, userID int64) ([]int64, error) {
+func (r *TransactionRepository) FindTransactionsByImportID(tx *gorm.DB, importID, userID int64) ([]models.Transaction, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
 
-	var ids []int64
+	var records []models.Transaction
 	q := db.Model(&models.Transaction{}).
 		Where("import_id = ? AND user_id = ?", importID, userID)
 
-	q = q.Pluck("id", &ids)
+	q = q.Find(&records)
 
-	return ids, q.Error
+	return records, q.Error
 }
 
 func (r *TransactionRepository) FindTransferByID(tx *gorm.DB, ID, userID int64) (models.Transfer, error) {
@@ -292,19 +292,19 @@ func (r *TransactionRepository) FindTransferByID(tx *gorm.DB, ID, userID int64) 
 	return record, result.Error
 }
 
-func (r *TransactionRepository) FindTransferIDsByImportID(tx *gorm.DB, importID, userID int64) ([]int64, error) {
+func (r *TransactionRepository) FindTransfersByImportID(tx *gorm.DB, importID, userID int64) ([]models.Transfer, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
 
-	var ids []int64
+	var records []models.Transfer
 	q := db.Model(&models.Transfer{}).
 		Where("import_id = ? AND user_id = ?", importID, userID)
 
-	q = q.Pluck("id", &ids)
+	q = q.Find(&records)
 
-	return ids, q.Error
+	return records, q.Error
 }
 
 func (r *TransactionRepository) CountActiveTransactionsForCategory(tx *gorm.DB, userID, categoryID int64) (int64, error) {
@@ -742,32 +742,34 @@ func (r *TransactionRepository) GetTransactionsByYearAndClass(
 	return txs, err
 }
 
-func (r *TransactionRepository) PurgeImportedTransactions(
-	tx *gorm.DB, importID, userID int64,
-) (int64, error) {
+func (r *TransactionRepository) PurgeImportedTransactions(tx *gorm.DB, importID, userID int64) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
 
+	if err := db.Exec(`SET LOCAL ww.hard_delete = 'on'`).Error; err != nil {
+		return 0, err
+	}
 	res := db.Exec(`
-		DELETE FROM transactions
-		WHERE user_id = ? AND import_id = ?
-	`, userID, importID)
+        DELETE FROM transactions
+        WHERE user_id = ? AND import_id = ?
+    `, userID, importID)
 	return res.RowsAffected, res.Error
 }
 
-func (r *TransactionRepository) PurgeImportedTransfers(
-	tx *gorm.DB, importID, userID int64,
-) (int64, error) {
+func (r *TransactionRepository) PurgeImportedTransfers(tx *gorm.DB, importID, userID int64) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
 
+	if err := db.Exec(`SET LOCAL ww.hard_delete = 'on'`).Error; err != nil {
+		return 0, err
+	}
 	res := db.Exec(`
-		DELETE FROM transfers
-		WHERE user_id = ? AND import_id = ?
-	`, userID, importID)
+        DELETE FROM transfers
+        WHERE user_id = ? AND import_id = ?
+    `, userID, importID)
 	return res.RowsAffected, res.Error
 }

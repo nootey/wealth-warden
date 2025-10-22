@@ -108,11 +108,16 @@ CREATE OR REPLACE FUNCTION soft_delete_transaction()
 RETURNS TRIGGER
 LANGUAGE plpgsql AS $$
 BEGIN
+  IF current_setting('ww.hard_delete', true) = 'on' THEN
+    RETURN OLD;
+END IF;
+
 UPDATE transactions
 SET deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP),
     updated_at = CURRENT_TIMESTAMP
 WHERE id = OLD.id;
-RETURN NULL;
+
+RETURN NULL; -- cancel the physical delete
 END;
 $$;
 
