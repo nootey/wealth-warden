@@ -130,72 +130,70 @@ function save() {
 </script>
 
 <template>
-    <div class="flex flex-column gap-3">
+    <div class="flex flex-column gap-1 w-full">
 
-        <div class="flex align-items-center gap-2">
+        <div class="flex align-items-center w-full">
             <span style="color: var(--text-secondary)">
-            These are the distinct categories. Map them to existing ones. If none selected, default will be used.
-          </span>
+                These are the distinct categories. Map them to existing ones. If none selected, default will be used.
+            </span>
             <div class="ml-auto flex gap-2">
-                <Button class="outline-button" @click="clearAll" label="Clear all" />
-                <Button class="main-button" @click="mapAllToDefault" label="Defaults" />
-                <Button class="main-button" icon="pi pi-save" label="Save" @click="save" />
+                <Button size="small" class="outline-button" @click="clearAll" label="Clear" />
+                <Button size="small" class="main-button" @click="mapAllToDefault" label="Defaults" />
+                <Button size="small" class="main-button" icon="pi pi-save" label="Save" @click="save" />
             </div>
         </div>
 
-        <div class="surface-card border-round p-2">
-            <DataTable :value="tableData" dataKey="name" class="w-full" :rows="10"
-                    paginator :rowsPerPageOptions="[10,25,50]" responsiveLayout="scroll">
+        <DataTable :value="tableData" dataKey="name" class="w-full" :rows="10"
+                   paginator :rowsPerPageOptions="[10,25,50]" responsiveLayout="scroll">
 
-                <Column header="Imported">
-                    <template #body="{ data }">
-                        <div class="flex align-items-center gap-2">
-                            {{ data.name }}
-                        </div>
-                    </template>
-                </Column>
+            <Column header="Imported">
+                <template #body="{ data }">
+                    <div class="flex align-items-center gap-2">
+                        {{ data.name }}
+                    </div>
+                </template>
+            </Column>
 
-                <Column header="Mapping">
-                    <template #body="{ data }">
-                        <Select class="w-full"
-                                :modelValue="mapping[data.name] ?? null"
-                                @update:modelValue="val => onSelect(data.name, { value: val } as any)"
-                                :options="groupedOptions"
-                                optionGroupLabel="label"
-                                optionGroupChildren="items"
-                                optionLabel="label"
-                                optionValue="value"
-                                showClear
-                                filter
-                                placeholder="Select category">
+            <Column header="Mapping">
+                <template #body="{ data }">
+                    <Select class="w-full" size="small"
+                            :modelValue="mapping[data.name] ?? null"
+                            @update:modelValue="val => onSelect(data.name, { value: val } as any)"
+                            :options="groupedOptions"
+                            optionGroupLabel="label"
+                            optionGroupChildren="items"
+                            optionLabel="label"
+                            optionValue="value"
+                            showClear
+                            filter
+                            placeholder="Select category">
 
-                            <template #value="slotProps">
+                        <template #value="slotProps">
                                 <span v-if="slotProps.value">
-                                  {{
+                                    {{
                                         appCategories.find(c => c.id === slotProps.value)?.display_name
                                         ?? appCategories.find(c => c.id === slotProps.value)?.name
                                         ?? 'Select category'
                                     }}
                                 </span>
-                                <span v-else class="text-color-secondary">
+                            <span v-else class="text-color-secondary">
                                     {{ defaultCategory ? `Default: ${defaultCategory.display_name || defaultCategory.name}` : 'Select category' }}
                                 </span>
-                            </template>
+                        </template>
 
-                            <template #option="opt">
-                                <div class="flex justify-content-between w-full">
-                                    <span>{{ opt.option.label }}</span>
-                                    <small class="text-color-secondary">
-                                        {{ opt.option.meta.classification }}
-                                    </small>
-                                </div>
-                            </template>
+                        <template #option="opt">
+                            <div class="flex justify-content-between w-full">
+                                <span>{{ opt.option.label }}</span>
+                                <small class="text-color-secondary">
+                                    {{ opt.option.meta.classification }}
+                                </small>
+                            </div>
+                        </template>
 
-                        </Select>
-                    </template>
-                </Column>
+                    </Select>
+                </template>
+            </Column>
 
-            </DataTable>
-        </div>
+        </DataTable>
     </div>
 </template>

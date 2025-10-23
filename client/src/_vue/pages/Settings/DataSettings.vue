@@ -1,36 +1,30 @@
 <script setup lang="ts">
 
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
-import ImportModule from "../../features/ImportModule.vue";
+import ImportCash from "../../features/ImportCash.vue";
 import ImportList from "../../components/data/ImportList.vue";
-import {nextTick, ref} from "vue";
+import {ref} from "vue";
 import {usePermissions} from "../../../utils/use_permissions.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
+import ImportInvestments from "../../features/ImportInvestments.vue";
 
 const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
 
 const importListRef = ref<InstanceType<typeof ImportList> | null>(null);
-const externalStep = ref<'1' | '2' | '3'>('1');
-const externalImportId = ref<string | null>(null);
 
 const addImportModal = ref(false);
+const transferModal = ref(false);
+const importID = ref(null);
 
-function updateList() {
+function refreshData() {
     importListRef.value?.refresh();
+    addImportModal.value = false;
+    transferModal.value = false;
 }
 
 function onMigrateInvestments(id: string) {
-    externalImportId.value = null;
-    nextTick(() => {
-        externalImportId.value = id;
-        externalStep.value = '3';
-    });
-}
-
-function onResetExternal() {
-    externalImportId.value = null;
-    externalStep.value = '1';
+    manipulateDialog("transferInvestments", id)
 }
 
 function manipulateDialog(modal: string, value: any) {
@@ -43,6 +37,15 @@ function manipulateDialog(modal: string, value: any) {
             addImportModal.value = value;
             break;
         }
+        case 'transferInvestments': {
+            if(!hasPermission("manage_data")) {
+                toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+                return;
+            }
+            transferModal.value = true;
+            importID.value = value;
+            break;
+        }
         default: {
             break;
         }
@@ -53,14 +56,14 @@ function manipulateDialog(modal: string, value: any) {
 
 <template>
 
-    <Dialog class="rounded-dialog" v-model:visible="addImportModal" :breakpoints="{'801px': '90vw'}"
-            :modal="true" :style="{width: '800px'}" header="New JSON Import">
-            <ImportModule :externalStep="externalStep"
-                          :externalImportId="externalImportId"
-                          @completeImport="updateList"
-                          @resetExternal="onResetExternal"
-            />
+    <Dialog class="rounded-dialog" v-model:visible="addImportModal" :breakpoints="{'751px': '90vw'}"
+            :modal="true" :style="{width: '750px'}" header="New JSON Import">
+        <ImportCash @completeImport="refreshData"/>
+    </Dialog>
 
+    <Dialog class="rounded-dialog" v-model:visible="transferModal" :breakpoints="{'751px': '90vw'}"
+            :modal="true" :style="{width: '750px'}" header="Transfer investments">
+        <ImportInvestments :importID="importID" @completeTransfer="refreshData"/>
     </Dialog>
 
     <div class="flex flex-column w-full gap-3">

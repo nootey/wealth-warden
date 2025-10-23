@@ -1,0 +1,193 @@
+<script setup lang="ts">
+
+import {onMounted, ref, type Ref} from "vue";
+import type {Account} from "../../models/account_models.ts";
+import {useDataStore} from "../../services/stores/data_store.ts";
+import {useToastStore} from "../../services/stores/toast_store.ts";
+import {useAccountStore} from "../../services/stores/account_store.ts";
+import {useTransactionStore} from "../../services/stores/transaction_store.ts";
+import toastHelper from "../../utils/toast_helper.ts";
+import type {CustomImportValidationResponse} from "../../models/dataio_models.ts";
+import ImportInvestmentMapping from "../components/base/ImportInvestmentMapping.vue";
+import ShowLoading from "../components/base/ShowLoading.vue";
+import dayjs from "dayjs";
+
+const props = defineProps<{
+    importID?: number | null
+}>()
+
+const emit = defineEmits<{
+    (e: 'completeTransfer'): void;
+}>();
+
+const dataStore = useDataStore();
+const toastStore = useToastStore();
+const accStore = useAccountStore();
+
+const transfering = ref(false);
+const checkingAccs = ref<Account[]>([]);
+const selectedCheckingAcc = ref<Account | null>(null);
+const filteredCheckingAccs = ref<Account[]>([]);
+const investmentAccs = ref<Account[]>([]);
+const investmentMappings = ref<Record<string, number | null>>({});
+const validatedResponse = ref<CustomImportValidationResponse | null>(null);
+
+const lists: Record<string, Ref<Account[]>> = {
+    checking: checkingAccs,
+};
+
+const filteredLists: Record<string, Ref<Account[]>> = {
+    checking: filteredCheckingAccs,
+};
+
+onMounted(async () => {
+    try {
+
+        validatedResponse.value = await dataStore.getCustomImportJSON(props.importID!, "investments");
+
+        checkingAccs.value = await accStore.getAccountsBySubtype("checking");
+        if (checkingAccs.value.length == 0) {
+            toastStore.infoResponseToast(toastHelper.formatInfoToast("No accounts", "Please create at least one checking account"));
+        }
+        const [investments, crypto] = await Promise.all([
+            accStore.getAccountsByType("investment"),
+            accStore.getAccountsByType("crypto")
+        ])
+
+        // merge and remove duplicates
+        const merged = [...investments, ...crypto]
+        investmentAccs.value = merged.filter(
+            (a, i, arr) => arr.findIndex(b => b.id === a.id) === i
+        )
+
+        if (investmentAccs.value.length === 0) {
+            toastStore.infoResponseToast(
+                toastHelper.formatInfoToast("No accounts", "Please create at least one investment or crypto account")
+            )
+        }
+    } catch (e) {
+        toastStore.errorResponseToast(e);
+    }
+})
+
+function onSaveMapping(map: Record<string, number | null>) {
+    investmentMappings.value = map
+}
+
+function checkCheckingAccDateValidity(): boolean {
+    const openedAtYear = dayjs(selectedCheckingAcc.value?.opened_at).year()
+    const responseYear = validatedResponse.value?.year!
+    return openedAtYear >= responseYear;
+}
+
+function searchAccount(event: { query: string }, accType: string) {
+    const all = lists[accType].value ?? [];
+    const q = event.query.trim().toLowerCase();
+
+    filteredLists[accType].value = q
+        ? all.filter(a => a.name.toLowerCase().includes(q))
+        : [...all];
+}
+
+function resetWizard() {
+
+    if(transfering.value) {
+        toastStore.infoResponseToast({"Title": "Unavailable", "Message": "An operation is currently being executed!"})
+    }
+    // clear local state
+    selectedCheckingAcc.value = null;
+    transfering.value = false;
+    validatedResponse.value = null;
+}
+
+async function transferInvestments() {
+
+    const importId = props.importID;
+    if (!importId) {
+        toastStore.errorResponseToast("Missing import ID");
+        return;
+    }
+
+    if (Object.keys(investmentMappings.value).length === 0) {
+        toastStore.errorResponseToast("Please set up your investment mappings first")
+        return
+    }
+
+    transfering.value = true
+
+    try {
+        const payload = {
+            import_id: props.importID!,
+            checking_acc_id: selectedCheckingAcc.value?.id!,
+            investment_mappings: Object.entries(investmentMappings.value).map(
+                ([name, account_id]) => ({ name, account_id })
+            ),
+        }
+
+        const res = await dataStore.transferInvestmentsFromImport(payload);
+        toastStore.successResponseToast(res);
+
+        resetWizard();
+        emit("completeTransfer");
+    } catch (error) {
+        toastStore.errorResponseToast(error)
+    } finally {
+        transfering.value = false
+    }
+}
+
+</script>
+
+<template>
+    <h3>Map investments from imported data</h3>
+
+    <div v-if="validatedResponse && validatedResponse.filtered_count == 0" class="flex flex-column w-full p-2">
+        <span style="color: var(--text-secondary)">No investments were found in the provided import!</span>
+    </div>
+    <div v-else>
+        <div v-if="validatedResponse && !transfering" class="flex flex-column gap-3 w-full">
+            <span style="color: var(--text-secondary)">
+                Start the transfer.
+            </span>
+            <Button class="main-button w-3" @click="transferInvestments" label="Transfer"/>
+
+            <div v-if="!transfering" class="flex flex-column w-full gap-3">
+                <h3>Import account</h3>
+                <div class="flex flex-column w-6 gap-2 align-items-center">
+                    <span class="text-sm w-full" style="color: var(--text-secondary)">Select an account which will receive the transfers.</span>
+                    <div class="flex flex-column gap-1 w-full">
+                        <label>Checking account</label>
+                        <AutoComplete size="small"
+                                      v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
+                                      @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
+                                      placeholder="Select checking account" dropdown />
+                        <span class="text-sm" v-if="!selectedCheckingAcc" style="color: var(--text-secondary)">Please select an account.</span>
+                        <span class="text-sm" v-else-if="checkCheckingAccDateValidity()" style="color: var(--text-secondary)">Account was opened after the year of this import!</span>
+                        <span class="text-sm" v-else style="color: var(--text-secondary)">Account's opening date is valid.</span>
+                    </div>
+                </div>
+
+                <h3>Validation response</h3>
+                <span class="text-sm" style="color: var(--text-secondary)">General information about your import.</span>
+                <div class="flex flex-row w-full gap-2">
+                    <span>Transfer count: </span>
+                    <span>{{ validatedResponse.filtered_count }} </span>
+                </div>
+
+                <h4>Investment mappings</h4>
+                <div v-if="validatedResponse.filtered_count > 0" class="flex flex-row w-full gap-3 align-items-center">
+                    <ImportInvestmentMapping  v-model:modelValue="investmentMappings"
+                            :importedCategories="validatedResponse.categories"
+                            :investmentAccounts="investmentAccs" @save="onSaveMapping"/>
+                </div>
+            </div>
+            <ShowLoading v-else :numFields="3" />
+
+        </div>
+        <ShowLoading v-else :numFields="5" />
+    </div>
+</template>
+
+<style scoped>
+
+</style>

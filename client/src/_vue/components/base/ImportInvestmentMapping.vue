@@ -55,44 +55,42 @@ function save() {
             <span style="color: var(--text-secondary)">
             Map each investment category to one of your investment accounts.
           </span>
-            <div class="ml-auto flex gap-2">
-                <Button class="outline-button" @click="clearAll" label="Clear all" />
-                <Button class="main-button" icon="pi pi-save" label="Save" @click="save" />
+            <div class="flex gap-2">
+                <Button size="small" class="outline-button" @click="clearAll" label="Clear" />
+                <Button size="small" class="main-button" icon="pi pi-save" label="Save" @click="save" />
             </div>
         </div>
 
-        <div class="surface-card border-round p-2">
-            <DataTable :value="tableData" dataKey="name" class="w-full" :rows="10"
-                       paginator :rowsPerPageOptions="[10,25,50]" responsiveLayout="scroll">
+        <DataTable :value="tableData" dataKey="name" class="w-full" :rows="10"
+                   paginator :rowsPerPageOptions="[10,25,50]" responsiveLayout="scroll">
 
-                <Column header="Imported">
-                    <template #body="{ data }">
-                        <div class="flex align-items-center gap-2">{{ data?.name }}</div>
-                    </template>
-                </Column>
+            <Column header="Imported">
+                <template #body="{ data }">
+                    <div class="flex align-items-center gap-2">{{ data?.name }}</div>
+                </template>
+            </Column>
 
-                <Column header="Investment Account">
-                    <template #body="{ data }">
-                        <Select class="w-full"
-                                :modelValue="mapping[data.name] ?? null"
-                                @update:modelValue="val => onSelect(data.name, val)"
-                                :options="investmentAccounts"
-                                optionLabel="name"
-                                optionValue="id"
-                                showClear
-                                filter
-                                placeholder="Select account">
-                            <template #value="slotProps">
+            <Column header="Investment Account">
+                <template #body="{ data }">
+                    <Select class="w-full"
+                            :modelValue="mapping[data.name] ?? null"
+                            @update:modelValue="val => onSelect(data.name, val)"
+                            :options="investmentAccounts"
+                            optionLabel="name"
+                            optionValue="id"
+                            showClear
+                            filter
+                            placeholder="Select account">
+                        <template #value="slotProps">
                                 <span v-if="slotProps.value">
                                   {{ investmentAccounts.find(a => a.id === slotProps.value)?.name || 'Select account' }}
                                 </span>
-                                <span v-else class="text-color-secondary">Select account</span>
-                            </template>
-                        </Select>
-                    </template>
-                </Column>
+                            <span v-else class="text-color-secondary">Select account</span>
+                        </template>
+                    </Select>
+                </template>
+            </Column>
 
-            </DataTable>
-        </div>
+        </DataTable>
     </div>
 </template>
