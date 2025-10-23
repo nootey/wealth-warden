@@ -645,8 +645,8 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
 		LoggingRepo: s.Ctx.LoggingService.Repo,
 		Logger:      s.Ctx.Logger,
-		Event:       "transfer",
-		Category:    "investment_import",
+		Event:       "transfer_investments",
+		Category:    "import",
 		Description: nil,
 		Payload:     changes,
 		Causer:      &userID,
@@ -829,6 +829,23 @@ func (s *ImportService) DeleteImport(userID, id int64) error {
 	}
 
 	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(imp.Name, "", changes, "import_name")
+	utils.CompareChanges(strconv.Itoa(len(txns)), "", changes, "deleted_txn_count")
+	utils.CompareChanges(strconv.Itoa(len(trs)), "", changes, "deleted_transfer_count")
+
+	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "delete",
+		Category:    "import",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
 		return err
 	}
 
