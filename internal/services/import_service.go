@@ -657,7 +657,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 	return nil
 }
 
-func (s *ImportService) DeleteImport(userID, id int64, retainTxns bool) error {
+func (s *ImportService) DeleteImport(userID, id int64) error {
 
 	l := s.Ctx.Logger.With(
 		zap.String("op", "DeleteImport"),

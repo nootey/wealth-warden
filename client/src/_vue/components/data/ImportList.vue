@@ -25,7 +25,6 @@ const confirm = useConfirm();
 
 const imports = ref<Import[]>([]);
 const loading = ref(false);
-const retainTxns = ref(false);
 
 onMounted(async () => {
         await getData()
@@ -75,9 +74,7 @@ async function deleteRecord(id: number) {
     try {
         let response = await sharedStore.deleteRecord(
             "imports",
-            id, {
-                retain_txns: retainTxns.value,
-            }
+            id
         );
         toastStore.successResponseToast(response);
         await getData();
@@ -92,16 +89,10 @@ async function deleteRecord(id: number) {
 
     <ConfirmDialog group="delete-import" class="rounded-dialog">
         <template #container="{ message, acceptCallback, rejectCallback }">
-            <div class="flex flex-column gap-2 p-5 justify-content-center w-full">
-                <div class="flex flex-column gap-3 p-2 justify-content-center">
-                    <span class="text-sm">{{ message.message }}</span>
+            <div class="flex flex-column gap-2 p-3 justify-content-center w-full">
+                <div class="flex flex-column gap-3 p-5 justify-content-center align-items-center text-center">
+                    <span class="text-lg">{{ message.message }}</span>
                     <strong>This action is irreversible!</strong>
-                </div>
-                <div class="flex align-items-center gap-2 p-2">
-                    <Checkbox inputId="retainTxns" v-model="retainTxns" binary/>
-                    <label for="retainTxns" class="text-sm">
-                        Retain imported transactions.
-                    </label>
                 </div>
                 <div class="flex justify-content-end gap-2"  >
                     <Button class="p-2 border-round-lg" :label="message.rejectProps?.label || 'Cancel'" variant="outlined" style="color: var(--text-primary); border-color: var(--text-primary)" @click="rejectCallback" />

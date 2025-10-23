@@ -274,11 +274,8 @@ func (h *ImportHandler) DeleteImport(c *gin.Context) {
 		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
 		return
 	}
-
-	qp := c.Request.URL.Query()
-	retainTxns := strings.EqualFold(qp.Get("retain_txns"), "true")
-
-	if err := h.Service.DeleteImport(userID, id, retainTxns); err != nil {
+	
+	if err := h.Service.DeleteImport(userID, id); err != nil {
 		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
