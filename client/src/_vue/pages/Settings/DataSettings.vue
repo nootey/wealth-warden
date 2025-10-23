@@ -7,6 +7,8 @@ import {ref} from "vue";
 import {usePermissions} from "../../../utils/use_permissions.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import ImportInvestments from "../../features/ImportInvestments.vue";
+import ExportModule from "../../features/ExportModule.vue";
+import ExportList from "../../components/data/ExportList.vue";
 
 const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
@@ -14,6 +16,7 @@ const { hasPermission } = usePermissions();
 const importListRef = ref<InstanceType<typeof ImportList> | null>(null);
 
 const addImportModal = ref(false);
+const addExportModal = ref(false);
 const transferModal = ref(false);
 const importID = ref(null);
 
@@ -46,6 +49,14 @@ function manipulateDialog(modal: string, value: any) {
             importID.value = value;
             break;
         }
+        case 'addExport': {
+            if(!hasPermission("manage_data")) {
+                toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
+                return;
+            }
+            addExportModal.value = value;
+            break;
+        }
         default: {
             break;
         }
@@ -64,6 +75,11 @@ function manipulateDialog(modal: string, value: any) {
     <Dialog class="rounded-dialog" v-model:visible="transferModal" :breakpoints="{'751px': '90vw'}"
             :modal="true" :style="{width: '750px'}" header="Transfer investments">
         <ImportInvestments :importID="importID" @completeTransfer="refreshData"/>
+    </Dialog>
+
+    <Dialog class="rounded-dialog" v-model:visible="addExportModal" :breakpoints="{'751px': '90vw'}"
+            :modal="true" :style="{width: '750px'}" header="New JSON Export">
+        <ExportModule />
     </Dialog>
 
     <div class="flex flex-column w-full gap-3">
@@ -93,18 +109,23 @@ function manipulateDialog(modal: string, value: any) {
 
         <SettingsSkeleton class="w-full">
             <div class="w-full flex flex-column gap-3 p-2">
-                <div class="w-full flex flex-column gap-2">
-                    <h3>Data Export</h3>
-                    <h5 style="color: var(--text-secondary)">Manage your exported data.</h5>
+                <div class="flex flex-row align-items-center gap-2 w-full">
+                    <div class="w-full flex flex-column gap-2">
+                        <h3>Data Export</h3>
+                        <h5 style="color: var(--text-secondary)">Export your data.</h5>
+                    </div>
+                    <Button class="main-button"
+                            @click="manipulateDialog('addExport', true)">
+                        <div class="flex flex-row gap-1 align-items-center">
+                            <i class="pi pi-plus"></i>
+                            <span> New </span>
+                            <span class="mobile-hide"> Export </span>
+                        </div>
+                    </Button>
                 </div>
 
-                <div class="w-full flex flex-row gap-2">
-                    <Button class="main-button w-full" label="Export data" icon="pi pi-image"></Button>
-                </div>
-
-                <div class="w-full flex flex-row gap-2 justify-content-center">
-                    <span style="color: var(--text-secondary)"> No exports yet </span>
-                </div>
+                <h3>Exports</h3>
+                <ExportList ref="exportListRef" />
             </div>
         </SettingsSkeleton>
     </div>

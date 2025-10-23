@@ -26,3 +26,14 @@ export type Import = {
     started_at: Date;
     completed_at: Date | null;
 }
+
+export type Export = {
+    user_id: number;
+    account_id: number;
+    name: string;
+    status: string;
+    export_type: string;
+    currency: string;
+    started_at: Date;
+    completed_at: Date | null;
+}

@@ -4,6 +4,7 @@ import apiClient from "../api/axios_interceptor.ts";
 export const useDataStore = defineStore('data', {
     state: () => ({
         importPrefix: "imports",
+        exportPrefix: "exports",
     }),
     getters: {
     },
@@ -53,6 +54,15 @@ export const useDataStore = defineStore('data', {
             investment_mappings: { name: string; account_id: number | null }[]
         }) {
             return await apiClient.post(`${this.importPrefix}/custom/json/investments`, payload)
+        },
+
+        async getExports(exportType: string) {
+            try {
+                const res = await apiClient.get(`${this.exportPrefix}/${exportType}`);
+                return res.data;
+            } catch (err) {
+                throw err;
+            }
         },
 
     },

@@ -1,20 +1,16 @@
 <script setup lang="ts">
 
-import type {Import} from "../../../models/dataio_models.ts";
-import {computed, onMounted, ref} from "vue";
+import vueHelper from "../../../utils/vue_helper.ts";
+import dateHelper from "../../../utils/date_helper.ts";
+import LoadingSpinner from "../base/LoadingSpinner.vue";
+import type {Column} from "../../../services/filter_registry.ts";
 import {useDataStore} from "../../../services/stores/data_store.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
-import LoadingSpinner from "../base/LoadingSpinner.vue";
-import vueHelper from "../../../utils/vue_helper.ts";
-import type {Column} from "../../../services/filter_registry.ts";
-import dateHelper from "../../../utils/date_helper.ts";
+import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {usePermissions} from "../../../utils/use_permissions.ts";
 import {useConfirm} from "primevue/useconfirm";
-import {useSharedStore} from "../../../services/stores/shared_store.ts";
-
-const emit = defineEmits<{
-    (e: 'migrateInvestments', importId: string): void;
-}>();
+import {computed, onMounted, ref} from "vue";
+import type {Export} from "../../../models/dataio_models.ts";
 
 const dataStore = useDataStore();
 const toastStore = useToastStore();
@@ -23,7 +19,7 @@ const sharedStore = useSharedStore();
 const { hasPermission } = usePermissions();
 const confirm = useConfirm();
 
-const imports = ref<Import[]>([]);
+const exports = ref<Export[]>([]);
 const loading = ref(false);
 
 onMounted(async () => {
@@ -32,7 +28,7 @@ onMounted(async () => {
 
 async function getData() {
     try {
-        imports.value = await dataStore.getImports("custom");
+        exports.value = await dataStore.getExports("custom");
     } catch (e) {
         toastStore.errorResponseToast(e)
     }
@@ -44,17 +40,14 @@ defineExpose({ refresh });
 
 const activeColumns = computed<Column[]>(() => [
     { field: 'name', header: 'Name'},
-    { field: 'import_type', header: 'Type'},
     { field: 'status', header: 'Status'},
     { field: 'currency', header: 'Currency'},
-    { field: 'step', header: 'Step'},
 ]);
 
 async function deleteConfirmation(id: number, name: string) {
     confirm.require({
-        group: "delete-import",
         header: 'Delete record?',
-        message: `This will delete import: ${name}".`,
+        message: `This will delete export: ${name}".`,
         icon: "pi pi-exclamation-triangle",
         acceptLabel: "Delete",
         rejectLabel: "Cancel",
@@ -73,7 +66,7 @@ async function deleteRecord(id: number) {
 
     try {
         let response = await sharedStore.deleteRecord(
-            "imports",
+            "exports",
             id
         );
         toastStore.successResponseToast(response);
@@ -86,24 +79,8 @@ async function deleteRecord(id: number) {
 </script>
 
 <template>
-
-    <ConfirmDialog group="delete-import" class="rounded-dialog">
-        <template #container="{ message, acceptCallback, rejectCallback }">
-            <div class="flex flex-column gap-2 p-3 justify-content-center w-full">
-                <div class="flex flex-column gap-3 p-5 justify-content-center align-items-center text-center">
-                    <span class="text-lg">{{ message.message }}</span>
-                    <strong>This action is irreversible!</strong>
-                </div>
-                <div class="flex justify-content-end gap-2"  >
-                    <Button class="p-2 border-round-lg" :label="message.rejectProps?.label || 'Cancel'" variant="outlined" style="color: var(--text-primary); border-color: var(--text-primary)" @click="rejectCallback" />
-                    <Button class="p-2 border-round-lg" :label="message.acceptProps?.label || 'Confirm'" severity="danger" style="color: var(--text-primary);" @click="acceptCallback" />
-                </div>
-            </div>
-        </template>
-    </ConfirmDialog>
-
     <div class="w-full flex flex-row gap-2 justify-content-center">
-        <DataTable dataKey="id" class="w-full enhanced-table" :loading="loading" :value="imports"
+        <DataTable dataKey="id" class="w-full enhanced-table" :loading="loading" :value="exports"
                    scrollable scroll-height="50vh" columnResizeMode="fit"
                    scrollDirection="both">
             <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
@@ -111,9 +88,6 @@ async function deleteRecord(id: number) {
             <Column header="Actions">
                 <template #body="{ data }">
                     <div class="flex flex-row align-items-center gap-2">
-                        <i v-if="data['step'] === 'investments'" class="pi pi-cart-plus hover-icon text-xs" v-tooltip="'Migrate investments'"
-                           @click="emit('migrateInvestments', data.id)"/>
-                        <i v-else>/</i>
                         <i v-if="hasPermission('manage_data')"
                            class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                            @click="deleteConfirmation(data?.id, data?.name)"></i>
