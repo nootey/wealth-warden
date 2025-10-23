@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-import {onMounted, ref, type Ref} from "vue";
+import {computed, onMounted, ref, type Ref} from "vue";
 import type {Account} from "../../models/account_models.ts";
 import {useDataStore} from "../../services/stores/data_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
@@ -136,6 +136,15 @@ async function transferInvestments() {
     }
 }
 
+const isTransferDisabled = computed(() => {
+    if (transfering.value) return true;
+    if (!selectedCheckingAcc.value) return true;
+
+    const mappings = Object.values(investmentMappings.value);
+    const hasAtLeastOne = mappings.some(v => v !== null);
+    return !hasAtLeastOne;
+});
+
 </script>
 
 <template>
@@ -145,11 +154,11 @@ async function transferInvestments() {
         <span style="color: var(--text-secondary)">No investments were found in the provided import!</span>
     </div>
     <div v-else>
-        <div v-if="validatedResponse && !transfering" class="flex flex-column gap-3 w-full">
+        <div v-if="validatedResponse && !transfering" class="flex flex-column gap-4 w-full">
             <span style="color: var(--text-secondary)">
-                Start the transfer.
+                Start the transfer. The checking account and at least one investment mapping is required.
             </span>
-            <Button class="main-button w-3" @click="transferInvestments" label="Transfer"/>
+            <Button class="main-button w-3" @click="transferInvestments" label="Transfer" :disabled="isTransferDisabled"/>
 
             <div v-if="!transfering" class="flex flex-column w-full gap-3">
                 <h3>Import account</h3>
