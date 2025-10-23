@@ -862,6 +862,11 @@ func (s *TransactionService) DeleteTransaction(userID int64, id int64) error {
 		}
 	}
 
+	if err := s.AccountService.FrontfillBalancesForAccount(tx, userID, account.ID, account.Currency, tr.TxnDate); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
@@ -960,6 +965,15 @@ func (s *TransactionService) DeleteTransfer(userID int64, id int64) error {
 		outflow.TxnDate,
 		outflow.Amount.Neg(),
 	); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.AccountService.FrontfillBalancesForAccount(tx, userID, fromAcc.ID, fromAcc.Currency, outflow.TxnDate); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := s.AccountService.FrontfillBalancesForAccount(tx, userID, toAcc.ID, toAcc.Currency, outflow.TxnDate); err != nil {
 		tx.Rollback()
 		return err
 	}
