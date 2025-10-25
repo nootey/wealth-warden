@@ -1,6 +1,7 @@
 package services
 
 import (
+	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
 )
@@ -27,4 +28,8 @@ func NewExportService(
 		TxnRepo:    txnRepo,
 		accService: accService,
 	}
+}
+
+func (s *ExportService) FetchExportsByExportType(userID int64, exportType string) ([]models.Export, error) {
+	return s.Repo.FindExportsByExportType(nil, userID, exportType)
 }

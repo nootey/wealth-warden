@@ -48,6 +48,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 	roleHandler := httpHandlers.NewRolePermissionHandler(r.Container.RoleService, validator)
 	statsHandler := httpHandlers.NewStatisticsHandler(r.Container.StatsService, validator)
 	importHandler := httpHandlers.NewImportHandler(r.Container.ImportService, validator)
+	exportHandler := httpHandlers.NewExportHandler(r.Container.ExportService, validator)
 
 	//authRL := middleware.NewRateLimiter(5.0/60.0, 5) // 5 per minute, burst 3
 
@@ -86,6 +87,9 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 
 	importRoutes := protected.Group("/imports")
 	v1.ImportRoutes(importRoutes, importHandler)
+
+	exportRoutes := protected.Group("/exports")
+	v1.ExportRoutes(exportRoutes, exportHandler)
 
 	// Public routes
 	public := _v1.Group("")
