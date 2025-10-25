@@ -5,7 +5,6 @@ import type {Account} from "../../models/account_models.ts";
 import {useDataStore} from "../../services/stores/data_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import {useAccountStore} from "../../services/stores/account_store.ts";
-import {useTransactionStore} from "../../services/stores/transaction_store.ts";
 import toastHelper from "../../utils/toast_helper.ts";
 import type {CustomImportValidationResponse} from "../../models/dataio_models.ts";
 import ImportInvestmentMapping from "../components/base/ImportInvestmentMapping.vue";
