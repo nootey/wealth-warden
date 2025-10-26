@@ -24,6 +24,22 @@ func NewExportHandler(
 	}
 }
 
+func (h *ExportHandler) GetExports(c *gin.Context) {
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	records, err := h.Service.FetchExports(userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, records)
+}
+
 func (h *ExportHandler) GetExportsByExportType(c *gin.Context) {
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
@@ -31,13 +47,29 @@ func (h *ExportHandler) GetExportsByExportType(c *gin.Context) {
 		return
 	}
 
-	ExportType := c.Param("Export_type")
+	exportType := c.Param("export_type")
 
-	records, err := h.Service.FetchExportsByExportType(userID, ExportType)
+	records, err := h.Service.FetchExportsByExportType(userID, exportType)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, records)
+}
+
+func (h *ExportHandler) CreateExport(c *gin.Context) {
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	err = h.Service.CreateExport(userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "JSON export successful", "Success", http.StatusOK)
 }

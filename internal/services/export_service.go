@@ -30,6 +30,14 @@ func NewExportService(
 	}
 }
 
+func (s *ExportService) FetchExports(userID int64) ([]models.Export, error) {
+	return s.Repo.FindExports(nil, userID)
+}
+
 func (s *ExportService) FetchExportsByExportType(userID int64, exportType string) ([]models.Export, error) {
 	return s.Repo.FindExportsByExportType(nil, userID, exportType)
+}
+
+func (s *ExportService) CreateExport(userID int64) error {
+	return nil
 }

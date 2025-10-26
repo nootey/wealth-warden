@@ -28,7 +28,7 @@ onMounted(async () => {
 
 async function getData() {
     try {
-        exports.value = await dataStore.getExports("custom");
+        exports.value = await dataStore.getExports();
     } catch (e) {
         toastStore.errorResponseToast(e)
     }

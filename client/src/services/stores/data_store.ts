@@ -56,14 +56,15 @@ export const useDataStore = defineStore('data', {
             return await apiClient.post(`${this.importPrefix}/custom/json/investments`, payload)
         },
 
-        async getExports(exportType: string) {
+        async getExports() {
             try {
-                const res = await apiClient.get(`${this.exportPrefix}/${exportType}`);
+                const res = await apiClient.get(`${this.exportPrefix}`);
                 return res.data;
             } catch (err) {
                 throw err;
             }
         },
+
 
     },
 });
