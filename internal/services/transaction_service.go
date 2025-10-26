@@ -119,7 +119,7 @@ func (s *TransactionService) FetchTransactionByID(userID int64, id int64, includ
 
 func (s *TransactionService) FetchAllCategories(userID int64, includeDeleted bool) ([]models.Category, error) {
 
-	categories, err := s.Repo.FindAllCategories(&userID, includeDeleted)
+	categories, err := s.Repo.FindAllCategories(nil, &userID, includeDeleted)
 	if err != nil {
 		return nil, err
 	}

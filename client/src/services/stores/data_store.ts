@@ -65,6 +65,26 @@ export const useDataStore = defineStore('data', {
             }
         },
 
+        async exportData() {
+            try {
+                const res = await apiClient.post(`${this.exportPrefix}`, null, {
+                    responseType: 'blob', // IMPORTANT
+                });
+
+                const blob = new Blob([res.data], { type: 'application/zip' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'export.zip';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            } catch (err) {
+                console.error('Export failed', err);
+                throw err;
+            }
+        }
+
 
     },
 });

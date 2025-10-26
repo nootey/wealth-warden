@@ -235,6 +235,54 @@ func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID int64, withB
 	return &record, result.Error
 }
 
+func (r *AccountRepository) FindAllAccountsWithInitialBalance(tx *gorm.DB, userID int64) ([]models.Account, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var accounts []models.Account
+
+	if err := db.
+		Where("user_id = ?", userID).
+		Preload("AccountType").
+		Find(&accounts).Error; err != nil {
+		return nil, err
+	}
+
+	if len(accounts) == 0 {
+		return accounts, nil
+	}
+
+	ids := make([]int64, 0, len(accounts))
+	for _, a := range accounts {
+		ids = append(ids, a.ID)
+	}
+
+	var bals []models.Balance
+	if err := db.
+		Where("account_id IN ?", ids).
+		Order("account_id ASC, as_of ASC").
+		Find(&bals).Error; err != nil {
+		return nil, err
+	}
+
+	earliest := make(map[int64]models.Balance, len(ids))
+	for _, b := range bals {
+		if _, ok := earliest[b.AccountID]; !ok {
+			earliest[b.AccountID] = b
+		}
+	}
+
+	for i := range accounts {
+		if b, ok := earliest[accounts[i].ID]; ok {
+			accounts[i].Balance = b
+		}
+	}
+
+	return accounts, nil
+}
+
 func (r *AccountRepository) FindAccountByIDWithInitialBalance(tx *gorm.DB, ID, userID int64) (*models.Account, error) {
 	db := tx
 	if db == nil {

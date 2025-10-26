@@ -93,6 +93,28 @@ func (r *TransactionRepository) FindTransactions(userID int64, offset, limit int
 	return records, nil
 }
 
+func (r *TransactionRepository) FindAllTransactionsForUser(tx *gorm.DB, userID int64) ([]models.Transaction, error) {
+
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var records []models.Transaction
+
+	q := r.baseTxQuery(db, userID, false).
+		Preload("Category")
+
+	err := q.
+		Order("txn_date asc").
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
 func (r *TransactionRepository) FindTransfers(userID int64, offset, limit int, includeDeleted bool) ([]models.Transfer, error) {
 
 	var records []models.Transfer
@@ -115,6 +137,28 @@ func (r *TransactionRepository) FindTransfers(userID int64, offset, limit int, i
 		Order("created_at desc").
 		Limit(limit).
 		Offset(offset).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (r *TransactionRepository) FindAllTransfersForUser(tx *gorm.DB, userID int64) ([]models.Transfer, error) {
+
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var records []models.Transfer
+
+	q := r.baseTransferQuery(db, userID, false).
+		Preload("TransactionInflow.Account.AccountType")
+
+	err := q.
+		Order("created_at desc").
 		Find(&records).Error
 	if err != nil {
 		return nil, err
@@ -195,12 +239,17 @@ func (r *TransactionRepository) scopeCategories(db *gorm.DB, userID *int64, incl
 	return q.Where("user_id IS NULL")
 }
 
-func (r *TransactionRepository) FindAllCategories(userID *int64, includeDeleted bool) ([]models.Category, error) {
+func (r *TransactionRepository) FindAllCategories(tx *gorm.DB, userID *int64, includeDeleted bool) ([]models.Category, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
 	var records []models.Category
-	tx := r.scopeCategories(r.DB, userID, includeDeleted).
+	db = r.scopeCategories(db, userID, includeDeleted).
 		Order("classification, name").
 		Find(&records)
-	return records, tx.Error
+	return records, db.Error
 }
 
 func (r *TransactionRepository) FindCategoryByID(tx *gorm.DB, ID int64, userID *int64, includeDeleted bool) (models.Category, error) {

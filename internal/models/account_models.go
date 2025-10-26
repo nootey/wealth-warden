@@ -20,7 +20,7 @@ type Account struct {
 	IncludeInNetWorth bool        `gorm:"type:boolean;not null;default:true" json:"include_in_net_worth"`
 	OpenedAt          time.Time   `gorm:"not null" json:"opened_at"`
 	UpdatedAt         time.Time   `gorm:"autoUpdateTime" json:"updated_at"`
-	ClosedAt          *time.Time  `gorm:"column:closed_at;index"`
+	ClosedAt          *time.Time  `gorm:"column:closed_at;index" json:"closed_at"`
 }
 
 type AccountType struct {

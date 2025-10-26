@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
+	"time"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
@@ -65,11 +67,15 @@ func (h *ExportHandler) CreateExport(c *gin.Context) {
 		return
 	}
 
-	err = h.Service.CreateExport(userID)
+	todayStr := time.Now().UTC().Format("2006-01-02")
+	filename := fmt.Sprintf("export_%s.zip", todayStr)
+	data, err := h.Service.CreateExport(userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage(c, "JSON export successful", "Success", http.StatusOK)
+	c.Header("Content-Type", "application/zip")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	c.Data(http.StatusOK, "application/zip", data)
 }
