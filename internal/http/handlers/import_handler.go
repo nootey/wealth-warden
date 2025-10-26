@@ -127,19 +127,24 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 		return
 	}
 
+	// choose the correct set for this step
+	var set []models.JSONTxn
+	switch step {
+	case "investment", "investments":
+		set = payload.Transfers
+	default: // "cash"
+		set = payload.Txns
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"valid":          true,
-		"year":           payload.Year,
-		"count":          len(payload.Txns),
+		"count":          len(set),
 		"filtered_count": filteredCount,
-		"sample":         payload.Txns[0],
 		"categories":     categories,
 		"step":           step,
 	})
 }
 
 func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
-
 	step := strings.ToLower(strings.TrimSpace(c.Query("step")))
 
 	var payload models.CustomImportPayload
@@ -154,12 +159,23 @@ func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 		return
 	}
 
+	var set []models.JSONTxn
+	switch step {
+	case "investment", "investments":
+		set = payload.Transfers
+	default: // "cash"
+		set = payload.Txns
+	}
+
+	var sample models.JSONTxn
+	if len(set) > 0 {
+		sample = set[0]
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"valid":          true,
-		"year":           payload.Year,
-		"count":          len(payload.Txns),
+		"count":          len(set),
 		"filtered_count": filteredCount,
-		"sample":         payload.Txns[0],
+		"sample":         sample,
 		"categories":     categories,
 		"step":           step,
 	})
@@ -274,7 +290,7 @@ func (h *ImportHandler) DeleteImport(c *gin.Context) {
 		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
 		return
 	}
-	
+
 	if err := h.Service.DeleteImport(userID, id); err != nil {
 		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
 		return

@@ -20,18 +20,11 @@ type Import struct {
 }
 
 type CustomImportPayload struct {
-	Year             int               `json:"year"`
 	GeneratedAt      time.Time         `json:"generated_at"`
-	Totals           ImportTotals      `json:"totals"`
 	Txns             []JSONTxn         `json:"transactions"`
+	Transfers        []JSONTxn         `json:"transfers,omitempty"`
+	Categories       []string          `json:"categories,omitempty"`
 	CategoryMappings []CategoryMapping `json:"category_mappings"`
-}
-
-type ImportTotals struct {
-	Inflow      string  `json:"income"`
-	Expense     string  `json:"expense"`
-	Investments string  `json:"investments"`
-	Savings     *string `json:"savings"`
 }
 
 type JSONTxn struct {

@@ -46,36 +46,25 @@ func NewImportService(
 }
 
 func (s *ImportService) ValidateCustomImport(payload *models.CustomImportPayload, step string) ([]string, int, error) {
-
-	if payload.Year == 0 {
-		return nil, 0, errors.New("missing or invalid 'year' field")
-	}
 	if payload.GeneratedAt.IsZero() {
 		return nil, 0, errors.New("missing or invalid 'generated_at' field")
-	}
-	if len(payload.Txns) == 0 {
-		return nil, 0, errors.New("no transactions found")
-	}
-
-	for _, t := range payload.Txns {
-		if t.TransactionType == "" {
-			return nil, 0, errors.New("missing transaction_type")
-		}
-		tt := strings.ToLower(strings.TrimSpace(t.TransactionType))
-		if tt != "income" && tt != "expense" && tt != "investments" && tt != "savings" {
-			return nil, 0, errors.New("invalid transaction_type")
-		}
-		if t.Amount == "" {
-			return nil, 0, errors.New("missing amount")
-		}
-		if t.TxnDate.IsZero() {
-			return nil, 0, errors.New("missing or invalid txn_date")
-		}
 	}
 
 	step = strings.ToLower(strings.TrimSpace(step))
 	if step == "" {
 		step = "cash"
+	}
+
+	var set []models.JSONTxn
+	switch step {
+	case "investment", "investments":
+		set = payload.Transfers
+	default: // "cash"
+		set = payload.Txns
+	}
+
+	if len(set) == 0 {
+		return nil, 0, errors.New("no transactions found for selected step")
 	}
 
 	allowed := map[string]bool{}
@@ -91,18 +80,25 @@ func (s *ImportService) ValidateCustomImport(payload *models.CustomImportPayload
 		step = "cash"
 	}
 
-	unique := make(map[string]bool)
-	filteredCount := 0
-
-	for _, t := range payload.Txns {
+	for _, t := range set {
+		if strings.TrimSpace(t.TransactionType) == "" {
+			return nil, 0, errors.New("missing transaction_type")
+		}
 		tt := strings.ToLower(strings.TrimSpace(t.TransactionType))
 		if !allowed[tt] {
-			continue
+			return nil, 0, errors.New("invalid transaction_type for selected step")
 		}
-		filteredCount++
+		if strings.TrimSpace(t.Amount) == "" {
+			return nil, 0, errors.New("missing amount")
+		}
+		if t.TxnDate.IsZero() {
+			return nil, 0, errors.New("missing or invalid txn_date")
+		}
+	}
 
-		cat := strings.TrimSpace(t.Category)
-		if cat != "" {
+	unique := make(map[string]bool)
+	for _, t := range set {
+		if cat := strings.TrimSpace(t.Category); cat != "" {
 			unique[cat] = true
 		}
 	}
@@ -113,9 +109,8 @@ func (s *ImportService) ValidateCustomImport(payload *models.CustomImportPayload
 	}
 	sort.Strings(categories)
 
-	return categories, filteredCount, nil
+	return categories, len(set), nil
 }
-
 func (s *ImportService) markImportFailed(importID int64, cause error) {
 
 	msg := ""
@@ -142,10 +137,9 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 
 	start := time.Now().UTC()
 	l := s.Ctx.Logger.With(
-		zap.String("op", "ImportFromJSON"),
+		zap.String("op", "import_transactions"),
 		zap.Int64("user_id", userID),
 		zap.Int64("account_id", checkID),
-		zap.Int("import_year", payload.Year),
 	)
 	l.Info("started custom JSON import")
 
@@ -157,11 +151,33 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 
 	openedYear := checkingAcc.OpenedAt.Year()
 
-	if openedYear >= payload.Year {
-		return fmt.Errorf("account opened in %d cannot import data for year %d or earlier", openedYear, payload.Year)
+	var first time.Time
+	for _, t := range payload.Txns {
+		if !t.TxnDate.IsZero() {
+			first = t.TxnDate
+			break
+		}
+	}
+	if first.IsZero() {
+		for _, t := range payload.Transfers {
+			if !t.TxnDate.IsZero() {
+				first = t.TxnDate
+				break
+			}
+		}
+	}
+	if first.IsZero() {
+		return fmt.Errorf("cannot infer import year: no valid txn_date in transactions or transfers")
+	}
+	importYear := first.Year()
+
+	if openedYear >= importYear {
+		return fmt.Errorf("account opened in %d cannot import data for year %d or earlier", openedYear, importYear)
 	}
 
-	importName := fmt.Sprintf("custom_year_%d_txns_%d", payload.Year, len(payload.Txns))
+	todayStr := time.Now().UTC().Format("2006-01-02")
+	importName := fmt.Sprintf("custom_year_%d_txns_%d_tr_%d_generated_%s", importYear, len(payload.Txns), len(payload.Transfers), todayStr)
+
 	dir := "storage"
 	finalPath := filepath.Join(dir, importName+".json")
 	tmpPath := filepath.Join(dir, importName+".json.tmp")
@@ -360,7 +376,6 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 
 	// Promote the temp file to final
 	if err := os.Rename(tmpPath, finalPath); err != nil {
-		// DB already committed - mark the import failed
 		s.markImportFailed(importID, err)
 		return err
 	}
@@ -388,7 +403,6 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 	utils.CompareChanges("", importName, changes, "name")
 	utils.CompareChanges("", checkingAcc.Name, changes, "checking_account")
 	utils.CompareChanges("", models.DefaultCurrency, changes, "currency")
-	utils.CompareChanges("", strconv.Itoa(payload.Year), changes, "year")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Txns)), changes, "transactions_count")
 
 	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
@@ -410,7 +424,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 
 	start := time.Now().UTC()
 	l := s.Ctx.Logger.With(
-		zap.String("op", "TransferInvestmentsFromImport"),
+		zap.String("op", "transfer_investments"),
 		zap.Int64("user_id", userID),
 		zap.Int64("account_id", checkingAccID),
 	)
@@ -501,7 +515,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 	}
 
 	l.Info("transferring investments from custom import")
-	for _, txn := range payload.Txns {
+	for _, txn := range payload.Transfers {
 		if txn.TransactionType != "investments" {
 			continue
 		}
@@ -660,7 +674,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 func (s *ImportService) DeleteImport(userID, id int64) error {
 
 	l := s.Ctx.Logger.With(
-		zap.String("op", "DeleteImport"),
+		zap.String("op", "delete_import"),
 		zap.Int64("user_id", userID),
 		zap.Int64("import_id", id),
 	)

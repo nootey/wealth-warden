@@ -7,12 +7,10 @@ type TxnSample = {
 }
 
 export type CustomImportValidationResponse = {
-    year: number;
     count: number;
     filtered_count: number;
     sample: TxnSample;
     step: string;
-    valid: boolean;
     categories: string[];
 }
 
@@ -25,13 +23,6 @@ export type Import = {
     currency: string;
     started_at: Date;
     completed_at: Date | null;
-}
-
-export type CustomExportValidationResponse = {
-    txn_count: number;
-    transfer_count: number;
-    acc_count: number;
-    category_count: number;
 }
 
 export type Export = {
