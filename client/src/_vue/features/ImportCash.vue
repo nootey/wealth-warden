@@ -10,7 +10,6 @@ import type {Account} from "../../models/account_models.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
 import ImportCategoryMapping from "../components/base/ImportCategoryMapping.vue";
 import type {Category} from "../../models/transaction_models.ts";
-import dayjs from "dayjs";
 import {useRouter} from "vue-router";
 
 const emit = defineEmits<{
@@ -138,12 +137,6 @@ function onSaveMapping(map: Record<string, number | null>) {
     categoryMappings.value = map
 }
 
-function checkCheckingAccDateValidity(): boolean {
-    const openedAtYear = dayjs(selectedCheckingAcc.value?.opened_at).year()
-    const responseYear = validatedResponse.value?.year!
-    return openedAtYear >= responseYear;
-}
-
 function resetWizard() {
 
     if(importing.value) {
@@ -232,7 +225,7 @@ function resetWizard() {
                                 <Button v-if="fileValidated" class="main-button w-2"
                                         @click="onUpload"
                                         :disabled="selectedFiles.length === 0 || checkingAccs.length == 0 ||
-                                        !selectedCheckingAcc || checkCheckingAccDateValidity() ||
+                                        !selectedCheckingAcc ||
                                         importing"
                                         label="Import"
                                 />
@@ -251,7 +244,6 @@ function resetWizard() {
                                                       @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
                                                       placeholder="Select checking account" dropdown />
                                         <span class="text-sm" v-if="!selectedCheckingAcc" style="color: var(--text-secondary)">Please select an account.</span>
-                                        <span class="text-sm" v-else-if="checkCheckingAccDateValidity()" style="color: var(--text-secondary)">Account was opened after the year of this import!</span>
                                         <span class="text-sm" v-else style="color: var(--text-secondary)">Account's opening date is valid.</span>
                                     </div>
                                 </div>

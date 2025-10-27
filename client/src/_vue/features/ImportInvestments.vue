@@ -9,7 +9,6 @@ import toastHelper from "../../utils/toast_helper.ts";
 import type {CustomImportValidationResponse} from "../../models/dataio_models.ts";
 import ImportInvestmentMapping from "../components/base/ImportInvestmentMapping.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
-import dayjs from "dayjs";
 
 const props = defineProps<{
     importID?: number | null
@@ -71,12 +70,6 @@ onMounted(async () => {
 
 function onSaveMapping(map: Record<string, number | null>) {
     investmentMappings.value = map
-}
-
-function checkCheckingAccDateValidity(): boolean {
-    const openedAtYear = dayjs(selectedCheckingAcc.value?.opened_at).year()
-    const responseYear = validatedResponse.value?.year!
-    return openedAtYear >= responseYear;
 }
 
 function searchAccount(event: { query: string }, accType: string) {
@@ -170,7 +163,6 @@ const isTransferDisabled = computed(() => {
                                       @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
                                       placeholder="Select checking account" dropdown />
                         <span class="text-sm" v-if="!selectedCheckingAcc" style="color: var(--text-secondary)">Please select an account.</span>
-                        <span class="text-sm" v-else-if="checkCheckingAccDateValidity()" style="color: var(--text-secondary)">Account was opened after the year of this import!</span>
                         <span class="text-sm" v-else style="color: var(--text-secondary)">Account's opening date is valid.</span>
                     </div>
                 </div>
