@@ -45,7 +45,15 @@ func (s *ExportService) FetchExportsByExportType(userID int64, exportType string
 }
 
 func (s *ExportService) buildAccountExportJSON(accs []models.Account) ([]byte, error) {
-	exports := make([]models.AccountExport, 0, len(accs))
+	type bundle struct {
+		GeneratedAt time.Time              `json:"generated_at"`
+		Accounts    []models.AccountExport `json:"accounts"`
+	}
+
+	out := bundle{
+		GeneratedAt: time.Now().UTC(),
+		Accounts:    make([]models.AccountExport, 0, len(accs)),
+	}
 
 	for _, a := range accs {
 		e := models.AccountExport{
@@ -65,14 +73,22 @@ func (s *ExportService) buildAccountExportJSON(accs []models.Account) ([]byte, e
 		e.Balance.NetMarketFlows = a.Balance.NetMarketFlows.String()
 		e.Balance.Adjustments = a.Balance.Adjustments.String()
 
-		exports = append(exports, e)
+		out.Accounts = append(out.Accounts, e)
 	}
 
-	return json.MarshalIndent(exports, "", "  ")
+	return json.MarshalIndent(out, "", "  ")
 }
 
 func (s *ExportService) buildCategoryExportJSON(cats []models.Category) ([]byte, error) {
-	exports := make([]models.CategoryExport, 0, len(cats))
+	type bundle struct {
+		GeneratedAt time.Time               `json:"generated_at"`
+		Categories  []models.CategoryExport `json:"categories"`
+	}
+
+	out := bundle{
+		GeneratedAt: time.Now().UTC(),
+		Categories:  make([]models.CategoryExport, 0, len(cats)),
+	}
 
 	for _, c := range cats {
 		e := models.CategoryExport{
@@ -82,10 +98,10 @@ func (s *ExportService) buildCategoryExportJSON(cats []models.Category) ([]byte,
 			ParentID:       c.ParentID,
 			IsDefault:      c.IsDefault,
 		}
-		exports = append(exports, e)
+		out.Categories = append(out.Categories, e)
 	}
 
-	return json.MarshalIndent(exports, "", "  ")
+	return json.MarshalIndent(out, "", "  ")
 }
 
 func (s *ExportService) buildTxnAndTransfersExportJSON(
