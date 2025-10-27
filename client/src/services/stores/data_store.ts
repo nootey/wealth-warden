@@ -67,8 +67,17 @@ export const useDataStore = defineStore('data', {
 
         async exportData() {
             try {
-                const res = await apiClient.post(`${this.exportPrefix}`, null, {
-                    responseType: 'blob', // IMPORTANT
+                const res = await apiClient.post(`${this.exportPrefix}`);
+                return res.data;
+            } catch (err) {
+                throw err;
+            }
+        },
+
+        async downloadExport(id: number) {
+            try {
+                const res = await apiClient.post(`${this.exportPrefix}/${id}/download`, null, {
+                    responseType: 'blob',
                 });
 
                 const blob = new Blob([res.data], { type: 'application/zip' });
@@ -83,8 +92,7 @@ export const useDataStore = defineStore('data', {
                 console.error('Export failed', err);
                 throw err;
             }
-        }
-
+        },
 
     },
 });

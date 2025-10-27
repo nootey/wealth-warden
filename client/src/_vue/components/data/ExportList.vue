@@ -57,9 +57,19 @@ async function deleteConfirmation(id: number, name: string) {
     });
 }
 
+async function downloadExport(id: number) {
+    try {
+        let response = await dataStore.downloadExport(id);
+        toastStore.successResponseToast(response);
+        await getData();
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    }
+}
+
 async function deleteRecord(id: number) {
 
-    if(!hasPermission("manage_data")) {
+    if(!hasPermission("delete_export")) {
         toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
         return;
     }
@@ -88,6 +98,9 @@ async function deleteRecord(id: number) {
             <Column header="Actions">
                 <template #body="{ data }">
                     <div class="flex flex-row align-items-center gap-2">
+                        <i v-if="hasPermission('manage_data')"
+                           class="pi pi-download hover-icon" style="font-size: 0.875rem;"
+                           @click="downloadExport(data?.id)"></i>
                         <i v-if="hasPermission('manage_data')"
                            class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                            @click="deleteConfirmation(data?.id, data?.name)"></i>
