@@ -64,7 +64,7 @@ func (s *ImportService) ValidateCustomImport(payload *models.CustomImportPayload
 	}
 
 	if len(set) == 0 {
-		return nil, 0, errors.New("no transactions found for selected step")
+		return nil, 0, nil
 	}
 
 	allowed := map[string]bool{}
@@ -111,6 +111,7 @@ func (s *ImportService) ValidateCustomImport(payload *models.CustomImportPayload
 
 	return categories, len(set), nil
 }
+
 func (s *ImportService) markImportFailed(importID int64, cause error) {
 
 	msg := ""
@@ -178,7 +179,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 	todayStr := time.Now().UTC().Format("2006-01-02")
 	importName := fmt.Sprintf("custom_year_%d_txns_%d_tr_%d_generated_%s", importYear, len(payload.Txns), len(payload.Transfers), todayStr)
 
-	dir := "storage"
+	dir := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID))
 	finalPath := filepath.Join(dir, importName+".json")
 	tmpPath := filepath.Join(dir, importName+".json.tmp")
 
@@ -454,7 +455,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 		return err
 	}
 
-	filePath := filepath.Join("storage", imp.Name+".json")
+	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
 	b, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
@@ -833,7 +834,7 @@ func (s *ImportService) DeleteImport(userID, id int64) error {
 	}
 
 	// Delete import files
-	finalPath := filepath.Join("storage", imp.Name+".json")
+	finalPath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
 	tmpPath := finalPath + ".tmp"
 	for _, p := range []string{tmpPath, finalPath} {
 		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
