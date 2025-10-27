@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
@@ -67,11 +69,41 @@ func (h *ExportHandler) CreateExport(c *gin.Context) {
 		return
 	}
 
-	todayStr := time.Now().UTC().Format("2006-01-02")
-	filename := fmt.Sprintf("export_%s.zip", todayStr)
-	data, err := h.Service.CreateExport(userID)
+	_, err = h.Service.CreateExport(userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Export created", "Success", http.StatusOK)
+}
+
+func (h *ExportHandler) DownloadExport(c *gin.Context) {
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	todayStr := time.Now().UTC().Format("2006-01-02")
+	filename := fmt.Sprintf("export_%s.zip", todayStr)
+	data, err := h.Service.DownloadExport(id, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
 		return
 	}
 
