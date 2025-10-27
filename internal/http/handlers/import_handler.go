@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -108,7 +109,7 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 		return
 	}
 
-	filePath := filepath.Join("storage", imp.Name+".json")
+	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
 	b, err := os.ReadFile(filePath)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)

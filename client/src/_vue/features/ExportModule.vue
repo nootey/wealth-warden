@@ -33,7 +33,7 @@ async function exportData() {
         <span>This will create a downloadable snapshot of your accounts, transactions, transfers and categories.</span>
         <span>A zip file will be created for the seperate exported modules.</span>
         <Button class="main-button w-3" @click="exportData" label="Export"
-                :disabled="exporting" :icon="exporting ? 'pi pi-spinner' : ''" />
+                :disabled="exporting" :icon="exporting ? 'pi pi-spinner pi-spin' : ''" />
     </div>
 </template>
 

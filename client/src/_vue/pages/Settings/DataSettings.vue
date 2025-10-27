@@ -26,10 +26,11 @@ function refreshData(module: string) {
         case "import": {
             importListRef.value?.refresh();
             addImportModal.value = false;
+            transferModal.value = false;
             break;
         }
         case "export": {
-            transferModal.value = false;
+            addExportModal.value = false;
             exportListRef.value?.refresh();
             break;
         }
