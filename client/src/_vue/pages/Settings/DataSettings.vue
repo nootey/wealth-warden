@@ -9,6 +9,7 @@ import {useToastStore} from "../../../services/stores/toast_store.ts";
 import ImportInvestments from "../../features/ImportInvestments.vue";
 import ExportModule from "../../features/ExportModule.vue";
 import ExportList from "../../components/data/ExportList.vue";
+import ImportModule from "../../components/data/ImportModule.vue";
 
 const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
@@ -83,8 +84,9 @@ function manipulateDialog(modal: string, value: any) {
 <template>
 
     <Dialog class="rounded-dialog" v-model:visible="addImportModal" :breakpoints="{'751px': '90vw'}"
-            :modal="true" :style="{width: '750px'}" header="New JSON Import">
-        <ImportCash @completeImport="refreshData('import')"/>
+            :modal="true" :style="{width: '750px'}" header="New Import">
+        <ImportModule @refreshData="(e) => refreshData(e)" />
+
     </Dialog>
 
     <Dialog class="rounded-dialog" v-model:visible="transferModal" :breakpoints="{'751px': '90vw'}"
@@ -93,7 +95,7 @@ function manipulateDialog(modal: string, value: any) {
     </Dialog>
 
     <Dialog class="rounded-dialog" v-model:visible="addExportModal" :breakpoints="{'501px': '90vw'}"
-            :modal="true" :style="{width: '500px'}" header="New JSON Export">
+            :modal="true" :style="{width: '500px'}" header="New Export">
         <ExportModule @completeExport="refreshData('export')"/>
     </Dialog>
 
