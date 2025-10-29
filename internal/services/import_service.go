@@ -134,7 +134,7 @@ func (s *ImportService) FetchImportByID(tx *gorm.DB, id, userID int64, importTyp
 	return s.Repo.FindImportByID(tx, id, userID, importType)
 }
 
-func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.CustomImportPayload) error {
+func (s *ImportService) ImportTransactions(userID, checkID int64, payload models.CustomImportPayload) error {
 
 	start := time.Now().UTC()
 	l := s.Ctx.Logger.With(
@@ -142,7 +142,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 		zap.Int64("user_id", userID),
 		zap.Int64("account_id", checkID),
 	)
-	l.Info("started custom JSON import")
+	l.Info("started transactions JSON import")
 
 	l.Info("validating requirements")
 	checkingAcc, err := s.accService.FetchAccountByID(userID, checkID, false)
@@ -177,7 +177,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 	}
 
 	todayStr := time.Now().UTC().Format("2006-01-02")
-	importName := fmt.Sprintf("custom_year_%d_txns_%d_tr_%d_generated_%s", importYear, len(payload.Txns), len(payload.Transfers), todayStr)
+	importName := fmt.Sprintf("custom_transactions_year_%d_generated_%s", importYear, todayStr)
 
 	dir := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID))
 	finalPath := filepath.Join(dir, importName+".json")
@@ -214,14 +214,15 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 	started := time.Now().UTC()
 
 	importID, err := s.Repo.InsertImport(nil, models.Import{
-		Name:       importName,
-		UserID:     userID,
-		AccountID:  checkingAcc.ID,
-		ImportType: "custom",
-		Status:     "pending",
-		Step:       "cash",
-		Currency:   models.DefaultCurrency,
-		StartedAt:  &started,
+		Name:      importName,
+		UserID:    userID,
+		AccountID: checkingAcc.ID,
+		Type:      "custom",
+		SubType:   "transactions",
+		Status:    "pending",
+		Step:      "cash",
+		Currency:  models.DefaultCurrency,
+		StartedAt: &started,
 	})
 	if err != nil {
 		l.Error("failed to create import row", zap.Error(err))
@@ -381,7 +382,7 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 		return err
 	}
 
-	l.Info("saved import JSON file", zap.String("path", finalPath))
+	l.Info("saved transactions import JSON file", zap.String("path", finalPath))
 
 	if err := s.Repo.UpdateImport(nil, importID, map[string]interface{}{
 		"status":       "success",
@@ -400,7 +401,8 @@ func (s *ImportService) ImportFromJSON(userID, checkID int64, payload models.Cus
 
 	// Log
 	changes := utils.InitChanges()
-	utils.CompareChanges("", "custom", changes, "import_type")
+	utils.CompareChanges("", "custom", changes, "type")
+	utils.CompareChanges("", "transactions", changes, "sub_type")
 	utils.CompareChanges("", importName, changes, "name")
 	utils.CompareChanges("", checkingAcc.Name, changes, "checking_account")
 	utils.CompareChanges("", models.DefaultCurrency, changes, "currency")
@@ -429,7 +431,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 		zap.Int64("user_id", userID),
 		zap.Int64("account_id", checkingAccID),
 	)
-	l.Info("started investment transfer from custom import")
+	l.Info("started investment transfer from custom transactions import")
 
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
@@ -515,7 +517,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 		}
 	}
 
-	l.Info("transferring investments from custom import")
+	l.Info("transferring investments from custom transactions import")
 	for _, txn := range payload.Transfers {
 		if txn.TransactionType != "investments" {
 			continue
@@ -635,11 +637,18 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 		}
 	}
 
+	if err := s.Repo.UpdateImport(tx, importID, map[string]interface{}{
+		"investments_transferred": true,
+		"error":                   "",
+	}); err != nil {
+		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	l.Info("import completed successfully",
+	l.Info("investment transfer completed successfully",
 		zap.Int64("import_id", importID),
 		zap.Duration("elapsed", time.Since(start)),
 		zap.String("status", "success"),

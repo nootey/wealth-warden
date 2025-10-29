@@ -104,7 +104,7 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
-	if imp == nil || imp.ImportType != "custom" {
+	if imp == nil || imp.Type != "custom" {
 		utils.ErrorMessage(c, "Not found", "import not found", http.StatusNotFound, nil)
 		return
 	}
@@ -182,7 +182,7 @@ func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 	})
 }
 
-func (h *ImportHandler) ImportFromJSON(c *gin.Context) {
+func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -232,7 +232,7 @@ func (h *ImportHandler) ImportFromJSON(c *gin.Context) {
 		}
 	}
 
-	if err := h.Service.ImportFromJSON(userID, checkAccID, payload); err != nil {
+	if err := h.Service.ImportTransactions(userID, checkAccID, payload); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

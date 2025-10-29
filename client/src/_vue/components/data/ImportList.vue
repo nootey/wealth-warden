@@ -40,10 +40,11 @@ defineExpose({ refresh });
 
 const activeColumns = computed<Column[]>(() => [
     { field: 'name', header: 'Name'},
-    { field: 'import_type', header: 'Type'},
+    { field: 'type', header: 'Type'},
+    { field: 'sub_type', header: 'Sub type'},
     { field: 'status', header: 'Status'},
+    { field: 'investments_transferred', header: 'Investments'},
     { field: 'currency', header: 'Currency'},
-    { field: 'step', header: 'Step'},
 ]);
 
 async function deleteConfirmation(id: number, name: string) {

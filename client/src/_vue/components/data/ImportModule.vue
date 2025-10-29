@@ -2,6 +2,7 @@
 import {ref} from "vue";
 import ImportCash from "../../features/ImportCash.vue";
 import ImportInvestments from "../../features/ImportInvestments.vue";
+import ImportAccounts from "../../features/ImportAccounts.vue";
 
 const emit = defineEmits<{
     (e: 'refreshData', value: string): void;
@@ -64,7 +65,7 @@ async function completeAction(val: string) {
                 </div>
             </div>
             <div v-else-if="selectedRef === 'custom'">Full custom import is not currently supported</div>
-            <div v-else-if="selectedRef === 'accounts'">Account imports not currently supported</div>
+            <ImportAccounts v-else-if="selectedRef === 'accounts'" />
             <div v-else-if="selectedRef === 'categories'">Category imports not currently supported</div>
             <ImportCash v-else-if="selectedRef === 'transactions'" @completeImport="completeAction( 'import')"/>
             <div v-else-if="selectedRef === 'investments'">

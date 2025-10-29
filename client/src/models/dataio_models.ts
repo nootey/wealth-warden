@@ -20,8 +20,10 @@ export type Import = {
     account_id: number;
     name: string;
     status: string;
-    import_type: string;
+    type: string;
+    sub_type: string;
     currency: string;
+    investments_transferred: boolean,
     started_at: Date;
     completed_at: Date | null;
 }

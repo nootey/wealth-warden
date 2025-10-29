@@ -235,7 +235,7 @@ func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID int64, withB
 	return &record, result.Error
 }
 
-func (r *AccountRepository) FindAllAccountsWithInitialBalance(tx *gorm.DB, userID int64) ([]models.Account, error) {
+func (r *AccountRepository) FindAllAccountsWithLatestBalance(tx *gorm.DB, userID int64) ([]models.Account, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
@@ -244,7 +244,7 @@ func (r *AccountRepository) FindAllAccountsWithInitialBalance(tx *gorm.DB, userI
 	var accounts []models.Account
 
 	if err := db.
-		Where("user_id = ?", userID).
+		Where("user_id = ? AND is_active = ?", userID, true).
 		Preload("AccountType").
 		Find(&accounts).Error; err != nil {
 		return nil, err
@@ -262,7 +262,7 @@ func (r *AccountRepository) FindAllAccountsWithInitialBalance(tx *gorm.DB, userI
 	var bals []models.Balance
 	if err := db.
 		Where("account_id IN ?", ids).
-		Order("account_id ASC, as_of ASC").
+		Order("account_id DESC, as_of DESC").
 		Find(&bals).Error; err != nil {
 		return nil, err
 	}

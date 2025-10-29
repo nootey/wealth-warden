@@ -23,7 +23,7 @@ func (r *ImportRepository) FindImportsByImportType(tx *gorm.DB, userID int64, im
 	var records []models.Import
 
 	q := db.Model(&models.Import{}).
-		Where("user_id = ? AND import_type = ?", userID, importType)
+		Where("user_id = ? AND type = ?", userID, importType)
 
 	err := q.Find(&records).Error
 	if err != nil {
@@ -42,7 +42,7 @@ func (r *ImportRepository) FindImportByID(tx *gorm.DB, id, userID int64, importT
 	var record models.Import
 
 	q := db.Model(&models.Import{}).
-		Where("id= ? AND user_id = ? AND import_type = ?", id, userID, importType)
+		Where("id= ? AND user_id = ? AND type = ?", id, userID, importType)
 
 	err := q.First(&record).Error
 	if err != nil {
