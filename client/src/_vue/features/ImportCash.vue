@@ -97,7 +97,7 @@ const onUpload = async (_nextStep?: any) => {
         };
 
         // import cash
-        const res = await dataStore.importFromJSON(payload, selectedCheckingAcc.value?.id!);
+        const res = await dataStore.importTransactions(payload, selectedCheckingAcc.value?.id!);
         toastStore.successResponseToast(res);
 
         resetWizard();
@@ -171,9 +171,9 @@ function resetWizard() {
             <TabPanels>
                 <TabPanel value="0">
 
-                    <div v-if="checkingAccs.length > 0" class="flex flex-column w-100 gap-3 p-1">
-                        <span style="color: var(--text-secondary)">Custom imports are not complete. They require a specific import format, but are not really validated. Use at your own risk. </span>
-                        <h3>Upload a JSON file</h3>
+                    <div v-if="checkingAccs.length > 0" class="flex flex-column w-full justify-content-center align-items-center gap-3">
+                        <h3>Import your transaction data</h3>
+                        <span class="text-sm" style="color: var(--text-secondary)">Upload your JSON file below. Please review the instructions before starting an import.</span>
                         <span v-if="checkingAccs.length == 0" style="color: var(--text-secondary)">At least one checking account is required to proceed!</span>
 
                         <FileUpload v-if="!importing" ref="uploadImportRef" accept=".json, application/json"
@@ -183,19 +183,19 @@ function resetWizard() {
                                     @select="onSelect" @clear="onClear">
 
                             <template #header="{ chooseCallback }" class="w-full">
-                                <div class="w-full flex flex-wrap justify-content-between gap-3">
-                                    <Button class="main-button" @click="chooseCallback()"
+                                <div class="w-full flex flex-row justify-content-center">
+                                    <Button v-if="!fileValidated" class="outline-button w-3" @click="chooseCallback()"
                                             :disabled="checkingAccs.length == 0 || importing"
                                             label="Upload" />
                                 </div>
                             </template>
 
                             <template #content>
-                                <div v-if="selectedFiles.length > 0" class="flex flex-column gap-1 w-full">
+                                <div v-if="selectedFiles.length > 0" class="flex flex-column gap-1 w-full align-items-center">
                                     <h5>Pending</h5>
                                     <div class="flex flex-wrap gap-2 w-full">
                                         <div v-for="file in selectedFiles" :key="file.name + file.type + file.size"
-                                             class="flex flex-row gap-2 p-1 w-full align-items-center">
+                                             class="flex flex-row gap-2 p-1 w-full justify-content-center align-items-center w-full">
                                             <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden">{{ file.name }}</span>
                                             <Badge :value="fileValidated ? 'Validated' : 'Pending'" :severity="fileValidated ? 'info' : 'warn'" />
                                             <i class="pi pi-times hover-icon"
@@ -209,20 +209,20 @@ function resetWizard() {
                         </FileUpload>
                         <ShowLoading v-else :numFields="3" />
 
-                        <div class="flex flex-column p-1 gap-3">
+                        <div class="flex flex-column w-full justify-content-center align-items-center gap-3">
                             <span v-if="!fileValidated" style="color: var(--text-secondary)">
                                 Once you have uploaded a document, it needs to be validated.
                             </span>
                             <span v-if="fileValidated" style="color: var(--text-secondary)">
                                 Start the import.
                             </span>
-                            <div class="flex flex-row gap-2 align-items-center">
-                                <Button v-if="!fileValidated" class="main-button w-2"
+                            <div class="flex flex-row gap-2 align-items-center w-full justify-content-center gap-3">
+                                <Button v-if="!fileValidated" class="main-button w-3"
                                         @click="() => validateFile('cash')"
                                         :disabled="selectedFiles.length === 0 || checkingAccs.length == 0"
                                         label="Validate"
                                 />
-                                <Button v-if="fileValidated" class="main-button w-2"
+                                <Button v-if="fileValidated" class="main-button w-3"
                                         @click="onUpload"
                                         :disabled="selectedFiles.length === 0 || checkingAccs.length == 0 ||
                                         !selectedCheckingAcc ||
@@ -233,29 +233,29 @@ function resetWizard() {
                         </div>
 
                         <div v-if="validatedResponse">
-                            <div v-if="!importing" class="flex flex-column gap-3 w-full p-1">
+                            <div v-if="!importing" class="flex flex-column w-full justify-content-center align-items-center gap-3">
 
-                                <h3>Import account</h3>
-                                <div class="flex flex-column w-6 gap-2 align-items-center">
+                                <div class="flex flex-column w-full gap-2 align-items-center justify-content-center">
                                     <span class="text-sm" style="color: var(--text-secondary)">Select an account which will receive the import transactions.</span>
-                                    <div class="flex flex-column gap-1 w-full">
-                                        <label>Checking account</label>
-                                        <AutoComplete size="small" v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
-                                                      @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
-                                                      placeholder="Select checking account" dropdown />
-                                        <span class="text-sm" v-if="!selectedCheckingAcc" style="color: var(--text-secondary)">Please select an account.</span>
-                                        <span class="text-sm" v-else style="color: var(--text-secondary)">Account's opening date is valid.</span>
-                                    </div>
+                                    <AutoComplete size="small" v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
+                                                  @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
+                                                  placeholder="Select checking account" dropdown />
+                                    <span class="text-sm" v-if="!selectedCheckingAcc" style="color: var(--text-secondary)">Please select an account.</span>
+                                    <span class="text-sm" v-else style="color: var(--text-secondary)">Account's opening date is valid.</span>
                                 </div>
 
-                                <h3>Validation response</h3>
+                                <span>---</span>
+
+                                <h4>Validation response</h4>
                                 <span class="text-sm" style="color: var(--text-secondary)">General information about your import.</span>
-                                <div class="flex flex-row w-full gap-2">
+                                <div class="flex flex-row w-full gap-2 align-items-center justify-content-center">
                                     <span>Txn count: </span>
                                     <span>{{ validatedResponse.filtered_count }} </span>
                                 </div>
 
-                                <h3>Category mappings</h3>
+                                <span>---</span>
+
+                                <h4>Category mappings</h4>
                                 <ImportCategoryMapping
                                         :importedCategories="validatedResponse.categories"
                                         :appCategories="filteredCategories"
@@ -288,5 +288,7 @@ function resetWizard() {
 </template>
 
 <style scoped>
-
+.p-fileupload {
+    width: 80% !important;
+}
 </style>

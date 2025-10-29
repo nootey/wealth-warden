@@ -170,9 +170,8 @@ const isTransferDisabled = computed(() => {
 </script>
 
 <template>
-    <h3>Map investments from imported data</h3>
-
-    <div class="flex flex-column w-full gap-3">
+    <div class="flex flex-column w-full justify-content-center align-items-center gap-3">
+        <h3>Map investments from imported data</h3>
         <span>Select import</span>
 
         <Select size="small"
@@ -182,7 +181,6 @@ const isTransferDisabled = computed(() => {
                 optionLabel="name"
                 placeholder="Select import"
         />
-
         <div v-if="loadingValidation" class="flex flex-column w-full p-2">
             <ShowLoading :numFields="5" />
         </div>
@@ -190,33 +188,33 @@ const isTransferDisabled = computed(() => {
             <span style="color: var(--text-secondary)">No investments were found in the provided import!</span>
         </div>
         <div v-else-if="validatedResponse">
-            <div v-if="!transfering" class="flex flex-column gap-4 w-full">
+            <div v-if="!transfering" class="flex flex-column gap-3 w-full justify-content-center align-items-center">
             <span style="color: var(--text-secondary)">
                 Start the transfer. The checking account and at least one investment mapping is required.
             </span>
                 <Button class="main-button w-3" @click="transferInvestments" label="Transfer" :disabled="isTransferDisabled"/>
 
-                <div v-if="!transfering" class="flex flex-column w-full gap-3">
-                    <h3>Import account</h3>
-                    <div class="flex flex-column w-6 gap-2 align-items-center">
-                        <span class="text-sm w-full" style="color: var(--text-secondary)">Select an account which will receive the transfers.</span>
-                        <div class="flex flex-column gap-1 w-full">
-                            <label>Checking account</label>
-                            <AutoComplete size="small"
-                                          v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
-                                          @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
-                                          placeholder="Select checking account" dropdown />
-                            <span class="text-sm" v-if="!selectedCheckingAcc" style="color: var(--text-secondary)">Please select an account.</span>
-                            <span class="text-sm" v-else style="color: var(--text-secondary)">Account's opening date is valid.</span>
-                        </div>
+                <div v-if="!transfering" class="flex flex-column w-full gap-3 justify-content-center align-items-center">
+                    <div class="flex flex-column w-full gap-2 align-items-center justify-content-center">
+                        <span class="text-sm" style="color: var(--text-secondary)">Select an account which will receive the import transactions.</span>
+                        <AutoComplete size="small"
+                                      v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
+                                      @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
+                                      placeholder="Select checking account" dropdown />
+                        <span class="text-sm" v-if="!selectedCheckingAcc" style="color: var(--text-secondary)">Please select an account.</span>
+                        <span class="text-sm" v-else style="color: var(--text-secondary)">Account's opening date is valid.</span>
                     </div>
 
-                    <h3>Validation response</h3>
+                    <span>---</span>
+
+                    <h4>Validation response</h4>
                     <span class="text-sm" style="color: var(--text-secondary)">General information about your import.</span>
-                    <div class="flex flex-row w-full gap-2">
+                    <div class="flex flex-row w-full gap-2 align-items-center justify-content-center">
                         <span>Transfer count: </span>
                         <span>{{ validatedResponse.filtered_count }} </span>
                     </div>
+                    
+                    <span>---</span>
 
                     <h4>Investment mappings</h4>
                     <div v-if="validatedResponse.filtered_count > 0" class="flex flex-row w-full gap-3 align-items-center">

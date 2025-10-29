@@ -132,15 +132,18 @@ function save() {
 <template>
     <div class="flex flex-column gap-1 w-full">
 
-        <div class="flex align-items-center w-full">
-            <span style="color: var(--text-secondary)">
-                These are the distinct categories. Map them to existing ones. If none selected, default will be used.
-            </span>
-            <div class="ml-auto flex gap-2">
+        <div class="flex flex-column align-items-center w-full">
+            <div class="flex flex-row">
+                <span style="color: var(--text-secondary)">
+                    These are the distinct categories. Map them to existing ones. If none selected, default will be used.
+                </span>
+            </div>
+            <div class="flex flex-row gap-3">
                 <Button size="small" class="outline-button" @click="clearAll" label="Clear" />
                 <Button size="small" class="main-button" @click="mapAllToDefault" label="Defaults" />
                 <Button size="small" class="main-button" icon="pi pi-save" label="Save" @click="save" />
             </div>
+
         </div>
 
         <DataTable :value="tableData" dataKey="name" class="w-full" :rows="10"

@@ -49,13 +49,13 @@ function save() {
 </script>
 
 <template>
-    <div class="flex flex-column gap-3">
+    <div class="flex flex-column w-full">
 
-        <div class="flex align-items-center gap-2">
+        <div class="flex flex-column align-items-center w-full gap-3">
             <span style="color: var(--text-secondary)">
-            Map each investment category to one of your investment accounts.
-          </span>
-            <div class="flex gap-2">
+                Map each investment category to one of your investment accounts.
+            </span>
+            <div class="flex flex-row gap-3">
                 <Button size="small" class="outline-button" @click="clearAll" label="Clear" />
                 <Button size="small" class="main-button" icon="pi pi-save" label="Save" @click="save" />
             </div>
