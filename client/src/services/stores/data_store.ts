@@ -39,11 +39,19 @@ export const useDataStore = defineStore('data', {
             }
         },
 
-        async importFromJSON(payload: any, checkID: number) {
+        async importTransactions(payload: any, checkID: number) {
             const { data } = await apiClient.post(
-                `${this.importPrefix}/custom/json`,
+                `${this.importPrefix}/custom/transactions`,
                 payload,
                 { params: { check_acc_id: checkID } }
+            );
+            return data;
+        },
+
+        async importAccounts(payload: any) {
+            const { data } = await apiClient.post(
+                `${this.importPrefix}/custom/accounts`,
+                payload
             );
             return data;
         },

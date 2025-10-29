@@ -21,7 +21,12 @@ type Import struct {
 	CompletedAt            *time.Time `json:"completed_at"`
 }
 
-type CustomImportPayload struct {
+type AccImportPayload struct {
+	GeneratedAt time.Time       `json:"generated_at"`
+	Accounts    []AccountExport `json:"accounts"`
+}
+
+type TxnImportPayload struct {
 	GeneratedAt      time.Time         `json:"generated_at"`
 	Txns             []JSONTxn         `json:"transactions"`
 	Transfers        []JSONTxn         `json:"transfers,omitempty"`

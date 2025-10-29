@@ -45,7 +45,7 @@ func NewImportService(
 	}
 }
 
-func (s *ImportService) ValidateCustomImport(payload *models.CustomImportPayload, step string) ([]string, int, error) {
+func (s *ImportService) ValidateCustomImport(payload *models.TxnImportPayload, step string) ([]string, int, error) {
 	if payload.GeneratedAt.IsZero() {
 		return nil, 0, errors.New("missing or invalid 'generated_at' field")
 	}
@@ -134,7 +134,7 @@ func (s *ImportService) FetchImportByID(tx *gorm.DB, id, userID int64, importTyp
 	return s.Repo.FindImportByID(tx, id, userID, importType)
 }
 
-func (s *ImportService) ImportTransactions(userID, checkID int64, payload models.CustomImportPayload) error {
+func (s *ImportService) ImportTransactions(userID, checkID int64, payload models.TxnImportPayload) error {
 
 	start := time.Now().UTC()
 	l := s.Ctx.Logger.With(
@@ -423,6 +423,13 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 	return nil
 }
 
+func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPayload) error {
+
+	fmt.Println(payload)
+
+	return nil
+}
+
 func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checkingAccID int64, mappings []models.InvestmentMapping) error {
 
 	start := time.Now().UTC()
@@ -463,7 +470,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 		return err
 	}
 
-	var payload models.CustomImportPayload
+	var payload models.TxnImportPayload
 	if err := json.Unmarshal(b, &payload); err != nil {
 		return err
 	}

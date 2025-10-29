@@ -116,7 +116,7 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 		return
 	}
 
-	var payload models.CustomImportPayload
+	var payload models.TxnImportPayload
 	if err := json.Unmarshal(b, &payload); err != nil {
 		utils.ErrorMessage(c, "Invalid file", "invalid JSON in stored import", http.StatusBadRequest, err)
 		return
@@ -148,7 +148,7 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 	step := strings.ToLower(strings.TrimSpace(c.Query("step")))
 
-	var payload models.CustomImportPayload
+	var payload models.TxnImportPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		utils.ErrorMessage(c, "Invalid Request", "Invalid JSON format", http.StatusBadRequest, err)
 		return
@@ -201,7 +201,7 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 		return
 	}
 
-	var payload models.CustomImportPayload
+	var payload models.TxnImportPayload
 
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
 
@@ -237,7 +237,54 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(c, "JSON import successful", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Transaction import successful", "Success", http.StatusOK)
+}
+
+func (h *ImportHandler) ImportAccounts(c *gin.Context) {
+
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	var payload models.AccImportPayload
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+
+	ct := c.GetHeader("Content-Type")
+	if strings.HasPrefix(ct, "multipart/form-data") {
+		fileHeader, err := c.FormFile("file")
+		if err != nil {
+			utils.ErrorMessage(c, "Invalid upload", "file is required", http.StatusBadRequest, err)
+			return
+		}
+
+		f, err := fileHeader.Open()
+		if err != nil {
+			utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
+			return
+		}
+		defer f.Close()
+
+		dec := json.NewDecoder(f)
+		if err := dec.Decode(&payload); err != nil {
+			utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+			return
+		}
+	} else {
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+			return
+		}
+	}
+
+	if err := h.Service.ImportAccounts(userID, payload); err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Account import successful", "Success", http.StatusOK)
 }
 
 func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
