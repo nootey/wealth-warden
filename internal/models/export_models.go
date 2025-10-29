@@ -27,15 +27,7 @@ type AccountExport struct {
 		SubType        string `json:"sub_type"`
 		Classification string `json:"classification"`
 	} `json:"account_type"`
-	Balance struct {
-		StartBalance    string `json:"start_balance"`
-		CashInflows     string `json:"cash_inflows"`
-		CashOutflows    string `json:"cash_outflows"`
-		NonCashInflows  string `json:"non_cash_inflows"`
-		NonCashOutflows string `json:"non_cash_outflows"`
-		NetMarketFlows  string `json:"net_market_flows"`
-		Adjustments     string `json:"adjustments"`
-	} `json:"balance"`
+	Balance  string    `json:"balance" json:"balance"`
 	Currency string    `json:"currency"`
 	OpenedAt time.Time `json:"opened_at"`
 }

@@ -63,7 +63,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, seederTy
 			workers.SeedRolesAndPermissions,
 			workers.SeedRootUser,
 			workers.SeedAccountTypes,
-			workers.SeedRootAccounts,
+			//workers.SeedRootAccounts,
 			workers.SeedCategories,
 		}
 	default:

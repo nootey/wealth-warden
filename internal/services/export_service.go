@@ -76,13 +76,7 @@ func (s *ExportService) buildAccountExportJSON(accs []models.Account) ([]byte, e
 		e.AccountType.SubType = a.AccountType.Subtype
 		e.AccountType.Classification = a.AccountType.Classification
 
-		e.Balance.StartBalance = a.Balance.StartBalance.String()
-		e.Balance.CashInflows = a.Balance.CashInflows.String()
-		e.Balance.CashOutflows = a.Balance.CashOutflows.String()
-		e.Balance.NonCashInflows = a.Balance.NonCashInflows.String()
-		e.Balance.NonCashOutflows = a.Balance.NonCashOutflows.String()
-		e.Balance.NetMarketFlows = a.Balance.NetMarketFlows.String()
-		e.Balance.Adjustments = a.Balance.Adjustments.String()
+		e.Balance = a.Balance.EndBalance.String()
 
 		out.Accounts = append(out.Accounts, e)
 	}
@@ -234,7 +228,7 @@ func (s *ExportService) CreateExport(userID int64) (*models.Export, error) {
 		}
 	}()
 
-	accs, err := s.accService.Repo.FindAllAccountsWithInitialBalance(tx, userID)
+	accs, err := s.accService.Repo.FindAllAccountsWithLatestBalance(tx, userID)
 	if err != nil {
 		tx.Rollback()
 		s.updateExportStatus(export.ID, "failed", err.Error())
