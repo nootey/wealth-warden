@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {ref} from "vue";
 import ImportCash from "../../features/ImportCash.vue";
+import ImportInvestments from "../../features/ImportInvestments.vue";
 
 const emit = defineEmits<{
     (e: 'refreshData', value: string): void;
@@ -17,7 +18,7 @@ async function completeAction(val: string) {
 
 <template>
     <div style="min-height: 350px;">
-        <div class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable"
+        <div v-if="selectedRef !== ''" class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable"
              style="color: var(--text-primary)">
             <i class="pi pi-angle-left"></i>
             <span @click="selectedRef = ''">Back</span>
@@ -66,7 +67,9 @@ async function completeAction(val: string) {
             <div v-else-if="selectedRef === 'accounts'">Account imports not currently supported</div>
             <div v-else-if="selectedRef === 'categories'">Category imports not currently supported</div>
             <ImportCash v-else-if="selectedRef === 'transactions'" @completeImport="completeAction( 'import')"/>
-            <div v-else-if="selectedRef === 'investments'">Investment transfers not currently supported</div>
+            <div v-else-if="selectedRef === 'investments'">
+                <ImportInvestments @completeTransfer="completeAction( 'import')"/>
+            </div>
         </Transition>
     </div>
 </template>

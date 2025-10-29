@@ -15,6 +15,7 @@ export type CustomImportValidationResponse = {
 }
 
 export type Import = {
+    id?: number;
     user_id: number;
     account_id: number;
     name: string;

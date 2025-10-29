@@ -5,7 +5,6 @@ import ImportList from "../../components/data/ImportList.vue";
 import {ref} from "vue";
 import {usePermissions} from "../../../utils/use_permissions.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
-import ImportInvestments from "../../features/ImportInvestments.vue";
 import ExportModule from "../../features/ExportModule.vue";
 import ExportList from "../../components/data/ExportList.vue";
 import ImportModule from "../../components/data/ImportModule.vue";
@@ -19,7 +18,6 @@ const exportListRef = ref<InstanceType<typeof ExportList> | null>(null);
 const addImportModal = ref(false);
 const addExportModal = ref(false);
 const transferModal = ref(false);
-const importID = ref(null);
 
 function refreshData(module: string) {
     switch(module) {
@@ -41,10 +39,6 @@ function refreshData(module: string) {
 
 }
 
-function onMigrateInvestments(id: string) {
-    manipulateDialog("transferInvestments", id)
-}
-
 function manipulateDialog(modal: string, value: any) {
     switch (modal) {
         case 'addImport': {
@@ -53,15 +47,6 @@ function manipulateDialog(modal: string, value: any) {
                 return;
             }
             addImportModal.value = value;
-            break;
-        }
-        case 'transferInvestments': {
-            if(!hasPermission("manage_data")) {
-                toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
-                return;
-            }
-            transferModal.value = true;
-            importID.value = value;
             break;
         }
         case 'addExport': {
@@ -86,11 +71,6 @@ function manipulateDialog(modal: string, value: any) {
             :modal="true" :style="{width: '750px'}" header="New Import">
         <ImportModule @refreshData="(e) => refreshData(e)" />
 
-    </Dialog>
-
-    <Dialog class="rounded-dialog" v-model:visible="transferModal" :breakpoints="{'751px': '90vw'}"
-            :modal="true" :style="{width: '750px'}" header="Transfer investments">
-        <ImportInvestments :importID="importID" @completeTransfer="refreshData('import')"/>
     </Dialog>
 
     <Dialog class="rounded-dialog" v-model:visible="addExportModal" :breakpoints="{'501px': '90vw'}"
@@ -118,7 +98,7 @@ function manipulateDialog(modal: string, value: any) {
                 </div>
 
                 <h3>Imports</h3>
-                <ImportList ref="importListRef" @migrateInvestments="onMigrateInvestments" />
+                <ImportList ref="importListRef" />
 
             </div>
         </SettingsSkeleton>

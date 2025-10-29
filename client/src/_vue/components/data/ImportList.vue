@@ -12,10 +12,6 @@ import {usePermissions} from "../../../utils/use_permissions.ts";
 import {useConfirm} from "primevue/useconfirm";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 
-const emit = defineEmits<{
-    (e: 'migrateInvestments', importId: string): void;
-}>();
-
 const dataStore = useDataStore();
 const toastStore = useToastStore();
 const sharedStore = useSharedStore();
@@ -111,9 +107,6 @@ async function deleteRecord(id: number) {
             <Column header="Actions">
                 <template #body="{ data }">
                     <div class="flex flex-row align-items-center gap-2">
-                        <i v-if="data['step'] === 'investments'" class="pi pi-cart-plus hover-icon text-xs" v-tooltip="'Migrate investments'"
-                           @click="emit('migrateInvestments', data.id)"/>
-                        <i v-else>/</i>
                         <i v-if="hasPermission('manage_data')"
                            class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                            @click="deleteConfirmation(data?.id, data?.name)"></i>
