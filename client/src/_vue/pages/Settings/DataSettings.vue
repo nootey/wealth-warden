@@ -1,7 +1,6 @@
 <script setup lang="ts">
 
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
-import ImportCash from "../../features/ImportCash.vue";
 import ImportList from "../../components/data/ImportList.vue";
 import {ref} from "vue";
 import {usePermissions} from "../../../utils/use_permissions.ts";
