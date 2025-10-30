@@ -55,6 +55,11 @@ CREATE OR REPLACE FUNCTION soft_delete_account()
 RETURNS TRIGGER
 LANGUAGE plpgsql AS $$
 BEGIN
+
+IF current_setting('ww.hard_delete', true) = 'on' THEN
+    RETURN OLD;
+END IF;
+
 UPDATE accounts
 SET closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP),
     updated_at = CURRENT_TIMESTAMP

@@ -188,6 +188,24 @@ func (r *AccountRepository) FindAccountsBySubtype(tx *gorm.DB, userID int64, sub
 	return records, err
 }
 
+func (r *AccountRepository) FindAccountsByImportID(tx *gorm.DB, ID, userID int64) ([]models.Account, error) {
+
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var records []models.Account
+
+	query := db.
+		Model(&models.Account{}).
+		Where(`import_id = ? AND user_id = ?`, ID, userID)
+
+	err := query.Find(&records).Error
+
+	return records, err
+}
+
 func (r *AccountRepository) FetchAccountsByType(tx *gorm.DB, userID int64, t string, activeOnly bool) ([]models.Account, error) {
 
 	db := tx
@@ -423,6 +441,22 @@ func (r *AccountRepository) CloseAccount(tx *gorm.DB, id, userID int64) error {
 		return res.Error
 	}
 	return nil
+}
+
+func (r *AccountRepository) PurgeImportedAccounts(tx *gorm.DB, importID, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Exec(`SET LOCAL ww.hard_delete = 'on'`).Error; err != nil {
+		return err
+	}
+	res := db.Exec(`
+        DELETE FROM accounts
+        WHERE user_id = ? AND import_id = ?
+    `, userID, importID)
+	return res.Error
 }
 
 func (r *AccountRepository) EnsureDailyBalanceRow(

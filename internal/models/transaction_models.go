@@ -74,6 +74,7 @@ type Category struct {
 	Classification string     `gorm:"not null;default:'expense';index:idx_categories_user_class" json:"classification"`
 	ParentID       *int64     `gorm:"index" json:"parent_id,omitempty"`
 	IsDefault      bool       `json:"is_default"`
+	ImportID       *int64     `json:"import_id,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 	DeletedAt      *time.Time `json:"deleted_at"`

@@ -108,7 +108,8 @@ CREATE OR REPLACE FUNCTION soft_delete_transaction()
 RETURNS TRIGGER
 LANGUAGE plpgsql AS $$
 BEGIN
-  IF current_setting('ww.hard_delete', true) = 'on' THEN
+
+IF current_setting('ww.hard_delete', true) = 'on' THEN
     RETURN OLD;
 END IF;
 

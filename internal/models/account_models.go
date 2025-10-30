@@ -18,6 +18,7 @@ type Account struct {
 	Currency          string      `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	IsActive          bool        `gorm:"type:boolean;not null;default:true" json:"is_active"`
 	IncludeInNetWorth bool        `gorm:"type:boolean;not null;default:true" json:"include_in_net_worth"`
+	ImportID          *int64      `json:"import_id,omitempty"`
 	OpenedAt          time.Time   `gorm:"not null" json:"opened_at"`
 	UpdatedAt         time.Time   `gorm:"autoUpdateTime" json:"updated_at"`
 	ClosedAt          *time.Time  `gorm:"column:closed_at;index" json:"closed_at"`
