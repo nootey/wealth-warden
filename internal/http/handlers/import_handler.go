@@ -202,6 +202,10 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 	}
 
 	var payload models.TxnImportPayload
+	if err := h.v.ValidateStruct(payload); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
 
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
 
@@ -261,6 +265,10 @@ func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 	}
 
 	var payload models.AccImportPayload
+	if err := h.v.ValidateStruct(payload); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
 
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
 
@@ -306,23 +314,18 @@ func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		ImportID           int64                      `json:"import_id"`
-		CheckingAccID      int64                      `json:"checking_acc_id"`
-		InvestmentMappings []models.InvestmentMapping `json:"investment_mappings"`
+	var payload models.InvestmentTransferPayload
+	if err := h.v.ValidateStruct(payload); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&payload); err != nil {
 		utils.ErrorMessage(c, "Invalid Request", "Invalid JSON body", http.StatusBadRequest, err)
 		return
 	}
 
-	if req.ImportID == 0 {
-		utils.ErrorMessage(c, "Invalid Request", "Missing import_id", http.StatusBadRequest, nil)
-		return
-	}
-
-	if err := h.Service.TransferInvestmentsFromImport(userID, req.ImportID, req.CheckingAccID, req.InvestmentMappings); err != nil {
+	if err := h.Service.TransferInvestmentsFromImport(userID, payload); err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

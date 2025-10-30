@@ -21,16 +21,22 @@ type Import struct {
 }
 
 type AccImportPayload struct {
-	GeneratedAt time.Time       `json:"generated_at"`
-	Accounts    []AccountExport `json:"accounts"`
+	GeneratedAt time.Time       `json:"generated_at" validate:"required"`
+	Accounts    []AccountExport `json:"accounts" validate:"required"`
 }
 
 type TxnImportPayload struct {
-	GeneratedAt      time.Time         `json:"generated_at"`
-	Txns             []JSONTxn         `json:"transactions"`
+	GeneratedAt      time.Time         `json:"generated_at" validate:"required"`
+	Txns             []JSONTxn         `json:"transactions" validate:"required"`
 	Transfers        []JSONTxn         `json:"transfers,omitempty"`
 	Categories       []string          `json:"categories,omitempty"`
-	CategoryMappings []CategoryMapping `json:"category_mappings"`
+	CategoryMappings []CategoryMapping `json:"category_mappings" validate:"required"`
+}
+
+type InvestmentTransferPayload struct {
+	ImportID           int64               `json:"import_id" validate:"required"`
+	CheckingAccID      int64               `json:"checking_acc_id" validate:"required"`
+	InvestmentMappings []InvestmentMapping `json:"investment_mappings" validate:"required"`
 }
 
 type JSONTxn struct {

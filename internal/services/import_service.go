@@ -456,7 +456,7 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 		}
 	}
 	if first.IsZero() {
-		return fmt.Errorf("cannot infer import year: no valid txn_date in transactions or transfers")
+		return fmt.Errorf("cannot infer import year: no valid opened_at in accounts")
 	}
 	importYear := first.Year()
 
@@ -682,13 +682,13 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 	return nil
 }
 
-func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checkingAccID int64, mappings []models.InvestmentMapping) error {
+func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload models.InvestmentTransferPayload) error {
 
 	start := time.Now().UTC()
 	l := s.Ctx.Logger.With(
 		zap.String("op", "transfer_investments"),
 		zap.Int64("user_id", userID),
-		zap.Int64("account_id", checkingAccID),
+		zap.Int64("account_id", payload.CheckingAccID),
 	)
 	l.Info("started investment transfer from custom transactions import")
 
@@ -700,18 +700,18 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 	defer func() {
 		if p := recover(); p != nil {
 			tx.Rollback()
-			s.markImportFailed(importID, nil)
+			s.markImportFailed(payload.ImportID, nil)
 			panic(p)
 		}
 	}()
 
-	checkingAcc, err := s.accService.Repo.FindAccountByID(tx, checkingAccID, userID, true)
+	checkingAcc, err := s.accService.Repo.FindAccountByID(tx, payload.CheckingAccID, userID, true)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find source account %w", err)
 	}
 
-	imp, err := s.FetchImportByID(tx, importID, userID, "custom")
+	imp, err := s.FetchImportByID(tx, payload.ImportID, userID, "custom")
 	if err != nil {
 		return err
 	}
@@ -722,7 +722,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 		return err
 	}
 
-	var payload models.TxnImportPayload
+	var txnPayload models.TxnImportPayload
 	if err := json.Unmarshal(b, &payload); err != nil {
 		return err
 	}
@@ -737,13 +737,13 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 		loc = time.UTC
 	}
 
-	sort.SliceStable(payload.Txns, func(i, j int) bool {
-		return payload.Txns[i].TxnDate.Before(payload.Txns[j].TxnDate)
+	sort.SliceStable(txnPayload.Txns, func(i, j int) bool {
+		return txnPayload.Txns[i].TxnDate.Before(txnPayload.Txns[j].TxnDate)
 	})
 
-	catToAccID := make(map[string]int64, len(mappings))
+	catToAccID := make(map[string]int64, len(payload.InvestmentMappings))
 	distinctAccIDs := make(map[int64]struct{})
-	for _, m := range mappings {
+	for _, m := range payload.InvestmentMappings {
 		var id int64
 		switch {
 		case m.AccountID == 0:
@@ -777,7 +777,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 	}
 
 	l.Info("transferring investments from custom transactions import")
-	for _, txn := range payload.Transfers {
+	for _, txn := range txnPayload.Transfers {
 		if txn.TransactionType != "investments" {
 			continue
 		}
@@ -871,7 +871,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 	}
 
 	// frontfill balances
-	frontfillFrom := utils.LocalMidnightUTC(payload.Txns[0].TxnDate, loc)
+	frontfillFrom := utils.LocalMidnightUTC(txnPayload.Txns[0].TxnDate, loc)
 	if err := s.accService.FrontfillBalancesForAccount(
 		tx,
 		userID,
@@ -896,11 +896,11 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 		}
 	}
 
-	if err := s.Repo.UpdateImport(tx, importID, map[string]interface{}{
+	if err := s.Repo.UpdateImport(tx, payload.ImportID, map[string]interface{}{
 		"investments_transferred": true,
 		"error":                   "",
 	}); err != nil {
-		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
+		return fmt.Errorf("marking import %d successful failed: %w", payload.ImportID, err)
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -908,7 +908,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 	}
 
 	l.Info("investment transfer completed successfully",
-		zap.Int64("import_id", importID),
+		zap.Int64("import_id", payload.ImportID),
 		zap.Duration("elapsed", time.Since(start)),
 		zap.String("status", "success"),
 	)
@@ -916,7 +916,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID, importID, checking
 	changes := utils.InitChanges()
 	utils.CompareChanges("", imp.Name, changes, "import_name")
 	utils.CompareChanges("", checkingAcc.Name, changes, "source_account")
-	utils.CompareChanges("", strconv.Itoa(len(mappings)), changes, "investment_mappings_count")
+	utils.CompareChanges("", strconv.Itoa(len(payload.InvestmentMappings)), changes, "investment_mappings_count")
 
 	// collect destination account names for readability
 	var destNames []string
