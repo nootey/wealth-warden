@@ -248,6 +248,18 @@ func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 		return
 	}
 
+	useBalancesStr := c.Query("use_balances")
+	if useBalancesStr == "" {
+		utils.ErrorMessage(c, "param error", "missing use_balances bool", http.StatusBadRequest, nil)
+		return
+	}
+
+	useBalances, err := strconv.ParseBool(useBalancesStr)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "use_balances must be a valid boolean", http.StatusBadRequest, err)
+		return
+	}
+
 	var payload models.AccImportPayload
 
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
@@ -279,7 +291,7 @@ func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 		}
 	}
 
-	if err := h.Service.ImportAccounts(userID, payload); err != nil {
+	if err := h.Service.ImportAccounts(userID, payload, useBalances); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

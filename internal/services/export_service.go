@@ -76,7 +76,7 @@ func (s *ExportService) buildAccountExportJSON(accs []models.Account) ([]byte, e
 		e.AccountType.SubType = a.AccountType.Subtype
 		e.AccountType.Classification = a.AccountType.Classification
 
-		e.Balance = a.Balance.EndBalance.String()
+		e.Balance = a.Balance.EndBalance
 
 		out.Accounts = append(out.Accounts, e)
 	}

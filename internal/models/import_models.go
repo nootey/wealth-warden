@@ -8,7 +8,6 @@ type Import struct {
 	ID                     int64      `gorm:"primaryKey;autoIncrement" json:"id"`
 	Name                   string     `gorm:"size:128;not null" json:"name"`
 	UserID                 int64      `gorm:"not null" json:"user_id"`
-	AccountID              int64      `gorm:"not null" json:"account_id"`
 	Type                   string     `gorm:"not null" json:"type"`
 	SubType                string     `gorm:"not null" json:"sub_type"`
 	Status                 string     `gorm:"not null" json:"status"`

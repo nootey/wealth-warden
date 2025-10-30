@@ -48,10 +48,11 @@ export const useDataStore = defineStore('data', {
             return data;
         },
 
-        async importAccounts(payload: any) {
+        async importAccounts(payload: any, useBalances: boolean) {
             const { data } = await apiClient.post(
                 `${this.importPrefix}/custom/accounts`,
-                payload
+                payload,
+                { params: { use_balances: useBalances } }
             );
             return data;
         },

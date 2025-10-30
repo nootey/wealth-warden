@@ -216,7 +216,6 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 	importID, err := s.Repo.InsertImport(nil, models.Import{
 		Name:      importName,
 		UserID:    userID,
-		AccountID: checkingAcc.ID,
 		Type:      "custom",
 		SubType:   "transactions",
 		Status:    "pending",
@@ -423,9 +422,262 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 	return nil
 }
 
-func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPayload) error {
+func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPayload, useBalances bool) error {
 
-	fmt.Println(payload)
+	start := time.Now().UTC()
+	l := s.Ctx.Logger.With(
+		zap.String("op", "import_accounts"),
+		zap.Int64("user_id", userID),
+		zap.Boolp("use_balances", &useBalances),
+	)
+	l.Info("started accounts JSON import")
+
+	l.Info("validating requirements")
+	accCount, err := s.accService.Repo.CountAccounts(userID, nil, false, nil)
+	if err != nil {
+		return err
+	}
+
+	maxAcc, err := s.Ctx.SettingsRepo.FetchMaxAccountsForUser(nil)
+	if err != nil {
+		return err
+	}
+
+	if accCount >= maxAcc {
+		return fmt.Errorf("you can only have %d active accounts", maxAcc)
+	}
+
+	// create the import as PENDING
+	var first time.Time
+	for _, a := range payload.Accounts {
+		if !a.OpenedAt.IsZero() {
+			first = a.OpenedAt
+			break
+		}
+	}
+	if first.IsZero() {
+		return fmt.Errorf("cannot infer import year: no valid txn_date in transactions or transfers")
+	}
+	importYear := first.Year()
+
+	todayStr := time.Now().UTC().Format("2006-01-02")
+	importName := fmt.Sprintf("custom_accounts_year_%d_generated_%s", importYear, todayStr)
+
+	dir := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID))
+	finalPath := filepath.Join(dir, importName+".json")
+	tmpPath := filepath.Join(dir, importName+".json.tmp")
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	// Hard duplicate check
+	if _, err := os.Stat(finalPath); err == nil {
+		return errors.New("import file already exists")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	// Reserve the name with an exclusive temp file (prevents races)
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return errors.New("import file already exists")
+		}
+		return err
+	}
+	reserved := true
+	defer func() {
+		if reserved {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	// create the import as PENDING
+	l.Info("creating import row", zap.String("status", "pending"))
+	started := time.Now().UTC()
+
+	importID, err := s.Repo.InsertImport(nil, models.Import{
+		Name:      importName,
+		UserID:    userID,
+		Type:      "custom",
+		SubType:   "accounts",
+		Status:    "pending",
+		Step:      "accounts",
+		Currency:  models.DefaultCurrency,
+		StartedAt: &started,
+	})
+	if err != nil {
+		l.Error("failed to create import row", zap.Error(err))
+		return err
+	}
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't fetch user settings %w", err)
+	}
+
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	l.Info("processing accounts")
+	for _, acc := range payload.Accounts {
+
+		openedAt := acc.OpenedAt
+		if openedAt.IsZero() {
+			openedAt = time.Now()
+		}
+		openedDay := utils.LocalMidnightUTC(openedAt, loc)
+
+		accType, err := s.accService.Repo.FindAccountTypeByType(tx, acc.AccountType.Type, acc.AccountType.SubType)
+		if err != nil {
+			return fmt.Errorf("can't find account_type from schema %w", err)
+		}
+
+		account := &models.Account{
+			Name:          acc.Name,
+			Currency:      models.DefaultCurrency,
+			AccountTypeID: accType.ID,
+			UserID:        userID,
+			OpenedAt:      openedDay,
+		}
+
+		accountID, err := s.accService.Repo.InsertAccount(tx, account)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		var amount decimal.Decimal
+		if useBalances {
+			amount = acc.Balance.Round(4)
+
+			if accType.Classification == "liability" {
+				amount = amount.Neg()
+			}
+		} else {
+			amount = decimal.Zero
+		}
+
+		asOf := openedDay
+
+		balance := &models.Balance{
+			AccountID:    accountID,
+			Currency:     models.DefaultCurrency,
+			StartBalance: amount,
+			AsOf:         asOf,
+		}
+
+		_, err = s.accService.Repo.InsertBalance(tx, balance)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		l.Info("seeding snapshots",
+			zap.Int64("import_id", importID),
+			zap.String("currency", models.DefaultCurrency),
+		)
+
+		// seed snapshots from opened day to today
+		if err := s.accService.Repo.UpsertSnapshotsFromBalances(
+			tx,
+			userID,
+			accountID,
+			models.DefaultCurrency,
+			asOf,
+			time.Now().UTC().Truncate(24*time.Hour),
+		); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+	}
+
+	// Write payload to the reserved temp file
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(importID, err)
+		return err
+	}
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(importID, err)
+		return err
+	}
+	if err := tmpFile.Sync(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(importID, err)
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(importID, err)
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Promote the temp file to final
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		s.markImportFailed(importID, err)
+		return err
+	}
+
+	l.Info("saved accounts import JSON file", zap.String("path", finalPath))
+
+	if err := s.Repo.UpdateImport(nil, importID, map[string]interface{}{
+		"status":       "success",
+		"step":         "investments",
+		"completed_at": time.Now().UTC(),
+		"error":        "",
+	}); err != nil {
+		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
+	}
+
+	l.Info("import completed successfully",
+		zap.Int64("import_id", importID),
+		zap.Duration("elapsed", time.Since(start)),
+		zap.String("status", "success"),
+	)
+
+	// Log
+	changes := utils.InitChanges()
+	utils.CompareChanges("", "custom", changes, "type")
+	utils.CompareChanges("", "accounts", changes, "sub_type")
+	utils.CompareChanges("", importName, changes, "name")
+	utils.CompareChanges("", models.DefaultCurrency, changes, "currency")
+	utils.CompareChanges("", strconv.Itoa(len(payload.Accounts)), changes, "accounts_count")
+
+	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "import",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		return err
+	}
 
 	return nil
 }

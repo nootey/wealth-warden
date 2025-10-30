@@ -65,7 +65,7 @@ async function completeAction(val: string) {
                 </div>
             </div>
             <div v-else-if="selectedRef === 'custom'">Full custom import is not currently supported</div>
-            <ImportAccounts v-else-if="selectedRef === 'accounts'" />
+            <ImportAccounts v-else-if="selectedRef === 'accounts'"  @completeImport="completeAction( 'import')"/>
             <div v-else-if="selectedRef === 'categories'">Category imports not currently supported</div>
             <ImportCash v-else-if="selectedRef === 'transactions'" @completeImport="completeAction( 'import')"/>
             <div v-else-if="selectedRef === 'investments'">

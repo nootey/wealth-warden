@@ -6,7 +6,6 @@ CREATE TABLE imports (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     user_id     BIGINT NOT NULL,
-    account_id  BIGINT NOT NULL,
     type VARCHAR(128) NOT NULL,
     sub_type VARCHAR(128) NOT NULL,
     investments_transferred BOOLEAN,
@@ -20,8 +19,7 @@ CREATE TABLE imports (
     started_at TIMESTAMPTZ NULL,
     completed_at TIMESTAMPTZ NULL,
 
-    CONSTRAINT fk_ttpl_user     FOREIGN KEY (user_id)     REFERENCES users(id),
-    CONSTRAINT fk_ttpl_account  FOREIGN KEY (account_id)  REFERENCES accounts(id)
+    CONSTRAINT fk_ttpl_user     FOREIGN KEY (user_id)     REFERENCES users(id)
 );
 
 

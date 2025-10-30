@@ -12,6 +12,7 @@ const toastStore = useToastStore();
 const dataStore = useDataStore();
 
 const importing = ref(false);
+const useBalances = ref(false);
 
 const selectedFiles = ref<File[]>([]);
 const uploadImportRef = ref<{ files: File[] } | null>(null);
@@ -32,6 +33,7 @@ function resetWizard() {
     // clear local state
     selectedFiles.value = [];
     importing.value = false;
+    useBalances.value = false;
 
     // clear FileUpload UI
     try {
@@ -50,7 +52,7 @@ async function importAccounts() {
         const fileText = await selectedFiles.value[0].text();
         const filePayload = JSON.parse(fileText);
 
-        const res = await dataStore.importAccounts(filePayload);
+        const res = await dataStore.importAccounts(filePayload, useBalances.value);
         toastStore.successResponseToast(res);
 
         resetWizard();
@@ -61,12 +63,20 @@ async function importAccounts() {
         importing.value = false;
     }
 }
+
 </script>
 
 <template>
-    <div class="flex flex-column w-full justify-content-center align-items-center gap-3">
+    <div class="flex flex-column w-full justify-content-center align-items-center text-center gap-3">
         <h3>Import your account data</h3>
         <span class="text-sm" style="color: var(--text-secondary)">Upload your JSON file below. Please review the instructions before starting an import.</span>
+        <span class="text-sm" style="color: var(--text-secondary)">
+            NOTE: You can also import the existing balances, but they will be set as starting balances. If you end up importing transactions after, note that those will count as additions to existing account balances.
+        </span>
+        <div class="flex align-items-center gap-1">
+            <Checkbox v-model="useBalances" :binary="true" inputId="use-balances-pt" />
+            <label for="use-balances-pt"  style="color: var(--text-secondary)">Use included balances</label>
+        </div>
         <FileUpload v-if="!importing" ref="uploadImportRef" accept=".json, application/json"
                     :maxFileSize="10485760" :multiple="false"
                     customUpload

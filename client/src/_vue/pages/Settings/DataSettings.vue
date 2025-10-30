@@ -22,6 +22,7 @@ const transferModal = ref(false);
 function refreshData(module: string) {
     switch(module) {
         case "import": {
+            console.log("hello")
             importListRef.value?.refresh();
             addImportModal.value = false;
             transferModal.value = false;

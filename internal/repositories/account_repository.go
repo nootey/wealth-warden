@@ -312,6 +312,17 @@ func (r *AccountRepository) FindAccountTypeByID(tx *gorm.DB, ID int64) (models.A
 	return record, result.Error
 }
 
+func (r *AccountRepository) FindAccountTypeByType(tx *gorm.DB, atype, sub_type string) (models.AccountType, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var record models.AccountType
+	result := db.Where("type = ? AND sub_type =?", atype, sub_type).First(&record)
+	return record, result.Error
+}
+
 func (r *AccountRepository) FindBalanceForAccountID(tx *gorm.DB, accID int64) (models.Balance, error) {
 	db := tx
 	if db == nil {

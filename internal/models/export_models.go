@@ -2,6 +2,8 @@ package models
 
 import (
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type Export struct {
@@ -27,9 +29,9 @@ type AccountExport struct {
 		SubType        string `json:"sub_type"`
 		Classification string `json:"classification"`
 	} `json:"account_type"`
-	Balance  string    `json:"balance" json:"balance"`
-	Currency string    `json:"currency"`
-	OpenedAt time.Time `json:"opened_at"`
+	Balance  decimal.Decimal `json:"balance"`
+	Currency string          `json:"currency"`
+	OpenedAt time.Time       `json:"opened_at"`
 }
 
 type CategoryExport struct {
