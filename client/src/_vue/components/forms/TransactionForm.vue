@@ -232,7 +232,7 @@ const searchCategory = (event: { query: string }) => {
             filteredCategories.value = [...availableCategories.value];
         } else {
             filteredCategories.value = availableCategories.value.filter((record) => {
-                return record.name.toLowerCase().startsWith(event.query.toLowerCase());
+                return record.display_name.toLowerCase().startsWith(event.query.toLowerCase());
             });
         }
     }, 250);
