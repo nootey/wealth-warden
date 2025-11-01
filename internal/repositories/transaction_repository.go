@@ -836,3 +836,39 @@ func (r *TransactionRepository) PurgeImportedTransfers(tx *gorm.DB, importID, us
     `, userID, importID)
 	return res.RowsAffected, res.Error
 }
+
+func (r *TransactionRepository) PurgeImportedCategories(tx *gorm.DB, importID, userID int64) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	// reassign any transactions using these categories to (uncategorized)
+	updateSQL := `
+        UPDATE transactions
+        SET category_id = (
+            SELECT id FROM categories 
+            WHERE name = '(uncategorized)' 
+            AND classification = 'uncategorized'
+            LIMIT 1
+        )
+        WHERE category_id IN (
+            SELECT id FROM categories 
+            WHERE user_id = ? AND import_id = ?
+        )
+    `
+
+	if err := db.Exec(updateSQL, userID, importID).Error; err != nil {
+		return 0, err
+	}
+
+	// Now delete the imported categories
+	if err := db.Exec(`SET LOCAL ww.hard_delete = 'on'`).Error; err != nil {
+		return 0, err
+	}
+	res := db.Exec(`
+        DELETE FROM categories
+        WHERE user_id = ? AND import_id = ?
+    `, userID, importID)
+	return res.RowsAffected, res.Error
+}

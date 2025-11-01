@@ -790,17 +790,23 @@ func (s *ImportService) ImportCategories(userID int64, payload models.CategoryIm
 			continue
 		}
 
+		parent, err := s.TxnRepo.FindCategoryByName(tx, cat.Classification, &userID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
 		category := &models.Category{
 			UserID:         &userID,
 			Name:           cat.Name,
 			DisplayName:    cat.DisplayName,
 			Classification: cat.Classification,
-			ParentID:       nil,
+			ParentID:       &parent.ID,
 			IsDefault:      false,
 			ImportID:       &importID,
 		}
 
-		_, err := s.TxnRepo.InsertCategory(tx, category)
+		_, err = s.TxnRepo.InsertCategory(tx, category)
 		if err != nil {
 			s.markImportFailed(importID, err)
 			tx.Rollback()
@@ -1179,6 +1185,11 @@ func (s *ImportService) DeleteImport(userID, id int64) error {
 		if err != nil {
 			return err
 		}
+	case "categories":
+		err = s.DeleteCatImport(userID, imp)
+		if err != nil {
+			return err
+		}
 	default:
 		return nil
 	}
@@ -1400,6 +1411,62 @@ func (s *ImportService) DeleteAccImport(userID int64, imp *models.Import) error 
 	if err := s.accService.Repo.PurgeImportedAccounts(tx, imp.ID, userID); err != nil {
 		tx.Rollback()
 		return err
+	}
+
+	// Delete import row
+	if err := s.Repo.DeleteImport(tx, imp.ID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete import files
+	finalPath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
+	tmpPath := finalPath + ".tmp"
+	for _, p := range []string{tmpPath, finalPath} {
+		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+			tx.Rollback()
+			return fmt.Errorf("failed to remove file %s: %w", p, err)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *ImportService) DeleteCatImport(userID int64, imp *models.Import) error {
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// hard delete the data
+	if _, err := s.TxnRepo.PurgeImportedCategories(tx, imp.ID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// revert names for all default categories
+	categories, err := s.TxnRepo.FindAllCategories(tx, nil, false)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	for _, cat := range categories {
+		if err := s.TxnRepo.RestoreCategoryName(tx, cat.ID, &userID, cat.Name); err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	// Delete import row

@@ -80,14 +80,6 @@ type Category struct {
 	DeletedAt      *time.Time `json:"deleted_at"`
 }
 
-type HiddenCategory struct {
-	ID         int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID     int64     `gorm:"not_null" json:"user_id"`
-	CategoryID int64     `gorm:"not_null" json:"category_id"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-}
-
 type TransactionReq struct {
 	AccountID       int64           `json:"account_id" validate:"required"`
 	CategoryID      *int64          `json:"category_id,omitempty"`
