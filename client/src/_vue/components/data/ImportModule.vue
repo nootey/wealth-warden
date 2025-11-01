@@ -3,6 +3,7 @@ import {computed, ref} from "vue";
 import ImportTransactions from "../../features/ImportTransactions.vue";
 import ImportInvestments from "../../features/ImportInvestments.vue";
 import ImportAccounts from "../../features/ImportAccounts.vue";
+import ImportCategories from "../../features/ImportCategories.vue";
 
 const emit = defineEmits<{
     (e: 'refreshData', value: string): void;
@@ -11,6 +12,7 @@ const emit = defineEmits<{
 const selectedRef = ref("");
 
 const accRef = ref<InstanceType<typeof ImportAccounts> | null>(null);
+const catRef = ref<InstanceType<typeof ImportCategories> | null>(null);
 const txnRef = ref<InstanceType<typeof ImportTransactions> | null>(null);
 const invRef = ref<InstanceType<typeof ImportInvestments> | null>(null);
 
@@ -30,6 +32,9 @@ async function startOperation() {
         case "accounts":
             accRef.value?.importAccounts();
             break;
+        case "categories":
+            catRef.value?.importCategories();
+            break;
         default:
             break;
     }
@@ -43,6 +48,8 @@ const isDisabled = computed(() => {
             return invRef.value?.isDisabled ?? true;
         case "accounts":
             return accRef.value?.isDisabled ?? true;
+        case "categories":
+            return catRef.value?.isDisabled ?? true;
         default:
             return true
     }
@@ -101,7 +108,7 @@ defineExpose({isDisabled, startOperation})
             </div>
             <div v-else-if="selectedRef === 'custom'">Full custom import is not currently supported</div>
             <ImportAccounts ref="accRef" v-else-if="selectedRef === 'accounts'"  @completeImport="completeAction( 'import')"/>
-            <div v-else-if="selectedRef === 'categories'">Category imports not currently supported</div>
+            <ImportCategories ref="catRef" v-else-if="selectedRef === 'categories'"  @completeImport="completeAction( 'import')"/>
             <ImportTransactions ref="txnRef" v-else-if="selectedRef === 'transactions'" @completeImport="completeAction( 'import')"/>
             <ImportInvestments ref="invRef" v-else-if="selectedRef === 'investments'" @completeTransfer="completeAction( 'import')"/>
         </Transition>

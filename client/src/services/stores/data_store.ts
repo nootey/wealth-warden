@@ -57,6 +57,14 @@ export const useDataStore = defineStore('data', {
             return data;
         },
 
+        async importCategories(payload: any) {
+            const { data } = await apiClient.post(
+                `${this.importPrefix}/custom/categories`,
+                payload
+            );
+            return data;
+        },
+
         async transferInvestmentsFromImport(payload: {
             import_id: number | string
             checking_acc_id: number

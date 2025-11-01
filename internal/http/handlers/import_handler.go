@@ -182,6 +182,118 @@ func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 	})
 }
 
+func (h *ImportHandler) ImportAccounts(c *gin.Context) {
+
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	useBalancesStr := c.Query("use_balances")
+	if useBalancesStr == "" {
+		utils.ErrorMessage(c, "param error", "missing use_balances bool", http.StatusBadRequest, nil)
+		return
+	}
+
+	useBalances, err := strconv.ParseBool(useBalancesStr)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "use_balances must be a valid boolean", http.StatusBadRequest, err)
+		return
+	}
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid upload", "file is required", http.StatusBadRequest, err)
+		return
+	}
+
+	f, err := fileHeader.Open()
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
+		return
+	}
+	defer f.Close()
+
+	var payload models.AccImportPayload
+
+	dec := json.NewDecoder(f)
+	if err := dec.Decode(&payload); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if dec.More() {
+		utils.ErrorMessage(c, "Invalid JSON", "unexpected data after JSON object", http.StatusBadRequest, nil)
+		return
+	}
+
+	// Validate
+	if err := h.v.ValidateStruct(payload); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.Service.ImportAccounts(userID, payload, useBalances); err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Account import successful", "Success", http.StatusOK)
+}
+
+func (h *ImportHandler) ImportCategories(c *gin.Context) {
+
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid upload", "file is required", http.StatusBadRequest, err)
+		return
+	}
+
+	f, err := fileHeader.Open()
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
+		return
+	}
+	defer f.Close()
+
+	var payload models.CategoryImportPayload
+
+	dec := json.NewDecoder(f)
+	if err := dec.Decode(&payload); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if dec.More() {
+		utils.ErrorMessage(c, "Invalid JSON", "unexpected data after JSON object", http.StatusBadRequest, nil)
+		return
+	}
+
+	// Validate
+	if err := h.v.ValidateStruct(payload); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.Service.ImportCategories(userID, payload); err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Category import successful", "Success", http.StatusOK)
+}
+
 func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
@@ -251,68 +363,6 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Transaction import successful", "Success", http.StatusOK)
-}
-
-func (h *ImportHandler) ImportAccounts(c *gin.Context) {
-
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
-
-	useBalancesStr := c.Query("use_balances")
-	if useBalancesStr == "" {
-		utils.ErrorMessage(c, "param error", "missing use_balances bool", http.StatusBadRequest, nil)
-		return
-	}
-
-	useBalances, err := strconv.ParseBool(useBalancesStr)
-	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "use_balances must be a valid boolean", http.StatusBadRequest, err)
-		return
-	}
-
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
-
-	fileHeader, err := c.FormFile("file")
-	if err != nil {
-		utils.ErrorMessage(c, "Invalid upload", "file is required", http.StatusBadRequest, err)
-		return
-	}
-
-	f, err := fileHeader.Open()
-	if err != nil {
-		utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
-		return
-	}
-	defer f.Close()
-
-	var payload models.AccImportPayload
-
-	dec := json.NewDecoder(f)
-	if err := dec.Decode(&payload); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	if dec.More() {
-		utils.ErrorMessage(c, "Invalid JSON", "unexpected data after JSON object", http.StatusBadRequest, nil)
-		return
-	}
-
-	// Validate
-	if err := h.v.ValidateStruct(payload); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
-		return
-	}
-
-	if err := h.Service.ImportAccounts(userID, payload, useBalances); err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-
-	utils.SuccessMessage(c, "Account import successful", "Success", http.StatusOK)
 }
 
 func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {

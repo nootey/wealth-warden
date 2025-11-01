@@ -25,6 +25,11 @@ type AccImportPayload struct {
 	Accounts    []AccountExport `json:"accounts" validate:"required"`
 }
 
+type CategoryImportPayload struct {
+	GeneratedAt time.Time        `json:"generated_at" validate:"required"`
+	Categories  []CategoryExport `json:"categories" validate:"required"`
+}
+
 type TxnImportPayload struct {
 	GeneratedAt      time.Time         `json:"generated_at" validate:"required"`
 	Txns             []JSONTxn         `json:"transactions" validate:"required"`

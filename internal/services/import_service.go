@@ -447,21 +447,8 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 		return fmt.Errorf("you can only have %d active accounts", maxAcc)
 	}
 
-	// create the import as PENDING
-	var first time.Time
-	for _, a := range payload.Accounts {
-		if !a.OpenedAt.IsZero() {
-			first = a.OpenedAt
-			break
-		}
-	}
-	if first.IsZero() {
-		return fmt.Errorf("cannot infer import year: no valid opened_at in accounts")
-	}
-	importYear := first.Year()
-
 	todayStr := time.Now().UTC().Format("2006-01-02")
-	importName := fmt.Sprintf("custom_accounts_year_%d_generated_%s", importYear, todayStr)
+	importName := fmt.Sprintf("custom_accounts_generated_%s", todayStr)
 
 	dir := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID))
 	finalPath := filepath.Join(dir, importName+".json")
@@ -478,7 +465,7 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 		return err
 	}
 
-	// Reserve the name with an exclusive temp file (prevents races)
+	// Reserve the name with an exclusive temp file
 	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
@@ -674,6 +661,210 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 	utils.CompareChanges("", importName, changes, "name")
 	utils.CompareChanges("", models.DefaultCurrency, changes, "currency")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Accounts)), changes, "accounts_count")
+
+	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "import",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *ImportService) ImportCategories(userID int64, payload models.CategoryImportPayload) error {
+
+	start := time.Now().UTC()
+	l := s.Ctx.Logger.With(
+		zap.String("op", "import_categories"),
+		zap.Int64("user_id", userID),
+	)
+	l.Info("started category JSON import")
+
+	todayStr := time.Now().UTC().Format("2006-01-02")
+	importName := fmt.Sprintf("custom_categories_generated_%s", todayStr)
+
+	dir := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID))
+	finalPath := filepath.Join(dir, importName+".json")
+	tmpPath := filepath.Join(dir, importName+".json.tmp")
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	// Hard duplicate check
+	if _, err := os.Stat(finalPath); err == nil {
+		return errors.New("import file already exists")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	// Reserve the name with an exclusive temp file
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return errors.New("import file already exists")
+		}
+		return err
+	}
+	reserved := true
+	defer func() {
+		if reserved {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	// create the import as PENDING
+	l.Info("creating import row", zap.String("status", "pending"))
+	started := time.Now().UTC()
+
+	importID, err := s.Repo.InsertImport(nil, models.Import{
+		Name:      importName,
+		UserID:    userID,
+		Type:      "custom",
+		SubType:   "categories",
+		Status:    "pending",
+		Step:      "categories",
+		Currency:  models.DefaultCurrency,
+		StartedAt: &started,
+	})
+	if err != nil {
+		l.Error("failed to create import row", zap.Error(err))
+		return err
+	}
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			s.markImportFailed(importID, err)
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	if err != nil {
+		tx.Rollback()
+		s.markImportFailed(importID, err)
+		return fmt.Errorf("can't fetch user settings %w", err)
+	}
+
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	l.Info("processing categories")
+	for _, cat := range payload.Categories {
+
+		if cat.IsDefault == true {
+
+			exCat, err := s.TxnRepo.FindCategoryByName(tx, cat.Name, nil)
+			if err != nil {
+				s.markImportFailed(importID, err)
+				tx.Rollback()
+				return err
+			}
+
+			upCat := models.Category{
+				ID:             exCat.ID,
+				DisplayName:    cat.DisplayName,
+				Classification: exCat.Classification,
+			}
+
+			_, err = s.TxnRepo.UpdateCategory(tx, upCat)
+			if err != nil {
+				s.markImportFailed(importID, err)
+				tx.Rollback()
+				return fmt.Errorf("can't find category from schema %w", err)
+			}
+			continue
+		}
+
+		category := &models.Category{
+			UserID:         &userID,
+			Name:           cat.Name,
+			DisplayName:    cat.DisplayName,
+			Classification: cat.Classification,
+			ParentID:       nil,
+			IsDefault:      false,
+			ImportID:       &importID,
+		}
+
+		_, err := s.TxnRepo.InsertCategory(tx, category)
+		if err != nil {
+			s.markImportFailed(importID, err)
+			tx.Rollback()
+			return err
+		}
+
+	}
+
+	// Write payload to the reserved temp file
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(importID, err)
+		return err
+	}
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(importID, err)
+		return err
+	}
+	if err := tmpFile.Sync(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(importID, err)
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(importID, err)
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Promote the temp file to final
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		s.markImportFailed(importID, err)
+		return err
+	}
+
+	l.Info("saved categories import JSON file", zap.String("path", finalPath))
+
+	if err := s.Repo.UpdateImport(nil, importID, map[string]interface{}{
+		"status":       "success",
+		"step":         "end",
+		"completed_at": time.Now().UTC(),
+		"error":        "",
+	}); err != nil {
+		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
+	}
+
+	l.Info("import completed successfully",
+		zap.Int64("import_id", importID),
+		zap.Duration("elapsed", time.Since(start)),
+		zap.String("status", "success"),
+	)
+
+	// Log
+	changes := utils.InitChanges()
+	utils.CompareChanges("", "custom", changes, "type")
+	utils.CompareChanges("", "categories", changes, "sub_type")
+	utils.CompareChanges("", importName, changes, "name")
+	utils.CompareChanges("", strconv.Itoa(len(payload.Categories)), changes, "categories_count")
 
 	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
 		LoggingRepo: s.Ctx.LoggingService.Repo,
