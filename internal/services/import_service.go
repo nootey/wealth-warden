@@ -558,6 +558,7 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 			Currency:      models.DefaultCurrency,
 			AccountTypeID: accType.ID,
 			UserID:        userID,
+			ImportID:      &importID,
 			OpenedAt:      openedDay,
 		}
 
@@ -962,7 +963,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 	return nil
 }
 
-func (s *ImportService) DeleteImport(userID, id int64, import_type string) error {
+func (s *ImportService) DeleteImport(userID, id int64) error {
 
 	l := s.Ctx.Logger.With(
 		zap.String("op", "delete_import"),
@@ -970,16 +971,20 @@ func (s *ImportService) DeleteImport(userID, id int64, import_type string) error
 		zap.Int64("import_id", id),
 	)
 	l.Info("deleting import")
-	var imp *models.Import
-	var err error
-	switch import_type {
+
+	imp, err := s.FetchImportByID(nil, id, userID, "custom")
+	if err != nil {
+		return err
+	}
+
+	switch imp.SubType {
 	case "transactions":
-		imp, err = s.DeleteTxnImport(userID, id)
+		err = s.DeleteTxnImport(userID, imp)
 		if err != nil {
 			return err
 		}
 	case "accounts":
-		imp, err = s.DeleteAccImport(id, userID)
+		err = s.DeleteAccImport(userID, imp)
 		if err != nil {
 			return err
 		}
@@ -1008,10 +1013,10 @@ func (s *ImportService) DeleteImport(userID, id int64, import_type string) error
 	return nil
 }
 
-func (s *ImportService) DeleteTxnImport(importID, userID int64) (*models.Import, error) {
+func (s *ImportService) DeleteTxnImport(userID int64, imp *models.Import) error {
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
-		return nil, tx.Error
+		return tx.Error
 	}
 	defer func() {
 		if p := recover(); p != nil {
@@ -1020,24 +1025,17 @@ func (s *ImportService) DeleteTxnImport(importID, userID int64) (*models.Import,
 		}
 	}()
 
-	// Fetch import row
-	imp, err := s.FetchImportByID(tx, importID, userID, "custom")
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
 	// Collect all transactions and transfers to reverse their balance effects
 	txns, err := s.TxnRepo.FindTransactionsByImportID(tx, imp.ID, userID)
 	if err != nil {
 		tx.Rollback()
-		return nil, fmt.Errorf("failed to find transactions: %w", err)
+		return fmt.Errorf("failed to find transactions: %w", err)
 	}
 
 	trs, err := s.TxnRepo.FindTransfersByImportID(tx, imp.ID, userID)
 	if err != nil {
 		tx.Rollback()
-		return nil, fmt.Errorf("failed to find transfers: %w", err)
+		return fmt.Errorf("failed to find transfers: %w", err)
 	}
 
 	// Track which accounts need balance recomputation
@@ -1064,12 +1062,12 @@ func (s *ImportService) DeleteTxnImport(importID, userID int64) (*models.Import,
 		inflow, err := s.TxnRepo.FindTransactionByID(tx, tr.TransactionInflowID, userID, false)
 		if err != nil {
 			tx.Rollback()
-			return nil, fmt.Errorf("can't find inflow transaction %w", err)
+			return fmt.Errorf("can't find inflow transaction %w", err)
 		}
 		outflow, err := s.TxnRepo.FindTransactionByID(tx, tr.TransactionOutflowID, userID, false)
 		if err != nil {
 			tx.Rollback()
-			return nil, fmt.Errorf("can't find outflow transaction %w", err)
+			return fmt.Errorf("can't find outflow transaction %w", err)
 		}
 
 		skipTxn[inflow.ID] = struct{}{}
@@ -1078,12 +1076,12 @@ func (s *ImportService) DeleteTxnImport(importID, userID int64) (*models.Import,
 		fromAcc, err := s.accService.Repo.FindAccountByID(tx, outflow.AccountID, userID, false)
 		if err != nil {
 			tx.Rollback()
-			return nil, fmt.Errorf("can't find source account %w", err)
+			return fmt.Errorf("can't find source account %w", err)
 		}
 		toAcc, err := s.accService.Repo.FindAccountByID(tx, inflow.AccountID, userID, false)
 		if err != nil {
 			tx.Rollback()
-			return nil, fmt.Errorf("can't find destination account %w", err)
+			return fmt.Errorf("can't find destination account %w", err)
 		}
 
 		touch(fromAcc, outflow.TxnDate)
@@ -1092,11 +1090,11 @@ func (s *ImportService) DeleteTxnImport(importID, userID int64) (*models.Import,
 		// Reverse the balance changes
 		if err := s.accService.UpdateDailyCashNoSnapshot(tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
 			tx.Rollback()
-			return nil, err
+			return err
 		}
 		if err := s.accService.UpdateDailyCashNoSnapshot(tx, toAcc, outflow.TxnDate, "income", outflow.Amount.Neg()); err != nil {
 			tx.Rollback()
-			return nil, err
+			return err
 		}
 	}
 
@@ -1112,7 +1110,7 @@ func (s *ImportService) DeleteTxnImport(importID, userID int64) (*models.Import,
 		acc, err := s.accService.Repo.FindAccountByID(tx, t.AccountID, userID, false)
 		if err != nil {
 			tx.Rollback()
-			return nil, fmt.Errorf("can't find account %w", err)
+			return fmt.Errorf("can't find account %w", err)
 		}
 
 		touch(acc, t.TxnDate)
@@ -1125,18 +1123,18 @@ func (s *ImportService) DeleteTxnImport(importID, userID int64) (*models.Import,
 		}
 		if err := s.accService.UpdateDailyCashNoSnapshot(tx, acc, t.TxnDate, kind, amt); err != nil {
 			tx.Rollback()
-			return nil, err
+			return err
 		}
 	}
 
 	// hard delete the data
 	if _, err := s.TxnRepo.PurgeImportedTransfers(tx, imp.ID, userID); err != nil {
 		tx.Rollback()
-		return nil, err
+		return err
 	}
 	if _, err := s.TxnRepo.PurgeImportedTransactions(tx, imp.ID, userID); err != nil {
 		tx.Rollback()
-		return nil, err
+		return err
 	}
 
 	// Recompute balances and snapshots for all touched accounts
@@ -1147,18 +1145,18 @@ func (s *ImportService) DeleteTxnImport(importID, userID int64) (*models.Import,
 		}
 		if err := s.accService.FrontfillBalancesForAccount(tx, at.acc.UserID, at.acc.ID, at.acc.Currency, at.minAs); err != nil {
 			tx.Rollback()
-			return nil, err
+			return err
 		}
 		if err := s.accService.Repo.UpsertSnapshotsFromBalances(tx, at.acc.UserID, at.acc.ID, at.acc.Currency, at.minAs, today); err != nil {
 			tx.Rollback()
-			return nil, err
+			return err
 		}
 	}
 
 	// Delete import row
 	if err := s.Repo.DeleteImport(tx, imp.ID, userID); err != nil {
 		tx.Rollback()
-		return nil, err
+		return err
 	}
 
 	// Delete import files
@@ -1167,22 +1165,38 @@ func (s *ImportService) DeleteTxnImport(importID, userID int64) (*models.Import,
 	for _, p := range []string{tmpPath, finalPath} {
 		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
 			tx.Rollback()
-			return nil, fmt.Errorf("failed to remove file %s: %w", p, err)
+			return fmt.Errorf("failed to remove file %s: %w", p, err)
 		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return nil, err
+		return err
 	}
 
-	return imp, nil
+	return nil
 }
 
-func (s *ImportService) DeleteAccImport(importID, userID int64) (*models.Import, error) {
+func (s *ImportService) DeleteAccImport(userID int64, imp *models.Import) error {
+
+	// Check if any transactions exist for accounts linked to this import
+	var txnCount int64
+	if err := s.Repo.DB.Model(&models.Transaction{}).
+		Where("user_id = ? AND account_id IN (?)", userID,
+			s.Repo.DB.Model(&models.Account{}).
+				Select("id").
+				Where("user_id = ? AND import_id = ?", userID, imp.ID),
+		).
+		Count(&txnCount).Error; err != nil {
+		return fmt.Errorf("failed to check transactions: %w", err)
+	}
+
+	if txnCount > 0 {
+		return errors.New("account import cannot be deleted, transactions linked to same import")
+	}
 
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
-		return nil, tx.Error
+		return tx.Error
 	}
 	defer func() {
 		if p := recover(); p != nil {
@@ -1191,30 +1205,16 @@ func (s *ImportService) DeleteAccImport(importID, userID int64) (*models.Import,
 		}
 	}()
 
-	// Fetch import row
-	imp, err := s.FetchImportByID(tx, importID, userID, "custom")
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
-	//// Collect all affected accounts
-	//accs, err := s.accService.Repo.FindAccountsByImportID(tx, imp.ID, userID)
-	//if err != nil {
-	//	tx.Rollback()
-	//	return nil, fmt.Errorf("failed to find accounts: %w", err)
-	//}
-
 	// hard delete the data
 	if err := s.accService.Repo.PurgeImportedAccounts(tx, imp.ID, userID); err != nil {
 		tx.Rollback()
-		return nil, err
+		return err
 	}
 
 	// Delete import row
 	if err := s.Repo.DeleteImport(tx, imp.ID, userID); err != nil {
 		tx.Rollback()
-		return nil, err
+		return err
 	}
 
 	// Delete import files
@@ -1223,13 +1223,13 @@ func (s *ImportService) DeleteAccImport(importID, userID int64) (*models.Import,
 	for _, p := range []string{tmpPath, finalPath} {
 		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
 			tx.Rollback()
-			return nil, fmt.Errorf("failed to remove file %s: %w", p, err)
+			return fmt.Errorf("failed to remove file %s: %w", p, err)
 		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return nil, err
+		return err
 	}
 
-	return imp, nil
+	return nil
 }

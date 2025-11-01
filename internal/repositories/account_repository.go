@@ -449,13 +449,40 @@ func (r *AccountRepository) PurgeImportedAccounts(tx *gorm.DB, importID, userID 
 		db = r.DB
 	}
 
-	if err := db.Exec(`SET LOCAL ww.hard_delete = 'on'`).Error; err != nil {
+	if err := db.Exec("SET LOCAL ww.hard_delete = 'on'").Error; err != nil {
 		return err
 	}
+
+	// delete balances for these accounts
 	res := db.Exec(`
+        DELETE FROM balances
+        WHERE account_id IN (
+            SELECT id FROM accounts 
+            WHERE user_id = ? AND import_id = ?
+        )
+    `, userID, importID)
+	if res.Error != nil {
+		return fmt.Errorf("failed to delete balances: %w", res.Error)
+	}
+
+	// delete snapshots for these accounts
+	res = db.Exec(`
+        DELETE FROM account_daily_snapshots
+        WHERE user_id = ? AND account_id IN (
+            SELECT id FROM accounts 
+            WHERE user_id = ? AND import_id = ?
+        )
+    `, userID, userID, importID)
+	if res.Error != nil {
+		return fmt.Errorf("failed to delete snapshots: %w", res.Error)
+	}
+
+	// delete the accounts themselves
+	res = db.Exec(`
         DELETE FROM accounts
         WHERE user_id = ? AND import_id = ?
     `, userID, importID)
+
 	return res.Error
 }
 

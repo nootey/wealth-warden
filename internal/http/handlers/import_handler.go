@@ -365,9 +365,7 @@ func (h *ImportHandler) DeleteImport(c *gin.Context) {
 		return
 	}
 
-	importType := c.Param("import_type")
-
-	if err := h.Service.DeleteImport(userID, id, importType); err != nil {
+	if err := h.Service.DeleteImport(userID, id); err != nil {
 		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
