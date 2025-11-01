@@ -11,6 +11,7 @@ import dateHelper from "../../../utils/date_helper.ts";
 import {usePermissions} from "../../../utils/use_permissions.ts";
 import {useConfirm} from "primevue/useconfirm";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
+import DisplayStatus from "../base/DisplayStatus.vue";
 
 const dataStore = useDataStore();
 const toastStore = useToastStore();
@@ -43,8 +44,6 @@ const activeColumns = computed<Column[]>(() => [
     { field: 'type', header: 'Type'},
     { field: 'sub_type', header: 'Sub type'},
     { field: 'status', header: 'Status'},
-    { field: 'investments_transferred', header: 'Investments'},
-    { field: 'currency', header: 'Currency'},
 ]);
 
 async function deleteConfirmation(id: number, name: string) {
@@ -109,8 +108,10 @@ async function deleteRecord(id: number) {
                 <template #body="{ data }">
                     <div class="flex flex-row align-items-center gap-2">
                         <i v-if="hasPermission('manage_data')"
-                           class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
-                           @click="deleteConfirmation(data?.id, data?.name)"></i>
+                           class="pi pi-trash hover-icon text-sm" style="color: var(--p-red-300);"
+                           @click="deleteConfirmation(data?.id, data?.name)" />
+                        <i v-if="data.investments_transferred" class="pi pi-check-circle hover-icon text-sm"
+                           v-tooltip="'Investments transferred'"/>
                     </div>
                 </template>
             </Column>
@@ -123,6 +124,9 @@ async function deleteRecord(id: number) {
                     </template>
                     <template v-else-if="field === 'started_at' || field === 'completed_at'">
                         {{ dateHelper.formatDate(data[field], true) }}
+                    </template>
+                    <template v-else-if="field === 'status'">
+                        <DisplayStatus :status="data.status" />
                     </template>
                     <template v-else>
                         {{ data[field] }}

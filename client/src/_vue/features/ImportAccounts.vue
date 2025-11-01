@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {ref} from "vue";
+import {computed, ref} from "vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import {useDataStore} from "../../services/stores/data_store.ts";
@@ -42,6 +42,12 @@ function resetWizard() {
 
 }
 
+const isDisabled = computed(() => {
+    if (importing.value) return true;
+    if (!selectedFiles.value.length) return true;
+    return false
+});
+
 async function importAccounts() {
 
     if (!selectedFiles.value.length) return;
@@ -49,10 +55,10 @@ async function importAccounts() {
 
     try {
 
-        const fileText = await selectedFiles.value[0].text();
-        const filePayload = JSON.parse(fileText);
+        const form = new FormData();
+        form.append("file", selectedFiles.value[0], "accounts.json");
 
-        const res = await dataStore.importAccounts(filePayload, useBalances.value);
+        const res = await dataStore.importAccounts(form, useBalances.value);
         toastStore.successResponseToast(res);
 
         resetWizard();
@@ -63,6 +69,8 @@ async function importAccounts() {
         importing.value = false;
     }
 }
+
+defineExpose({isDisabled, importAccounts})
 
 </script>
 
@@ -107,11 +115,6 @@ async function importAccounts() {
             </template>
         </FileUpload>
         <ShowLoading v-else :numFields="3" />
-
-        <div v-if="selectedFiles.length > 0" class="w-full flex flex-row justify-content-center gap-3">
-            <Button class="main-button w-3" @click="importAccounts()"
-                    :disabled="importing" label="Import" />
-        </div>
     </div>
 </template>
 

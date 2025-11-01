@@ -158,7 +158,7 @@ async function transferInvestments() {
     }
 }
 
-const isTransferDisabled = computed(() => {
+const isDisabled = computed(() => {
     if (transfering.value) return true;
     if (!selectedCheckingAcc.value) return true;
 
@@ -167,10 +167,12 @@ const isTransferDisabled = computed(() => {
     return !hasAtLeastOne;
 });
 
+defineExpose({isDisabled, transferInvestments})
+
 </script>
 
 <template>
-    <div class="flex flex-column w-full justify-content-center align-items-center gap-3">
+    <div v-if="!transfering" class="flex flex-column w-full justify-content-center align-items-center gap-3">
         <h3>Map investments from imported data</h3>
         <span>Select import</span>
 
@@ -184,54 +186,45 @@ const isTransferDisabled = computed(() => {
         <div v-if="loadingValidation" class="flex flex-column w-full p-2">
             <ShowLoading :numFields="5" />
         </div>
-        <div v-else-if="validatedResponse && validatedResponse.filtered_count == 0" class="flex flex-column w-full p-2">
+        <div v-else-if="validatedResponse && validatedResponse.filtered_count == 0" class="flex flex-column w-full p-2 align-items-center">
             <span style="color: var(--text-secondary)">No investments were found in the provided import!</span>
         </div>
         <div v-else-if="validatedResponse">
-            <div v-if="!transfering" class="flex flex-column gap-3 w-full justify-content-center align-items-center">
-            <span style="color: var(--text-secondary)">
-                Start the transfer. The checking account and at least one investment mapping is required.
-            </span>
-                <Button class="main-button w-3" @click="transferInvestments" label="Transfer" :disabled="isTransferDisabled"/>
-
-                <div v-if="!transfering" class="flex flex-column w-full gap-3 justify-content-center align-items-center">
-                    <div class="flex flex-column w-full gap-2 align-items-center justify-content-center">
-                        <span class="text-sm" style="color: var(--text-secondary)">Select an account which will receive the import transactions.</span>
-                        <AutoComplete size="small"
-                                      v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
-                                      @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
-                                      placeholder="Select checking account" dropdown />
-                        <span class="text-sm" v-if="!selectedCheckingAcc" style="color: var(--text-secondary)">Please select an account.</span>
-                        <span class="text-sm" v-else style="color: var(--text-secondary)">Account's opening date is valid.</span>
-                    </div>
-
-                    <span>---</span>
-
-                    <h4>Validation response</h4>
-                    <span class="text-sm" style="color: var(--text-secondary)">General information about your import.</span>
-                    <div class="flex flex-row w-full gap-2 align-items-center justify-content-center">
-                        <span>Transfer count: </span>
-                        <span>{{ validatedResponse.filtered_count }} </span>
-                    </div>
-                    
-                    <span>---</span>
-
-                    <h4>Investment mappings</h4>
-                    <div v-if="validatedResponse.filtered_count > 0" class="flex flex-row w-full gap-3 align-items-center">
-                        <ImportInvestmentMapping  v-model:modelValue="investmentMappings"
-                                                  :importedCategories="validatedResponse.categories"
-                                                  :investmentAccounts="investmentAccs" @save="onSaveMapping"/>
-                    </div>
-                </div>
-                <ShowLoading v-else :numFields="3" />
-
+            <div class="flex flex-column w-full gap-3 justify-content-center align-items-center">
+            <div class="flex flex-column w-full gap-2 align-items-center justify-content-center">
+                <span class="text-sm" style="color: var(--text-secondary)">Select an account which will receive the import transactions.</span>
+                <AutoComplete size="small"
+                              v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
+                              @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
+                              placeholder="Select checking account" dropdown />
+                <span class="text-sm" v-if="!selectedCheckingAcc" style="color: var(--text-secondary)">Please select an account.</span>
+                <span class="text-sm" v-else style="color: var(--text-secondary)">Account's opening date is valid.</span>
             </div>
-            <ShowLoading v-else :numFields="5" />
+
+            <span>---</span>
+
+            <h4>Validation response</h4>
+            <span class="text-sm" style="color: var(--text-secondary)">General information about your import.</span>
+            <div class="flex flex-row w-full gap-2 align-items-center justify-content-center">
+                <span>Transfer count: </span>
+                <span>{{ validatedResponse.filtered_count }} </span>
+            </div>
+
+            <span>---</span>
+
+            <h4>Investment mappings</h4>
+            <div v-if="validatedResponse.filtered_count > 0" class="flex flex-row w-full gap-3 align-items-center">
+                <ImportInvestmentMapping  v-model:modelValue="investmentMappings"
+                                          :importedCategories="validatedResponse.categories"
+                                          :investmentAccounts="investmentAccs" @save="onSaveMapping"/>
+            </div>
         </div>
-        <div v-else-if="!selectedImport" class="flex flex-column w-full p-2">
+        </div>
+        <div v-else-if="!selectedImport" class="flex flex-column w-full p-2 w-full align-items-center">
             <span style="color: var(--text-secondary)">Please select an import to begin.</span>
         </div>
     </div>
+    <ShowLoading v-else :numFields="5" />
 </template>
 
 <style scoped>

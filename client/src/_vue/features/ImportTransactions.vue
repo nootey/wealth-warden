@@ -76,40 +76,6 @@ function onClear() {
     validatedResponse.value = null;
 }
 
-const onUpload = async (_nextStep?: any) => {
-
-    if (!selectedFiles.value.length) return;
-    importing.value = true;
-
-    try {
-        const fileText = await selectedFiles.value[0].text();
-        const filePayload = JSON.parse(fileText);
-
-        const categoryMappingsArray = Object.entries(categoryMappings.value).map(
-            ([name, id]) => ({
-                name,
-                category_id: id,
-            })
-        );
-        const payload = {
-            ...filePayload,
-            category_mappings: categoryMappingsArray,
-        };
-
-        // import cash
-        const res = await dataStore.importTransactions(payload, selectedCheckingAcc.value?.id!);
-        toastStore.successResponseToast(res);
-
-        resetWizard();
-        emit("completeImport");
-
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    } finally {
-        importing.value = false;
-    }
-};
-
 async function validateFile(type: string) {
     if (!selectedFiles.value.length) return;
 
@@ -157,6 +123,43 @@ function resetWizard() {
 
 }
 
+const isDisabled = computed(() => {
+    if (importing.value) return true;
+    return !selectedCheckingAcc.value;
+});
+
+const importTransactions = async (_nextStep?: any) => {
+    if (!selectedFiles.value.length) return;
+    importing.value = true;
+
+    try {
+        const form = new FormData();
+        form.append("file", selectedFiles.value[0], "transactions.json");
+
+        const categoryMappingsArray = Object.entries(categoryMappings.value).map(
+            ([name, id]) => ({
+                name,
+                category_id: id,
+            })
+        );
+
+        form.append("category_mappings", JSON.stringify(categoryMappingsArray));
+
+        // import cash
+        const res = await dataStore.importTransactions(form, selectedCheckingAcc.value?.id!);
+        toastStore.successResponseToast(res);
+
+        resetWizard();
+        emit("completeImport");
+
+    } catch (error) {
+        toastStore.errorResponseToast(error);
+    } finally {
+        importing.value = false;
+    }
+};
+
+defineExpose({isDisabled, importTransactions})
 
 </script>
 
@@ -209,25 +212,15 @@ function resetWizard() {
                         </FileUpload>
                         <ShowLoading v-else :numFields="3" />
 
-                        <div class="flex flex-column w-full justify-content-center align-items-center gap-3">
-                            <span v-if="!fileValidated" style="color: var(--text-secondary)">
+                        <div v-if="!fileValidated"class="flex flex-column w-full justify-content-center align-items-center gap-3">
+                            <span style="color: var(--text-secondary)">
                                 Once you have uploaded a document, it needs to be validated.
                             </span>
-                            <span v-if="fileValidated" style="color: var(--text-secondary)">
-                                Start the import.
-                            </span>
                             <div class="flex flex-row gap-2 align-items-center w-full justify-content-center gap-3">
-                                <Button v-if="!fileValidated" class="main-button w-3"
+                                <Button class="main-button w-3"
                                         @click="() => validateFile('cash')"
                                         :disabled="selectedFiles.length === 0 || checkingAccs.length == 0"
                                         label="Validate"
-                                />
-                                <Button v-if="fileValidated" class="main-button w-3"
-                                        @click="onUpload"
-                                        :disabled="selectedFiles.length === 0 || checkingAccs.length == 0 ||
-                                        !selectedCheckingAcc ||
-                                        importing"
-                                        label="Import"
                                 />
                             </div>
                         </div>

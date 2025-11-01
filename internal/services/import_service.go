@@ -653,6 +653,7 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 
 	if err := s.Repo.UpdateImport(nil, importID, map[string]interface{}{
 		"status":       "success",
+		"step":         "end",
 		"completed_at": time.Now().UTC(),
 		"error":        "",
 	}); err != nil {
@@ -722,6 +723,10 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 		return err
 	}
 
+	if imp.InvestmentsTransferred {
+		return errors.New("investments have already been transferred for this import")
+	}
+
 	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
 	b, err := os.ReadFile(filePath)
 	if err != nil {
@@ -729,13 +734,14 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 	}
 
 	var txnPayload models.TxnImportPayload
-	if err := json.Unmarshal(b, &payload); err != nil {
+	if err := json.Unmarshal(b, &txnPayload); err != nil {
 		return err
 	}
 
 	settings, err := s.accService.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
 	if err != nil {
 		tx.Rollback()
+		s.markImportFailed(payload.ImportID, err)
 		return err
 	}
 	loc, _ := time.LoadLocation(settings.Timezone)
@@ -743,8 +749,8 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 		loc = time.UTC
 	}
 
-	sort.SliceStable(txnPayload.Txns, func(i, j int) bool {
-		return txnPayload.Txns[i].TxnDate.Before(txnPayload.Txns[j].TxnDate)
+	sort.SliceStable(txnPayload.Transfers, func(i, j int) bool {
+		return txnPayload.Transfers[i].TxnDate.Before(txnPayload.Transfers[j].TxnDate)
 	})
 
 	catToAccID := make(map[string]int64, len(payload.InvestmentMappings))
@@ -769,6 +775,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 		acc, err := s.accService.Repo.FindAccountByID(tx, id, userID, true)
 		if err != nil {
 			_ = tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
 			return fmt.Errorf("destination account %d not found: %w", id, err)
 		}
 		accCache[id] = acc
@@ -831,6 +838,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 		}
 		if _, err := s.TxnRepo.InsertTransaction(tx, &expense); err != nil {
 			_ = tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
 			return err
 		}
 
@@ -847,6 +855,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 		}
 		if _, err := s.TxnRepo.InsertTransaction(tx, &income); err != nil {
 			_ = tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
 			return err
 		}
 
@@ -862,12 +871,14 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 		}
 		if _, err := s.TxnRepo.InsertTransfer(tx, &transfer); err != nil {
 			_ = tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
 			return err
 		}
 
 		err = s.accService.UpdateBalancesForTransfer(tx, checkingAcc, toAccount, txDay, amt)
 		if err != nil {
 			tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
 			return err
 		}
 
@@ -886,6 +897,7 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 		frontfillFrom,
 	); err != nil {
 		tx.Rollback()
+		s.markImportFailed(payload.ImportID, err)
 		return err
 	}
 
@@ -894,15 +906,19 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 	for accID, from := range earliest {
 		if err := s.accService.FrontfillBalancesForAccount(tx, userID, accID, models.DefaultCurrency, from); err != nil {
 			_ = tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
 			return err
 		}
 		if err := s.accService.Repo.UpsertSnapshotsFromBalances(tx, userID, accID, models.DefaultCurrency, from, today); err != nil {
 			_ = tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
 			return err
 		}
 	}
 
 	if err := s.Repo.UpdateImport(tx, payload.ImportID, map[string]interface{}{
+		"status":                  "success",
+		"step":                    "end",
 		"investments_transferred": true,
 		"error":                   "",
 	}); err != nil {

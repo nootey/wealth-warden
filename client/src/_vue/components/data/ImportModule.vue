@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import {ref} from "vue";
-import ImportCash from "../../features/ImportCash.vue";
+import {computed, ref} from "vue";
+import ImportTransactions from "../../features/ImportTransactions.vue";
 import ImportInvestments from "../../features/ImportInvestments.vue";
 import ImportAccounts from "../../features/ImportAccounts.vue";
 
@@ -10,16 +10,51 @@ const emit = defineEmits<{
 
 const selectedRef = ref("");
 
+const accRef = ref<InstanceType<typeof ImportAccounts> | null>(null);
+const txnRef = ref<InstanceType<typeof ImportTransactions> | null>(null);
+const invRef = ref<InstanceType<typeof ImportInvestments> | null>(null);
+
 async function completeAction(val: string) {
     emit("refreshData", val);
     selectedRef.value = "";
 }
 
+async function startOperation() {
+    switch (selectedRef.value) {
+        case "transactions":
+            txnRef.value?.importTransactions();
+            break;
+        case "investments":
+            invRef.value?.transferInvestments();
+            break;
+        case "accounts":
+            accRef.value?.importAccounts();
+            break;
+        default:
+            break;
+    }
+}
+
+const isDisabled = computed(() => {
+    switch (selectedRef.value) {
+        case "transactions":
+            return txnRef.value?.isDisabled ?? true;
+        case "investments":
+            return invRef.value?.isDisabled ?? true;
+        case "accounts":
+            return accRef.value?.isDisabled ?? true;
+        default:
+            return true
+    }
+});
+
+defineExpose({isDisabled, startOperation})
+
 </script>
 
 <template>
     <div style="min-height: 350px;">
-        <div v-if="selectedRef !== ''" class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable"
+        <div v-if="selectedRef !== ''" class="flex flex-row gap-2 p-3 mb-2 align-items-center cursor-pointer font-bold hoverable"
              style="color: var(--text-primary)">
             <i class="pi pi-angle-left"></i>
             <span @click="selectedRef = ''">Back</span>
@@ -65,14 +100,13 @@ async function completeAction(val: string) {
                 </div>
             </div>
             <div v-else-if="selectedRef === 'custom'">Full custom import is not currently supported</div>
-            <ImportAccounts v-else-if="selectedRef === 'accounts'"  @completeImport="completeAction( 'import')"/>
+            <ImportAccounts ref="accRef" v-else-if="selectedRef === 'accounts'"  @completeImport="completeAction( 'import')"/>
             <div v-else-if="selectedRef === 'categories'">Category imports not currently supported</div>
-            <ImportCash v-else-if="selectedRef === 'transactions'" @completeImport="completeAction( 'import')"/>
-            <div v-else-if="selectedRef === 'investments'">
-                <ImportInvestments @completeTransfer="completeAction( 'import')"/>
-            </div>
+            <ImportTransactions ref="txnRef" v-else-if="selectedRef === 'transactions'" @completeImport="completeAction( 'import')"/>
+            <ImportInvestments ref="invRef" v-else-if="selectedRef === 'investments'" @completeTransfer="completeAction( 'import')"/>
         </Transition>
     </div>
+
 </template>
 
 <style scoped>

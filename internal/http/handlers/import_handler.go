@@ -201,39 +201,48 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 		return
 	}
 
-	var payload models.TxnImportPayload
-	if err := h.v.ValidateStruct(payload); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid upload", "file is required", http.StatusBadRequest, err)
 		return
 	}
 
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+	f, err := fileHeader.Open()
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
+		return
+	}
+	defer f.Close()
 
-	ct := c.GetHeader("Content-Type")
-	if strings.HasPrefix(ct, "multipart/form-data") {
-		fileHeader, err := c.FormFile("file")
-		if err != nil {
-			utils.ErrorMessage(c, "Invalid upload", "file is required", http.StatusBadRequest, err)
-			return
-		}
+	var payload models.TxnImportPayload
 
-		f, err := fileHeader.Open()
-		if err != nil {
-			utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
-			return
-		}
-		defer f.Close()
+	dec := json.NewDecoder(f)
+	if err := dec.Decode(&payload); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
 
-		dec := json.NewDecoder(f)
-		if err := dec.Decode(&payload); err != nil {
-			utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+	if dec.More() {
+		utils.ErrorMessage(c, "Invalid JSON", "unexpected data after JSON object", http.StatusBadRequest, nil)
+		return
+	}
+
+	cmStr := c.PostForm("category_mappings")
+	if cmStr != "" {
+		var cms []models.CategoryMapping
+		if err := json.Unmarshal([]byte(cmStr), &cms); err != nil {
+			utils.ErrorMessage(c, "Invalid category_mappings", err.Error(), http.StatusBadRequest, err)
 			return
 		}
-	} else {
-		if err := c.ShouldBindJSON(&payload); err != nil {
-			utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
-			return
-		}
+		payload.CategoryMappings = cms
+	}
+
+	// Validate
+	if err := h.v.ValidateStruct(payload); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
 	}
 
 	if err := h.Service.ImportTransactions(userID, checkAccID, payload); err != nil {
@@ -264,39 +273,38 @@ func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 		return
 	}
 
-	var payload models.AccImportPayload
-	if err := h.v.ValidateStruct(payload); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid upload", "file is required", http.StatusBadRequest, err)
 		return
 	}
 
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+	f, err := fileHeader.Open()
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
+		return
+	}
+	defer f.Close()
 
-	ct := c.GetHeader("Content-Type")
-	if strings.HasPrefix(ct, "multipart/form-data") {
-		fileHeader, err := c.FormFile("file")
-		if err != nil {
-			utils.ErrorMessage(c, "Invalid upload", "file is required", http.StatusBadRequest, err)
-			return
-		}
+	var payload models.AccImportPayload
 
-		f, err := fileHeader.Open()
-		if err != nil {
-			utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
-			return
-		}
-		defer f.Close()
+	dec := json.NewDecoder(f)
+	if err := dec.Decode(&payload); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
 
-		dec := json.NewDecoder(f)
-		if err := dec.Decode(&payload); err != nil {
-			utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
-			return
-		}
-	} else {
-		if err := c.ShouldBindJSON(&payload); err != nil {
-			utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
-			return
-		}
+	if dec.More() {
+		utils.ErrorMessage(c, "Invalid JSON", "unexpected data after JSON object", http.StatusBadRequest, nil)
+		return
+	}
+
+	// Validate
+	if err := h.v.ValidateStruct(payload); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
 	}
 
 	if err := h.Service.ImportAccounts(userID, payload, useBalances); err != nil {
@@ -314,14 +322,17 @@ func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
 		return
 	}
 
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 2<<20)
+
 	var payload models.InvestmentTransferPayload
-	if err := h.v.ValidateStruct(payload); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
-		return
-	}
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		utils.ErrorMessage(c, "Invalid Request", "Invalid JSON body", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(payload); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
 		return
 	}
 
@@ -354,7 +365,9 @@ func (h *ImportHandler) DeleteImport(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.DeleteImport(userID, id); err != nil {
+	importType := c.Param("import_type")
+
+	if err := h.Service.DeleteImport(userID, id, importType); err != nil {
 		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

@@ -62,7 +62,15 @@ export const useDataStore = defineStore('data', {
             checking_acc_id: number
             investment_mappings: { name: string; account_id: number | null }[]
         }) {
-            return await apiClient.post(`${this.importPrefix}/custom/json/investments`, payload)
+            try {
+                const res = await apiClient.post(
+                    `${this.importPrefix}/custom/investments`,
+                    payload
+                );
+                return res.data;
+            } catch (err) {
+                throw err;
+            }
         },
 
         async getExports() {

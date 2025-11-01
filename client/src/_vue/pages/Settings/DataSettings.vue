@@ -14,6 +14,7 @@ const { hasPermission } = usePermissions();
 
 const importListRef = ref<InstanceType<typeof ImportList> | null>(null);
 const exportListRef = ref<InstanceType<typeof ExportList> | null>(null);
+const importModuleRef = ref<InstanceType<typeof ImportModule> | null>(null);
 
 const addImportModal = ref(false);
 const addExportModal = ref(false);
@@ -22,7 +23,6 @@ const transferModal = ref(false);
 function refreshData(module: string) {
     switch(module) {
         case "import": {
-            console.log("hello")
             importListRef.value?.refresh();
             addImportModal.value = false;
             transferModal.value = false;
@@ -70,8 +70,11 @@ function manipulateDialog(modal: string, value: any) {
 
     <Dialog class="rounded-dialog" v-model:visible="addImportModal" :breakpoints="{'751px': '90vw'}"
             :modal="true" :style="{width: '750px'}" header="New Import">
-        <ImportModule @refreshData="(e) => refreshData(e)" />
-
+        <ImportModule ref="importModuleRef" @refreshData="(e) => refreshData(e)" />
+        <template #footer>
+            <Button label="Start" class="main-button w-4"
+                     :disabled="importModuleRef?.isDisabled" @click="importModuleRef?.startOperation"/>
+        </template>
     </Dialog>
 
     <Dialog class="rounded-dialog" v-model:visible="addExportModal" :breakpoints="{'501px': '90vw'}"
