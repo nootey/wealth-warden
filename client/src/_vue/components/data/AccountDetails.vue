@@ -1,19 +1,19 @@
 <script setup lang="ts">
 
-import type {Account} from "../../models/account_models.ts";
-import vueHelper from "../../utils/vue_helper.ts";
-import {useTransactionStore} from "../../services/stores/transaction_store.ts";
+import type {Account} from "../../../models/account_models.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
+import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
 import {computed, nextTick, onMounted, ref} from "vue";
-import {useToastStore} from "../../services/stores/toast_store.ts";
-import TransactionsPaginated from "./data/TransactionsPaginated.vue";
-import type {Column} from "../../services/filter_registry.ts";
+import {useToastStore} from "../../../services/stores/toast_store.ts";
+import TransactionsPaginated from "./TransactionsPaginated.vue";
+import type {Column} from "../../../services/filter_registry.ts";
 import {useConfirm} from "primevue/useconfirm";
-import NetworthWidget from "../features/NetworthWidget.vue";
-import AccountBasicStats from "../features/AccountBasicStats.vue";
-import SlotSkeleton from "./layout/SlotSkeleton.vue";
-import dateHelper from "../../utils/date_helper.ts";
-import {useSharedStore} from "../../services/stores/shared_store.ts";
-import ShowLoading from "./base/ShowLoading.vue";
+import NetworthWidget from "../../features/NetworthWidget.vue";
+import AccountBasicStats from "../../features/AccountBasicStats.vue";
+import SlotSkeleton from "../layout/SlotSkeleton.vue";
+import dateHelper from "../../../utils/date_helper.ts";
+import {useSharedStore} from "../../../services/stores/shared_store.ts";
+import ShowLoading from "../base/ShowLoading.vue";
 
 const props = defineProps<{
     accID: number;

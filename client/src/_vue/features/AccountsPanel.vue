@@ -7,7 +7,7 @@ import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../services/stores/shared_store.ts";
 import vueHelper from "../../utils/vue_helper.ts";
 import type { Account } from "../../models/account_models.ts";
-import AccountDetails from "../components/AccountDetails.vue";
+import AccountDetails from "../components/data/AccountDetails.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
 import {colorForAccountType} from "../../style/theme/accountColors.ts";
 import {usePermissions} from "../../utils/use_permissions.ts";
