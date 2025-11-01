@@ -252,6 +252,20 @@ func (r *TransactionRepository) FindAllCategories(tx *gorm.DB, userID *int64, in
 	return records, db.Error
 }
 
+func (r *TransactionRepository) FindAllCustomCategories(tx *gorm.DB, userID int64) ([]models.Category, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var records []models.Category
+	q := db.Model(&models.Category{}).
+		Where("user_id = ? AND is_default = false", userID).
+		Order("classification, name").
+		Find(&records)
+	return records, q.Error
+}
+
 func (r *TransactionRepository) FindCategoryByID(tx *gorm.DB, ID int64, userID *int64, includeDeleted bool) (models.Category, error) {
 	db := tx
 	if db == nil {
