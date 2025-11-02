@@ -33,3 +33,16 @@ func TestMigrationsRan(t *testing.T) {
 
 	t.Log("Migrations ran successfully!")
 }
+
+func TestCreateTestUser(t *testing.T) {
+	cleanupTestData(t) // Clean first
+
+	userID, accessToken, refreshToken := createTestUser(t)
+
+	assert.NotZero(t, userID, "Should have user ID")
+	assert.NotEmpty(t, accessToken, "Should have access token")
+	assert.NotEmpty(t, refreshToken, "Should have refresh token")
+
+	t.Logf("Created test user ID: %d", userID)
+	t.Logf("Access token: %s...", accessToken[:20])
+}

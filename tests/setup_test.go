@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"wealth-warden/internal/bootstrap"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
 	"wealth-warden/pkg/database/seeders/workers"
@@ -17,9 +18,10 @@ import (
 )
 
 var (
-	testDB     *gorm.DB
-	testLogger *zap.Logger
-	testCfg    *config.Config
+	testDB        *gorm.DB
+	testLogger    *zap.Logger
+	testCfg       *config.Config
+	testContainer *bootstrap.Container
 )
 
 func TestMain(m *testing.M) {
@@ -57,6 +59,11 @@ func TestMain(m *testing.M) {
 		panic(fmt.Sprintf("Failed to seed reference data: %v", err))
 	}
 
+	testContainer, err = bootstrap.NewContainer(testCfg, testDB, testLogger)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create test container: %v", err))
+	}
+
 	// Run all tests
 	code := m.Run()
 
@@ -79,7 +86,7 @@ func runTestMigrations() error {
 }
 
 func seedReferenceData(ctx context.Context) error {
-	seeders := []func(context.Context, *gorm.DB, *zap.Logger) error{
+	seeders := []func(context.Context, *gorm.DB, *zap.Logger, *config.Config) error{
 		workers.SeedDefaultSettings,
 		workers.SeedRolesAndPermissions,
 		workers.SeedAccountTypes,
@@ -87,7 +94,7 @@ func seedReferenceData(ctx context.Context) error {
 	}
 
 	for _, seeder := range seeders {
-		if err := seeder(ctx, testDB, testLogger); err != nil {
+		if err := seeder(ctx, testDB, testLogger, testCfg); err != nil {
 			return err
 		}
 	}
