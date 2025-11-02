@@ -181,27 +181,10 @@ func (r *AccountRepository) FindAccountsBySubtype(tx *gorm.DB, userID int64, sub
 	}
 
 	err := query.
+		Select("accounts.*").
 		Preload("AccountType").
 		Find(&records).
 		Error
-
-	return records, err
-}
-
-func (r *AccountRepository) FindAccountsByImportID(tx *gorm.DB, ID, userID int64) ([]models.Account, error) {
-
-	db := tx
-	if db == nil {
-		db = r.DB
-	}
-
-	var records []models.Account
-
-	query := db.
-		Model(&models.Account{}).
-		Where(`import_id = ? AND user_id = ?`, ID, userID)
-
-	err := query.Find(&records).Error
 
 	return records, err
 }
@@ -225,9 +208,28 @@ func (r *AccountRepository) FetchAccountsByType(tx *gorm.DB, userID int64, t str
 	}
 
 	err := query.
+		Select("accounts.*").
 		Preload("AccountType").
 		Find(&records).
 		Error
+
+	return records, err
+}
+
+func (r *AccountRepository) FindAccountsByImportID(tx *gorm.DB, ID, userID int64) ([]models.Account, error) {
+
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var records []models.Account
+
+	query := db.
+		Model(&models.Account{}).
+		Where(`import_id = ? AND user_id = ?`, ID, userID)
+
+	err := query.Find(&records).Error
 
 	return records, err
 }

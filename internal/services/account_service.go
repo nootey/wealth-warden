@@ -124,11 +124,11 @@ func (s *AccountService) FetchAllAccountTypes() ([]models.AccountType, error) {
 }
 
 func (s *AccountService) FetchAccountsBySubtype(userID int64, subtype string) ([]models.Account, error) {
-	return s.Repo.FindAccountsBySubtype(nil, userID, subtype, false)
+	return s.Repo.FindAccountsBySubtype(nil, userID, subtype, true)
 }
 
 func (s *AccountService) FetchAccountsByType(userID int64, t string) ([]models.Account, error) {
-	return s.Repo.FetchAccountsByType(nil, userID, t, false)
+	return s.Repo.FetchAccountsByType(nil, userID, t, true)
 }
 
 func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) error {
