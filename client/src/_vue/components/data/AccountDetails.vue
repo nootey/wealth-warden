@@ -39,7 +39,7 @@ const account = ref<Account | null>(null);
 const transactionColumns = computed<Column[]>(() => [
     { field: 'category', header: 'Category'},
     { field: 'amount', header: 'Amount'},
-    { field: 'txn_date', header: 'Date'},
+    { field: 'created_at', header: 'Date'},
     { field: 'description', header: 'Description'},
 ]);
 
