@@ -6,13 +6,14 @@ import (
 	"strings"
 	"time"
 	"wealth-warden/internal/models"
+	"wealth-warden/pkg/config"
 
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
+func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
 	type acctSeed struct {
 		Name           string
 		Type           string

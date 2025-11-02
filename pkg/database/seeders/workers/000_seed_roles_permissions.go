@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"wealth-warden/pkg/config"
 
 	"go.uber.org/zap"
 
 	"gorm.io/gorm"
 )
 
-func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
+func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
 
 	type roleDef struct {
 		Name string

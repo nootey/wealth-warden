@@ -2,17 +2,19 @@ package workers
 
 import (
 	"context"
+	"wealth-warden/internal/models"
+	"wealth-warden/pkg/config"
+
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"wealth-warden/internal/models"
 )
 
 func strPtr(s string) *string {
 	return &s
 }
 
-func SeedDefaultSettings(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
+func SeedDefaultSettings(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
 	defaults := models.SettingsGeneral{
 		SupportEmail:    strPtr("support@wealth.warden"),
 		AllowSignups:    true,

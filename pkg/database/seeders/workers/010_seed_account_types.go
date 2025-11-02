@@ -2,6 +2,8 @@ package workers
 
 import (
 	"context"
+	"wealth-warden/pkg/config"
+
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -11,7 +13,7 @@ type AccountType struct {
 	Subtype string `gorm:"column:sub_type"`
 }
 
-func SeedAccountTypes(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
+func SeedAccountTypes(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
 
 	var accountTypeSeeds = []AccountType{
 		// Cash

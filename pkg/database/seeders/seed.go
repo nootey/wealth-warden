@@ -8,13 +8,14 @@ import (
 	"reflect"
 	"runtime"
 	"time"
+	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database/seeders/workers"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-type SeederFunc func(ctx context.Context, db *gorm.DB, logger *zap.Logger) error
+type SeederFunc func(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error
 
 func clearStorage() error {
 	storagePath := "./storage"
@@ -36,7 +37,7 @@ func clearStorage() error {
 	return nil
 }
 
-func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, seederType string) error {
+func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config, seederType string) error {
 	var seeders []SeederFunc
 
 	err := clearStorage()
@@ -77,7 +78,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, seederTy
 			seederName := getFunctionName(seeder)
 
 			// Run the seeder
-			if err := seeder(ctx, tx, logger); err != nil {
+			if err := seeder(ctx, tx, logger, cfg); err != nil {
 				return fmt.Errorf("seeder %s failed: %w", seederName, err)
 			}
 

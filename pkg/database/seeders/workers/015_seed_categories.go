@@ -6,10 +6,11 @@ import (
 	"gorm.io/gorm"
 	"time"
 	"wealth-warden/internal/models"
+	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
-func SeedCategories(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
+func SeedCategories(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
 	// Top-level categories
 	mainCategories := []struct {
 		Name           string
