@@ -21,24 +21,24 @@ func setupTestContainer(t *testing.T) *bootstrap.Container {
 	return container
 }
 
-func setupTestRouter(t *testing.T) *gin.Engine {
+func setupTestServer(t *testing.T) *wwHttp.Server {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
 
 	container := setupTestContainer(t)
-	router := wwHttp.NewRouter(container, testLogger)
+	s := wwHttp.NewServer(container, testLogger)
 
-	return router
+	return s
 }
 
-func createTestUser(t *testing.T) (userID int64, accessToken, refreshToken string) {
+func createRootUser(t *testing.T) (userID int64, accessToken, refreshToken string) {
 	t.Helper()
 
 	ctx := context.Background()
 
 	if err := workers.SeedRootUser(ctx, testDB, testLogger, testCfg); err != nil {
-		t.Fatalf("Failed to create test user: %v", err)
+		t.Fatalf("Failed to create root user: %v", err)
 	}
 
 	var user struct {
