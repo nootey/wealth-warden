@@ -35,9 +35,15 @@ func createTestLedgerAccount(t *testing.T, s *wwHttp.Server, accessToken, refres
 	}
 }
 
-func getLedgerAccountIDByName(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name string) int64 {
+func getLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name string, includeInactive bool) map[string]interface{} {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/accounts/all", nil)
+
+	path := "/api/v1/accounts/all"
+	if includeInactive {
+		path += "?inactive=true"
+	}
+
+	req := httptest.NewRequest(http.MethodGet, path, nil)
 	addAuth(req, accessToken, refreshToken)
 
 	w := httptest.NewRecorder()
@@ -53,13 +59,13 @@ func getLedgerAccountIDByName(t *testing.T, s *wwHttp.Server, accessToken, refre
 
 	for _, a := range accounts {
 		if a["name"] == name {
-			if f, ok := a["id"].(float64); ok {
-				return int64(f)
+			if _, ok := a["id"].(float64); ok {
+				return a
 			}
 		}
 	}
 	t.Fatalf("account %q not found in list", name)
-	return 0
+	return nil
 }
 
 func addAuth(req *http.Request, accessToken, refreshToken string) {
@@ -76,4 +82,17 @@ func addAuth(req *http.Request, accessToken, refreshToken string) {
 		Path:     "/",
 		HttpOnly: true,
 	})
+}
+
+func listContainsAccountName(raw []byte, name string) bool {
+	var arr []map[string]interface{}
+	if err := json.Unmarshal(raw, &arr); err != nil {
+		return false
+	}
+	for _, m := range arr {
+		if n, _ := m["name"].(string); n == name {
+			return true
+		}
+	}
+	return false
 }
