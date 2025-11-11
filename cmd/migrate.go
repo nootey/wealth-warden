@@ -107,7 +107,7 @@ func runMigrations(migrationType string, cfg *config.Config, logger *zap.Logger)
 				seedType = "basic"
 			}
 			ctx := context.Background()
-			if err := seeders.SeedDatabase(ctx, gormDB, logger, seedType); err != nil {
+			if err := seeders.SeedDatabase(ctx, gormDB, logger, cfg, seedType); err != nil {
 				return fmt.Errorf("failed to seed database: %v", err)
 			}
 		}
