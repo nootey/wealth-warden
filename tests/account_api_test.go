@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const accApiEndpoint = "/api/v1/accounts/"
+
 func TestCreateLedgerAccount(t *testing.T) {
 
 	s := setupTestServer(t)
@@ -64,7 +66,7 @@ func TestGetAllLedgerAccounts(t *testing.T) {
 	createTestLedgerAccount(t, s, accessToken, refreshToken, "Test Account")
 
 	// Test getting all accounts
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/accounts/all", nil)
+	req := httptest.NewRequest(http.MethodGet, accApiEndpoint+"all", nil)
 	addAuth(req, accessToken, refreshToken)
 
 	w := httptest.NewRecorder()
@@ -81,10 +83,10 @@ func TestGetLedgerAccountByID(t *testing.T) {
 
 	const name = "Savings Account (test)"
 	createTestLedgerAccount(t, s, accessToken, refreshToken, name)
-	acc := getLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
+	acc := findLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
 	id := int64(acc["id"].(float64))
 
-	url := fmt.Sprintf("/api/v1/accounts/%d", id)
+	url := fmt.Sprintf("%s%d", accApiEndpoint, id)
 	req := httptest.NewRequest(http.MethodGet, url, nil)
 	addAuth(req, accessToken, refreshToken)
 
@@ -127,7 +129,7 @@ func TestUpdateLedgerAccount(t *testing.T) {
 
 	const name = "Update Me (test)"
 	createTestLedgerAccount(t, s, accessToken, refreshToken, name)
-	acc := getLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
+	acc := findLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
 	id := int64(acc["id"].(float64))
 
 	updated := map[string]interface{}{
@@ -139,7 +141,7 @@ func TestUpdateLedgerAccount(t *testing.T) {
 	}
 	body, _ := json.Marshal(updated)
 
-	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/v1/accounts/%d", id), bytes.NewBuffer(body))
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("%s%d", accApiEndpoint, id), bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	addAuth(req, accessToken, refreshToken)
 
@@ -149,7 +151,7 @@ func TestUpdateLedgerAccount(t *testing.T) {
 	t.Logf("update status: %d", w.Code)
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	getReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/accounts/%d", id), nil)
+	getReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("%s%d", accApiEndpoint, id), nil)
 	addAuth(getReq, accessToken, refreshToken)
 	getW := httptest.NewRecorder()
 	s.Router.ServeHTTP(getW, getReq)
@@ -163,12 +165,12 @@ func TestToggleLedgerAccount(t *testing.T) {
 
 	const name = "Toggle Me (test)"
 	createTestLedgerAccount(t, s, accessToken, refreshToken, name)
-	acc := getLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
+	acc := findLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
 	origActive, _ := acc["is_active"].(bool)
 	id := int64(acc["id"].(float64))
 
 	// toggle
-	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/accounts/%d/active", id), nil)
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("%s%d/active", accApiEndpoint, id), nil)
 	addAuth(req, accessToken, refreshToken)
 	w := httptest.NewRecorder()
 	s.Router.ServeHTTP(w, req)
@@ -176,7 +178,7 @@ func TestToggleLedgerAccount(t *testing.T) {
 	t.Logf("toggle status: %d", w.Code)
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	acc2 := getLedgerAccountByName(t, s, accessToken, refreshToken, name, true)
+	acc2 := findLedgerAccountByName(t, s, accessToken, refreshToken, name, true)
 	newActive, _ := acc2["is_active"].(bool)
 
 	t.Logf("before: %v, after: %v", origActive, newActive)
@@ -191,11 +193,11 @@ func TestDeleteLedgerAccount(t *testing.T) {
 
 	const name = "Delete Me (test)"
 	createTestLedgerAccount(t, s, accessToken, refreshToken, name)
-	acc := getLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
+	acc := findLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
 	id := int64(acc["id"].(float64))
 
 	// delete
-	delReq := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/v1/accounts/%d", id), nil)
+	delReq := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("%s%d", accApiEndpoint, id), nil)
 	addAuth(delReq, accessToken, refreshToken)
 	delW := httptest.NewRecorder()
 	s.Router.ServeHTTP(delW, delReq)
@@ -203,7 +205,7 @@ func TestDeleteLedgerAccount(t *testing.T) {
 	t.Logf("delete status: %d", delW.Code)
 	assert.True(t, delW.Code == http.StatusOK || delW.Code == http.StatusNoContent, "expected 200 or 204")
 
-	getReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/accounts/%d", id), nil)
+	getReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("%s%d", accApiEndpoint, id), nil)
 	addAuth(getReq, accessToken, refreshToken)
 	getW := httptest.NewRecorder()
 	s.Router.ServeHTTP(getW, getReq)
