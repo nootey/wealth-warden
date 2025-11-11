@@ -184,27 +184,28 @@ func TestToggleLedgerAccount(t *testing.T) {
 
 }
 
-//func TestDeleteLedgerAccount(t *testing.T) {
-//	s := setupTestServer(t)
-//	cleanupTestData(t)
-//	_, accessToken, refreshToken := createRootUser(t)
-//
-//	const name = "Delete Me (test)"
-//	createTestLedgerAccount(t, s, accessToken, refreshToken, name)
-//	id := getLedgerAccountIDByName(t, s, accessToken, refreshToken, name)
-//
-//	// delete
-//	delReq := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/v1/accounts/%d", id), nil)
-//	addAuth(delReq, accessToken, refreshToken)
-//	delW := httptest.NewRecorder()
-//	s.Router.ServeHTTP(delW, delReq)
-//
-//	t.Logf("delete status: %d, body: %s", delW.Code, delW.Body.String())
-//	assert.True(t, delW.Code == http.StatusOK || delW.Code == http.StatusNoContent, "expected 200 or 204")
-//
-//	getReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/accounts/%d", id), nil)
-//	addAuth(getReq, accessToken, refreshToken)
-//	getW := httptest.NewRecorder()
-//	s.Router.ServeHTTP(getW, getReq)
-//	assert.NotEqual(t, http.StatusOK, getW.Code)
-//}
+func TestDeleteLedgerAccount(t *testing.T) {
+	s := setupTestServer(t)
+	cleanupTestData(t)
+	_, accessToken, refreshToken := createRootUser(t)
+
+	const name = "Delete Me (test)"
+	createTestLedgerAccount(t, s, accessToken, refreshToken, name)
+	acc := getLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
+	id := int64(acc["id"].(float64))
+
+	// delete
+	delReq := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/v1/accounts/%d", id), nil)
+	addAuth(delReq, accessToken, refreshToken)
+	delW := httptest.NewRecorder()
+	s.Router.ServeHTTP(delW, delReq)
+
+	t.Logf("delete status: %d", delW.Code)
+	assert.True(t, delW.Code == http.StatusOK || delW.Code == http.StatusNoContent, "expected 200 or 204")
+
+	getReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/accounts/%d", id), nil)
+	addAuth(getReq, accessToken, refreshToken)
+	getW := httptest.NewRecorder()
+	s.Router.ServeHTTP(getW, getReq)
+	assert.NotEqual(t, http.StatusOK, getW.Code)
+}
