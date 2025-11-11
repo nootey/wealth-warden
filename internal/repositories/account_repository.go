@@ -253,6 +253,22 @@ func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID int64, withB
 	return &record, result.Error
 }
 
+func (r *AccountRepository) FindAccountByName(tx *gorm.DB, userID int64, name string) (*models.Account, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+	var record models.Account
+	query := db.Where("name = ? AND user_id = ? AND closed_at IS NULL AND is_active = true", name, userID).
+		Preload("AccountType").
+		Preload("Balance", func(db *gorm.DB) *gorm.DB {
+			return db.Order("as_of desc").Limit(1)
+		})
+
+	result := query.First(&record)
+	return &record, result.Error
+}
+
 func (r *AccountRepository) FindAllAccountsWithLatestBalance(tx *gorm.DB, userID int64) ([]models.Account, error) {
 	db := tx
 	if db == nil {

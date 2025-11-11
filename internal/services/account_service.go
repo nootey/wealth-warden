@@ -115,6 +115,16 @@ func (s *AccountService) FetchAccountByID(userID int64, id int64, initialBalance
 	return record, nil
 }
 
+func (s *AccountService) FetchAccountByName(userID int64, name string) (*models.Account, error) {
+
+	record, err := s.Repo.FindAccountByName(nil, userID, name)
+	if err != nil {
+		return nil, err
+	}
+
+	return record, nil
+}
+
 func (s *AccountService) FetchAllAccounts(userID int64, includeInactive bool) ([]models.Account, error) {
 	return s.Repo.FindAllAccounts(nil, userID, includeInactive)
 }

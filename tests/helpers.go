@@ -3,6 +3,7 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -35,7 +36,7 @@ func createTestLedgerAccount(t *testing.T, s *wwHttp.Server, accessToken, refres
 	}
 }
 
-func getLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name string, includeInactive bool) map[string]interface{} {
+func findLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name string, includeInactive bool) map[string]interface{} {
 	t.Helper()
 
 	path := "/api/v1/accounts/all"
@@ -68,6 +69,27 @@ func getLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refresh
 	return nil
 }
 
+func getLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name string) map[string]interface{} {
+	t.Helper()
+
+	path := fmt.Sprintf("/api/v1/accounts/name/%s", name)
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	addAuth(req, accessToken, refreshToken)
+
+	w := httptest.NewRecorder()
+	s.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list failed: %d %s", w.Code, w.Body.String())
+	}
+
+	var account map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &account); err != nil {
+		t.Fatalf("parse account failed: %v", err)
+	}
+
+	return account
+}
+
 func addAuth(req *http.Request, accessToken, refreshToken string) {
 
 	req.AddCookie(&http.Cookie{
@@ -82,17 +104,4 @@ func addAuth(req *http.Request, accessToken, refreshToken string) {
 		Path:     "/",
 		HttpOnly: true,
 	})
-}
-
-func listContainsAccountName(raw []byte, name string) bool {
-	var arr []map[string]interface{}
-	if err := json.Unmarshal(raw, &arr); err != nil {
-		return false
-	}
-	for _, m := range arr {
-		if n, _ := m["name"].(string); n == name {
-			return true
-		}
-	}
-	return false
 }
