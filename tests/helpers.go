@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 	wwHttp "wealth-warden/internal/http"
 )
 
@@ -104,4 +105,29 @@ func addAuth(req *http.Request, accessToken, refreshToken string) {
 		Path:     "/",
 		HttpOnly: true,
 	})
+}
+
+func createTestTransaction(t *testing.T, s *wwHttp.Server, accessToken, refreshToken string, accID, catID int64, txnType string, amount string, description *string) {
+
+	requestBody := map[string]interface{}{
+		"account_id":       accID,
+		"transaction_type": txnType,
+		"amount":           amount,
+		"currency":         "EUR",
+		"category_id":      catID,
+		"description":      &description,
+		"txn_date":         time.Now(),
+	}
+
+	jsonBody, _ := json.Marshal(requestBody)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/transactions", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	addAuth(req, accessToken, refreshToken)
+
+	w := httptest.NewRecorder()
+	s.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK && w.Code != http.StatusCreated {
+		t.Fatalf("Failed to create transaction. Status: %d, Body: %s", w.Code, w.Body.String())
+	}
 }
