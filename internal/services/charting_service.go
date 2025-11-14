@@ -240,10 +240,8 @@ func (s *ChartingService) GetMonthlyCashFlowForYear(userID int64, year int, acco
 		switch tx.TransactionType {
 		case "income":
 			months[month].Inflows = months[month].Inflows.Add(tx.Amount)
-			break
 		case "expense":
 			months[month].Outflows = months[month].Outflows.Add(tx.Amount)
-			break
 		}
 	}
 
