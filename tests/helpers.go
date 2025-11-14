@@ -11,16 +11,15 @@ import (
 	wwHttp "wealth-warden/internal/http"
 )
 
-func createTestLedgerAccount(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name string) {
+func createTestLedgerAccount(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name, balance string) {
 	t.Helper()
-
 	requestBody := map[string]interface{}{
 		"name":            name,
 		"account_type_id": 1,
 		"type":            "bank",
 		"sub_type":        "checking",
 		"classification":  "asset",
-		"balance":         "0.00",
+		"balance":         balance,
 	}
 
 	jsonBody, _ := json.Marshal(requestBody)
@@ -129,5 +128,41 @@ func createTestTransaction(t *testing.T, s *wwHttp.Server, accessToken, refreshT
 
 	if w.Code != http.StatusOK && w.Code != http.StatusCreated {
 		t.Fatalf("Failed to create transaction. Status: %d, Body: %s", w.Code, w.Body.String())
+	}
+}
+
+func createTestTransfer(t *testing.T, s *wwHttp.Server, accessToken, refreshToken string, sourceID, destID int64, amount string, notes *string) {
+	requestBody := map[string]interface{}{
+		"source_id":      sourceID,
+		"destination_id": destID,
+		"amount":         amount,
+		"notes":          notes,
+		"created_at":     time.Now(),
+	}
+
+	jsonBody, _ := json.Marshal(requestBody)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/transactions/transfers", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	addAuth(req, accessToken, refreshToken)
+
+	w := httptest.NewRecorder()
+	s.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK && w.Code != http.StatusCreated {
+		t.Fatalf("Failed to create transfer. Status: %d, Body: %s", w.Code, w.Body.String())
+	}
+}
+
+func deleteTestTransfer(t *testing.T, s *wwHttp.Server, accessToken, refreshToken string, transferID int64) {
+	url := fmt.Sprintf("/api/v1/transactions/transfers/%d", transferID)
+	req := httptest.NewRequest(http.MethodDelete, url, nil)
+	req.Header.Set("Content-Type", "application/json")
+	addAuth(req, accessToken, refreshToken)
+
+	w := httptest.NewRecorder()
+	s.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK && w.Code != http.StatusNoContent {
+		t.Fatalf("Failed to delete transfer. Status: %d, Body: %s", w.Code, w.Body.String())
 	}
 }

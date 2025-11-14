@@ -63,7 +63,7 @@ func TestGetAllLedgerAccounts(t *testing.T) {
 	_, accessToken, refreshToken := createRootUser(t)
 
 	// Create an account first
-	createTestLedgerAccount(t, s, accessToken, refreshToken, "Test Account")
+	createTestLedgerAccount(t, s, accessToken, refreshToken, "Test Account", "0.00")
 
 	// Test getting all accounts
 	req := httptest.NewRequest(http.MethodGet, accApiEndpoint+"all", nil)
@@ -82,7 +82,7 @@ func TestGetLedgerAccountByID(t *testing.T) {
 	_, accessToken, refreshToken := createRootUser(t)
 
 	const name = "Savings Account (test)"
-	createTestLedgerAccount(t, s, accessToken, refreshToken, name)
+	createTestLedgerAccount(t, s, accessToken, refreshToken, name, "0.00")
 	acc := findLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
 	id := int64(acc["id"].(float64))
 
@@ -128,7 +128,7 @@ func TestUpdateLedgerAccount(t *testing.T) {
 	_, accessToken, refreshToken := createRootUser(t)
 
 	const name = "Update Me (test)"
-	createTestLedgerAccount(t, s, accessToken, refreshToken, name)
+	createTestLedgerAccount(t, s, accessToken, refreshToken, name, "0.00")
 	acc := findLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
 	id := int64(acc["id"].(float64))
 
@@ -164,7 +164,7 @@ func TestToggleLedgerAccount(t *testing.T) {
 	_, accessToken, refreshToken := createRootUser(t)
 
 	const name = "Toggle Me (test)"
-	createTestLedgerAccount(t, s, accessToken, refreshToken, name)
+	createTestLedgerAccount(t, s, accessToken, refreshToken, name, "0.00")
 	acc := findLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
 	origActive, _ := acc["is_active"].(bool)
 	id := int64(acc["id"].(float64))
@@ -192,7 +192,7 @@ func TestDeleteLedgerAccount(t *testing.T) {
 	_, accessToken, refreshToken := createRootUser(t)
 
 	const name = "Delete Me (test)"
-	createTestLedgerAccount(t, s, accessToken, refreshToken, name)
+	createTestLedgerAccount(t, s, accessToken, refreshToken, name, "0.00")
 	acc := findLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
 	id := int64(acc["id"].(float64))
 
