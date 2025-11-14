@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	"fmt"
 	"wealth-warden/pkg/config"
 	logging "wealth-warden/pkg/logger"
 
@@ -9,13 +9,10 @@ import (
 	"go.uber.org/zap"
 )
 
-type contextKey string
-
-const (
-	loggerKey contextKey = "ww_logger"
-	configKey contextKey = "ww_config"
+var (
+	cfg    *config.Config
+	logger *zap.Logger
 )
-
 var rootCmd = &cobra.Command{
 	Use:     "wealth-warden",
 	Short:   "WealthWarden server",
@@ -30,25 +27,19 @@ func init() {
 
 func Execute() {
 
+	var err error
+
 	// Load config
-	cfg, err := config.LoadConfig(nil)
+	cfg, err = config.LoadConfig(nil)
 	if err != nil {
-		panic("Failed to load configuration: " + err.Error())
+		panic(fmt.Sprintf("Failed to load configuration: %s", err.Error()))
 	}
 
 	// Define logger and pass it into cobra commands
-	logger := logging.InitLogger(cfg.Release)
-	defer func(logger *zap.Logger) {
-		err := logger.Sync()
-		if err != nil {
-			panic(err)
-		}
-	}(logger)
-
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, loggerKey, logger)
-	ctx = context.WithValue(ctx, configKey, cfg)
-	rootCmd.SetContext(ctx)
+	logger = logging.InitLogger(cfg.Release)
+	defer func() {
+		_ = logger.Sync() // Ignore sync errors
+	}()
 
 	if err := rootCmd.Execute(); err != nil {
 		logger.Fatal("Failed to execute root command", zap.Error(err))

@@ -18,9 +18,6 @@ var seedCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 
-		ctx := cmd.Context()
-		logger := ctx.Value(loggerKey).(*zap.Logger)
-		cfg := ctx.Value(configKey).(*config.Config)
 		seedType := "help"
 		logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
