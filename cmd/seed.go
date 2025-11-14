@@ -58,12 +58,12 @@ func runSeeders(seedType string, cfg *config.Config, logger *zap.Logger) error {
 
 	switch seedType {
 	case "full":
-		err = seeders.SeedDatabase(ctx, gormDB, logger, "full")
+		err = seeders.SeedDatabase(ctx, gormDB, logger, cfg, "full")
 		if err != nil {
 			return fmt.Errorf("failed to seed database: %v", err)
 		}
 	case "basic":
-		err = seeders.SeedDatabase(ctx, gormDB, logger, "basic")
+		err = seeders.SeedDatabase(ctx, gormDB, logger, cfg, "basic")
 		if err != nil {
 			return fmt.Errorf("failed to seed database: %v", err)
 		}

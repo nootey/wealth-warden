@@ -8,13 +8,14 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/config"
 
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
+func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 

@@ -11,12 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func SeedMemberUser(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
-
-	cfg, cfgErr := config.LoadConfig(nil)
-	if cfgErr != nil {
-		return cfgErr
-	}
+func SeedMemberUser(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
 
 	email := cfg.Seed.MemberUserEmail
 	hashedPassword, err := utils.HashAndSaltPassword(cfg.Seed.MemberUserPassword)

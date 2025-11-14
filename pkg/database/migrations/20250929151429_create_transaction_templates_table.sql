@@ -47,5 +47,5 @@ CREATE TRIGGER set_transaction_templates_updated_at
 -- +goose Down
 -- +goose StatementBegin
 DROP TABLE IF EXISTS transaction_templates;
-DROP TYPE IF EXISTS schedule_period_enum;
+DROP TYPE IF EXISTS frequency_enum;
 -- +goose StatementEnd

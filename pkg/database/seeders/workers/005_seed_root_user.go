@@ -11,13 +11,8 @@ import (
 	"gorm.io/gorm"
 )
 
-func SeedRootUser(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
-
-	cfg, cfgErr := config.LoadConfig(nil)
-	if cfgErr != nil {
-		return cfgErr
-	}
-
+func SeedRootUser(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
+	
 	email := cfg.Seed.SuperAdminEmail
 
 	// Hash the Super Admin password.

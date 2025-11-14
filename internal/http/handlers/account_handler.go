@@ -112,6 +112,30 @@ func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 
 }
 
+func (h *AccountHandler) GetAccountByName(c *gin.Context) {
+
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	name := c.Param("name")
+	if name == "" {
+		err := errors.New("invalid name provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	records, err := h.Service.FetchAccountByName(userID, name)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, records)
+
+}
+
 func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
 
 	records, err := h.Service.FetchAllAccountTypes()

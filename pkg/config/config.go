@@ -7,10 +7,15 @@ import (
 	"github.com/spf13/viper"
 )
 
-func LoadConfig(configPath *string) (*Config, error) {
+func LoadConfig(configPath *string, configName ...string) (*Config, error) {
 
 	v := viper.New()
+
+	// Default to "dev" if no config name provided
 	cfgName := "dev"
+	if len(configName) > 0 && configName[0] != "" {
+		cfgName = configName[0]
+	}
 
 	// Default config search paths
 	if configPath != nil && *configPath != "" {
