@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -215,7 +216,12 @@ func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 		utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
 		return
 	}
-	defer f.Close()
+	defer func(f multipart.File) {
+		err := f.Close()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+	}(f)
 
 	var payload models.AccImportPayload
 
@@ -265,7 +271,12 @@ func (h *ImportHandler) ImportCategories(c *gin.Context) {
 		utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
 		return
 	}
-	defer f.Close()
+	defer func(f multipart.File) {
+		err := f.Close()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+	}(f)
 
 	var payload models.CategoryImportPayload
 
@@ -326,7 +337,12 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 		utils.ErrorMessage(c, "Invalid upload", "cannot open uploaded file", http.StatusBadRequest, err)
 		return
 	}
-	defer f.Close()
+	defer func(f multipart.File) {
+		err := f.Close()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+	}(f)
 
 	var payload models.TxnImportPayload
 

@@ -110,7 +110,12 @@ func EnsureDatabaseExists(cfg *config.Config) error {
 	}
 	// Ensure the connection is closed after use.
 	sqlDB, _ := db.DB()
-	defer sqlDB.Close()
+	defer func(sqlDB *sql.DB) {
+		err = sqlDB.Close()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+	}(sqlDB)
 
 	// Check if the target database exists by querying pg_database.
 	var exists int

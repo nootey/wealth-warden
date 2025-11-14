@@ -69,7 +69,10 @@ func runMigrations(migrationType string, cfg *config.Config, logger *zap.Logger)
 	case "fresh", "fresh-seed-full", "fresh-seed-basic":
 
 		// Close the current connection because it connects to the target database.
-		sqlDB.Close()
+		err := sqlDB.Close()
+		if err != nil {
+			return err
+		}
 
 		// Connect to a maintenance database (like "postgres").
 		mDB, err := database.ConnectToMaintenance(cfg)
@@ -85,7 +88,10 @@ func runMigrations(migrationType string, cfg *config.Config, logger *zap.Logger)
 		if err := database.DropAndRecreateDatabase(mSqlDB, cfg); err != nil {
 			return fmt.Errorf("failed to recreate database: %v", err)
 		}
-		mSqlDB.Close() // Close the maintenance connection.
+		err = mSqlDB.Close()
+		if err != nil {
+			return err
+		} // Close the maintenance connection.
 
 		// Reconnect to the newly created target database.
 		gormDB, err = database.ConnectToPostgres(cfg)
