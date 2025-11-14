@@ -83,7 +83,7 @@ services:
       context: ../../
       dockerfile: ./build/Dockerfile.client
       args:
-        - API_BASE_URL=${API_PORT-/api/v1}
+        - API_BASE_URL=${API_PORT-/api}
         - PRODUCTION_MODE=${RELEASE-false}
 #    ports:
 #      - ${CLIENT_PORT:-3030}:80

@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const txnApiEndpoint = "/api/v1/transactions"
+const txnApiEndpoint = "/api/transactions"
 
 func getDefaultCategory(t *testing.T) int64 {
 	t.Helper()
@@ -330,7 +330,7 @@ func TestDeleteTransfer(t *testing.T) {
 		t.Errorf("Expected destination balance after transfer 100, got %s", destEndBalance)
 	}
 
-	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/transactions/transfers", nil)
+	listReq := httptest.NewRequest(http.MethodGet, "/api/transactions/transfers", nil)
 	addAuth(listReq, accessToken, refreshToken)
 	listW := httptest.NewRecorder()
 	s.Router.ServeHTTP(listW, listReq)
@@ -359,7 +359,7 @@ func TestDeleteTransfer(t *testing.T) {
 	assert.True(t, found, "Should find the created transfer")
 
 	// Delete the transfer
-	delReq := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/v1/transactions/transfers/%d", transferID), nil)
+	delReq := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/transactions/transfers/%d", transferID), nil)
 	addAuth(delReq, accessToken, refreshToken)
 	delW := httptest.NewRecorder()
 	s.Router.ServeHTTP(delW, delReq)
@@ -386,7 +386,7 @@ func TestDeleteTransfer(t *testing.T) {
 	}
 
 	// Verify transfer no longer appears in the list
-	listReq2 := httptest.NewRequest(http.MethodGet, "/api/v1/transactions/transfers", nil)
+	listReq2 := httptest.NewRequest(http.MethodGet, "/api/transactions/transfers", nil)
 	addAuth(listReq2, accessToken, refreshToken)
 	listW2 := httptest.NewRecorder()
 	s.Router.ServeHTTP(listW2, listReq2)

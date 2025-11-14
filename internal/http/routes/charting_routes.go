@@ -1,4 +1,4 @@
-package v1
+package routes
 
 import (
 	"wealth-warden/internal/http/handlers"

@@ -23,7 +23,7 @@ func createTestLedgerAccount(t *testing.T, s *wwHttp.Server, accessToken, refres
 	}
 
 	jsonBody, _ := json.Marshal(requestBody)
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/accounts", bytes.NewBuffer(jsonBody))
+	req := httptest.NewRequest(http.MethodPut, "/api/accounts", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	addAuth(req, accessToken, refreshToken)
 
@@ -39,7 +39,7 @@ func createTestLedgerAccount(t *testing.T, s *wwHttp.Server, accessToken, refres
 func findLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name string, includeInactive bool) map[string]interface{} {
 	t.Helper()
 
-	path := "/api/v1/accounts/all"
+	path := "/api/accounts/all"
 	if includeInactive {
 		path += "?inactive=true"
 	}
@@ -72,7 +72,7 @@ func findLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refres
 func getLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name string) map[string]interface{} {
 	t.Helper()
 
-	path := fmt.Sprintf("/api/v1/accounts/name/%s", name)
+	path := fmt.Sprintf("/api/accounts/name/%s", name)
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	addAuth(req, accessToken, refreshToken)
 
@@ -119,7 +119,7 @@ func createTestTransaction(t *testing.T, s *wwHttp.Server, accessToken, refreshT
 	}
 
 	jsonBody, _ := json.Marshal(requestBody)
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/transactions", bytes.NewBuffer(jsonBody))
+	req := httptest.NewRequest(http.MethodPut, "/api/transactions", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	addAuth(req, accessToken, refreshToken)
 
@@ -141,7 +141,7 @@ func createTestTransfer(t *testing.T, s *wwHttp.Server, accessToken, refreshToke
 	}
 
 	jsonBody, _ := json.Marshal(requestBody)
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/transactions/transfers", bytes.NewBuffer(jsonBody))
+	req := httptest.NewRequest(http.MethodPut, "/api/transactions/transfers", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	addAuth(req, accessToken, refreshToken)
 
@@ -154,7 +154,7 @@ func createTestTransfer(t *testing.T, s *wwHttp.Server, accessToken, refreshToke
 }
 
 func deleteTestTransfer(t *testing.T, s *wwHttp.Server, accessToken, refreshToken string, transferID int64) {
-	url := fmt.Sprintf("/api/v1/transactions/transfers/%d", transferID)
+	url := fmt.Sprintf("/api/transactions/transfers/%d", transferID)
 	req := httptest.NewRequest(http.MethodDelete, url, nil)
 	req.Header.Set("Content-Type", "application/json")
 	addAuth(req, accessToken, refreshToken)

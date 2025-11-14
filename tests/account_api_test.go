@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const accApiEndpoint = "/api/v1/accounts/"
+const accApiEndpoint = "/api/accounts/"
 
 func TestCreateLedgerAccount(t *testing.T) {
 
@@ -36,7 +36,7 @@ func TestCreateLedgerAccount(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create HTTP request
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/accounts", bytes.NewBuffer(jsonBody))
+	req := httptest.NewRequest(http.MethodPut, "/api/accounts", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	addAuth(req, accessToken, refreshToken)
 
@@ -111,7 +111,7 @@ func TestCreateLedgerAccount_MissingName(t *testing.T) {
 	}
 
 	jsonBody, _ := json.Marshal(requestBody)
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/accounts", bytes.NewBuffer(jsonBody))
+	req := httptest.NewRequest(http.MethodPut, "/api/accounts", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	addAuth(req, accessToken, refreshToken)
 

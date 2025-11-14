@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"wealth-warden/internal/bootstrap"
 	httpHandlers "wealth-warden/internal/http/handlers"
-	"wealth-warden/internal/http/v1"
+	"wealth-warden/internal/http/routes"
 	"wealth-warden/internal/middleware"
 	"wealth-warden/pkg/validators"
 
@@ -27,11 +27,8 @@ func NewRouteInitializerHTTP(r *gin.Engine, container *bootstrap.Container) *Rou
 func (r *RouteInitializerHTTP) InitEndpoints() {
 	api := r.Router.Group("/api")
 
-	// Version 1
-	_v1 := api.Group("/v1")
-
 	r.Router.GET("/", rootHandler)
-	r.initV1Routes(_v1)
+	r.initV1Routes(api)
 }
 
 func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
@@ -57,7 +54,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 		r.Container.AuthService.WebClientMiddleware.WebClientAuthentication(),
 	)
 	authRoutes := authenticated.Group("/auth")
-	v1.AuthRoutes(authRoutes, authHandler)
+	routes.AuthRoutes(authRoutes, authHandler)
 
 	// Auth + Permission gated routes
 	protected := authenticated.Group("",
@@ -65,40 +62,40 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 	)
 
 	userRoutes := protected.Group("/users")
-	v1.UserRoutes(userRoutes, userHandler, roleHandler)
+	routes.UserRoutes(userRoutes, userHandler, roleHandler)
 
 	loggingRoutes := protected.Group("/logs")
-	v1.LoggingRoutes(loggingRoutes, loggingHandler)
+	routes.LoggingRoutes(loggingRoutes, loggingHandler)
 
 	accountRoutes := protected.Group("/accounts")
-	v1.AccountRoutes(accountRoutes, accountHandler)
+	routes.AccountRoutes(accountRoutes, accountHandler)
 
 	transactionRoutes := protected.Group("/transactions")
-	v1.TransactionRoutes(transactionRoutes, transactionHandler)
+	routes.TransactionRoutes(transactionRoutes, transactionHandler)
 
 	settingsRoutes := protected.Group("/settings")
-	v1.SettingsRoutes(settingsRoutes, settingsHandler)
+	routes.SettingsRoutes(settingsRoutes, settingsHandler)
 
 	chartingRoutes := protected.Group("/charts")
-	v1.ChartingRoutes(chartingRoutes, chartingHandler)
+	routes.ChartingRoutes(chartingRoutes, chartingHandler)
 
 	statsRoutes := protected.Group("/statistics")
-	v1.StatsRoutes(statsRoutes, statsHandler)
+	routes.StatsRoutes(statsRoutes, statsHandler)
 
 	importRoutes := protected.Group("/imports")
-	v1.ImportRoutes(importRoutes, importHandler)
+	routes.ImportRoutes(importRoutes, importHandler)
 
 	exportRoutes := protected.Group("/exports")
-	v1.ExportRoutes(exportRoutes, exportHandler)
+	routes.ExportRoutes(exportRoutes, exportHandler)
 
 	// Public routes
 	public := _v1.Group("")
 	{
 		publicAuthRoutes := public.Group("/auth")
-		v1.PublicAuthRoutes(publicAuthRoutes, authHandler)
+		routes.PublicAuthRoutes(publicAuthRoutes, authHandler)
 
 		publicUserRoutes := public.Group("/users")
-		v1.PublicUserRoutes(publicUserRoutes, userHandler)
+		routes.PublicUserRoutes(publicUserRoutes, userHandler)
 	}
 }
 
