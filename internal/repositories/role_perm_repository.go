@@ -2,10 +2,11 @@ package repositories
 
 import (
 	"fmt"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 	"time"
 	"wealth-warden/internal/models"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type RolePermissionRepository struct {
@@ -62,7 +63,7 @@ func (r *RolePermissionRepository) FindRoleByID(tx *gorm.DB, id int64, withPermi
 	}
 
 	var record models.Role
-	q := r.DB.Where("id =?", id)
+	q := db.Where("id =?", id)
 
 	if withPermissions {
 		q.Preload("Permissions")
@@ -80,7 +81,7 @@ func (r *RolePermissionRepository) FindRoleByName(tx *gorm.DB, roleName string) 
 	}
 
 	var record models.Role
-	result := r.DB.Where("name =?", roleName).Find(&record)
+	result := db.Where("name =?", roleName).Find(&record)
 	return &record, result.Error
 }
 

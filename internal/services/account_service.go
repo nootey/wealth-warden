@@ -290,17 +290,6 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 		}
 	}()
 
-	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
-	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("can't fetch user settings %w", err)
-	}
-
-	loc, _ := time.LoadLocation(settings.Timezone)
-	if loc == nil {
-		loc = time.UTC
-	}
-
 	// Load record
 	exAcc, err := s.Repo.FindAccountByID(tx, id, userID, true)
 	if err != nil {
@@ -738,16 +727,6 @@ func (s *AccountService) backfillAccountRange(
 		dfrom,
 		dto,
 	)
-}
-
-func (s *AccountService) materializeTodaySnapshot(
-	tx *gorm.DB, userID, accountID int64, currency string, from time.Time,
-) error {
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	if from.IsZero() || from.After(today) {
-		from = today
-	}
-	return s.Repo.UpsertSnapshotsFromBalances(tx, userID, accountID, currency, from, today)
 }
 
 func (s *AccountService) FrontfillBalancesForAccount(

@@ -92,7 +92,7 @@ func (h *ChartingHandler) GetMonthlyCashFlowForYear(c *gin.Context) {
 	p := c.QueryMap("params")
 
 	yearStr := c.Query("year")
-	year, err := strconv.Atoi(yearStr)
+	year, _ := strconv.Atoi(yearStr)
 
 	accStr := c.Query("account")
 	if accStr == "" {

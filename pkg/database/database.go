@@ -3,19 +3,18 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"log"
+	"os"
+	"time"
+	"wealth-warden/pkg/config"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"log"
-	"os"
-	"sync"
-	"time"
-	"wealth-warden/pkg/config"
 )
 
 var (
 	postgresDB *gorm.DB
-	once       sync.Once
 )
 
 func ConnectToPostgres(cfg *config.Config) (*gorm.DB, error) {
@@ -28,14 +27,6 @@ func ConnectToMaintenance(cfg *config.Config) (*gorm.DB, error) {
 
 func ConnectToDatabase(cfg *config.Config, targetDB string) (*gorm.DB, error) {
 
-	var logLevel logger.LogLevel
-	//if cfg.Release {
-	//	logLevel = logger.Silent
-	//} else {
-	//	logLevel = logger.Info
-	//}
-	logLevel = logger.Silent
-
 	host := cfg.Postgres.Host
 
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=UTC",
@@ -46,7 +37,7 @@ func ConnectToDatabase(cfg *config.Config, targetDB string) (*gorm.DB, error) {
 			log.New(os.Stdout, "\r\n", log.LstdFlags),
 			logger.Config{
 				SlowThreshold:             200 * time.Millisecond,
-				LogLevel:                  logLevel,
+				LogLevel:                  logger.Silent,
 				IgnoreRecordNotFoundError: true,
 				Colorful:                  true,
 			},

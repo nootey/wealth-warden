@@ -152,17 +152,3 @@ func createTestTransfer(t *testing.T, s *wwHttp.Server, accessToken, refreshToke
 		t.Fatalf("Failed to create transfer. Status: %d, Body: %s", w.Code, w.Body.String())
 	}
 }
-
-func deleteTestTransfer(t *testing.T, s *wwHttp.Server, accessToken, refreshToken string, transferID int64) {
-	url := fmt.Sprintf("/api/transactions/transfers/%d", transferID)
-	req := httptest.NewRequest(http.MethodDelete, url, nil)
-	req.Header.Set("Content-Type", "application/json")
-	addAuth(req, accessToken, refreshToken)
-
-	w := httptest.NewRecorder()
-	s.Router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK && w.Code != http.StatusNoContent {
-		t.Fatalf("Failed to delete transfer. Status: %d, Body: %s", w.Code, w.Body.String())
-	}
-}

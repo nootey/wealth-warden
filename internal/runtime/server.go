@@ -3,13 +3,14 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"go.uber.org/zap"
 	"os/signal"
 	"syscall"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/http"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
+
+	"go.uber.org/zap"
 )
 
 type ServerRuntime struct {
@@ -33,7 +34,12 @@ func (rt *ServerRuntime) Run(context context.Context) error {
 		rt.Logger.Error("Database connection failed", zap.Error(err))
 		return fmt.Errorf("database connection failed: %w", err)
 	}
-	defer database.DisconnectPostgres()
+	defer func() {
+		err := database.DisconnectPostgres()
+		if err != nil {
+			fmt.Println("failed to disconnect postgres cleanly")
+		}
+	}()
 	rt.Logger.Info("Successfully connected to the database")
 
 	httpLogger := rt.Logger.Named("http").With(zap.String("component", "HTTP"))

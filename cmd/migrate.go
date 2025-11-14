@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/pressly/goose/v3"
-	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
 	"wealth-warden/pkg/database/seeders"
+
+	"github.com/pressly/goose/v3"
+	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 var migrateCmd = &cobra.Command{
@@ -18,8 +19,8 @@ var migrateCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		ctx := cmd.Context()
-		logger := ctx.Value("logger").(*zap.Logger)
-		cfg := ctx.Value("config").(*config.Config)
+		logger := ctx.Value(loggerKey).(*zap.Logger)
+		cfg := ctx.Value(configKey).(*config.Config)
 		migrationType := "help"
 
 		if len(args) > 0 {
@@ -50,7 +51,10 @@ func runMigrations(migrationType string, cfg *config.Config, logger *zap.Logger)
 	}
 
 	migrationsDir := "./pkg/database/migrations"
-	goose.SetDialect("postgres")
+	err = goose.SetDialect("postgres")
+	if err != nil {
+		return err
+	}
 
 	switch migrationType {
 	case "up":

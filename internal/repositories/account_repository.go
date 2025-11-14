@@ -136,7 +136,7 @@ func (r *AccountRepository) FindAllAccounts(tx *gorm.DB, userID int64, includeIn
 	}
 
 	var records []models.Account
-	query := r.DB.Where("user_id = ?", userID).
+	query := db.Where("user_id = ?", userID).
 		Where("closed_at is NULL")
 
 	if !includeInactive {
@@ -158,7 +158,7 @@ func (r *AccountRepository) FindAllAccountTypes(tx *gorm.DB, userID *int64) ([]m
 	}
 
 	var records []models.AccountType
-	result := r.DB.Find(&records)
+	result := db.Find(&records)
 	return records, result.Error
 }
 

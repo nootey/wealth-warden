@@ -32,7 +32,7 @@ func ErrorMessage(c *gin.Context, title, message string, code int, err error) {
 
 	// Append the error to the context and let the gin middleware log it.
 	if err != nil {
-		c.Error(err)
+		_ = c.Error(err)
 	}
 
 	response := APIResponse{

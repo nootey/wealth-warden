@@ -90,7 +90,10 @@ func NewRouter(container *bootstrap.Container, logger *zap.Logger) *gin.Engine {
 	}
 
 	sqlCheck := checks.SqlCheck{Sql: sqlDB}
-	healthcheck.New(r, config.DefaultConfig(), []checks.Check{sqlCheck})
+	err = healthcheck.New(r, config.DefaultConfig(), []checks.Check{sqlCheck})
+	if err != nil {
+		return nil
+	}
 
 	// CORS
 	if container.Config.Release {

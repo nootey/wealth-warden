@@ -78,7 +78,10 @@ func runTestMigrations() error {
 	}
 
 	migrationsDir := filepath.Join("..", "pkg", "database", "migrations")
-	goose.SetDialect("postgres")
+	err = goose.SetDialect("postgres")
+	if err != nil {
+		return err
+	}
 
 	_ = goose.Reset(sqlDB, migrationsDir)
 
@@ -104,6 +107,9 @@ func seedReferenceData(ctx context.Context) error {
 func cleanupTestDB() {
 	if testDB != nil {
 		sqlDB, _ := testDB.DB()
-		sqlDB.Close()
+		err := sqlDB.Close()
+		if err != nil {
+			fmt.Println("failed to close test DB")
+		}
 	}
 }

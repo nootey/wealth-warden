@@ -1,11 +1,12 @@
 package repositories
 
 import (
-	"gorm.io/datatypes"
-	"gorm.io/gorm"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
+
+	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 type UserRepository struct {
@@ -141,10 +142,7 @@ func (r *UserRepository) FindUserByID(tx *gorm.DB, id int64) (*models.User, erro
 	}
 
 	var record models.User
-
-	query := r.DB
-
-	err := query.
+	err := db.
 		Preload("Role.Permissions").
 		Where("id = ?", id).
 		First(&record).Error
@@ -163,10 +161,7 @@ func (r *UserRepository) FindUserByEmail(tx *gorm.DB, email string) (*models.Use
 	}
 
 	var record models.User
-
-	query := r.DB
-
-	err := query.
+	err := db.
 		Preload("Role.Permissions").
 		Where("email = ?", email).
 		First(&record).Error
@@ -186,7 +181,7 @@ func (r *UserRepository) FindInvitationByID(tx *gorm.DB, id int64) (*models.Invi
 
 	var record models.Invitation
 
-	err := r.DB.Where("id =?", id).First(&record).Error
+	err := db.Where("id =?", id).First(&record).Error
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +197,7 @@ func (r *UserRepository) FindUserInvitationByHash(tx *gorm.DB, hash string) (*mo
 
 	var record models.Invitation
 
-	err := r.DB.Where("hash =?", hash).First(&record).Error
+	err := db.Where("hash =?", hash).First(&record).Error
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +211,7 @@ func (r *UserRepository) FindTokenByValue(tx *gorm.DB, tokenType, tokenValue str
 	}
 
 	var record models.Token
-	err := r.DB.
+	err := db.
 		Where("token_type = ? AND token_value = ?", tokenType, tokenValue).
 		First(&record).Error
 	if err != nil {
@@ -235,7 +230,7 @@ func (r *UserRepository) FindTokenByData(tx *gorm.DB, tokenType string, dataInde
 
 	var record models.Token
 
-	err := r.DB.
+	err := db.
 		Where("token_type = ? AND data @> ?", tokenType, fragment).
 		First(&record).Error
 	if err != nil {

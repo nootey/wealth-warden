@@ -77,7 +77,6 @@ func (s *ImportService) ValidateCustomImport(payload *models.TxnImportPayload, s
 	default:
 		allowed["income"] = true
 		allowed["expense"] = true
-		step = "cash"
 	}
 
 	for _, t := range set {
@@ -750,23 +749,11 @@ func (s *ImportService) ImportCategories(userID int64, payload models.CategoryIm
 			panic(p)
 		}
 	}()
-
-	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
-	if err != nil {
-		tx.Rollback()
-		s.markImportFailed(importID, err)
-		return fmt.Errorf("can't fetch user settings %w", err)
-	}
-
-	loc, _ := time.LoadLocation(settings.Timezone)
-	if loc == nil {
-		loc = time.UTC
-	}
-
+	
 	l.Info("processing categories")
 	for _, cat := range payload.Categories {
 
-		if cat.IsDefault == true {
+		if cat.IsDefault {
 
 			exCat, err := s.TxnRepo.FindCategoryByName(tx, cat.Name, nil)
 			if err != nil {

@@ -561,10 +561,6 @@ func (r *TransactionRepository) ArchiveCategory(tx *gorm.DB, id, userID int64) e
 	if res.Error != nil {
 		return res.Error
 	}
-	if res.RowsAffected == 0 {
-		// Treat as idempotent success if it exists but is already soft-deleted
-		// Optional: verify existence if you want stricter feedback
-	}
 	return nil
 }
 

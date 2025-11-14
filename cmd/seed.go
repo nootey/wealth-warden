@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 	"log"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
 	"wealth-warden/pkg/database/seeders"
+
+	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 var seedCmd = &cobra.Command{
@@ -18,9 +19,9 @@ var seedCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		ctx := cmd.Context()
-		logger := ctx.Value("logger").(*zap.Logger)
+		logger := ctx.Value(loggerKey).(*zap.Logger)
+		cfg := ctx.Value(configKey).(*config.Config)
 		seedType := "help"
-		cfg := ctx.Value("config").(*config.Config)
 		logger.Info("Loaded the configuration", zap.Any("config", cfg))
 
 		if len(args) > 0 {

@@ -95,8 +95,6 @@ func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 		}
 
 		// Optionally rotate refresh cookie here as well
-		// if rotated:
-		//     m.issueRefreshCookie(c, userID, newRefreshToken)
 
 		c.Set("user_id", userID)
 		c.Next()
@@ -117,23 +115,23 @@ func (m *WebClientMiddleware) issueAccessCookie(c *gin.Context, userID int64) er
 	return nil
 }
 
-func (m *WebClientMiddleware) issueRefreshCookie(c *gin.Context, userID int64, remember bool) error {
-
-	refreshExp := time.Now().Add(map[bool]time.Duration{
-		true:  constants.RefreshCookieTTLLong,
-		false: constants.RefreshCookieTTLShort,
-	}[remember])
-
-	token, err := m.GenerateToken("refresh", refreshExp, userID)
-	if err != nil {
-		return err
-	}
-
-	c.SetSameSite(http.SameSiteLaxMode)
-	maxAge := int(time.Until(refreshExp).Seconds())
-	c.SetCookie("refresh", token, maxAge, "/", m.CookieDomainForEnv(), m.CookieSecure(), true)
-	return nil
-}
+//func (m *WebClientMiddleware) issueRefreshCookie(c *gin.Context, userID int64, remember bool) error {
+//
+//	refreshExp := time.Now().Add(map[bool]time.Duration{
+//		true:  constants.RefreshCookieTTLLong,
+//		false: constants.RefreshCookieTTLShort,
+//	}[remember])
+//
+//	token, err := m.GenerateToken("refresh", refreshExp, userID)
+//	if err != nil {
+//		return err
+//	}
+//
+//	c.SetSameSite(http.SameSiteLaxMode)
+//	maxAge := int(time.Until(refreshExp).Seconds())
+//	c.SetCookie("refresh", token, maxAge, "/", m.CookieDomainForEnv(), m.CookieSecure(), true)
+//	return nil
+//}
 
 func (m *WebClientMiddleware) encodeWebClientUserID(userID int64) (string, error) {
 	key := m.config.JWT.WebClientEncodeID
