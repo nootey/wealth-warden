@@ -27,13 +27,21 @@ export interface Transfer {
 }
 
 export interface Category {
-    id: number | null;
+    id?: number | null;
     name: string;
     display_name: string;
     classification: string;
     parent_id: number | null;
     is_default: boolean;
     deleted_at: Date | null;
+}
+
+export interface CategoryGroup {
+    id?: number | null;
+    name: string;
+    classification: string;
+    description: string | null;
+    categories?: Category[];
 }
 
 export interface TransactionTemplate {

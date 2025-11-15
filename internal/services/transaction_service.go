@@ -504,7 +504,7 @@ func (s *TransactionService) InsertCategory(userID int64, req *models.CategoryRe
 		LoggingRepo: s.Ctx.LoggingService.Repo,
 		Logger:      s.Ctx.Logger,
 		Event:       "create",
-		Category:    "transfer",
+		Category:    "category",
 		Description: nil,
 		Payload:     changes,
 		Causer:      &userID,
@@ -1716,4 +1716,247 @@ func (s *TransactionService) DeleteTransactionTemplate(userID int64, id int64) e
 
 func (s *TransactionService) GetTransactionTemplateCount(userID int64) (int64, error) {
 	return s.Repo.CountTransactionTemplates(userID, true)
+}
+
+func (s *TransactionService) FetchAllCategoryGroups(userID int64) ([]models.CategoryGroup, error) {
+
+	categories, err := s.Repo.FindAllCategoryGroups(nil, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return categories, nil
+}
+
+func (s *TransactionService) FetchCategoryGroupByID(userID int64, id int64) (*models.CategoryGroup, error) {
+
+	record, err := s.Repo.FindCategoryGroupByID(nil, id, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &record, nil
+}
+
+func (s *TransactionService) InsertCategoryGroup(userID int64, req *models.CategoryGroupReq) error {
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	rec := models.CategoryGroup{
+		UserID:         &userID,
+		Classification: req.Classification,
+		Name:           req.Name,
+		Description:    req.Description,
+	}
+
+	groupingID, err := s.Repo.InsertCategoryGroup(tx, &rec)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	categoryIDs, ok := req.SelectedCategories.([]interface{})
+	if !ok || len(categoryIDs) == 0 {
+		tx.Rollback()
+		return fmt.Errorf("invalid or empty selected_categories")
+	}
+
+	for _, idVal := range categoryIDs {
+		categoryID, _ := strconv.ParseInt(fmt.Sprint(idVal), 10, 64)
+
+		// Validate category exists
+		_, err := s.Repo.FindCategoryByID(tx, categoryID, &userID, false)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to validate category %d: %w", categoryID, err)
+		}
+
+		// Create the m:m relation
+		if err := s.Repo.InsertCategoryGroupMember(tx, groupingID, categoryID); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to link category %d: %w", categoryID, err)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Log transfer (one event)
+	changes := utils.InitChanges()
+	utils.CompareChanges("", rec.Name, changes, "name")
+	utils.CompareChanges("", rec.Classification, changes, "classification")
+	utils.CompareChanges("", fmt.Sprintf("%d categories", len(categoryIDs)), changes, "categories_count")
+
+	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "create",
+		Category:    "category_group",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *TransactionService) UpdateCategoryGroup(userID int64, id int64, req *models.CategoryGroupReq) error {
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Get existing record
+	exGroup, err := s.Repo.FindCategoryGroupByID(tx, id, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find category group with given id: %w", err)
+	}
+
+	rec := models.CategoryGroup{
+		ID:             id,
+		UserID:         &userID,
+		Classification: req.Classification,
+		Name:           req.Name,
+		Description:    req.Description,
+	}
+
+	_, err = s.Repo.UpdateCategoryGroup(tx, rec)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete existing category relations
+	if err := s.Repo.DeleteCategoryGroupMembers(tx, id); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to clear existing categories: %w", err)
+	}
+
+	// Add new category relations
+	categoryIDs, ok := req.SelectedCategories.([]interface{})
+	if !ok || len(categoryIDs) == 0 {
+		tx.Rollback()
+		return fmt.Errorf("invalid or empty selected_categories")
+	}
+
+	for _, idVal := range categoryIDs {
+		categoryID, _ := strconv.ParseInt(fmt.Sprint(idVal), 10, 64)
+
+		// Validate category exists
+		_, err := s.Repo.FindCategoryByID(tx, categoryID, &userID, false)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to validate category %d: %w", categoryID, err)
+		}
+
+		// Create the m:m relation
+		if err := s.Repo.InsertCategoryGroupMember(tx, id, categoryID); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to link category %d: %w", categoryID, err)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(exGroup.Name, rec.Name, changes, "name")
+	utils.CompareChanges(exGroup.Classification, rec.Classification, changes, "classification")
+
+	if !changes.IsEmpty() {
+		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.Repo,
+			Logger:      s.Ctx.Logger,
+			Event:       "update",
+			Category:    "category_group",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *TransactionService) DeleteCategoryGroup(userID int64, id int64) error {
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	group, err := s.Repo.FindCategoryGroupByID(tx, id, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find category group with given id: %w", err)
+	}
+
+	// Delete all category relations first
+	if err := s.Repo.DeleteCategoryGroupMembers(tx, id); err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete category relations: %w", err)
+	}
+
+	// Delete the group itself
+	if err := s.Repo.DeleteCategoryGroup(tx, id, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(group.Name, "", changes, "name")
+	utils.CompareChanges(group.Classification, "", changes, "classification")
+
+	if !changes.IsEmpty() {
+		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.Repo,
+			Logger:      s.Ctx.Logger,
+			Event:       "delete",
+			Category:    "category_group",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

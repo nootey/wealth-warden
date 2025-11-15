@@ -868,3 +868,90 @@ func (r *TransactionRepository) PurgeImportedCategories(tx *gorm.DB, importID, u
     `, userID, importID)
 	return res.RowsAffected, res.Error
 }
+
+func (r *TransactionRepository) FindAllCategoryGroups(tx *gorm.DB, userID int64) ([]models.CategoryGroup, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var records []models.CategoryGroup
+	db.Model(&models.CategoryGroup{}).
+		Preload("Categories").
+		Where("user_id = ?", userID).
+		Order("classification, name").
+		Find(&records)
+	return records, db.Error
+}
+
+func (r *TransactionRepository) FindCategoryGroupByID(tx *gorm.DB, ID int64, userID int64) (models.CategoryGroup, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var record models.CategoryGroup
+	db.Model(&models.CategoryGroup{}).
+		Preload("Categories").
+		Where("user_id = ?", userID).
+		Order("classification, name").
+		First(&record)
+	return record, db.Error
+}
+
+func (r *TransactionRepository) InsertCategoryGroup(tx *gorm.DB, newRecord *models.CategoryGroup) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Create(&newRecord).Error; err != nil {
+		return 0, err
+	}
+	return newRecord.ID, nil
+}
+
+func (r *TransactionRepository) InsertCategoryGroupMember(tx *gorm.DB, groupID, categoryID int64) error {
+	query := `
+        INSERT INTO category_group_members (group_id, category_id)
+        VALUES (?, ?)
+    `
+	return tx.Exec(query, groupID, categoryID).Error
+}
+
+func (r *TransactionRepository) UpdateCategoryGroup(tx *gorm.DB, record models.CategoryGroup) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Model(models.CategoryGroup{}).
+		Where("id = ?", record.ID).
+		Updates(map[string]interface{}{
+			"name":           record.Name,
+			"classification": record.Classification,
+			"description":    record.Description,
+			"updated_at":     time.Now(),
+		}).Error; err != nil {
+		return 0, err
+	}
+	return record.ID, nil
+}
+
+func (r *TransactionRepository) DeleteCategoryGroupMembers(tx *gorm.DB, groupingID int64) error {
+	query := `DELETE FROM category_group_members WHERE group_id = ?`
+	return tx.Exec(query, groupingID).Error
+}
+
+func (r *TransactionRepository) DeleteCategoryGroup(tx *gorm.DB, id, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	if err := db.Where("id = ? AND user_id = ?", id, userID).
+		Delete(&models.CategoryGroup{}).Error; err != nil {
+		return err
+	}
+	return nil
+}

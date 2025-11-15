@@ -1,17 +1,18 @@
 <script setup lang="ts">
 
-import type {Category} from "../../../models/transaction_models.ts";
+import type {Category, CategoryGroup} from "../../../models/transaction_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
 import {computed, ref} from "vue";
 import type {Column} from "../../../services/filter_registry.ts";
-import CategoryForm from "../forms/CategoryForm.vue";
 import {usePermissions} from "../../../utils/use_permissions.ts";
 import {useConfirm} from "primevue/useconfirm";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
+import CategoryGroupForm from "../forms/CategoryGroupForm.vue";
 
-const props = defineProps<{
+defineProps<{
+    category_groups: CategoryGroup[];
     categories: Category[];
 }>();
 
@@ -26,21 +27,11 @@ const sharedStore = useSharedStore();
 const { hasPermission } = usePermissions();
 const confirm = useConfirm();
 
-const localCategories = computed(() => {
-    return props.categories.filter(
-        (c) =>
-            !c.name.startsWith("(") &&
-            c.display_name !== "Expense" &&
-            c.display_name !== "Income"
-    )
-})
-
 const updateModal = ref(false);
 const selectedID = ref<number | null>(null);
 
-const categoryColumns = computed<Column[]>(() => [
-    { field: 'display_name', header: 'Name'},
-    { field: 'is_default', header: 'Type'},
+const activeColumns = computed<Column[]>(() => [
+    { field: 'name', header: 'Name'},
     { field: 'classification', header: 'Classification'},
 ]);
 
@@ -61,28 +52,17 @@ async function handleEmit(type: string, data?: any) {
             emit("completeOperation");
             break;
         }
-        case "deleteCategory": {
-            await deleteConfirmation(data.id, data.display_name, data.deleted_at);
+        case "deleteCategoryGroup": {
+            await deleteConfirmation(data.id, data.name);
             break;
         }
     }
 }
 
-function showDeleteButton(data: Category) {
-        switch (data.is_default){
-            case true: {
-                return !data.deleted_at
-            }
-            default: {
-                return true;
-            }
-        }
-}
-
-async function deleteConfirmation(id: number, name: string, deleted: Date | null) {
+async function deleteConfirmation(id: number, name: string) {
     confirm.require({
         header: 'Confirm operation',
-        message: `You are about to ${!deleted ? 'archive' : 'delete'} category: "${name}". ${!deleted ? '' : 'This action is irreversible!'}`,
+        message: `You are about to delete category group: "${name}". 'This action is irreversible!'`,
         rejectProps: { label: 'Cancel' },
         acceptProps: { label: 'Continue', severity: 'danger' },
         accept: () => deleteRecord(id),
@@ -98,7 +78,7 @@ async function deleteRecord(id: number) {
 
     try {
         let response = await sharedStore.deleteRecord(
-            "transactions/categories",
+            "transactions/categories/groups",
             id,
         );
         toastStore.successResponseToast(response);
@@ -114,44 +94,42 @@ async function deleteRecord(id: number) {
 <template>
 
     <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal"
-            :breakpoints="{ '501px': '90vw' }" :modal="true" :style="{ width: '500px' }" header="Update category">
-        <CategoryForm mode="update" :recordId="selectedID"
-                     @completeOperation="handleEmit('completeOperation')"/>
+            :breakpoints="{ '501px': '90vw' }" :modal="true" :style="{ width: '500px' }" header="Update group">
+        <CategoryGroupForm mode="update" :recordId="selectedID"
+                     @completeOperation="handleEmit('completeOperation')" :categories="categories"/>
     </Dialog>
 
-    <DataTable class="w-full enhanced-table" dataKey="id" :value="localCategories"
+    <DataTable class="w-full enhanced-table" dataKey="id" :value="category_groups"
                paginator :rows="10" :rowsPerPageOptions="[10, 25]" scrollable scroll-height="75vh"
-               rowGroupMode="subheader" groupRowsBy="classification" :rowClass="vueHelper.deletedRowClass">
+                :rowClass="vueHelper.deletedRowClass">
         <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
         <template #loading> <LoadingSpinner></LoadingSpinner> </template>
 
-        <template #groupheader="slotProps">
-            <div class="flex items-center gap-2">
-                <span class="font-bold text-lg">{{ vueHelper.capitalize(slotProps.data.classification) }}</span>
-            </div>
-        </template>
-
-        <Column v-for="col of categoryColumns" :key="col.field"
-                :field="col.field" :header="col.header"
-                :sortable="col.field === 'is_default'">
+        <Column v-for="col of activeColumns" :key="col.field"
+                :field="col.field" :header="col.header">
             <template #body="{ data, field }">
-                <template v-if="field === 'is_default'">
-                    {{ data.user_id ? "Custom" : "Default" }}
-                </template>
-                <template v-else>
-                    {{ data[field] }}
-                </template>
+                {{ data[field] }}
+            </template>
+        </Column>
+
+        <Column header="Categories">
+            <template #body="{ data }">
+                <div class="flex flex-row align-items-center gap-2"
+                     v-tooltip="'This group has ' + (data?.categories?.length ?? 0) + ' categories'">
+                    <i class="pi pi-eye"></i>
+                    <span>{{ data?.categories?.length ?? 0 }}</span>
+                </div>
             </template>
         </Column>
 
         <Column header="Actions">
             <template #body="{ data }">
                 <div class="flex flex-row align-items-center gap-2">
-                    <i v-if="hasPermission('manage_data')" class="pi pi-pen-to-square hover-icon text-xs" v-tooltip="'Edit category'"
+                    <i v-if="hasPermission('manage_data')" class="pi pi-pen-to-square hover-icon text-xs" v-tooltip="'Edit category group'"
                        @click="openModal('update', data.id!)"/>
-                    <i v-if="hasPermission('manage_data') && showDeleteButton(data)" class="pi pi-trash hover-icon text-xs" v-tooltip="'Delete category'"
+                    <i v-if="hasPermission('manage_data')" class="pi pi-trash hover-icon text-xs" v-tooltip="'Delete group'"
                        style="color: var(--p-red-300);"
-                       @click="handleEmit('deleteCategory', data)"></i>
+                       @click="handleEmit('deleteCategoryGroup', data)"></i>
                     <i v-if="!hasPermission('manage_data')" class="pi pi-ban hover-icon" v-tooltip="'No action currently available.'"></i>
                 </div>
             </template>

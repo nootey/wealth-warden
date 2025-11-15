@@ -1,12 +1,13 @@
 import {defineStore} from 'pinia';
 import apiClient from "../api/axios_interceptor.ts";
-import type {Category} from "../../models/transaction_models.ts";
+import type {Category, CategoryGroup} from "../../models/transaction_models.ts";
 
 export const useTransactionStore = defineStore('transaction', {
     state: () => ({
         apiPrefix: "transactions",
         currentYear: new Date().getFullYear(),
         categories: [] as Category[],
+        category_groups: [] as CategoryGroup[],
     }),
     getters: {
     },
@@ -35,6 +36,14 @@ export const useTransactionStore = defineStore('transaction', {
                     params: {deleted}
                 });
                 this.categories = response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
+        async getCategoryGroups() {
+            try {
+                const response = await apiClient.get(`${this.apiPrefix}/categories/groups`);
+                this.category_groups = response.data;
             } catch (err) {
                 throw err;
             }

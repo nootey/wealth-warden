@@ -80,6 +80,18 @@ type Category struct {
 	DeletedAt      *time.Time `json:"deleted_at"`
 }
 
+type CategoryGroup struct {
+	ID             int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID         *int64    `gorm:"index:idx_categories_user_class" json:"user_id"`
+	Name           string    `gorm:"type:varchar(100);not null" json:"name"`
+	Classification string    `gorm:"not null" json:"classification"`
+	Description    *string   `json:"description"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+
+	Categories []Category `gorm:"many2many:category_group_members;joinForeignKey:group_id;joinReferences:category_id" json:"categories"`
+}
+
 type TransactionReq struct {
 	AccountID       int64           `json:"account_id" validate:"required"`
 	CategoryID      *int64          `json:"category_id,omitempty"`
@@ -104,6 +116,13 @@ type TrRestoreReq struct {
 type CategoryReq struct {
 	DisplayName    string `json:"display_name" validate:"required"`
 	Classification string `json:"classification" validate:"required"`
+}
+
+type CategoryGroupReq struct {
+	Name               string      `json:"name" validate:"required"`
+	Classification     string      `json:"classification" validate:"required"`
+	Description        *string     `json:"description"`
+	SelectedCategories interface{} `json:"selected_categories" validate:"required"`
 }
 
 type TransactionTemplateReq struct {

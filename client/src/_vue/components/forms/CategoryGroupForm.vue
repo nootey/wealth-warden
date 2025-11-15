@@ -1,31 +1,29 @@
 <script setup lang="ts">
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
-import {nextTick, onMounted, ref} from "vue";
-import type {Category} from "../../../models/transaction_models.ts";
+import {computed, nextTick, onMounted, ref, watch} from "vue";
+import type {Category, CategoryGroup} from "../../../models/transaction_models.ts";
 import {required} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
-import toastHelper from "../../../utils/toast_helper.ts";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
-import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
-import vueHelper from "../../../utils/vue_helper.ts";
 import {usePermissions} from "../../../utils/use_permissions.ts";
 
 const props = defineProps<{
     mode?: "create" | "update";
     recordId?: number | null;
+    categories: Category[];
 }>();
 
 const emit = defineEmits<{
     (event: 'completeOperation'): void;
 }>();
 
-const apiPrefix = "transactions/categories"
+const apiPrefix = "transactions/categories/groups"
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
-const transactionStore = useTransactionStore();
+
 const { hasPermission } = usePermissions();
 
 onMounted(async () => {
@@ -34,34 +32,53 @@ onMounted(async () => {
     }
 });
 
-const readOnly = ref(false);
 const loading = ref(false);
 
-const changedName = ref(false);
-const record = ref<Category>(initData());
+const parentCategories = computed(() => {
+    return props.categories.filter(c =>
+        c.display_name === "Expense" || c.display_name === "Income"
+    )
+});
+
+const selectedParentCategory = computed<Category | null>(() => {
+    const classification = record.value.classification || "income";
+    return parentCategories.value.find(cat => cat.name === classification.toLowerCase()) || null;
+});
+
+const availableCategories = computed<Category[]>(() => {
+    return props.categories.filter(
+        (category) => category.parent_id === selectedParentCategory.value?.id
+    );
+});
+
+const selectedCategories = ref<Category[]>([]);
+const record = ref<CategoryGroup>(initData());
 
 const classifications = ref<string[]>(['income', 'expense']);
 const filteredClassifications = ref<string[]>([]);
 
 const rules = {
     record: {
-        display_name: { required, $autoDirty: true },
+        name: { required, $autoDirty: true },
         classification: { required, $autoDirty: true },
+        description: { $autoDirty: true },
     },
 };
 
 const v$ = useVuelidate(rules, { record });
 
-function initData(): Category {
+watch(() => record.value.classification, () => {
+    if (!loading.value) {
+        selectedCategories.value = [];
+    }
+});
+
+function initData(): CategoryGroup {
 
     return {
-        id: null,
         name: "",
-        display_name: "",
-        classification: "",
-        parent_id: null,
-        is_default: false,
-        deleted_at: null,
+        classification: "income",
+        description: null,
     };
 }
 
@@ -70,12 +87,16 @@ async function loadRecord(id: number) {
         loading.value = true;
         const data = await sharedStore.getRecordByID(apiPrefix, id, { deleted: true});
 
-        readOnly.value = !!data?.deleted_at
-
         record.value = {
             ...initData(),
             ...data,
         };
+
+        if (data.categories && Array.isArray(data.categories)) {
+            selectedCategories.value = data.categories.map((cat: any) =>
+                props.categories.find(c => c.id === cat.id)
+            ).filter(Boolean) as Category[];
+        }
 
         await nextTick();
         loading.value = false;
@@ -98,16 +119,13 @@ async function manageRecord() {
         return;
     }
 
-    if (readOnly.value) {
-        toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
-        return;
-    }
-
     if (!await isRecordValid()) return;
 
     const recordData: any = {
-        display_name: record.value.display_name,
+        name: record.value.name,
         classification: record.value.classification,
+        description: record.value.description,
+        selected_categories: selectedCategories.value.map(cat => cat.id)
     }
 
     try {
@@ -148,67 +166,27 @@ const searchClassifications = (event: { query: string }) => {
     filteredClassifications.value = !q ? [...all] : all.filter(t => t.toLowerCase().startsWith(q));
 };
 
-async function restoreCategory() {
-
-    try {
-
-        let response = await transactionStore.restoreCategory(
-            props.recordId!
-        );
-
-        v$.value.record.$reset();
-        toastStore.successResponseToast(response);
-        emit("completeOperation")
-
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    }
-}
-
-function checkCategoryName() {
-    if(changedName.value) return;
-    return record.value.name.toLowerCase() != vueHelper.normalize(record.value.display_name).toLowerCase()
-}
-
-async function restoreCategoryName() {
-
-    try {
-
-        let response = await transactionStore.restoreCategoryName(
-            props.recordId!
-        );
-
-        v$.value.record.$reset();
-        toastStore.successResponseToast(response);
-        emit("completeOperation")
-
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    }
-}
-
 </script>
 
 <template>
 
     <div v-if="!loading" class="flex flex-column gap-3 p-1">
-        <div v-if="readOnly">
-            <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
-        </div>
-        <div v-else-if="mode === 'update' && record.is_default && checkCategoryName()" class="flex flex-row w-full align-items-center gap-2">
-            <i class="pi pi-spin pi-refresh hover-icon" @click="restoreCategoryName"></i>
-            <span class="text-sm" style="color: var(--text-secondary)">Restore default category name.</span>
-        </div>
-
-
         <div class="flex flex-column gap-3 p-1">
             <div class="flex flex-row w-full">
                 <div class="flex flex-column w-full gap-1">
-                    <ValidationError :isRequired="true" :message="v$.record.display_name.$errors[0]?.$message">
+                    <ValidationError :isRequired="true" :message="v$.record.name.$errors[0]?.$message">
                         <label>Name</label>
                     </ValidationError>
-                    <InputText :readonly="readOnly" :disabled="readOnly" size="small"
-                               v-model="record.display_name" @update:model-value="changedName=true"></InputText>
+                    <InputText size="small" v-model="record.name"></InputText>
+                </div>
+            </div>
+
+            <div class="flex flex-row w-full">
+                <div class="flex flex-column w-full gap-1">
+                    <ValidationError :isRequired="false" :message="v$.record.description.$errors[0]?.$message">
+                        <label>Description</label>
+                    </ValidationError>
+                    <InputText size="small" v-model="record.description"></InputText>
                 </div>
             </div>
 
@@ -217,26 +195,30 @@ async function restoreCategoryName() {
                     <ValidationError :isRequired="true" :message="v$.record.classification.$errors[0]?.$message">
                         <label>Classification</label>
                     </ValidationError>
-                    <AutoComplete :readonly="readOnly || record.is_default" :disabled="readOnly || record.is_default" size="small" v-model="record.classification"
+                    <AutoComplete size="small" v-model="record.classification"
                                   :suggestions="filteredClassifications" @complete="searchClassifications"
                                   placeholder="Select classification" dropdown>
                     </AutoComplete>
                 </div>
             </div>
-        </div>
 
-        <div v-if="mode === 'update' && record.is_default" class="flex flex-row w-full align-items-center gap-2">
-            <i class="pi pi-info-circle"></i>
-            <span class="text-sm" style="color: var(--text-secondary)">This category is a default. Some parts are not editable.</span>
+            <div class="flex flex-row w-full">
+                <div class="flex flex-column gap-1 w-full">
+                    <label>Selected categories</label>
+                    <MultiSelect size="small" v-model="selectedCategories"
+                                 placeholder="Select categories"
+                                 :options="availableCategories" optionLabel="display_name"
+                    >
+                    </MultiSelect>
+                </div>
+            </div>
+
         </div>
 
         <div class="flex flex-row gap-2 w-full">
             <div class="flex flex-column w-full">
-                <Button v-if="!readOnly" class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' category'"
+                <Button class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' group'"
                         @click="manageRecord" style="height: 42px;" />
-                <Button v-else class="main-button"
-                        label="Restore"
-                        @click="restoreCategory" style="height: 42px;" />
             </div>
         </div>
 
