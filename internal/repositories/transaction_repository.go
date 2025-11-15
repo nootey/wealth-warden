@@ -955,3 +955,10 @@ func (r *TransactionRepository) DeleteCategoryGroup(tx *gorm.DB, id, userID int6
 	}
 	return nil
 }
+
+func (r *TransactionRepository) IsCategoryInGroup(tx *gorm.DB, categoryID int64) (bool, error) {
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM category_group_members WHERE category_id = ?)`
+	err := tx.Raw(query, categoryID).Scan(&exists).Error
+	return exists, err
+}

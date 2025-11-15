@@ -1051,6 +1051,17 @@ func (s *TransactionService) DeleteCategory(userID int64, id int64) error {
 		return fmt.Errorf("can't find category with given id: %w", err)
 	}
 
+	// Check if category is part of any group
+	inGroup, err := s.Repo.IsCategoryInGroup(tx, id)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to check category group membership: %w", err)
+	}
+	if inGroup {
+		tx.Rollback()
+		return fmt.Errorf("cannot delete category: it is part of one or more category groups")
+	}
+
 	alreadySoftDeleted := cat.DeletedAt != nil
 	var deleteType string
 
