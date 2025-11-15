@@ -14,6 +14,8 @@ import SlotSkeleton from "../layout/SlotSkeleton.vue";
 import dateHelper from "../../../utils/date_helper.ts";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import ShowLoading from "../base/ShowLoading.vue";
+import Decimal from "decimal.js";
+import {useChartColors} from "../../../style/theme/chartColors.ts";
 
 const props = defineProps<{
     accID: number;
@@ -36,12 +38,39 @@ const confirm = useConfirm();
 const nWidgetRef = ref<InstanceType<typeof NetworthWidget> | null>(null);
 const account = ref<Account | null>(null);
 
+const { colors } = useChartColors();
+
 const transactionColumns = computed<Column[]>(() => [
     { field: 'category', header: 'Category'},
     { field: 'amount', header: 'Amount'},
     { field: 'created_at', header: 'Date'},
     { field: 'description', header: 'Description'},
 ]);
+
+const expectedDifference = computed(() => {
+    const expectedBalance = account.value?.expected_balance
+    const endBalance = account.value?.balance?.end_balance
+
+    if (!expectedBalance || !endBalance) {
+        return null
+    }
+
+    return new Decimal(endBalance).minus(expectedBalance).toString()
+})
+
+const differenceColor = computed(() => {
+    if (!expectedDifference.value) {
+        return colors.value.dim
+    }
+
+    const diff = new Decimal(expectedDifference.value)
+
+    if (diff.isZero()) {
+        return colors.value.dim
+    }
+
+    return diff.isPositive() ? colors.value.pos : colors.value.neg
+})
 
 async function loadRecord(id: number) {
     try {
@@ -119,6 +148,19 @@ async function confirmCloseAccount(id: number) {
                     <Tag :severity="account.account_type.classification === 'liability' ? 'danger' : 'success'" style="transform: scale(0.8)">
                         {{ vueHelper.capitalize(account.account_type.classification) }}
                     </Tag>
+                </span>
+            </div>
+        </SlotSkeleton>
+
+        <SlotSkeleton class="w-full" bg="opt">
+            <div class="flex flex-column gap-2 p-3 w-full">
+                <h4>Projections</h4>
+                <span> Expectation type: <b> {{ account.balance_projection }} </b> </span>
+                <span> Expected balance: <b> {{ vueHelper.displayAsCurrency(account.expected_balance! )}} </b> </span>
+                <span> Difference:
+                    <b :style="{ color: differenceColor }">
+                    {{  vueHelper.displayAsCurrency(expectedDifference) }}
+                    </b>
                 </span>
             </div>
         </SlotSkeleton>

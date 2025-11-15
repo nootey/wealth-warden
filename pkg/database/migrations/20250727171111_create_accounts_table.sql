@@ -1,6 +1,9 @@
 -- +goose Up
 -- +goose StatementBegin
+CREATE TYPE balance_projection_type AS ENUM ('fixed', 'multiplier', 'percentage');
+-- +goose StatementEnd
 
+-- +goose StatementBegin
 CREATE TABLE accounts (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -9,6 +12,9 @@ CREATE TABLE accounts (
     currency CHAR(3) NOT NULL DEFAULT 'EUR',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     include_in_net_worth BOOLEAN NOT NULL DEFAULT TRUE,
+    balance_projection balance_projection_type NOT NULL DEFAULT 'fixed',
+    expected_balance NUMERIC(19,4) NOT NULL DEFAULT 0,
+
     opened_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     closed_at TIMESTAMPTZ NULL,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

@@ -20,6 +20,8 @@ export interface Account {
     balance: Balance;
     currency?: string;
     is_active: boolean;
+    expected_balance?: string
+    balance_projection?: string
     opened_at?: Date | null;
     closed_at: Date | null;
 }

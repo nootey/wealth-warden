@@ -9,19 +9,21 @@ import (
 const DefaultCurrency = "EUR"
 
 type Account struct {
-	ID                int64       `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID            int64       `gorm:"not null;index:idx_accounts_user" json:"user_id"`
-	Name              string      `gorm:"type:varchar(150);not null" json:"name"`
-	AccountTypeID     int64       `gorm:"not null" json:"account_type_id" validate:"required"`
-	AccountType       AccountType `json:"account_type"`
-	Balance           Balance     `json:"balance"`
-	Currency          string      `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
-	IsActive          bool        `gorm:"type:boolean;not null;default:true" json:"is_active"`
-	IncludeInNetWorth bool        `gorm:"type:boolean;not null;default:true" json:"include_in_net_worth"`
-	ImportID          *int64      `json:"import_id,omitempty"`
-	OpenedAt          time.Time   `gorm:"not null" json:"opened_at"`
-	UpdatedAt         time.Time   `gorm:"autoUpdateTime" json:"updated_at"`
-	ClosedAt          *time.Time  `gorm:"column:closed_at;index" json:"closed_at"`
+	ID                int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID            int64           `gorm:"not null;index:idx_accounts_user" json:"user_id"`
+	Name              string          `gorm:"type:varchar(150);not null" json:"name"`
+	AccountTypeID     int64           `gorm:"not null" json:"account_type_id" validate:"required"`
+	AccountType       AccountType     `json:"account_type"`
+	Balance           Balance         `json:"balance"`
+	Currency          string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
+	IsActive          bool            `gorm:"type:boolean;not null;default:true" json:"is_active"`
+	IncludeInNetWorth bool            `gorm:"type:boolean;not null;default:true" json:"include_in_net_worth"`
+	ImportID          *int64          `json:"import_id,omitempty"`
+	ExpectedBalance   decimal.Decimal `gorm:"type:decimal(19,4);not null;default:0" json:"expected_balance"`
+	BalanceProjection string          `gorm:"not null;enum(fixed,multiplier,percentage)" json:"balance_projection"`
+	OpenedAt          time.Time       `gorm:"not null" json:"opened_at"`
+	UpdatedAt         time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
+	ClosedAt          *time.Time      `gorm:"column:closed_at;index" json:"closed_at"`
 }
 
 type AccountType struct {
