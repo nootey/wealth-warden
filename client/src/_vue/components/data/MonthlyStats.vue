@@ -43,11 +43,12 @@ async function loadStats() {
 
 <template>
     <div v-if="!loading" class="flex flex-column p-2 gap-2">
-        <h4>Accounts</h4>
+        <h4>Info</h4>
         <span style="color: var(--text-secondary)">Monthly stats are computed for all checking accounts, which are treated as main accounts.</span>
 
         <br>
 
+        <h4>Details</h4>
         <div v-if="monthlyStats" class="flex flex-column">
             <div class="flex flex-row gap-2 align-items-center">
                 <span>Inflows:</span>
@@ -68,6 +69,7 @@ async function loadStats() {
 
             <br>
 
+            <h4>Rates</h4>
             <div class="flex flex-row gap-2 align-items-center">
                 <span>Savings:</span>
                 <span><b>{{ vueHelper.displayAsCurrency(monthlyStats.savings) }}</b></span>
