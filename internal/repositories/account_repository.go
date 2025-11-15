@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 	"wealth-warden/internal/models"
@@ -396,11 +397,42 @@ func (r *AccountRepository) UpdateAccount(tx *gorm.DB, record *models.Account) (
 	if record.AccountTypeID != 0 {
 		updates["account_type_id"] = record.AccountTypeID
 	}
+	if !record.OpenedAt.IsZero() {
+		updates["opened_at"] = record.OpenedAt
+	}
 	updates["is_active"] = record.IsActive
 
 	db.Model(&models.Account{}).Where("id = ?", record.ID).Updates(updates)
 
 	return record.ID, nil
+}
+
+func (r *AccountRepository) FindEarliestTransactionDate(tx *gorm.DB, accountID int64) (*time.Time, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var result struct {
+		TxnDate time.Time
+	}
+
+	err := db.Model(&models.Transaction{}).
+		Where("account_id = ?", accountID).
+		Order("txn_date ASC").
+		Limit(1).
+		Select("txn_date").
+		First(&result).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// No transactions found - return nil
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &result.TxnDate, nil
 }
 
 func (r *AccountRepository) InsertBalance(tx *gorm.DB, newRecord *models.Balance) (int64, error) {
@@ -437,6 +469,17 @@ func (r *AccountRepository) UpdateBalance(tx *gorm.DB, record models.Balance) (i
 		return 0, err
 	}
 	return record.ID, nil
+}
+
+func (r *AccountRepository) UpdateBalanceAsOf(tx *gorm.DB, accountID int64, oldAsOf, newAsOf time.Time) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	return db.Model(&models.Balance{}).
+		Where("account_id = ? AND as_of = ?", accountID, oldAsOf).
+		Update("as_of", newAsOf).Error
 }
 
 func (r *AccountRepository) CloseAccount(tx *gorm.DB, id, userID int64) error {
@@ -762,4 +805,14 @@ func (r *AccountRepository) FrontfillBalances(
 		WHERE b.account_id = c.account_id
 		  AND b.as_of      = c.as_of;
 	`, accountID, from).Error
+}
+
+func (r *AccountRepository) DeleteAccountSnapshots(tx *gorm.DB, accountID int64) error {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	return db.Where("account_id = ?", accountID).
+		Delete(&models.AccountDailySnapshot{}).Error
 }

@@ -198,11 +198,12 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 	}
 
 	account := &models.Account{
-		Name:          req.Name,
-		Currency:      models.DefaultCurrency,
-		AccountTypeID: accType.ID,
-		UserID:        userID,
-		OpenedAt:      openedDay,
+		Name:              req.Name,
+		Currency:          models.DefaultCurrency,
+		AccountTypeID:     accType.ID,
+		UserID:            userID,
+		OpenedAt:          openedDay,
+		BalanceProjection: "fixed",
 	}
 
 	balanceAmountString := req.Balance.StringFixed(2)
@@ -312,6 +313,70 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 		return fmt.Errorf("can't find account type with given id %w", err)
 	}
 
+	// Handle OpenedAt change
+	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't fetch user settings %w", err)
+	}
+
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	newOpenedAt := req.OpenedAt
+	if newOpenedAt.IsZero() {
+		newOpenedAt = exAcc.OpenedAt
+	} else {
+		newOpenedAt = utils.LocalMidnightUTC(newOpenedAt, loc)
+	}
+
+	if !newOpenedAt.Equal(exAcc.OpenedAt) {
+		// Check if any transactions exist for this account
+		earliestTxnDate, err := s.Repo.FindEarliestTransactionDate(tx, id)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to check transaction dates: %w", err)
+		}
+
+		if earliestTxnDate != nil {
+			// validate the new date is before earliest transaction
+			if !newOpenedAt.Before(*earliestTxnDate) {
+				tx.Rollback()
+				return fmt.Errorf("opened date must be before the earliest transaction date (%s)",
+					earliestTxnDate.Format("2006-01-02"))
+			}
+		}
+
+		// Delete all existing snapshots for this account
+		err = s.Repo.DeleteAccountSnapshots(tx, id)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to delete existing snapshots: %w", err)
+		}
+
+		// Update the balance AsOf date to match the new OpenedAt
+		err = s.Repo.UpdateBalanceAsOf(tx, id, exAcc.OpenedAt, newOpenedAt)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to update balance as_of date: %w", err)
+		}
+
+		// Re-seed snapshots from the new opened date to today
+		if err := s.Repo.UpsertSnapshotsFromBalances(
+			tx,
+			userID,
+			id,
+			models.DefaultCurrency,
+			newOpenedAt,
+			time.Now().UTC().Truncate(24*time.Hour),
+		); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to update snapshots: %w", err)
+		}
+	}
+
 	acc := &models.Account{
 		ID:            id,
 		Name:          req.Name,
@@ -319,6 +384,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 		AccountTypeID: newAccType.ID,
 		IsActive:      exAcc.IsActive,
 		UserID:        userID,
+		OpenedAt:      newOpenedAt,
 	}
 
 	changes := utils.InitChanges()
@@ -327,6 +393,11 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 	utils.CompareChanges(exAccType.Type, newAccType.Type, changes, "account_type")
 	utils.CompareChanges(exAccType.Subtype, newAccType.Subtype, changes, "account_subtype")
 	utils.CompareChanges(exAcc.Currency, acc.Currency, changes, "currency")
+
+	// Compare opened_at dates
+	exDateStr := exAcc.OpenedAt.UTC().Format(time.RFC3339)
+	newDateStr := newOpenedAt.UTC().Format(time.RFC3339)
+	utils.CompareChanges(exDateStr, newDateStr, changes, "opened_at")
 
 	var delta decimal.Decimal
 
@@ -339,7 +410,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 		}
 
 		// Current end balance from snapshot
-		asOf := time.Now().UTC() // or your canonical TZ
+		asOf := time.Now().UTC()
 		current, err := utils.GetEndBalanceAsOf(tx, exAcc.ID, asOf)
 		if err != nil {
 			tx.Rollback()

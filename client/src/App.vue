@@ -62,8 +62,8 @@ const isSettingsView = computed(() => route.path.startsWith('/settings'));
             <div class="flex justify-content-center align-items-center p-overlay-mask p-overlay-mask-enter">
                 <div class="flex flex-column p-5 gap-4 border-round-lg"
                      style="background-color: var(--background-secondary);">
-                    <span class="font-bold text-xl" style="color: var(--text-primary);">{{ message.header }}</span>
-                    <span style="color: var(--text-primary);">{{ message.message }}</span>
+                    <div class="font-bold text-xl" style="color: var(--text-primary);">{{ message.header }}</div>
+                    <div style="color: var(--text-primary);" v-html="message.message.replace(/\n/g, '<br>')"></div>
                     <div class="flex justify-content-end gap-2"  >
                         <Button class="p-2 border-round-lg" :label="message.rejectProps?.label || 'Cancel'" variant="outlined" style="color: var(--text-primary); border-color: var(--text-primary)" @click="rejectCallback" />
                         <Button class="p-2 border-round-lg" :label="message.acceptProps?.label || 'Confirm'" :severity="message.acceptProps?.severity" style="color: var(--text-primary);" @click="acceptCallback" />

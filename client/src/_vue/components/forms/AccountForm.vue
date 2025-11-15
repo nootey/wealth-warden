@@ -61,6 +61,7 @@ const balanceFieldRef = computed({
 
 const balanceNumber = currencyHelper.useMoneyField(balanceFieldRef, 2).number;
 const balanceAdjusted = ref(false);
+const asOfAdjusted = ref(false);
 
 const selectedClassification = ref<"Asset" | "Liability">("Asset");
 const selectedType = ref<string>("");
@@ -274,17 +275,31 @@ async function isRecordValid() {
   return true;
 }
 
-async function confirmManage() {
-    if(props.mode === "update" && balanceAdjusted.value) {
+async function confirmAdjustments() {
+    if (props.mode === "update" && (balanceAdjusted.value || asOfAdjusted.value)) {
+        const warnings: string[] = [];
+
+        if (balanceAdjusted.value) {
+            warnings.push('You have made a manual balance adjustment.');
+        }
+
+        if (asOfAdjusted.value) {
+            warnings.push('You have adjusted the account opening date.');
+        }
+
+        if (asOfAdjusted.value || balanceAdjusted.value ) {
+            warnings.push('The operation may take some time.');
+        }
+
         confirm.require({
-            header: 'Confirm balance adjustment',
-            message: 'You have made a manual balance adjustment. Do you want to continue?',
+            header: 'Confirm changes',
+            message: warnings.join('\n\n') + '\n\nDo you want to continue?',
             rejectProps: { label: 'Cancel' },
             acceptProps: { label: 'Confirm' },
             accept: () => manageRecord(),
         });
     } else {
-        await manageRecord()
+        await manageRecord();
     }
 }
 
@@ -436,20 +451,21 @@ async function manageRecord() {
           </div>
         </div>
 
-        <div v-if="mode === 'create'" class="flex flex-row w-full">
+        <div class="flex flex-row w-full">
             <div class="flex flex-column gap-1 w-full">
                 <ValidationError :isRequired="true" :message="v$.record.opened_at.$errors[0]?.$message">
                     <label>Opening date</label>
                 </ValidationError>
                 <DatePicker v-model="record.opened_at" date-format="dd/mm/yy"
                             showIcon fluid iconDisplay="input" size="small"
+                            @update:model-value="asOfAdjusted = true"
                 />
             </div>
         </div>
 
         <div class="flex flex-row gap-2 w-full">
           <div class="flex flex-column w-full">
-            <Button v-if="!readOnly" class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' account'" @click="confirmManage" style="height: 42px;" />
+            <Button v-if="!readOnly" class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' account'" @click="confirmAdjustments" style="height: 42px;" />
           </div>
         </div>
 
