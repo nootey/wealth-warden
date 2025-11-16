@@ -23,7 +23,7 @@ const props = defineProps<{
 const transactionStore = useTransactionStore();
 const statStore = useStatisticsStore();
 const sharedStore = useSharedStore();
-// const accountStore = useAccountStore();
+const accountStore = useAccountStore();
 const toastStore = useToastStore();
 
 const categories = ref<CategoryOrGroup[]>([]);
@@ -169,6 +169,7 @@ const v$ = useVuelidate(rules, { record });
 async function saveProjection() {
     // TODO: Implement save
     try {
+        await accountStore
     } catch (e) {
         toastStore.errorResponseToast(e)
     }

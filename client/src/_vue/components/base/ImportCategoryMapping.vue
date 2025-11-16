@@ -69,12 +69,12 @@ const mapping = ref<Record<string, number | null>>({})
 const prefill = () => {
     const next: Record<string, number | null> = {}
     for (const raw of props.importedCategories) {
-        const key = raw // keep original for server
+        const key = raw
         const n = normalize(raw)
         const exact = byNormalizedName.value.get(n)
 
         if (exact) {
-            next[key] = exact.id
+            next[key] = exact.id ?? null
             continue
         }
 
@@ -89,9 +89,9 @@ const prefill = () => {
         }
 
         if (picked) {
-            next[key] = picked.id
+            next[key] = picked.id ?? null
         } else {
-            next[key] = defaultCategory.value ? defaultCategory.value.id : null
+            next[key] = defaultCategory.value?.id ?? null
         }
     }
     mapping.value = next
