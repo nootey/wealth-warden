@@ -306,3 +306,13 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64)
 		GeneratedAt: time.Now().UTC(),
 	}, nil
 }
+
+func (s *StatisticsService) GetYearlyAverageForCategory(userID int64, accountID int64, categoryID int64, isGroup bool) (float64, error) {
+	currentYear := time.Now().Year()
+
+	if isGroup {
+		return s.TxRepo.GetYearlyAverageForCategoryGroup(userID, accountID, categoryID, currentYear)
+	}
+
+	return s.TxRepo.GetYearlyAverageForCategory(userID, accountID, categoryID, currentYear)
+}

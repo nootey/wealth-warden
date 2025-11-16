@@ -48,6 +48,14 @@ export const useTransactionStore = defineStore('transaction', {
                 throw err;
             }
         },
+        async getCategoriesWithGroups() {
+            try {
+                const response = await apiClient.get(`${this.apiPrefix}/categories/groups/all`);
+                return response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
         async startTransfer(record: object) {
             try {
                 const response = await apiClient.put(`${this.apiPrefix}/transfers`, record);

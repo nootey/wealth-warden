@@ -105,3 +105,47 @@ func (h *StatisticsHandler) GetCurrentMonthStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, records)
 }
+
+func (h *StatisticsHandler) GetYearlyAverageForCategory(c *gin.Context) {
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	var categoryID int64
+	if s := c.Param("id"); s != "" {
+		v, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			utils.ErrorMessage(c, "param error", "id must be a valid integer", http.StatusBadRequest, err)
+			return
+		}
+		categoryID = v
+	} else {
+		utils.ErrorMessage(c, "param error", "id is required", http.StatusBadRequest, nil)
+		return
+	}
+
+	var accountID int64
+	if s := c.Query("account_id"); s != "" {
+		v, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			utils.ErrorMessage(c, "param error", "account_id must be a valid integer", http.StatusBadRequest, err)
+			return
+		}
+		accountID = v
+	} else {
+		utils.ErrorMessage(c, "param error", "account_id is required", http.StatusBadRequest, nil)
+		return
+	}
+
+	isGroup := c.Query("is_group") == "true"
+
+	average, err := h.Service.GetYearlyAverageForCategory(userID, accountID, categoryID, isGroup)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", "Error getting yearly average", http.StatusBadRequest, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"average": average})
+}

@@ -92,6 +92,14 @@ type CategoryGroup struct {
 	Categories []Category `gorm:"many2many:category_group_members;joinForeignKey:group_id;joinReferences:category_id" json:"categories"`
 }
 
+type CategoryOrGroup struct {
+	ID             int64   `json:"id"`
+	Name           string  `json:"name"`
+	IsGroup        bool    `json:"is_group"`
+	Classification string  `json:"classification"`
+	CategoryIDs    []int64 `json:"category_ids"`
+}
+
 type TransactionReq struct {
 	AccountID       int64           `json:"account_id" validate:"required"`
 	CategoryID      *int64          `json:"category_id,omitempty"`

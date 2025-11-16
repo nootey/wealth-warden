@@ -44,6 +44,14 @@ export interface CategoryGroup {
     categories?: Category[];
 }
 
+export interface CategoryOrGroup {
+    id: number;
+    name: string;
+    is_group: boolean;
+    classification: string;
+    category_ids: number[];
+}
+
 export interface TransactionTemplate {
     id: number | null;
     name: string;

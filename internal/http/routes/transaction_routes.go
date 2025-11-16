@@ -23,6 +23,7 @@ func TransactionRoutes(ap *gin.RouterGroup, h *handlers.TransactionHandler) {
 	ap.PUT("categories/:id", authz.RequireAllMW("manage_data"), h.UpdateCategory)
 	ap.DELETE("categories/:id", authz.RequireAllMW("manage_data"), h.DeleteCategory)
 	ap.GET("categories/groups", authz.RequireAllMW("view_data"), h.GetCategoryGroups)
+	ap.GET("categories/groups/all", authz.RequireAllMW("view_data"), h.GetCategoriesWithGroups)
 	ap.GET("categories/groups/:id", authz.RequireAllMW("view_data"), h.GetCategoryGroupByID)
 	ap.PUT("categories/groups", authz.RequireAllMW("manage_data"), h.InsertCategoryGroup)
 	ap.PUT("categories/groups/:id", authz.RequireAllMW("manage_data"), h.UpdateCategoryGroup)

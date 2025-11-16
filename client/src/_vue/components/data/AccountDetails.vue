@@ -16,6 +16,7 @@ import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import Decimal from "decimal.js";
 import {useChartColors} from "../../../style/theme/chartColors.ts";
+import AccountProjectionForm from "../forms/AccountProjectionForm.vue";
 
 const props = defineProps<{
     accID: number;
@@ -37,6 +38,7 @@ const sharedStore = useSharedStore();
 const confirm = useConfirm();
 const nWidgetRef = ref<InstanceType<typeof NetworthWidget> | null>(null);
 const account = ref<Account | null>(null);
+const projectionsModal = ref(false);
 
 const { colors } = useChartColors();
 
@@ -108,9 +110,24 @@ async function confirmCloseAccount(id: number) {
     });
 }
 
+function openModal(type: string) {
+    switch (type) {
+        case "edit-projection": {
+            projectionsModal.value = true;
+            break;
+        }
+    }
+}
+
 </script>
 
 <template>
+
+    <Dialog position="right" class="rounded-dialog" v-model:visible="projectionsModal"
+            :breakpoints="{ '501px': '90vw' }" :modal="true" :style="{ width: '500px' }" header="Edit account projections">
+            <AccountProjectionForm :accID="accID"/>
+    </Dialog>
+
     <div v-if="account" class="flex flex-column w-full gap-3">
         <div class="flex flex-row gap-2 align-items-center text-center">
             <i :class="['pi', account.account_type.classification === 'liability' ? 'pi-credit-card' : 'pi-wallet']">
@@ -131,9 +148,13 @@ async function confirmCloseAccount(id: number) {
 
         <SlotSkeleton class="w-full" bg="opt">
             <div class="flex flex-column gap-2 p-3 w-full">
-                <h4>KPI</h4>
+                <div class="flex flex-row gap-1 align-items-center">
+                    <h4>KPI</h4>
+                    ·
+                    <span style="color: var(--text-secondary)">{{ account.currency }}</span>
+                </div>
                 <span> Start balance: <b>{{ vueHelper.displayAsCurrency(account.balance.start_balance) }} </b> </span>
-                <span> Currency: <b>{{ account.currency }} </b> </span>
+
                 <span> Opened: <b>{{ dateHelper.formatDate(account.opened_at!, false) }} </b> </span>
                 <span v-if="account.closed_at"> Closed: <b>{{ dateHelper.formatDate(account.closed_at!, true) }} </b> </span>
             </div>
@@ -141,21 +162,28 @@ async function confirmCloseAccount(id: number) {
 
         <SlotSkeleton class="w-full" bg="opt">
             <div class="flex flex-column gap-2 p-3 w-full">
-                <h4>Details</h4>
+                <div class="flex flex-row gap-1 align-items-center">
+                    <h4>Details</h4>
+                    ·
+                    <span style="color: var(--text-secondary)">
+                        <Tag :severity="account.account_type.classification === 'liability' ? 'danger' : 'success'" style="transform: scale(0.8)">
+                        {{ vueHelper.capitalize(account.account_type.classification) }}
+                        </Tag>
+                    </span>
+                </div>
                 <span> Type: <b>{{ vueHelper.capitalize(vueHelper.denormalize(account.account_type.type)) }} </b> </span>
                 <span> Subtype: <b>{{ vueHelper.capitalize(account.account_type.sub_type) }} </b> </span>
-                <span> Classification:
-                    <Tag :severity="account.account_type.classification === 'liability' ? 'danger' : 'success'" style="transform: scale(0.8)">
-                        {{ vueHelper.capitalize(account.account_type.classification) }}
-                    </Tag>
-                </span>
             </div>
         </SlotSkeleton>
 
         <SlotSkeleton class="w-full" bg="opt">
             <div class="flex flex-column gap-2 p-3 w-full">
-                <h4>Projections</h4>
-                <span> Expectation type: <b> {{ account.balance_projection }} </b> </span>
+                <div class="flex flex-row gap-1 align-items-center text-center">
+                    <h4>Projections</h4>
+                    ·
+                    <i class="pi pi-pen-to-square hover-icon text-xs" v-tooltip="'Edit account projections'"
+                       @click="openModal('edit-projection')"/>
+                </div>
                 <span> Expected balance: <b> {{ vueHelper.displayAsCurrency(account.expected_balance! )}} </b> </span>
                 <span> Difference:
                     <b :style="{ color: differenceColor }">

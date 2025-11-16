@@ -32,5 +32,14 @@ export const useStatisticsStore = defineStore('statistics', {
             });
             return res.data;
         },
+        async getCategoryAverage(id: number, account_id: number, isGroup: boolean): Promise<number> {
+            const response = await apiClient.get(`/statistics/categories/${id}/average`, {
+                params: {
+                    account_id: account_id,
+                    is_group: isGroup
+                }
+            });
+            return response.data.average;
+        }
     },
 });

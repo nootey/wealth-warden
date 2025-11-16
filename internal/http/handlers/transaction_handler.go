@@ -738,6 +738,23 @@ func (h *TransactionHandler) GetCategoryGroups(c *gin.Context) {
 
 }
 
+func (h *TransactionHandler) GetCategoriesWithGroups(c *gin.Context) {
+
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	records, err := h.Service.FetchAllCategoriesWithGroups(userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, records)
+
+}
+
 func (h *TransactionHandler) GetCategoryGroupByID(c *gin.Context) {
 
 	userID, err := utils.UserIDFromCtx(c)

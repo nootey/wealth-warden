@@ -884,6 +884,32 @@ func (r *TransactionRepository) FindAllCategoryGroups(tx *gorm.DB, userID int64)
 	return records, db.Error
 }
 
+func (r *TransactionRepository) FindAllCategoriesAndGroups(tx *gorm.DB, userID int64) ([]models.Category, []models.CategoryGroup, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var categories []models.Category
+	if err := db.Model(&models.Category{}).
+		Where("(user_id = ? OR user_id IS NULL) AND deleted_at IS NULL AND parent_id IS NOT NULL", userID).
+		Order("classification, name").
+		Find(&categories).Error; err != nil {
+		return nil, nil, err
+	}
+
+	var groups []models.CategoryGroup
+	if err := db.Model(&models.CategoryGroup{}).
+		Preload("Categories").
+		Where("user_id = ? OR user_id IS NULL", userID).
+		Order("classification, name").
+		Find(&groups).Error; err != nil {
+		return nil, nil, err
+	}
+
+	return categories, groups, nil
+}
+
 func (r *TransactionRepository) FindCategoryGroupByID(tx *gorm.DB, ID int64, userID int64) (models.CategoryGroup, error) {
 	db := tx
 	if db == nil {
@@ -961,4 +987,65 @@ func (r *TransactionRepository) IsCategoryInGroup(tx *gorm.DB, categoryID int64)
 	query := `SELECT EXISTS(SELECT 1 FROM category_group_members WHERE category_id = ?)`
 	err := tx.Raw(query, categoryID).Scan(&exists).Error
 	return exists, err
+}
+
+func (r *TransactionRepository) GetYearlyAverageForCategory(userID int64, accountID int64, categoryID int64, year int) (float64, error) {
+	var result struct {
+		Total        float64
+		Count        int64
+		ActiveMonths int64
+	}
+
+	query := `
+        SELECT 
+            COALESCE(SUM(ABS(amount)), 0) as total,
+            COUNT(*) as count,
+            COUNT(DISTINCT EXTRACT(MONTH FROM txn_date)) as active_months
+        FROM transactions
+        WHERE user_id = ?
+          AND account_id = ?
+          AND category_id = ?
+          AND deleted_at IS NULL
+          AND EXTRACT(YEAR FROM txn_date) = ?
+    `
+
+	err := r.DB.Raw(query, userID, accountID, categoryID, year).Scan(&result).Error
+
+	if err != nil || result.ActiveMonths == 0 {
+		return 0, err
+	}
+
+	monthlyAverage := result.Total / float64(result.ActiveMonths)
+	return monthlyAverage, err
+}
+
+func (r *TransactionRepository) GetYearlyAverageForCategoryGroup(userID int64, accountID int64, groupID int64, year int) (float64, error) {
+	var result struct {
+		Total        float64
+		Count        int64
+		ActiveMonths int64
+	}
+
+	query := `
+        SELECT 
+            COALESCE(SUM(ABS(t.amount)), 0) as total,
+            COUNT(*) as count,
+            COUNT(DISTINCT EXTRACT(MONTH FROM t.txn_date)) as active_months
+        FROM transactions t
+        INNER JOIN category_group_members cgm ON t.category_id = cgm.category_id
+        WHERE t.user_id = ?
+          AND t.account_id = ?
+          AND cgm.group_id = ?
+          AND t.deleted_at IS NULL
+          AND EXTRACT(YEAR FROM t.txn_date) = ?
+    `
+
+	err := r.DB.Raw(query, userID, accountID, groupID, year).Scan(&result).Error
+
+	if err != nil || result.ActiveMonths == 0 {
+		return 0, err
+	}
+
+	monthlyAverage := result.Total / float64(result.ActiveMonths)
+	return monthlyAverage, err
 }

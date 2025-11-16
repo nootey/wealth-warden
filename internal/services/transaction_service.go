@@ -1739,6 +1739,44 @@ func (s *TransactionService) FetchAllCategoryGroups(userID int64) ([]models.Cate
 	return categories, nil
 }
 
+func (s *TransactionService) FetchAllCategoriesWithGroups(userID int64) ([]models.CategoryOrGroup, error) {
+	categories, groups, err := s.Repo.FindAllCategoriesAndGroups(nil, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []models.CategoryOrGroup
+
+	// Add individual categories
+	for _, cat := range categories {
+		results = append(results, models.CategoryOrGroup{
+			ID:             cat.ID,
+			Name:           cat.DisplayName,
+			IsGroup:        false,
+			Classification: cat.Classification,
+			CategoryIDs:    []int64{cat.ID},
+		})
+	}
+
+	// Add category groups
+	for _, group := range groups {
+		categoryIDs := make([]int64, len(group.Categories))
+		for i, cat := range group.Categories {
+			categoryIDs[i] = cat.ID
+		}
+
+		results = append(results, models.CategoryOrGroup{
+			ID:             group.ID,
+			Name:           group.Name,
+			IsGroup:        true,
+			Classification: group.Classification,
+			CategoryIDs:    categoryIDs,
+		})
+	}
+
+	return results, nil
+}
+
 func (s *TransactionService) FetchCategoryGroupByID(userID int64, id int64) (*models.CategoryGroup, error) {
 
 	record, err := s.Repo.FindCategoryGroupByID(nil, id, userID)
