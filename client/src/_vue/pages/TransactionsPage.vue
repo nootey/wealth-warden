@@ -58,7 +58,7 @@ const activeColumns = computed<Column[]>(() => [
   { field: 'account', header: 'Account', type: 'enum', options: accounts.value, optionLabel: 'name'},
   { field: 'category', header: 'Category', type: 'enum', options: categories.value, optionLabel: 'name', hideOnMobile: true },
   { field: 'amount', header: 'Amount', type: "number" },
-  { field: 'created_at', header: 'Date', type: "date" },
+  { field: 'txn_date', header: 'Date', type: "date" },
   { field: 'description', header: 'Description', type: "text", hideOnMobile: true },
 ]);
 

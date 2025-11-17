@@ -79,6 +79,25 @@ const dateHelper = {
             dateFields.includes(field.toLowerCase()) ||
             field.toLowerCase().includes("date")
         );
+    },
+
+    combineDateAndTime(
+        dateSource: string | number | Date,
+        timeSource: string | number | Date,
+        format: string = "YYYY-MM-DD HH:mm",
+        utc: boolean = false
+    ): string {
+        if (!dateSource || !timeSource) return "";
+
+        const dateObj = utc ? dayjs.utc(dateSource) : dayjs.utc(dateSource).local();
+        const timeObj = utc ? dayjs.utc(timeSource) : dayjs.utc(timeSource).local();
+
+        const combined = dateObj
+            .hour(timeObj.hour())
+            .minute(timeObj.minute())
+            .second(timeObj.second());
+
+        return combined.format(format);
     }
 };
 

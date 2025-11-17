@@ -129,8 +129,8 @@ defineExpose({ refresh });
                         <span>{{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}</span>
                     </div>
                 </template>
-                <template v-else-if="field === 'created_at'">
-                   {{ dateHelper.formatDate(data?.created_at, true) }}
+                <template v-else-if="field === 'txn_date'">
+                    {{ dateHelper.combineDateAndTime(data?.txn_date, data?.created_at) }}
                 </template>
                 <template v-else-if="field === 'account'">
                     <div class="flex flex-row gap-2 align-items-center account-row">
