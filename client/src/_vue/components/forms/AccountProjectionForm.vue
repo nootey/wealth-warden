@@ -20,6 +20,10 @@ const props = defineProps<{
     accID: number;
 }>();
 
+const emit = defineEmits<{
+    (event: 'completeOperation'): void;
+}>();
+
 const transactionStore = useTransactionStore();
 const statStore = useStatisticsStore();
 const sharedStore = useSharedStore();
@@ -34,7 +38,16 @@ const loadingAverage = ref<boolean>(false);
 
 onMounted(async () => {
     categories.value = await transactionStore.getCategoriesWithGroups();
-    account.value = await sharedStore.getRecordByID("accounts", props.accID, );
+    account.value = await sharedStore.getRecordByID("accounts", props.accID);
+
+    if (account.value) {
+        if (account.value.balance_projection) {
+            record.value.balance_projection = account.value.balance_projection;
+        }
+        if (account.value.expected_balance) {
+            record.value.expected_balance = account.value.expected_balance;
+        }
+    }
 })
 
 const record = ref({
@@ -101,19 +114,9 @@ const currentBalanceNumber = computed(() => {
 });
 
 const expectedBalance = computed(() => {
-    if (record.value.balance_projection === 'fixed') {
-        if (!record.value.expected_balance) return 0;
-        try {
-            const balance = new Decimal(record.value.expected_balance);
-            return balance.toNumber();
-        } catch {
-            return 0;
-        }
-    }
-
     if (record.value.balance_projection === 'percentage') {
         if (!account.value?.balance?.end_balance || record.value.percentage_value === 0) {
-            return currentBalanceNumber.value; // Return current balance instead of 0
+            return currentBalanceNumber.value;
         }
         try {
             const currentBalance = new Decimal(account.value.balance.end_balance);
@@ -127,10 +130,33 @@ const expectedBalance = computed(() => {
     }
 
     if (record.value.balance_projection === 'multiplier') {
-        if (loadingAverage.value || !record.value.multiplier_category_id || !record.value.multiplier_value) {
+        if (loadingAverage.value) {
             return 0;
         }
-        return categoryAverage.value * record.value.multiplier_value;
+        if (record.value.multiplier_category_id && record.value.multiplier_value) {
+            return categoryAverage.value * record.value.multiplier_value;
+        }
+        if (record.value.expected_balance && record.value.expected_balance !== '0') {
+            try {
+                const balance = new Decimal(record.value.expected_balance);
+                return balance.toNumber();
+            } catch {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    if (record.value.balance_projection === 'fixed') {
+        if (record.value.expected_balance && record.value.expected_balance !== '0') {
+            try {
+                const balance = new Decimal(record.value.expected_balance);
+                return balance.toNumber();
+            } catch {
+                return 0;
+            }
+        }
+        return 0;
     }
 
     return 0;
@@ -167,18 +193,29 @@ const rules = computed(() => ({
 const v$ = useVuelidate(rules, { record });
 
 async function saveProjection() {
-    // TODO: Implement save
+
+    let calculatedBalance = expectedBalance.value;
+
+    const recordData: any = {
+        expected_balance: calculatedBalance.toString(),
+        balance_projection: record.value.balance_projection,
+    }
+
     try {
-        await accountStore
+        const res = await accountStore.saveProjection(props.accID, recordData);
+        toastStore.successResponseToast(res);
+        emit("completeOperation");
     } catch (e) {
         toastStore.errorResponseToast(e)
     }
 }
 
 async function revertProjection() {
-    // TODO: Implement revert
-    try {
 
+    try {
+        const res = await accountStore.revertProjection(props.accID);
+        toastStore.successResponseToast(res);
+        emit("completeOperation");
     } catch (e) {
         toastStore.errorResponseToast(e)
     }

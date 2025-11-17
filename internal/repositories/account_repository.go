@@ -407,6 +407,31 @@ func (r *AccountRepository) UpdateAccount(tx *gorm.DB, record *models.Account) (
 	return record.ID, nil
 }
 
+func (r *AccountRepository) UpdateAccountProjection(tx *gorm.DB, record *models.Account) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	updates := map[string]interface{}{}
+
+	if record.BalanceProjection != "" {
+		updates["balance_projection"] = record.BalanceProjection
+	}
+
+	if !record.ExpectedBalance.IsZero() || record.ExpectedBalance.Equal(decimal.NewFromInt(0)) {
+		updates["expected_balance"] = record.ExpectedBalance
+	}
+	updates["updated_at"] = time.Now().UTC()
+
+	result := db.Model(&models.Account{}).Where("id = ?", record.ID).Updates(updates)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return record.ID, nil
+}
+
 func (r *AccountRepository) FindEarliestTransactionDate(tx *gorm.DB, accountID int64) (*time.Time, error) {
 	db := tx
 	if db == nil {

@@ -71,3 +71,8 @@ type AccountReq struct {
 	Balance        *decimal.Decimal `json:"balance"`
 	OpenedAt       time.Time        `json:"opened_at"`
 }
+
+type AccountProjectionReq struct {
+	ExpectedBalance   decimal.Decimal `json:"expected_balance" validate:"required"`
+	BalanceProjection string          `json:"balance_projection" validate:"required"`
+}

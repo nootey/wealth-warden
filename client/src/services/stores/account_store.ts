@@ -66,6 +66,20 @@ export const useAccountStore = defineStore('account', {
             } catch (err) {
                 throw err;
             }
-        }
+        },
+        async saveProjection(id: number, record: object) {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/${id}/projection/save`, record);
+            } catch (err) {
+                throw err;
+            }
+        },
+        async revertProjection(id: number) {
+            try {
+                return await apiClient.post(`${this.apiPrefix}/${id}/projection/revert`);
+            } catch (err) {
+                throw err;
+            }
+        },
     },
 });

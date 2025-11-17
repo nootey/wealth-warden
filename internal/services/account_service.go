@@ -838,3 +838,125 @@ func (s *AccountService) UpdateDailyCashNoSnapshot(
 	}
 	return s.Repo.AddToDailyBalance(tx, acc.ID, asOf, "cash_inflows", amt)
 }
+
+func (s *AccountService) SaveAccountProjection(id, userID int64, req *models.AccountProjectionReq) error {
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	exAcc, err := s.Repo.FindAccountByID(tx, id, userID, true)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	acc := &models.Account{
+		ID:                id,
+		UserID:            userID,
+		ExpectedBalance:   req.ExpectedBalance,
+		BalanceProjection: req.BalanceProjection,
+	}
+
+	changes := utils.InitChanges()
+
+	utils.CompareChanges(exAcc.Name, acc.Name, changes, "name")
+	utils.CompareChanges(exAcc.BalanceProjection, acc.BalanceProjection, changes, "balance_projection")
+	utils.CompareChanges("", "save", changes, "action")
+	utils.CompareChanges(exAcc.ExpectedBalance.String(), acc.ExpectedBalance.String(), changes, "expected_balance")
+
+	_, err = s.Repo.UpdateAccountProjection(tx, acc)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	if !changes.IsEmpty() {
+		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.Repo,
+			Logger:      s.Ctx.Logger,
+			Event:       "update",
+			Category:    "account_projection",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *AccountService) RevertAccountProjection(id, userID int64) error {
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	exAcc, err := s.Repo.FindAccountByID(tx, id, userID, true)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	acc := &models.Account{
+		ID:                id,
+		UserID:            userID,
+		ExpectedBalance:   decimal.NewFromInt(0),
+		BalanceProjection: "fixed",
+	}
+
+	changes := utils.InitChanges()
+
+	utils.CompareChanges(exAcc.Name, acc.Name, changes, "name")
+	utils.CompareChanges(exAcc.BalanceProjection, acc.BalanceProjection, changes, "balance_projection")
+	utils.CompareChanges("", "revert", changes, "action")
+	utils.CompareChanges(exAcc.ExpectedBalance.String(), acc.ExpectedBalance.String(), changes, "expected_balance")
+
+	_, err = s.Repo.UpdateAccountProjection(tx, acc)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	if !changes.IsEmpty() {
+		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.Ctx.LoggingService.Repo,
+			Logger:      s.Ctx.Logger,
+			Event:       "update",
+			Category:    "account_projection",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

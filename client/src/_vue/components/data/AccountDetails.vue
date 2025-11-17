@@ -112,8 +112,18 @@ async function confirmCloseAccount(id: number) {
 
 function openModal(type: string) {
     switch (type) {
-        case "edit-projection": {
+        case "editProjection": {
             projectionsModal.value = true;
+            break;
+        }
+    }
+}
+
+async function handleEmit(type: string) {
+    switch (type) {
+        case "completeOperation": {
+            projectionsModal.value = false;
+            await loadRecord(props.accID);
             break;
         }
     }
@@ -125,7 +135,7 @@ function openModal(type: string) {
 
     <Dialog position="right" class="rounded-dialog" v-model:visible="projectionsModal"
             :breakpoints="{ '501px': '90vw' }" :modal="true" :style="{ width: '500px' }" header="Edit account projections">
-            <AccountProjectionForm :accID="accID"/>
+            <AccountProjectionForm :accID="accID" @completeOperation="handleEmit('completeOperation')"/>
     </Dialog>
 
     <div v-if="account" class="flex flex-column w-full gap-3">
@@ -182,7 +192,7 @@ function openModal(type: string) {
                     <h4>Projections</h4>
                     ·
                     <i class="pi pi-pen-to-square hover-icon text-xs" v-tooltip="'Edit account projections'"
-                       @click="openModal('edit-projection')"/>
+                       @click="openModal('editProjection')"/>
                 </div>
                 <span> Expected balance: <b> {{ vueHelper.displayAsCurrency(account.expected_balance! )}} </b> </span>
                 <span> Difference:
