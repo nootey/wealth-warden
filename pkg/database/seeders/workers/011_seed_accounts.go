@@ -15,20 +15,21 @@ import (
 
 func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
 	type acctSeed struct {
-		Name           string
-		Type           string
-		Subtype        string `gorm:"column:sub_type"`
-		Classification string
-		Currency       string
-		StartBalance   decimal.Decimal
+		Name              string
+		Type              string
+		Subtype           string `gorm:"column:sub_type"`
+		Classification    string
+		Currency          string
+		StartBalance      decimal.Decimal
+		BalanceProjection string `gorm:"column:balance_projection"`
 	}
 
 	seeds := []acctSeed{
-		{Name: "Checking account", Type: "cash", Subtype: "checking", Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(1000)},
-		{Name: "Savings account", Type: "cash", Subtype: "savings", Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(10000)},
-		{Name: "Investment account", Type: "investment", Subtype: "brokerage", Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(2500)},
-		{Name: "Crypto Exchange", Type: "crypto", Subtype: "exchange", Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(100000)},
-		{Name: "Gambling debt", Type: "other_liability", Subtype: "other", Classification: "liability", Currency: "eur", StartBalance: decimal.NewFromInt(-50000)},
+		{Name: "Checking account", Type: "cash", Subtype: "checking", Classification: "asset", Currency: "eur", BalanceProjection: "fixed", StartBalance: decimal.NewFromInt(1000)},
+		{Name: "Savings account", Type: "cash", Subtype: "savings", Classification: "asset", Currency: "eur", BalanceProjection: "fixed", StartBalance: decimal.NewFromInt(10000)},
+		{Name: "Investment account", Type: "investment", Subtype: "brokerage", Classification: "asset", Currency: "eur", BalanceProjection: "fixed", StartBalance: decimal.NewFromInt(2500)},
+		{Name: "Crypto Exchange", Type: "crypto", Subtype: "exchange", Classification: "asset", Currency: "eur", BalanceProjection: "fixed", StartBalance: decimal.NewFromInt(100000)},
+		{Name: "Gambling debt", Type: "other_liability", Subtype: "other", Classification: "liability", Currency: "eur", BalanceProjection: "fixed", StartBalance: decimal.NewFromInt(-50000)},
 	}
 
 	usernames := []string{"Support", "Member"}
@@ -88,12 +89,14 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 
 			// Create account
 			acc := models.Account{
-				UserID:        u.ID,
-				Name:          s.Name,
-				AccountTypeID: at.ID,
-				Currency:      strings.ToUpper(s.Currency),
-				OpenedAt:      asOf,
-				UpdatedAt:     asOf,
+				UserID:            u.ID,
+				Name:              s.Name,
+				AccountTypeID:     at.ID,
+				Currency:          strings.ToUpper(s.Currency),
+				BalanceProjection: s.BalanceProjection,
+				ExpectedBalance:   decimal.NewFromInt(0),
+				OpenedAt:          asOf,
+				UpdatedAt:         asOf,
 			}
 			if err := db.WithContext(ctx).Create(&acc).Error; err != nil {
 				return err
@@ -125,21 +128,21 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 
 func SeedRootAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) error {
 	type acctSeed struct {
-		Name           string
-		Type           string
-		Subtype        string `gorm:"column:sub_type"`
-		Classification string
-		Currency       string
-		StartBalance   decimal.Decimal
+		Name              string
+		Type              string
+		Subtype           string `gorm:"column:sub_type"`
+		Classification    string
+		Currency          string
+		StartBalance      decimal.Decimal
+		BalanceProjection string `gorm:"column:balance_projection"`
 	}
 
 	seeds := []acctSeed{
-		{Name: "Checking", Type: "cash", Subtype: "checking", Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(0)},
-		{Name: "Savings", Type: "cash", Subtype: "savings", Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(0)},
-		{Name: "Investment", Type: "investment", Subtype: "brokerage", Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(0)},
-		{Name: "Crypto", Type: "crypto", Subtype: "exchange", Classification: "asset", Currency: "eur", StartBalance: decimal.NewFromInt(0)},
+		{Name: "Checking", Type: "cash", Subtype: "checking", Classification: "asset", Currency: "eur", BalanceProjection: "fixed", StartBalance: decimal.NewFromInt(0)},
+		{Name: "Savings", Type: "cash", Subtype: "savings", Classification: "asset", Currency: "eur", BalanceProjection: "fixed", StartBalance: decimal.NewFromInt(0)},
+		{Name: "Investment", Type: "investment", Subtype: "brokerage", Classification: "asset", Currency: "eur", BalanceProjection: "fixed", StartBalance: decimal.NewFromInt(0)},
+		{Name: "Crypto", Type: "crypto", Subtype: "exchange", Classification: "asset", Currency: "eur", BalanceProjection: "fixed", StartBalance: decimal.NewFromInt(0)},
 	}
-
 	usernames := []string{"Support"}
 
 	var users []models.User
@@ -197,12 +200,14 @@ func SeedRootAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 
 			// Create account
 			acc := models.Account{
-				UserID:        u.ID,
-				Name:          s.Name,
-				AccountTypeID: at.ID,
-				Currency:      strings.ToUpper(s.Currency),
-				OpenedAt:      asOf,
-				UpdatedAt:     asOf,
+				UserID:            u.ID,
+				Name:              s.Name,
+				AccountTypeID:     at.ID,
+				Currency:          strings.ToUpper(s.Currency),
+				BalanceProjection: s.BalanceProjection,
+				ExpectedBalance:   decimal.NewFromInt(0),
+				OpenedAt:          asOf,
+				UpdatedAt:         asOf,
 			}
 			if err := db.WithContext(ctx).Create(&acc).Error; err != nil {
 				return err
