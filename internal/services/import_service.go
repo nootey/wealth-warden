@@ -528,7 +528,7 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 
 		openedAt := acc.OpenedAt
 		if openedAt.IsZero() {
-			openedAt = time.Now()
+			openedAt = time.Now().UTC()
 		}
 		openedDay := utils.LocalMidnightUTC(openedAt, loc)
 
@@ -749,7 +749,7 @@ func (s *ImportService) ImportCategories(userID int64, payload models.CategoryIm
 			panic(p)
 		}
 	}()
-	
+
 	l.Info("processing categories")
 	for _, cat := range payload.Categories {
 

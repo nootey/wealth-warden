@@ -311,7 +311,7 @@ func (r *UserRepository) UpdateUser(tx *gorm.DB, record models.User) (int64, err
 		Updates(map[string]interface{}{
 			"display_name": record.DisplayName,
 			"role_id":      record.RoleID,
-			"updated_at":   time.Now(),
+			"updated_at":   time.Now().UTC(),
 		}).Error; err != nil {
 		return 0, err
 	}
@@ -328,7 +328,7 @@ func (r *UserRepository) UpdateUserPassword(tx *gorm.DB, id int64, password stri
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"password":   password,
-			"updated_at": time.Now(),
+			"updated_at": time.Now().UTC(),
 		}).Error; err != nil {
 		return err
 	}
@@ -344,8 +344,8 @@ func (r *UserRepository) DeleteUser(tx *gorm.DB, id int64) error {
 	res := db.Model(&models.User{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(map[string]any{
-			"deleted_at": time.Now(),
-			"updated_at": time.Now(),
+			"deleted_at": time.Now().UTC(),
+			"updated_at": time.Now().UTC(),
 		})
 
 	if res.Error != nil {

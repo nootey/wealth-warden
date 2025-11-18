@@ -188,7 +188,7 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 
 	openedAt := req.OpenedAt
 	if openedAt.IsZero() {
-		openedAt = time.Now()
+		openedAt = time.Now().UTC()
 	}
 	openedDay := utils.LocalMidnightUTC(openedAt, loc)
 
@@ -463,7 +463,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 				TransactionType: txnType,
 				Amount:          amount,
 				Currency:        exAcc.Currency,
-				TxnDate:         time.Now(),
+				TxnDate:         time.Now().UTC(),
 				Description:     &desc,
 				IsAdjustment:    true,
 			}
@@ -754,7 +754,7 @@ func (s *AccountService) BackfillBalancesForUser(userID int64, from, to string) 
 }
 
 func (s *AccountService) resolveUserDateRange(tx *gorm.DB, userID int64, from, to string) (time.Time, time.Time, error) {
-	today := time.Now().Truncate(24 * time.Hour)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	var dfrom time.Time
 	var dto time.Time

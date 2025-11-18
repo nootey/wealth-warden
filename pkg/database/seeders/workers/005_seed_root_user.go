@@ -3,16 +3,17 @@ package workers
 import (
 	"context"
 	"fmt"
-	"go.uber.org/zap"
 	"time"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
+
+	"go.uber.org/zap"
 
 	"gorm.io/gorm"
 )
 
 func SeedRootUser(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
-	
+
 	email := cfg.Seed.SuperAdminEmail
 
 	// Hash the Super Admin password.
@@ -43,7 +44,7 @@ func SeedRootUser(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 		err = db.Exec(`
 			INSERT INTO users (email, password, display_name, role_id, email_confirmed, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, email, hashedPassword, "Support", globalRoleID, time.Now(), time.Now(), time.Now()).Error
+		`, email, hashedPassword, "Support", globalRoleID, time.Now().UTC(), time.Now().UTC(), time.Now().UTC()).Error
 		if err != nil {
 			return fmt.Errorf("failed to insert super admin user: %w", err)
 		}
@@ -59,7 +60,7 @@ func SeedRootUser(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 		INSERT INTO settings_user (user_id, theme, accent, language, timezone, created_at, updated_at)
 		VALUES (?, 'system', NULL, 'en', 'UTC', ?, ?)
 		ON CONFLICT (user_id) DO NOTHING
-	`, userID, time.Now(), time.Now()).Error
+	`, userID, time.Now().UTC(), time.Now().UTC()).Error
 	if err != nil {
 		return fmt.Errorf("failed to insert root user default settings: %w", err)
 	}

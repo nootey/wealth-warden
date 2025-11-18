@@ -33,9 +33,18 @@ const dateHelper = {
     ): string {
         if (!date_string) return "";
 
-        const date = utc ? dayjs.utc(date_string) : dayjs.utc(date_string).local();
-        const formatted_date = date.format(date_format);
+        const isDateOnly = typeof date_string === 'string' &&
+            /^\d{4}-\d{2}-\d{2}$/.test(date_string);
 
+        let date;
+
+        if (isDateOnly) {
+            date = dayjs(date_string);
+        } else {
+            date = utc ? dayjs.utc(date_string) : dayjs.utc(date_string).local();
+        }
+
+        const formatted_date = date.format(date_format);
         return time ? `${formatted_date} ${date.format("HH:mm")}` : formatted_date;
     },
 

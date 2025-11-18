@@ -45,7 +45,7 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 		usersByName[u.DisplayName] = u
 	}
 
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	const minDaysBack = 365*1 + 1
@@ -154,7 +154,7 @@ func SeedRootAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 		usersByName[u.DisplayName] = u
 	}
 
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	const minDaysBack = 365*5 + 1

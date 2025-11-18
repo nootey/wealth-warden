@@ -342,7 +342,7 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 
 	t := req.CreatedAt
 	if t.IsZero() {
-		t = time.Now()
+		t = time.Now().UTC()
 	}
 
 	txDate := utils.LocalMidnightUTC(t, loc)
@@ -1387,7 +1387,7 @@ func (s *TransactionService) InsertTransactionTemplate(userID int64, req *models
 		time.UTC,
 	)
 
-	firstValidDay := time.Now().In(time.UTC).Truncate(24 * time.Hour)
+	firstValidDay := time.Now().UTC().Truncate(24 * time.Hour)
 
 	if firstRun.Before(firstValidDay) {
 		tx.Rollback()
@@ -1502,7 +1502,7 @@ func (s *TransactionService) UpdateTransactionTemplate(userID, id int64, req *mo
 		req.NextRunAt.Year(), req.NextRunAt.Month(), req.NextRunAt.Day(),
 		0, 0, 0, 0, time.UTC,
 	)
-	firstValidDay := time.Now().In(time.UTC).Truncate(24 * time.Hour)
+	firstValidDay := time.Now().UTC().Truncate(24 * time.Hour)
 	if nextRun.Before(firstValidDay) {
 		tx.Rollback()
 		return fmt.Errorf("next run cannot be today or earlier (%s)", firstValidDay.Format("2006-01-02"))

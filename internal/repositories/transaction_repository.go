@@ -435,7 +435,7 @@ func (r *TransactionRepository) UpdateTransaction(tx *gorm.DB, record models.Tra
 			"currency":         record.Currency,
 			"txn_date":         record.TxnDate,
 			"description":      record.Description,
-			"updated_at":       time.Now(),
+			"updated_at":       time.Now().UTC(),
 		}).Error; err != nil {
 		return 0, err
 	}
@@ -453,7 +453,7 @@ func (r *TransactionRepository) UpdateCategory(tx *gorm.DB, record models.Catego
 		Updates(map[string]interface{}{
 			"display_name":   record.DisplayName,
 			"classification": record.Classification,
-			"updated_at":     time.Now(),
+			"updated_at":     time.Now().UTC(),
 		}).Error; err != nil {
 		return 0, err
 	}
@@ -469,8 +469,8 @@ func (r *TransactionRepository) DeleteTransaction(tx *gorm.DB, id, userID int64)
 	res := db.Model(&models.Transaction{}).
 		Where("id = ? AND user_id = ? AND deleted_at IS NULL", id, userID).
 		Updates(map[string]any{
-			"deleted_at": time.Now(),
-			"updated_at": time.Now(),
+			"deleted_at": time.Now().UTC(),
+			"updated_at": time.Now().UTC(),
 		})
 
 	if res.Error != nil {
@@ -488,8 +488,8 @@ func (r *TransactionRepository) DeleteTransfer(tx *gorm.DB, id, userID int64) er
 	res := db.Model(&models.Transfer{}).
 		Where("id = ? AND user_id = ? AND deleted_at IS NULL", id, userID).
 		Updates(map[string]any{
-			"deleted_at": time.Now(),
-			"updated_at": time.Now(),
+			"deleted_at": time.Now().UTC(),
+			"updated_at": time.Now().UTC(),
 		})
 
 	if res.Error != nil {
@@ -511,8 +511,8 @@ func (r *TransactionRepository) BulkDeleteTransactions(tx *gorm.DB, ids []int64,
 	res := db.Model(&models.Transaction{}).
 		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
 		Updates(map[string]any{
-			"deleted_at": time.Now(),
-			"updated_at": time.Now(),
+			"deleted_at": time.Now().UTC(),
+			"updated_at": time.Now().UTC(),
 		})
 
 	if res.Error != nil {
@@ -535,8 +535,8 @@ func (r *TransactionRepository) BulkDeleteTransfers(tx *gorm.DB, ids []int64, us
 	res := db.Model(&models.Transfer{}).
 		Where("id IN ? AND user_id = ? AND deleted_at IS NULL", ids, userID).
 		Updates(map[string]any{
-			"deleted_at": time.Now(),
-			"updated_at": time.Now(),
+			"deleted_at": time.Now().UTC(),
+			"updated_at": time.Now().UTC(),
 		})
 
 	if res.Error != nil {
@@ -551,7 +551,7 @@ func (r *TransactionRepository) ArchiveCategory(tx *gorm.DB, id, userID int64) e
 	if db == nil {
 		db = r.DB
 	}
-	now := time.Now()
+	now := time.Now().UTC()
 	res := db.Model(&models.Category{}).
 		Where("id = ? AND (user_id = ? OR user_id IS NULL) AND deleted_at IS NULL", id, userID).
 		Updates(map[string]any{
@@ -600,7 +600,7 @@ func (r *TransactionRepository) RestoreTransaction(tx *gorm.DB, id, userID int64
 		Where("id = ? AND user_id = ? AND deleted_at IS NOT NULL", id, userID).
 		Updates(map[string]any{
 			"deleted_at": gorm.Expr("NULL"),
-			"updated_at": time.Now(),
+			"updated_at": time.Now().UTC(),
 		})
 	return res.Error
 }
@@ -626,7 +626,7 @@ func (r *TransactionRepository) RestoreCategory(tx *gorm.DB, id int64, userID *i
 
 	res := scope.Updates(map[string]any{
 		"deleted_at": gorm.Expr("NULL"),
-		"updated_at": time.Now(),
+		"updated_at": time.Now().UTC(),
 	})
 
 	return res.Error
@@ -661,7 +661,7 @@ func (r *TransactionRepository) RestoreCategoryName(tx *gorm.DB, id int64, userI
 
 	res := scope.Updates(map[string]any{
 		"display_name": s,
-		"updated_at":   time.Now(),
+		"updated_at":   time.Now().UTC(),
 	})
 
 	return res.Error
@@ -739,7 +739,7 @@ func (r *TransactionRepository) UpdateTransactionTemplate(tx *gorm.DB, record mo
 	if onlyActive {
 		updates := map[string]interface{}{}
 		updates["is_active"] = record.IsActive
-		updates["updated_at"] = time.Now()
+		updates["updated_at"] = time.Now().UTC()
 		db.Model(&models.TransactionTemplate{}).Where("id = ?", record.ID).Updates(updates)
 	} else {
 		if err := db.Model(models.TransactionTemplate{}).
@@ -750,7 +750,7 @@ func (r *TransactionRepository) UpdateTransactionTemplate(tx *gorm.DB, record mo
 				"next_run_at": record.NextRunAt,
 				"end_date":    record.EndDate,
 				"max_runs":    record.MaxRuns,
-				"updated_at":  time.Now(),
+				"updated_at":  time.Now().UTC(),
 			}).Error; err != nil {
 			return 0, err
 		}
@@ -957,7 +957,7 @@ func (r *TransactionRepository) UpdateCategoryGroup(tx *gorm.DB, record models.C
 			"name":           record.Name,
 			"classification": record.Classification,
 			"description":    record.Description,
-			"updated_at":     time.Now(),
+			"updated_at":     time.Now().UTC(),
 		}).Error; err != nil {
 		return 0, err
 	}

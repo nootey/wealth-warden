@@ -132,7 +132,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 			// Insert role with is_global flag set to true.
 			err = db.Exec(
 				`INSERT INTO roles (name, is_default, created_at, updated_at) VALUES (?, ?, ?, ?)`,
-				role.Name, true, time.Now(), time.Now(),
+				role.Name, true, time.Now().UTC(), time.Now().UTC(),
 			).Error
 			if err != nil {
 				return fmt.Errorf("error inserting role %s: %w", role.Name, err)
@@ -157,7 +157,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 		if permID == 0 {
 			err = db.Exec(
 				`INSERT INTO permissions (name, description, created_at, updated_at) VALUES (?, ?, ?, ?)`,
-				perm.Name, perm.Description, time.Now(), time.Now(),
+				perm.Name, perm.Description, time.Now().UTC(), time.Now().UTC(),
 			).Error
 			if err != nil {
 				return fmt.Errorf("error inserting permission %s: %w", perm, err)
@@ -184,7 +184,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 			if exists == 0 {
 				err = db.Exec(
 					`INSERT INTO role_permissions (role_id, permission_id, created_at, updated_at) VALUES (?, ?, ?, ?)`,
-					roleID, permID, time.Now(), time.Now(),
+					roleID, permID, time.Now().UTC(), time.Now().UTC(),
 				).Error
 				if err != nil {
 					return fmt.Errorf("error inserting role_permission for %s -> %s: %w", rolePerm.Role, perm, err)

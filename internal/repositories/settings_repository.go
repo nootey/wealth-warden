@@ -1,9 +1,10 @@
 package repositories
 
 import (
-	"gorm.io/gorm"
 	"time"
 	"wealth-warden/internal/models"
+
+	"gorm.io/gorm"
 )
 
 type SettingsRepository struct {
@@ -75,7 +76,7 @@ func (r *SettingsRepository) UpdateUserSettings(tx *gorm.DB, userID int64, recor
 		"accent":     record.Accent,
 		"language":   record.Language,
 		"timezone":   record.Timezone,
-		"updated_at": time.Now(),
+		"updated_at": time.Now().UTC(),
 	}
 
 	res := db.Model(&models.SettingsUser{}).

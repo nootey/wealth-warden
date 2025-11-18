@@ -16,7 +16,7 @@ import (
 )
 
 func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	var users []models.User
@@ -159,8 +159,8 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg 
 					Currency:        acc.Currency,
 					TxnDate:         date,
 					IsAdjustment:    false,
-					CreatedAt:       time.Now(),
-					UpdatedAt:       time.Now(),
+					CreatedAt:       time.Now().UTC(),
+					UpdatedAt:       time.Now().UTC(),
 				}
 				if err := db.WithContext(ctx).Create(&t).Error; err != nil {
 					return err

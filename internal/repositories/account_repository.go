@@ -401,6 +401,7 @@ func (r *AccountRepository) UpdateAccount(tx *gorm.DB, record *models.Account) (
 		updates["opened_at"] = record.OpenedAt
 	}
 	updates["is_active"] = record.IsActive
+	updates["updated_at"] = time.Now().UTC()
 
 	db.Model(&models.Account{}).Where("id = ?", record.ID).Updates(updates)
 
@@ -517,8 +518,8 @@ func (r *AccountRepository) CloseAccount(tx *gorm.DB, id, userID int64) error {
 		Where("id = ? AND user_id = ? AND closed_at IS NULL", id, userID).
 		Updates(map[string]any{
 			"is_active":  false,
-			"closed_at":  time.Now(),
-			"updated_at": time.Now(),
+			"closed_at":  time.Now().UTC(),
+			"updated_at": time.Now().UTC(),
 		})
 
 	if res.Error != nil {

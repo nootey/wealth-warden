@@ -155,7 +155,7 @@ func (r *RolePermissionRepository) UpdateRole(tx *gorm.DB, record models.Role) (
 		Updates(map[string]interface{}{
 			"name":        record.Name,
 			"description": record.Description,
-			"updated_at":  time.Now(),
+			"updated_at":  time.Now().UTC(),
 		}).Error; err != nil {
 		return 0, err
 	}
