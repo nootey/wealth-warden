@@ -292,7 +292,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 	}()
 
 	// Load record
-	exAcc, err := s.Repo.FindAccountByID(tx, id, userID, true)
+	exAcc, err := s.Repo.FindAccountByIDWithInitialBalance(tx, id, userID)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
@@ -349,6 +349,8 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 			}
 		}
 
+		initialBalance := exAcc.Balance.StartBalance
+
 		// Delete all existing snapshots for this account
 		err = s.Repo.DeleteAccountSnapshots(tx, id)
 		if err != nil {
@@ -356,11 +358,23 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 			return fmt.Errorf("failed to delete existing snapshots: %w", err)
 		}
 
-		// Update the balance AsOf date to match the new OpenedAt
-		err = s.Repo.UpdateBalanceAsOf(tx, id, exAcc.OpenedAt, newOpenedAt)
+		// Create new initial balance with the true initial amount at the new date
+		newInitialBalance := &models.Balance{
+			AccountID:    id,
+			Currency:     models.DefaultCurrency,
+			StartBalance: initialBalance,
+			AsOf:         newOpenedAt,
+		}
+
+		_, err = s.Repo.InsertBalance(tx, newInitialBalance)
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to update balance as_of date: %w", err)
+			return fmt.Errorf("failed to create new initial balance: %w", err)
+		}
+
+		if err := s.Repo.FrontfillBalances(tx, id, models.DefaultCurrency, newOpenedAt); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to rebuild balances from transactions: %w", err)
 		}
 
 		// Re-seed snapshots from the new opened date to today
@@ -701,6 +715,7 @@ func (s *AccountService) UpdateBalancesForTransfer(
 
 	return nil
 }
+
 func (s *AccountService) BackfillBalancesForUser(userID int64, from, to string) error {
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {

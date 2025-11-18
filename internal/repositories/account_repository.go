@@ -841,3 +841,7 @@ func (r *AccountRepository) DeleteAccountSnapshots(tx *gorm.DB, accountID int64)
 	return db.Where("account_id = ?", accountID).
 		Delete(&models.AccountDailySnapshot{}).Error
 }
+
+func (r *AccountRepository) DeleteAllBalancesForAccount(tx *gorm.DB, accountID int64) error {
+	return tx.Where("account_id = ?", accountID).Delete(&models.Balance{}).Error
+}
