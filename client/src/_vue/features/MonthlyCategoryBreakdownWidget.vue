@@ -8,6 +8,8 @@ import { useChartStore } from "../../services/stores/chart_store.ts";
 import type {Category} from "../../models/transaction_models.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
 import Select from "primevue/select";
+import type {Stats} from "../../models/chart_models.ts";
+import vueHelper from "../../utils/vue_helper.ts";
 
 const chartStore = useChartStore();
 const toastStore = useToastStore();
@@ -22,6 +24,8 @@ const series = ref<{ name: string; data: number[] }[]>([]);
 const yearOptions = computed(() =>
     allYears.value.map(y => ({ label: String(y), value: y }))
 );
+
+const stats = ref<Stats | null>(null);
 
 type OptionItem = { label: string; value: number | undefined; meta: Category }
 
@@ -85,6 +89,7 @@ const fetchData = async () => {
 
         const ys: number[] = res?.years ?? [];
         const by = res?.by_year ?? {};
+        stats.value = res?.stats ?? null;
 
         series.value = ys.map((y: number) => {
             const data = new Array(12).fill(0);
@@ -190,6 +195,46 @@ watch(selectedCategory, async () => {
                     {{ selectedCategory?.display_name ?? 'any category' }}
                     in {{ selectedYears.join(', ') }}.
                 </span>
+            </div>
+        </div>
+
+        <!-- Stats Section -->
+        <div v-if="hasAnyData && stats" class="flex flex-column gap-3 mt-4">
+            <!-- Per-Year Stats -->
+            <div class="grid">
+                <div v-for="year in selectedYears" :key="year"
+                     class="col-12 md:col-4">
+                    <div class="surface-card p-3 border-round">
+                        <div class="text-500 font-medium mb-2">{{ year }}</div>
+                        <div class="text-900 font-bold text-xl mb-1">
+                            {{ vueHelper.displayAsCurrency(stats.year_stats[year]?.total ?? 0) }}
+                        </div>
+                        <div class="text-500 text-sm">
+                            Avg: {{ vueHelper.displayAsCurrency(stats.year_stats[year]?.monthly_avg ?? 0) }}/mo
+                            <span class="text-400">
+                                ({{ stats.year_stats[year]?.months_with_data ?? 0 }} months)
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- All Years Combined -->
+            <div class="surface-card p-3 border-round">
+                <div class="flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-500 font-medium mb-1">All Selected Years</div>
+                        <div class="text-900 font-bold text-2xl">
+                            {{ vueHelper.displayAsCurrency(stats.all_years_total) }}
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-500 text-sm">Monthly Average</div>
+                        <div class="text-900 font-bold text-xl">
+                            {{ vueHelper.displayAsCurrency(stats.all_years_avg) }}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

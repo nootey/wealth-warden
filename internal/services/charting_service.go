@@ -330,6 +330,10 @@ func (s *ChartingService) GetCategoryUsageForYears(
 ) (*models.MultiYearCategoryUsageResponse, error) {
 
 	byYear := make(map[int]models.CategoryUsageResponse, len(years))
+	yearStats := make(map[int]models.YearStat, len(years))
+
+	var allYearsTotal decimal.Decimal = decimal.NewFromInt(0)
+	var totalMonthsWithData int = 0
 
 	for _, y := range years {
 		one, err := s.GetCategoryUsageForYear(userID, y, class, accID, catID, asPercent)
@@ -337,11 +341,45 @@ func (s *ChartingService) GetCategoryUsageForYears(
 			return nil, err
 		}
 		byYear[y] = *one
+
+		var yearTotal decimal.Decimal = decimal.NewFromInt(0)
+		monthsWithData := 0
+
+		for _, entry := range one.Series {
+			if entry.Amount.GreaterThan(decimal.NewFromInt(0)) {
+				yearTotal = yearTotal.Add(entry.Amount)
+				monthsWithData++
+			}
+		}
+
+		var monthlyAvg decimal.Decimal = decimal.NewFromInt(0)
+		if monthsWithData > 0 {
+			monthlyAvg = yearTotal.Div(decimal.NewFromInt(int64(monthsWithData)))
+		}
+
+		yearStats[y] = models.YearStat{
+			Total:          yearTotal,
+			MonthlyAvg:     monthlyAvg,
+			MonthsWithData: monthsWithData,
+		}
+
+		allYearsTotal = allYearsTotal.Add(yearTotal)
+		totalMonthsWithData += monthsWithData
+	}
+
+	var allYearsAvg decimal.Decimal = decimal.NewFromInt(0)
+	if totalMonthsWithData > 0 {
+		allYearsAvg = allYearsTotal.Div(decimal.NewFromInt(int64(totalMonthsWithData)))
 	}
 
 	return &models.MultiYearCategoryUsageResponse{
 		Years:  years,
 		Class:  class,
 		ByYear: byYear,
+		Stats: models.MultiYearStats{
+			YearStats:     yearStats,
+			AllYearsTotal: allYearsTotal,
+			AllYearsAvg:   allYearsAvg,
+		},
 	}, nil
 }

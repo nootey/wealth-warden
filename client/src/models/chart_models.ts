@@ -40,3 +40,15 @@ export interface MonthlyCategoryUsage {
     amount: string;
     percentage?: string;
 }
+
+export interface YearStat {
+    total: string;
+    monthly_avg: string;
+    months_with_data: number;
+}
+
+export interface Stats {
+    year_stats: Record<number, YearStat>;
+    all_years_total: string;
+    all_years_avg: string;
+}

@@ -58,4 +58,17 @@ type MultiYearCategoryUsageResponse struct {
 	Years  []int                         `json:"years"`
 	Class  string                        `json:"classification"`
 	ByYear map[int]CategoryUsageResponse `json:"by_year"`
+	Stats  MultiYearStats                `json:"stats"`
+}
+
+type MultiYearStats struct {
+	YearStats     map[int]YearStat `json:"year_stats"`
+	AllYearsTotal decimal.Decimal  `json:"all_years_total"`
+	AllYearsAvg   decimal.Decimal  `json:"all_years_avg"`
+}
+
+type YearStat struct {
+	Total          decimal.Decimal `json:"total"`
+	MonthlyAvg     decimal.Decimal `json:"monthly_avg"`
+	MonthsWithData int             `json:"months_with_data"`
 }
