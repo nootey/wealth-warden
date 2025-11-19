@@ -332,7 +332,7 @@ func (s *ChartingService) GetCategoryUsageForYears(
 	byYear := make(map[int]models.CategoryUsageResponse, len(years))
 	yearStats := make(map[int]models.YearStat, len(years))
 
-	var allYearsTotal decimal.Decimal = decimal.NewFromInt(0)
+	var allYearsTotal = decimal.NewFromInt(0)
 	var totalMonthsWithData int = 0
 
 	for _, y := range years {
@@ -342,7 +342,7 @@ func (s *ChartingService) GetCategoryUsageForYears(
 		}
 		byYear[y] = *one
 
-		var yearTotal decimal.Decimal = decimal.NewFromInt(0)
+		var yearTotal = decimal.NewFromInt(0)
 		monthsWithData := 0
 
 		for _, entry := range one.Series {
@@ -352,7 +352,7 @@ func (s *ChartingService) GetCategoryUsageForYears(
 			}
 		}
 
-		var monthlyAvg decimal.Decimal = decimal.NewFromInt(0)
+		var monthlyAvg = decimal.NewFromInt(0)
 		if monthsWithData > 0 {
 			monthlyAvg = yearTotal.Div(decimal.NewFromInt(int64(monthsWithData)))
 		}
@@ -367,7 +367,7 @@ func (s *ChartingService) GetCategoryUsageForYears(
 		totalMonthsWithData += monthsWithData
 	}
 
-	var allYearsAvg decimal.Decimal = decimal.NewFromInt(0)
+	var allYearsAvg = decimal.NewFromInt(0)
 	if totalMonthsWithData > 0 {
 		allYearsAvg = allYearsTotal.Div(decimal.NewFromInt(int64(totalMonthsWithData)))
 	}
