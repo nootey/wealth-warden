@@ -8,7 +8,7 @@ import { useChartStore } from "../../services/stores/chart_store.ts";
 import type {Category} from "../../models/transaction_models.ts";
 import {useTransactionStore} from "../../services/stores/transaction_store.ts";
 import Select from "primevue/select";
-import type {Stats} from "../../models/chart_models.ts";
+import type {YearlyCategoryStats} from "../../models/chart_models.ts";
 import vueHelper from "../../utils/vue_helper.ts";
 
 const chartStore = useChartStore();
@@ -25,7 +25,7 @@ const yearOptions = computed(() =>
     allYears.value.map(y => ({ label: String(y), value: y }))
 );
 
-const stats = ref<Stats | null>(null);
+const stats = ref<YearlyCategoryStats | null>(null);
 
 type OptionItem = { label: string; value: number | undefined; meta: Category }
 
@@ -138,9 +138,9 @@ watch(selectedCategory, async () => {
             <div id="filter-row" class="flex flex-row w-full align-items-center gap-2 justify-content-between">
 
                 <div class="flex flex-column gap-1">
-                <span class="text-sm" style="color: var(--text-secondary)">
-                  View and compare category totals by month.
-                </span>
+                    <span class="text-sm" style="color: var(--text-secondary)">
+                      View and compare category totals by month.
+                    </span>
                 </div>
 
                 <div id="action-col" class="flex flex-column w-5">
@@ -182,7 +182,6 @@ watch(selectedCategory, async () => {
                     />
                 </div>
 
-
             </div>
         </div>
 
@@ -198,41 +197,34 @@ watch(selectedCategory, async () => {
             </div>
         </div>
 
-        <!-- Stats Section -->
         <div v-if="hasAnyData && stats" class="flex flex-column gap-3 mt-4">
-            <!-- Per-Year Stats -->
-            <div class="grid">
-                <div v-for="year in selectedYears" :key="year"
-                     class="col-12 md:col-4">
-                    <div class="surface-card p-3 border-round">
-                        <div class="text-500 font-medium mb-2">{{ year }}</div>
-                        <div class="text-900 font-bold text-xl mb-1">
-                            {{ vueHelper.displayAsCurrency(stats.year_stats[year]?.total ?? 0) }}
-                        </div>
-                        <div class="text-500 text-sm">
-                            Avg: {{ vueHelper.displayAsCurrency(stats.year_stats[year]?.monthly_avg ?? 0) }}/mo
-                            <span class="text-400">
-                                ({{ stats.year_stats[year]?.months_with_data ?? 0 }} months)
-                            </span>
-                        </div>
+            <h5>Totals and averages</h5>
+
+            <div class="flex flex-row w-full justify-content-between p-3" style="border: 1px solid var(--border-color); border-radius: 16px;">
+                <div class="flex flex-column">
+                    <div class="mb-1">Total over time</div>
+                    <div class="font-bold text-xl">
+                        {{ vueHelper.displayAsCurrency(stats.all_time_total) }}
+                    </div>
+                </div>
+                <div class="flex flex-column text-right">
+                    <div>Average</div>
+                    <div class="font-bold text-xl">
+                        {{ vueHelper.displayAsCurrency(stats.all_time_avg) }}
                     </div>
                 </div>
             </div>
 
-            <!-- All Years Combined -->
-            <div class="surface-card p-3 border-round">
-                <div class="flex justify-content-between align-items-center">
-                    <div>
-                        <div class="text-500 font-medium mb-1">All Selected Years</div>
-                        <div class="text-900 font-bold text-2xl">
-                            {{ vueHelper.displayAsCurrency(stats.all_years_total) }}
-                        </div>
+            <div class="flex flex-row flex-wrap w-full gap-3 p-3" style="border: 1px solid var(--border-color); border-radius: 16px;">
+                <div v-for="year in selectedYears" :key="year"
+                     class="flex-1 flex flex-column align-items-center text-center p-3 year-box">
+                    <div class="mb-2 font-bold text-xl">{{ year }}</div>
+                    <div class="mb-1">
+                        Spent: {{ vueHelper.displayAsCurrency(stats.year_stats[year]?.total ?? 0) }}
                     </div>
-                    <div class="text-right">
-                        <div class="text-500 text-sm">Monthly Average</div>
-                        <div class="text-900 font-bold text-xl">
-                            {{ vueHelper.displayAsCurrency(stats.all_years_avg) }}
-                        </div>
+                    <div class="text-sm" style="color: var(--text-secondary)">
+                        Avg: {{ vueHelper.displayAsCurrency(stats.year_stats[year]?.monthly_avg ?? 0) }}/mo
+                        ({{ stats.year_stats[year]?.months_with_data ?? 0 }} months)
                     </div>
                 </div>
             </div>
@@ -241,9 +233,8 @@ watch(selectedCategory, async () => {
     </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 @media (max-width: 768px) {
-
     #filter-row {
         flex-direction: column !important;
         align-items: center !important;
@@ -252,6 +243,26 @@ watch(selectedCategory, async () => {
 
     #action-col {
         width: 100% !important;
+    }
+
+    .year-box {
+        min-width: calc(50% - 0.75rem);
+        border-right: none !important;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .year-box:last-child {
+    border-bottom: none !important;
+    }
+
+    .year-box:nth-last-child(2):nth-child(odd) {
+    border-bottom: none !important;
+    }
+}
+
+@media (min-width: 769px) {
+    .year-box:not(:last-child) {
+        border-right: 1px solid var(--border-color);
     }
 }
 </style>
