@@ -47,8 +47,8 @@ export interface YearStat {
     months_with_data: number;
 }
 
-export interface Stats {
+export interface YearlyCategoryStats {
     year_stats: Record<number, YearStat>;
-    all_years_total: string;
-    all_years_avg: string;
+    all_time_total: string;
+    all_time_avg: string;
 }

@@ -9,6 +9,7 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
 
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -799,6 +800,38 @@ func (r *TransactionRepository) GetTransactionsByYearAndClass(
 	var txs []models.Transaction
 	err := q.Find(&txs).Error
 	return txs, err
+}
+
+func (r *TransactionRepository) GetAllTimeStatsByClass(
+	userID int64,
+	class string,
+	accountID *int64,
+	categoryID *int64,
+) (total decimal.Decimal, monthsWithData int, err error) {
+
+	q := r.DB.Model(&models.Transaction{}).
+		Select("COALESCE(SUM(amount), 0) as total, COUNT(DISTINCT EXTRACT(YEAR FROM txn_date) || '-' || EXTRACT(MONTH FROM txn_date)) as months_with_data").
+		Where("user_id = ? AND transaction_type = ?", userID, class)
+
+	if accountID != nil {
+		q = q.Where("account_id = ?", *accountID)
+	}
+
+	if categoryID != nil {
+		q = q.Where("category_id = ?", *categoryID)
+	}
+
+	var result struct {
+		Total          decimal.Decimal
+		MonthsWithData int
+	}
+
+	err = q.Scan(&result).Error
+	if err != nil {
+		return decimal.Zero, 0, err
+	}
+
+	return result.Total, result.MonthsWithData, nil
 }
 
 func (r *TransactionRepository) PurgeImportedTransactions(tx *gorm.DB, importID, userID int64) (int64, error) {
