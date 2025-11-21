@@ -540,12 +540,14 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 		}
 
 		account := &models.Account{
-			Name:          acc.Name,
-			Currency:      models.DefaultCurrency,
-			AccountTypeID: accType.ID,
-			UserID:        userID,
-			ImportID:      &importID,
-			OpenedAt:      openedDay,
+			Name:              acc.Name,
+			Currency:          models.DefaultCurrency,
+			AccountTypeID:     accType.ID,
+			UserID:            userID,
+			ImportID:          &importID,
+			OpenedAt:          openedDay,
+			ExpectedBalance:   decimal.NewFromInt(0),
+			BalanceProjection: "fixed",
 		}
 
 		accountID, err := s.accService.Repo.InsertAccount(tx, account)
