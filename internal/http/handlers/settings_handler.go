@@ -52,7 +52,17 @@ func (h *SettingsHandler) GetUserSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, record)
 }
 
-func (h *SettingsHandler) UpdateUserSettings(c *gin.Context) {
+func (h *SettingsHandler) GetAvailableTimezones(c *gin.Context) {
+	tzones, err := h.Service.FetchAvailableTimezones()
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, tzones)
+}
+
+func (h *SettingsHandler) UpdatePreferenceSettings(c *gin.Context) {
 
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
@@ -60,7 +70,7 @@ func (h *SettingsHandler) UpdateUserSettings(c *gin.Context) {
 		return
 	}
 
-	var record models.SettingsUserReq
+	var record models.PreferenceSettingsReq
 	if err := c.ShouldBindJSON(&record); err != nil {
 		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
@@ -71,7 +81,7 @@ func (h *SettingsHandler) UpdateUserSettings(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateUserSettings(userID, record); err != nil {
+	if err := h.Service.UpdatePreferenceSettings(userID, record); err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -80,12 +90,30 @@ func (h *SettingsHandler) UpdateUserSettings(c *gin.Context) {
 
 }
 
-func (h *SettingsHandler) GetAvailableTimezones(c *gin.Context) {
-	tzones, err := h.Service.FetchAvailableTimezones()
+func (h *SettingsHandler) UpdateProfileSettings(c *gin.Context) {
+
+	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, tzones)
+	var record models.ProfileSettingsReq
+	if err := c.ShouldBindJSON(&record); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(record); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.Service.UpdateProfileSettings(userID, record); err != nil {
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
+
 }

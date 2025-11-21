@@ -305,16 +305,23 @@ func (r *UserRepository) UpdateUser(tx *gorm.DB, record models.User) (int64, err
 	if db == nil {
 		db = r.DB
 	}
+	
+	updates := map[string]interface{}{
+		"display_name": record.DisplayName,
+		"role_id":      record.RoleID,
+		"updated_at":   time.Now().UTC(),
+	}
+
+	if record.Email != "" {
+		updates["email"] = record.Email
+	}
 
 	if err := db.Model(models.User{}).
 		Where("id = ?", record.ID).
-		Updates(map[string]interface{}{
-			"display_name": record.DisplayName,
-			"role_id":      record.RoleID,
-			"updated_at":   time.Now().UTC(),
-		}).Error; err != nil {
+		Updates(updates).Error; err != nil {
 		return 0, err
 	}
+
 	return record.ID, nil
 }
 

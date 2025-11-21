@@ -2,26 +2,96 @@
 
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
 import {useAuthStore} from "../../../services/stores/auth_store.ts";
-import {onMounted, ref} from "vue";
+import {computed, onMounted, ref} from "vue";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import type {User} from "../../../models/user_models.ts";
+import {useConfirm} from "primevue/useconfirm";
+import ShowLoading from "../../components/base/ShowLoading.vue";
+import {useSettingsStore} from "../../../services/stores/settings_store.ts";
+import {email, required} from "@vuelidate/validators";
+import {decimalMax, decimalMin, decimalValid} from "../../../validators/currency.ts";
+import useVuelidate from "@vuelidate/core";
+import ValidationError from "../../components/validation/ValidationError.vue";
 
 const authStore = useAuthStore();
 const toastStore = useToastStore();
+const settingsStore = useSettingsStore();
+
+const confirm = useConfirm();
 
 const currentUser = ref<User>();
+
+const emailUpdated = ref(false);
+const loading = ref(true);
+
+const rules = computed(() => ({
+    currentUser: {
+        display_name: { required, $autoDirty: true },
+        email: { required, email, $autoDirty: true, },
+    },
+}));
+
+const v$ = useVuelidate(rules, { currentUser });
+
+async function isRecordValid() {
+    const isValid = await v$.value.currentUser.$validate();
+    if (!isValid) return false;
+    return true;
+}
 
 onMounted(async () => {
     await initUser();
 })
 
 async function initUser() {
+    loading.value = true;
     try {
         currentUser.value = await authStore.getAuthUser(false);
     } catch (error) {
         toastStore.errorResponseToast(error)
+    } finally {
+        loading.value = false;
     }
 }
+
+async function confirmUpdateSettings() {
+    if(emailUpdated.value) {
+        confirm.require({
+            header: 'Confirm operation',
+            message: `You're about to change your email address. This will log you out.`,
+            rejectProps: { label: 'Cancel' },
+            acceptProps: { label: 'Continue' },
+            accept: async () => await updateSettings(),
+        });
+    } else {
+        await updateSettings();
+    }
+}
+
+async function updateSettings() {
+
+    if (!await isRecordValid()) return;
+
+    loading.value = true;
+    const rec = {
+        display_name: currentUser.value?.display_name,
+        email_updated: emailUpdated.value,
+        email: currentUser.value?.email
+    }
+
+    try {
+        let response = await settingsStore.updateProfileSettings(rec);
+        toastStore.successResponseToast(response);
+        if(rec.email_updated) {
+            authStore.logout();
+        }
+    } catch (error) {
+        toastStore.errorResponseToast(error)
+    } finally {
+        loading.value = false;
+    }
+}
+
 </script>
 
 <template>
@@ -46,39 +116,28 @@ async function initUser() {
                 </div>
 
 
-                <div v-if="currentUser" class="w-full flex flex-column gap-2 w-full">
-                    <div class="w-full flex flex-row gap-2 w-full">
-                        <IftaLabel class="w-full" variant="in">
-                            <InputText class="w-full" id="in_label" :value="currentUser.email" />
-                            <label for="in_label">Email</label>
-                        </IftaLabel>
+                <div v-if="!loading" class="w-full flex flex-column gap-2 w-full">
+                    <div class="flex flex-row w-full">
+                        <div class="flex flex-column w-full">
+                        <ValidationError :isRequired="true" :message="v$.currentUser.email.$errors[0]?.$message">
+                            <label>Email</label>
+                        </ValidationError>
+                        <InputText class="w-full" v-model="currentUser.email" @update:model-value="emailUpdated = true"/>
+                        </div>
                     </div>
-                    <div class="w-full flex flex-row gap-2 w-full">
-                        <div class="flex flex-column flex-1 min-w-0">
-                            <IftaLabel class="w-full" variant="in">
-                                <InputText class="w-full" id="in_label" :value="currentUser.display_name" />
-                                <label for="in_label">Display name</label>
-                            </IftaLabel>
+                    <div class="flex flex-row w-full">
+                        <div class="flex flex-column w-full">
+                            <ValidationError :isRequired="true" :message="v$.currentUser.display_name.$errors[0]?.$message">
+                                <label>Display name</label>
+                            </ValidationError>
+                            <InputText class="w-full" id="in_label" v-model="currentUser.display_name" />
                         </div>
                     </div>
                     <div class="w-full flex flex-row gap-2 w-full">
-                        <Button class="main-button ml-auto" label="Save"></Button>
+                        <Button class="main-button ml-auto" label="Save" @click="confirmUpdateSettings"></Button>
                     </div>
                 </div>
-                <div v-else class="w-full flex flex-column gap-3">
-                    <div class="w-full flex flex-row gap-2 w-full">
-                        <Skeleton class="w-full" borderRadius="16px"></Skeleton>
-                    </div>
-
-                    <div class="w-full flex flex-row gap-2 w-full">
-                        <div class="flex flex-column flex-1 min-w-0">
-                            <Skeleton class="w-50" borderRadius="16px"></Skeleton>
-                        </div>
-                        <div class="flex flex-column flex-1 min-w-0">
-                            <Skeleton class="w-50" borderRadius="16px"></Skeleton>
-                        </div>
-                    </div>
-                </div>
+                <ShowLoading v-else :numFields="2" />
 
 
             </div>

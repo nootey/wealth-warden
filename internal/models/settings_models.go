@@ -31,16 +31,22 @@ func (SettingsUser) TableName() string {
 	return "settings_user"
 }
 
-type SettingsUserReq struct {
+type TimezoneInfo struct {
+	Value       string `json:"value"`       // e.g., "America/New_York"
+	Label       string `json:"label"`       // e.g., "(UTC-05:00) America/New_York"
+	Offset      int    `json:"offset"`      // Offset in seconds
+	DisplayName string `json:"displayName"` // Human-readable name
+}
+
+type PreferenceSettingsReq struct {
 	Theme    string  `json:"theme"`
 	Accent   *string `json:"accent"`
 	Language string  `json:"language"`
 	Timezone string  `json:"timezone"`
 }
 
-type TimezoneInfo struct {
-	Value       string `json:"value"`       // e.g., "America/New_York"
-	Label       string `json:"label"`       // e.g., "(UTC-05:00) America/New_York"
-	Offset      int    `json:"offset"`      // Offset in seconds
-	DisplayName string `json:"displayName"` // Human-readable name
+type ProfileSettingsReq struct {
+	DisplayName  string `json:"display_name" validate:"required"`
+	Email        string `json:"email" validate:"required"`
+	EmailUpdated bool   `json:"email_updated"`
 }

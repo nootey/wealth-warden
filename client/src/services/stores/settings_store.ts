@@ -27,9 +27,16 @@ export const useSettingsStore = defineStore('settings', {
                 throw err;
             }
         },
-        async updateUserSettings(settings: object) {
+        async updatePreferenceSettings(settings: object) {
             try {
-                return await apiClient.put(`${this.apiPrefix}/users`, settings);
+                return await apiClient.put(`${this.apiPrefix}/users/preferences`, settings);
+            } catch (err) {
+                throw err;
+            }
+        },
+        async updateProfileSettings(settings: object) {
+            try {
+                return await apiClient.put(`${this.apiPrefix}/users/profile`, settings);
             } catch (err) {
                 throw err;
             }

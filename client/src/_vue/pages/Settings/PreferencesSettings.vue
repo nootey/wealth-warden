@@ -138,7 +138,7 @@ async function updateSettings() {
         accent: userSettings.value?.accent,
     }
     try {
-        let response = await settingsStore.updateUserSettings(settings);
+        let response = await settingsStore.updatePreferenceSettings(settings);
         themeStore.setTheme(settings?.theme!, settings.accent);
         toastStore.successResponseToast(response);
     } catch (error) {
