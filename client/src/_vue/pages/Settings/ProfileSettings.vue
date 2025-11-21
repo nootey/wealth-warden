@@ -9,7 +9,6 @@ import {useConfirm} from "primevue/useconfirm";
 import ShowLoading from "../../components/base/ShowLoading.vue";
 import {useSettingsStore} from "../../../services/stores/settings_store.ts";
 import {email, required} from "@vuelidate/validators";
-import {decimalMax, decimalMin, decimalValid} from "../../../validators/currency.ts";
 import useVuelidate from "@vuelidate/core";
 import ValidationError from "../../components/validation/ValidationError.vue";
 
@@ -116,7 +115,7 @@ async function updateSettings() {
                 </div>
 
 
-                <div v-if="!loading" class="w-full flex flex-column gap-2 w-full">
+                <div v-if="!loading && currentUser" class="w-full flex flex-column gap-2 w-full">
                     <div class="flex flex-row w-full">
                         <div class="flex flex-column w-full">
                         <ValidationError :isRequired="true" :message="v$.currentUser.email.$errors[0]?.$message">

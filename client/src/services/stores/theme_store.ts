@@ -41,7 +41,7 @@ export const useThemeStore = defineStore('theme', {
                 rootEl.classList.remove('my-app-dark');
             }
 
-            // Apply accent color if you want
+            // Apply accent color
             // rootEl.style.setProperty('--accent-color', this.accent);
         }
     }
