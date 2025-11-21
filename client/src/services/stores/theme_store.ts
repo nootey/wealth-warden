@@ -8,7 +8,7 @@ export const useThemeStore = defineStore('theme', {
     getters: {
         isDark(): boolean {
             if (this.theme === 'system') {
-                return window.matchMedia('(prefers-color-scheme: dark)').matches;
+                return true;
             }
             return this.theme === 'dark';
         }

@@ -289,7 +289,7 @@ const options = computed(() => {
 <template>
     <Chart
             ref="chartRef"
-            :key="`nw-${themeStore.theme === 'dark'}-${dataPoints?.length}-${pinnedTooltipOnMobile}`"
+            :key="`nw-${themeStore.isDark}-${dataPoints?.length}-${pinnedTooltipOnMobile}`"
             type="line"
             :data="data"
             :options="options"

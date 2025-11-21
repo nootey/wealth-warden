@@ -3,7 +3,7 @@ import { useThemeStore} from "../../services/stores/theme_store.ts";
 
 export function useChartColors() {
     const themeStore = useThemeStore();
-    const isDark = computed(() => themeStore.theme === 'dark');
+    const isDark = computed(() => themeStore.isDark);
 
     const colors = computed(() => ({
         // Common
