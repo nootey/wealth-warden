@@ -37,3 +37,10 @@ type SettingsUserReq struct {
 	Language string  `json:"language"`
 	Timezone string  `json:"timezone"`
 }
+
+type TimezoneInfo struct {
+	Value       string `json:"value"`       // e.g., "America/New_York"
+	Label       string `json:"label"`       // e.g., "(UTC-05:00) America/New_York"
+	Offset      int    `json:"offset"`      // Offset in seconds
+	DisplayName string `json:"displayName"` // Human-readable name
+}

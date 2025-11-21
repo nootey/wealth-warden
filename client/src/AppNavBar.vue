@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import {useThemeStore} from './services/stores/theme_store.ts';
 import {useAuthStore} from './services/stores/auth_store.ts';
 import {storeToRefs} from "pinia";
 import {computed, ref} from 'vue';
 import {useRouter} from "vue-router";
 import {usePermissions} from "./utils/use_permissions.ts";
 
-const themeStore = useThemeStore();
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
 const { hasPermission } = usePermissions();
@@ -58,10 +56,6 @@ function handleMenuClick(source: string) {
         }
         case 'settings': {
             router.push('/settings');
-            break;
-        }
-        case 'theme': {
-            themeStore.toggleDarkMode();
             break;
         }
         case 'logout': {
@@ -147,13 +141,6 @@ function handleMenuClick(source: string) {
                 <i class="pi pi-cog"></i>
                 <span class="text-sm">Settings</span>
             </div>
-
-            <div id="profileMenuItem" class="flex align-items-center gap-2 p-1 border-round-md"
-               style="cursor: pointer; transition: all 0.2s ease;"
-               @click="handleMenuClick('theme')">
-            <i class="pi" :class="themeStore.darkModeActive ? 'pi-sun' : 'pi-moon'"></i>
-            <span class="text-sm">Theme</span>
-          </div>
 
             <div id="profileMenuItem" class="flex align-items-center gap-2 p-1 border-round-md"
                style="cursor: pointer; transition: all 0.2s ease;color: #ef4444;"

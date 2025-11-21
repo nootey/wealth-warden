@@ -1,12 +1,13 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
+
+	"github.com/gin-gonic/gin"
 )
 
 type SettingsHandler struct {
@@ -77,4 +78,14 @@ func (h *SettingsHandler) UpdateUserSettings(c *gin.Context) {
 
 	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
 
+}
+
+func (h *SettingsHandler) GetAvailableTimezones(c *gin.Context) {
+	tzones, err := h.Service.FetchAvailableTimezones()
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, tzones)
 }

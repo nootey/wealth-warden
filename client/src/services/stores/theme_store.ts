@@ -2,29 +2,47 @@ import { defineStore } from 'pinia';
 
 export const useThemeStore = defineStore('theme', {
     state: () => ({
-        darkModeActive: true
+        theme: 'system' as 'system' | 'dark' | 'light',
+        accent: 'blurple' as string
     }),
+    getters: {
+        isDark(): boolean {
+            if (this.theme === 'system') {
+                return window.matchMedia('(prefers-color-scheme: dark)').matches;
+            }
+            return this.theme === 'dark';
+        }
+    },
     actions: {
         initializeTheme() {
-            const savedTheme = localStorage.getItem('darkModeActive');
-            if (savedTheme !== null) {
-                this.darkModeActive = savedTheme === 'true';
-            }
+            // Set initial theme (system default)
+            this.applyTheme();
 
+            // Listen for system theme changes
+            window.matchMedia('(prefers-color-scheme: dark)')
+                .addEventListener('change', () => {
+                    if (this.theme === 'system') {
+                        this.applyTheme();
+                    }
+                });
+        },
+
+        setTheme(theme: 'system' | 'dark' | 'light', accent?: string) {
+            this.theme = theme;
+            if (accent) this.accent = accent;
             this.applyTheme();
         },
-        toggleDarkMode() {
-            this.darkModeActive = !this.darkModeActive;
-            localStorage.setItem('darkModeActive', this.darkModeActive.toString());
-            this.applyTheme();
-        },
+
         applyTheme() {
             const rootEl = document.documentElement;
-            if (this.darkModeActive) {
+            if (this.isDark) {
                 rootEl.classList.add('my-app-dark');
             } else {
                 rootEl.classList.remove('my-app-dark');
             }
+
+            // Apply accent color if you want
+            // rootEl.style.setProperty('--accent-color', this.accent);
         }
     }
 });

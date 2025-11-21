@@ -20,5 +20,19 @@ export const useSettingsStore = defineStore('settings', {
                 throw err;
             }
         },
+        async getAvailableTimezones() {
+            try {
+                return await apiClient.get(`${this.apiPrefix}/timezones`);
+            } catch (err) {
+                throw err;
+            }
+        },
+        async updateUserSettings(settings: object) {
+            try {
+                return await apiClient.put(`${this.apiPrefix}/users`, settings);
+            } catch (err) {
+                throw err;
+            }
+        },
     },
 });

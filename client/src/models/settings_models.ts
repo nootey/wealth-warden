@@ -12,3 +12,15 @@ export type GeneralSettings = {
     allow_signups: boolean,
     max_user_accounts: number,
 }
+
+export interface TimezoneInfo {
+    value: string;
+    label: string;
+    offset: number;
+    displayName: string;
+}
+
+export interface LanguageInfo {
+    value: string;
+    label: string;
+}

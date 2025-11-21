@@ -10,5 +10,6 @@ import (
 func SettingsRoutes(apiGroup *gin.RouterGroup, handler *handlers.SettingsHandler) {
 	apiGroup.GET("", authz.RequireAllMW("root_access"), handler.GetGeneralSettings)
 	apiGroup.GET("/users", authz.RequireAllMW("view_data"), handler.GetUserSettings)
-	apiGroup.PUT("/users/:id", authz.RequireAllMW("manage_data"), handler.UpdateUserSettings)
+	apiGroup.GET("/timezones", authz.RequireAllMW("view_data"), handler.GetAvailableTimezones)
+	apiGroup.PUT("/users", authz.RequireAllMW("manage_data"), handler.UpdateUserSettings)
 }

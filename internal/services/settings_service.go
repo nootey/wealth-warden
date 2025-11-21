@@ -2,6 +2,8 @@ package services
 
 import (
 	"fmt"
+	"sort"
+	"time"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -96,4 +98,53 @@ func (s *SettingsService) UpdateUserSettings(userID int64, req models.SettingsUs
 	}
 
 	return nil
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
+func (s *SettingsService) FetchAvailableTimezones() ([]models.TimezoneInfo, error) {
+
+	var timezones []models.TimezoneInfo
+
+	// Get all IANA timezone identifiers
+	tzNames := utils.GetIANATimezones()
+
+	now := time.Now()
+
+	for _, tzName := range tzNames {
+		loc, err := time.LoadLocation(tzName)
+		if err != nil {
+			continue
+		}
+
+		// Get current offset
+		_, offset := now.In(loc).Zone()
+		offsetHours := offset / 3600
+		offsetMinutes := (offset % 3600) / 60
+
+		// Format offset as +05:30 or -08:00
+		offsetStr := fmt.Sprintf("%+03d:%02d", offsetHours, abs(offsetMinutes))
+
+		timezones = append(timezones, models.TimezoneInfo{
+			Value:       tzName,
+			Label:       fmt.Sprintf("(UTC%s) %s", offsetStr, tzName),
+			Offset:      offset,
+			DisplayName: tzName,
+		})
+	}
+
+	// Sort by offset, then by name
+	sort.Slice(timezones, func(i, j int) bool {
+		if timezones[i].Offset != timezones[j].Offset {
+			return timezones[i].Offset < timezones[j].Offset
+		}
+		return timezones[i].Value < timezones[j].Value
+	})
+
+	return timezones, nil
 }

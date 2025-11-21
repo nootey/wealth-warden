@@ -4,6 +4,8 @@ import router from "../router/main.ts";
 import type {AuthForm} from '../../models/auth_models.ts';
 import type {User} from '../../models/user_models.ts';
 import {watch} from "vue";
+import {useSettingsStore} from "./settings_store.ts";
+import {useThemeStore} from "./theme_store.ts";
 
 export const useAuthStore = defineStore('auth', {
     state: () => ({
@@ -97,14 +99,13 @@ export const useAuthStore = defineStore('auth', {
             this.user = null;
             this.setAuthenticated(false);
             this.setInitialized(null);
-            
-            const darkModeActive = localStorage.getItem('darkModeActive');
+
             localStorage.clear();
-            if (darkModeActive !== null) {
-                localStorage.setItem('darkModeActive', darkModeActive);
-            }
-            
             sessionStorage.clear();
+
+            const themeStore = useThemeStore();
+            themeStore.setTheme('dark');
+
             router.push("/login").then()
         },
 
@@ -123,6 +124,23 @@ export const useAuthStore = defineStore('auth', {
                 const user = await this.getAuthUser(true);
                 if (user) {
                     this.setInitialized(user);
+
+                    const settingsStore = useSettingsStore();
+                    const themeStore = useThemeStore();
+
+                    try {
+                        const response = await settingsStore.getUserSettings();
+                        if (response.data) {
+                            themeStore.setTheme(
+                                response.data.theme || 'system',
+                                response.data.accent || 'blurple'
+                            );
+                        }
+                    } catch (error) {
+                        console.error('Failed to load theme settings:', error);
+                    }
+
+
                 } else {
                     this.setAuthenticated(false);
                     this.setInitialized(null);
