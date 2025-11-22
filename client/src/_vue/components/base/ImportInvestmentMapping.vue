@@ -27,6 +27,7 @@ const prefill = () => {
     }
     mapping.value = next
     emit('update:modelValue', mapping.value)
+    emit('save', mapping.value)
 }
 
 watch(() => props.importedCategories, prefill, { immediate: true, deep: true })
@@ -34,6 +35,7 @@ watch(() => props.importedCategories, prefill, { immediate: true, deep: true })
 function onSelect(imported: string, val: number | null) {
     mapping.value[imported] = val
     emit('update:modelValue', mapping.value)
+    emit('save', mapping.value)
 }
 
 function clearAll() {
@@ -41,10 +43,6 @@ function clearAll() {
     for (const name of props.importedCategories) cleared[name] = null
     mapping.value = cleared
     emit('update:modelValue', mapping.value)
-}
-
-function save() {
-    emit('save', mapping.value)
 }
 </script>
 
@@ -56,8 +54,7 @@ function save() {
                 Map each investment category to one of your investment accounts.
             </span>
             <div class="flex flex-row gap-3">
-                <Button size="small" class="outline-button" @click="clearAll" label="Clear" />
-                <Button size="small" class="main-button" icon="pi pi-save" label="Save" @click="save" />
+                <Button size="small" class="delete-button" @click="clearAll" label="Clear" />
             </div>
         </div>
 

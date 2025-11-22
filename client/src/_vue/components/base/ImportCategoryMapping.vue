@@ -96,6 +96,7 @@ const prefill = () => {
     }
     mapping.value = next
     emit('update:modelValue', mapping.value)
+    emit('save', mapping.value)
 }
 
 watch(
@@ -107,6 +108,7 @@ watch(
 function onSelect(imported: string, e: SelectChangeEvent) {
     mapping.value[imported] = e.value ?? null
     emit('update:modelValue', mapping.value)
+    emit('save', mapping.value)
 }
 
 function mapAllToDefault() {
@@ -124,9 +126,6 @@ function clearAll() {
     emit('update:modelValue', mapping.value)
 }
 
-function save() {
-    emit('save', mapping.value)
-}
 </script>
 
 <template>
@@ -139,9 +138,8 @@ function save() {
                 </span>
             </div>
             <div class="flex flex-row gap-3">
-                <Button size="small" class="outline-button" @click="clearAll" label="Clear" />
-                <Button size="small" class="main-button" @click="mapAllToDefault" label="Defaults" />
-                <Button size="small" class="main-button" icon="pi pi-save" label="Save" @click="save" />
+                <Button size="small" class="delete-button" @click="clearAll" label="Clear" />
+                <Button size="small" class="outline-button" @click="mapAllToDefault" label="Defaults" />
             </div>
 
         </div>
