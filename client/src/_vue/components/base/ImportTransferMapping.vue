@@ -5,7 +5,7 @@ import type {Account} from "../../../models/account_models.ts";
 
 const props = defineProps<{
     importedCategories: string[]
-    investmentAccounts: Account[]
+    accounts: Account[]
     modelValue?: Record<string, number | null>
 }>()
 
@@ -51,7 +51,7 @@ function clearAll() {
 
         <div class="flex flex-column align-items-center w-full gap-3">
             <span style="color: var(--text-secondary)">
-                Map each investment category to one of your investment accounts.
+                Map each category to one of your accounts.
             </span>
             <div class="flex flex-row gap-3">
                 <Button size="small" class="delete-button" @click="clearAll" label="Clear" />
@@ -67,12 +67,12 @@ function clearAll() {
                 </template>
             </Column>
 
-            <Column header="Investment Account">
+            <Column header="Account">
                 <template #body="{ data }">
                     <Select class="w-full"
                             :modelValue="mapping[data.name] ?? null"
                             @update:modelValue="val => onSelect(data.name, val)"
-                            :options="investmentAccounts"
+                            :options="accounts"
                             optionLabel="name"
                             optionValue="id"
                             showClear
@@ -80,7 +80,7 @@ function clearAll() {
                             placeholder="Select account">
                         <template #value="slotProps">
                                 <span v-if="slotProps.value">
-                                  {{ investmentAccounts.find(a => a.id === slotProps.value)?.name || 'Select account' }}
+                                  {{ accounts.find(a => a.id === slotProps.value)?.name || 'Select account' }}
                                 </span>
                             <span v-else class="text-color-secondary">Select account</span>
                         </template>

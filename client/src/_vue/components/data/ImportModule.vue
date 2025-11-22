@@ -4,6 +4,7 @@ import ImportTransactions from "../../features/ImportTransactions.vue";
 import ImportInvestments from "../../features/ImportInvestments.vue";
 import ImportAccounts from "../../features/ImportAccounts.vue";
 import ImportCategories from "../../features/ImportCategories.vue";
+import ImportSavings from "../../features/ImportSavings.vue";
 
 const emit = defineEmits<{
     (e: 'refreshData', value: string): void;
@@ -15,6 +16,7 @@ const accRef = ref<InstanceType<typeof ImportAccounts> | null>(null);
 const catRef = ref<InstanceType<typeof ImportCategories> | null>(null);
 const txnRef = ref<InstanceType<typeof ImportTransactions> | null>(null);
 const invRef = ref<InstanceType<typeof ImportInvestments> | null>(null);
+const savRef = ref<InstanceType<typeof ImportSavings> | null>(null);
 
 async function completeAction(val: string) {
     emit("refreshData", val);
@@ -28,6 +30,9 @@ async function startOperation() {
             break;
         case "investments":
             invRef.value?.transferInvestments();
+            break;
+        case "savings":
+            savRef.value?.transferSavings();
             break;
         case "accounts":
             accRef.value?.importAccounts();
@@ -46,6 +51,8 @@ const isDisabled = computed(() => {
             return txnRef.value?.isDisabled ?? true;
         case "investments":
             return invRef.value?.isDisabled ?? true;
+        case "savings":
+            return savRef.value?.isDisabled ?? true;
         case "accounts":
             return accRef.value?.isDisabled ?? true;
         case "categories":
@@ -99,8 +106,14 @@ defineExpose({isDisabled, startOperation})
                         </div>
                         <div style="border-bottom: 2px solid var(--border-color)"></div>
                         <div class="flex flex-row gap-2 p-2 align-items-center hover-icon" @click="selectedRef = 'investments'">
-                            <i class="pi pi-building-columns" style="color: #9948F0"></i>
+                            <i class="pi pi-chart-line" style="color: #9948F0"></i>
                             <span>Transfer investments</span>
+                            <i class="pi pi-chevron-right" style="margin-left: auto; color: var(--text-secondary)"></i>
+                        </div>
+                        <div style="border-bottom: 2px solid var(--border-color)"></div>
+                        <div class="flex flex-row gap-2 p-2 align-items-center hover-icon" @click="selectedRef = 'savings'">
+                            <i class="pi pi-building-columns" style="color: #C166F2"></i>
+                            <span>Transfer savings</span>
                             <i class="pi pi-chevron-right" style="margin-left: auto; color: var(--text-secondary)"></i>
                         </div>
                     </div>
@@ -111,6 +124,7 @@ defineExpose({isDisabled, startOperation})
             <ImportCategories ref="catRef" v-else-if="selectedRef === 'categories'"  @completeImport="completeAction( 'import')"/>
             <ImportTransactions ref="txnRef" v-else-if="selectedRef === 'transactions'" @completeImport="completeAction( 'import')"/>
             <ImportInvestments ref="invRef" v-else-if="selectedRef === 'investments'" @completeTransfer="completeAction( 'import')"/>
+            <ImportSavings ref="savRef" v-else-if="selectedRef === 'savings'" @completeTransfer="completeAction( 'import')"/>
         </Transition>
     </div>
 

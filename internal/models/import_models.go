@@ -14,6 +14,7 @@ type Import struct {
 	Currency               string     `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	Step                   string     `json:"step"`
 	InvestmentsTransferred bool       `json:"investments_transferred"`
+	SavingsTransferred     bool       `json:"savings_transferred"`
 	CreatedAt              time.Time  `json:"created_at"`
 	UpdatedAt              time.Time  `json:"updated_at"`
 	StartedAt              *time.Time `json:"started_at"`
@@ -31,17 +32,24 @@ type CategoryImportPayload struct {
 }
 
 type TxnImportPayload struct {
-	GeneratedAt      time.Time         `json:"generated_at" validate:"required"`
-	Txns             []JSONTxn         `json:"transactions" validate:"required"`
-	Transfers        []JSONTxn         `json:"transfers,omitempty"`
-	Categories       []string          `json:"categories,omitempty"`
-	CategoryMappings []CategoryMapping `json:"category_mappings" validate:"required"`
+	GeneratedAt         time.Time         `json:"generated_at" validate:"required"`
+	Txns                []JSONTxn         `json:"transactions" validate:"required"`
+	InvestmentTransfers []JSONTxn         `json:"investments"`
+	SavingsTransfers    []JSONTxn         `json:"savings"`
+	Categories          []string          `json:"categories,omitempty"`
+	CategoryMappings    []CategoryMapping `json:"category_mappings" validate:"required"`
 }
 
 type InvestmentTransferPayload struct {
-	ImportID           int64               `json:"import_id" validate:"required"`
-	CheckingAccID      int64               `json:"checking_acc_id" validate:"required"`
-	InvestmentMappings []InvestmentMapping `json:"investment_mappings" validate:"required"`
+	ImportID           int64             `json:"import_id" validate:"required"`
+	CheckingAccID      int64             `json:"checking_acc_id" validate:"required"`
+	InvestmentMappings []TransferMapping `json:"investment_mappings" validate:"required"`
+}
+
+type SavingTransferPayload struct {
+	ImportID        int64             `json:"import_id" validate:"required"`
+	CheckingAccID   int64             `json:"checking_acc_id" validate:"required"`
+	SavingsMappings []TransferMapping `json:"savings_mappings" validate:"required"`
 }
 
 type JSONTxn struct {
@@ -58,7 +66,7 @@ type CategoryMapping struct {
 	CategoryID *int64 `json:"category_id"`
 }
 
-type InvestmentMapping struct {
+type TransferMapping struct {
 	Name      string `json:"name"`
 	AccountID int64  `json:"account_id"`
 }

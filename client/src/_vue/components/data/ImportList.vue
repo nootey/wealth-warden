@@ -110,8 +110,10 @@ async function deleteRecord(id: number) {
                         <i v-if="hasPermission('manage_data')"
                            class="pi pi-trash hover-icon text-sm" style="color: var(--p-red-300);"
                            @click="deleteConfirmation(data?.id, data?.name)" />
-                        <i v-if="data.investments_transferred" class="pi pi-check-circle hover-icon text-sm"
+                        <i v-if="data.investments_transferred" class="pi pi-database hover-icon text-sm"
                            v-tooltip="'Investments transferred'"/>
+                        <i v-if="data.savings_transferred" class="pi pi-credit-card hover-icon text-sm"
+                           v-tooltip="'Savings transferred'"/>
                     </div>
                 </template>
             </Column>

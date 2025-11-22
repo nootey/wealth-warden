@@ -9,6 +9,7 @@ CREATE TABLE imports (
     type VARCHAR(128) NOT NULL,
     sub_type VARCHAR(128) NOT NULL,
     investments_transferred BOOLEAN,
+    savings_transferred BOOLEAN,
     status import_status_enum NOT NULL DEFAULT 'pending',
     currency CHAR(3) NOT NULL DEFAULT 'EUR',
     error TEXT,

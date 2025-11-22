@@ -22,8 +22,8 @@ const transfering = ref(false);
 const checkingAccs = ref<Account[]>([]);
 const selectedCheckingAcc = ref<Account | null>(null);
 const filteredCheckingAccs = ref<Account[]>([]);
-const investmentAccs = ref<Account[]>([]);
-const investmentMappings = ref<Record<string, number | null>>({});
+const savingsAccs = ref<Account[]>([]);
+const savingsMappings = ref<Record<string, number | null>>({});
 const validatedResponse = ref<CustomImportValidationResponse | null>(null);
 
 const imports = ref<Import[]>([]);
@@ -43,7 +43,7 @@ watch(selectedImport, async (newImport) => {
         await fetchValidationResponse(newImport.id);
     } else {
         validatedResponse.value = null;
-        investmentMappings.value = {};
+        savingsMappings.value = {};
     }
 });
 
@@ -56,20 +56,11 @@ onMounted(async () => {
         if (checkingAccs.value.length == 0) {
             toastStore.infoResponseToast(toastHelper.formatInfoToast("No accounts", "Please create at least one checking account"));
         }
-        const [investments, crypto] = await Promise.all([
-            accStore.getAccountsByType("investment"),
-            accStore.getAccountsByType("crypto")
-        ])
+        savingsAccs.value = await accStore.getAccountsBySubtype("savings");
 
-        // merge and remove duplicates
-        const merged = [...investments, ...crypto]
-        investmentAccs.value = merged.filter(
-            (a, i, arr) => arr.findIndex(b => b.id === a.id) === i
-        )
-
-        if (investmentAccs.value.length === 0) {
+        if (savingsAccs.value.length === 0) {
             toastStore.infoResponseToast(
-                toastHelper.formatInfoToast("No accounts", "Please create at least one investment or crypto account")
+                toastHelper.formatInfoToast("No accounts", "Please create at least one savings account")
             )
         }
     } catch (e) {
@@ -80,9 +71,9 @@ onMounted(async () => {
 async function fetchValidationResponse(importId: number) {
     loadingValidation.value = true;
     try {
-        validatedResponse.value = await dataStore.getCustomImportJSON(importId, "investments");
+        validatedResponse.value = await dataStore.getCustomImportJSON(importId, "savings");
         // Reset mappings when a new import is selected
-        investmentMappings.value = {};
+        savingsMappings.value = {};
     } catch (e) {
         toastStore.errorResponseToast(e);
         validatedResponse.value = null;
@@ -96,7 +87,7 @@ async function getImports() {
         const allImports = await dataStore.getImports("custom");
 
         imports.value = allImports.filter((importItem: any) =>
-            !importItem.investments_transferred &&
+            !importItem.savings_transferred &&
             !importItem.name.toLowerCase().includes("account") &&
             !importItem.name.toLowerCase().includes("categories")
         );
@@ -106,7 +97,7 @@ async function getImports() {
 }
 
 function onSaveMapping(map: Record<string, number | null>) {
-    investmentMappings.value = map
+    savingsMappings.value = map
 }
 
 function searchAccount(event: { query: string }, accType: string) {
@@ -129,15 +120,15 @@ function resetWizard() {
     validatedResponse.value = null;
 }
 
-async function transferInvestments() {
+async function transferSavings() {
 
     if (!selectedImport.value?.id) {
         toastStore.errorResponseToast("Missing import ID");
         return;
     }
 
-    if (Object.keys(investmentMappings.value).length === 0) {
-        toastStore.errorResponseToast("Please set up your investment mappings first")
+    if (Object.keys(savingsMappings.value).length === 0) {
+        toastStore.errorResponseToast("Please set up your savings mappings first")
         return
     }
 
@@ -147,12 +138,12 @@ async function transferInvestments() {
         const payload = {
             import_id: selectedImport.value.id,
             checking_acc_id: selectedCheckingAcc.value?.id!,
-            investment_mappings: Object.entries(investmentMappings.value).map(
+            savings_mappings: Object.entries(savingsMappings.value).map(
                 ([name, account_id]) => ({ name, account_id })
             ),
         }
 
-        const res = await dataStore.transferInvestmentsFromImport(payload);
+        const res = await dataStore.transferSavingsFromImport(payload);
         toastStore.successResponseToast(res);
 
         resetWizard();
@@ -168,18 +159,18 @@ const isDisabled = computed(() => {
     if (transfering.value) return true;
     if (!selectedCheckingAcc.value) return true;
 
-    const mappings = Object.values(investmentMappings.value);
+    const mappings = Object.values(savingsMappings.value);
     const hasAtLeastOne = mappings.some(v => v !== null);
     return !hasAtLeastOne;
 });
 
-defineExpose({isDisabled, transferInvestments})
+defineExpose({isDisabled, transferSavings})
 
 </script>
 
 <template>
     <div v-if="!transfering" class="flex flex-column w-full justify-content-center align-items-center gap-3">
-        <h3>Map investments from imported data</h3>
+        <h3>Map savings from imported data</h3>
         <span>Select import</span>
 
         <Select size="small"
@@ -193,7 +184,7 @@ defineExpose({isDisabled, transferInvestments})
             <ShowLoading :numFields="5" />
         </div>
         <div v-else-if="validatedResponse && validatedResponse.filtered_count == 0" class="flex flex-column w-full p-2 align-items-center">
-            <span style="color: var(--text-secondary)">No investments were found in the provided import!</span>
+            <span style="color: var(--text-secondary)">No savings were found in the provided import!</span>
         </div>
         <div v-else-if="validatedResponse">
             <div class="flex flex-column w-full gap-3 justify-content-center align-items-center">
@@ -218,11 +209,11 @@ defineExpose({isDisabled, transferInvestments})
 
             <span>---</span>
 
-            <h4>Investment mappings</h4>
+            <h4>Savings mappings</h4>
             <div v-if="validatedResponse.filtered_count > 0" class="flex flex-row w-full gap-3 align-items-center">
-                <ImportTransferMapping  v-model:modelValue="investmentMappings"
+                <ImportTransferMapping  v-model:modelValue="savingsMappings"
                                           :importedCategories="validatedResponse.categories"
-                                          :accounts="investmentAccs" @save="onSaveMapping"/>
+                                          :accounts="savingsAccs" @save="onSaveMapping"/>
             </div>
         </div>
         </div>
