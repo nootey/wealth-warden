@@ -49,7 +49,7 @@ const categories = computed<Category[]>(() => transactionStore.categories);
 const accounts = computed<Account[]>(() => accountStore.accounts);
 const trTemplateCount = ref<number>(0);
 
-const sort = ref(filterHelper.initSort());
+const sort = ref(filterHelper.initSort("txn_date"));
 const filterStorageIndex = ref(apiPrefix+"-filters");
 const filters = ref(JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "[]"));
 const filterOverlayRef = ref<any>(null);

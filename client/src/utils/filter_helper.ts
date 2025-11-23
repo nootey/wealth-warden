@@ -6,10 +6,13 @@ const makeGroupKey = (f: FilterObj): Key => `${f.source}::${f.field}::${f.operat
 const makeValueKey = (f: FilterObj): Key => `${makeGroupKey(f)}::${JSON.stringify(f.value)}`;
 
 const filterHelper = {
-    initSort() {
+    initSort(field: string = "") {
+        if(field === "")
+            field="created_at"
+
         return {
             order: -1,
-            field: 'created_at'
+            field: field
         };
     },
     toggleSort(sortValue: number): number {
