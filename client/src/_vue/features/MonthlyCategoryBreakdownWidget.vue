@@ -38,7 +38,7 @@ const ALL_CATEGORY = {
 
 const availableCategories = computed<Category[]>(() => [
     ALL_CATEGORY,
-    ...transactionStore.categories.filter(c => !!c.parent_id)
+    ...transactionStore.categories.filter(c => !!c.parent_id && c.classification == "expense")
 ])
 
 const selectedCategoryId = ref<number | undefined>(ALL_CATEGORY.id!)
