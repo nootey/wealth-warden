@@ -23,16 +23,16 @@ const transactionStore = useTransactionStore();
 
 const router = useRouter();
 
-const checkingAccs = ref<Account[]>([]);
+const sourceAccounts = ref<Account[]>([]);
 const selectedCheckingAcc = ref<Account | null>(null);
-const filteredCheckingAccs = ref<Account[]>([]);
+const filteredSourceAccounts = ref<Account[]>([]);
 
 const lists: Record<string, Ref<Account[]>> = {
-    checking: checkingAccs,
+    source: sourceAccounts,
 };
 
 const filteredLists: Record<string, Ref<Account[]>> = {
-    checking: filteredCheckingAccs,
+    source: filteredSourceAccounts,
 };
 
 const allCategories = computed<Category[]>(() => transactionStore.categories);
@@ -49,10 +49,7 @@ const categoryMappings = ref<Record<string, number | null>>({})
 onMounted(async () => {
     try {
         await transactionStore.getCategories();
-        checkingAccs.value = await accStore.getAccountsBySubtype("checking");
-        if (checkingAccs.value.length == 0) {
-            toastStore.infoResponseToast(toastHelper.formatInfoToast("No accounts", "Please create at least one checking account"));
-        }
+        await fetchSourceAccounts();
     } catch (e) {
         toastStore.errorResponseToast(e);
     }
@@ -63,6 +60,27 @@ const uploadImportRef = ref<{ files: File[] } | null>(null);
 const fileValidated = ref(false);
 const validatedResponse = ref<CustomImportValidationResponse | null>(null);
 const selectedFiles = ref<File[]>([]);
+
+const useNonCheckingAccount = ref(false);
+
+async function fetchSourceAccounts() {
+    const accounts = useNonCheckingAccount.value
+        ? await accStore.getAllAccounts(true)
+        : await accStore.getAccountsBySubtype("checking");
+
+    // Ensure we always have an array
+    sourceAccounts.value = accounts ?? [];
+
+    if (sourceAccounts.value.length === 0) {
+        const accountType = useNonCheckingAccount.value ? "source" : "checking";
+        toastStore.infoResponseToast(
+            toastHelper.formatInfoToast(
+                "No accounts",
+                `Please create at least one ${accountType} account`
+            )
+        );
+    }
+}
 
 function onSelect(e: { files: File[] }) {
     selectedFiles.value = e.files.slice(0, 1);
@@ -174,10 +192,10 @@ defineExpose({isDisabled, importTransactions})
             <TabPanels>
                 <TabPanel value="0">
 
-                    <div v-if="checkingAccs.length > 0" class="flex flex-column w-full justify-content-center align-items-center gap-3">
+                    <div v-if="sourceAccounts.length > 0" class="flex flex-column w-full justify-content-center align-items-center gap-3">
                         <h3>Import your transaction data</h3>
                         <span class="text-sm" style="color: var(--text-secondary)">Upload your JSON file below. Please review the instructions before starting an import.</span>
-                        <span v-if="checkingAccs.length == 0" style="color: var(--text-secondary)">At least one checking account is required to proceed!</span>
+                        <span v-if="sourceAccounts.length == 0" style="color: var(--text-secondary)">At least one checking account is required to proceed!</span>
 
                         <FileUpload v-if="!importing" ref="uploadImportRef" accept=".json, application/json"
                                     :maxFileSize="10485760" :multiple="false"
@@ -188,7 +206,7 @@ defineExpose({isDisabled, importTransactions})
                             <template #header="{ chooseCallback }" class="w-full">
                                 <div class="w-full flex flex-row justify-content-center">
                                     <Button v-if="!fileValidated" class="outline-button w-3" @click="chooseCallback()"
-                                            :disabled="checkingAccs.length == 0 || importing"
+                                            :disabled="sourceAccounts.length == 0 || importing"
                                             label="Upload" />
                                 </div>
                             </template>
@@ -219,7 +237,7 @@ defineExpose({isDisabled, importTransactions})
                             <div class="flex flex-row gap-2 align-items-center w-full justify-content-center gap-3">
                                 <Button class="main-button w-3"
                                         @click="() => validateFile('cash')"
-                                        :disabled="selectedFiles.length === 0 || checkingAccs.length == 0"
+                                        :disabled="selectedFiles.length === 0 || sourceAccounts.length == 0"
                                         label="Validate"
                                 />
                             </div>
@@ -229,9 +247,18 @@ defineExpose({isDisabled, importTransactions})
                             <div v-if="!importing" class="flex flex-column w-full justify-content-center align-items-center gap-3">
 
                                 <div class="flex flex-column w-full gap-2 align-items-center justify-content-center">
-                                    <span class="text-sm" style="color: var(--text-secondary)">Select an account which will receive the import transactions.</span>
-                                    <AutoComplete size="small" v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
-                                                  @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
+                                    <div class="text-sm" style="color: var(--text-secondary)">
+                                        Select an account which will receive the import transactions.
+                                        <div class="flex align-items-center gap-1">
+                                            <Checkbox v-model="useNonCheckingAccount"
+                                                      :binary="true" inputId="use-non-check-pt"
+                                                      @update:model-value="fetchSourceAccounts"
+                                            />
+                                            <label for="use-non-check-pt"  style="color: var(--text-secondary)">Use non checking account</label>
+                                        </div>
+                                    </div>
+                                    <AutoComplete size="small" v-model="selectedCheckingAcc" :suggestions="filteredSourceAccounts"
+                                                  @complete="searchAccount($event, 'source')" optionLabel="name" forceSelection
                                                   placeholder="Select checking account" dropdown />
                                     <span class="text-sm" v-if="!selectedCheckingAcc" style="color: var(--text-secondary)">Please select an account.</span>
                                     <span class="text-sm" v-else style="color: var(--text-secondary)">Account's opening date is valid.</span>

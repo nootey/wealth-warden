@@ -152,12 +152,12 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 	l.Info("started transactions JSON import")
 
 	l.Info("validating requirements")
-	checkingAcc, err := s.accService.FetchAccountByID(userID, checkID, false)
+	sourceAcc, err := s.accService.FetchAccountByID(userID, checkID, false)
 	if err != nil {
 		return err
 	}
 
-	openedYear := checkingAcc.OpenedAt.Year()
+	openedYear := sourceAcc.OpenedAt.Year()
 
 	var first time.Time
 	for _, t := range payload.Txns {
@@ -184,7 +184,7 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 	}
 
 	todayStr := time.Now().UTC().Format("2006-01-02")
-	importName := fmt.Sprintf("custom_transactions_year_%d_generated_%s", importYear, todayStr)
+	importName := fmt.Sprintf("txns_%s_generated_%s", payload.Identifier, todayStr)
 
 	dir := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID))
 	finalPath := filepath.Join(dir, importName+".json")
@@ -307,7 +307,7 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 
 			t := models.Transaction{
 				UserID:          userID,
-				AccountID:       checkingAcc.ID,
+				AccountID:       sourceAcc.ID,
 				CategoryID:      &category.ID,
 				TransactionType: txn.TransactionType,
 				Amount:          amount,
@@ -324,7 +324,7 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 				return err
 			}
 
-			err := s.accService.UpdateAccountCashBalance(tx, checkingAcc, t.TxnDate, t.TransactionType, t.Amount)
+			err := s.accService.UpdateAccountCashBalance(tx, sourceAcc, t.TxnDate, t.TransactionType, t.Amount)
 			if err != nil {
 				l.Error("failed to update account balances", zap.Error(err))
 				tx.Rollback()
@@ -345,7 +345,7 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 	if err := s.accService.FrontfillBalancesForAccount(
 		tx,
 		userID,
-		checkingAcc.ID,
+		sourceAcc.ID,
 		models.DefaultCurrency,
 		frontfillFrom,
 	); err != nil {
@@ -410,7 +410,7 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 	utils.CompareChanges("", "custom", changes, "type")
 	utils.CompareChanges("", "transactions", changes, "sub_type")
 	utils.CompareChanges("", importName, changes, "name")
-	utils.CompareChanges("", checkingAcc.Name, changes, "checking_account")
+	utils.CompareChanges("", sourceAcc.Name, changes, "source_account")
 	utils.CompareChanges("", models.DefaultCurrency, changes, "currency")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Txns)), changes, "transactions_count")
 

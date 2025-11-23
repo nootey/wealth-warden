@@ -33,6 +33,7 @@ type CategoryImportPayload struct {
 }
 
 type TxnImportPayload struct {
+	Identifier          string            `json:"identifier" validate:"required"`
 	GeneratedAt         time.Time         `json:"generated_at" validate:"required"`
 	Txns                []JSONTxn         `json:"transactions" validate:"required"`
 	InvestmentTransfers []JSONTxn         `json:"investments"`

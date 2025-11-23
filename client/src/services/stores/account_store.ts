@@ -11,10 +11,14 @@ export const useAccountStore = defineStore('account', {
     getters: {
     },
     actions: {
-        async getAllAccounts() {
+        async getAllAccounts(toReturn: boolean = false) {
             try {
                 const response = await apiClient.get(`${this.apiPrefix}/all`);
-                this.accounts = response.data;
+                if(toReturn){
+                    return response.data;
+                } else {
+                    this.accounts = response.data;
+                }
             } catch (err) {
                 throw err;
             }
