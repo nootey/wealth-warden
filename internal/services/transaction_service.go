@@ -313,7 +313,7 @@ func (s *TransactionService) InsertTransfer(userID int64, req *models.TransferRe
 		return fmt.Errorf("can't find source account %w", err)
 	}
 
-	if fromAccount.Balance.EndBalance.LessThan(req.Amount) {
+	if fromAccount.AccountType.Classification == "asset" && fromAccount.Balance.EndBalance.LessThan(req.Amount) {
 		tx.Rollback()
 		return fmt.Errorf("%w: account %s balance=%s, requested=%s",
 			errors.New("insufficient funds"),

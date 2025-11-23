@@ -61,6 +61,8 @@ func (s *ImportService) ValidateCustomImport(payload *models.TxnImportPayload, s
 		set = payload.InvestmentTransfers
 	case "saving", "savings":
 		set = payload.SavingsTransfers
+	case "repayment", "repayments":
+		set = payload.RepaymentTransfers
 	default: // "cash"
 		set = payload.Txns
 	}
@@ -78,6 +80,8 @@ func (s *ImportService) ValidateCustomImport(payload *models.TxnImportPayload, s
 		allowed["investments"] = true
 	case "saving", "savings":
 		allowed["savings"] = true
+	case "repayment", "repayments":
+		allowed["repayments"] = true
 	default:
 		allowed["income"] = true
 		allowed["expense"] = true
@@ -1428,6 +1432,292 @@ func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.S
 		LoggingRepo: s.Ctx.LoggingService.Repo,
 		Logger:      s.Ctx.Logger,
 		Event:       "transfer_savings",
+		Category:    "import",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload models.RepaymentTransferPayload) error {
+
+	start := time.Now().UTC()
+	l := s.Ctx.Logger.With(
+		zap.String("op", "transfer_repayments"),
+		zap.Int64("user_id", userID),
+		zap.Int64("account_id", payload.CheckingAccID),
+	)
+	l.Info("started debt repayments transfer from custom transactions import")
+
+	tx := s.Repo.DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			s.markImportFailed(payload.ImportID, nil)
+			panic(p)
+		}
+	}()
+
+	checkingAcc, err := s.accService.Repo.FindAccountByID(tx, payload.CheckingAccID, userID, true)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find source account %w", err)
+	}
+
+	imp, err := s.FetchImportByID(tx, payload.ImportID, userID, "custom")
+	if err != nil {
+		return err
+	}
+
+	if imp.RepaymentsTransferred {
+		return errors.New("debt repayments have already been transferred for this import")
+	}
+
+	filePath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
+	b, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	var txnPayload models.TxnImportPayload
+	if err := json.Unmarshal(b, &txnPayload); err != nil {
+		return err
+	}
+
+	settings, err := s.accService.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	if err != nil {
+		tx.Rollback()
+		s.markImportFailed(payload.ImportID, err)
+		return err
+	}
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	sort.SliceStable(txnPayload.RepaymentTransfers, func(i, j int) bool {
+		return txnPayload.RepaymentTransfers[i].TxnDate.Before(txnPayload.RepaymentTransfers[j].TxnDate)
+	})
+
+	catToAccID := make(map[string]int64, len(payload.RepaymentMappings))
+	distinctAccIDs := make(map[int64]struct{})
+	for _, m := range payload.RepaymentMappings {
+		var id int64
+		switch {
+		case m.AccountID == 0:
+			continue
+		case m.AccountID != 0:
+			id = m.AccountID
+		}
+		if id == 0 {
+			continue
+		}
+		catToAccID[m.Name] = id
+		distinctAccIDs[id] = struct{}{}
+	}
+
+	accCache := make(map[int64]*models.Account, len(distinctAccIDs))
+	for id := range distinctAccIDs {
+		acc, err := s.accService.Repo.FindAccountByID(tx, id, userID, true)
+		if err != nil {
+			_ = tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
+			return fmt.Errorf("destination account %d not found: %w", id, err)
+		}
+		accCache[id] = acc
+	}
+
+	// track earliest touched date per account
+	earliest := make(map[int64]time.Time)
+	touch := func(accID int64, d time.Time) {
+		if t, ok := earliest[accID]; !ok || d.Before(t) {
+			earliest[accID] = d
+		}
+	}
+
+	l.Info("transferring repayments from custom transactions import")
+	for _, txn := range txnPayload.RepaymentTransfers {
+		if txn.TransactionType != "repayments" {
+			continue
+		}
+
+		// find mapped destination by category
+		cAccID, ok := catToAccID[txn.Category]
+		if !ok {
+			l.Debug("skipping repayments txn without mapping",
+				zap.String("category", txn.Category),
+				zap.Time("date", txn.TxnDate),
+			)
+			continue
+		}
+
+		toAccount, ok := accCache[cAccID]
+		if !ok {
+			_ = tx.Rollback()
+			return fmt.Errorf("account %d not cached (internal error)", cAccID)
+		}
+
+		amt, err := decimal.NewFromString(txn.Amount)
+		if err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("invalid amount '%s': %w", txn.Amount, err)
+		}
+
+		// normalize date
+		txDay := utils.LocalMidnightUTC(txn.TxnDate, loc)
+
+		// Determine transfer direction based on amount sign
+		var fromAccID, toAccID int64
+		var fromAcc, toAcc *models.Account
+
+		if amt.IsNegative() {
+			fromAccID = toAccount.ID
+			toAccID = checkingAcc.ID
+			fromAcc = toAccount
+			toAcc = checkingAcc
+			amt = amt.Abs()
+		} else {
+			fromAccID = checkingAcc.ID
+			toAccID = toAccount.ID
+			fromAcc = checkingAcc
+			toAcc = toAccount
+		}
+
+		desc := txn.Description
+		expense := models.Transaction{
+			UserID:          userID,
+			AccountID:       fromAccID,
+			TransactionType: "expense",
+			Amount:          amt,
+			Currency:        models.DefaultCurrency,
+			TxnDate:         txDay,
+			Description:     &desc,
+			IsTransfer:      true,
+			ImportID:        &imp.ID,
+		}
+		if _, err := s.TxnRepo.InsertTransaction(tx, &expense); err != nil {
+			_ = tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
+			return err
+		}
+
+		income := models.Transaction{
+			UserID:          userID,
+			AccountID:       toAccID,
+			TransactionType: "income",
+			Amount:          amt,
+			Currency:        models.DefaultCurrency,
+			TxnDate:         txDay,
+			Description:     &desc,
+			IsTransfer:      true,
+			ImportID:        &imp.ID,
+		}
+		if _, err := s.TxnRepo.InsertTransaction(tx, &income); err != nil {
+			_ = tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
+			return err
+		}
+
+		transfer := models.Transfer{
+			UserID:               userID,
+			TransactionInflowID:  income.ID,
+			TransactionOutflowID: expense.ID,
+			Amount:               amt,
+			Currency:             models.DefaultCurrency,
+			Status:               "success",
+			CreatedAt:            txDay,
+			ImportID:             &imp.ID,
+		}
+		if _, err := s.TxnRepo.InsertTransfer(tx, &transfer); err != nil {
+			_ = tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
+			return err
+		}
+
+		err = s.accService.UpdateBalancesForTransfer(tx, fromAcc, toAcc, txDay, amt)
+		if err != nil {
+			tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
+			return err
+		}
+
+		// record earliest touched date
+		touch(fromAccID, txDay)
+		touch(toAccID, txDay)
+	}
+
+	// frontfill balances
+	frontfillFrom := utils.LocalMidnightUTC(txnPayload.Txns[0].TxnDate, loc)
+	if err := s.accService.FrontfillBalancesForAccount(
+		tx,
+		userID,
+		checkingAcc.ID,
+		models.DefaultCurrency,
+		frontfillFrom,
+	); err != nil {
+		tx.Rollback()
+		s.markImportFailed(payload.ImportID, err)
+		return err
+	}
+
+	// Frontfill & refresh snapshots for each affected account from its earliest date
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	for accID, from := range earliest {
+		if err := s.accService.FrontfillBalancesForAccount(tx, userID, accID, models.DefaultCurrency, from); err != nil {
+			_ = tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
+			return err
+		}
+		if err := s.accService.Repo.UpsertSnapshotsFromBalances(tx, userID, accID, models.DefaultCurrency, from, today); err != nil {
+			_ = tx.Rollback()
+			s.markImportFailed(payload.ImportID, err)
+			return err
+		}
+	}
+
+	if err := s.Repo.UpdateImport(tx, payload.ImportID, map[string]interface{}{
+		"status":                 "success",
+		"step":                   "end",
+		"repayments_transferred": true,
+		"error":                  "",
+	}); err != nil {
+		return fmt.Errorf("marking import %d successful failed: %w", payload.ImportID, err)
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	l.Info("repayments transfer completed successfully",
+		zap.Int64("import_id", payload.ImportID),
+		zap.Duration("elapsed", time.Since(start)),
+		zap.String("status", "success"),
+	)
+
+	changes := utils.InitChanges()
+	utils.CompareChanges("", imp.Name, changes, "import_name")
+	utils.CompareChanges("", checkingAcc.Name, changes, "source_account")
+	utils.CompareChanges("", strconv.Itoa(len(payload.RepaymentMappings)), changes, "repayments_mappings_count")
+
+	// collect destination account names for readability
+	var destNames []string
+	for _, acc := range accCache {
+		destNames = append(destNames, acc.Name)
+	}
+	utils.CompareChanges("", strings.Join(destNames, ", "), changes, "destination_accounts")
+
+	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.Ctx.LoggingService.Repo,
+		Logger:      s.Ctx.Logger,
+		Event:       "transfer_repayments",
 		Category:    "import",
 		Description: nil,
 		Payload:     changes,

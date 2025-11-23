@@ -114,6 +114,8 @@ async function deleteRecord(id: number) {
                            v-tooltip="'Investments transferred'"/>
                         <i v-if="data.savings_transferred" class="pi pi-credit-card hover-icon text-sm"
                            v-tooltip="'Savings transferred'"/>
+                        <i v-if="data.repayments_transferred" class="pi pi-building-columns hover-icon text-sm"
+                           v-tooltip="'Repayments transferred'"/>
                     </div>
                 </template>
             </Column>

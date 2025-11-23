@@ -5,6 +5,7 @@ import ImportInvestments from "../../features/ImportInvestments.vue";
 import ImportAccounts from "../../features/ImportAccounts.vue";
 import ImportCategories from "../../features/ImportCategories.vue";
 import ImportSavings from "../../features/ImportSavings.vue";
+import ImportRepayments from "../../features/ImportRepayments.vue";
 
 const emit = defineEmits<{
     (e: 'refreshData', value: string): void;
@@ -17,6 +18,7 @@ const catRef = ref<InstanceType<typeof ImportCategories> | null>(null);
 const txnRef = ref<InstanceType<typeof ImportTransactions> | null>(null);
 const invRef = ref<InstanceType<typeof ImportInvestments> | null>(null);
 const savRef = ref<InstanceType<typeof ImportSavings> | null>(null);
+const repRef = ref<InstanceType<typeof ImportRepayments> | null>(null);
 
 async function completeAction(val: string) {
     emit("refreshData", val);
@@ -33,6 +35,9 @@ async function startOperation() {
             break;
         case "savings":
             savRef.value?.transferSavings();
+            break;
+        case "repayments":
+            repRef.value?.transferRepayments();
             break;
         case "accounts":
             accRef.value?.importAccounts();
@@ -53,6 +58,8 @@ const isDisabled = computed(() => {
             return invRef.value?.isDisabled ?? true;
         case "savings":
             return savRef.value?.isDisabled ?? true;
+        case "repayments":
+            return repRef.value?.isDisabled ?? true;
         case "accounts":
             return accRef.value?.isDisabled ?? true;
         case "categories":
@@ -80,13 +87,6 @@ defineExpose({isDisabled, startOperation})
                 <div class="flex flex-column w-full border-round-2xl p-2 gap-2" style="background: var(--background-secondary)">
                     <span>Sources</span>
                     <div class="flex flex-column w-full border-round-2xl p-2 gap-2" style="background: var(--background-primary)">
-                        <div class="flex flex-row gap-2 p-2 align-items-center hover-icon" @click="selectedRef = 'custom'">
-                            <i class="pi pi-upload" style="color: #48F05C"></i>
-                            <span>Import from zip</span>
-                            <span class="text-xs" style="color: var(--text-secondary)">From exported data</span>
-                            <i class="pi pi-chevron-right" style="margin-left: auto; color: var(--text-secondary)"></i>
-                        </div>
-                        <div style="border-bottom: 2px solid var(--border-color)"></div>
                         <div class="flex flex-row gap-2 p-2 align-items-center hover-icon" @click="selectedRef = 'accounts'">
                             <i class="pi pi-building" style="color: #F05737"></i>
                             <span>Import accounts</span>
@@ -116,6 +116,12 @@ defineExpose({isDisabled, startOperation})
                             <span>Transfer savings</span>
                             <i class="pi pi-chevron-right" style="margin-left: auto; color: var(--text-secondary)"></i>
                         </div>
+                        <div style="border-bottom: 2px solid var(--border-color)"></div>
+                        <div class="flex flex-row gap-2 p-2 align-items-center hover-icon" @click="selectedRef = 'repayments'">
+                            <i class="pi pi-upload" style="color: #48F05C"></i>
+                            <span>Transfer repayments</span>
+                            <i class="pi pi-chevron-right" style="margin-left: auto; color: var(--text-secondary)"></i>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -125,6 +131,7 @@ defineExpose({isDisabled, startOperation})
             <ImportTransactions ref="txnRef" v-else-if="selectedRef === 'transactions'" @completeImport="completeAction( 'import')"/>
             <ImportInvestments ref="invRef" v-else-if="selectedRef === 'investments'" @completeTransfer="completeAction( 'import')"/>
             <ImportSavings ref="savRef" v-else-if="selectedRef === 'savings'" @completeTransfer="completeAction( 'import')"/>
+            <ImportRepayments ref="repRef" v-else-if="selectedRef === 'repayments'" @completeTransfer="completeAction( 'import')"/>
         </Transition>
     </div>
 

@@ -24,6 +24,7 @@ export type Import = {
     sub_type: string;
     currency: string;
     investments_transferred: boolean,
+    repayments_transferred: boolean,
     savings_transferred: boolean,
     started_at: Date;
     completed_at: Date | null;

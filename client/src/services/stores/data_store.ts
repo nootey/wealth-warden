@@ -97,6 +97,22 @@ export const useDataStore = defineStore('data', {
             }
         },
 
+        async transferRepaymentsFromImport(payload: {
+            import_id: number | string
+            checking_acc_id: number
+            repayment_mappings: { name: string; account_id: number | null }[]
+        }) {
+            try {
+                const res = await apiClient.post(
+                    `${this.importPrefix}/custom/repayments`,
+                    payload
+                );
+                return res.data;
+            } catch (err) {
+                throw err;
+            }
+        },
+
         async getExports() {
             try {
                 const res = await apiClient.get(`${this.exportPrefix}`);

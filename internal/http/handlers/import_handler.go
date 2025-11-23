@@ -169,6 +169,8 @@ func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 		set = payload.InvestmentTransfers
 	case "saving", "savings":
 		set = payload.SavingsTransfers
+	case "repayment", "repayments":
+		set = payload.RepaymentTransfers
 	default: // "cash"
 		set = payload.Txns
 	}
@@ -355,7 +357,7 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
 		return
 	}
-	
+
 	if dec.More() {
 		utils.ErrorMessage(c, "Invalid JSON", "unexpected data after JSON object", http.StatusBadRequest, nil)
 		return
@@ -441,6 +443,35 @@ func (h *ImportHandler) TransferSavingsFromImport(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Savings transferred successfully", "Success", http.StatusOK)
+}
+
+func (h *ImportHandler) TransferRepaymentsFromImport(c *gin.Context) {
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 2<<20)
+
+	var payload models.RepaymentTransferPayload
+
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		utils.ErrorMessage(c, "Invalid Request", "Invalid JSON body", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(payload); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.Service.TransferRepaymentsFromImport(userID, payload); err != nil {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Repayments transferred successfully", "Success", http.StatusOK)
 }
 
 func (h *ImportHandler) DeleteImport(c *gin.Context) {
