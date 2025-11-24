@@ -274,7 +274,6 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64)
 		if tr.TransactionInflow.Account.AccountType.Classification == "liability" {
 			debtRepaymentTotal = debtRepaymentTotal.Add(tr.Amount)
 		}
-		fmt.Println(debtRepaymentTotal)
 
 		takeHome = takeHome.Sub(tr.Amount)
 	}

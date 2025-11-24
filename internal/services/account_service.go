@@ -423,9 +423,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 			return fmt.Errorf("invalid balance value: %w", err)
 		}
 
-		// Current end balance from snapshot
-		asOf := time.Now().UTC()
-		current, err := utils.GetEndBalanceAsOf(tx, exAcc.ID, asOf)
+		current, err := s.Repo.GetLatestBalance(tx, exAcc.ID)
 		if err != nil {
 			tx.Rollback()
 			return err
