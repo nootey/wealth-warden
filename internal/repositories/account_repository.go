@@ -270,6 +270,21 @@ func (r *AccountRepository) FindAccountByName(tx *gorm.DB, userID int64, name st
 	return &record, result.Error
 }
 
+func (r *AccountRepository) FindAccountTypeByAccID(tx *gorm.DB, accID, userID int64) (*models.AccountType, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+
+	var accountType models.AccountType
+	err := db.Table("account_types").
+		Joins("JOIN accounts ON accounts.account_type_id = account_types.id").
+		Where("accounts.id = ? AND accounts.user_id = ?", accID, userID).
+		First(&accountType).Error
+
+	return &accountType, err
+}
+
 func (r *AccountRepository) FindAllAccountsWithLatestBalance(tx *gorm.DB, userID int64) ([]models.Account, error) {
 	db := tx
 	if db == nil {

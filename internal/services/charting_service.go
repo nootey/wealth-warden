@@ -185,9 +185,9 @@ func (s *ChartingService) GetNetWorthSeries(
 		pct = decimal.NewFromInt(1) // 100% gain
 	}
 
-	var acc *models.Account
+	var at *models.AccountType
 	if accountID != nil {
-		acc, err = s.AccRepo.FindAccountByID(tx, *accountID, userID, false)
+		at, err = s.AccRepo.FindAccountTypeByAccID(tx, *accountID, userID)
 		if err != nil {
 			tx.Rollback()
 			return nil, err
@@ -212,8 +212,8 @@ func (s *ChartingService) GetNetWorthSeries(
 		},
 	}
 
-	if acc != nil {
-		nwRes.AssetType = &acc.AccountType.Classification
+	if at != nil {
+		nwRes.AssetType = &at.Classification
 	}
 
 	return nwRes, nil

@@ -139,6 +139,7 @@ async function handleEmit(type: string) {
     </Dialog>
 
     <div v-if="account" class="flex flex-column w-full gap-3">
+
         <div class="flex flex-row gap-2 align-items-center text-center">
             <i :class="['pi', account.account_type.classification === 'liability' ? 'pi-credit-card' : 'pi-wallet']">
             </i>
@@ -154,6 +155,10 @@ async function handleEmit(type: string) {
                         <span class="mobile-hide"> account </span>
                     </div>
             </Button>
+        </div>
+
+        <div v-if="!account.is_active" class="flex flex-row gap-2 align-items-center text-center pl-1">
+            <small style="color: var(--text-secondary)">Account is inactive, some aspects will not be shown.</small>
         </div>
 
         <SlotSkeleton class="w-full" bg="opt">
@@ -186,7 +191,7 @@ async function handleEmit(type: string) {
             </div>
         </SlotSkeleton>
 
-        <SlotSkeleton class="w-full" bg="opt">
+        <SlotSkeleton v-if="account.is_active" class="w-full" bg="opt">
             <div class="flex flex-column gap-2 p-3 w-full">
                 <div class="flex flex-row gap-1 align-items-center text-center">
                     <h4>Projections</h4>
@@ -209,10 +214,10 @@ async function handleEmit(type: string) {
           <NetworthWidget ref="nWidgetRef" :accountId="account.id" :chartHeight="200"/>
         </SlotSkeleton>
 
-        <div class="w-full flex flex-column gap-2">
+        <div v-if="account.is_active" class="w-full flex flex-column gap-2">
             <h3 style="color: var(--text-primary)">Stats</h3>
         </div>
-        <SlotSkeleton class="w-full">
+        <SlotSkeleton v-if="account.is_active" class="w-full">
             <AccountBasicStats :accID="account.id" :pieChartSize="250" />
         </SlotSkeleton>
 
