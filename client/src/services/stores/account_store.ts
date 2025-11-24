@@ -85,5 +85,13 @@ export const useAccountStore = defineStore('account', {
                 throw err;
             }
         },
+        async getLatestBalance(id: number) {
+            try {
+                const response = await apiClient.get(`${this.apiPrefix}/balances/${id}/latest`);
+                return response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
     },
 });

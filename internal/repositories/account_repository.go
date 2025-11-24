@@ -862,31 +862,21 @@ func (r *AccountRepository) DeleteAllBalancesForAccount(tx *gorm.DB, accountID i
 	return tx.Where("account_id = ?", accountID).Delete(&models.Balance{}).Error
 }
 
-func (r *AccountRepository) GetLatestBalance(tx *gorm.DB, accountID int64) (decimal.Decimal, error) {
-	var endBalance sql.NullString
+func (r *AccountRepository) FindLatestBalance(tx *gorm.DB, accountID, userID int64) (*models.Balance, error) {
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
 
-	err := tx.
-		Raw(`
-          SELECT end_balance::text
-          FROM balances
-          WHERE account_id = ?
-          ORDER BY as_of DESC
-          LIMIT 1
-       `, accountID).
-		Scan(&endBalance).Error
+	var balance models.Balance
+	err := db.Where("account_id = ?", accountID).
+		Order("as_of DESC").
+		Limit(1).
+		First(&balance).Error
+
 	if err != nil {
-		return decimal.Zero, err
+		return nil, err
 	}
 
-	if !endBalance.Valid {
-		// no row found - treat as 0
-		return decimal.Zero, nil
-	}
-
-	d, err := decimal.NewFromString(endBalance.String)
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	return d, nil
+	return &balance, nil
 }

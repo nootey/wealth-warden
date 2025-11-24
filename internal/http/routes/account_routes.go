@@ -21,5 +21,6 @@ func AccountRoutes(apiGroup *gin.RouterGroup, handler *handlers.AccountHandler) 
 	apiGroup.DELETE(":id", authz.RequireAllMW("manage_data"), handler.CloseAccount)
 	apiGroup.POST(":id/projection/save", authz.RequireAllMW("manage_data"), handler.SaveAccountProjection)
 	apiGroup.POST(":id/projection/revert", authz.RequireAllMW("manage_data"), handler.RevertAccountProjection)
+	apiGroup.GET("/balances/:id/latest", authz.RequireAllMW("manage_data"), handler.GetLatestBalance)
 	apiGroup.POST("/balances/backfill", authz.RequireAllMW("manage_data"), handler.BackfillBalancesForUser)
 }

@@ -98,6 +98,16 @@ func (s *AccountService) FetchAccountsPaginated(userID int64, p utils.Pagination
 	return records, paginator, nil
 }
 
+func (s *AccountService) FetchLatestBalance(accID, userID int64) (*models.Balance, error) {
+
+	record, err := s.Repo.FindLatestBalance(nil, accID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return record, nil
+}
+
 func (s *AccountService) FetchAccountByID(userID int64, id int64, initialBalance bool) (*models.Account, error) {
 
 	if initialBalance {
@@ -423,7 +433,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 			return fmt.Errorf("invalid balance value: %w", err)
 		}
 
-		current, err := s.Repo.GetLatestBalance(tx, exAcc.ID)
+		latestBalance, err := s.Repo.FindLatestBalance(tx, exAcc.ID, userID)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -432,7 +442,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 		// Match sign conventions
 		isLiability := strings.EqualFold(newAccType.Type, "liability")
 
-		delta = desired.Sub(current)
+		delta = desired.Sub(latestBalance.EndBalance)
 		signed := delta
 		if isLiability {
 			signed = delta.Neg()

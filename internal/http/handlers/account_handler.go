@@ -411,3 +411,32 @@ func (h *AccountHandler) RevertAccountProjection(c *gin.Context) {
 
 	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
 }
+
+func (h *AccountHandler) GetLatestBalance(c *gin.Context) {
+	userID, err := utils.UserIDFromCtx(c)
+	if err != nil {
+		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	idStr := c.Param("id")
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	rec, err := h.Service.FetchLatestBalance(id, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, rec)
+}

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-import type {Account} from "../../../models/account_models.ts";
+import type {Account, Balance} from "../../../models/account_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
 import {computed, nextTick, onMounted, ref} from "vue";
@@ -17,15 +17,12 @@ import ShowLoading from "../base/ShowLoading.vue";
 import Decimal from "decimal.js";
 import {useChartColors} from "../../../style/theme/chartColors.ts";
 import AccountProjectionForm from "../forms/AccountProjectionForm.vue";
+import {useAccountStore} from "../../../services/stores/account_store.ts";
 
 const props = defineProps<{
     accID: number;
     advanced: boolean;
 }>();
-
-onMounted(async () => {
-    await loadRecord(props.accID);
-})
 
 const emit = defineEmits<{
     (event: 'closeAccount', id: number): void;
@@ -34,11 +31,13 @@ const emit = defineEmits<{
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 const sharedStore = useSharedStore();
+const accountStore = useAccountStore();
 
 const confirm = useConfirm();
 const nWidgetRef = ref<InstanceType<typeof NetworthWidget> | null>(null);
 const account = ref<Account | null>(null);
 const projectionsModal = ref(false);
+const latestBalance = ref<Balance | null>(null);
 
 const { colors } = useChartColors();
 
@@ -51,7 +50,7 @@ const transactionColumns = computed<Column[]>(() => [
 
 const expectedDifference = computed(() => {
     const expectedBalance = account.value?.expected_balance
-    const endBalance = account.value?.balance?.end_balance
+    const endBalance = latestBalance.value?.end_balance
 
     if (!expectedBalance || !endBalance) {
         return null
@@ -74,12 +73,25 @@ const differenceColor = computed(() => {
     return diff.isPositive() ? colors.value.pos : colors.value.neg
 })
 
+onMounted(async () => {
+    await loadRecord(props.accID);
+    await loadLatestBalance(props.accID)
+})
+
 async function loadRecord(id: number) {
     try {
         account.value = await sharedStore.getRecordByID("accounts", id, {initial_balance: true});
 
         await nextTick();
 
+    } catch (err) {
+        toastStore.errorResponseToast(err);
+    }
+}
+
+async function loadLatestBalance(id: number) {
+    try {
+        latestBalance.value = await accountStore.getLatestBalance(id);
     } catch (err) {
         toastStore.errorResponseToast(err);
     }
