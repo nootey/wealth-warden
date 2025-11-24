@@ -60,19 +60,21 @@ type MonthlyTotalsRow struct {
 }
 
 type CurrentMonthStats struct {
-	UserID      int64           `json:"user_id"`
-	AccountID   *int64          `json:"account_id,omitempty"`
-	Currency    string          `json:"currency"`
-	Year        int             `json:"year"`
-	Month       int             `json:"month"`
-	Inflow      decimal.Decimal `json:"inflow"`
-	Outflow     decimal.Decimal `json:"outflow"`
-	Net         decimal.Decimal `json:"net"`
-	TakeHome    decimal.Decimal `json:"take_home"`
-	Overflow    decimal.Decimal `json:"overflow"`
-	Savings     decimal.Decimal `json:"savings"`
-	Investments decimal.Decimal `json:"investments"`
-	SavingsRate decimal.Decimal `json:"savings_rate"`
-	InvestRate  decimal.Decimal `json:"investments_rate"`
-	GeneratedAt time.Time       `json:"generated_at"`
+	UserID            int64           `json:"user_id"`
+	AccountID         *int64          `json:"account_id,omitempty"`
+	Currency          string          `json:"currency"`
+	Year              int             `json:"year"`
+	Month             int             `json:"month"`
+	Inflow            decimal.Decimal `json:"inflow"`
+	Outflow           decimal.Decimal `json:"outflow"`
+	Net               decimal.Decimal `json:"net"`
+	TakeHome          decimal.Decimal `json:"take_home"`
+	Overflow          decimal.Decimal `json:"overflow"`
+	Savings           decimal.Decimal `json:"savings"`
+	Investments       decimal.Decimal `json:"investments"`
+	DebtRepayments    decimal.Decimal `json:"debt_repayments"`
+	SavingsRate       decimal.Decimal `json:"savings_rate"`
+	InvestRate        decimal.Decimal `json:"investments_rate"`
+	DebtRepaymentRate decimal.Decimal `json:"debt_repayment_rate"`
+	GeneratedAt       time.Time       `json:"generated_at"`
 }

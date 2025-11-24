@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"sort"
 	"time"
 	"wealth-warden/internal/models"
@@ -259,6 +260,7 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64)
 
 	savingsTotal := decimal.Zero
 	investmentsTotal := decimal.Zero
+	debtRepaymentTotal := decimal.Zero
 
 	for _, tr := range transfers {
 
@@ -269,14 +271,21 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64)
 			investmentsTotal = investmentsTotal.Add(tr.Amount)
 		}
 
+		if tr.TransactionInflow.Account.AccountType.Classification == "liability" {
+			debtRepaymentTotal = debtRepaymentTotal.Add(tr.Amount)
+		}
+		fmt.Println(debtRepaymentTotal)
+
 		takeHome = takeHome.Sub(tr.Amount)
 	}
 
 	savingsRate := decimal.Zero
 	investRate := decimal.Zero
+	repaymentRate := decimal.Zero
 	if !inflow.IsZero() {
 		savingsRate = savingsTotal.Div(inflow)
 		investRate = investmentsTotal.Div(inflow)
+		repaymentRate = debtRepaymentTotal.Div(inflow)
 	}
 
 	if takeHome.LessThan(decimal.Zero) {
@@ -289,21 +298,23 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64)
 	}
 
 	return &models.CurrentMonthStats{
-		UserID:      userID,
-		AccountID:   accountID,
-		Currency:    models.DefaultCurrency,
-		Year:        year,
-		Month:       month,
-		Inflow:      inflow,
-		Outflow:     outflow,
-		Net:         net,
-		TakeHome:    takeHome,
-		Overflow:    overflow,
-		Savings:     savingsTotal,
-		Investments: investmentsTotal,
-		SavingsRate: savingsRate,
-		InvestRate:  investRate,
-		GeneratedAt: time.Now().UTC(),
+		UserID:            userID,
+		AccountID:         accountID,
+		Currency:          models.DefaultCurrency,
+		Year:              year,
+		Month:             month,
+		Inflow:            inflow,
+		Outflow:           outflow,
+		Net:               net,
+		TakeHome:          takeHome,
+		Overflow:          overflow,
+		Savings:           savingsTotal,
+		Investments:       investmentsTotal,
+		DebtRepayments:    debtRepaymentTotal,
+		SavingsRate:       savingsRate,
+		InvestRate:        investRate,
+		DebtRepaymentRate: repaymentRate,
+		GeneratedAt:       time.Now().UTC(),
 	}, nil
 }
 

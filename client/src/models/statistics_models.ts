@@ -39,7 +39,9 @@ export interface MonthlyStats {
     overflow: string;
     savings: string;
     investments: string;
+    debt_repayments: string;
     savings_rate: string;
     investments_rate: string;
+    debt_repayment_rate: string;
     generated_at: Date;
 }
