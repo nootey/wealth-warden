@@ -1,4 +1,4 @@
-package tests
+package handlers_test
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"wealth-warden/internal/tests"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,12 +16,10 @@ import (
 const accApiEndpoint = "/api/accounts/"
 
 func TestCreateLedgerAccount(t *testing.T) {
+	s := tests.NewTestServer(t)
+	tests.CleanupData(t)
 
-	s := setupTestServer(t)
-	cleanupTestData(t)
-
-	userID, accessToken, refreshToken := createRootUser(t)
-	t.Logf("Test User ID: %d", userID)
+	_, accessToken, refreshToken := tests.CreateRootUser(t)
 
 	// Prepare the request body
 	requestBody := map[string]interface{}{
@@ -38,7 +37,7 @@ func TestCreateLedgerAccount(t *testing.T) {
 	// Create HTTP request
 	req := httptest.NewRequest(http.MethodPut, "/api/accounts", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	addAuth(req, accessToken, refreshToken)
+	tests.AddAuth(req, accessToken, refreshToken)
 
 	w := httptest.NewRecorder()
 
@@ -54,20 +53,19 @@ func TestCreateLedgerAccount(t *testing.T) {
 	var response map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-
 }
 
 func TestGetAllLedgerAccounts(t *testing.T) {
-	s := setupTestServer(t)
-	cleanupTestData(t)
-	_, accessToken, refreshToken := createRootUser(t)
+	s := tests.NewTestServer(t)
+	tests.CleanupData(t)
+	_, accessToken, refreshToken := tests.CreateRootUser(t)
 
 	// Create an account first
-	createTestLedgerAccount(t, s, accessToken, refreshToken, "Test Account", "0.00")
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, "Test Account", "0.00")
 
 	// Test getting all accounts
 	req := httptest.NewRequest(http.MethodGet, accApiEndpoint+"all", nil)
-	addAuth(req, accessToken, refreshToken)
+	tests.AddAuth(req, accessToken, refreshToken)
 
 	w := httptest.NewRecorder()
 	s.Router.ServeHTTP(w, req)
@@ -77,18 +75,18 @@ func TestGetAllLedgerAccounts(t *testing.T) {
 }
 
 func TestGetLedgerAccountByID(t *testing.T) {
-	s := setupTestServer(t)
-	cleanupTestData(t)
-	_, accessToken, refreshToken := createRootUser(t)
+	s := tests.NewTestServer(t)
+	tests.CleanupData(t)
+	_, accessToken, refreshToken := tests.CreateRootUser(t)
 
 	const name = "Savings Account (test)"
-	createTestLedgerAccount(t, s, accessToken, refreshToken, name, "0.00")
-	acc := findLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, name, "0.00")
+	acc := tests.FindLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
 	id := int64(acc["id"].(float64))
 
 	url := fmt.Sprintf("%s%d", accApiEndpoint, id)
 	req := httptest.NewRequest(http.MethodGet, url, nil)
-	addAuth(req, accessToken, refreshToken)
+	tests.AddAuth(req, accessToken, refreshToken)
 
 	w := httptest.NewRecorder()
 	s.Router.ServeHTTP(w, req)
@@ -98,9 +96,9 @@ func TestGetLedgerAccountByID(t *testing.T) {
 }
 
 func TestCreateLedgerAccount_MissingName(t *testing.T) {
-	s := setupTestServer(t)
-	cleanupTestData(t)
-	_, accessToken, refreshToken := createRootUser(t)
+	s := tests.NewTestServer(t)
+	tests.CleanupData(t)
+	_, accessToken, refreshToken := tests.CreateRootUser(t)
 
 	// Missing "name" field
 	requestBody := map[string]interface{}{
@@ -113,7 +111,7 @@ func TestCreateLedgerAccount_MissingName(t *testing.T) {
 	jsonBody, _ := json.Marshal(requestBody)
 	req := httptest.NewRequest(http.MethodPut, "/api/accounts", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	addAuth(req, accessToken, refreshToken)
+	tests.AddAuth(req, accessToken, refreshToken)
 
 	w := httptest.NewRecorder()
 	s.Router.ServeHTTP(w, req)
@@ -123,13 +121,13 @@ func TestCreateLedgerAccount_MissingName(t *testing.T) {
 }
 
 func TestUpdateLedgerAccount(t *testing.T) {
-	s := setupTestServer(t)
-	cleanupTestData(t)
-	_, accessToken, refreshToken := createRootUser(t)
+	s := tests.NewTestServer(t)
+	tests.CleanupData(t)
+	_, accessToken, refreshToken := tests.CreateRootUser(t)
 
 	const name = "Update Me (test)"
-	createTestLedgerAccount(t, s, accessToken, refreshToken, name, "0.00")
-	acc := findLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, name, "0.00")
+	acc := tests.FindLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
 	id := int64(acc["id"].(float64))
 
 	updated := map[string]interface{}{
@@ -143,7 +141,7 @@ func TestUpdateLedgerAccount(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("%s%d", accApiEndpoint, id), bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
-	addAuth(req, accessToken, refreshToken)
+	tests.AddAuth(req, accessToken, refreshToken)
 
 	w := httptest.NewRecorder()
 	s.Router.ServeHTTP(w, req)
@@ -152,53 +150,52 @@ func TestUpdateLedgerAccount(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	getReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("%s%d", accApiEndpoint, id), nil)
-	addAuth(getReq, accessToken, refreshToken)
+	tests.AddAuth(getReq, accessToken, refreshToken)
 	getW := httptest.NewRecorder()
 	s.Router.ServeHTTP(getW, getReq)
 	assert.Equal(t, http.StatusOK, getW.Code)
 }
 
 func TestToggleLedgerAccount(t *testing.T) {
-	s := setupTestServer(t)
-	cleanupTestData(t)
-	_, accessToken, refreshToken := createRootUser(t)
+	s := tests.NewTestServer(t)
+	tests.CleanupData(t)
+	_, accessToken, refreshToken := tests.CreateRootUser(t)
 
 	const name = "Toggle Me (test)"
-	createTestLedgerAccount(t, s, accessToken, refreshToken, name, "0.00")
-	acc := findLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, name, "0.00")
+	acc := tests.FindLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
 	origActive, _ := acc["is_active"].(bool)
 	id := int64(acc["id"].(float64))
 
 	// toggle
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("%s%d/active", accApiEndpoint, id), nil)
-	addAuth(req, accessToken, refreshToken)
+	tests.AddAuth(req, accessToken, refreshToken)
 	w := httptest.NewRecorder()
 	s.Router.ServeHTTP(w, req)
 
 	t.Logf("toggle status: %d", w.Code)
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	acc2 := findLedgerAccountByName(t, s, accessToken, refreshToken, name, true)
+	acc2 := tests.FindLedgerAccountByName(t, s, accessToken, refreshToken, name, true)
 	newActive, _ := acc2["is_active"].(bool)
 
 	t.Logf("before: %v, after: %v", origActive, newActive)
 	assert.NotEqual(t, origActive, newActive, "is_active should be flipped")
-
 }
 
 func TestDeleteLedgerAccount(t *testing.T) {
-	s := setupTestServer(t)
-	cleanupTestData(t)
-	_, accessToken, refreshToken := createRootUser(t)
+	s := tests.NewTestServer(t)
+	tests.CleanupData(t)
+	_, accessToken, refreshToken := tests.CreateRootUser(t)
 
 	const name = "Delete Me (test)"
-	createTestLedgerAccount(t, s, accessToken, refreshToken, name, "0.00")
-	acc := findLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, name, "0.00")
+	acc := tests.FindLedgerAccountByName(t, s, accessToken, refreshToken, name, false)
 	id := int64(acc["id"].(float64))
 
 	// delete
 	delReq := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("%s%d", accApiEndpoint, id), nil)
-	addAuth(delReq, accessToken, refreshToken)
+	tests.AddAuth(delReq, accessToken, refreshToken)
 	delW := httptest.NewRecorder()
 	s.Router.ServeHTTP(delW, delReq)
 
@@ -206,7 +203,7 @@ func TestDeleteLedgerAccount(t *testing.T) {
 	assert.True(t, delW.Code == http.StatusOK || delW.Code == http.StatusNoContent, "expected 200 or 204")
 
 	getReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("%s%d", accApiEndpoint, id), nil)
-	addAuth(getReq, accessToken, refreshToken)
+	tests.AddAuth(getReq, accessToken, refreshToken)
 	getW := httptest.NewRecorder()
 	s.Router.ServeHTTP(getW, getReq)
 	assert.NotEqual(t, http.StatusOK, getW.Code)

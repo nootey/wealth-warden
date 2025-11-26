@@ -11,7 +11,23 @@ import (
 	wwHttp "wealth-warden/internal/http"
 )
 
-func createTestLedgerAccount(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name, balance string) {
+func AddAuth(req *http.Request, accessToken, refreshToken string) {
+
+	req.AddCookie(&http.Cookie{
+		Name:     "access",
+		Value:    accessToken,
+		Path:     "/",
+		HttpOnly: true,
+	})
+	req.AddCookie(&http.Cookie{
+		Name:     "refresh",
+		Value:    refreshToken,
+		Path:     "/",
+		HttpOnly: true,
+	})
+}
+
+func CreateTestLedgerAccount(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name, balance string) {
 	t.Helper()
 	requestBody := map[string]interface{}{
 		"name":            name,
@@ -25,7 +41,7 @@ func createTestLedgerAccount(t *testing.T, s *wwHttp.Server, accessToken, refres
 	jsonBody, _ := json.Marshal(requestBody)
 	req := httptest.NewRequest(http.MethodPut, "/api/accounts", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	addAuth(req, accessToken, refreshToken)
+	AddAuth(req, accessToken, refreshToken)
 
 	w := httptest.NewRecorder()
 	s.Router.ServeHTTP(w, req)
@@ -36,7 +52,7 @@ func createTestLedgerAccount(t *testing.T, s *wwHttp.Server, accessToken, refres
 	}
 }
 
-func findLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name string, includeInactive bool) map[string]interface{} {
+func FindLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name string, includeInactive bool) map[string]interface{} {
 	t.Helper()
 
 	path := "/api/accounts/all"
@@ -45,7 +61,7 @@ func findLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refres
 	}
 
 	req := httptest.NewRequest(http.MethodGet, path, nil)
-	addAuth(req, accessToken, refreshToken)
+	AddAuth(req, accessToken, refreshToken)
 
 	w := httptest.NewRecorder()
 	s.Router.ServeHTTP(w, req)
@@ -69,12 +85,12 @@ func findLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refres
 	return nil
 }
 
-func getLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name string) map[string]interface{} {
+func GetLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refreshToken, name string) map[string]interface{} {
 	t.Helper()
 
 	path := fmt.Sprintf("/api/accounts/name/%s", name)
 	req := httptest.NewRequest(http.MethodGet, path, nil)
-	addAuth(req, accessToken, refreshToken)
+	AddAuth(req, accessToken, refreshToken)
 
 	w := httptest.NewRecorder()
 	s.Router.ServeHTTP(w, req)
@@ -90,23 +106,7 @@ func getLedgerAccountByName(t *testing.T, s *wwHttp.Server, accessToken, refresh
 	return account
 }
 
-func addAuth(req *http.Request, accessToken, refreshToken string) {
-
-	req.AddCookie(&http.Cookie{
-		Name:     "access",
-		Value:    accessToken,
-		Path:     "/",
-		HttpOnly: true,
-	})
-	req.AddCookie(&http.Cookie{
-		Name:     "refresh",
-		Value:    refreshToken,
-		Path:     "/",
-		HttpOnly: true,
-	})
-}
-
-func createTestTransaction(t *testing.T, s *wwHttp.Server, accessToken, refreshToken string, accID, catID int64, txnType string, amount string, description *string) {
+func CreateTestTransaction(t *testing.T, s *wwHttp.Server, accessToken, refreshToken string, accID, catID int64, txnType string, amount string, description *string) {
 
 	requestBody := map[string]interface{}{
 		"account_id":       accID,
@@ -121,7 +121,7 @@ func createTestTransaction(t *testing.T, s *wwHttp.Server, accessToken, refreshT
 	jsonBody, _ := json.Marshal(requestBody)
 	req := httptest.NewRequest(http.MethodPut, "/api/transactions", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	addAuth(req, accessToken, refreshToken)
+	AddAuth(req, accessToken, refreshToken)
 
 	w := httptest.NewRecorder()
 	s.Router.ServeHTTP(w, req)
@@ -131,7 +131,7 @@ func createTestTransaction(t *testing.T, s *wwHttp.Server, accessToken, refreshT
 	}
 }
 
-func createTestTransfer(t *testing.T, s *wwHttp.Server, accessToken, refreshToken string, sourceID, destID int64, amount string, notes *string) {
+func CreateTestTransfer(t *testing.T, s *wwHttp.Server, accessToken, refreshToken string, sourceID, destID int64, amount string, notes *string) {
 	requestBody := map[string]interface{}{
 		"source_id":      sourceID,
 		"destination_id": destID,
@@ -143,7 +143,7 @@ func createTestTransfer(t *testing.T, s *wwHttp.Server, accessToken, refreshToke
 	jsonBody, _ := json.Marshal(requestBody)
 	req := httptest.NewRequest(http.MethodPut, "/api/transactions/transfers", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	addAuth(req, accessToken, refreshToken)
+	AddAuth(req, accessToken, refreshToken)
 
 	w := httptest.NewRecorder()
 	s.Router.ServeHTTP(w, req)

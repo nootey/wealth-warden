@@ -2,15 +2,22 @@ package tests
 
 import (
 	"testing"
+	"wealth-warden/internal/tests"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDatabaseConnection(t *testing.T) {
-	require.NotNil(t, testDB, "Test database should be initialized")
+func init() {
+	if err := tests.Setup(); err != nil {
+		panic(err)
+	}
+}
 
-	sqlDB, err := testDB.DB()
+func TestDatabaseConnection(t *testing.T) {
+	require.NotNil(t, tests.DB, "Test database should be initialized")
+
+	sqlDB, err := tests.DB.DB()
 	require.NoError(t, err)
 
 	err = sqlDB.Ping()
@@ -21,12 +28,11 @@ func TestDatabaseConnection(t *testing.T) {
 
 func TestMigrationsRan(t *testing.T) {
 	var exists bool
-	err := testDB.Raw(`
+	err := tests.DB.Raw(`
         SELECT EXISTS (
             SELECT FROM information_schema.tables 
             WHERE table_name = 'users'
-        )
-    `).Scan(&exists).Error
+        )`).Scan(&exists).Error
 
 	require.NoError(t, err)
 	assert.True(t, exists, "Users table should exist after migrations")
@@ -35,9 +41,9 @@ func TestMigrationsRan(t *testing.T) {
 }
 
 func TestCreateRootUser(t *testing.T) {
-	cleanupTestData(t) // Clean first
+	tests.CleanupData(t)
 
-	userID, accessToken, refreshToken := createRootUser(t)
+	userID, accessToken, refreshToken := tests.CreateRootUser(t)
 
 	assert.NotZero(t, userID, "Should have user ID")
 	assert.NotEmpty(t, accessToken, "Should have access token")

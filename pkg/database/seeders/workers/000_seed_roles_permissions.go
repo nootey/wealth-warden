@@ -137,7 +137,6 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 			if err != nil {
 				return fmt.Errorf("error inserting role %s: %w", role.Name, err)
 			}
-			fmt.Printf("Inserted role: %s\n", role.Name)
 			err = db.Raw(`SELECT id FROM roles WHERE name = ?`, role.Name).Scan(&roleID).Error
 			if err != nil {
 				return fmt.Errorf("error retrieving inserted role ID for %s: %w", role.Name, err)
@@ -162,7 +161,6 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 			if err != nil {
 				return fmt.Errorf("error inserting permission %s: %w", perm, err)
 			}
-			fmt.Printf("Inserted permission: %s\n", perm.Name)
 			err = db.Raw(`SELECT id FROM permissions WHERE name = ?`, perm.Name).Scan(&permID).Error
 			if err != nil {
 				return fmt.Errorf("error retrieving inserted permission ID for %s: %w", perm, err)

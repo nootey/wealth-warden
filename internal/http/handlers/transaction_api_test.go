@@ -1,14 +1,13 @@
-package tests
+package handlers_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"wealth-warden/internal/models"
-	"wealth-warden/pkg/database/seeders/workers"
+	"wealth-warden/internal/tests"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -18,20 +17,8 @@ const txnApiEndpoint = "/api/transactions"
 func getDefaultCategory(t *testing.T) int64 {
 	t.Helper()
 
-	ctx := context.Background()
-
-	if err := workers.SeedCategories(ctx, testDB, testLogger, testCfg); err != nil {
-		t.Fatalf("Failed to create categories: %v", err)
-	}
-
-	var count int64
-	testDB.Model(&models.Category{}).Count(&count)
-	if count == 0 {
-		t.Fatal("No categories were created")
-	}
-
 	var category models.Category
-	result := testDB.Where("name = ?", "(uncategorized)").First(&category)
+	result := tests.DB.Where("name = ?", "(uncategorized)").First(&category)
 	if result.Error != nil {
 		t.Fatalf("Failed to find 'uncategorized' category: %v", result.Error)
 	}
@@ -40,24 +27,24 @@ func getDefaultCategory(t *testing.T) int64 {
 }
 
 func TestInsertValidTransaction(t *testing.T) {
-	s := setupTestServer(t)
-	cleanupTestData(t)
-	_, accessToken, refreshToken := createRootUser(t)
+	s := tests.NewTestServer(t)
+	tests.CleanupData(t)
+	_, accessToken, refreshToken := tests.CreateRootUser(t)
 	catID := getDefaultCategory(t)
 
 	// Create account
 	const name = "Test"
-	createTestLedgerAccount(t, s, accessToken, refreshToken, name, "0")
-	acc := getLedgerAccountByName(t, s, accessToken, refreshToken, name)
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, name, "0")
+	acc := tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, name)
 	accID := int64(acc["id"].(float64))
 	accBalance := acc["balance"].(map[string]interface{})
 	startBalance := accBalance["end_balance"].(string)
 
 	// Create txn
-	createTestTransaction(t, s, accessToken, refreshToken, accID, catID, "income", "100", nil)
+	tests.CreateTestTransaction(t, s, accessToken, refreshToken, accID, catID, "income", "100", nil)
 
 	// Check new balance state
-	acc1 := getLedgerAccountByName(t, s, accessToken, refreshToken, name)
+	acc1 := tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, name)
 	accBalance1 := acc1["balance"].(map[string]interface{})
 	endBalance := accBalance1["end_balance"].(string)
 
@@ -67,22 +54,22 @@ func TestInsertValidTransaction(t *testing.T) {
 }
 
 func TestGetTransactions(t *testing.T) {
-	s := setupTestServer(t)
-	cleanupTestData(t)
-	_, accessToken, refreshToken := createRootUser(t)
+	s := tests.NewTestServer(t)
+	tests.CleanupData(t)
+	_, accessToken, refreshToken := tests.CreateRootUser(t)
 
 	// Create a txn
 	const name = "Test"
 	desc := "Test Transaction - Unique Description 12345"
-	createTestLedgerAccount(t, s, accessToken, refreshToken, name, "0")
-	acc := getLedgerAccountByName(t, s, accessToken, refreshToken, name)
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, name, "0")
+	acc := tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, name)
 	accID := int64(acc["id"].(float64))
 	catID := getDefaultCategory(t)
-	createTestTransaction(t, s, accessToken, refreshToken, accID, catID, "income", "100", &desc)
+	tests.CreateTestTransaction(t, s, accessToken, refreshToken, accID, catID, "income", "100", &desc)
 
 	// Test getting txns
 	req := httptest.NewRequest(http.MethodGet, txnApiEndpoint, nil)
-	addAuth(req, accessToken, refreshToken)
+	tests.AddAuth(req, accessToken, refreshToken)
 
 	w := httptest.NewRecorder()
 	s.Router.ServeHTTP(w, req)
@@ -122,20 +109,20 @@ func TestGetTransactions(t *testing.T) {
 }
 
 func TestDeleteTransaction(t *testing.T) {
-	s := setupTestServer(t)
-	cleanupTestData(t)
-	_, accessToken, refreshToken := createRootUser(t)
+	s := tests.NewTestServer(t)
+	tests.CleanupData(t)
+	_, accessToken, refreshToken := tests.CreateRootUser(t)
 	catID := getDefaultCategory(t)
 
 	const name = "Test"
-	createTestLedgerAccount(t, s, accessToken, refreshToken, name, "0")
-	acc := getLedgerAccountByName(t, s, accessToken, refreshToken, name)
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, name, "0")
+	acc := tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, name)
 	accID := int64(acc["id"].(float64))
 	desc := "Transaction to Delete - Unique 67890"
-	createTestTransaction(t, s, accessToken, refreshToken, accID, catID, "income", "100", &desc)
+	tests.CreateTestTransaction(t, s, accessToken, refreshToken, accID, catID, "income", "100", &desc)
 
 	listReq := httptest.NewRequest(http.MethodGet, txnApiEndpoint, nil)
-	addAuth(listReq, accessToken, refreshToken)
+	tests.AddAuth(listReq, accessToken, refreshToken)
 	listW := httptest.NewRecorder()
 	s.Router.ServeHTTP(listW, listReq)
 
@@ -164,7 +151,7 @@ func TestDeleteTransaction(t *testing.T) {
 
 	// Delete the transaction
 	delReq := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("%s/%d", txnApiEndpoint, txnID), nil)
-	addAuth(delReq, accessToken, refreshToken)
+	tests.AddAuth(delReq, accessToken, refreshToken)
 	delW := httptest.NewRecorder()
 	s.Router.ServeHTTP(delW, delReq)
 
@@ -173,7 +160,7 @@ func TestDeleteTransaction(t *testing.T) {
 
 	// Verify transaction no longer appears in the list (soft-deleted records should be excluded)
 	listReq2 := httptest.NewRequest(http.MethodGet, txnApiEndpoint, nil)
-	addAuth(listReq2, accessToken, refreshToken)
+	tests.AddAuth(listReq2, accessToken, refreshToken)
 	listW2 := httptest.NewRecorder()
 	s.Router.ServeHTTP(listW2, listReq2)
 
@@ -198,13 +185,13 @@ func TestDeleteTransaction(t *testing.T) {
 }
 
 func TestPositiveTransfer(t *testing.T) {
-	s := setupTestServer(t)
-	cleanupTestData(t)
-	_, accessToken, refreshToken := createRootUser(t)
+	s := tests.NewTestServer(t)
+	tests.CleanupData(t)
+	_, accessToken, refreshToken := tests.CreateRootUser(t)
 
 	// Create source account
-	createTestLedgerAccount(t, s, accessToken, refreshToken, "Source", "600")
-	sourceAcc := getLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, "Source", "600")
+	sourceAcc := tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
 	sourceID := int64(sourceAcc["id"].(float64))
 	sourceBalance := sourceAcc["balance"].(map[string]interface{})
 	startBalance := sourceBalance["end_balance"].(string)
@@ -214,16 +201,16 @@ func TestPositiveTransfer(t *testing.T) {
 	}
 
 	// Create destination account
-	createTestLedgerAccount(t, s, accessToken, refreshToken, "Destination", "0")
-	destAcc := getLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, "Destination", "0")
+	destAcc := tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
 	destID := int64(destAcc["id"].(float64))
 
 	// Create transfer of 100 from source to destination
 	notes := "Test transfer"
-	createTestTransfer(t, s, accessToken, refreshToken, sourceID, destID, "100", &notes)
+	tests.CreateTestTransfer(t, s, accessToken, refreshToken, sourceID, destID, "100", &notes)
 
 	// Check new balance state
-	sourceAcc = getLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
+	sourceAcc = tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
 	sourceBalance = sourceAcc["balance"].(map[string]interface{})
 	sourceEndBalance := sourceBalance["end_balance"].(string)
 
@@ -232,25 +219,24 @@ func TestPositiveTransfer(t *testing.T) {
 	}
 
 	// Check destination account balance - should have 100
-	destAcc = getLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
+	destAcc = tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
 	destBalance := destAcc["balance"].(map[string]interface{})
 	destEndBalance := destBalance["end_balance"].(string)
 
 	if destEndBalance != "100" {
 		t.Errorf("Expected destination balance 100, got %s", destEndBalance)
 	}
-
 }
 
 func TestNegativeTransfer(t *testing.T) {
-	s := setupTestServer(t)
-	cleanupTestData(t)
-	_, accessToken, refreshToken := createRootUser(t)
+	s := tests.NewTestServer(t)
+	tests.CleanupData(t)
+	_, accessToken, refreshToken := tests.CreateRootUser(t)
 	catID := getDefaultCategory(t)
 
 	// Create source account
-	createTestLedgerAccount(t, s, accessToken, refreshToken, "Source", "600")
-	sourceAcc := getLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, "Source", "600")
+	sourceAcc := tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
 	sourceID := int64(sourceAcc["id"].(float64))
 	sourceBalance := sourceAcc["balance"].(map[string]interface{})
 	startBalance := sourceBalance["end_balance"].(string)
@@ -260,19 +246,19 @@ func TestNegativeTransfer(t *testing.T) {
 	}
 
 	// Create destination account
-	createTestLedgerAccount(t, s, accessToken, refreshToken, "Destination", "0")
-	destAcc := getLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, "Destination", "0")
+	destAcc := tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
 	destID := int64(destAcc["id"].(float64))
 
 	// Create negative balance
-	createTestTransaction(t, s, accessToken, refreshToken, destID, catID, "expense", "600", nil)
+	tests.CreateTestTransaction(t, s, accessToken, refreshToken, destID, catID, "expense", "600", nil)
 
 	// Create transfer of 100 from source to destination
 	notes := "Test transfer"
-	createTestTransfer(t, s, accessToken, refreshToken, sourceID, destID, "300", &notes)
+	tests.CreateTestTransfer(t, s, accessToken, refreshToken, sourceID, destID, "300", &notes)
 
 	// Check new balance state
-	sourceAcc = getLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
+	sourceAcc = tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
 	sourceBalance = sourceAcc["balance"].(map[string]interface{})
 	sourceEndBalance := sourceBalance["end_balance"].(string)
 
@@ -281,23 +267,22 @@ func TestNegativeTransfer(t *testing.T) {
 	}
 
 	// Check destination account balance - should have -300
-	destAcc = getLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
+	destAcc = tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
 	destBalance := destAcc["balance"].(map[string]interface{})
 	destEndBalance := destBalance["end_balance"].(string)
 
 	if destEndBalance != "-300" {
 		t.Errorf("Expected destination balance -300, got %s", destEndBalance)
 	}
-
 }
 
 func TestDeleteTransfer(t *testing.T) {
-	s := setupTestServer(t)
-	cleanupTestData(t)
-	_, accessToken, refreshToken := createRootUser(t)
+	s := tests.NewTestServer(t)
+	tests.CleanupData(t)
+	_, accessToken, refreshToken := tests.CreateRootUser(t)
 
-	createTestLedgerAccount(t, s, accessToken, refreshToken, "Source", "600")
-	sourceAcc := getLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, "Source", "600")
+	sourceAcc := tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
 	sourceID := int64(sourceAcc["id"].(float64))
 	sourceBalance := sourceAcc["balance"].(map[string]interface{})
 	startBalance := sourceBalance["end_balance"].(string)
@@ -306,15 +291,15 @@ func TestDeleteTransfer(t *testing.T) {
 		t.Fatalf("Expected source start balance 600, got %s", startBalance)
 	}
 
-	createTestLedgerAccount(t, s, accessToken, refreshToken, "Destination", "0")
-	destAcc := getLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
+	tests.CreateTestLedgerAccount(t, s, accessToken, refreshToken, "Destination", "0")
+	destAcc := tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
 	destID := int64(destAcc["id"].(float64))
 
 	notes := "Test transfer to delete - Unique 12345"
-	createTestTransfer(t, s, accessToken, refreshToken, sourceID, destID, "100", &notes)
+	tests.CreateTestTransfer(t, s, accessToken, refreshToken, sourceID, destID, "100", &notes)
 
 	// Check balances after transfer
-	sourceAcc = getLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
+	sourceAcc = tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
 	sourceBalance = sourceAcc["balance"].(map[string]interface{})
 	sourceEndBalance := sourceBalance["end_balance"].(string)
 
@@ -322,7 +307,7 @@ func TestDeleteTransfer(t *testing.T) {
 		t.Errorf("Expected source balance after transfer 500, got %s", sourceEndBalance)
 	}
 
-	destAcc = getLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
+	destAcc = tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
 	destBalance := destAcc["balance"].(map[string]interface{})
 	destEndBalance := destBalance["end_balance"].(string)
 
@@ -331,7 +316,7 @@ func TestDeleteTransfer(t *testing.T) {
 	}
 
 	listReq := httptest.NewRequest(http.MethodGet, "/api/transactions/transfers", nil)
-	addAuth(listReq, accessToken, refreshToken)
+	tests.AddAuth(listReq, accessToken, refreshToken)
 	listW := httptest.NewRecorder()
 	s.Router.ServeHTTP(listW, listReq)
 
@@ -360,7 +345,7 @@ func TestDeleteTransfer(t *testing.T) {
 
 	// Delete the transfer
 	delReq := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/transactions/transfers/%d", transferID), nil)
-	addAuth(delReq, accessToken, refreshToken)
+	tests.AddAuth(delReq, accessToken, refreshToken)
 	delW := httptest.NewRecorder()
 	s.Router.ServeHTTP(delW, delReq)
 
@@ -368,7 +353,7 @@ func TestDeleteTransfer(t *testing.T) {
 	assert.True(t, delW.Code == http.StatusOK || delW.Code == http.StatusNoContent, "Expected 200 or 204")
 
 	// Check balances are reversed - source should be back to 600
-	sourceAcc = getLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
+	sourceAcc = tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Source")
 	sourceBalance = sourceAcc["balance"].(map[string]interface{})
 	sourceEndBalance = sourceBalance["end_balance"].(string)
 
@@ -377,7 +362,7 @@ func TestDeleteTransfer(t *testing.T) {
 	}
 
 	// Destination should be back to 0
-	destAcc = getLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
+	destAcc = tests.GetLedgerAccountByName(t, s, accessToken, refreshToken, "Destination")
 	destBalance = destAcc["balance"].(map[string]interface{})
 	destEndBalance = destBalance["end_balance"].(string)
 
@@ -387,7 +372,7 @@ func TestDeleteTransfer(t *testing.T) {
 
 	// Verify transfer no longer appears in the list
 	listReq2 := httptest.NewRequest(http.MethodGet, "/api/transactions/transfers", nil)
-	addAuth(listReq2, accessToken, refreshToken)
+	tests.AddAuth(listReq2, accessToken, refreshToken)
 	listW2 := httptest.NewRecorder()
 	s.Router.ServeHTTP(listW2, listReq2)
 
