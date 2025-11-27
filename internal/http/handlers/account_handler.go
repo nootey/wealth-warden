@@ -335,7 +335,7 @@ func (h *AccountHandler) BackfillBalancesForUser(c *gin.Context) {
 	from := c.Query("from")
 	to := c.Query("to")
 
-	if err := h.Service.BackfillBalancesForUser(userID, from, to); err != nil {
+	if err := h.Service.BackfillBalancesForUser(c.Request.Context(), userID, from, to); err != nil {
 		utils.ErrorMessage(c, "Backfill error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

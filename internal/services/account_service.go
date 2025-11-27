@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -724,7 +725,7 @@ func (s *AccountService) UpdateBalancesForTransfer(
 	return nil
 }
 
-func (s *AccountService) BackfillBalancesForUser(userID int64, from, to string) error {
+func (s *AccountService) BackfillBalancesForUser(ctx context.Context, userID int64, from, to string) error {
 	tx := s.Repo.DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
@@ -736,7 +737,7 @@ func (s *AccountService) BackfillBalancesForUser(userID int64, from, to string) 
 		}
 	}()
 
-	accounts, err := s.Repo.FindAllAccounts(tx, userID, true) // unchanged
+	accounts, err := s.Repo.FindAllAccounts(tx, userID, true)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -745,7 +746,7 @@ func (s *AccountService) BackfillBalancesForUser(userID int64, from, to string) 
 		return tx.Commit().Error
 	}
 
-	dfrom, dto, err := s.resolveUserDateRange(tx, userID, from, to) // unchanged
+	dfrom, dto, err := s.resolveUserDateRange(tx, userID, from, to)
 	if err != nil {
 		tx.Rollback()
 		return err

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +31,16 @@ func NewUserService(
 		Repo:        repo,
 		RoleService: roleService,
 	}
+}
+
+func (s *UserService) GetAllActiveUserIDs(ctx context.Context) ([]int64, error) {
+	var userIDs []int64
+	if err := s.Repo.DB.Model(&models.User{}).
+		Where("deleted_at IS NULL").
+		Pluck("id", &userIDs).Error; err != nil {
+		return nil, err
+	}
+	return userIDs, nil
 }
 
 func (s *UserService) FetchUsersPaginated(p utils.PaginationParams, includeDeleted bool) ([]models.User, *utils.Paginator, error) {
