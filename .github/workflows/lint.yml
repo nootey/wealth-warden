@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: 1.23.2
+          go-version-file: 'go.mod'
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
