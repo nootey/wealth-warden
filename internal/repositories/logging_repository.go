@@ -1,19 +1,30 @@
 package repositories
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"gorm.io/gorm"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
+
+	"gorm.io/gorm"
 )
+
+type LoggingRepositoryInterface interface {
+	InsertActivityLog(ctx context.Context, tx *gorm.DB, event string, category string, description *string, payload *utils.Changes, causer *int64) error
+	CountLogs(ctx context.Context, filters []utils.Filter) (int64, error)
+	FindLogs(ctx context.Context, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error)
+	FindActivityLogFilterData(ctx context.Context, activityIndex string) (map[string]interface{}, error)
+	FindActivityLogByID(ctx context.Context, tx *gorm.DB, ID int64) (models.ActivityLog, error)
+	DeleteActivityLog(ctx context.Context, tx *gorm.DB, id int64) error
+}
 
 type LoggingRepository struct {
 	DB *gorm.DB
 }
 
-func NewLoggingRepository(db *gorm.DB) *LoggingRepository {
+func NewLoggingRepository(db *gorm.DB) LoggingRepositoryInterface {
 	return &LoggingRepository{DB: db}
 }
 
@@ -22,10 +33,10 @@ type Option struct {
 	Name string `json:"name"`
 }
 
-func (r *LoggingRepository) CountLogs(filters []utils.Filter) (int64, error) {
+func (r *LoggingRepository) CountLogs(ctx context.Context, filters []utils.Filter) (int64, error) {
 	var totalRecords int64
 
-	query := r.DB.Model(&models.ActivityLog{})
+	query := r.DB.WithContext(ctx).Model(&models.ActivityLog{})
 
 	query = utils.ApplyFilters(query, filters)
 
@@ -37,10 +48,10 @@ func (r *LoggingRepository) CountLogs(filters []utils.Filter) (int64, error) {
 	return totalRecords, nil
 }
 
-func (r *LoggingRepository) FindLogs(offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error) {
+func (r *LoggingRepository) FindLogs(ctx context.Context, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error) {
 
 	var records []models.ActivityLog
-	query := r.DB.Table("activity_logs").Select("*")
+	query := r.DB.WithContext(ctx).Table("activity_logs").Select("*")
 
 	joins := utils.GetRequiredJoins(filters)
 	orderBy := sortField + " " + sortOrder
@@ -63,7 +74,7 @@ func (r *LoggingRepository) FindLogs(offset, limit int, sortField, sortOrder str
 	return records, nil
 }
 
-func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map[string]interface{}, error) {
+func (r *LoggingRepository) FindActivityLogFilterData(ctx context.Context, activityIndex string) (map[string]interface{}, error) {
 	response := make(map[string]interface{})
 
 	var tableName string
@@ -76,7 +87,7 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 		return nil, fmt.Errorf("invalid activity index")
 	}
 
-	db := r.DB.Table(tableName)
+	db := r.DB.Table(tableName).WithContext(ctx)
 
 	// events
 	var eventVals []string
@@ -147,11 +158,12 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 	return response, nil
 }
 
-func (r *LoggingRepository) FindActivityLogByID(tx *gorm.DB, ID int64) (models.ActivityLog, error) {
+func (r *LoggingRepository) FindActivityLogByID(ctx context.Context, tx *gorm.DB, ID int64) (models.ActivityLog, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var record models.ActivityLog
 	result := db.Where("id = ?", ID).First(&record)
@@ -159,6 +171,7 @@ func (r *LoggingRepository) FindActivityLogByID(tx *gorm.DB, ID int64) (models.A
 }
 
 func (r *LoggingRepository) InsertActivityLog(
+	ctx context.Context,
 	tx *gorm.DB,
 	event string,
 	category string,
@@ -171,6 +184,7 @@ func (r *LoggingRepository) InsertActivityLog(
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	doc := models.ActivityLog{
 		Event:       event,
@@ -196,11 +210,12 @@ func (r *LoggingRepository) InsertActivityLog(
 	return db.Table("activity_logs").Create(&doc).Error
 }
 
-func (r *LoggingRepository) DeleteActivityLog(tx *gorm.DB, id int64) error {
+func (r *LoggingRepository) DeleteActivityLog(ctx context.Context, tx *gorm.DB, id int64) error {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	res := db.
 		Where("id = ?", id).
