@@ -22,7 +22,7 @@ type Container struct {
 	AuthService        *services.AuthService
 	UserService        *services.UserService
 	LoggingService     *services.LoggingService
-	AccountService     *services.AccountService
+	AccountService     services.AccountServiceInterface
 	TransactionService *services.TransactionService
 	SettingsService    *services.SettingsService
 	ChartingService    *services.ChartingService
@@ -62,23 +62,15 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
 	authService := services.NewAuthService(cfg, logger, userRepo, roleRepo, settingsRepo, loggingService, webClientMiddleware, jobDispatcher, mail)
 
-	ctx := &services.DefaultServiceContext{
-		LoggingService: loggingService,
-		AuthService:    authService,
-		Logger:         logger,
-		JobDispatcher:  jobDispatcher,
-		SettingsRepo:   settingsRepo,
-	}
-
-	roleService := services.NewRolePermissionService(cfg, ctx, roleRepo)
-	userService := services.NewUserService(cfg, ctx, userRepo, roleService)
-	accountService := services.NewAccountService(cfg, ctx, accountRepo, transactionRepo)
-	transactionService := services.NewTransactionService(cfg, ctx, transactionRepo, accountService)
-	settingsService := services.NewSettingsService(cfg, ctx, settingsRepo)
-	chartingService := services.NewChartingService(cfg, ctx, chartingRepo, accountRepo, transactionRepo)
-	statsService := services.NewStatisticsService(cfg, ctx, statsRepo, accountRepo, transactionRepo)
-	importService := services.NewImportService(cfg, ctx, importRepo, transactionRepo, accountService)
-	exportService := services.NewExportService(cfg, ctx, exportRepo, transactionRepo, accountService)
+	roleService := services.NewRolePermissionService(cfg, roleRepo)
+	userService := services.NewUserService(cfg, userRepo, roleService)
+	accountService := services.NewAccountService(cfg, accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher)
+	transactionService := services.NewTransactionService(cfg, transactionRepo, accountService)
+	settingsService := services.NewSettingsService(cfg, settingsRepo)
+	chartingService := services.NewChartingService(cfg, chartingRepo, accountRepo, transactionRepo)
+	statsService := services.NewStatisticsService(cfg, statsRepo, accountRepo, transactionRepo)
+	importService := services.NewImportService(cfg, importRepo, transactionRepo, accountService)
+	exportService := services.NewExportService(cfg, exportRepo, transactionRepo, accountService)
 
 	return &Container{
 		Config:             cfg,

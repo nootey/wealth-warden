@@ -14,6 +14,7 @@ import (
 )
 
 type AccountRepositoryInterface interface {
+	BeginTx(ctx context.Context) (*gorm.DB, error)
 	FindAccounts(ctx context.Context, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeInactive bool, classification *string) ([]models.Account, error)
 	CountAccounts(ctx context.Context, userID int64, filters []utils.Filter, includeInactive bool, classification *string) (int64, error)
 	FindAllAccounts(ctx context.Context, tx *gorm.DB, userID int64, includeInactive bool) ([]models.Account, error)
@@ -54,6 +55,13 @@ type AccountRepository struct {
 
 func NewAccountRepository(db *gorm.DB) AccountRepositoryInterface {
 	return &AccountRepository{DB: db}
+}
+
+var _ AccountRepositoryInterface = (*AccountRepository)(nil)
+
+func (r *AccountRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
+	tx := r.DB.WithContext(ctx).Begin()
+	return tx, tx.Error
 }
 
 func (r *AccountRepository) FindAccounts(ctx context.Context, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeInactive bool, classification *string) ([]models.Account, error) {
