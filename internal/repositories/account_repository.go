@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -12,27 +13,55 @@ import (
 	"gorm.io/gorm"
 )
 
+type AccountRepositoryInterface interface {
+	FindAccounts(ctx context.Context, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeInactive bool, classification *string) ([]models.Account, error)
+	CountAccounts(ctx context.Context, userID int64, filters []utils.Filter, includeInactive bool, classification *string) (int64, error)
+	FindAllAccounts(ctx context.Context, tx *gorm.DB, userID int64, includeInactive bool) ([]models.Account, error)
+	FindAllAccountTypes(ctx context.Context, tx *gorm.DB, userID *int64) ([]models.AccountType, error)
+	FindAccountsBySubtype(ctx context.Context, tx *gorm.DB, userID int64, subtype string, activeOnly bool) ([]models.Account, error)
+	FetchAccountsByType(ctx context.Context, tx *gorm.DB, userID int64, t string, activeOnly bool) ([]models.Account, error)
+	FindAccountsByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.Account, error)
+	FindAccountByID(ctx context.Context, tx *gorm.DB, ID, userID int64, withBalance bool) (*models.Account, error)
+	FindAccountByName(ctx context.Context, tx *gorm.DB, userID int64, name string) (*models.Account, error)
+	FindAccountTypeByAccID(ctx context.Context, tx *gorm.DB, accID, userID int64) (*models.AccountType, error)
+	FindAllAccountsWithLatestBalance(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Account, error)
+	FindAccountByIDWithInitialBalance(ctx context.Context, tx *gorm.DB, ID, userID int64) (*models.Account, error)
+	FindAccountTypeByID(ctx context.Context, tx *gorm.DB, ID int64) (models.AccountType, error)
+	FindAccountTypeByType(ctx context.Context, tx *gorm.DB, atype, sub_type string) (models.AccountType, error)
+	FindBalanceForAccountID(ctx context.Context, tx *gorm.DB, accID int64) (models.Balance, error)
+	InsertAccount(ctx context.Context, tx *gorm.DB, newRecord *models.Account) (int64, error)
+	UpdateAccount(ctx context.Context, tx *gorm.DB, record *models.Account) (int64, error)
+	UpdateAccountProjection(ctx context.Context, tx *gorm.DB, record *models.Account) (int64, error)
+	FindEarliestTransactionDate(ctx context.Context, tx *gorm.DB, accountID int64) (*time.Time, error)
+	InsertBalance(ctx context.Context, tx *gorm.DB, newRecord *models.Balance) (int64, error)
+	UpdateBalance(ctx context.Context, tx *gorm.DB, record models.Balance) (int64, error)
+	CloseAccount(ctx context.Context, tx *gorm.DB, id, userID int64) error
+	PurgeImportedAccounts(ctx context.Context, tx *gorm.DB, importID, userID int64) error
+	EnsureDailyBalanceRow(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, currency string) error
+	AddToDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, amt decimal.Decimal) error
+	UpsertSnapshotsFromBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error
+	GetUserFirstBalanceDate(ctx context.Context, tx *gorm.DB, userID int64) (time.Time, error)
+	GetUserFirstTxnDate(ctx context.Context, tx *gorm.DB, userID int64) (time.Time, error)
+	GetAccountOpeningAsOf(ctx context.Context, tx *gorm.DB, accountID int64) (time.Time, error)
+	FrontfillBalances(ctx context.Context, tx *gorm.DB, accountID int64, currency string, from time.Time) error
+	DeleteAccountSnapshots(ctx context.Context, tx *gorm.DB, accountID int64) error
+	FindLatestBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64) (*models.Balance, error)
+}
+
 type AccountRepository struct {
 	DB *gorm.DB
 }
 
-func NewAccountRepository(db *gorm.DB) *AccountRepository {
+func NewAccountRepository(db *gorm.DB) AccountRepositoryInterface {
 	return &AccountRepository{DB: db}
 }
 
-func (r *AccountRepository) FindAccounts(
-	userID int64,
-	offset, limit int,
-	sortField, sortOrder string,
-	filters []utils.Filter,
-	includeInactive bool,
-	classification *string,
-) ([]models.Account, error) {
+func (r *AccountRepository) FindAccounts(ctx context.Context, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeInactive bool, classification *string) ([]models.Account, error) {
 
 	var accounts []models.Account
 
 	// Base query: accounts + preload AccountType
-	q := r.DB.
+	q := r.DB.WithContext(ctx).
 		Model(&models.Account{}).
 		Preload("AccountType").
 		Where("user_id = ? AND closed_at IS NULL", userID)
@@ -75,7 +104,7 @@ func (r *AccountRepository) FindAccounts(
 	}
 
 	var latestBalances []models.Balance
-	if err := r.DB.Raw(`
+	if err := r.DB.WithContext(ctx).Raw(`
 		SELECT DISTINCT ON (account_id) *
 		FROM balances
 		WHERE account_id IN ?
@@ -99,10 +128,10 @@ func (r *AccountRepository) FindAccounts(
 	return accounts, nil
 }
 
-func (r *AccountRepository) CountAccounts(userID int64, filters []utils.Filter, includeInactive bool, classification *string) (int64, error) {
+func (r *AccountRepository) CountAccounts(ctx context.Context, userID int64, filters []utils.Filter, includeInactive bool, classification *string) (int64, error) {
 	var totalRecords int64
 
-	query := r.DB.Model(&models.Account{}).
+	query := r.DB.WithContext(ctx).Model(&models.Account{}).
 		Where("user_id = ?", userID).
 		Where("closed_at is NULL")
 
@@ -129,12 +158,13 @@ func (r *AccountRepository) CountAccounts(userID int64, filters []utils.Filter, 
 	return totalRecords, nil
 }
 
-func (r *AccountRepository) FindAllAccounts(tx *gorm.DB, userID int64, includeInactive bool) ([]models.Account, error) {
+func (r *AccountRepository) FindAllAccounts(ctx context.Context, tx *gorm.DB, userID int64, includeInactive bool) ([]models.Account, error) {
 
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var records []models.Account
 	query := db.Where("user_id = ?", userID).
@@ -151,24 +181,26 @@ func (r *AccountRepository) FindAllAccounts(tx *gorm.DB, userID int64, includeIn
 	return records, nil
 }
 
-func (r *AccountRepository) FindAllAccountTypes(tx *gorm.DB, userID *int64) ([]models.AccountType, error) {
+func (r *AccountRepository) FindAllAccountTypes(ctx context.Context, tx *gorm.DB, userID *int64) ([]models.AccountType, error) {
 
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var records []models.AccountType
 	result := db.Find(&records)
 	return records, result.Error
 }
 
-func (r *AccountRepository) FindAccountsBySubtype(tx *gorm.DB, userID int64, subtype string, activeOnly bool) ([]models.Account, error) {
+func (r *AccountRepository) FindAccountsBySubtype(ctx context.Context, tx *gorm.DB, userID int64, subtype string, activeOnly bool) ([]models.Account, error) {
 
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var records []models.Account
 
@@ -190,12 +222,13 @@ func (r *AccountRepository) FindAccountsBySubtype(tx *gorm.DB, userID int64, sub
 	return records, err
 }
 
-func (r *AccountRepository) FetchAccountsByType(tx *gorm.DB, userID int64, t string, activeOnly bool) ([]models.Account, error) {
+func (r *AccountRepository) FetchAccountsByType(ctx context.Context, tx *gorm.DB, userID int64, t string, activeOnly bool) ([]models.Account, error) {
 
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var records []models.Account
 
@@ -217,12 +250,13 @@ func (r *AccountRepository) FetchAccountsByType(tx *gorm.DB, userID int64, t str
 	return records, err
 }
 
-func (r *AccountRepository) FindAccountsByImportID(tx *gorm.DB, ID, userID int64) ([]models.Account, error) {
+func (r *AccountRepository) FindAccountsByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.Account, error) {
 
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var records []models.Account
 
@@ -235,11 +269,14 @@ func (r *AccountRepository) FindAccountsByImportID(tx *gorm.DB, ID, userID int64
 	return records, err
 }
 
-func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID int64, withBalance bool) (*models.Account, error) {
+func (r *AccountRepository) FindAccountByID(ctx context.Context, tx *gorm.DB, ID, userID int64, withBalance bool) (*models.Account, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
+
 	var record models.Account
 	query := db.Where("id = ? AND user_id = ? AND closed_at IS NULL AND is_active = true", ID, userID).
 		Preload("AccountType")
@@ -254,11 +291,14 @@ func (r *AccountRepository) FindAccountByID(tx *gorm.DB, ID, userID int64, withB
 	return &record, result.Error
 }
 
-func (r *AccountRepository) FindAccountByName(tx *gorm.DB, userID int64, name string) (*models.Account, error) {
+func (r *AccountRepository) FindAccountByName(ctx context.Context, tx *gorm.DB, userID int64, name string) (*models.Account, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
+
 	var record models.Account
 	query := db.Where("name = ? AND user_id = ? AND closed_at IS NULL AND is_active = true", name, userID).
 		Preload("AccountType").
@@ -270,11 +310,13 @@ func (r *AccountRepository) FindAccountByName(tx *gorm.DB, userID int64, name st
 	return &record, result.Error
 }
 
-func (r *AccountRepository) FindAccountTypeByAccID(tx *gorm.DB, accID, userID int64) (*models.AccountType, error) {
+func (r *AccountRepository) FindAccountTypeByAccID(ctx context.Context, tx *gorm.DB, accID, userID int64) (*models.AccountType, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var accountType models.AccountType
 	err := db.Table("account_types").
@@ -285,11 +327,13 @@ func (r *AccountRepository) FindAccountTypeByAccID(tx *gorm.DB, accID, userID in
 	return &accountType, err
 }
 
-func (r *AccountRepository) FindAllAccountsWithLatestBalance(tx *gorm.DB, userID int64) ([]models.Account, error) {
+func (r *AccountRepository) FindAllAccountsWithLatestBalance(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Account, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var accounts []models.Account
 
@@ -333,11 +377,13 @@ func (r *AccountRepository) FindAllAccountsWithLatestBalance(tx *gorm.DB, userID
 	return accounts, nil
 }
 
-func (r *AccountRepository) FindAccountByIDWithInitialBalance(tx *gorm.DB, ID, userID int64) (*models.Account, error) {
+func (r *AccountRepository) FindAccountByIDWithInitialBalance(ctx context.Context, tx *gorm.DB, ID, userID int64) (*models.Account, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var record models.Account
 
@@ -351,44 +397,52 @@ func (r *AccountRepository) FindAccountByIDWithInitialBalance(tx *gorm.DB, ID, u
 	return &record, result.Error
 }
 
-func (r *AccountRepository) FindAccountTypeByID(tx *gorm.DB, ID int64) (models.AccountType, error) {
+func (r *AccountRepository) FindAccountTypeByID(ctx context.Context, tx *gorm.DB, ID int64) (models.AccountType, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var record models.AccountType
 	result := db.Where("id = ?", ID).First(&record)
 	return record, result.Error
 }
 
-func (r *AccountRepository) FindAccountTypeByType(tx *gorm.DB, atype, sub_type string) (models.AccountType, error) {
+func (r *AccountRepository) FindAccountTypeByType(ctx context.Context, tx *gorm.DB, atype, sub_type string) (models.AccountType, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var record models.AccountType
 	result := db.Where("type = ? AND sub_type =?", atype, sub_type).First(&record)
 	return record, result.Error
 }
 
-func (r *AccountRepository) FindBalanceForAccountID(tx *gorm.DB, accID int64) (models.Balance, error) {
+func (r *AccountRepository) FindBalanceForAccountID(ctx context.Context, tx *gorm.DB, accID int64) (models.Balance, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var record models.Balance
 	result := db.Where("account_id = ?", accID).First(&record)
 	return record, result.Error
 }
 
-func (r *AccountRepository) InsertAccount(tx *gorm.DB, newRecord *models.Account) (int64, error) {
+func (r *AccountRepository) InsertAccount(ctx context.Context, tx *gorm.DB, newRecord *models.Account) (int64, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	if err := db.Create(&newRecord).Error; err != nil {
 		return 0, err
@@ -396,11 +450,13 @@ func (r *AccountRepository) InsertAccount(tx *gorm.DB, newRecord *models.Account
 	return newRecord.ID, nil
 }
 
-func (r *AccountRepository) UpdateAccount(tx *gorm.DB, record *models.Account) (int64, error) {
+func (r *AccountRepository) UpdateAccount(ctx context.Context, tx *gorm.DB, record *models.Account) (int64, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	updates := map[string]interface{}{}
 	if record.Name != "" {
@@ -423,11 +479,13 @@ func (r *AccountRepository) UpdateAccount(tx *gorm.DB, record *models.Account) (
 	return record.ID, nil
 }
 
-func (r *AccountRepository) UpdateAccountProjection(tx *gorm.DB, record *models.Account) (int64, error) {
+func (r *AccountRepository) UpdateAccountProjection(ctx context.Context, tx *gorm.DB, record *models.Account) (int64, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	updates := map[string]interface{}{}
 
@@ -448,11 +506,13 @@ func (r *AccountRepository) UpdateAccountProjection(tx *gorm.DB, record *models.
 	return record.ID, nil
 }
 
-func (r *AccountRepository) FindEarliestTransactionDate(tx *gorm.DB, accountID int64) (*time.Time, error) {
+func (r *AccountRepository) FindEarliestTransactionDate(ctx context.Context, tx *gorm.DB, accountID int64) (*time.Time, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var result struct {
 		TxnDate time.Time
@@ -476,11 +536,13 @@ func (r *AccountRepository) FindEarliestTransactionDate(tx *gorm.DB, accountID i
 	return &result.TxnDate, nil
 }
 
-func (r *AccountRepository) InsertBalance(tx *gorm.DB, newRecord *models.Balance) (int64, error) {
+func (r *AccountRepository) InsertBalance(ctx context.Context, tx *gorm.DB, newRecord *models.Balance) (int64, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	if err := db.Create(&newRecord).Error; err != nil {
 		return 0, err
@@ -488,11 +550,13 @@ func (r *AccountRepository) InsertBalance(tx *gorm.DB, newRecord *models.Balance
 	return newRecord.ID, nil
 }
 
-func (r *AccountRepository) UpdateBalance(tx *gorm.DB, record models.Balance) (int64, error) {
+func (r *AccountRepository) UpdateBalance(ctx context.Context, tx *gorm.DB, record models.Balance) (int64, error) {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	if err := db.Model(models.Balance{}).
 		Where("id = ?", record.ID).
@@ -512,22 +576,13 @@ func (r *AccountRepository) UpdateBalance(tx *gorm.DB, record models.Balance) (i
 	return record.ID, nil
 }
 
-func (r *AccountRepository) UpdateBalanceAsOf(tx *gorm.DB, accountID int64, oldAsOf, newAsOf time.Time) error {
+func (r *AccountRepository) CloseAccount(ctx context.Context, tx *gorm.DB, id, userID int64) error {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
-
-	return db.Model(&models.Balance{}).
-		Where("account_id = ? AND as_of = ?", accountID, oldAsOf).
-		Update("as_of", newAsOf).Error
-}
-
-func (r *AccountRepository) CloseAccount(tx *gorm.DB, id, userID int64) error {
-	db := tx
-	if db == nil {
-		db = r.DB
-	}
+	db = db.WithContext(ctx)
 
 	res := db.Model(&models.Account{}).
 		Where("id = ? AND user_id = ? AND closed_at IS NULL", id, userID).
@@ -543,11 +598,13 @@ func (r *AccountRepository) CloseAccount(tx *gorm.DB, id, userID int64) error {
 	return nil
 }
 
-func (r *AccountRepository) PurgeImportedAccounts(tx *gorm.DB, importID, userID int64) error {
+func (r *AccountRepository) PurgeImportedAccounts(ctx context.Context, tx *gorm.DB, importID, userID int64) error {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	if err := db.Exec("SET LOCAL ww.hard_delete = 'on'").Error; err != nil {
 		return err
@@ -586,15 +643,15 @@ func (r *AccountRepository) PurgeImportedAccounts(tx *gorm.DB, importID, userID 
 	return res.Error
 }
 
-func (r *AccountRepository) EnsureDailyBalanceRow(
-	tx *gorm.DB, accountID int64, asOf time.Time, currency string,
-) error {
+func (r *AccountRepository) EnsureDailyBalanceRow(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, currency string) error {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
-	asOf = asOf.UTC().Truncate(24 * time.Hour)
+	db = db.WithContext(ctx)
 
+	asOf = asOf.UTC().Truncate(24 * time.Hour)
 	return db.Exec(`
         WITH prev AS (
             SELECT end_balance
@@ -626,13 +683,14 @@ func (r *AccountRepository) EnsureDailyBalanceRow(
     `, accountID, asOf, accountID, asOf, accountID, asOf, currency).Error
 }
 
-func (r *AccountRepository) AddToDailyBalance(
-	tx *gorm.DB, accountID int64, asOf time.Time, field string, amt decimal.Decimal,
-) error {
+func (r *AccountRepository) AddToDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, amt decimal.Decimal) error {
+
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
+
 	asOf = asOf.UTC().Truncate(24 * time.Hour)
 
 	// guard: only allow the expected columns
@@ -649,47 +707,13 @@ func (r *AccountRepository) AddToDailyBalance(
     `, field, field), amt, accountID, asOf).Error
 }
 
-func (r *AccountRepository) GetDailyBalances(
-	tx *gorm.DB, accountID int64, from, to time.Time,
-) (map[string]decimal.Decimal, error) {
-	type row struct {
-		AsOf  time.Time
-		Value string
-	}
+func (r *AccountRepository) UpsertSnapshotsFromBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error {
 
-	fromUTC := from.UTC().Truncate(24 * time.Hour)
-	toUTC := to.UTC().Truncate(24 * time.Hour)
-
-	var rows []row
-	err := tx.Raw(`
-        SELECT as_of, end_balance::text
-        FROM balances
-        WHERE account_id = ? AND as_of BETWEEN ? AND ?
-        ORDER BY as_of
-    `, accountID, fromUTC, toUTC).Scan(&rows).Error
-	if err != nil {
-		return nil, err
-	}
-
-	out := make(map[string]decimal.Decimal, len(rows))
-	for _, r := range rows {
-		v, _ := decimal.NewFromString(r.Value)
-		k := r.AsOf.UTC().Format("2006-01-02")
-		out[k] = v
-	}
-	return out, nil
-}
-
-func (r *AccountRepository) UpsertSnapshotsFromBalances(
-	tx *gorm.DB,
-	userID, accountID int64,
-	currency string,
-	from, to time.Time,
-) error {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	from = from.UTC().Truncate(24 * time.Hour)
 	to = to.UTC().Truncate(24 * time.Hour)
@@ -722,7 +746,14 @@ func (r *AccountRepository) UpsertSnapshotsFromBalances(
 	`, userID, accountID, currency, from, to, accountID).Error
 }
 
-func (r *AccountRepository) GetUserFirstBalanceDate(tx *gorm.DB, userID int64) (time.Time, error) {
+func (r *AccountRepository) GetUserFirstBalanceDate(ctx context.Context, tx *gorm.DB, userID int64) (time.Time, error) {
+
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+	db = db.WithContext(ctx)
+
 	var d *time.Time
 	err := tx.Raw(`
         SELECT MIN(b.as_of)::date
@@ -739,7 +770,14 @@ func (r *AccountRepository) GetUserFirstBalanceDate(tx *gorm.DB, userID int64) (
 	return d.Truncate(24 * time.Hour), nil
 }
 
-func (r *AccountRepository) GetUserFirstTxnDate(tx *gorm.DB, userID int64) (time.Time, error) {
+func (r *AccountRepository) GetUserFirstTxnDate(ctx context.Context, tx *gorm.DB, userID int64) (time.Time, error) {
+
+	db := tx
+	if db == nil {
+		db = r.DB
+	}
+	db = db.WithContext(ctx)
+
 	var d *time.Time
 	err := tx.Raw(`
         SELECT MIN(t.txn_date)::date
@@ -756,13 +794,12 @@ func (r *AccountRepository) GetUserFirstTxnDate(tx *gorm.DB, userID int64) (time
 	return d.Truncate(24 * time.Hour), nil
 }
 
-func (r *AccountRepository) GetAccountOpeningAsOf(
-	tx *gorm.DB, accountID int64,
-) (time.Time, error) {
+func (r *AccountRepository) GetAccountOpeningAsOf(ctx context.Context, tx *gorm.DB, accountID int64) (time.Time, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	// MIN(as_of) is the opening day; if no balance rows exist, return sql.ErrNoRows
 	var open *time.Time
@@ -779,16 +816,12 @@ func (r *AccountRepository) GetAccountOpeningAsOf(
 	return t, nil
 }
 
-func (r *AccountRepository) FrontfillBalances(
-	tx *gorm.DB,
-	accountID int64,
-	currency string,
-	from time.Time,
-) error {
+func (r *AccountRepository) FrontfillBalances(ctx context.Context, tx *gorm.DB, accountID int64, currency string, from time.Time) error {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	from = from.UTC().Truncate(24 * time.Hour)
 
@@ -848,25 +881,23 @@ func (r *AccountRepository) FrontfillBalances(
 	`, accountID, from).Error
 }
 
-func (r *AccountRepository) DeleteAccountSnapshots(tx *gorm.DB, accountID int64) error {
+func (r *AccountRepository) DeleteAccountSnapshots(ctx context.Context, tx *gorm.DB, accountID int64) error {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	return db.Where("account_id = ?", accountID).
 		Delete(&models.AccountDailySnapshot{}).Error
 }
 
-func (r *AccountRepository) DeleteAllBalancesForAccount(tx *gorm.DB, accountID int64) error {
-	return tx.Where("account_id = ?", accountID).Delete(&models.Balance{}).Error
-}
-
-func (r *AccountRepository) FindLatestBalance(tx *gorm.DB, accountID, userID int64) (*models.Balance, error) {
+func (r *AccountRepository) FindLatestBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64) (*models.Balance, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var balance models.Balance
 	err := db.Where("account_id = ?", accountID).
