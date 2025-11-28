@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -13,13 +14,19 @@ import (
 	"gorm.io/gorm"
 )
 
+type TransactionRepositoryInterface interface {
+	FindCategoryByClassification(ctx context.Context, tx *gorm.DB, classification string, userID *int64) (models.Category, error)
+	InsertTransaction(ctx context.Context, tx *gorm.DB, newRecord *models.Transaction) (int64, error)
+}
 type TransactionRepository struct {
 	DB *gorm.DB
 }
 
-func NewTransactionRepository(db *gorm.DB) *TransactionRepository {
+func NewTransactionRepository(db *gorm.DB) TransactionRepositoryInterface {
 	return &TransactionRepository{DB: db}
 }
+
+var _ TransactionRepositoryInterface = (*TransactionRepository)(nil)
 
 func (r *TransactionRepository) baseTxQuery(db *gorm.DB, userID int64, includeDeleted bool) *gorm.DB {
 	q := db.Model(&models.Transaction{}).
@@ -280,11 +287,12 @@ func (r *TransactionRepository) FindCategoryByID(tx *gorm.DB, ID int64, userID *
 	return record, txn.Error
 }
 
-func (r *TransactionRepository) FindCategoryByClassification(tx *gorm.DB, classification string, userID *int64) (models.Category, error) {
+func (r *TransactionRepository) FindCategoryByClassification(ctx context.Context, tx *gorm.DB, classification string, userID *int64) (models.Category, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var record models.Category
 	txn := r.scopeCategories(db, userID, false).
@@ -384,11 +392,12 @@ func (r *TransactionRepository) CountActiveTransactionsForCategory(tx *gorm.DB, 
 	return cnt, err
 }
 
-func (r *TransactionRepository) InsertTransaction(tx *gorm.DB, newRecord *models.Transaction) (int64, error) {
+func (r *TransactionRepository) InsertTransaction(ctx context.Context, tx *gorm.DB, newRecord *models.Transaction) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	if err := db.Create(&newRecord).Error; err != nil {
 		return 0, err

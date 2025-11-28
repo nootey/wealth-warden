@@ -1,11 +1,19 @@
 package repositories
 
 import (
+	"context"
 	"time"
 	"wealth-warden/internal/models"
 
 	"gorm.io/gorm"
 )
+
+type SettingsRepositoryInterface interface {
+	FetchMaxAccountsForUser(ctx context.Context, tx *gorm.DB) (int64, error)
+	FetchGeneralSettings(ctx context.Context, tx *gorm.DB) (*models.SettingsGeneral, error)
+	FetchUserSettings(ctx context.Context, tx *gorm.DB, userID int64) (*models.SettingsUser, error)
+	UpdateUserSettings(ctx context.Context, tx *gorm.DB, userID int64, record models.SettingsUser) error
+}
 
 type SettingsRepository struct {
 	DB *gorm.DB
@@ -15,11 +23,12 @@ func NewSettingsRepository(db *gorm.DB) *SettingsRepository {
 	return &SettingsRepository{DB: db}
 }
 
-func (r *SettingsRepository) FetchMaxAccountsForUser(tx *gorm.DB) (int64, error) {
+func (r *SettingsRepository) FetchMaxAccountsForUser(ctx context.Context, tx *gorm.DB) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var maxAccounts int64
 	err := db.Model(&models.SettingsGeneral{}).Select("max_accounts_per_user").First(&maxAccounts).Error
@@ -30,11 +39,12 @@ func (r *SettingsRepository) FetchMaxAccountsForUser(tx *gorm.DB) (int64, error)
 	return maxAccounts, nil
 }
 
-func (r *SettingsRepository) FetchGeneralSettings(tx *gorm.DB) (*models.SettingsGeneral, error) {
+func (r *SettingsRepository) FetchGeneralSettings(ctx context.Context, tx *gorm.DB) (*models.SettingsGeneral, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var settings models.SettingsGeneral
 	err := db.First(&settings).Error
@@ -46,11 +56,12 @@ func (r *SettingsRepository) FetchGeneralSettings(tx *gorm.DB) (*models.Settings
 	return &settings, err
 }
 
-func (r *SettingsRepository) FetchUserSettings(tx *gorm.DB, userID int64) (*models.SettingsUser, error) {
+func (r *SettingsRepository) FetchUserSettings(ctx context.Context, tx *gorm.DB, userID int64) (*models.SettingsUser, error) {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	var settings models.SettingsUser
 	err := db.
@@ -65,11 +76,12 @@ func (r *SettingsRepository) FetchUserSettings(tx *gorm.DB, userID int64) (*mode
 	return &settings, err
 }
 
-func (r *SettingsRepository) UpdateUserSettings(tx *gorm.DB, userID int64, record models.SettingsUser) error {
+func (r *SettingsRepository) UpdateUserSettings(ctx context.Context, tx *gorm.DB, userID int64, record models.SettingsUser) error {
 	db := tx
 	if db == nil {
 		db = r.DB
 	}
+	db = db.WithContext(ctx)
 
 	updates := map[string]any{
 		"theme":      record.Theme,
