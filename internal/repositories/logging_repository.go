@@ -21,11 +21,11 @@ type LoggingRepositoryInterface interface {
 }
 
 type LoggingRepository struct {
-	DB *gorm.DB
+	db *gorm.DB
 }
 
-func NewLoggingRepository(db *gorm.DB) LoggingRepositoryInterface {
-	return &LoggingRepository{DB: db}
+func NewLoggingRepository(db *gorm.DB) *LoggingRepository {
+	return &LoggingRepository{db: db}
 }
 
 type Option struct {
@@ -36,7 +36,7 @@ type Option struct {
 func (r *LoggingRepository) CountLogs(ctx context.Context, filters []utils.Filter) (int64, error) {
 	var totalRecords int64
 
-	query := r.DB.WithContext(ctx).Model(&models.ActivityLog{})
+	query := r.db.WithContext(ctx).Model(&models.ActivityLog{})
 
 	query = utils.ApplyFilters(query, filters)
 
@@ -51,7 +51,7 @@ func (r *LoggingRepository) CountLogs(ctx context.Context, filters []utils.Filte
 func (r *LoggingRepository) FindLogs(ctx context.Context, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error) {
 
 	var records []models.ActivityLog
-	query := r.DB.WithContext(ctx).Table("activity_logs").Select("*")
+	query := r.db.WithContext(ctx).Table("activity_logs").Select("*")
 
 	joins := utils.GetRequiredJoins(filters)
 	orderBy := sortField + " " + sortOrder
@@ -87,7 +87,7 @@ func (r *LoggingRepository) FindActivityLogFilterData(ctx context.Context, activ
 		return nil, fmt.Errorf("invalid activity index")
 	}
 
-	db := r.DB.Table(tableName).WithContext(ctx)
+	db := r.db.Table(tableName).WithContext(ctx)
 
 	// events
 	var eventVals []string
@@ -143,7 +143,7 @@ func (r *LoggingRepository) FindActivityLogFilterData(ctx context.Context, activ
 		var causers []map[string]interface{}
 		if len(causerIDs) > 0 {
 			var users []models.User
-			if err := r.DB.Where("id IN ? AND deleted_at IS NULL", causerIDs).Find(&users).Error; err == nil {
+			if err := r.db.Where("id IN ? AND deleted_at IS NULL", causerIDs).Find(&users).Error; err == nil {
 				for _, u := range users {
 					causers = append(causers, map[string]interface{}{
 						"id":   u.ID,
@@ -161,7 +161,7 @@ func (r *LoggingRepository) FindActivityLogFilterData(ctx context.Context, activ
 func (r *LoggingRepository) FindActivityLogByID(ctx context.Context, tx *gorm.DB, ID int64) (models.ActivityLog, error) {
 	db := tx
 	if db == nil {
-		db = r.DB
+		db = r.db
 	}
 	db = db.WithContext(ctx)
 
@@ -182,7 +182,7 @@ func (r *LoggingRepository) InsertActivityLog(
 
 	db := tx
 	if db == nil {
-		db = r.DB
+		db = r.db
 	}
 	db = db.WithContext(ctx)
 
@@ -213,7 +213,7 @@ func (r *LoggingRepository) InsertActivityLog(
 func (r *LoggingRepository) DeleteActivityLog(ctx context.Context, tx *gorm.DB, id int64) error {
 	db := tx
 	if db == nil {
-		db = r.DB
+		db = r.db
 	}
 	db = db.WithContext(ctx)
 

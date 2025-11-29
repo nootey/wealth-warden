@@ -22,7 +22,7 @@ type Container struct {
 	AuthService        *services.AuthService
 	UserService        *services.UserService
 	LoggingService     *services.LoggingService
-	AccountService     services.AccountServiceInterface
+	AccountService     *services.AccountService
 	TransactionService *services.TransactionService
 	SettingsService    *services.SettingsService
 	ChartingService    *services.ChartingService

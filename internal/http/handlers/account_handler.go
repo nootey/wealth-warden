@@ -14,7 +14,7 @@ import (
 )
 
 type AccountHandler struct {
-	Service *services.AccountService
+	service services.AccountServiceInterface
 	v       *validators.GoValidator
 }
 
@@ -23,7 +23,7 @@ func NewAccountHandler(
 	v *validators.GoValidator,
 ) *AccountHandler {
 	return &AccountHandler{
-		Service: service,
+		service: service,
 		v:       v,
 	}
 }
@@ -42,7 +42,7 @@ func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 	includeInactive := strings.EqualFold(qp.Get("inactive"), "true")
 	classification := qp.Get("classification")
 
-	records, paginator, err := h.Service.FetchAccountsPaginated(ctx, userID, p, includeInactive, classification)
+	records, paginator, err := h.service.FetchAccountsPaginated(ctx, userID, p, includeInactive, classification)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -72,7 +72,7 @@ func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
 	q := c.Request.URL.Query()
 	includeInactive := strings.EqualFold(q.Get("inactive"), "true")
 
-	records, err := h.Service.FetchAllAccounts(ctx, userID, includeInactive)
+	records, err := h.service.FetchAllAccounts(ctx, userID, includeInactive)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -106,7 +106,7 @@ func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 	qp := c.Request.URL.Query()
 	initialBalance := strings.EqualFold(qp.Get("initial_balance"), "true")
 
-	records, err := h.Service.FetchAccountByID(ctx, userID, id, initialBalance)
+	records, err := h.service.FetchAccountByID(ctx, userID, id, initialBalance)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -131,7 +131,7 @@ func (h *AccountHandler) GetAccountByName(c *gin.Context) {
 		return
 	}
 
-	records, err := h.Service.FetchAccountByName(ctx, userID, name)
+	records, err := h.service.FetchAccountByName(ctx, userID, name)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -143,7 +143,7 @@ func (h *AccountHandler) GetAccountByName(c *gin.Context) {
 func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	records, err := h.Service.FetchAllAccountTypes(ctx)
+	records, err := h.service.FetchAllAccountTypes(ctx)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -168,7 +168,7 @@ func (h *AccountHandler) GetAccountsBySubtype(c *gin.Context) {
 		return
 	}
 
-	records, err := h.Service.FetchAccountsBySubtype(ctx, userID, sub)
+	records, err := h.service.FetchAccountsBySubtype(ctx, userID, sub)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -193,7 +193,7 @@ func (h *AccountHandler) GetAccountsByType(c *gin.Context) {
 		return
 	}
 
-	records, err := h.Service.FetchAccountsByType(ctx, userID, t)
+	records, err := h.service.FetchAccountsByType(ctx, userID, t)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -222,7 +222,7 @@ func (h *AccountHandler) InsertAccount(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.InsertAccount(ctx, userID, record); err != nil {
+	if err := h.service.InsertAccount(ctx, userID, record); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -265,7 +265,7 @@ func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateAccount(ctx, userID, id, req); err != nil {
+	if err := h.service.UpdateAccount(ctx, userID, id, req); err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -296,7 +296,7 @@ func (h *AccountHandler) ToggleAccountActiveState(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.ToggleAccountActiveState(ctx, userID, id); err != nil {
+	if err := h.service.ToggleAccountActiveState(ctx, userID, id); err != nil {
 		utils.ErrorMessage(c, "Toggle error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -327,7 +327,7 @@ func (h *AccountHandler) CloseAccount(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.CloseAccount(ctx, userID, id); err != nil {
+	if err := h.service.CloseAccount(ctx, userID, id); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -347,7 +347,7 @@ func (h *AccountHandler) BackfillBalancesForUser(c *gin.Context) {
 	from := c.Query("from")
 	to := c.Query("to")
 
-	if err := h.Service.BackfillBalancesForUser(ctx, userID, from, to); err != nil {
+	if err := h.service.BackfillBalancesForUser(ctx, userID, from, to); err != nil {
 		utils.ErrorMessage(c, "Backfill error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -388,7 +388,7 @@ func (h *AccountHandler) SaveAccountProjection(c *gin.Context) {
 		return
 	}
 
-	err = h.Service.SaveAccountProjection(ctx, id, userID, req)
+	err = h.service.SaveAccountProjection(ctx, id, userID, req)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
@@ -419,7 +419,7 @@ func (h *AccountHandler) RevertAccountProjection(c *gin.Context) {
 		return
 	}
 
-	err = h.Service.RevertAccountProjection(ctx, id, userID)
+	err = h.service.RevertAccountProjection(ctx, id, userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
@@ -450,7 +450,7 @@ func (h *AccountHandler) GetLatestBalance(c *gin.Context) {
 		return
 	}
 
-	rec, err := h.Service.FetchLatestBalance(ctx, id, userID)
+	rec, err := h.service.FetchLatestBalance(ctx, id, userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return

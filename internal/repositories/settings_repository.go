@@ -16,17 +16,17 @@ type SettingsRepositoryInterface interface {
 }
 
 type SettingsRepository struct {
-	DB *gorm.DB
+	db *gorm.DB
 }
 
 func NewSettingsRepository(db *gorm.DB) *SettingsRepository {
-	return &SettingsRepository{DB: db}
+	return &SettingsRepository{db: db}
 }
 
 func (r *SettingsRepository) FetchMaxAccountsForUser(ctx context.Context, tx *gorm.DB) (int64, error) {
 	db := tx
 	if db == nil {
-		db = r.DB
+		db = r.db
 	}
 	db = db.WithContext(ctx)
 
@@ -42,7 +42,7 @@ func (r *SettingsRepository) FetchMaxAccountsForUser(ctx context.Context, tx *go
 func (r *SettingsRepository) FetchGeneralSettings(ctx context.Context, tx *gorm.DB) (*models.SettingsGeneral, error) {
 	db := tx
 	if db == nil {
-		db = r.DB
+		db = r.db
 	}
 	db = db.WithContext(ctx)
 
@@ -59,7 +59,7 @@ func (r *SettingsRepository) FetchGeneralSettings(ctx context.Context, tx *gorm.
 func (r *SettingsRepository) FetchUserSettings(ctx context.Context, tx *gorm.DB, userID int64) (*models.SettingsUser, error) {
 	db := tx
 	if db == nil {
-		db = r.DB
+		db = r.db
 	}
 	db = db.WithContext(ctx)
 
@@ -79,7 +79,7 @@ func (r *SettingsRepository) FetchUserSettings(ctx context.Context, tx *gorm.DB,
 func (r *SettingsRepository) UpdateUserSettings(ctx context.Context, tx *gorm.DB, userID int64, record models.SettingsUser) error {
 	db := tx
 	if db == nil {
-		db = r.DB
+		db = r.db
 	}
 	db = db.WithContext(ctx)
 

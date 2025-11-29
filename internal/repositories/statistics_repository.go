@@ -1,23 +1,44 @@
 package repositories
 
 import (
+	"context"
 	"fmt"
 	"wealth-warden/internal/models"
 
 	"gorm.io/gorm"
 )
 
+type StatisticsRepositoryInterface interface {
+	BeginTx(ctx context.Context) (*gorm.DB, error)
+	FetchYearlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) (models.YearlyTotalsRow, error)
+	FetchMonthlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.MonthlyTotalsRow, error)
+	FetchMonthlyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.MonthlyTotalsRow, error)
+	GetAvailableStatsYears(ctx context.Context, tx *gorm.DB, accID *int64, userID int64) ([]int64, error)
+}
+
 type StatisticsRepository struct {
-	DB *gorm.DB
+	db *gorm.DB
 }
 
 func NewStatisticsRepository(db *gorm.DB) *StatisticsRepository {
-	return &StatisticsRepository{DB: db}
+	return &StatisticsRepository{db: db}
 }
 
-func (r *StatisticsRepository) FetchYearlyTotals(
-	tx *gorm.DB, userID int64, accountID *int64, year int,
-) (models.YearlyTotalsRow, error) {
+var _ StatisticsRepositoryInterface = (*StatisticsRepository)(nil)
+
+func (r *StatisticsRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
+	tx := r.db.WithContext(ctx).Begin()
+	return tx, tx.Error
+}
+
+func (r *StatisticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) (models.YearlyTotalsRow, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
 	var row models.YearlyTotalsRow
 	if accountID != nil {
 		sql := `
@@ -40,7 +61,7 @@ func (r *StatisticsRepository) FetchYearlyTotals(
 		    AND is_transfer = false
 		    AND txn_date >= make_date($3,1,1) AND txn_date < make_date($3+1,1,1)
 		`
-		if err := tx.Raw(sql, userID, *accountID, year).Scan(&row).Error; err != nil {
+		if err := db.Raw(sql, userID, *accountID, year).Scan(&row).Error; err != nil {
 			return row, err
 		}
 	} else {
@@ -63,16 +84,21 @@ func (r *StatisticsRepository) FetchYearlyTotals(
 		    AND is_transfer = false
 		    AND txn_date >= make_date($2,1,1) AND txn_date < make_date($2+1,1,1)
 		`
-		if err := tx.Raw(sql, userID, year).Scan(&row).Error; err != nil {
+		if err := db.Raw(sql, userID, year).Scan(&row).Error; err != nil {
 			return row, err
 		}
 	}
 	return row, nil
 }
 
-func (r *StatisticsRepository) FetchYearlyCategoryTotals(
-	tx *gorm.DB, userID int64, accountID *int64, year int,
-) ([]models.YearlyCategoryRow, error) {
+func (r *StatisticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.YearlyCategoryRow, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
 	var rows []models.YearlyCategoryRow
 	if accountID != nil {
 		sql := `
@@ -99,7 +125,7 @@ func (r *StatisticsRepository) FetchYearlyCategoryTotals(
 		  GROUP BY t.category_id, c.display_name
 		  ORDER BY t.category_id NULLS LAST
 		`
-		if err := tx.Raw(sql, userID, *accountID, year).Scan(&rows).Error; err != nil {
+		if err := db.Raw(sql, userID, *accountID, year).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 	} else {
@@ -126,16 +152,21 @@ func (r *StatisticsRepository) FetchYearlyCategoryTotals(
 		  GROUP BY t.category_id, c.display_name
 		  ORDER BY t.category_id NULLS LAST
 		`
-		if err := tx.Raw(sql, userID, year).Scan(&rows).Error; err != nil {
+		if err := db.Raw(sql, userID, year).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 	}
 	return rows, nil
 }
 
-func (r *StatisticsRepository) FetchMonthlyTotals(
-	tx *gorm.DB, userID int64, accountID *int64, year int,
-) ([]models.MonthlyTotalsRow, error) {
+func (r *StatisticsRepository) FetchMonthlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.MonthlyTotalsRow, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
 	var rows []models.MonthlyTotalsRow
 
 	base := `
@@ -161,21 +192,26 @@ func (r *StatisticsRepository) FetchMonthlyTotals(
 
 	if accountID != nil {
 		sql := fmt.Sprintf(base, "AND account_id = ?")
-		if err := tx.Raw(sql, userID, *accountID, year, year).Scan(&rows).Error; err != nil {
+		if err := db.Raw(sql, userID, *accountID, year, year).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 	} else {
 		sql := fmt.Sprintf(base, "")
-		if err := tx.Raw(sql, userID, year, year).Scan(&rows).Error; err != nil {
+		if err := db.Raw(sql, userID, year, year).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 	}
 	return rows, nil
 }
 
-func (r *StatisticsRepository) FetchMonthlyTotalsCheckingOnly(
-	tx *gorm.DB, userID int64, accountIDs []int64, year int,
-) ([]models.MonthlyTotalsRow, error) {
+func (r *StatisticsRepository) FetchMonthlyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.MonthlyTotalsRow, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
 	var rows []models.MonthlyTotalsRow
 
 	if len(accountIDs) == 0 {
@@ -205,11 +241,18 @@ func (r *StatisticsRepository) FetchMonthlyTotalsCheckingOnly(
 	  ORDER BY month;
 	`
 
-	err := tx.Raw(query, userID, year, year, accountIDs).Scan(&rows).Error
+	err := db.Raw(query, userID, year, year, accountIDs).Scan(&rows).Error
 	return rows, err
 }
 
-func (r *StatisticsRepository) GetAvailableStatsYears(accID *int64, userID int64) ([]int64, error) {
+func (r *StatisticsRepository) GetAvailableStatsYears(ctx context.Context, tx *gorm.DB, accID *int64, userID int64) ([]int64, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
 	var (
 		query string
 		args  []any
@@ -235,7 +278,7 @@ func (r *StatisticsRepository) GetAvailableStatsYears(accID *int64, userID int64
 	}
 
 	var years []int64
-	if err := r.DB.Raw(query, args...).Scan(&years).Error; err != nil {
+	if err := db.Raw(query, args...).Scan(&years).Error; err != nil {
 		return nil, fmt.Errorf("querying available stats years: %w", err)
 	}
 	return years, nil

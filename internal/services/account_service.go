@@ -53,12 +53,12 @@ type AccountService struct {
 
 func NewAccountService(
 	config *config.Config,
-	repo repositories.AccountRepositoryInterface,
-	txnRepo repositories.TransactionRepositoryInterface,
-	settingsRepo repositories.SettingsRepositoryInterface,
-	loggingRepo repositories.LoggingRepositoryInterface,
+	repo *repositories.AccountRepository,
+	txnRepo *repositories.TransactionRepository,
+	settingsRepo *repositories.SettingsRepository,
+	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobs.JobDispatcher,
-) AccountServiceInterface {
+) *AccountService {
 	return &AccountService{
 		config:        config,
 		repo:          repo,
@@ -99,13 +99,13 @@ func (s *AccountService) LogBalanceChange(ctx context.Context, account *models.A
 
 func (s *AccountService) FetchAccountsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeInactive bool, classification string) ([]models.Account, *utils.Paginator, error) {
 
-	totalRecords, err := s.repo.CountAccounts(ctx, userID, p.Filters, includeInactive, &classification)
+	totalRecords, err := s.repo.CountAccounts(ctx, nil, userID, p.Filters, includeInactive, &classification)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
-	records, err := s.repo.FindAccounts(ctx, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeInactive, &classification)
+	records, err := s.repo.FindAccounts(ctx, nil, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeInactive, &classification)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -192,7 +192,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 		return errors.New("provided initial balance cannot be negative")
 	}
 
-	accCount, err := s.repo.CountAccounts(ctx, userID, nil, false, nil)
+	accCount, err := s.repo.CountAccounts(ctx, nil, userID, nil, false, nil)
 	if err != nil {
 		return err
 	}
@@ -579,7 +579,7 @@ func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID in
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
-	accCount, err := s.repo.CountAccounts(ctx, userID, nil, false, nil)
+	accCount, err := s.repo.CountAccounts(ctx, tx, userID, nil, false, nil)
 	if err != nil {
 		return err
 	}
