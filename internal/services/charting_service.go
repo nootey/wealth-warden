@@ -14,44 +14,40 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type ChartingServiceInterface interface {
+	GetNetWorthSeries(ctx context.Context, userID int64, currency, rangeKey, from, to string, accountID *int64) (*models.NetWorthResponse, error)
+	GetMonthlyCashFlowForYear(ctx context.Context, userID int64, year int, accountID *int64) (*models.MonthlyCashflowResponse, error)
+	GetCategoryUsageForYear(ctx context.Context, userID int64, year int, class string, accID, catID *int64, asPercent bool) (*models.CategoryUsageResponse, error)
+	GetCategoryUsageForYears(ctx context.Context, userID int64, years []int, class string, accID, catID *int64, asPercent bool) (*models.MultiYearCategoryUsageResponse, error)
+}
 type ChartingService struct {
-	Config  *config.Config
-	Ctx     *DefaultServiceContext
-	Repo    *repositories.ChartingRepository
-	AccRepo *repositories.AccountRepository
-	TxRepo  *repositories.TransactionRepository
+	cfg     *config.Config
+	repo    repositories.ChartingRepositoryInterface
+	accRepo repositories.AccountRepositoryInterface
+	txnRepo repositories.TransactionRepositoryInterface
 }
 
 func NewChartingService(
 	cfg *config.Config,
-	ctx *DefaultServiceContext,
 	repo *repositories.ChartingRepository,
 	accRepo *repositories.AccountRepository,
 	txRepo *repositories.TransactionRepository,
 ) *ChartingService {
 	return &ChartingService{
-		Ctx:     ctx,
-		Config:  cfg,
-		Repo:    repo,
-		AccRepo: accRepo,
-		TxRepo:  txRepo,
+		cfg:     cfg,
+		repo:    repo,
+		accRepo: accRepo,
+		txnRepo: txRepo,
 	}
 }
 
-func (s *ChartingService) GetNetWorthSeries(
-	userID int64,
-	currency,
-	rangeKey,
-	from, to string,
-	accountID *int64,
-) (*models.NetWorthResponse, error) {
+var _ ChartingServiceInterface = (*ChartingService)(nil)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+func (s *ChartingService) GetNetWorthSeries(ctx context.Context, userID int64, currency, rangeKey, from, to string, accountID *int64) (*models.NetWorthResponse, error) {
 
-	tx := s.Repo.DB.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return nil, tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
 	}
 	defer func() {
 		if p := recover(); p != nil {
@@ -61,7 +57,6 @@ func (s *ChartingService) GetNetWorthSeries(
 	}()
 
 	var dfrom, dto time.Time
-	var err error
 
 	if from != "" || to != "" {
 		if to == "" {
@@ -117,7 +112,7 @@ func (s *ChartingService) GetNetWorthSeries(
 		gran = "month"
 	}
 
-	points, err := s.Repo.FetchNetWorthSeries(tx, userID, currency, dfrom, dto, gran, accountID)
+	points, err := s.repo.FetchNetWorthSeries(ctx, tx, userID, currency, dfrom, dto, gran, accountID)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -142,7 +137,7 @@ func (s *ChartingService) GetNetWorthSeries(
 	}
 
 	// latest snapshot
-	curDate, curStr, err := s.Repo.FetchLatestNetWorth(tx, userID, currency, accountID)
+	curDate, curStr, err := s.repo.FetchLatestNetWorth(ctx, tx, userID, currency, accountID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// brand-new user: pretend current is zero as of dto
@@ -187,7 +182,7 @@ func (s *ChartingService) GetNetWorthSeries(
 
 	var at *models.AccountType
 	if accountID != nil {
-		at, err = s.AccRepo.FindAccountTypeByAccID(tx, *accountID, userID)
+		at, err = s.accRepo.FindAccountTypeByAccID(ctx, tx, *accountID, userID)
 		if err != nil {
 			tx.Rollback()
 			return nil, err
@@ -219,8 +214,9 @@ func (s *ChartingService) GetNetWorthSeries(
 	return nwRes, nil
 }
 
-func (s *ChartingService) GetMonthlyCashFlowForYear(userID int64, year int, accountID *int64) (*models.MonthlyCashflowResponse, error) {
-	txs, err := s.TxRepo.GetTransactionsForYear(userID, year, accountID)
+func (s *ChartingService) GetMonthlyCashFlowForYear(ctx context.Context, userID int64, year int, accountID *int64) (*models.MonthlyCashflowResponse, error) {
+
+	txs, err := s.txnRepo.GetTransactionsForYear(ctx, nil, userID, year, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -257,16 +253,9 @@ func (s *ChartingService) GetMonthlyCashFlowForYear(userID int64, year int, acco
 	}, nil
 }
 
-func (s *ChartingService) GetCategoryUsageForYear(
-	userID int64,
-	year int,
-	class string,
-	accID *int64,
-	catID *int64,
-	asPercent bool,
-) (*models.CategoryUsageResponse, error) {
+func (s *ChartingService) GetCategoryUsageForYear(ctx context.Context, userID int64, year int, class string, accID, catID *int64, asPercent bool) (*models.CategoryUsageResponse, error) {
 
-	txs, err := s.TxRepo.GetTransactionsByYearAndClass(userID, year, class, accID)
+	txs, err := s.txnRepo.GetTransactionsByYearAndClass(ctx, nil, userID, year, class, accID)
 	if err != nil {
 		return nil, err
 	}
@@ -320,20 +309,13 @@ func (s *ChartingService) GetCategoryUsageForYear(
 	}, nil
 }
 
-func (s *ChartingService) GetCategoryUsageForYears(
-	userID int64,
-	years []int,
-	class string,
-	accID *int64,
-	catID *int64,
-	asPercent bool,
-) (*models.MultiYearCategoryUsageResponse, error) {
+func (s *ChartingService) GetCategoryUsageForYears(ctx context.Context, userID int64, years []int, class string, accID, catID *int64, asPercent bool) (*models.MultiYearCategoryUsageResponse, error) {
 
 	byYear := make(map[int]models.CategoryUsageResponse, len(years))
 	yearStats := make(map[int]models.YearStat, len(years))
 
 	for _, y := range years {
-		one, err := s.GetCategoryUsageForYear(userID, y, class, accID, catID, asPercent)
+		one, err := s.GetCategoryUsageForYear(ctx, userID, y, class, accID, catID, asPercent)
 		if err != nil {
 			return nil, err
 		}
@@ -362,7 +344,7 @@ func (s *ChartingService) GetCategoryUsageForYears(
 	}
 
 	// Get all-time stats from the database
-	allTimeTotal, allTimeMonths, err := s.TxRepo.GetAllTimeStatsByClass(userID, class, accID, catID)
+	allTimeTotal, allTimeMonths, err := s.txnRepo.GetAllTimeStatsByClass(ctx, nil, userID, class, accID, catID)
 	if err != nil {
 		return nil, err
 	}

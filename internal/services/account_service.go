@@ -43,7 +43,7 @@ type AccountServiceInterface interface {
 }
 
 type AccountService struct {
-	config        *config.Config
+	cfg           *config.Config
 	repo          repositories.AccountRepositoryInterface
 	txnRepo       repositories.TransactionRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
@@ -52,7 +52,7 @@ type AccountService struct {
 }
 
 func NewAccountService(
-	config *config.Config,
+	cfg *config.Config,
 	repo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
@@ -60,7 +60,7 @@ func NewAccountService(
 	jobDispatcher jobs.JobDispatcher,
 ) *AccountService {
 	return &AccountService{
-		config:        config,
+		cfg:           cfg,
 		repo:          repo,
 		txnRepo:       txnRepo,
 		settingsRepo:  settingsRepo,

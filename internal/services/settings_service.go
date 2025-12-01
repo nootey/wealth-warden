@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -11,31 +12,39 @@ import (
 	"wealth-warden/pkg/utils"
 )
 
+type SettingsServiceInterface interface {
+	FetchGeneralSettings(ctx context.Context) (*models.SettingsGeneral, error)
+	FetchUserSettings(ctx context.Context, userID int64) (*models.SettingsUser, error)
+	FetchAvailableTimezones(ctx context.Context) ([]models.TimezoneInfo, error)
+	UpdatePreferenceSettings(ctx context.Context, userID int64, req models.PreferenceSettingsReq) error
+	UpdateProfileSettings(ctx context.Context, userID int64, req models.ProfileSettingsReq) error
+}
+
 type SettingsService struct {
-	Config *config.Config
-	Ctx    *DefaultServiceContext
-	Repo   *repositories.SettingsRepository
+	cfg           *config.Config
+	repo          repositories.SettingsRepositoryInterface
+	loggingRepo   repositories.LoggingRepositoryInterface
+	userRepo      repositories.UserRepositoryInterface
+	jobDispatcher jobs.JobDispatcher
 }
 
 func NewSettingsService(
 	cfg *config.Config,
-	ctx *DefaultServiceContext,
 	repo *repositories.SettingsRepository,
+	loggingRepo *repositories.LoggingRepository,
+	userRepo *repositories.UserRepository,
+	jobDispatcher jobs.JobDispatcher,
 ) *SettingsService {
 	return &SettingsService{
-		Ctx:    ctx,
-		Config: cfg,
-		Repo:   repo,
+		cfg:           cfg,
+		repo:          repo,
+		loggingRepo:   loggingRepo,
+		userRepo:      userRepo,
+		jobDispatcher: jobDispatcher,
 	}
 }
 
-func (s *SettingsService) FetchGeneralSettings() (*models.SettingsGeneral, error) {
-	return s.Repo.FetchGeneralSettings(nil)
-}
-
-func (s *SettingsService) FetchUserSettings(userID int64) (*models.SettingsUser, error) {
-	return s.Repo.FetchUserSettings(nil, userID)
-}
+var _ SettingsServiceInterface = (*SettingsService)(nil)
 
 func abs(n int) int {
 	if n < 0 {
@@ -44,7 +53,15 @@ func abs(n int) int {
 	return n
 }
 
-func (s *SettingsService) FetchAvailableTimezones() ([]models.TimezoneInfo, error) {
+func (s *SettingsService) FetchGeneralSettings(ctx context.Context) (*models.SettingsGeneral, error) {
+	return s.repo.FetchGeneralSettings(ctx, nil)
+}
+
+func (s *SettingsService) FetchUserSettings(ctx context.Context, userID int64) (*models.SettingsUser, error) {
+	return s.repo.FetchUserSettings(ctx, nil, userID)
+}
+
+func (s *SettingsService) FetchAvailableTimezones(ctx context.Context) ([]models.TimezoneInfo, error) {
 
 	var timezones []models.TimezoneInfo
 
@@ -86,11 +103,11 @@ func (s *SettingsService) FetchAvailableTimezones() ([]models.TimezoneInfo, erro
 	return timezones, nil
 }
 
-func (s *SettingsService) UpdatePreferenceSettings(userID int64, req models.PreferenceSettingsReq) error {
+func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID int64, req models.PreferenceSettingsReq) error {
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
@@ -101,7 +118,7 @@ func (s *SettingsService) UpdatePreferenceSettings(userID int64, req models.Pref
 	}()
 
 	// Fetch settings to confirm user is owner
-	existingSettings, err := s.Repo.FetchUserSettings(nil, userID)
+	existingSettings, err := s.repo.FetchUserSettings(ctx, nil, userID)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find settings for given user: %w", err)
@@ -115,7 +132,7 @@ func (s *SettingsService) UpdatePreferenceSettings(userID int64, req models.Pref
 		Language: req.Language,
 	}
 
-	err = s.Repo.UpdateUserSettings(tx, userID, settings)
+	err = s.repo.UpdateUserSettings(ctx, tx, userID, settings)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -133,9 +150,8 @@ func (s *SettingsService) UpdatePreferenceSettings(userID int64, req models.Pref
 	utils.CompareChanges(existingSettings.Language, settings.Language, changes, "language")
 	utils.CompareChanges(existingSettings.Timezone, settings.Timezone, changes, "timezone")
 
-	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "update",
 		Category:    "user_settings",
 		Description: nil,
@@ -149,11 +165,11 @@ func (s *SettingsService) UpdatePreferenceSettings(userID int64, req models.Pref
 	return nil
 }
 
-func (s *SettingsService) UpdateProfileSettings(userID int64, req models.ProfileSettingsReq) error {
+func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int64, req models.ProfileSettingsReq) error {
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
@@ -164,7 +180,7 @@ func (s *SettingsService) UpdateProfileSettings(userID int64, req models.Profile
 	}()
 
 	// Fetch settings to confirm user is owner
-	existingUser, err := s.Ctx.AuthService.UserRepo.FindUserByID(tx, userID)
+	existingUser, err := s.userRepo.FindUserByID(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find existing user: %w", err)
@@ -180,7 +196,7 @@ func (s *SettingsService) UpdateProfileSettings(userID int64, req models.Profile
 		u.Email = req.Email
 	}
 
-	_, err = s.Ctx.AuthService.UserRepo.UpdateUser(tx, u)
+	_, err = s.userRepo.UpdateUser(ctx, tx, u)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -196,9 +212,8 @@ func (s *SettingsService) UpdateProfileSettings(userID int64, req models.Profile
 	utils.CompareChanges(existingUser.Email, u.Email, changes, "email")
 	utils.CompareChanges(existingUser.DisplayName, u.DisplayName, changes, "display_name")
 
-	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "update",
 		Category:    "user",
 		Description: nil,

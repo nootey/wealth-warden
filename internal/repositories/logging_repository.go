@@ -12,6 +12,7 @@ import (
 )
 
 type LoggingRepositoryInterface interface {
+	BeginTx(ctx context.Context) (*gorm.DB, error)
 	InsertActivityLog(ctx context.Context, tx *gorm.DB, event string, category string, description *string, payload *utils.Changes, causer *int64) error
 	CountLogs(ctx context.Context, filters []utils.Filter) (int64, error)
 	FindLogs(ctx context.Context, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error)
@@ -28,9 +29,16 @@ func NewLoggingRepository(db *gorm.DB) *LoggingRepository {
 	return &LoggingRepository{db: db}
 }
 
+var _ LoggingRepositoryInterface = (*LoggingRepository)(nil)
+
 type Option struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+}
+
+func (r *LoggingRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
+	tx := r.db.WithContext(ctx).Begin()
+	return tx, tx.Error
 }
 
 func (r *LoggingRepository) CountLogs(ctx context.Context, filters []utils.Filter) (int64, error) {

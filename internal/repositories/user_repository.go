@@ -49,6 +49,23 @@ func (r *UserRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 	return tx, tx.Error
 }
 
+func (r *UserRepository) GetAllActiveUserIDs(ctx context.Context, tx *gorm.DB) ([]int64, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var userIDs []int64
+	if err := db.Model(&models.User{}).
+		Where("deleted_at IS NULL").
+		Pluck("id", &userIDs).Error; err != nil {
+		return nil, err
+	}
+	return userIDs, nil
+}
+
 func (r *UserRepository) FindUsers(ctx context.Context, tx *gorm.DB, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool) ([]models.User, error) {
 
 	db := tx

@@ -9,6 +9,7 @@ import (
 )
 
 type SettingsRepositoryInterface interface {
+	BeginTx(ctx context.Context) (*gorm.DB, error)
 	FetchMaxAccountsForUser(ctx context.Context, tx *gorm.DB) (int64, error)
 	FetchGeneralSettings(ctx context.Context, tx *gorm.DB) (*models.SettingsGeneral, error)
 	FetchUserSettings(ctx context.Context, tx *gorm.DB, userID int64) (*models.SettingsUser, error)
@@ -21,6 +22,13 @@ type SettingsRepository struct {
 
 func NewSettingsRepository(db *gorm.DB) *SettingsRepository {
 	return &SettingsRepository{db: db}
+}
+
+var _ SettingsRepositoryInterface = (*SettingsRepository)(nil)
+
+func (r *SettingsRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
+	tx := r.db.WithContext(ctx).Begin()
+	return tx, tx.Error
 }
 
 func (r *SettingsRepository) FetchMaxAccountsForUser(ctx context.Context, tx *gorm.DB) (int64, error) {
