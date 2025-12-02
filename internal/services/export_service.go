@@ -3,6 +3,7 @@ package services
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,44 +16,60 @@ import (
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
+type ExportServiceInterface interface {
+	FetchExports(ctx context.Context, userID int64) ([]models.Export, error)
+	FetchExportByID(ctx context.Context, tx *gorm.DB, id, userID int64) (*models.Export, error)
+	FetchExportsByExportType(ctx context.Context, userID int64, exportType string) ([]models.Export, error)
+	CreateExport(ctx context.Context, userID int64) (*models.Export, error)
+	DownloadExport(ctx context.Context, id, userID int64) ([]byte, error)
+	DeleteExport(ctx context.Context, userID, id int64) error
+}
+
 type ExportService struct {
-	Config     *config.Config
-	Ctx        *DefaultServiceContext
-	Repo       *repositories.ExportRepository
-	TxnRepo    *repositories.TransactionRepository
-	accService *AccountService
+	cfg           *config.Config
+	repo          repositories.ExportRepositoryInterface
+	txnRepo       repositories.TransactionRepositoryInterface
+	accRepo       repositories.AccountRepositoryInterface
+	settingsRepo  repositories.SettingsRepositoryInterface
+	loggingRepo   repositories.LoggingRepositoryInterface
+	jobDispatcher jobs.JobDispatcher
 }
 
 func NewExportService(
 	cfg *config.Config,
-	ctx *DefaultServiceContext,
 	repo *repositories.ExportRepository,
 	txnRepo *repositories.TransactionRepository,
-	accService *AccountService,
+	accRepo *repositories.AccountRepository,
+	settingsRepo *repositories.SettingsRepository,
+	loggingRepo *repositories.LoggingRepository,
+	jobDispatcher jobs.JobDispatcher,
 ) *ExportService {
 	return &ExportService{
-		Ctx:        ctx,
-		Config:     cfg,
-		Repo:       repo,
-		TxnRepo:    txnRepo,
-		accService: accService,
+		cfg:           cfg,
+		repo:          repo,
+		txnRepo:       txnRepo,
+		accRepo:       accRepo,
+		settingsRepo:  settingsRepo,
+		jobDispatcher: jobDispatcher,
+		loggingRepo:   loggingRepo,
 	}
 }
 
-func (s *ExportService) FetchExports(userID int64) ([]models.Export, error) {
-	return s.Repo.FindExports(nil, userID)
+var _ ExportServiceInterface = (*ExportService)(nil)
+
+func (s *ExportService) FetchExports(ctx context.Context, userID int64) ([]models.Export, error) {
+	return s.repo.FindExports(ctx, nil, userID)
 }
 
-func (s *ExportService) FetchExportByID(tx *gorm.DB, id, userID int64) (*models.Export, error) {
-	return s.Repo.FindExportByID(tx, id, userID)
+func (s *ExportService) FetchExportByID(ctx context.Context, tx *gorm.DB, id, userID int64) (*models.Export, error) {
+	return s.repo.FindExportByID(ctx, tx, id, userID)
 }
 
-func (s *ExportService) FetchExportsByExportType(userID int64, exportType string) ([]models.Export, error) {
-	return s.Repo.FindExportsByExportType(nil, userID, exportType)
+func (s *ExportService) FetchExportsByExportType(ctx context.Context, userID int64, exportType string) ([]models.Export, error) {
+	return s.repo.FindExportsByExportType(ctx, nil, userID, exportType)
 }
 
 func (s *ExportService) buildAccountExportJSON(accs []models.Account) ([]byte, error) {
@@ -109,10 +126,7 @@ func (s *ExportService) buildCategoryExportJSON(cats []models.Category) ([]byte,
 	return json.MarshalIndent(out, "", "  ")
 }
 
-func (s *ExportService) buildTxnAndTransfersExportJSON(
-	txns []models.Transaction,
-	transfers []models.Transfer,
-) ([]byte, error) {
+func (s *ExportService) buildTxnAndTransfersExportJSON(txns []models.Transaction, transfers []models.Transfer) ([]byte, error) {
 
 	type bundle struct {
 		GeneratedAt  time.Time        `json:"generated_at"`
@@ -179,16 +193,9 @@ func (s *ExportService) buildTxnAndTransfersExportJSON(
 	return json.MarshalIndent(out, "", "  ")
 }
 
-func (s *ExportService) CreateExport(userID int64) (*models.Export, error) {
+func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models.Export, error) {
 
-	l := s.Ctx.Logger.With(
-		zap.String("op", "create_export"),
-		zap.Int64("user_id", userID),
-	)
-
-	l.Info("Started a JSON export")
-
-	settings, err := s.accService.Ctx.SettingsRepo.FetchUserSettings(nil, userID)
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -211,14 +218,13 @@ func (s *ExportService) CreateExport(userID int64) (*models.Export, error) {
 		StartedAt:  &now,
 	}
 
-	if err := s.Repo.InsertExport(nil, export); err != nil {
+	if err := s.repo.InsertExport(ctx, nil, export); err != nil {
 		return nil, err
 	}
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		s.updateExportStatus(export.ID, "failed", tx.Error.Error())
-		return nil, tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	defer func() {
@@ -228,62 +234,79 @@ func (s *ExportService) CreateExport(userID int64) (*models.Export, error) {
 		}
 	}()
 
-	accs, err := s.accService.Repo.FindAllAccountsWithLatestBalance(tx, userID)
+	accs, err := s.accRepo.FindAllAccountsWithLatestBalance(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		s.updateExportStatus(export.ID, "failed", err.Error())
+		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+		if sErr != nil {
+			return nil, sErr
+		}
 		return nil, err
 	}
 
-	categories, err := s.TxnRepo.FindAllCategories(tx, &userID, false)
+	categories, err := s.txnRepo.FindAllCategories(ctx, tx, &userID, false)
 	if err != nil {
 		tx.Rollback()
-		s.updateExportStatus(export.ID, "failed", err.Error())
+		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+		if sErr != nil {
+			return nil, sErr
+		}
 		return nil, err
 	}
 
-	txns, err := s.TxnRepo.FindAllTransactionsForUser(tx, userID)
+	txns, err := s.txnRepo.FindAllTransactionsForUser(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		s.updateExportStatus(export.ID, "failed", err.Error())
+		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+		if sErr != nil {
+			return nil, sErr
+		}
 		return nil, err
 	}
 
-	transfers, err := s.TxnRepo.FindAllTransfersForUser(tx, userID)
+	transfers, err := s.txnRepo.FindAllTransfersForUser(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		s.updateExportStatus(export.ID, "failed", err.Error())
+		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+		if sErr != nil {
+			return nil, sErr
+		}
 		return nil, err
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		s.updateExportStatus(export.ID, "failed", err.Error())
+		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+		if sErr != nil {
+			return nil, sErr
+		}
 		return nil, err
 	}
-
-	l.Info("Data fetched for export",
-		zap.Int("accounts", len(accs)),
-		zap.Int("categories", len(categories)),
-		zap.Int("transactions", len(txns)),
-		zap.Int("transfers", len(transfers)),
-	)
 
 	// Build JSON payloads
 	accJSON, err := s.buildAccountExportJSON(accs)
 	if err != nil {
-		s.updateExportStatus(export.ID, "failed", err.Error())
+		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+		if sErr != nil {
+			return nil, sErr
+		}
 		return nil, err
 	}
 
 	catJSON, err := s.buildCategoryExportJSON(categories)
 	if err != nil {
-		s.updateExportStatus(export.ID, "failed", err.Error())
+		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+		if sErr != nil {
+			return nil, sErr
+		}
 		return nil, err
 	}
 
 	txnsJSON, err := s.buildTxnAndTransfersExportJSON(txns, transfers)
 	if err != nil {
-		s.updateExportStatus(export.ID, "failed", err.Error())
+		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+		if sErr != nil {
+			return nil, sErr
+		}
 		return nil, err
 	}
 
@@ -300,25 +323,37 @@ func (s *ExportService) CreateExport(userID int64) (*models.Export, error) {
 	for name, data := range files {
 		f, err := zipWriter.Create(name)
 		if err != nil {
-			s.updateExportStatus(export.ID, "failed", err.Error())
+			sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+			if sErr != nil {
+				return nil, sErr
+			}
 			return nil, err
 		}
 		if _, err := f.Write(data); err != nil {
-			s.updateExportStatus(export.ID, "failed", err.Error())
+			sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+			if sErr != nil {
+				return nil, sErr
+			}
 			return nil, err
 		}
 	}
 
 	if err := zipWriter.Close(); err != nil {
-		s.updateExportStatus(export.ID, "failed", err.Error())
+		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+		if sErr != nil {
+			return nil, sErr
+		}
 		return nil, err
 	}
 
 	// Save to filesystem
 	zipData := buf.Bytes()
-	filePath, err := s.saveExportFile(export.ID, userID, export.Name, zipData)
+	filePath, err := s.saveExportFile(userID, export.Name, zipData)
 	if err != nil {
-		s.updateExportStatus(export.ID, "failed", err.Error())
+		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+		if sErr != nil {
+			return nil, sErr
+		}
 		return nil, err
 	}
 
@@ -332,8 +367,11 @@ func (s *ExportService) CreateExport(userID int64) (*models.Export, error) {
 		"completed_at": completedAt,
 	}
 
-	if err := s.Repo.UpdateExport(nil, export.ID, updates); err != nil {
-		s.updateExportStatus(export.ID, "failed", err.Error())
+	if err := s.repo.UpdateExport(ctx, nil, export.ID, updates); err != nil {
+		sErr := s.updateExportStatus(ctx, export.ID, "failed", err.Error())
+		if sErr != nil {
+			return nil, sErr
+		}
 		return nil, err
 	}
 
@@ -346,9 +384,8 @@ func (s *ExportService) CreateExport(userID int64) (*models.Export, error) {
 	utils.CompareChanges("", fmt.Sprintf("%d", len(txns)), changes, "transactions_count")
 	utils.CompareChanges("", fmt.Sprintf("%d", len(transfers)), changes, "transfers_count")
 
-	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "export",
 		Description: nil,
@@ -358,16 +395,12 @@ func (s *ExportService) CreateExport(userID int64) (*models.Export, error) {
 		return nil, err
 	}
 
-	l.Info("Export completed successfully",
-		zap.String("file_path", filePath),
-		zap.Int64("file_size", fileSize),
-	)
-
 	return export, nil
 
 }
 
-func (s *ExportService) saveExportFile(exportID, userID int64, exportName string, data []byte) (string, error) {
+func (s *ExportService) saveExportFile(userID int64, exportName string, data []byte) (string, error) {
+
 	dir := filepath.Join("storage", "exports", fmt.Sprintf("%d", userID))
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
@@ -384,23 +417,27 @@ func (s *ExportService) saveExportFile(exportID, userID int64, exportName string
 	return filePath, nil
 }
 
-func (s *ExportService) updateExportStatus(exportID int64, status, errorMsg string) {
+func (s *ExportService) updateExportStatus(ctx context.Context, exportID int64, status, errorMsg string) error {
 	update := map[string]interface{}{
 		"status": status,
 	}
+
 	if errorMsg != "" {
 		update["error"] = errorMsg
 	}
+
 	if status == "failed" {
 		now := time.Now().UTC()
 		update["completed_at"] = now
 	}
-	s.Repo.DB.Model(&models.Export{}).Where("id = ?", exportID).Updates(update)
+
+	return s.repo.UpdateExport(ctx, nil, exportID, update)
 }
 
-func (s *ExportService) DownloadExport(id, userID int64) ([]byte, error) {
-	var export models.Export
-	if err := s.Repo.DB.Where("id = ? AND user_id = ?", id, userID).First(&export).Error; err != nil {
+func (s *ExportService) DownloadExport(ctx context.Context, id, userID int64) ([]byte, error) {
+
+	export, err := s.repo.FindExportByID(ctx, nil, id, userID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -420,18 +457,11 @@ func (s *ExportService) DownloadExport(id, userID int64) ([]byte, error) {
 	return data, nil
 }
 
-func (s *ExportService) DeleteExport(userID, id int64) error {
+func (s *ExportService) DeleteExport(ctx context.Context, userID, id int64) error {
 
-	l := s.Ctx.Logger.With(
-		zap.String("op", "delete_export"),
-		zap.Int64("user_id", userID),
-		zap.Int64("export_id", id),
-	)
-	l.Info("deleting export")
-
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 	defer func() {
 		if p := recover(); p != nil {
@@ -441,14 +471,14 @@ func (s *ExportService) DeleteExport(userID, id int64) error {
 	}()
 
 	// Fetch export row
-	ex, err := s.FetchExportByID(tx, id, userID)
+	ex, err := s.FetchExportByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	// Delete export row
-	if err := s.Repo.DeleteExport(tx, ex.ID, userID); err != nil {
+	if err := s.repo.DeleteExport(ctx, tx, ex.ID, userID); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -472,9 +502,8 @@ func (s *ExportService) DeleteExport(userID, id int64) error {
 	changes := utils.InitChanges()
 	utils.CompareChanges(ex.Name, "", changes, "export_name")
 
-	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "delete",
 		Category:    "export",
 		Description: nil,
@@ -484,6 +513,5 @@ func (s *ExportService) DeleteExport(userID, id int64) error {
 		return err
 	}
 
-	l.Info("export deleted successfully")
 	return nil
 }

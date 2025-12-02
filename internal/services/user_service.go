@@ -13,6 +13,20 @@ import (
 	"wealth-warden/pkg/utils"
 )
 
+type UserServiceInterface interface {
+	GetAllActiveUserIDs(ctx context.Context) ([]int64, error)
+	FetchUsersPaginated(ctx context.Context, p utils.PaginationParams, includeDeleted bool) ([]models.User, *utils.Paginator, error)
+	FetchInvitationsPaginated(ctx context.Context, p utils.PaginationParams) ([]models.Invitation, *utils.Paginator, error)
+	FetchUserByID(ctx context.Context, ID int64) (*models.User, error)
+	FetchUserByToken(ctx context.Context, tokenType, tokenValue string) (*models.User, error)
+	FetchInvitationByHash(ctx context.Context, hash string) (*models.Invitation, error)
+	InsertInvitation(ctx context.Context, userID int64, req models.InvitationReq) error
+	UpdateUser(ctx context.Context, userID, id int64, req *models.UserReq) error
+	DeleteUser(ctx context.Context, userID, id int64) error
+	ResendInvitation(ctx context.Context, userID, id int64) error
+	DeleteInvitation(ctx context.Context, userID, id int64) error
+}
+
 type UserService struct {
 	cfg           *config.Config
 	repo          *repositories.UserRepository
@@ -39,6 +53,8 @@ func NewUserService(
 		mailer:        mailer,
 	}
 }
+
+var _ UserServiceInterface = (*UserService)(nil)
 
 func (s *UserService) GetAllActiveUserIDs(ctx context.Context) ([]int64, error) {
 	return s.repo.GetAllActiveUserIDs(ctx, nil)

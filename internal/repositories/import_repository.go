@@ -9,6 +9,7 @@ import (
 
 type ImportRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
+	CountTransactionsForImport(ctx context.Context, userID, importID int64) (int64, error)
 	FindImportsByImportType(ctx context.Context, tx *gorm.DB, userID int64, importType string) ([]models.Import, error)
 	FindImportByID(ctx context.Context, tx *gorm.DB, id, userID int64, importType string) (*models.Import, error)
 	InsertImport(ctx context.Context, tx *gorm.DB, record models.Import) (int64, error)
@@ -29,6 +30,23 @@ var _ ImportRepositoryInterface = (*ImportRepository)(nil)
 func (r *ImportRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 	tx := r.db.WithContext(ctx).Begin()
 	return tx, tx.Error
+}
+
+func (r *ImportRepository) CountTransactionsForImport(ctx context.Context, userID, importID int64) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&models.Transaction{}).
+		Where("user_id = ? AND account_id IN (?)", userID,
+			r.db.WithContext(ctx).Model(&models.Account{}).
+				Select("id").
+				Where("user_id = ? AND import_id = ?", userID, importID),
+		).
+		Count(&count).Error
+
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
 }
 
 func (r *ImportRepository) FindImportsByImportType(ctx context.Context, tx *gorm.DB, userID int64, importType string) ([]models.Import, error) {

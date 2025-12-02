@@ -18,7 +18,6 @@ import (
 )
 
 type AccountServiceInterface interface {
-	LogBalanceChange(ctx context.Context, account *models.Account, userID int64, change decimal.Decimal) error
 	FetchAccountsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeInactive bool, classification string) ([]models.Account, *utils.Paginator, error)
 	FetchLatestBalance(ctx context.Context, accID, userID int64) (*models.Balance, error)
 	FetchAccountByID(ctx context.Context, userID int64, id int64, initialBalance bool) (*models.Account, error)
@@ -46,8 +45,8 @@ type AccountService struct {
 	cfg           *config.Config
 	repo          repositories.AccountRepositoryInterface
 	txnRepo       repositories.TransactionRepositoryInterface
-	loggingRepo   repositories.LoggingRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
+	loggingRepo   repositories.LoggingRepositoryInterface
 	jobDispatcher jobs.JobDispatcher
 }
 
