@@ -22,6 +22,19 @@ import (
 )
 
 type ImportServiceInterface interface {
+	ValidateCustomImport(ctx context.Context, payload *models.TxnImportPayload, step string) ([]string, int, error)
+	FetchImportsByImportType(ctx context.Context, userID int64, importType string) ([]models.Import, error)
+	FetchImportByID(ctx context.Context, id, userID int64, importType string) (*models.Import, error)
+	ImportTransactions(ctx context.Context, userID, checkID int64, payload models.TxnImportPayload) error
+	ImportAccounts(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) error
+	ImportCategories(ctx context.Context, userID int64, payload models.CategoryImportPayload) error
+	TransferInvestmentsFromImport(ctx context.Context, userID int64, payload models.InvestmentTransferPayload) error
+	TransferSavingsFromImport(ctx context.Context, userID int64, payload models.SavingTransferPayload) error
+	TransferRepaymentsFromImport(ctx context.Context, userID int64, payload models.RepaymentTransferPayload) error
+	DeleteImport(ctx context.Context, userID, id int64) error
+	DeleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error
+	DeleteAccImport(ctx context.Context, userID int64, imp *models.Import) error
+	DeleteCatImport(ctx context.Context, userID int64, imp *models.Import) error
 }
 
 type ImportService struct {
@@ -56,7 +69,7 @@ func NewImportService(
 
 var _ ImportServiceInterface = (*ImportService)(nil)
 
-func (s *ImportService) updateDailyCashNoSnapshot(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal) error {
+func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal, snapshot bool) error {
 	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, acc.ID, asOf, acc.Currency); err != nil {
 		return err
 	}
@@ -67,7 +80,27 @@ func (s *ImportService) updateDailyCashNoSnapshot(ctx context.Context, tx *gorm.
 		"income":  "cash_inflows",
 	}[strings.ToLower(txnType)]
 
-	return s.accRepo.AddToDailyBalance(ctx, tx, acc.ID, asOf, column, amt)
+	err := s.accRepo.AddToDailyBalance(ctx, tx, acc.ID, asOf, column, amt)
+	if err != nil {
+		return err
+	}
+
+	if snapshot {
+		if err := s.accRepo.UpsertSnapshotsFromBalances(
+			ctx,
+			tx,
+			acc.UserID,
+			acc.ID,
+			acc.Currency,
+			asOf.UTC().Truncate(24*time.Hour),
+			time.Now().UTC().Truncate(24*time.Hour),
+		); err != nil {
+			return err
+		}
+
+	}
+
+	return nil
 }
 
 func (s *ImportService) frontfillBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error {
@@ -83,6 +116,20 @@ func (s *ImportService) frontfillBalances(ctx context.Context, tx *gorm.DB, user
 	}
 
 	return nil
+}
+
+func (s *ImportService) markImportFailed(ctx context.Context, importID int64, cause error) {
+
+	msg := ""
+	if cause != nil {
+		msg = cause.Error()
+	}
+
+	_ = s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
+		"status":       "failed",
+		"completed_at": nil,
+		"error":        msg,
+	})
 }
 
 func (s *ImportService) ValidateCustomImport(ctx context.Context, payload *models.TxnImportPayload, step string) ([]string, int, error) {
@@ -159,20 +206,6 @@ func (s *ImportService) ValidateCustomImport(ctx context.Context, payload *model
 	return categories, len(set), nil
 }
 
-func (s *ImportService) markImportFailed(ctx context.Context, importID int64, cause error) {
-
-	msg := ""
-	if cause != nil {
-		msg = cause.Error()
-	}
-
-	_ = s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
-		"status":       "failed",
-		"completed_at": nil,
-		"error":        msg,
-	})
-}
-
 func (s *ImportService) FetchImportsByImportType(ctx context.Context, userID int64, importType string) ([]models.Import, error) {
 	return s.repo.FindImportsByImportType(ctx, nil, userID, importType)
 }
@@ -183,7 +216,7 @@ func (s *ImportService) FetchImportByID(ctx context.Context, id, userID int64, i
 
 func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID int64, payload models.TxnImportPayload) error {
 
-	sourceAcc, err := s.accService.FetchAccountByID(userID, checkID, false)
+	sourceAcc, err := s.accRepo.FindAccountByID(ctx, nil, checkID, userID, false)
 	if err != nil {
 		return err
 	}
@@ -349,8 +382,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 				return err
 			}
 
-			err := s.accService.UpdateAccountCashBalance(ctx, tx, sourceAcc, t.TxnDate, t.TransactionType, t.Amount)
-			if err != nil {
+			if err := s.updateDailyCash(ctx, tx, sourceAcc, t.TxnDate, t.TransactionType, t.Amount, true); err != nil {
 				tx.Rollback()
 				s.markImportFailed(ctx, importID, err)
 				return err
@@ -361,7 +393,8 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 
 	frontfillFrom := utils.LocalMidnightUTC(payload.Txns[0].TxnDate, loc)
 
-	if err := s.accService.FrontfillBalancesForAccount(
+	if err := s.frontfillBalances(
+		ctx,
 		tx,
 		userID,
 		sourceAcc.ID,
@@ -1022,8 +1055,12 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 			return err
 		}
 
-		err = s.accService.UpdateBalancesForTransfer(ctx, tx, checkingAcc, toAccount, txDay, amt)
-		if err != nil {
+		if err := s.updateDailyCash(ctx, tx, checkingAcc, txDay, "expense", amt, true); err != nil {
+			tx.Rollback()
+			s.markImportFailed(ctx, payload.ImportID, err)
+			return err
+		}
+		if err := s.updateDailyCash(ctx, tx, toAccount, txDay, "income", amt, true); err != nil {
 			tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
@@ -1036,7 +1073,8 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 
 	// frontfill balances
 	frontfillFrom := utils.LocalMidnightUTC(txnPayload.Txns[0].TxnDate, loc)
-	if err := s.accService.FrontfillBalancesForAccount(
+	if err := s.frontfillBalances(
+		ctx,
 		tx,
 		userID,
 		checkingAcc.ID,
@@ -1051,7 +1089,7 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 	// Frontfill & refresh snapshots for each affected account from its earliest date
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for accID, from := range earliest {
-		if err := s.accService.FrontfillBalancesForAccount(ctx, tx, userID, accID, models.DefaultCurrency, from); err != nil {
+		if err := s.frontfillBalances(ctx, tx, userID, accID, models.DefaultCurrency, from); err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
@@ -1288,8 +1326,12 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 			return err
 		}
 
-		err = s.accService.UpdateBalancesForTransfer(ctx, tx, fromAcc, toAcc, txDay, amt)
-		if err != nil {
+		if err := s.updateDailyCash(ctx, tx, fromAcc, txDay, "expense", amt, true); err != nil {
+			tx.Rollback()
+			s.markImportFailed(ctx, payload.ImportID, err)
+			return err
+		}
+		if err := s.updateDailyCash(ctx, tx, toAcc, txDay, "income", amt, true); err != nil {
 			tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
@@ -1301,8 +1343,9 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 	}
 
 	// frontfill balances
-	frontfillFrom := utils.LocalMidnightUTC(ctx, txnPayload.Txns[0].TxnDate, loc)
-	if err := s.accService.FrontfillBalancesForAccount(
+	frontfillFrom := utils.LocalMidnightUTC(txnPayload.Txns[0].TxnDate, loc)
+	if err := s.frontfillBalances(
+		ctx,
 		tx,
 		userID,
 		checkingAcc.ID,
@@ -1317,7 +1360,7 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 	// Frontfill & refresh snapshots for each affected account from its earliest date
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for accID, from := range earliest {
-		if err := s.accService.FrontfillBalancesForAccount(ctx, tx, userID, accID, models.DefaultCurrency, from); err != nil {
+		if err := s.frontfillBalances(ctx, tx, userID, accID, models.DefaultCurrency, from); err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
@@ -1554,8 +1597,12 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 			return err
 		}
 
-		err = s.accService.UpdateBalancesForTransfer(ctx, tx, fromAcc, toAcc, txDay, amt)
-		if err != nil {
+		if err := s.updateDailyCash(ctx, tx, fromAcc, txDay, "expense", amt, true); err != nil {
+			tx.Rollback()
+			s.markImportFailed(ctx, payload.ImportID, err)
+			return err
+		}
+		if err := s.updateDailyCash(ctx, tx, toAcc, txDay, "income", amt, true); err != nil {
 			tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
@@ -1567,8 +1614,9 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 	}
 
 	// frontfill balances
-	frontfillFrom := utils.LocalMidnightUTC(ctx, txnPayload.Txns[0].TxnDate, loc)
-	if err := s.accService.FrontfillBalancesForAccount(
+	frontfillFrom := utils.LocalMidnightUTC(txnPayload.Txns[0].TxnDate, loc)
+	if err := s.frontfillBalances(
+		ctx,
 		tx,
 		userID,
 		checkingAcc.ID,
@@ -1583,7 +1631,7 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 	// Frontfill & refresh snapshots for each affected account from its earliest date
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for accID, from := range earliest {
-		if err := s.accService.FrontfillBalancesForAccount(ctx, tx, userID, accID, models.DefaultCurrency, from); err != nil {
+		if err := s.frontfillBalances(ctx, tx, userID, accID, models.DefaultCurrency, from); err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
@@ -1756,11 +1804,11 @@ func (s *ImportService) DeleteTxnImport(ctx context.Context, userID int64, imp *
 		touch(toAcc, outflow.TxnDate)
 
 		// Reverse the balance changes
-		if err := s.updateDailyCashNoSnapshot(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
+		if err := s.updateDailyCash(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg(), false); err != nil {
 			tx.Rollback()
 			return err
 		}
-		if err := s.updateDailyCashNoSnapshot(ctx, tx, toAcc, outflow.TxnDate, "income", outflow.Amount.Neg()); err != nil {
+		if err := s.updateDailyCash(ctx, tx, toAcc, outflow.TxnDate, "income", outflow.Amount.Neg(), false); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1789,7 +1837,7 @@ func (s *ImportService) DeleteTxnImport(ctx context.Context, userID int64, imp *
 		if strings.ToLower(t.TransactionType) == "expense" {
 			kind = "expense"
 		}
-		if err := s.updateDailyCashNoSnapshot(ctx, tx, acc, t.TxnDate, kind, amt); err != nil {
+		if err := s.updateDailyCash(ctx, tx, acc, t.TxnDate, kind, amt, false); err != nil {
 			tx.Rollback()
 			return err
 		}

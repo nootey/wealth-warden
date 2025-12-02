@@ -51,7 +51,14 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 }
 
 func (h *AuthHandler) GetAuthUser(c *gin.Context) {
-	user, err := h.Service.GetCurrentUser(c)
+
+	refreshToken, err := c.Cookie("refresh")
+	if err != nil {
+		utils.ErrorMessage(c, "Failed to retrieve cookie", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	user, err := h.Service.GetCurrentUser(c, refreshToken)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return

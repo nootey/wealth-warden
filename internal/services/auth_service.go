@@ -1,12 +1,10 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
-	"golang.org/x/crypto/bcrypt"
 	"time"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/middleware"
@@ -16,43 +14,55 @@ import (
 	"wealth-warden/pkg/constants"
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
+type AuthServiceInterface interface {
+	LoginUser(ctx context.Context, email, password, userAgent, ip string, rememberMe bool) (string, string, int, error)
+	GetCurrentUser(ctx context.Context, refreshToken string) (*models.User, error)
+	ValidateInvitation(ctx context.Context, hash string) error
+	SignUp(ctx context.Context, form models.RegisterForm, userAgent, ip string) error
+	ResendConfirmationEmail(ctx context.Context, email, userAgent, ip string) error
+	ConfirmEmail(ctx context.Context, tokenValue, userAgent, ip string) error
+	RequestPasswordReset(ctx context.Context, email, userAgent, ip string) error
+	ValidatePasswordReset(ctx context.Context, tokenValue string) (string, error)
+	ResetPassword(ctx context.Context, form models.ResetPasswordForm, userAgent, ip string) error
+}
 type AuthService struct {
-	Config              *config.Config
-	logger              *zap.Logger
-	UserRepo            *repositories.UserRepository
-	RoleRepo            *repositories.RolePermissionRepository
-	SettingsRepo        *repositories.SettingsRepository
-	loggingService      *LoggingService
-	WebClientMiddleware *middleware.WebClientMiddleware
+	cfg                 *config.Config
+	userRepo            repositories.UserRepositoryInterface
+	roleRepo            repositories.RolePermissionRepositoryInterface
+	settingsRepo        repositories.SettingsRepositoryInterface
+	loggingRepo         repositories.LoggingRepositoryInterface
+	webClientMiddleware *middleware.WebClientMiddleware
 	jobDispatcher       jobs.JobDispatcher
 	mailer              *mailer.Mailer
 }
 
 func NewAuthService(
 	cfg *config.Config,
-	logger *zap.Logger,
 	userRepo *repositories.UserRepository,
 	roleRepo *repositories.RolePermissionRepository,
 	settingsRepo *repositories.SettingsRepository,
-	loggingService *LoggingService,
+	loggingRepo *repositories.LoggingRepository,
 	webClientMiddleware *middleware.WebClientMiddleware,
 	jobDispatcher jobs.JobDispatcher,
 	mailer *mailer.Mailer,
 ) *AuthService {
 	return &AuthService{
-		Config:              cfg,
-		logger:              logger,
-		UserRepo:            userRepo,
-		RoleRepo:            roleRepo,
-		SettingsRepo:        settingsRepo,
-		loggingService:      loggingService,
-		WebClientMiddleware: webClientMiddleware,
+		cfg:                 cfg,
+		userRepo:            userRepo,
+		roleRepo:            roleRepo,
+		settingsRepo:        settingsRepo,
+		loggingRepo:         loggingRepo,
+		webClientMiddleware: webClientMiddleware,
 		jobDispatcher:       jobDispatcher,
 		mailer:              mailer,
 	}
 }
+
+var _ AuthServiceInterface = (*AuthService)(nil)
 
 func (s *AuthService) log(event, email, userAgent, ip, status string, description *string, userID *int64) error {
 
@@ -66,8 +76,7 @@ func (s *AuthService) log(event, email, userAgent, ip, status string, descriptio
 	utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
 
 	err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.loggingService.Repo,
-		Logger:      s.logger,
+		LoggingRepo: s.loggingRepo,
 		Event:       event,
 		Category:    "auth",
 		Description: description,
@@ -81,9 +90,75 @@ func (s *AuthService) log(event, email, userAgent, ip, status string, descriptio
 	return nil
 }
 
-func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberMe bool) (string, string, int, error) {
+func (s *AuthService) dispatchConfirmationEmail(ctx context.Context, user *models.User) error {
 
-	userPassword, _ := s.UserRepo.GetPasswordByEmail(email)
+	tx, err := s.userRepo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Always ensure only one active token for this user/type
+	if err := s.userRepo.DeleteTokenByData(ctx, tx, "confirm-email", "user_id", user.ID); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	// Insert new token
+	newToken, err := s.userRepo.InsertToken(ctx, tx, "confirm-email", "user_id", user.ID)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	// Commit before sending email
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Send email after commit
+	if err := s.mailer.SendConfirmationEmail(user.Email, user.DisplayName, newToken.TokenValue); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *AuthService) dispatchPasswordResetEmail(ctx context.Context, user *models.User) error {
+
+	tx, err := s.userRepo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Always ensure only one active token for this user/type
+	if err := s.userRepo.DeleteTokenByData(ctx, tx, "password-reset", "user_id", user.ID); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	// Insert new token
+	newToken, err := s.userRepo.InsertToken(ctx, tx, "password-reset", "user_id", user.ID)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	// Commit before sending email
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Send email after commit
+	if err := s.mailer.SendPasswordResetEmail(user.Email, user.DisplayName, newToken.TokenValue); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *AuthService) LoginUser(ctx context.Context, email, password, userAgent, ip string, rememberMe bool) (string, string, int, error) {
+
+	userPassword, _ := s.userRepo.GetPasswordByEmail(ctx, nil, email)
 	if userPassword == "" {
 		desc := "user does not exist"
 		logErr := s.log("login", email, userAgent, ip, "fail", &desc, nil)
@@ -107,13 +182,13 @@ func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberM
 		return "", "", 0, err
 	}
 
-	user, _ := s.UserRepo.FindUserByEmail(nil, email)
+	user, _ := s.userRepo.FindUserByEmail(ctx, nil, email)
 	if user == nil {
 		err = errors.New("user data unavailable")
 		return "", "", 0, err
 	}
 
-	accessToken, refreshToken, err := s.WebClientMiddleware.GenerateLoginTokens(user.ID, rememberMe)
+	accessToken, refreshToken, err := s.webClientMiddleware.GenerateLoginTokens(user.ID, rememberMe)
 	if err != nil {
 		return "", "", 0, err
 	}
@@ -133,25 +208,20 @@ func (s *AuthService) LoginUser(email, password, userAgent, ip string, rememberM
 	return accessToken, refreshToken, expiresAt, nil
 }
 
-func (s *AuthService) GetCurrentUser(c *gin.Context) (*models.User, error) {
-
-	refreshToken, err := c.Cookie("refresh")
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve cookie: %v", err)
-	}
+func (s *AuthService) GetCurrentUser(ctx context.Context, refreshToken string) (*models.User, error) {
 
 	if refreshToken != "" {
-		refreshClaims, err := s.WebClientMiddleware.DecodeWebClientToken(refreshToken, "refresh")
+		refreshClaims, err := s.webClientMiddleware.DecodeWebClientToken(refreshToken, "refresh")
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode refresh token: %v", err)
 		}
 
-		userId, decodeErr := s.WebClientMiddleware.DecodeWebClientUserID(refreshClaims.UserID)
+		userId, decodeErr := s.webClientMiddleware.DecodeWebClientUserID(refreshClaims.UserID)
 		if decodeErr != nil {
 			return nil, fmt.Errorf("failed to decode user ID: %v", decodeErr)
 		}
 
-		user, repoError := s.UserRepo.FindUserByID(nil, userId)
+		user, repoError := s.userRepo.FindUserByID(ctx, nil, userId)
 		if repoError != nil {
 			return nil, fmt.Errorf("failed to get user from repository: %v", repoError)
 		}
@@ -162,14 +232,14 @@ func (s *AuthService) GetCurrentUser(c *gin.Context) (*models.User, error) {
 	return nil, fmt.Errorf("no refresh token found")
 }
 
-func (s *AuthService) ValidateInvitation(hash string) error {
+func (s *AuthService) ValidateInvitation(ctx context.Context, hash string) error {
 	if hash == "" {
 		err := errors.New("validation token is required")
 		return err
 	}
 
 	// Do additional validation if needed, for now, confirming it exists is enough
-	_, err := s.UserRepo.FindUserInvitationByHash(nil, hash)
+	_, err := s.userRepo.FindUserInvitationByHash(ctx, nil, hash)
 	if err != nil {
 		return err
 	}
@@ -177,76 +247,10 @@ func (s *AuthService) ValidateInvitation(hash string) error {
 	return nil
 }
 
-func (s *AuthService) dispatchConfirmationEmail(user *models.User) error {
-
-	tx := s.UserRepo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
-	}
-
-	// Always ensure only one active token for this user/type
-	if err := s.UserRepo.DeleteTokenByData(tx, "confirm-email", "user_id", user.ID); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-
-	// Insert new token
-	newToken, err := s.UserRepo.InsertToken(tx, "confirm-email", "user_id", user.ID)
-	if err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-
-	// Commit before sending email
-	if err := tx.Commit().Error; err != nil {
-		return err
-	}
-
-	// Send email after commit
-	if err := s.mailer.SendConfirmationEmail(user.Email, user.DisplayName, newToken.TokenValue); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *AuthService) dispatchPasswordResetEmail(user *models.User) error {
-
-	tx := s.UserRepo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
-	}
-
-	// Always ensure only one active token for this user/type
-	if err := s.UserRepo.DeleteTokenByData(tx, "password-reset", "user_id", user.ID); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-
-	// Insert new token
-	newToken, err := s.UserRepo.InsertToken(tx, "password-reset", "user_id", user.ID)
-	if err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-
-	// Commit before sending email
-	if err := tx.Commit().Error; err != nil {
-		return err
-	}
-
-	// Send email after commit
-	if err := s.mailer.SendPasswordResetEmail(user.Email, user.DisplayName, newToken.TokenValue); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) error {
+func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, userAgent, ip string) error {
 
 	// Validation
-	settings, err := s.SettingsRepo.FetchGeneralSettings(nil)
+	settings, err := s.settingsRepo.FetchGeneralSettings(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -259,7 +263,7 @@ func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) err
 		return errors.New("password and password confirmation do not match")
 	}
 
-	existingUser, _ := s.UserRepo.FindUserByEmail(nil, form.Email)
+	existingUser, _ := s.userRepo.FindUserByEmail(ctx, nil, form.Email)
 
 	password, passwordErr := utils.ValidatePasswordStrength(form.Password)
 	if passwordErr != nil {
@@ -273,12 +277,12 @@ func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) err
 
 	if existingUser == nil {
 
-		tx := s.UserRepo.DB.Begin()
-		if tx.Error != nil {
-			return tx.Error
+		tx, err := s.userRepo.BeginTx(ctx)
+		if err != nil {
+			return err
 		}
 
-		role, err := s.RoleRepo.FindRoleByName(tx, "member")
+		role, err := s.roleRepo.FindRoleByName(ctx, tx, "member")
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -293,7 +297,7 @@ func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) err
 			UpdatedAt:   time.Now().UTC(),
 		}
 
-		_, err = s.UserRepo.InsertUser(tx, user)
+		_, err = s.userRepo.InsertUser(ctx, tx, user)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -309,7 +313,7 @@ func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) err
 			return logErr
 		}
 
-		err = s.dispatchConfirmationEmail(user)
+		err = s.dispatchConfirmationEmail(ctx, user)
 		if err != nil {
 			return err
 		}
@@ -319,9 +323,9 @@ func (s *AuthService) SignUp(form models.RegisterForm, userAgent, ip string) err
 	return nil
 }
 
-func (s *AuthService) ResendConfirmationEmail(email, userAgent, ip string) error {
+func (s *AuthService) ResendConfirmationEmail(ctx context.Context, email, userAgent, ip string) error {
 
-	user, err := s.UserRepo.FindUserByEmail(nil, email)
+	user, err := s.userRepo.FindUserByEmail(ctx, nil, email)
 	if err != nil {
 		return err
 	}
@@ -330,7 +334,7 @@ func (s *AuthService) ResendConfirmationEmail(email, userAgent, ip string) error
 		return errors.New("no user found for given email")
 	}
 
-	err = s.dispatchConfirmationEmail(user)
+	err = s.dispatchConfirmationEmail(ctx, user)
 	if err != nil {
 		return err
 	}
@@ -344,14 +348,14 @@ func (s *AuthService) ResendConfirmationEmail(email, userAgent, ip string) error
 	return nil
 }
 
-func (s *AuthService) ConfirmEmail(tokenValue, userAgent, ip string) error {
+func (s *AuthService) ConfirmEmail(ctx context.Context, tokenValue, userAgent, ip string) error {
 
-	tx := s.UserRepo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.userRepo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
-	token, err := s.UserRepo.FindTokenByValue(tx, "confirm-email", tokenValue)
+	token, err := s.userRepo.FindTokenByValue(ctx, tx, "confirm-email", tokenValue)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
@@ -375,7 +379,7 @@ func (s *AuthService) ConfirmEmail(tokenValue, userAgent, ip string) error {
 		return fmt.Errorf("invalid user_id in token data: %v", err)
 	}
 
-	user, err := s.UserRepo.FindUserByID(tx, userID)
+	user, err := s.userRepo.FindUserByID(ctx, tx, userID)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
@@ -389,7 +393,7 @@ func (s *AuthService) ConfirmEmail(tokenValue, userAgent, ip string) error {
 		return err
 	}
 
-	if err := s.UserRepo.DeleteTokenByData(tx, "confirm-email", "user_id", userID); err != nil {
+	if err := s.userRepo.DeleteTokenByData(ctx, tx, "confirm-email", "user_id", userID); err != nil {
 		_ = tx.Rollback()
 		return err
 	}
@@ -406,9 +410,9 @@ func (s *AuthService) ConfirmEmail(tokenValue, userAgent, ip string) error {
 	return nil
 }
 
-func (s *AuthService) RequestPasswordReset(email, userAgent, ip string) error {
+func (s *AuthService) RequestPasswordReset(ctx context.Context, email, userAgent, ip string) error {
 
-	user, err := s.UserRepo.FindUserByEmail(nil, email)
+	user, err := s.userRepo.FindUserByEmail(ctx, nil, email)
 	if err != nil {
 		return err
 	}
@@ -417,7 +421,7 @@ func (s *AuthService) RequestPasswordReset(email, userAgent, ip string) error {
 		return errors.New("no user found for given email")
 	}
 
-	err = s.dispatchPasswordResetEmail(user)
+	err = s.dispatchPasswordResetEmail(ctx, user)
 	if err != nil {
 		return err
 	}
@@ -431,9 +435,9 @@ func (s *AuthService) RequestPasswordReset(email, userAgent, ip string) error {
 	return nil
 }
 
-func (s *AuthService) ValidatePasswordReset(tokenValue string) (string, error) {
+func (s *AuthService) ValidatePasswordReset(ctx context.Context, tokenValue string) (string, error) {
 
-	token, err := s.UserRepo.FindTokenByValue(nil, "password-reset", tokenValue)
+	token, err := s.userRepo.FindTokenByValue(ctx, nil, "password-reset", tokenValue)
 	if err != nil {
 		return "", err
 	}
@@ -453,7 +457,7 @@ func (s *AuthService) ValidatePasswordReset(tokenValue string) (string, error) {
 		return "", fmt.Errorf("invalid user_id in token data: %v", err)
 	}
 
-	user, err := s.UserRepo.FindUserByID(nil, userID)
+	user, err := s.userRepo.FindUserByID(ctx, nil, userID)
 	if err != nil {
 		return "", err
 	}
@@ -465,18 +469,18 @@ func (s *AuthService) ValidatePasswordReset(tokenValue string) (string, error) {
 	return token.TokenValue, nil
 }
 
-func (s *AuthService) ResetPassword(form models.ResetPasswordForm, userAgent, ip string) error {
+func (s *AuthService) ResetPassword(ctx context.Context, form models.ResetPasswordForm, userAgent, ip string) error {
 
 	if form.Password != form.PasswordConfirmation {
 		return errors.New("password and password confirmation do not match")
 	}
 
-	tx := s.UserRepo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.userRepo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
-	user, err := s.UserRepo.FindUserByEmail(tx, form.Email)
+	user, err := s.userRepo.FindUserByEmail(ctx, tx, form.Email)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
@@ -492,13 +496,13 @@ func (s *AuthService) ResetPassword(form models.ResetPasswordForm, userAgent, ip
 		_ = tx.Rollback()
 		return err
 	}
-	err = s.UserRepo.UpdateUserPassword(tx, user.ID, hashedPass)
+	err = s.userRepo.UpdateUserPassword(ctx, tx, user.ID, hashedPass)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
 	}
 
-	if err := s.UserRepo.DeleteTokenByData(tx, "password-reset", "user_id", user.ID); err != nil {
+	if err := s.userRepo.DeleteTokenByData(ctx, tx, "password-reset", "user_id", user.ID); err != nil {
 		_ = tx.Rollback()
 		return err
 	}
@@ -516,7 +520,7 @@ func (s *AuthService) ResetPassword(form models.ResetPasswordForm, userAgent, ip
 	return nil
 }
 
-func (s *AuthService) RegisterUser(form models.RegisterForm, userAgent, ip string) error {
+func (s *AuthService) RegisterUser(ctx context.Context, form models.RegisterForm, userAgent, ip string) error {
 
 	return nil
 }
