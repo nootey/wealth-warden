@@ -8,7 +8,6 @@ import (
 // JobQueue handles background job processing using worker goroutines
 type JobQueue struct {
 	jobChannel chan Job
-	ctx        context.Context
 	cancel     context.CancelFunc
 	wg         sync.WaitGroup
 }
@@ -19,27 +18,26 @@ func NewJobQueue(workerCount int, queueSize int) *JobQueue {
 
 	q := &JobQueue{
 		jobChannel: make(chan Job, queueSize),
-		ctx:        ctx,
 		cancel:     cancel,
 	}
 
 	for i := 0; i < workerCount; i++ {
-		go q.worker()
+		go q.worker(ctx)
 	}
 
 	return q
 }
 
-func (q *JobQueue) worker() {
+func (q *JobQueue) worker(ctx context.Context) {
 	for {
 		select {
-		case <-q.ctx.Done():
+		case <-ctx.Done():
 			return
 		case job, ok := <-q.jobChannel:
 			if !ok {
 				return
 			}
-			_ = job.Process(q.ctx)
+			_ = job.Process(ctx)
 			q.wg.Done()
 		}
 	}
