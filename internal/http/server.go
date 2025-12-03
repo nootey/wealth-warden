@@ -13,6 +13,7 @@ import (
 	appConfig "wealth-warden/pkg/config"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/timeout"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	healthcheck "github.com/tavsec/gin-healthcheck"
@@ -84,6 +85,12 @@ func NewRouter(container *bootstrap.Container, logger *zap.Logger) *gin.Engine {
 	wm := middleware.NewWebClientMiddleware(container.Config, logger)
 	r.Use(wm.ErrorLogger())
 	r.Use(ginzap.RecoveryWithZap(logger, true))
+
+	// Timeout
+	r.Use(timeout.New(
+		timeout.WithTimeout(time.Duration(container.Config.HttpServer.ReqTimeout)*time.Second),
+		timeout.WithResponse(timeoutResponse),
+	))
 
 	// Health check (DB)
 	sqlDB, err := container.DB.DB()
@@ -161,4 +168,11 @@ func defineCORS(cfg *appConfig.Config) cors.Config {
 			return false
 		},
 	}
+}
+
+func timeoutResponse(c *gin.Context) {
+	c.JSON(http.StatusRequestTimeout, gin.H{
+		"error":   "request_timeout",
+		"message": "The request took too long to process",
+	})
 }

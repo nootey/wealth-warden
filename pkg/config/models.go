@@ -23,7 +23,8 @@ type WebClientConfig struct {
 }
 
 type HttpServerConfig struct {
-	Port string `mapstructure:"port"  validate:"required"`
+	Port       string `mapstructure:"port"  validate:"required"`
+	ReqTimeout int    `mapstructure:"request_timeout" validate:"required"`
 }
 
 type PostgresConfig struct {
