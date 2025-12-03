@@ -1,44 +1,47 @@
 package services
 
 import (
+	"context"
 	"sort"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 
 	"github.com/shopspring/decimal"
 )
 
+type StatisticsServiceInterface interface {
+	GetAccountBasicStatistics(ctx context.Context, accID *int64, userID int64, year int) (*models.BasicAccountStats, error)
+	GetAvailableStatsYears(ctx context.Context, accID *int64, userID int64) ([]int64, error)
+	GetCurrentMonthStats(ctx context.Context, userID int64, accountID *int64) (*models.CurrentMonthStats, error)
+	GetYearlyAverageForCategory(ctx context.Context, userID int64, accountID int64, categoryID int64, isGroup bool) (float64, error)
+}
+
 type StatisticsService struct {
-	Config  *config.Config
-	Ctx     *DefaultServiceContext
-	Repo    *repositories.StatisticsRepository
-	AccRepo *repositories.AccountRepository
-	TxRepo  *repositories.TransactionRepository
+	repo    *repositories.StatisticsRepository
+	accRepo *repositories.AccountRepository
+	txnRepo *repositories.TransactionRepository
 }
 
 func NewStatisticsService(
-	cfg *config.Config,
-	ctx *DefaultServiceContext,
 	repo *repositories.StatisticsRepository,
 	accRepo *repositories.AccountRepository,
-	txRepo *repositories.TransactionRepository,
+	txnRepo *repositories.TransactionRepository,
 ) *StatisticsService {
 	return &StatisticsService{
-		Ctx:     ctx,
-		Config:  cfg,
-		Repo:    repo,
-		AccRepo: accRepo,
-		TxRepo:  txRepo,
+		repo:    repo,
+		accRepo: accRepo,
+		txnRepo: txnRepo,
 	}
 }
 
-func (s *StatisticsService) GetAccountBasicStatistics(accID *int64, userID int64, year int) (*models.BasicAccountStats, error) {
+var _ StatisticsServiceInterface = (*StatisticsService)(nil)
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return nil, tx.Error
+func (s *StatisticsService) GetAccountBasicStatistics(ctx context.Context, accID *int64, userID int64, year int) (*models.BasicAccountStats, error) {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	defer func() {
@@ -49,12 +52,12 @@ func (s *StatisticsService) GetAccountBasicStatistics(accID *int64, userID int64
 	}()
 
 	if accID != nil {
-		if _, err := s.AccRepo.FindAccountByID(tx, *accID, userID, true); err != nil {
+		if _, err := s.accRepo.FindAccountByID(ctx, tx, *accID, userID, true); err != nil {
 			return nil, err
 		}
 	}
 
-	tot, err := s.Repo.FetchYearlyTotals(tx, userID, accID, year)
+	tot, err := s.repo.FetchYearlyTotals(ctx, tx, userID, accID, year)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -64,7 +67,7 @@ func (s *StatisticsService) GetAccountBasicStatistics(accID *int64, userID int64
 	outflow, _ := decimal.NewFromString(tot.OutflowText)
 	net, _ := decimal.NewFromString(tot.NetText)
 
-	mrows, err := s.Repo.FetchMonthlyTotals(tx, userID, accID, year)
+	mrows, err := s.repo.FetchMonthlyTotals(ctx, tx, userID, accID, year)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -117,7 +120,7 @@ func (s *StatisticsService) GetAccountBasicStatistics(accID *int64, userID int64
 		avgOut = outflow.Div(decimal.NewFromInt(int64(activeMonths)))
 	}
 
-	rows, err := s.Repo.FetchYearlyCategoryTotals(tx, userID, accID, year)
+	rows, err := s.repo.FetchYearlyCategoryTotals(ctx, tx, userID, accID, year)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -176,14 +179,15 @@ func (s *StatisticsService) GetAccountBasicStatistics(accID *int64, userID int64
 	}, nil
 }
 
-func (s *StatisticsService) GetAvailableStatsYears(accID *int64, userID int64) ([]int64, error) {
-	return s.Repo.GetAvailableStatsYears(accID, userID)
+func (s *StatisticsService) GetAvailableStatsYears(ctx context.Context, accID *int64, userID int64) ([]int64, error) {
+	return s.repo.GetAvailableStatsYears(ctx, nil, accID, userID)
 }
 
-func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64) (*models.CurrentMonthStats, error) {
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return nil, tx.Error
+func (s *StatisticsService) GetCurrentMonthStats(ctx context.Context, userID int64, accountID *int64) (*models.CurrentMonthStats, error) {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
 	}
 	defer func() {
 		if p := recover(); p != nil {
@@ -197,19 +201,18 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64)
 	month := int(now.Month())
 
 	var mrows []models.MonthlyTotalsRow
-	var err error
 	var checkingAccounts []models.Account
 
 	if accountID != nil {
-		acc, errAcc := s.AccRepo.FindAccountByID(tx, *accountID, userID, false)
+		acc, errAcc := s.accRepo.FindAccountByID(ctx, tx, *accountID, userID, false)
 		if errAcc != nil {
 			tx.Rollback()
 			return nil, errAcc
 		}
 		checkingAccounts = []models.Account{*acc}
-		mrows, err = s.Repo.FetchMonthlyTotals(tx, userID, accountID, year)
+		mrows, err = s.repo.FetchMonthlyTotals(ctx, tx, userID, accountID, year)
 	} else {
-		checkingAccounts, err = s.AccRepo.FindAccountsBySubtype(tx, userID, "checking", true)
+		checkingAccounts, err = s.accRepo.FindAccountsBySubtype(ctx, tx, userID, "checking", true)
 		if err != nil {
 			tx.Rollback()
 			return nil, err
@@ -223,7 +226,7 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64)
 		for i, a := range checkingAccounts {
 			accountIDs[i] = a.ID
 		}
-		mrows, err = s.Repo.FetchMonthlyTotalsCheckingOnly(tx, userID, accountIDs, year)
+		mrows, err = s.repo.FetchMonthlyTotalsCheckingOnly(ctx, tx, userID, accountIDs, year)
 	}
 
 	if err != nil {
@@ -251,7 +254,7 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64)
 		accountIDs[i] = a.ID
 	}
 
-	transfers, err := s.TxRepo.GetMonthlyTransfersFromChecking(tx, userID, accountIDs, year, month)
+	transfers, err := s.txnRepo.GetMonthlyTransfersFromChecking(ctx, tx, userID, accountIDs, year, month)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -316,12 +319,12 @@ func (s *StatisticsService) GetCurrentMonthStats(userID int64, accountID *int64)
 	}, nil
 }
 
-func (s *StatisticsService) GetYearlyAverageForCategory(userID int64, accountID int64, categoryID int64, isGroup bool) (float64, error) {
+func (s *StatisticsService) GetYearlyAverageForCategory(ctx context.Context, userID int64, accountID int64, categoryID int64, isGroup bool) (float64, error) {
 	currentYear := time.Now().UTC().Year()
 
 	if isGroup {
-		return s.TxRepo.GetYearlyAverageForCategoryGroup(userID, accountID, categoryID, currentYear)
+		return s.txnRepo.GetYearlyAverageForCategoryGroup(ctx, nil, userID, accountID, categoryID, currentYear)
 	}
 
-	return s.TxRepo.GetYearlyAverageForCategory(userID, accountID, categoryID, currentYear)
+	return s.txnRepo.GetYearlyAverageForCategory(ctx, nil, userID, accountID, categoryID, currentYear)
 }

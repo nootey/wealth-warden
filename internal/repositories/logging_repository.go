@@ -1,31 +1,50 @@
 package repositories
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"gorm.io/gorm"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
+
+	"gorm.io/gorm"
 )
 
+type LoggingRepositoryInterface interface {
+	BeginTx(ctx context.Context) (*gorm.DB, error)
+	InsertActivityLog(ctx context.Context, tx *gorm.DB, event string, category string, description *string, payload *utils.Changes, causer *int64) error
+	CountLogs(ctx context.Context, filters []utils.Filter) (int64, error)
+	FindLogs(ctx context.Context, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error)
+	FindActivityLogFilterData(ctx context.Context, activityIndex string) (map[string]interface{}, error)
+	FindActivityLogByID(ctx context.Context, tx *gorm.DB, ID int64) (models.ActivityLog, error)
+	DeleteActivityLog(ctx context.Context, tx *gorm.DB, id int64) error
+}
+
 type LoggingRepository struct {
-	DB *gorm.DB
+	db *gorm.DB
 }
 
 func NewLoggingRepository(db *gorm.DB) *LoggingRepository {
-	return &LoggingRepository{DB: db}
+	return &LoggingRepository{db: db}
 }
+
+var _ LoggingRepositoryInterface = (*LoggingRepository)(nil)
 
 type Option struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
-func (r *LoggingRepository) CountLogs(filters []utils.Filter) (int64, error) {
+func (r *LoggingRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
+	tx := r.db.WithContext(ctx).Begin()
+	return tx, tx.Error
+}
+
+func (r *LoggingRepository) CountLogs(ctx context.Context, filters []utils.Filter) (int64, error) {
 	var totalRecords int64
 
-	query := r.DB.Model(&models.ActivityLog{})
+	query := r.db.WithContext(ctx).Model(&models.ActivityLog{})
 
 	query = utils.ApplyFilters(query, filters)
 
@@ -37,10 +56,10 @@ func (r *LoggingRepository) CountLogs(filters []utils.Filter) (int64, error) {
 	return totalRecords, nil
 }
 
-func (r *LoggingRepository) FindLogs(offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error) {
+func (r *LoggingRepository) FindLogs(ctx context.Context, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error) {
 
 	var records []models.ActivityLog
-	query := r.DB.Table("activity_logs").Select("*")
+	query := r.db.WithContext(ctx).Table("activity_logs").Select("*")
 
 	joins := utils.GetRequiredJoins(filters)
 	orderBy := sortField + " " + sortOrder
@@ -63,7 +82,7 @@ func (r *LoggingRepository) FindLogs(offset, limit int, sortField, sortOrder str
 	return records, nil
 }
 
-func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map[string]interface{}, error) {
+func (r *LoggingRepository) FindActivityLogFilterData(ctx context.Context, activityIndex string) (map[string]interface{}, error) {
 	response := make(map[string]interface{})
 
 	var tableName string
@@ -76,7 +95,7 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 		return nil, fmt.Errorf("invalid activity index")
 	}
 
-	db := r.DB.Table(tableName)
+	db := r.db.Table(tableName).WithContext(ctx)
 
 	// events
 	var eventVals []string
@@ -132,7 +151,7 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 		var causers []map[string]interface{}
 		if len(causerIDs) > 0 {
 			var users []models.User
-			if err := r.DB.Where("id IN ? AND deleted_at IS NULL", causerIDs).Find(&users).Error; err == nil {
+			if err := r.db.Where("id IN ? AND deleted_at IS NULL", causerIDs).Find(&users).Error; err == nil {
 				for _, u := range users {
 					causers = append(causers, map[string]interface{}{
 						"id":   u.ID,
@@ -147,11 +166,12 @@ func (r *LoggingRepository) FindActivityLogFilterData(activityIndex string) (map
 	return response, nil
 }
 
-func (r *LoggingRepository) FindActivityLogByID(tx *gorm.DB, ID int64) (models.ActivityLog, error) {
+func (r *LoggingRepository) FindActivityLogByID(ctx context.Context, tx *gorm.DB, ID int64) (models.ActivityLog, error) {
 	db := tx
 	if db == nil {
-		db = r.DB
+		db = r.db
 	}
+	db = db.WithContext(ctx)
 
 	var record models.ActivityLog
 	result := db.Where("id = ?", ID).First(&record)
@@ -159,6 +179,7 @@ func (r *LoggingRepository) FindActivityLogByID(tx *gorm.DB, ID int64) (models.A
 }
 
 func (r *LoggingRepository) InsertActivityLog(
+	ctx context.Context,
 	tx *gorm.DB,
 	event string,
 	category string,
@@ -169,8 +190,9 @@ func (r *LoggingRepository) InsertActivityLog(
 
 	db := tx
 	if db == nil {
-		db = r.DB
+		db = r.db
 	}
+	db = db.WithContext(ctx)
 
 	doc := models.ActivityLog{
 		Event:       event,
@@ -196,11 +218,12 @@ func (r *LoggingRepository) InsertActivityLog(
 	return db.Table("activity_logs").Create(&doc).Error
 }
 
-func (r *LoggingRepository) DeleteActivityLog(tx *gorm.DB, id int64) error {
+func (r *LoggingRepository) DeleteActivityLog(ctx context.Context, tx *gorm.DB, id int64) error {
 	db := tx
 	if db == nil {
-		db = r.DB
+		db = r.db
 	}
+	db = db.WithContext(ctx)
 
 	res := db.
 		Where("id = ?", id).

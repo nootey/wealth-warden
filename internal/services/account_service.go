@@ -10,36 +10,64 @@ import (
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
+type AccountServiceInterface interface {
+	FetchAccountsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeInactive bool, classification string) ([]models.Account, *utils.Paginator, error)
+	FetchLatestBalance(ctx context.Context, accID, userID int64) (*models.Balance, error)
+	FetchAccountByID(ctx context.Context, userID int64, id int64, initialBalance bool) (*models.Account, error)
+	FetchAccountByName(ctx context.Context, userID int64, name string) (*models.Account, error)
+	FetchAllAccounts(ctx context.Context, userID int64, includeInactive bool) ([]models.Account, error)
+	FetchAllAccountTypes(ctx context.Context) ([]models.AccountType, error)
+	FetchAccountsBySubtype(ctx context.Context, userID int64, subtype string) ([]models.Account, error)
+	FetchAccountsByType(ctx context.Context, userID int64, t string) ([]models.Account, error)
+	InsertAccount(ctx context.Context, userID int64, req *models.AccountReq) error
+	UpdateAccount(ctx context.Context, userID int64, id int64, req *models.AccountReq) error
+	ToggleAccountActiveState(ctx context.Context, userID int64, id int64) error
+	CloseAccount(ctx context.Context, userID int64, id int64) error
+	UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal) error
+	UpdateBalancesForTransfer(ctx context.Context, tx *gorm.DB, fromAcc, toAcc *models.Account, when time.Time, amount decimal.Decimal) error
+	BackfillBalancesForUser(ctx context.Context, userID int64, from, to string) error
+	resolveUserDateRange(ctx context.Context, tx *gorm.DB, userID int64, from, to string) (time.Time, time.Time, error)
+	backfillAccountRange(ctx context.Context, tx *gorm.DB, acc *models.Account, dfrom, dto time.Time) error
+	FrontfillBalancesForAccount(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error
+	UpdateDailyCashNoSnapshot(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal) error
+	SaveAccountProjection(ctx context.Context, id, userID int64, req *models.AccountProjectionReq) error
+	RevertAccountProjection(ctx context.Context, id, userID int64) error
+}
+
 type AccountService struct {
-	Config  *config.Config
-	Ctx     *DefaultServiceContext
-	Repo    *repositories.AccountRepository
-	TxnRepo *repositories.TransactionRepository
+	repo          repositories.AccountRepositoryInterface
+	txnRepo       repositories.TransactionRepositoryInterface
+	settingsRepo  repositories.SettingsRepositoryInterface
+	loggingRepo   repositories.LoggingRepositoryInterface
+	jobDispatcher jobs.JobDispatcher
 }
 
 func NewAccountService(
-	cfg *config.Config,
-	ctx *DefaultServiceContext,
 	repo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
+	settingsRepo *repositories.SettingsRepository,
+	loggingRepo *repositories.LoggingRepository,
+	jobDispatcher jobs.JobDispatcher,
 ) *AccountService {
 	return &AccountService{
-		Ctx:     ctx,
-		Config:  cfg,
-		Repo:    repo,
-		TxnRepo: txnRepo,
+		repo:          repo,
+		txnRepo:       txnRepo,
+		settingsRepo:  settingsRepo,
+		jobDispatcher: jobDispatcher,
+		loggingRepo:   loggingRepo,
 	}
 }
 
-func (s *AccountService) LogBalanceChange(account *models.Account, userID int64, change decimal.Decimal) error {
-	newBalance, err := s.Repo.FindBalanceForAccountID(nil, account.ID)
+var _ AccountServiceInterface = (*AccountService)(nil)
+
+func (s *AccountService) LogBalanceChange(ctx context.Context, account *models.Account, userID int64, change decimal.Decimal) error {
+	newBalance, err := s.repo.FindBalanceForAccountID(ctx, nil, account.ID)
 	if err != nil {
 		return err
 	}
@@ -54,9 +82,8 @@ func (s *AccountService) LogBalanceChange(account *models.Account, userID int64,
 	utils.CompareChanges("", endBalance.StringFixed(2), changes, "end_balance")
 	utils.CompareChanges("", account.Currency, changes, "currency")
 
-	return s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	return s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "update",
 		Category:    "balance",
 		Description: nil,
@@ -65,15 +92,15 @@ func (s *AccountService) LogBalanceChange(account *models.Account, userID int64,
 	})
 }
 
-func (s *AccountService) FetchAccountsPaginated(userID int64, p utils.PaginationParams, includeInactive bool, classification string) ([]models.Account, *utils.Paginator, error) {
+func (s *AccountService) FetchAccountsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeInactive bool, classification string) ([]models.Account, *utils.Paginator, error) {
 
-	totalRecords, err := s.Repo.CountAccounts(userID, p.Filters, includeInactive, &classification)
+	totalRecords, err := s.repo.CountAccounts(ctx, nil, userID, p.Filters, includeInactive, &classification)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
-	records, err := s.Repo.FindAccounts(userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeInactive, &classification)
+	records, err := s.repo.FindAccounts(ctx, nil, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeInactive, &classification)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -99,9 +126,9 @@ func (s *AccountService) FetchAccountsPaginated(userID int64, p utils.Pagination
 	return records, paginator, nil
 }
 
-func (s *AccountService) FetchLatestBalance(accID, userID int64) (*models.Balance, error) {
+func (s *AccountService) FetchLatestBalance(ctx context.Context, accID, userID int64) (*models.Balance, error) {
 
-	record, err := s.Repo.FindLatestBalance(nil, accID, userID)
+	record, err := s.repo.FindLatestBalance(ctx, nil, accID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -109,16 +136,16 @@ func (s *AccountService) FetchLatestBalance(accID, userID int64) (*models.Balanc
 	return record, nil
 }
 
-func (s *AccountService) FetchAccountByID(userID int64, id int64, initialBalance bool) (*models.Account, error) {
+func (s *AccountService) FetchAccountByID(ctx context.Context, userID int64, id int64, initialBalance bool) (*models.Account, error) {
 
 	if initialBalance {
-		record, err := s.Repo.FindAccountByIDWithInitialBalance(nil, id, userID)
+		record, err := s.repo.FindAccountByIDWithInitialBalance(ctx, nil, id, userID)
 		if err != nil {
 			return nil, err
 		}
 		return record, nil
 	}
-	record, err := s.Repo.FindAccountByID(nil, id, userID, true)
+	record, err := s.repo.FindAccountByID(ctx, nil, id, userID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -126,9 +153,9 @@ func (s *AccountService) FetchAccountByID(userID int64, id int64, initialBalance
 	return record, nil
 }
 
-func (s *AccountService) FetchAccountByName(userID int64, name string) (*models.Account, error) {
+func (s *AccountService) FetchAccountByName(ctx context.Context, userID int64, name string) (*models.Account, error) {
 
-	record, err := s.Repo.FindAccountByName(nil, userID, name)
+	record, err := s.repo.FindAccountByName(ctx, nil, userID, name)
 	if err != nil {
 		return nil, err
 	}
@@ -136,23 +163,23 @@ func (s *AccountService) FetchAccountByName(userID int64, name string) (*models.
 	return record, nil
 }
 
-func (s *AccountService) FetchAllAccounts(userID int64, includeInactive bool) ([]models.Account, error) {
-	return s.Repo.FindAllAccounts(nil, userID, includeInactive)
+func (s *AccountService) FetchAllAccounts(ctx context.Context, userID int64, includeInactive bool) ([]models.Account, error) {
+	return s.repo.FindAllAccounts(ctx, nil, userID, includeInactive)
 }
 
-func (s *AccountService) FetchAllAccountTypes() ([]models.AccountType, error) {
-	return s.Repo.FindAllAccountTypes(nil, nil)
+func (s *AccountService) FetchAllAccountTypes(ctx context.Context) ([]models.AccountType, error) {
+	return s.repo.FindAllAccountTypes(ctx, nil, nil)
 }
 
-func (s *AccountService) FetchAccountsBySubtype(userID int64, subtype string) ([]models.Account, error) {
-	return s.Repo.FindAccountsBySubtype(nil, userID, subtype, true)
+func (s *AccountService) FetchAccountsBySubtype(ctx context.Context, userID int64, subtype string) ([]models.Account, error) {
+	return s.repo.FindAccountsBySubtype(ctx, nil, userID, subtype, true)
 }
 
-func (s *AccountService) FetchAccountsByType(userID int64, t string) ([]models.Account, error) {
-	return s.Repo.FetchAccountsByType(nil, userID, t, true)
+func (s *AccountService) FetchAccountsByType(ctx context.Context, userID int64, t string) ([]models.Account, error) {
+	return s.repo.FetchAccountsByType(ctx, nil, userID, t, true)
 }
 
-func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) error {
+func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *models.AccountReq) error {
 
 	changes := utils.InitChanges()
 
@@ -160,12 +187,12 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		return errors.New("provided initial balance cannot be negative")
 	}
 
-	accCount, err := s.Repo.CountAccounts(userID, nil, false, nil)
+	accCount, err := s.repo.CountAccounts(ctx, nil, userID, nil, false, nil)
 	if err != nil {
 		return err
 	}
 
-	maxAcc, err := s.Ctx.SettingsRepo.FetchMaxAccountsForUser(nil)
+	maxAcc, err := s.settingsRepo.FetchMaxAccountsForUser(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -174,9 +201,9 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		return fmt.Errorf("you can only have %d active accounts", maxAcc)
 	}
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
@@ -186,7 +213,7 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		}
 	}()
 
-	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't fetch user settings %w", err)
@@ -203,7 +230,7 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 	}
 	openedDay := utils.LocalMidnightUTC(openedAt, loc)
 
-	accType, err := s.Repo.FindAccountTypeByID(tx, req.AccountTypeID)
+	accType, err := s.repo.FindAccountTypeByID(ctx, tx, req.AccountTypeID)
 	if err != nil {
 		return fmt.Errorf("can't find account_type for given id %w", err)
 	}
@@ -228,7 +255,7 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 	utils.CompareChanges("", balanceAmountString, changes, "current_balance")
 	utils.CompareChanges("", dateStr, changes, "opened_at")
 
-	accountID, err := s.Repo.InsertAccount(tx, account)
+	accountID, err := s.repo.InsertAccount(ctx, tx, account)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -249,14 +276,15 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		AsOf:         asOf,
 	}
 
-	_, err = s.Repo.InsertBalance(tx, balance)
+	_, err = s.repo.InsertBalance(ctx, tx, balance)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	// seed snapshots from opened day to today
-	if err := s.Repo.UpsertSnapshotsFromBalances(
+	if err := s.repo.UpsertSnapshotsFromBalances(
+		ctx,
 		tx,
 		userID,
 		accountID,
@@ -272,9 +300,8 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 		return err
 	}
 
-	err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "account",
 		Description: nil,
@@ -288,11 +315,11 @@ func (s *AccountService) InsertAccount(userID int64, req *models.AccountReq) err
 	return nil
 }
 
-func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.AccountReq) error {
+func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int64, req *models.AccountReq) error {
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
@@ -303,7 +330,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 	}()
 
 	// Load record
-	exAcc, err := s.Repo.FindAccountByIDWithInitialBalance(tx, id, userID)
+	exAcc, err := s.repo.FindAccountByIDWithInitialBalance(ctx, tx, id, userID)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
@@ -313,19 +340,19 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 	}
 
 	// Load existing relations for comparison
-	exAccType, err := s.Repo.FindAccountTypeByID(tx, exAcc.AccountTypeID)
+	exAccType, err := s.repo.FindAccountTypeByID(ctx, tx, exAcc.AccountTypeID)
 	if err != nil {
 		return fmt.Errorf("can't find account type with given id %w", err)
 	}
 
 	// Resolve new relations  from req
-	newAccType, err := s.Repo.FindAccountTypeByID(tx, req.AccountTypeID)
+	newAccType, err := s.repo.FindAccountTypeByID(ctx, tx, req.AccountTypeID)
 	if err != nil {
 		return fmt.Errorf("can't find account type with given id %w", err)
 	}
 
 	// Handle OpenedAt change
-	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't fetch user settings %w", err)
@@ -345,7 +372,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 
 	if !newOpenedAt.Equal(exAcc.OpenedAt) {
 		// Check if any transactions exist for this account
-		earliestTxnDate, err := s.Repo.FindEarliestTransactionDate(tx, id)
+		earliestTxnDate, err := s.repo.FindEarliestTransactionDate(ctx, tx, id)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("failed to check transaction dates: %w", err)
@@ -363,7 +390,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 		initialBalance := exAcc.Balance.StartBalance
 
 		// Delete all existing snapshots for this account
-		err = s.Repo.DeleteAccountSnapshots(tx, id)
+		err = s.repo.DeleteAccountSnapshots(ctx, tx, id)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("failed to delete existing snapshots: %w", err)
@@ -377,19 +404,20 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 			AsOf:         newOpenedAt,
 		}
 
-		_, err = s.Repo.InsertBalance(tx, newInitialBalance)
+		_, err = s.repo.InsertBalance(ctx, tx, newInitialBalance)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("failed to create new initial balance: %w", err)
 		}
 
-		if err := s.Repo.FrontfillBalances(tx, id, models.DefaultCurrency, newOpenedAt); err != nil {
+		if err := s.repo.FrontfillBalances(ctx, tx, id, models.DefaultCurrency, newOpenedAt); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("failed to rebuild balances from transactions: %w", err)
 		}
 
 		// Re-seed snapshots from the new opened date to today
-		if err := s.Repo.UpsertSnapshotsFromBalances(
+		if err := s.repo.UpsertSnapshotsFromBalances(
+			ctx,
 			tx,
 			userID,
 			id,
@@ -434,7 +462,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 			return fmt.Errorf("invalid balance value: %w", err)
 		}
 
-		latestBalance, err := s.Repo.FindLatestBalance(tx, exAcc.ID, userID)
+		latestBalance, err := s.repo.FindLatestBalance(ctx, tx, exAcc.ID, userID)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -459,7 +487,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 
 			desc := "Manual adjustment"
 
-			category, err := s.TxnRepo.FindCategoryByClassification(tx, "adjustment", &userID)
+			category, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "adjustment", &userID)
 			if err != nil {
 				tx.Rollback()
 				return fmt.Errorf("can't find adjustment category: %w", err)
@@ -477,12 +505,12 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 				IsAdjustment:    true,
 			}
 
-			if _, err := s.TxnRepo.InsertTransaction(tx, txn); err != nil {
+			if _, err := s.txnRepo.InsertTransaction(ctx, tx, txn); err != nil {
 				tx.Rollback()
 				return fmt.Errorf("failed to post adjustment transaction: %w", err)
 			}
 
-			err = s.UpdateAccountCashBalance(tx, acc, txn.TxnDate, txnType, amount)
+			err = s.UpdateAccountCashBalance(ctx, tx, acc, txn.TxnDate, txnType, amount)
 			if err != nil {
 				tx.Rollback()
 				return err
@@ -491,7 +519,7 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 		}
 	}
 
-	_, err = s.Repo.UpdateAccount(tx, acc)
+	_, err = s.repo.UpdateAccount(ctx, tx, acc)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -504,15 +532,14 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 	// balance log (with the new end_balance)
 	if req.Balance != nil {
 		accForLog := &models.Account{ID: exAcc.ID, Name: acc.Name, Currency: exAcc.Currency}
-		if err := s.LogBalanceChange(accForLog, userID, delta); err != nil {
-			s.Ctx.Logger.Warn("Balance change logging failed")
+		if err := s.LogBalanceChange(ctx, accForLog, userID, delta); err != nil {
+			fmt.Println("Balance change logging failed")
 		}
 	}
 
 	if !changes.IsEmpty() {
-		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-			LoggingRepo: s.Ctx.LoggingService.Repo,
-			Logger:      s.Ctx.Logger,
+		err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "account",
 			Description: nil,
@@ -527,11 +554,11 @@ func (s *AccountService) UpdateAccount(userID int64, id int64, req *models.Accou
 	return nil
 }
 
-func (s *AccountService) ToggleAccountActiveState(userID int64, id int64) error {
+func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID int64, id int64) error {
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
@@ -542,17 +569,17 @@ func (s *AccountService) ToggleAccountActiveState(userID int64, id int64) error 
 	}()
 
 	// Load record to confirm it exists
-	exAcc, err := s.Repo.FindAccountByID(tx, id, userID, false)
+	exAcc, err := s.repo.FindAccountByID(ctx, tx, id, userID, false)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
-	accCount, err := s.Repo.CountAccounts(userID, nil, false, nil)
+	accCount, err := s.repo.CountAccounts(ctx, tx, userID, nil, false, nil)
 	if err != nil {
 		return err
 	}
 
-	maxAcc, err := s.Ctx.SettingsRepo.FetchMaxAccountsForUser(nil)
+	maxAcc, err := s.settingsRepo.FetchMaxAccountsForUser(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -570,7 +597,7 @@ func (s *AccountService) ToggleAccountActiveState(userID int64, id int64) error 
 	changes := utils.InitChanges()
 	utils.CompareChanges(strconv.FormatBool(exAcc.IsActive), strconv.FormatBool(acc.IsActive), changes, "is_active")
 
-	_, err = s.Repo.UpdateAccount(tx, acc)
+	_, err = s.repo.UpdateAccount(ctx, tx, acc)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -581,9 +608,8 @@ func (s *AccountService) ToggleAccountActiveState(userID int64, id int64) error 
 	}
 
 	if !changes.IsEmpty() {
-		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-			LoggingRepo: s.Ctx.LoggingService.Repo,
-			Logger:      s.Ctx.Logger,
+		err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "account",
 			Description: nil,
@@ -598,11 +624,11 @@ func (s *AccountService) ToggleAccountActiveState(userID int64, id int64) error 
 	return nil
 }
 
-func (s *AccountService) CloseAccount(userID int64, id int64) error {
+func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int64) error {
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
@@ -613,13 +639,13 @@ func (s *AccountService) CloseAccount(userID int64, id int64) error {
 	}()
 
 	// Load the account
-	acc, err := s.Repo.FindAccountByID(tx, id, userID, false)
+	acc, err := s.repo.FindAccountByID(ctx, tx, id, userID, false)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
 	// Close it
-	if err := s.Repo.CloseAccount(tx, acc.ID, userID); err != nil {
+	if err := s.repo.CloseAccount(ctx, tx, acc.ID, userID); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -628,13 +654,13 @@ func (s *AccountService) CloseAccount(userID int64, id int64) error {
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	// Upsert for the just-closed account
-	_ = s.Repo.UpsertSnapshotsFromBalances(tx, userID, acc.ID, acc.Currency, today, today)
+	_ = s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, today, today)
 
 	// Upsert for all still-open accounts for today (so the view has a “today” row)
-	openAccs, err := s.Repo.FindAllAccounts(tx, userID, false)
+	openAccs, err := s.repo.FindAllAccounts(ctx, tx, userID, false)
 	if err == nil {
 		for _, a := range openAccs {
-			_ = s.Repo.UpsertSnapshotsFromBalances(tx, userID, a.ID, a.Currency, today, today)
+			_ = s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, a.ID, a.Currency, today, today)
 		}
 	}
 
@@ -649,9 +675,8 @@ func (s *AccountService) CloseAccount(userID int64, id int64) error {
 	utils.CompareChanges(acc.AccountType.Subtype, "", changes, "sub_type")
 
 	if !changes.IsEmpty() {
-		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-			LoggingRepo: s.Ctx.LoggingService.Repo,
-			Logger:      s.Ctx.Logger,
+		err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
 			Event:       "close",
 			Category:    "account",
 			Description: nil,
@@ -666,15 +691,9 @@ func (s *AccountService) CloseAccount(userID int64, id int64) error {
 	return nil
 }
 
-func (s *AccountService) UpdateAccountCashBalance(
-	tx *gorm.DB,
-	acc *models.Account,
-	asOf time.Time,
-	transactionType string,
-	amount decimal.Decimal,
-) error {
+func (s *AccountService) UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal) error {
 	// ensure daily balance row exists for asOf
-	if err := s.Repo.EnsureDailyBalanceRow(tx, acc.ID, asOf, acc.Currency); err != nil {
+	if err := s.repo.EnsureDailyBalanceRow(ctx, tx, acc.ID, asOf, acc.Currency); err != nil {
 		return err
 	}
 
@@ -684,17 +703,18 @@ func (s *AccountService) UpdateAccountCashBalance(
 	switch strings.ToLower(transactionType) {
 	case "expense":
 		// expense decreases cash => goes to cash_outflows
-		if err := s.Repo.AddToDailyBalance(tx, acc.ID, asOf, "cash_outflows", amount); err != nil {
+		if err := s.repo.AddToDailyBalance(ctx, tx, acc.ID, asOf, "cash_outflows", amount); err != nil {
 			return err
 		}
 	default:
 		// income increases cash => goes to cash_inflows
-		if err := s.Repo.AddToDailyBalance(tx, acc.ID, asOf, "cash_inflows", amount); err != nil {
+		if err := s.repo.AddToDailyBalance(ctx, tx, acc.ID, asOf, "cash_inflows", amount); err != nil {
 			return err
 		}
 	}
 
-	if err := s.Repo.UpsertSnapshotsFromBalances(
+	if err := s.repo.UpsertSnapshotsFromBalances(
+		ctx,
 		tx,
 		acc.UserID,
 		acc.ID,
@@ -708,17 +728,12 @@ func (s *AccountService) UpdateAccountCashBalance(
 	return nil
 }
 
-func (s *AccountService) UpdateBalancesForTransfer(
-	tx *gorm.DB,
-	fromAcc, toAcc *models.Account,
-	when time.Time,
-	amount decimal.Decimal,
-) error {
-	if err := s.UpdateAccountCashBalance(tx, fromAcc, when, "expense", amount); err != nil {
+func (s *AccountService) UpdateBalancesForTransfer(ctx context.Context, tx *gorm.DB, fromAcc, toAcc *models.Account, when time.Time, amount decimal.Decimal) error {
+	if err := s.UpdateAccountCashBalance(ctx, tx, fromAcc, when, "expense", amount); err != nil {
 		return err
 	}
 
-	if err := s.UpdateAccountCashBalance(tx, toAcc, when, "income", amount); err != nil {
+	if err := s.UpdateAccountCashBalance(ctx, tx, toAcc, when, "income", amount); err != nil {
 		return err
 	}
 
@@ -726,9 +741,10 @@ func (s *AccountService) UpdateBalancesForTransfer(
 }
 
 func (s *AccountService) BackfillBalancesForUser(ctx context.Context, userID int64, from, to string) error {
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 	defer func() {
 		if p := recover(); p != nil {
@@ -737,7 +753,7 @@ func (s *AccountService) BackfillBalancesForUser(ctx context.Context, userID int
 		}
 	}()
 
-	accounts, err := s.Repo.FindAllAccounts(tx, userID, true)
+	accounts, err := s.repo.FindAllAccounts(ctx, tx, userID, true)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -746,14 +762,14 @@ func (s *AccountService) BackfillBalancesForUser(ctx context.Context, userID int
 		return tx.Commit().Error
 	}
 
-	dfrom, dto, err := s.resolveUserDateRange(tx, userID, from, to)
+	dfrom, dto, err := s.resolveUserDateRange(ctx, tx, userID, from, to)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	for _, acc := range accounts {
-		if err := s.backfillAccountRange(tx, &acc, dfrom, dto); err != nil {
+		if err := s.backfillAccountRange(ctx, tx, &acc, dfrom, dto); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -762,7 +778,7 @@ func (s *AccountService) BackfillBalancesForUser(ctx context.Context, userID int
 	return tx.Commit().Error
 }
 
-func (s *AccountService) resolveUserDateRange(tx *gorm.DB, userID int64, from, to string) (time.Time, time.Time, error) {
+func (s *AccountService) resolveUserDateRange(ctx context.Context, tx *gorm.DB, userID int64, from, to string) (time.Time, time.Time, error) {
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	var dfrom time.Time
@@ -785,11 +801,11 @@ func (s *AccountService) resolveUserDateRange(tx *gorm.DB, userID int64, from, t
 		}
 	} else {
 		// default from = min(first balance as_of, first txn date, today)
-		fb, err := s.Repo.GetUserFirstBalanceDate(tx, userID)
+		fb, err := s.repo.GetUserFirstBalanceDate(ctx, tx, userID)
 		if err != nil {
 			return time.Time{}, time.Time{}, err
 		}
-		ft, err := s.Repo.GetUserFirstTxnDate(tx, userID)
+		ft, err := s.repo.GetUserFirstTxnDate(ctx, tx, userID)
 		if err != nil {
 			return time.Time{}, time.Time{}, err
 		}
@@ -809,12 +825,9 @@ func (s *AccountService) resolveUserDateRange(tx *gorm.DB, userID int64, from, t
 	return dfrom, dto, nil
 }
 
-func (s *AccountService) backfillAccountRange(
-	tx *gorm.DB,
-	acc *models.Account,
-	dfrom, dto time.Time,
-) error {
-	return s.Repo.UpsertSnapshotsFromBalances(
+func (s *AccountService) backfillAccountRange(ctx context.Context, tx *gorm.DB, acc *models.Account, dfrom, dto time.Time) error {
+	return s.repo.UpsertSnapshotsFromBalances(
+		ctx,
 		tx,
 		acc.UserID,
 		acc.ID,
@@ -824,25 +837,18 @@ func (s *AccountService) backfillAccountRange(
 	)
 }
 
-func (s *AccountService) FrontfillBalancesForAccount(
-	tx *gorm.DB,
-	userID, accountID int64,
-	currency string,
-	from time.Time,
-) error {
+func (s *AccountService) FrontfillBalancesForAccount(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error {
 
 	from = from.UTC().Truncate(24 * time.Hour)
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	if err := s.Repo.FrontfillBalances(tx, accountID, currency, from); err != nil {
+	if err := s.repo.FrontfillBalances(ctx, tx, accountID, currency, from); err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	// recompute snapshots
-	if err := s.Repo.UpsertSnapshotsFromBalances(
-		tx, userID, accountID, currency, from, today,
-	); err != nil {
+	if err := s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, accountID, currency, from, today); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -850,23 +856,22 @@ func (s *AccountService) FrontfillBalancesForAccount(
 	return nil
 }
 
-func (s *AccountService) UpdateDailyCashNoSnapshot(
-	tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal,
-) error {
-	if err := s.Repo.EnsureDailyBalanceRow(tx, acc.ID, asOf, acc.Currency); err != nil {
+func (s *AccountService) UpdateDailyCashNoSnapshot(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal) error {
+	if err := s.repo.EnsureDailyBalanceRow(ctx, tx, acc.ID, asOf, acc.Currency); err != nil {
 		return err
 	}
 	amt = amt.Round(4)
 	if strings.ToLower(txnType) == "expense" {
-		return s.Repo.AddToDailyBalance(tx, acc.ID, asOf, "cash_outflows", amt)
+		return s.repo.AddToDailyBalance(ctx, tx, acc.ID, asOf, "cash_outflows", amt)
 	}
-	return s.Repo.AddToDailyBalance(tx, acc.ID, asOf, "cash_inflows", amt)
+	return s.repo.AddToDailyBalance(ctx, tx, acc.ID, asOf, "cash_inflows", amt)
 }
 
-func (s *AccountService) SaveAccountProjection(id, userID int64, req *models.AccountProjectionReq) error {
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+func (s *AccountService) SaveAccountProjection(ctx context.Context, id, userID int64, req *models.AccountProjectionReq) error {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
@@ -876,7 +881,7 @@ func (s *AccountService) SaveAccountProjection(id, userID int64, req *models.Acc
 		}
 	}()
 
-	exAcc, err := s.Repo.FindAccountByID(tx, id, userID, true)
+	exAcc, err := s.repo.FindAccountByID(ctx, tx, id, userID, true)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find account with given id %w", err)
@@ -896,7 +901,7 @@ func (s *AccountService) SaveAccountProjection(id, userID int64, req *models.Acc
 	utils.CompareChanges("", "save", changes, "action")
 	utils.CompareChanges(exAcc.ExpectedBalance.String(), acc.ExpectedBalance.String(), changes, "expected_balance")
 
-	_, err = s.Repo.UpdateAccountProjection(tx, acc)
+	_, err = s.repo.UpdateAccountProjection(ctx, tx, acc)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -907,9 +912,8 @@ func (s *AccountService) SaveAccountProjection(id, userID int64, req *models.Acc
 	}
 
 	if !changes.IsEmpty() {
-		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-			LoggingRepo: s.Ctx.LoggingService.Repo,
-			Logger:      s.Ctx.Logger,
+		err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "account_projection",
 			Description: nil,
@@ -924,10 +928,11 @@ func (s *AccountService) SaveAccountProjection(id, userID int64, req *models.Acc
 	return nil
 }
 
-func (s *AccountService) RevertAccountProjection(id, userID int64) error {
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+func (s *AccountService) RevertAccountProjection(ctx context.Context, id, userID int64) error {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
@@ -937,7 +942,7 @@ func (s *AccountService) RevertAccountProjection(id, userID int64) error {
 		}
 	}()
 
-	exAcc, err := s.Repo.FindAccountByID(tx, id, userID, true)
+	exAcc, err := s.repo.FindAccountByID(ctx, tx, id, userID, true)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find account with given id %w", err)
@@ -957,7 +962,7 @@ func (s *AccountService) RevertAccountProjection(id, userID int64) error {
 	utils.CompareChanges("", "revert", changes, "action")
 	utils.CompareChanges(exAcc.ExpectedBalance.String(), acc.ExpectedBalance.String(), changes, "expected_balance")
 
-	_, err = s.Repo.UpdateAccountProjection(tx, acc)
+	_, err = s.repo.UpdateAccountProjection(ctx, tx, acc)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -968,9 +973,8 @@ func (s *AccountService) RevertAccountProjection(id, userID int64) error {
 	}
 
 	if !changes.IsEmpty() {
-		err = s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-			LoggingRepo: s.Ctx.LoggingService.Repo,
-			Logger:      s.Ctx.Logger,
+		err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "account_projection",
 			Description: nil,

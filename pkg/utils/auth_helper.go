@@ -13,7 +13,6 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/config"
 
-	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -50,18 +49,6 @@ func DetermineServiceSource(userAgent string) string {
 	default:
 		return "Unknown"
 	}
-}
-
-func UserIDFromCtx(c *gin.Context) (int64, error) {
-	v, ok := c.Get("user_id")
-	if !ok {
-		return 0, errors.New("unauthenticated")
-	}
-	id, ok := v.(int64)
-	if !ok {
-		return 0, errors.New("invalid user id type")
-	}
-	return id, nil
 }
 
 func cleanString(s string) string {

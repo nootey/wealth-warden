@@ -2,11 +2,12 @@ package handlers
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
+
+	"github.com/gin-gonic/gin"
 )
 
 type LoggingHandler struct {
@@ -27,7 +28,11 @@ func (h *LoggingHandler) GetActivityLogs(c *gin.Context) {
 
 func (h *LoggingHandler) GetPaginatedLogs(c *gin.Context) {
 
-	records, paginator, err := h.Service.FetchPaginatedLogs(c)
+	qp := c.Request.URL.Query()
+	p := utils.GetPaginationParams(qp)
+	ctx := c.Request.Context()
+
+	records, paginator, err := h.Service.FetchPaginatedLogs(ctx, p)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

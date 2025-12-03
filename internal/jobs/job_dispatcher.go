@@ -1,7 +1,9 @@
 package jobs
 
+import "context"
+
 type Job interface {
-	Process()
+	Process(ctx context.Context) error
 }
 
 type JobDispatcher interface {

@@ -124,7 +124,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 	// Insert global roles.
 	for _, role := range globalRoles {
 		var roleID int64
-		err := db.Raw(`SELECT id FROM roles WHERE name = ?`, role.Name).Scan(&roleID).Error
+		err := db.WithContext(ctx).Raw(`SELECT id FROM roles WHERE name = ?`, role.Name).Scan(&roleID).Error
 		if err != nil && err != gorm.ErrRecordNotFound {
 			return fmt.Errorf("error checking role %s: %w", role.Name, err)
 		}
@@ -138,7 +138,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 				return fmt.Errorf("error inserting role %s: %w", role.Name, err)
 			}
 			fmt.Printf("Inserted role: %s\n", role.Name)
-			err = db.Raw(`SELECT id FROM roles WHERE name = ?`, role.Name).Scan(&roleID).Error
+			err = db.WithContext(ctx).Raw(`SELECT id FROM roles WHERE name = ?`, role.Name).Scan(&roleID).Error
 			if err != nil {
 				return fmt.Errorf("error retrieving inserted role ID for %s: %w", role.Name, err)
 			}
@@ -150,7 +150,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 	permissionIDs := make(map[string]int64)
 	for _, perm := range permissions {
 		var permID int64
-		err := db.Raw(`SELECT id FROM permissions WHERE name = ?`, perm.Name).Scan(&permID).Error
+		err := db.WithContext(ctx).Raw(`SELECT id FROM permissions WHERE name = ?`, perm.Name).Scan(&permID).Error
 		if err != nil && err != gorm.ErrRecordNotFound {
 			return fmt.Errorf("error checking permission %s: %w", perm, err)
 		}
@@ -163,7 +163,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 				return fmt.Errorf("error inserting permission %s: %w", perm, err)
 			}
 			fmt.Printf("Inserted permission: %s\n", perm.Name)
-			err = db.Raw(`SELECT id FROM permissions WHERE name = ?`, perm.Name).Scan(&permID).Error
+			err = db.WithContext(ctx).Raw(`SELECT id FROM permissions WHERE name = ?`, perm.Name).Scan(&permID).Error
 			if err != nil {
 				return fmt.Errorf("error retrieving inserted permission ID for %s: %w", perm, err)
 			}
@@ -177,7 +177,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 		for _, perm := range rolePerm.Permissions {
 			permID := permissionIDs[perm]
 			var exists int
-			err := db.Raw(`SELECT COUNT(*) FROM role_permissions WHERE role_id = ? AND permission_id = ?`, roleID, permID).Scan(&exists).Error
+			err := db.WithContext(ctx).Raw(`SELECT COUNT(*) FROM role_permissions WHERE role_id = ? AND permission_id = ?`, roleID, permID).Scan(&exists).Error
 			if err != nil {
 				return fmt.Errorf("error checking role_permission mapping for %s -> %s: %w", rolePerm.Role, perm, err)
 			}

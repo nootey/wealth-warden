@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
 	"wealth-warden/pkg/database/seeders"
@@ -52,7 +53,8 @@ func runSeeders(seedType string, cfg *config.Config, logger *zap.Logger) error {
 		log.Fatalf("Failed to connect to Postgres: %v", err)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
 
 	switch seedType {
 	case "full":

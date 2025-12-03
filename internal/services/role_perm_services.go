@@ -1,44 +1,54 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
+type RolePermissionServiceInterface interface {
+	FetchAllRoles(ctx context.Context, withPermissions bool) ([]models.Role, error)
+	FetchAllPermissions(ctx context.Context) ([]models.Permission, error)
+	FetchRoleByID(ctx context.Context, ID int64, withPermissions bool) (*models.Role, error)
+	InsertRole(ctx context.Context, userID int64, req models.RoleReq) error
+	UpdateRole(ctx context.Context, userID, id int64, req *models.RoleReq) error
+	DeleteRole(ctx context.Context, userID, id int64) error
+}
 type RolePermissionService struct {
-	Config *config.Config
-	Ctx    *DefaultServiceContext
-	Repo   *repositories.RolePermissionRepository
+	repo          repositories.RolePermissionRepositoryInterface
+	loggingRepo   repositories.LoggingRepositoryInterface
+	jobDispatcher jobs.JobDispatcher
 }
 
 func NewRolePermissionService(
-	cfg *config.Config,
-	ctx *DefaultServiceContext,
 	repo *repositories.RolePermissionRepository,
+	loggingRepo *repositories.LoggingRepository,
+	jobDispatcher jobs.JobDispatcher,
 ) *RolePermissionService {
 	return &RolePermissionService{
-		Ctx:    ctx,
-		Config: cfg,
-		Repo:   repo,
+		repo:          repo,
+		loggingRepo:   loggingRepo,
+		jobDispatcher: jobDispatcher,
 	}
 }
 
-func (s *RolePermissionService) FetchAllRoles(withPermissions bool) ([]models.Role, error) {
-	return s.Repo.FindAllRoles(withPermissions)
+var _ RolePermissionServiceInterface = (*RolePermissionService)(nil)
+
+func (s *RolePermissionService) FetchAllRoles(ctx context.Context, withPermissions bool) ([]models.Role, error) {
+	return s.repo.FindAllRoles(ctx, nil, withPermissions)
 }
 
-func (s *RolePermissionService) FetchAllPermissions() ([]models.Permission, error) {
-	return s.Repo.FindAllPermissions()
+func (s *RolePermissionService) FetchAllPermissions(ctx context.Context) ([]models.Permission, error) {
+	return s.repo.FindAllPermissions(ctx, nil)
 }
 
-func (s *RolePermissionService) FetchRoleByID(ID int64, withPermissions bool) (*models.Role, error) {
-	record, err := s.Repo.FindRoleByID(nil, ID, withPermissions)
+func (s *RolePermissionService) FetchRoleByID(ctx context.Context, ID int64, withPermissions bool) (*models.Role, error) {
+	record, err := s.repo.FindRoleByID(ctx, nil, ID, withPermissions)
 	if err != nil {
 		return nil, err
 	}
@@ -46,11 +56,11 @@ func (s *RolePermissionService) FetchRoleByID(ID int64, withPermissions bool) (*
 	return record, nil
 }
 
-func (s *RolePermissionService) InsertRole(userID int64, req models.RoleReq) error {
+func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, req models.RoleReq) error {
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	role := models.Role{
@@ -59,7 +69,7 @@ func (s *RolePermissionService) InsertRole(userID int64, req models.RoleReq) err
 		IsDefault:   false,
 	}
 
-	_, err := s.Repo.InsertRole(tx, &role)
+	_, err = s.repo.InsertRole(ctx, tx, &role)
 	if err != nil {
 		return err
 	}
@@ -70,11 +80,11 @@ func (s *RolePermissionService) InsertRole(userID int64, req models.RoleReq) err
 			permIDs = append(permIDs, p.ID)
 		}
 	}
-	if err = s.Repo.EnsurePermissionsExist(tx, permIDs); err != nil {
+	if err = s.repo.EnsurePermissionsExist(ctx, tx, permIDs); err != nil {
 		return err
 	}
 
-	if err = s.Repo.AttachPermissionIDs(tx, role.ID, permIDs); err != nil {
+	if err = s.repo.AttachPermissionIDs(ctx, tx, role.ID, permIDs); err != nil {
 		return err
 	}
 
@@ -105,9 +115,8 @@ func (s *RolePermissionService) InsertRole(userID int64, req models.RoleReq) err
 
 	utils.CompareChanges("", permString, changes, "permissions")
 
-	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "role",
 		Description: nil,
@@ -120,10 +129,11 @@ func (s *RolePermissionService) InsertRole(userID int64, req models.RoleReq) err
 	return nil
 }
 
-func (s *RolePermissionService) UpdateRole(userID, id int64, req *models.RoleReq) error {
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64, req *models.RoleReq) error {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 	defer func() {
 		if p := recover(); p != nil {
@@ -133,7 +143,7 @@ func (s *RolePermissionService) UpdateRole(userID, id int64, req *models.RoleReq
 	}()
 
 	// Load existing user
-	exRole, err := s.Repo.FindRoleByID(tx, id, true)
+	exRole, err := s.repo.FindRoleByID(ctx, tx, id, true)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find user with given id %w", err)
@@ -145,7 +155,7 @@ func (s *RolePermissionService) UpdateRole(userID, id int64, req *models.RoleReq
 		Description: &req.Description,
 	}
 
-	_, err = s.Repo.UpdateRole(tx, role)
+	_, err = s.repo.UpdateRole(ctx, tx, role)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -158,11 +168,11 @@ func (s *RolePermissionService) UpdateRole(userID, id int64, req *models.RoleReq
 				permIDs = append(permIDs, p.ID)
 			}
 		}
-		if err := s.Repo.EnsurePermissionsExist(tx, permIDs); err != nil {
+		if err := s.repo.EnsurePermissionsExist(ctx, tx, permIDs); err != nil {
 			tx.Rollback()
 			return err
 		}
-		if err := s.Repo.ReplaceRolePermissions(tx, role.ID, permIDs); err != nil {
+		if err := s.repo.ReplaceRolePermissions(ctx, tx, role.ID, permIDs); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -192,9 +202,8 @@ func (s *RolePermissionService) UpdateRole(userID, id int64, req *models.RoleReq
 	}
 
 	if !changes.IsEmpty() {
-		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-			LoggingRepo: s.Ctx.LoggingService.Repo,
-			Logger:      s.Ctx.Logger,
+		if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "role",
 			Description: nil,
@@ -208,11 +217,11 @@ func (s *RolePermissionService) UpdateRole(userID, id int64, req *models.RoleReq
 	return nil
 }
 
-func (s *RolePermissionService) DeleteRole(userID, id int64) error {
+func (s *RolePermissionService) DeleteRole(ctx context.Context, userID, id int64) error {
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
@@ -222,7 +231,7 @@ func (s *RolePermissionService) DeleteRole(userID, id int64) error {
 		}
 	}()
 
-	role, err := s.Repo.FindRoleByID(tx, id, false)
+	role, err := s.repo.FindRoleByID(ctx, tx, id, false)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find user with given id %w", err)
@@ -233,7 +242,7 @@ func (s *RolePermissionService) DeleteRole(userID, id int64) error {
 		return errors.New("default roles can not be deleted")
 	}
 
-	cnt, err := s.Repo.CountActiveUsersForRole(tx, role.ID)
+	cnt, err := s.repo.CountActiveUsersForRole(ctx, tx, role.ID)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -243,7 +252,7 @@ func (s *RolePermissionService) DeleteRole(userID, id int64) error {
 		return fmt.Errorf("cannot permanently delete category: %d active transactions still reference it", cnt)
 	}
 
-	if err := s.Repo.DeleteRole(tx, role.ID); err != nil {
+	if err := s.repo.DeleteRole(ctx, tx, role.ID); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -257,9 +266,8 @@ func (s *RolePermissionService) DeleteRole(userID, id int64) error {
 	utils.CompareChanges(utils.SafeString(role.Description), "", changes, "description")
 
 	if !changes.IsEmpty() {
-		if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-			LoggingRepo: s.Ctx.LoggingService.Repo,
-			Logger:      s.Ctx.Logger,
+		if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
 			Event:       "delete",
 			Category:    "user",
 			Description: nil,

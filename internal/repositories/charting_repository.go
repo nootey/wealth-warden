@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"context"
 	"fmt"
 	"time"
 	"wealth-warden/internal/models"
@@ -9,12 +10,24 @@ import (
 	"gorm.io/gorm"
 )
 
+type ChartingRepositoryInterface interface {
+	BeginTx(ctx context.Context) (*gorm.DB, error)
+	FetchNetWorthSeries(ctx context.Context, tx *gorm.DB, userID int64, currency string, from, to time.Time, gran string, accountID *int64) ([]models.ChartPoint, error)
+	FetchLatestNetWorth(ctx context.Context, tx *gorm.DB, userID int64, currency string, accountID *int64) (time.Time, string, error)
+}
 type ChartingRepository struct {
-	DB *gorm.DB
+	db *gorm.DB
 }
 
 func NewChartingRepository(db *gorm.DB) *ChartingRepository {
-	return &ChartingRepository{DB: db}
+	return &ChartingRepository{db: db}
+}
+
+var _ ChartingRepositoryInterface = (*ChartingRepository)(nil)
+
+func (r *ChartingRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
+	tx := r.db.WithContext(ctx).Begin()
+	return tx, tx.Error
 }
 
 func (r *ChartingRepository) sourceView(accountID *int64) string {
@@ -24,10 +37,13 @@ func (r *ChartingRepository) sourceView(accountID *int64) string {
 	return "v_user_daily_networth_snapshots"
 }
 
-func (r *ChartingRepository) FetchNetWorthSeries(
-	tx *gorm.DB, userID int64, currency string,
-	from, to time.Time, gran string, accountID *int64,
-) ([]models.ChartPoint, error) {
+func (r *ChartingRepository) FetchNetWorthSeries(ctx context.Context, tx *gorm.DB, userID int64, currency string, from, to time.Time, gran string, accountID *int64) ([]models.ChartPoint, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
 
 	type row struct {
 		Date  time.Time
@@ -50,7 +66,7 @@ func (r *ChartingRepository) FetchNetWorthSeries(
 			args = append(args, *accountID)
 		}
 		sql += " ORDER BY as_of"
-		if err := tx.Raw(sql, args...).Scan(&rows).Error; err != nil {
+		if err := db.Raw(sql, args...).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 
@@ -78,7 +94,7 @@ func (r *ChartingRepository) FetchNetWorthSeries(
 		  FROM b
 		  ORDER BY bucket, as_of DESC
 		`
-		if err := tx.Raw(sql, args...).Scan(&rows).Error; err != nil {
+		if err := db.Raw(sql, args...).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 
@@ -106,7 +122,7 @@ func (r *ChartingRepository) FetchNetWorthSeries(
 		  FROM b
 		  ORDER BY bucket, as_of DESC
 		`
-		if err := tx.Raw(sql, args...).Scan(&rows).Error; err != nil {
+		if err := db.Raw(sql, args...).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 
@@ -119,13 +135,17 @@ func (r *ChartingRepository) FetchNetWorthSeries(
 		v, _ := decimal.NewFromString(r.Value)
 		out = append(out, models.ChartPoint{Date: r.Date, Value: v})
 	}
+
 	return out, nil
 }
 
-func (r *ChartingRepository) FetchLatestNetWorth(
-	tx *gorm.DB, userID int64, currency string, accountID *int64,
-) (time.Time, string, error) {
+func (r *ChartingRepository) FetchLatestNetWorth(ctx context.Context, tx *gorm.DB, userID int64, currency string, accountID *int64) (time.Time, string, error) {
 
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
 	src := r.sourceView(accountID)
 
 	sql := `
@@ -142,33 +162,7 @@ func (r *ChartingRepository) FetchLatestNetWorth(
 
 	var date time.Time
 	var value string
-	if err := tx.Raw(sql, args...).Row().Scan(&date, &value); err != nil {
-		return time.Time{}, "", err
-	}
-	return date, value, nil
-}
-
-func (r *ChartingRepository) FetchNetWorthAsOf(
-	tx *gorm.DB, userID int64, currency string, asOf time.Time, accountID *int64,
-) (time.Time, string, error) {
-
-	src := r.sourceView(accountID)
-
-	sql := `
-	  SELECT as_of, end_balance::text
-	  FROM ` + src + `
-	  WHERE user_id = ? AND currency = ? AND as_of <= ?
-	`
-	args := []any{userID, currency, asOf}
-	if accountID != nil {
-		sql += " AND account_id = ?"
-		args = append(args, *accountID)
-	}
-	sql += ` ORDER BY as_of DESC LIMIT 1`
-
-	var date time.Time
-	var value string
-	if err := tx.Raw(sql, args...).Row().Scan(&date, &value); err != nil {
+	if err := db.Raw(sql, args...).Row().Scan(&date, &value); err != nil {
 		return time.Time{}, "", err
 	}
 	return date, value, nil

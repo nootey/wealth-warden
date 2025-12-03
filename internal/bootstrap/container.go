@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"time"
 	"wealth-warden/internal/jobs"
-	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -17,7 +16,6 @@ import (
 type Container struct {
 	Config             *config.Config
 	DB                 *gorm.DB
-	Middleware         *middleware.WebClientMiddleware
 	AuthzService       *authz.Service
 	AuthService        *services.AuthService
 	UserService        *services.UserService
@@ -33,9 +31,6 @@ type Container struct {
 }
 
 func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Container, error) {
-
-	// Initialize middleware
-	webClientMiddleware := middleware.NewWebClientMiddleware(cfg, logger)
 
 	// Initialize mailer
 	mail := mailer.NewMailer(cfg, &mailer.MailConfig{From: cfg.Mailer.Username, FromName: "Wealth Warden Support"})
@@ -59,31 +54,21 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	exportRepo := repositories.NewExportRepository(db)
 
 	// Initialize services
-	loggingService := services.NewLoggingService(cfg, loggingRepo)
-	authService := services.NewAuthService(cfg, logger, userRepo, roleRepo, settingsRepo, loggingService, webClientMiddleware, jobDispatcher, mail)
-
-	ctx := &services.DefaultServiceContext{
-		LoggingService: loggingService,
-		AuthService:    authService,
-		Logger:         logger,
-		JobDispatcher:  jobDispatcher,
-		SettingsRepo:   settingsRepo,
-	}
-
-	roleService := services.NewRolePermissionService(cfg, ctx, roleRepo)
-	userService := services.NewUserService(cfg, ctx, userRepo, roleService)
-	accountService := services.NewAccountService(cfg, ctx, accountRepo, transactionRepo)
-	transactionService := services.NewTransactionService(cfg, ctx, transactionRepo, accountService)
-	settingsService := services.NewSettingsService(cfg, ctx, settingsRepo)
-	chartingService := services.NewChartingService(cfg, ctx, chartingRepo, accountRepo, transactionRepo)
-	statsService := services.NewStatisticsService(cfg, ctx, statsRepo, accountRepo, transactionRepo)
-	importService := services.NewImportService(cfg, ctx, importRepo, transactionRepo, accountService)
-	exportService := services.NewExportService(cfg, ctx, exportRepo, transactionRepo, accountService)
+	loggingService := services.NewLoggingService(loggingRepo)
+	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, loggingRepo, jobDispatcher, mail)
+	roleService := services.NewRolePermissionService(roleRepo, loggingRepo, jobDispatcher)
+	userService := services.NewUserService(userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
+	accountService := services.NewAccountService(accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher)
+	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
+	settingsService := services.NewSettingsService(settingsRepo, userRepo, loggingRepo, jobDispatcher)
+	chartingService := services.NewChartingService(chartingRepo, accountRepo, transactionRepo)
+	statsService := services.NewStatisticsService(statsRepo, accountRepo, transactionRepo)
+	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
+	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
 
 	return &Container{
 		Config:             cfg,
 		DB:                 db,
-		Middleware:         webClientMiddleware,
 		AuthzService:       authzSvc,
 		AuthService:        authService,
 		UserService:        userService,

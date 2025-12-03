@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,39 +14,121 @@ import (
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
+type ImportServiceInterface interface {
+	ValidateCustomImport(ctx context.Context, payload *models.TxnImportPayload, step string) ([]string, int, error)
+	FetchImportsByImportType(ctx context.Context, userID int64, importType string) ([]models.Import, error)
+	FetchImportByID(ctx context.Context, id, userID int64, importType string) (*models.Import, error)
+	ImportTransactions(ctx context.Context, userID, checkID int64, payload models.TxnImportPayload) error
+	ImportAccounts(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) error
+	ImportCategories(ctx context.Context, userID int64, payload models.CategoryImportPayload) error
+	TransferInvestmentsFromImport(ctx context.Context, userID int64, payload models.InvestmentTransferPayload) error
+	TransferSavingsFromImport(ctx context.Context, userID int64, payload models.SavingTransferPayload) error
+	TransferRepaymentsFromImport(ctx context.Context, userID int64, payload models.RepaymentTransferPayload) error
+	DeleteImport(ctx context.Context, userID, id int64) error
+	DeleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error
+	DeleteAccImport(ctx context.Context, userID int64, imp *models.Import) error
+	DeleteCatImport(ctx context.Context, userID int64, imp *models.Import) error
+}
+
 type ImportService struct {
-	Config     *config.Config
-	Ctx        *DefaultServiceContext
-	Repo       *repositories.ImportRepository
-	TxnRepo    *repositories.TransactionRepository
-	accService *AccountService
+	repo          repositories.ImportRepositoryInterface
+	txnRepo       repositories.TransactionRepositoryInterface
+	accRepo       repositories.AccountRepositoryInterface
+	settingsRepo  repositories.SettingsRepositoryInterface
+	loggingRepo   repositories.LoggingRepositoryInterface
+	jobDispatcher jobs.JobDispatcher
 }
 
 func NewImportService(
-	cfg *config.Config,
-	ctx *DefaultServiceContext,
 	repo *repositories.ImportRepository,
 	txnRepo *repositories.TransactionRepository,
-	accService *AccountService,
+	accRepo *repositories.AccountRepository,
+	settingsRepo *repositories.SettingsRepository,
+	loggingRepo *repositories.LoggingRepository,
+	jobDispatcher jobs.JobDispatcher,
 ) *ImportService {
 	return &ImportService{
-		Ctx:        ctx,
-		Config:     cfg,
-		Repo:       repo,
-		TxnRepo:    txnRepo,
-		accService: accService,
+		repo:          repo,
+		txnRepo:       txnRepo,
+		accRepo:       accRepo,
+		settingsRepo:  settingsRepo,
+		loggingRepo:   loggingRepo,
+		jobDispatcher: jobDispatcher,
 	}
 }
 
-func (s *ImportService) ValidateCustomImport(payload *models.TxnImportPayload, step string) ([]string, int, error) {
+var _ ImportServiceInterface = (*ImportService)(nil)
+
+func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal, snapshot bool) error {
+	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, acc.ID, asOf, acc.Currency); err != nil {
+		return err
+	}
+
+	amt = amt.Round(4)
+	column := map[string]string{
+		"expense": "cash_outflows",
+		"income":  "cash_inflows",
+	}[strings.ToLower(txnType)]
+
+	err := s.accRepo.AddToDailyBalance(ctx, tx, acc.ID, asOf, column, amt)
+	if err != nil {
+		return err
+	}
+
+	if snapshot {
+		if err := s.accRepo.UpsertSnapshotsFromBalances(
+			ctx,
+			tx,
+			acc.UserID,
+			acc.ID,
+			acc.Currency,
+			asOf.UTC().Truncate(24*time.Hour),
+			time.Now().UTC().Truncate(24*time.Hour),
+		); err != nil {
+			return err
+		}
+
+	}
+
+	return nil
+}
+
+func (s *ImportService) frontfillBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error {
+	from = from.UTC().Truncate(24 * time.Hour)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	if err := s.accRepo.FrontfillBalances(ctx, tx, accountID, currency, from); err != nil {
+		return err
+	}
+
+	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accountID, currency, from, today); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *ImportService) markImportFailed(ctx context.Context, importID int64, cause error) {
+
+	msg := ""
+	if cause != nil {
+		msg = cause.Error()
+	}
+
+	_ = s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
+		"status":       "failed",
+		"completed_at": nil,
+		"error":        msg,
+	})
+}
+
+func (s *ImportService) ValidateCustomImport(ctx context.Context, payload *models.TxnImportPayload, step string) ([]string, int, error) {
 	if payload.GeneratedAt.IsZero() {
 		return nil, 0, errors.New("missing or invalid 'generated_at' field")
 	}
@@ -119,40 +202,17 @@ func (s *ImportService) ValidateCustomImport(payload *models.TxnImportPayload, s
 	return categories, len(set), nil
 }
 
-func (s *ImportService) markImportFailed(importID int64, cause error) {
-
-	msg := ""
-	if cause != nil {
-		msg = cause.Error()
-	}
-
-	_ = s.Repo.UpdateImport(nil, importID, map[string]interface{}{
-		"status":       "failed",
-		"completed_at": nil,
-		"error":        msg,
-	})
+func (s *ImportService) FetchImportsByImportType(ctx context.Context, userID int64, importType string) ([]models.Import, error) {
+	return s.repo.FindImportsByImportType(ctx, nil, userID, importType)
 }
 
-func (s *ImportService) FetchImportsByImportType(userID int64, importType string) ([]models.Import, error) {
-	return s.Repo.FindImportsByImportType(nil, userID, importType)
+func (s *ImportService) FetchImportByID(ctx context.Context, id, userID int64, importType string) (*models.Import, error) {
+	return s.repo.FindImportByID(ctx, nil, id, userID, importType)
 }
 
-func (s *ImportService) FetchImportByID(tx *gorm.DB, id, userID int64, importType string) (*models.Import, error) {
-	return s.Repo.FindImportByID(tx, id, userID, importType)
-}
+func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID int64, payload models.TxnImportPayload) error {
 
-func (s *ImportService) ImportTransactions(userID, checkID int64, payload models.TxnImportPayload) error {
-
-	start := time.Now().UTC()
-	l := s.Ctx.Logger.With(
-		zap.String("op", "import_transactions"),
-		zap.Int64("user_id", userID),
-		zap.Int64("account_id", checkID),
-	)
-	l.Info("started transactions JSON import")
-
-	l.Info("validating requirements")
-	sourceAcc, err := s.accService.FetchAccountByID(userID, checkID, false)
+	sourceAcc, err := s.accRepo.FindAccountByID(ctx, nil, checkID, userID, false)
 	if err != nil {
 		return err
 	}
@@ -217,10 +277,9 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 	}()
 
 	// create the import as PENDING
-	l.Info("creating import row", zap.String("status", "pending"))
 	started := time.Now().UTC()
 
-	importID, err := s.Repo.InsertImport(nil, models.Import{
+	importID, err := s.repo.InsertImport(ctx, nil, models.Import{
 		Name:      importName,
 		UserID:    userID,
 		Type:      "custom",
@@ -231,24 +290,23 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 		StartedAt: &started,
 	})
 	if err != nil {
-		l.Error("failed to create import row", zap.Error(err))
 		return err
 	}
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
 		if p := recover(); p != nil {
 			tx.Rollback()
-			s.markImportFailed(importID, nil)
+			s.markImportFailed(ctx, importID, nil)
 			panic(p)
 		}
 	}()
 
-	settings, err := s.accService.Ctx.SettingsRepo.FetchUserSettings(nil, userID)
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
 	if err != nil {
 		return err
 	}
@@ -261,13 +319,12 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 		return payload.Txns[i].TxnDate.Before(payload.Txns[j].TxnDate)
 	})
 
-	l.Info("inserting transactions and updating balances")
 	for _, txn := range payload.Txns {
 
 		amount, err := decimal.NewFromString(txn.Amount)
 		if err != nil {
 			tx.Rollback()
-			s.markImportFailed(importID, err)
+			s.markImportFailed(ctx, importID, err)
 			return fmt.Errorf("invalid amount %q: %w", txn.Amount, err)
 		}
 
@@ -279,11 +336,10 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 		for _, m := range payload.CategoryMappings {
 			if strings.EqualFold(strings.TrimSpace(m.Name), strings.TrimSpace(txn.Category)) {
 				if m.CategoryID != nil {
-					category, err = s.TxnRepo.FindCategoryByID(tx, *m.CategoryID, &userID, false)
+					category, err = s.txnRepo.FindCategoryByID(ctx, tx, *m.CategoryID, &userID, false)
 					if err != nil {
 						tx.Rollback()
-						s.markImportFailed(importID, err)
-						l.Error("can't find category id", zap.Error(err))
+						s.markImportFailed(ctx, importID, err)
 						return fmt.Errorf(" %d: %w", *m.CategoryID, err)
 					}
 					found = true
@@ -294,11 +350,10 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 
 		// Fallback if no mapping or category_id is nil
 		if !found {
-			category, err = s.TxnRepo.FindCategoryByClassification(tx, "uncategorized", &userID)
+			category, err = s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
 			if err != nil {
 				tx.Rollback()
-				s.markImportFailed(importID, err)
-				l.Error("can't find default category", zap.Error(err))
+				s.markImportFailed(ctx, importID, err)
 				return fmt.Errorf(": %w", err)
 			}
 		}
@@ -317,18 +372,15 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 				ImportID:        &importID,
 			}
 
-			if _, err := s.TxnRepo.InsertTransaction(tx, &t); err != nil {
-				l.Error("failed to insert transaction", zap.Error(err))
+			if _, err := s.txnRepo.InsertTransaction(ctx, tx, &t); err != nil {
 				tx.Rollback()
-				s.markImportFailed(importID, err)
+				s.markImportFailed(ctx, importID, err)
 				return err
 			}
 
-			err := s.accService.UpdateAccountCashBalance(tx, sourceAcc, t.TxnDate, t.TransactionType, t.Amount)
-			if err != nil {
-				l.Error("failed to update account balances", zap.Error(err))
+			if err := s.updateDailyCash(ctx, tx, sourceAcc, t.TxnDate, t.TransactionType, t.Amount, true); err != nil {
 				tx.Rollback()
-				s.markImportFailed(importID, err)
+				s.markImportFailed(ctx, importID, err)
 				return err
 			}
 
@@ -336,13 +388,9 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 	}
 
 	frontfillFrom := utils.LocalMidnightUTC(payload.Txns[0].TxnDate, loc)
-	l.Info("frontfilling balances",
-		zap.Int64("import_id", importID),
-		zap.Time("from", frontfillFrom),
-		zap.String("currency", models.DefaultCurrency),
-	)
 
-	if err := s.accService.FrontfillBalancesForAccount(
+	if err := s.frontfillBalances(
+		ctx,
 		tx,
 		userID,
 		sourceAcc.ID,
@@ -350,8 +398,7 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 		frontfillFrom,
 	); err != nil {
 		tx.Rollback()
-		s.markImportFailed(importID, err)
-		l.Error("failed to frontfill balances", zap.Error(err))
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 
@@ -359,22 +406,22 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 	data, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		_ = tx.Rollback()
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 	if _, err := tmpFile.Write(data); err != nil {
 		_ = tx.Rollback()
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 	if err := tmpFile.Sync(); err != nil {
 		_ = tx.Rollback()
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 	if err := tmpFile.Close(); err != nil {
 		_ = tx.Rollback()
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 
@@ -384,13 +431,11 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 
 	// Promote the temp file to final
 	if err := os.Rename(tmpPath, finalPath); err != nil {
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 
-	l.Info("saved transactions import JSON file", zap.String("path", finalPath))
-
-	if err := s.Repo.UpdateImport(nil, importID, map[string]interface{}{
+	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
 		"status":       "success",
 		"step":         "investments",
 		"completed_at": time.Now().UTC(),
@@ -398,12 +443,6 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 	}); err != nil {
 		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
 	}
-
-	l.Info("import completed successfully",
-		zap.Int64("import_id", importID),
-		zap.Duration("elapsed", time.Since(start)),
-		zap.String("status", "success"),
-	)
 
 	// Log
 	changes := utils.InitChanges()
@@ -414,9 +453,8 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 	utils.CompareChanges("", models.DefaultCurrency, changes, "currency")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Txns)), changes, "transactions_count")
 
-	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "import",
 		Description: nil,
@@ -429,23 +467,14 @@ func (s *ImportService) ImportTransactions(userID, checkID int64, payload models
 	return nil
 }
 
-func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPayload, useBalances bool) error {
+func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payload models.AccImportPayload, useBalances bool) error {
 
-	start := time.Now().UTC()
-	l := s.Ctx.Logger.With(
-		zap.String("op", "import_accounts"),
-		zap.Int64("user_id", userID),
-		zap.Boolp("use_balances", &useBalances),
-	)
-	l.Info("started accounts JSON import")
-
-	l.Info("validating requirements")
-	accCount, err := s.accService.Repo.CountAccounts(userID, nil, false, nil)
+	accCount, err := s.accRepo.CountAccounts(ctx, nil, userID, nil, false, nil)
 	if err != nil {
 		return err
 	}
 
-	maxAcc, err := s.Ctx.SettingsRepo.FetchMaxAccountsForUser(nil)
+	maxAcc, err := s.settingsRepo.FetchMaxAccountsForUser(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -488,10 +517,9 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 	}()
 
 	// create the import as PENDING
-	l.Info("creating import row", zap.String("status", "pending"))
 	started := time.Now().UTC()
 
-	importID, err := s.Repo.InsertImport(nil, models.Import{
+	importID, err := s.repo.InsertImport(ctx, nil, models.Import{
 		Name:      importName,
 		UserID:    userID,
 		Type:      "custom",
@@ -502,27 +530,26 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 		StartedAt: &started,
 	})
 	if err != nil {
-		l.Error("failed to create import row", zap.Error(err))
 		return err
 	}
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
 		if p := recover(); p != nil {
-			s.markImportFailed(importID, err)
+			s.markImportFailed(ctx, importID, err)
 			tx.Rollback()
 			panic(p)
 		}
 	}()
 
-	settings, err := s.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return fmt.Errorf("can't fetch user settings %w", err)
 	}
 
@@ -531,7 +558,6 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 		loc = time.UTC
 	}
 
-	l.Info("processing accounts")
 	for _, acc := range payload.Accounts {
 
 		openedAt := acc.OpenedAt
@@ -540,9 +566,9 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 		}
 		openedDay := utils.LocalMidnightUTC(openedAt, loc)
 
-		accType, err := s.accService.Repo.FindAccountTypeByType(tx, acc.AccountType.Type, acc.AccountType.SubType)
+		accType, err := s.accRepo.FindAccountTypeByType(ctx, tx, acc.AccountType.Type, acc.AccountType.SubType)
 		if err != nil {
-			s.markImportFailed(importID, err)
+			s.markImportFailed(ctx, importID, err)
 			tx.Rollback()
 			return fmt.Errorf("can't find account_type from schema %w", err)
 		}
@@ -558,9 +584,9 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 			BalanceProjection: "fixed",
 		}
 
-		accountID, err := s.accService.Repo.InsertAccount(tx, account)
+		accountID, err := s.accRepo.InsertAccount(ctx, tx, account)
 		if err != nil {
-			s.markImportFailed(importID, err)
+			s.markImportFailed(ctx, importID, err)
 			tx.Rollback()
 			return err
 		}
@@ -585,20 +611,16 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 			AsOf:         asOf,
 		}
 
-		_, err = s.accService.Repo.InsertBalance(tx, balance)
+		_, err = s.accRepo.InsertBalance(ctx, tx, balance)
 		if err != nil {
-			s.markImportFailed(importID, err)
+			s.markImportFailed(ctx, importID, err)
 			tx.Rollback()
 			return err
 		}
 
-		l.Info("seeding snapshots",
-			zap.Int64("import_id", importID),
-			zap.String("currency", models.DefaultCurrency),
-		)
-
 		// seed snapshots from opened day to today
-		if err := s.accService.Repo.UpsertSnapshotsFromBalances(
+		if err := s.accRepo.UpsertSnapshotsFromBalances(
+			ctx,
 			tx,
 			userID,
 			accountID,
@@ -606,7 +628,7 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 			asOf,
 			time.Now().UTC().Truncate(24*time.Hour),
 		); err != nil {
-			s.markImportFailed(importID, err)
+			s.markImportFailed(ctx, importID, err)
 			tx.Rollback()
 			return err
 		}
@@ -617,22 +639,22 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 	data, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		_ = tx.Rollback()
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 	if _, err := tmpFile.Write(data); err != nil {
 		_ = tx.Rollback()
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 	if err := tmpFile.Sync(); err != nil {
 		_ = tx.Rollback()
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 	if err := tmpFile.Close(); err != nil {
 		_ = tx.Rollback()
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 
@@ -642,13 +664,11 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 
 	// Promote the temp file to final
 	if err := os.Rename(tmpPath, finalPath); err != nil {
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 
-	l.Info("saved accounts import JSON file", zap.String("path", finalPath))
-
-	if err := s.Repo.UpdateImport(nil, importID, map[string]interface{}{
+	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
 		"status":       "success",
 		"step":         "end",
 		"completed_at": time.Now().UTC(),
@@ -656,12 +676,6 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 	}); err != nil {
 		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
 	}
-
-	l.Info("import completed successfully",
-		zap.Int64("import_id", importID),
-		zap.Duration("elapsed", time.Since(start)),
-		zap.String("status", "success"),
-	)
 
 	// Log
 	changes := utils.InitChanges()
@@ -671,9 +685,8 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 	utils.CompareChanges("", models.DefaultCurrency, changes, "currency")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Accounts)), changes, "accounts_count")
 
-	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "import",
 		Description: nil,
@@ -686,14 +699,7 @@ func (s *ImportService) ImportAccounts(userID int64, payload models.AccImportPay
 	return nil
 }
 
-func (s *ImportService) ImportCategories(userID int64, payload models.CategoryImportPayload) error {
-
-	start := time.Now().UTC()
-	l := s.Ctx.Logger.With(
-		zap.String("op", "import_categories"),
-		zap.Int64("user_id", userID),
-	)
-	l.Info("started category JSON import")
+func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payload models.CategoryImportPayload) error {
 
 	todayStr := time.Now().UTC().Format("2006-01-02")
 	importName := fmt.Sprintf("custom_categories_generated_%s", todayStr)
@@ -729,10 +735,9 @@ func (s *ImportService) ImportCategories(userID int64, payload models.CategoryIm
 	}()
 
 	// create the import as PENDING
-	l.Info("creating import row", zap.String("status", "pending"))
 	started := time.Now().UTC()
 
-	importID, err := s.Repo.InsertImport(nil, models.Import{
+	importID, err := s.repo.InsertImport(ctx, nil, models.Import{
 		Name:      importName,
 		UserID:    userID,
 		Type:      "custom",
@@ -743,31 +748,29 @@ func (s *ImportService) ImportCategories(userID int64, payload models.CategoryIm
 		StartedAt: &started,
 	})
 	if err != nil {
-		l.Error("failed to create import row", zap.Error(err))
 		return err
 	}
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
 		if p := recover(); p != nil {
-			s.markImportFailed(importID, err)
+			s.markImportFailed(ctx, importID, err)
 			tx.Rollback()
 			panic(p)
 		}
 	}()
 
-	l.Info("processing categories")
 	for _, cat := range payload.Categories {
 
 		if cat.IsDefault {
 
-			exCat, err := s.TxnRepo.FindCategoryByName(tx, cat.Name, nil)
+			exCat, err := s.txnRepo.FindCategoryByName(ctx, tx, cat.Name, nil)
 			if err != nil {
-				s.markImportFailed(importID, err)
+				s.markImportFailed(ctx, importID, err)
 				tx.Rollback()
 				return err
 			}
@@ -778,16 +781,16 @@ func (s *ImportService) ImportCategories(userID int64, payload models.CategoryIm
 				Classification: exCat.Classification,
 			}
 
-			_, err = s.TxnRepo.UpdateCategory(tx, upCat)
+			_, err = s.txnRepo.UpdateCategory(ctx, tx, upCat)
 			if err != nil {
-				s.markImportFailed(importID, err)
+				s.markImportFailed(ctx, importID, err)
 				tx.Rollback()
 				return fmt.Errorf("can't find category from schema %w", err)
 			}
 			continue
 		}
 
-		parent, err := s.TxnRepo.FindCategoryByName(tx, cat.Classification, &userID)
+		parent, err := s.txnRepo.FindCategoryByName(ctx, tx, cat.Classification, &userID)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -803,9 +806,9 @@ func (s *ImportService) ImportCategories(userID int64, payload models.CategoryIm
 			ImportID:       &importID,
 		}
 
-		_, err = s.TxnRepo.InsertCategory(tx, category)
+		_, err = s.txnRepo.InsertCategory(ctx, tx, category)
 		if err != nil {
-			s.markImportFailed(importID, err)
+			s.markImportFailed(ctx, importID, err)
 			tx.Rollback()
 			return err
 		}
@@ -816,22 +819,22 @@ func (s *ImportService) ImportCategories(userID int64, payload models.CategoryIm
 	data, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		_ = tx.Rollback()
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 	if _, err := tmpFile.Write(data); err != nil {
 		_ = tx.Rollback()
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 	if err := tmpFile.Sync(); err != nil {
 		_ = tx.Rollback()
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 	if err := tmpFile.Close(); err != nil {
 		_ = tx.Rollback()
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 
@@ -841,13 +844,11 @@ func (s *ImportService) ImportCategories(userID int64, payload models.CategoryIm
 
 	// Promote the temp file to final
 	if err := os.Rename(tmpPath, finalPath); err != nil {
-		s.markImportFailed(importID, err)
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 
-	l.Info("saved categories import JSON file", zap.String("path", finalPath))
-
-	if err := s.Repo.UpdateImport(nil, importID, map[string]interface{}{
+	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
 		"status":       "success",
 		"step":         "end",
 		"completed_at": time.Now().UTC(),
@@ -856,12 +857,6 @@ func (s *ImportService) ImportCategories(userID int64, payload models.CategoryIm
 		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
 	}
 
-	l.Info("import completed successfully",
-		zap.Int64("import_id", importID),
-		zap.Duration("elapsed", time.Since(start)),
-		zap.String("status", "success"),
-	)
-
 	// Log
 	changes := utils.InitChanges()
 	utils.CompareChanges("", "custom", changes, "type")
@@ -869,9 +864,8 @@ func (s *ImportService) ImportCategories(userID int64, payload models.CategoryIm
 	utils.CompareChanges("", importName, changes, "name")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Categories)), changes, "categories_count")
 
-	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "import",
 		Description: nil,
@@ -884,36 +878,28 @@ func (s *ImportService) ImportCategories(userID int64, payload models.CategoryIm
 	return nil
 }
 
-func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload models.InvestmentTransferPayload) error {
+func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userID int64, payload models.InvestmentTransferPayload) error {
 
-	start := time.Now().UTC()
-	l := s.Ctx.Logger.With(
-		zap.String("op", "transfer_investments"),
-		zap.Int64("user_id", userID),
-		zap.Int64("account_id", payload.CheckingAccID),
-	)
-	l.Info("started investment transfer from custom transactions import")
-
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
 		if p := recover(); p != nil {
 			tx.Rollback()
-			s.markImportFailed(payload.ImportID, nil)
+			s.markImportFailed(ctx, payload.ImportID, nil)
 			panic(p)
 		}
 	}()
 
-	checkingAcc, err := s.accService.Repo.FindAccountByID(tx, payload.CheckingAccID, userID, true)
+	checkingAcc, err := s.accRepo.FindAccountByID(ctx, tx, payload.CheckingAccID, userID, true)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find source account %w", err)
 	}
 
-	imp, err := s.FetchImportByID(tx, payload.ImportID, userID, "custom")
+	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
 	if err != nil {
 		return err
 	}
@@ -933,10 +919,10 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 		return err
 	}
 
-	settings, err := s.accService.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		s.markImportFailed(payload.ImportID, err)
+		s.markImportFailed(ctx, payload.ImportID, err)
 		return err
 	}
 	loc, _ := time.LoadLocation(settings.Timezone)
@@ -967,10 +953,10 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 
 	accCache := make(map[int64]*models.Account, len(distinctAccIDs))
 	for id := range distinctAccIDs {
-		acc, err := s.accService.Repo.FindAccountByID(tx, id, userID, true)
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, id, userID, true)
 		if err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return fmt.Errorf("destination account %d not found: %w", id, err)
 		}
 		accCache[id] = acc
@@ -984,7 +970,6 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 		}
 	}
 
-	l.Info("transferring investments from custom transactions import")
 	for _, txn := range txnPayload.InvestmentTransfers {
 		if txn.TransactionType != "investments" {
 			continue
@@ -993,10 +978,6 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 		// find mapped destination by category
 		toAccID, ok := catToAccID[txn.Category]
 		if !ok {
-			l.Debug("skipping investment txn without mapping",
-				zap.String("category", txn.Category),
-				zap.Time("date", txn.TxnDate),
-			)
 			continue
 		}
 
@@ -1031,9 +1012,9 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 			IsTransfer:      true,
 			ImportID:        &imp.ID,
 		}
-		if _, err := s.TxnRepo.InsertTransaction(tx, &expense); err != nil {
+		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &expense); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 
@@ -1048,9 +1029,9 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 			IsTransfer:      true,
 			ImportID:        &imp.ID,
 		}
-		if _, err := s.TxnRepo.InsertTransaction(tx, &income); err != nil {
+		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &income); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 
@@ -1064,16 +1045,20 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 			CreatedAt:            txDay,
 			ImportID:             &imp.ID,
 		}
-		if _, err := s.TxnRepo.InsertTransfer(tx, &transfer); err != nil {
+		if _, err := s.txnRepo.InsertTransfer(ctx, tx, &transfer); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 
-		err = s.accService.UpdateBalancesForTransfer(tx, checkingAcc, toAccount, txDay, amt)
-		if err != nil {
+		if err := s.updateDailyCash(ctx, tx, checkingAcc, txDay, "expense", amt, true); err != nil {
 			tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
+			return err
+		}
+		if err := s.updateDailyCash(ctx, tx, toAccount, txDay, "income", amt, true); err != nil {
+			tx.Rollback()
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 
@@ -1084,7 +1069,8 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 
 	// frontfill balances
 	frontfillFrom := utils.LocalMidnightUTC(txnPayload.Txns[0].TxnDate, loc)
-	if err := s.accService.FrontfillBalancesForAccount(
+	if err := s.frontfillBalances(
+		ctx,
 		tx,
 		userID,
 		checkingAcc.ID,
@@ -1092,26 +1078,26 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 		frontfillFrom,
 	); err != nil {
 		tx.Rollback()
-		s.markImportFailed(payload.ImportID, err)
+		s.markImportFailed(ctx, payload.ImportID, err)
 		return err
 	}
 
 	// Frontfill & refresh snapshots for each affected account from its earliest date
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for accID, from := range earliest {
-		if err := s.accService.FrontfillBalancesForAccount(tx, userID, accID, models.DefaultCurrency, from); err != nil {
+		if err := s.frontfillBalances(ctx, tx, userID, accID, models.DefaultCurrency, from); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
-		if err := s.accService.Repo.UpsertSnapshotsFromBalances(tx, userID, accID, models.DefaultCurrency, from, today); err != nil {
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, models.DefaultCurrency, from, today); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 	}
 
-	if err := s.Repo.UpdateImport(tx, payload.ImportID, map[string]interface{}{
+	if err := s.repo.UpdateImport(ctx, tx, payload.ImportID, map[string]interface{}{
 		"status":                  "success",
 		"step":                    "end",
 		"investments_transferred": true,
@@ -1123,12 +1109,6 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
-
-	l.Info("investment transfer completed successfully",
-		zap.Int64("import_id", payload.ImportID),
-		zap.Duration("elapsed", time.Since(start)),
-		zap.String("status", "success"),
-	)
 
 	changes := utils.InitChanges()
 	utils.CompareChanges("", imp.Name, changes, "import_name")
@@ -1142,9 +1122,8 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 	}
 	utils.CompareChanges("", strings.Join(destNames, ", "), changes, "destination_accounts")
 
-	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "transfer_investments",
 		Category:    "import",
 		Description: nil,
@@ -1157,36 +1136,28 @@ func (s *ImportService) TransferInvestmentsFromImport(userID int64, payload mode
 	return nil
 }
 
-func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.SavingTransferPayload) error {
+func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID int64, payload models.SavingTransferPayload) error {
 
-	start := time.Now().UTC()
-	l := s.Ctx.Logger.With(
-		zap.String("op", "transfer_savings"),
-		zap.Int64("user_id", userID),
-		zap.Int64("account_id", payload.CheckingAccID),
-	)
-	l.Info("started savings transfer from custom transactions import")
-
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
 		if p := recover(); p != nil {
 			tx.Rollback()
-			s.markImportFailed(payload.ImportID, nil)
+			s.markImportFailed(ctx, payload.ImportID, nil)
 			panic(p)
 		}
 	}()
 
-	checkingAcc, err := s.accService.Repo.FindAccountByID(tx, payload.CheckingAccID, userID, true)
+	checkingAcc, err := s.accRepo.FindAccountByID(ctx, tx, payload.CheckingAccID, userID, true)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find source account %w", err)
 	}
 
-	imp, err := s.FetchImportByID(tx, payload.ImportID, userID, "custom")
+	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
 	if err != nil {
 		return err
 	}
@@ -1206,10 +1177,10 @@ func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.S
 		return err
 	}
 
-	settings, err := s.accService.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		s.markImportFailed(payload.ImportID, err)
+		s.markImportFailed(ctx, payload.ImportID, err)
 		return err
 	}
 	loc, _ := time.LoadLocation(settings.Timezone)
@@ -1240,10 +1211,10 @@ func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.S
 
 	accCache := make(map[int64]*models.Account, len(distinctAccIDs))
 	for id := range distinctAccIDs {
-		acc, err := s.accService.Repo.FindAccountByID(tx, id, userID, true)
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, id, userID, true)
 		if err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return fmt.Errorf("destination account %d not found: %w", id, err)
 		}
 		accCache[id] = acc
@@ -1257,7 +1228,6 @@ func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.S
 		}
 	}
 
-	l.Info("transferring savings from custom transactions import")
 	for _, txn := range txnPayload.SavingsTransfers {
 		if txn.TransactionType != "savings" {
 			continue
@@ -1266,10 +1236,6 @@ func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.S
 		// find mapped destination by category
 		cAccID, ok := catToAccID[txn.Category]
 		if !ok {
-			l.Debug("skipping savings txn without mapping",
-				zap.String("category", txn.Category),
-				zap.Time("date", txn.TxnDate),
-			)
 			continue
 		}
 
@@ -1317,9 +1283,9 @@ func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.S
 			IsTransfer:      true,
 			ImportID:        &imp.ID,
 		}
-		if _, err := s.TxnRepo.InsertTransaction(tx, &expense); err != nil {
+		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &expense); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 
@@ -1334,9 +1300,9 @@ func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.S
 			IsTransfer:      true,
 			ImportID:        &imp.ID,
 		}
-		if _, err := s.TxnRepo.InsertTransaction(tx, &income); err != nil {
+		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &income); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 
@@ -1350,16 +1316,20 @@ func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.S
 			CreatedAt:            txDay,
 			ImportID:             &imp.ID,
 		}
-		if _, err := s.TxnRepo.InsertTransfer(tx, &transfer); err != nil {
+		if _, err := s.txnRepo.InsertTransfer(ctx, tx, &transfer); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 
-		err = s.accService.UpdateBalancesForTransfer(tx, fromAcc, toAcc, txDay, amt)
-		if err != nil {
+		if err := s.updateDailyCash(ctx, tx, fromAcc, txDay, "expense", amt, true); err != nil {
 			tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
+			return err
+		}
+		if err := s.updateDailyCash(ctx, tx, toAcc, txDay, "income", amt, true); err != nil {
+			tx.Rollback()
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 
@@ -1370,7 +1340,8 @@ func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.S
 
 	// frontfill balances
 	frontfillFrom := utils.LocalMidnightUTC(txnPayload.Txns[0].TxnDate, loc)
-	if err := s.accService.FrontfillBalancesForAccount(
+	if err := s.frontfillBalances(
+		ctx,
 		tx,
 		userID,
 		checkingAcc.ID,
@@ -1378,26 +1349,26 @@ func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.S
 		frontfillFrom,
 	); err != nil {
 		tx.Rollback()
-		s.markImportFailed(payload.ImportID, err)
+		s.markImportFailed(ctx, payload.ImportID, err)
 		return err
 	}
 
 	// Frontfill & refresh snapshots for each affected account from its earliest date
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for accID, from := range earliest {
-		if err := s.accService.FrontfillBalancesForAccount(tx, userID, accID, models.DefaultCurrency, from); err != nil {
+		if err := s.frontfillBalances(ctx, tx, userID, accID, models.DefaultCurrency, from); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
-		if err := s.accService.Repo.UpsertSnapshotsFromBalances(tx, userID, accID, models.DefaultCurrency, from, today); err != nil {
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, models.DefaultCurrency, from, today); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 	}
 
-	if err := s.Repo.UpdateImport(tx, payload.ImportID, map[string]interface{}{
+	if err := s.repo.UpdateImport(ctx, tx, payload.ImportID, map[string]interface{}{
 		"status":              "success",
 		"step":                "end",
 		"savings_transferred": true,
@@ -1409,12 +1380,6 @@ func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.S
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
-
-	l.Info("savings transfer completed successfully",
-		zap.Int64("import_id", payload.ImportID),
-		zap.Duration("elapsed", time.Since(start)),
-		zap.String("status", "success"),
-	)
 
 	changes := utils.InitChanges()
 	utils.CompareChanges("", imp.Name, changes, "import_name")
@@ -1428,9 +1393,8 @@ func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.S
 	}
 	utils.CompareChanges("", strings.Join(destNames, ", "), changes, "destination_accounts")
 
-	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "transfer_savings",
 		Category:    "import",
 		Description: nil,
@@ -1443,36 +1407,28 @@ func (s *ImportService) TransferSavingsFromImport(userID int64, payload models.S
 	return nil
 }
 
-func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload models.RepaymentTransferPayload) error {
+func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID int64, payload models.RepaymentTransferPayload) error {
 
-	start := time.Now().UTC()
-	l := s.Ctx.Logger.With(
-		zap.String("op", "transfer_repayments"),
-		zap.Int64("user_id", userID),
-		zap.Int64("account_id", payload.CheckingAccID),
-	)
-	l.Info("started debt repayments transfer from custom transactions import")
-
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
 		if p := recover(); p != nil {
 			tx.Rollback()
-			s.markImportFailed(payload.ImportID, nil)
+			s.markImportFailed(ctx, payload.ImportID, nil)
 			panic(p)
 		}
 	}()
 
-	checkingAcc, err := s.accService.Repo.FindAccountByID(tx, payload.CheckingAccID, userID, true)
+	checkingAcc, err := s.accRepo.FindAccountByID(ctx, tx, payload.CheckingAccID, userID, true)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find source account %w", err)
 	}
 
-	imp, err := s.FetchImportByID(tx, payload.ImportID, userID, "custom")
+	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
 	if err != nil {
 		return err
 	}
@@ -1492,10 +1448,10 @@ func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload model
 		return err
 	}
 
-	settings, err := s.accService.Ctx.SettingsRepo.FetchUserSettings(tx, userID)
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		s.markImportFailed(payload.ImportID, err)
+		s.markImportFailed(ctx, payload.ImportID, err)
 		return err
 	}
 	loc, _ := time.LoadLocation(settings.Timezone)
@@ -1526,10 +1482,10 @@ func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload model
 
 	accCache := make(map[int64]*models.Account, len(distinctAccIDs))
 	for id := range distinctAccIDs {
-		acc, err := s.accService.Repo.FindAccountByID(tx, id, userID, true)
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, id, userID, true)
 		if err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return fmt.Errorf("destination account %d not found: %w", id, err)
 		}
 		accCache[id] = acc
@@ -1543,7 +1499,6 @@ func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload model
 		}
 	}
 
-	l.Info("transferring repayments from custom transactions import")
 	for _, txn := range txnPayload.RepaymentTransfers {
 		if txn.TransactionType != "repayments" {
 			continue
@@ -1552,10 +1507,6 @@ func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload model
 		// find mapped destination by category
 		cAccID, ok := catToAccID[txn.Category]
 		if !ok {
-			l.Debug("skipping repayments txn without mapping",
-				zap.String("category", txn.Category),
-				zap.Time("date", txn.TxnDate),
-			)
 			continue
 		}
 
@@ -1603,9 +1554,9 @@ func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload model
 			IsTransfer:      true,
 			ImportID:        &imp.ID,
 		}
-		if _, err := s.TxnRepo.InsertTransaction(tx, &expense); err != nil {
+		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &expense); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 
@@ -1620,9 +1571,9 @@ func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload model
 			IsTransfer:      true,
 			ImportID:        &imp.ID,
 		}
-		if _, err := s.TxnRepo.InsertTransaction(tx, &income); err != nil {
+		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &income); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 
@@ -1636,16 +1587,20 @@ func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload model
 			CreatedAt:            txDay,
 			ImportID:             &imp.ID,
 		}
-		if _, err := s.TxnRepo.InsertTransfer(tx, &transfer); err != nil {
+		if _, err := s.txnRepo.InsertTransfer(ctx, tx, &transfer); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 
-		err = s.accService.UpdateBalancesForTransfer(tx, fromAcc, toAcc, txDay, amt)
-		if err != nil {
+		if err := s.updateDailyCash(ctx, tx, fromAcc, txDay, "expense", amt, true); err != nil {
 			tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
+			return err
+		}
+		if err := s.updateDailyCash(ctx, tx, toAcc, txDay, "income", amt, true); err != nil {
+			tx.Rollback()
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 
@@ -1656,7 +1611,8 @@ func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload model
 
 	// frontfill balances
 	frontfillFrom := utils.LocalMidnightUTC(txnPayload.Txns[0].TxnDate, loc)
-	if err := s.accService.FrontfillBalancesForAccount(
+	if err := s.frontfillBalances(
+		ctx,
 		tx,
 		userID,
 		checkingAcc.ID,
@@ -1664,26 +1620,26 @@ func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload model
 		frontfillFrom,
 	); err != nil {
 		tx.Rollback()
-		s.markImportFailed(payload.ImportID, err)
+		s.markImportFailed(ctx, payload.ImportID, err)
 		return err
 	}
 
 	// Frontfill & refresh snapshots for each affected account from its earliest date
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for accID, from := range earliest {
-		if err := s.accService.FrontfillBalancesForAccount(tx, userID, accID, models.DefaultCurrency, from); err != nil {
+		if err := s.frontfillBalances(ctx, tx, userID, accID, models.DefaultCurrency, from); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
-		if err := s.accService.Repo.UpsertSnapshotsFromBalances(tx, userID, accID, models.DefaultCurrency, from, today); err != nil {
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, models.DefaultCurrency, from, today); err != nil {
 			_ = tx.Rollback()
-			s.markImportFailed(payload.ImportID, err)
+			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
 	}
 
-	if err := s.Repo.UpdateImport(tx, payload.ImportID, map[string]interface{}{
+	if err := s.repo.UpdateImport(ctx, tx, payload.ImportID, map[string]interface{}{
 		"status":                 "success",
 		"step":                   "end",
 		"repayments_transferred": true,
@@ -1695,12 +1651,6 @@ func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload model
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
-
-	l.Info("repayments transfer completed successfully",
-		zap.Int64("import_id", payload.ImportID),
-		zap.Duration("elapsed", time.Since(start)),
-		zap.String("status", "success"),
-	)
 
 	changes := utils.InitChanges()
 	utils.CompareChanges("", imp.Name, changes, "import_name")
@@ -1714,9 +1664,8 @@ func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload model
 	}
 	utils.CompareChanges("", strings.Join(destNames, ", "), changes, "destination_accounts")
 
-	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "transfer_repayments",
 		Category:    "import",
 		Description: nil,
@@ -1729,33 +1678,26 @@ func (s *ImportService) TransferRepaymentsFromImport(userID int64, payload model
 	return nil
 }
 
-func (s *ImportService) DeleteImport(userID, id int64) error {
+func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) error {
 
-	l := s.Ctx.Logger.With(
-		zap.String("op", "delete_import"),
-		zap.Int64("user_id", userID),
-		zap.Int64("import_id", id),
-	)
-	l.Info("deleting import")
-
-	imp, err := s.FetchImportByID(nil, id, userID, "custom")
+	imp, err := s.FetchImportByID(ctx, id, userID, "custom")
 	if err != nil {
 		return err
 	}
 
 	switch imp.SubType {
 	case "transactions":
-		err = s.DeleteTxnImport(userID, imp)
+		err = s.DeleteTxnImport(ctx, userID, imp)
 		if err != nil {
 			return err
 		}
 	case "accounts":
-		err = s.DeleteAccImport(userID, imp)
+		err = s.DeleteAccImport(ctx, userID, imp)
 		if err != nil {
 			return err
 		}
 	case "categories":
-		err = s.DeleteCatImport(userID, imp)
+		err = s.DeleteCatImport(ctx, userID, imp)
 		if err != nil {
 			return err
 		}
@@ -1768,9 +1710,8 @@ func (s *ImportService) DeleteImport(userID, id int64) error {
 	utils.CompareChanges(imp.Type, "", changes, "type")
 	utils.CompareChanges(imp.SubType, "", changes, "sub_type")
 
-	if err := s.Ctx.JobDispatcher.Dispatch(&jobs.ActivityLogJob{
-		LoggingRepo: s.Ctx.LoggingService.Repo,
-		Logger:      s.Ctx.Logger,
+	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
 		Event:       "delete",
 		Category:    "import",
 		Description: nil,
@@ -1780,14 +1721,14 @@ func (s *ImportService) DeleteImport(userID, id int64) error {
 		return err
 	}
 
-	l.Info("import deleted successfully")
 	return nil
 }
 
-func (s *ImportService) DeleteTxnImport(userID int64, imp *models.Import) error {
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+func (s *ImportService) DeleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 	defer func() {
 		if p := recover(); p != nil {
@@ -1797,13 +1738,13 @@ func (s *ImportService) DeleteTxnImport(userID int64, imp *models.Import) error 
 	}()
 
 	// Collect all transactions and transfers to reverse their balance effects
-	txns, err := s.TxnRepo.FindTransactionsByImportID(tx, imp.ID, userID)
+	txns, err := s.txnRepo.FindTransactionsByImportID(ctx, tx, imp.ID, userID)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to find transactions: %w", err)
 	}
 
-	trs, err := s.TxnRepo.FindTransfersByImportID(tx, imp.ID, userID)
+	trs, err := s.txnRepo.FindTransfersByImportID(ctx, tx, imp.ID, userID)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to find transfers: %w", err)
@@ -1830,12 +1771,12 @@ func (s *ImportService) DeleteTxnImport(userID int64, imp *models.Import) error 
 
 	// Reverse transfers BEFORE purging
 	for _, tr := range trs {
-		inflow, err := s.TxnRepo.FindTransactionByID(tx, tr.TransactionInflowID, userID, false)
+		inflow, err := s.txnRepo.FindTransactionByID(ctx, tx, tr.TransactionInflowID, userID, false)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("can't find inflow transaction %w", err)
 		}
-		outflow, err := s.TxnRepo.FindTransactionByID(tx, tr.TransactionOutflowID, userID, false)
+		outflow, err := s.txnRepo.FindTransactionByID(ctx, tx, tr.TransactionOutflowID, userID, false)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("can't find outflow transaction %w", err)
@@ -1844,12 +1785,12 @@ func (s *ImportService) DeleteTxnImport(userID int64, imp *models.Import) error 
 		skipTxn[inflow.ID] = struct{}{}
 		skipTxn[outflow.ID] = struct{}{}
 
-		fromAcc, err := s.accService.Repo.FindAccountByID(tx, outflow.AccountID, userID, false)
+		fromAcc, err := s.accRepo.FindAccountByID(ctx, tx, outflow.AccountID, userID, false)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("can't find source account %w", err)
 		}
-		toAcc, err := s.accService.Repo.FindAccountByID(tx, inflow.AccountID, userID, false)
+		toAcc, err := s.accRepo.FindAccountByID(ctx, tx, inflow.AccountID, userID, false)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("can't find destination account %w", err)
@@ -1859,11 +1800,11 @@ func (s *ImportService) DeleteTxnImport(userID int64, imp *models.Import) error 
 		touch(toAcc, outflow.TxnDate)
 
 		// Reverse the balance changes
-		if err := s.accService.UpdateDailyCashNoSnapshot(tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
+		if err := s.updateDailyCash(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg(), false); err != nil {
 			tx.Rollback()
 			return err
 		}
-		if err := s.accService.UpdateDailyCashNoSnapshot(tx, toAcc, outflow.TxnDate, "income", outflow.Amount.Neg()); err != nil {
+		if err := s.updateDailyCash(ctx, tx, toAcc, outflow.TxnDate, "income", outflow.Amount.Neg(), false); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1878,7 +1819,7 @@ func (s *ImportService) DeleteTxnImport(userID int64, imp *models.Import) error 
 			continue
 		}
 
-		acc, err := s.accService.Repo.FindAccountByID(tx, t.AccountID, userID, false)
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, t.AccountID, userID, false)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("can't find account %w", err)
@@ -1892,40 +1833,36 @@ func (s *ImportService) DeleteTxnImport(userID int64, imp *models.Import) error 
 		if strings.ToLower(t.TransactionType) == "expense" {
 			kind = "expense"
 		}
-		if err := s.accService.UpdateDailyCashNoSnapshot(tx, acc, t.TxnDate, kind, amt); err != nil {
+		if err := s.updateDailyCash(ctx, tx, acc, t.TxnDate, kind, amt, false); err != nil {
 			tx.Rollback()
 			return err
 		}
 	}
 
 	// hard delete the data
-	if _, err := s.TxnRepo.PurgeImportedTransfers(tx, imp.ID, userID); err != nil {
+	if _, err := s.txnRepo.PurgeImportedTransfers(ctx, tx, imp.ID, userID); err != nil {
 		tx.Rollback()
 		return err
 	}
-	if _, err := s.TxnRepo.PurgeImportedTransactions(tx, imp.ID, userID); err != nil {
+	if _, err := s.txnRepo.PurgeImportedTransactions(ctx, tx, imp.ID, userID); err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	// Recompute balances and snapshots for all touched accounts
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for _, at := range touched {
 		if at == nil || at.acc == nil || at.minAs.IsZero() {
 			continue
 		}
-		if err := s.accService.FrontfillBalancesForAccount(tx, at.acc.UserID, at.acc.ID, at.acc.Currency, at.minAs); err != nil {
-			tx.Rollback()
-			return err
-		}
-		if err := s.accService.Repo.UpsertSnapshotsFromBalances(tx, at.acc.UserID, at.acc.ID, at.acc.Currency, at.minAs, today); err != nil {
+
+		if err := s.frontfillBalances(ctx, tx, at.acc.UserID, at.acc.ID, at.acc.Currency, at.minAs); err != nil {
 			tx.Rollback()
 			return err
 		}
 	}
 
 	// Delete import row
-	if err := s.Repo.DeleteImport(tx, imp.ID, userID); err != nil {
+	if err := s.repo.DeleteImport(ctx, tx, imp.ID, userID); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1947,17 +1884,11 @@ func (s *ImportService) DeleteTxnImport(userID int64, imp *models.Import) error 
 	return nil
 }
 
-func (s *ImportService) DeleteAccImport(userID int64, imp *models.Import) error {
+func (s *ImportService) DeleteAccImport(ctx context.Context, userID int64, imp *models.Import) error {
 
 	// Check if any transactions exist for accounts linked to this import
-	var txnCount int64
-	if err := s.Repo.DB.Model(&models.Transaction{}).
-		Where("user_id = ? AND account_id IN (?)", userID,
-			s.Repo.DB.Model(&models.Account{}).
-				Select("id").
-				Where("user_id = ? AND import_id = ?", userID, imp.ID),
-		).
-		Count(&txnCount).Error; err != nil {
+	txnCount, err := s.repo.CountTransactionsForImport(ctx, userID, imp.ID)
+	if err != nil {
 		return fmt.Errorf("failed to check transactions: %w", err)
 	}
 
@@ -1965,9 +1896,9 @@ func (s *ImportService) DeleteAccImport(userID int64, imp *models.Import) error 
 		return errors.New("account import cannot be deleted, transactions linked to same import")
 	}
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 	defer func() {
 		if p := recover(); p != nil {
@@ -1977,13 +1908,13 @@ func (s *ImportService) DeleteAccImport(userID int64, imp *models.Import) error 
 	}()
 
 	// hard delete the data
-	if err := s.accService.Repo.PurgeImportedAccounts(tx, imp.ID, userID); err != nil {
+	if err := s.accRepo.PurgeImportedAccounts(ctx, tx, imp.ID, userID); err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	// Delete import row
-	if err := s.Repo.DeleteImport(tx, imp.ID, userID); err != nil {
+	if err := s.repo.DeleteImport(ctx, tx, imp.ID, userID); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -2005,11 +1936,11 @@ func (s *ImportService) DeleteAccImport(userID int64, imp *models.Import) error 
 	return nil
 }
 
-func (s *ImportService) DeleteCatImport(userID int64, imp *models.Import) error {
+func (s *ImportService) DeleteCatImport(ctx context.Context, userID int64, imp *models.Import) error {
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 	defer func() {
 		if p := recover(); p != nil {
@@ -2019,27 +1950,27 @@ func (s *ImportService) DeleteCatImport(userID int64, imp *models.Import) error 
 	}()
 
 	// hard delete the data
-	if _, err := s.TxnRepo.PurgeImportedCategories(tx, imp.ID, userID); err != nil {
+	if _, err := s.txnRepo.PurgeImportedCategories(ctx, tx, imp.ID, userID); err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	// revert names for all default categories
-	categories, err := s.TxnRepo.FindAllCategories(tx, nil, false)
+	categories, err := s.txnRepo.FindAllCategories(ctx, tx, nil, false)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	for _, cat := range categories {
-		if err := s.TxnRepo.RestoreCategoryName(tx, cat.ID, &userID, cat.Name); err != nil {
+		if err := s.txnRepo.RestoreCategoryName(ctx, tx, cat.ID, &userID, cat.Name); err != nil {
 			tx.Rollback()
 			return err
 		}
 	}
 
 	// Delete import row
-	if err := s.Repo.DeleteImport(tx, imp.ID, userID); err != nil {
+	if err := s.repo.DeleteImport(ctx, tx, imp.ID, userID); err != nil {
 		tx.Rollback()
 		return err
 	}

@@ -3,8 +3,10 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/constants"
 	"wealth-warden/pkg/utils"
 
@@ -12,19 +14,26 @@ import (
 )
 
 type AuthHandler struct {
-	Service *services.AuthService
+	cfg        *config.Config
+	middleware *middleware.WebClientMiddleware
+	Service    *services.AuthService
 }
 
 func NewAuthHandler(
+	cfg *config.Config,
+	middleware *middleware.WebClientMiddleware,
 	service *services.AuthService,
 ) *AuthHandler {
 	return &AuthHandler{
-		Service: service,
+		cfg:        cfg,
+		middleware: middleware,
+		Service:    service,
 	}
 }
 
 func (h *AuthHandler) LoginUser(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	loginIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
@@ -34,16 +43,30 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, expiresAt, err := h.Service.LoginUser(form.Email, form.Password, userAgent, loginIP, form.RememberMe)
+	user, err := h.Service.ValidateLogin(ctx, form.Email, form.Password, userAgent, loginIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Login failed", err.Error(), http.StatusUnauthorized, err)
 		return
 	}
 
-	// Set cookies and return success message
+	accessToken, refreshToken, err := h.middleware.GenerateLoginTokens(user.ID, form.RememberMe)
+	if err != nil {
+		utils.ErrorMessage(c, "Failed to generate tokens", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	// Calculate expiration
+	var expiresAt int
+	if form.RememberMe {
+		expiresAt = int(constants.RefreshCookieTTLLong.Seconds())
+	} else {
+		expiresAt = int(constants.RefreshCookieTTLShort.Seconds())
+	}
+
+	// Set cookies
 	c.SetSameSite(http.SameSiteLaxMode)
-	domain := h.Service.WebClientMiddleware.CookieDomainForEnv()
-	secure := h.Service.WebClientMiddleware.CookieSecure()
+	domain := h.middleware.CookieDomainForEnv()
+	secure := h.middleware.CookieSecure()
 	c.SetCookie("access", accessToken, int(constants.AccessCookieTTL.Seconds()), "/", domain, secure, true)
 	c.SetCookie("refresh", refreshToken, expiresAt, "/", domain, secure, true)
 
@@ -51,7 +74,26 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 }
 
 func (h *AuthHandler) GetAuthUser(c *gin.Context) {
-	user, err := h.Service.GetCurrentUser(c)
+
+	refreshToken, err := c.Cookie("refresh")
+	if err != nil {
+		utils.ErrorMessage(c, "Failed to retrieve cookie", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	refreshClaims, err := h.middleware.DecodeWebClientToken(refreshToken, "refresh")
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid token", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	userID, err := h.middleware.DecodeWebClientUserID(refreshClaims.UserID)
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid user ID", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	user, err := h.Service.GetCurrentUser(c.Request.Context(), userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -61,14 +103,16 @@ func (h *AuthHandler) GetAuthUser(c *gin.Context) {
 }
 
 func (h *AuthHandler) LogoutUser(c *gin.Context) {
-	domain := h.Service.WebClientMiddleware.CookieDomainForEnv()
-	secure := h.Service.WebClientMiddleware.CookieSecure()
+	domain := h.middleware.CookieDomainForEnv()
+	secure := h.middleware.CookieSecure()
 	c.SetCookie("access", "", -1, "/", domain, secure, true)
 	c.SetCookie("refresh", "", -1, "/", domain, secure, true)
 	utils.SuccessMessage(c, "", "Logged out", http.StatusOK)
 }
 
 func (h *AuthHandler) SignUp(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	loginIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
@@ -83,7 +127,7 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.SignUp(form, userAgent, loginIP)
+	err := h.Service.SignUp(ctx, form, userAgent, loginIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Registration failed", err.Error(), http.StatusUnauthorized, err)
 		return
@@ -93,12 +137,14 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 }
 
 func (h *AuthHandler) ValidateInvitationEmail(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	queryParams := c.Request.URL.Query()
 	hash := queryParams.Get("token")
 
-	err := h.Service.ValidateInvitation(hash)
+	err := h.Service.ValidateInvitation(ctx, hash)
 	if err == nil {
-		redirectUrl := utils.GenerateWebClientReleaseLink(h.Service.Config, "")
+		redirectUrl := utils.GenerateWebClientReleaseLink(h.cfg, "")
 		c.Redirect(http.StatusFound, fmt.Sprintf("%s%s?token=%s", redirectUrl, "register", hash))
 	} else {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
@@ -110,6 +156,7 @@ func (h *AuthHandler) ValidateInvitationEmail(c *gin.Context) {
 
 func (h *AuthHandler) ResendConfirmationEmail(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	reqIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
@@ -119,7 +166,7 @@ func (h *AuthHandler) ResendConfirmationEmail(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.ResendConfirmationEmail(req.Email, userAgent, reqIP)
+	err := h.Service.ResendConfirmationEmail(ctx, req.Email, userAgent, reqIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Dispatch failed", err.Error(), http.StatusUnauthorized, err)
 		return
@@ -130,14 +177,15 @@ func (h *AuthHandler) ResendConfirmationEmail(c *gin.Context) {
 
 func (h *AuthHandler) ConfirmEmail(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	reqIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 	queryParams := c.Request.URL.Query()
 	token := queryParams.Get("token")
 
-	err := h.Service.ConfirmEmail(token, userAgent, reqIP)
+	err := h.Service.ConfirmEmail(ctx, token, userAgent, reqIP)
 	if err == nil {
-		redirectUrl := utils.GenerateWebClientReleaseLink(h.Service.Config, "")
+		redirectUrl := utils.GenerateWebClientReleaseLink(h.cfg, "")
 		c.Redirect(http.StatusFound, redirectUrl)
 	} else {
 		utils.ErrorMessage(c, "Error confirming email", err.Error(), http.StatusInternalServerError, err)
@@ -149,6 +197,7 @@ func (h *AuthHandler) ConfirmEmail(c *gin.Context) {
 
 func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	reqIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
@@ -158,7 +207,7 @@ func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.RequestPasswordReset(req.Email, userAgent, reqIP)
+	err := h.Service.RequestPasswordReset(ctx, req.Email, userAgent, reqIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Dispatch failed", err.Error(), http.StatusUnauthorized, err)
 		return
@@ -169,21 +218,23 @@ func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
 
 func (h *AuthHandler) ValidatePasswordReset(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	queryParams := c.Request.URL.Query()
 	tokenValue := queryParams.Get("token")
 
-	token, err := h.Service.ValidatePasswordReset(tokenValue)
+	token, err := h.Service.ValidatePasswordReset(ctx, tokenValue)
 	if err != nil {
 		utils.ErrorMessage(c, "Dispatch failed", err.Error(), http.StatusUnauthorized, err)
 		return
 	}
 
-	redirectUrl := utils.GenerateWebClientReleaseLink(h.Service.Config, "")
+	redirectUrl := utils.GenerateWebClientReleaseLink(h.cfg, "")
 	c.Redirect(http.StatusFound, fmt.Sprintf("%sreset-password/%s", redirectUrl, token))
 }
 
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	loginIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
@@ -198,7 +249,7 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.ResetPassword(form, userAgent, loginIP)
+	err := h.Service.ResetPassword(ctx, form, userAgent, loginIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Password reset failed", err.Error(), http.StatusUnauthorized, err)
 		return
@@ -208,6 +259,8 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 }
 
 func (h *AuthHandler) RegisterUser(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	loginIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
@@ -222,7 +275,7 @@ func (h *AuthHandler) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.RegisterUser(form, userAgent, loginIP)
+	err := h.Service.RegisterUser(ctx, form, userAgent, loginIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Registration failed", err.Error(), http.StatusUnauthorized, err)
 		return

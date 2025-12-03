@@ -14,7 +14,7 @@ import (
 )
 
 type AccountHandler struct {
-	Service *services.AccountService
+	service services.AccountServiceInterface
 	v       *validators.GoValidator
 }
 
@@ -23,25 +23,22 @@ func NewAccountHandler(
 	v *validators.GoValidator,
 ) *AccountHandler {
 	return &AccountHandler{
-		Service: service,
+		service: service,
 		v:       v,
 	}
 }
 
 func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
 	includeInactive := strings.EqualFold(qp.Get("inactive"), "true")
 	classification := qp.Get("classification")
 
-	records, paginator, err := h.Service.FetchAccountsPaginated(userID, p, includeInactive, classification)
+	records, paginator, err := h.service.FetchAccountsPaginated(ctx, userID, p, includeInactive, classification)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -61,16 +58,13 @@ func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 
 func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	q := c.Request.URL.Query()
 	includeInactive := strings.EqualFold(q.Get("inactive"), "true")
 
-	records, err := h.Service.FetchAllAccounts(userID, includeInactive)
+	records, err := h.service.FetchAllAccounts(ctx, userID, includeInactive)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -81,11 +75,8 @@ func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
 
 func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -103,7 +94,7 @@ func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 	qp := c.Request.URL.Query()
 	initialBalance := strings.EqualFold(qp.Get("initial_balance"), "true")
 
-	records, err := h.Service.FetchAccountByID(userID, id, initialBalance)
+	records, err := h.service.FetchAccountByID(ctx, userID, id, initialBalance)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -114,11 +105,8 @@ func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 
 func (h *AccountHandler) GetAccountByName(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	name := c.Param("name")
 	if name == "" {
@@ -127,7 +115,7 @@ func (h *AccountHandler) GetAccountByName(c *gin.Context) {
 		return
 	}
 
-	records, err := h.Service.FetchAccountByName(userID, name)
+	records, err := h.service.FetchAccountByName(ctx, userID, name)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -138,7 +126,9 @@ func (h *AccountHandler) GetAccountByName(c *gin.Context) {
 
 func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
 
-	records, err := h.Service.FetchAllAccountTypes()
+	ctx := c.Request.Context()
+
+	records, err := h.service.FetchAllAccountTypes(ctx)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -149,11 +139,8 @@ func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
 
 func (h *AccountHandler) GetAccountsBySubtype(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	sub := c.Param("sub")
 	if sub == "" {
@@ -162,7 +149,7 @@ func (h *AccountHandler) GetAccountsBySubtype(c *gin.Context) {
 		return
 	}
 
-	records, err := h.Service.FetchAccountsBySubtype(userID, sub)
+	records, err := h.service.FetchAccountsBySubtype(ctx, userID, sub)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -173,11 +160,8 @@ func (h *AccountHandler) GetAccountsBySubtype(c *gin.Context) {
 
 func (h *AccountHandler) GetAccountsByType(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	t := c.Param("type")
 	if t == "" {
@@ -186,7 +170,7 @@ func (h *AccountHandler) GetAccountsByType(c *gin.Context) {
 		return
 	}
 
-	records, err := h.Service.FetchAccountsByType(userID, t)
+	records, err := h.service.FetchAccountsByType(ctx, userID, t)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -197,11 +181,8 @@ func (h *AccountHandler) GetAccountsByType(c *gin.Context) {
 
 func (h *AccountHandler) InsertAccount(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	var record *models.AccountReq
 	if err := c.ShouldBindJSON(&record); err != nil {
@@ -214,7 +195,7 @@ func (h *AccountHandler) InsertAccount(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.InsertAccount(userID, record); err != nil {
+	if err := h.service.InsertAccount(ctx, userID, record); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -225,11 +206,8 @@ func (h *AccountHandler) InsertAccount(c *gin.Context) {
 
 func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -256,7 +234,7 @@ func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateAccount(userID, id, req); err != nil {
+	if err := h.service.UpdateAccount(ctx, userID, id, req); err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -267,11 +245,8 @@ func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 
 func (h *AccountHandler) ToggleAccountActiveState(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -286,7 +261,7 @@ func (h *AccountHandler) ToggleAccountActiveState(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.ToggleAccountActiveState(userID, id); err != nil {
+	if err := h.service.ToggleAccountActiveState(ctx, userID, id); err != nil {
 		utils.ErrorMessage(c, "Toggle error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -297,11 +272,8 @@ func (h *AccountHandler) ToggleAccountActiveState(c *gin.Context) {
 
 func (h *AccountHandler) CloseAccount(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -316,7 +288,7 @@ func (h *AccountHandler) CloseAccount(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.CloseAccount(userID, id); err != nil {
+	if err := h.service.CloseAccount(ctx, userID, id); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -326,16 +298,13 @@ func (h *AccountHandler) CloseAccount(c *gin.Context) {
 
 func (h *AccountHandler) BackfillBalancesForUser(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	from := c.Query("from")
 	to := c.Query("to")
 
-	if err := h.Service.BackfillBalancesForUser(c.Request.Context(), userID, from, to); err != nil {
+	if err := h.service.BackfillBalancesForUser(ctx, userID, from, to); err != nil {
 		utils.ErrorMessage(c, "Backfill error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -344,11 +313,9 @@ func (h *AccountHandler) BackfillBalancesForUser(c *gin.Context) {
 }
 
 func (h *AccountHandler) SaveAccountProjection(c *gin.Context) {
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -374,7 +341,7 @@ func (h *AccountHandler) SaveAccountProjection(c *gin.Context) {
 		return
 	}
 
-	err = h.Service.SaveAccountProjection(id, userID, req)
+	err = h.service.SaveAccountProjection(ctx, id, userID, req)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
@@ -384,11 +351,9 @@ func (h *AccountHandler) SaveAccountProjection(c *gin.Context) {
 }
 
 func (h *AccountHandler) RevertAccountProjection(c *gin.Context) {
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -403,7 +368,7 @@ func (h *AccountHandler) RevertAccountProjection(c *gin.Context) {
 		return
 	}
 
-	err = h.Service.RevertAccountProjection(id, userID)
+	err = h.service.RevertAccountProjection(ctx, id, userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
@@ -413,11 +378,9 @@ func (h *AccountHandler) RevertAccountProjection(c *gin.Context) {
 }
 
 func (h *AccountHandler) GetLatestBalance(c *gin.Context) {
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -432,7 +395,7 @@ func (h *AccountHandler) GetLatestBalance(c *gin.Context) {
 		return
 	}
 
-	rec, err := h.Service.FetchLatestBalance(id, userID)
+	rec, err := h.service.FetchLatestBalance(ctx, id, userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return

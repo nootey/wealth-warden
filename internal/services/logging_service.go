@@ -1,39 +1,43 @@
 package services
 
 import (
+	"context"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
-type LoggingService struct {
-	Repo   *repositories.LoggingRepository
-	Config *config.Config
+type LoggingServiceInterface interface {
+	FetchPaginatedLogs(ctx context.Context, p utils.PaginationParams) ([]models.ActivityLog, *utils.Paginator, error)
+	FetchActivityLogFilterData(ctx context.Context, activityIndex string) (map[string]interface{}, error)
+	DeleteActivityLog(ctx context.Context, id int64) error
 }
 
-func NewLoggingService(cfg *config.Config, repo *repositories.LoggingRepository) *LoggingService {
+type LoggingService struct {
+	repo repositories.LoggingRepositoryInterface
+}
+
+func NewLoggingService(
+	repo *repositories.LoggingRepository,
+) *LoggingService {
 	return &LoggingService{
-		Repo:   repo,
-		Config: cfg,
+		repo: repo,
 	}
 }
 
-func (s *LoggingService) FetchPaginatedLogs(c *gin.Context) ([]models.ActivityLog, *utils.Paginator, error) {
+var _ LoggingServiceInterface = (*LoggingService)(nil)
 
-	queryParams := c.Request.URL.Query()
-	p := utils.GetPaginationParams(queryParams)
+func (s *LoggingService) FetchPaginatedLogs(ctx context.Context, p utils.PaginationParams) ([]models.ActivityLog, *utils.Paginator, error) {
 
-	totalRecords, err := s.Repo.CountLogs(p.Filters)
+	totalRecords, err := s.repo.CountLogs(ctx, p.Filters)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
 
-	records, err := s.Repo.FindLogs(offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters)
+	records, err := s.repo.FindLogs(ctx, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -59,15 +63,15 @@ func (s *LoggingService) FetchPaginatedLogs(c *gin.Context) ([]models.ActivityLo
 	return records, paginator, nil
 }
 
-func (s *LoggingService) FetchActivityLogFilterData(c *gin.Context, activityIndex string) (map[string]interface{}, error) {
-	return s.Repo.FindActivityLogFilterData(activityIndex)
+func (s *LoggingService) FetchActivityLogFilterData(ctx context.Context, activityIndex string) (map[string]interface{}, error) {
+	return s.repo.FindActivityLogFilterData(ctx, activityIndex)
 }
 
-func (s *LoggingService) DeleteActivityLog(c *gin.Context, id int64) error {
+func (s *LoggingService) DeleteActivityLog(ctx context.Context, id int64) error {
 
-	tx := s.Repo.DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
@@ -78,13 +82,13 @@ func (s *LoggingService) DeleteActivityLog(c *gin.Context, id int64) error {
 	}()
 
 	// Load the log to confirm existence
-	tr, err := s.Repo.FindActivityLogByID(tx, id)
+	tr, err := s.repo.FindActivityLogByID(ctx, tx, id)
 	if err != nil {
 		return fmt.Errorf("can't find log with given id %w", err)
 	}
 
 	// Delete log
-	if err := s.Repo.DeleteActivityLog(tx, tr.ID); err != nil {
+	if err := s.repo.DeleteActivityLog(ctx, tx, tr.ID); err != nil {
 		tx.Rollback()
 		return err
 	}

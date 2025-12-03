@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,6 +9,8 @@ import (
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
+
+	"github.com/gin-gonic/gin"
 )
 
 type RolePermissionHandler struct {
@@ -29,10 +30,11 @@ func NewRolePermissionHandler(
 
 func (h *RolePermissionHandler) GetAllRoles(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	qp := c.Request.URL.Query()
 	withPermissions := strings.EqualFold(qp.Get("with_permissions"), "true")
 
-	records, err := h.Service.FetchAllRoles(withPermissions)
+	records, err := h.Service.FetchAllRoles(ctx, withPermissions)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -42,7 +44,9 @@ func (h *RolePermissionHandler) GetAllRoles(c *gin.Context) {
 }
 
 func (h *RolePermissionHandler) GetAllPermissions(c *gin.Context) {
-	records, err := h.Service.FetchAllPermissions()
+
+	ctx := c.Request.Context()
+	records, err := h.Service.FetchAllPermissions(ctx)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -52,6 +56,7 @@ func (h *RolePermissionHandler) GetAllPermissions(c *gin.Context) {
 
 func (h *RolePermissionHandler) GetRoleById(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	idStr := c.Param("id")
 	qp := c.Request.URL.Query()
 	wp := strings.EqualFold(qp.Get("with_permissions"), "true")
@@ -68,7 +73,7 @@ func (h *RolePermissionHandler) GetRoleById(c *gin.Context) {
 		return
 	}
 
-	user, err := h.Service.FetchRoleByID(id, wp)
+	user, err := h.Service.FetchRoleByID(ctx, id, wp)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -78,11 +83,8 @@ func (h *RolePermissionHandler) GetRoleById(c *gin.Context) {
 
 func (h *RolePermissionHandler) InsertRole(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	var req models.RoleReq
 
@@ -102,7 +104,7 @@ func (h *RolePermissionHandler) InsertRole(c *gin.Context) {
 		return
 	}
 
-	err = h.Service.InsertRole(userID, req)
+	err := h.Service.InsertRole(ctx, userID, req)
 	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -113,11 +115,8 @@ func (h *RolePermissionHandler) InsertRole(c *gin.Context) {
 
 func (h *RolePermissionHandler) UpdateRole(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -145,7 +144,7 @@ func (h *RolePermissionHandler) UpdateRole(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateRole(userID, id, record); err != nil {
+	if err := h.Service.UpdateRole(ctx, userID, id, record); err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -155,12 +154,8 @@ func (h *RolePermissionHandler) UpdateRole(c *gin.Context) {
 
 func (h *RolePermissionHandler) DeleteRole(c *gin.Context) {
 
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
-
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 	idStr := c.Param("id")
 
 	if idStr == "" {
@@ -175,7 +170,7 @@ func (h *RolePermissionHandler) DeleteRole(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.DeleteRole(userID, id); err != nil {
+	if err := h.Service.DeleteRole(ctx, userID, id); err != nil {
 		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
