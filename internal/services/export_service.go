@@ -13,7 +13,6 @@ import (
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
 	"gorm.io/gorm"
@@ -29,7 +28,6 @@ type ExportServiceInterface interface {
 }
 
 type ExportService struct {
-	cfg           *config.Config
 	repo          repositories.ExportRepositoryInterface
 	txnRepo       repositories.TransactionRepositoryInterface
 	accRepo       repositories.AccountRepositoryInterface

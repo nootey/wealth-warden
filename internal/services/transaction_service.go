@@ -11,7 +11,6 @@ import (
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
