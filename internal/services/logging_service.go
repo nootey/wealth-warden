@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
@@ -16,17 +15,14 @@ type LoggingServiceInterface interface {
 }
 
 type LoggingService struct {
-	cfg  *config.Config
 	repo repositories.LoggingRepositoryInterface
 }
 
 func NewLoggingService(
-	cfg *config.Config,
 	repo *repositories.LoggingRepository,
 ) *LoggingService {
 	return &LoggingService{
 		repo: repo,
-		cfg:  cfg,
 	}
 }
 

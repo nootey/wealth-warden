@@ -10,7 +10,6 @@ import (
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -42,7 +41,6 @@ type AccountServiceInterface interface {
 }
 
 type AccountService struct {
-	cfg           *config.Config
 	repo          repositories.AccountRepositoryInterface
 	txnRepo       repositories.TransactionRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
@@ -51,7 +49,6 @@ type AccountService struct {
 }
 
 func NewAccountService(
-	cfg *config.Config,
 	repo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
@@ -59,7 +56,6 @@ func NewAccountService(
 	jobDispatcher jobs.JobDispatcher,
 ) *AccountService {
 	return &AccountService{
-		cfg:           cfg,
 		repo:          repo,
 		txnRepo:       txnRepo,
 		settingsRepo:  settingsRepo,

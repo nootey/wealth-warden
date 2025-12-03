@@ -10,7 +10,6 @@ import (
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/constants"
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
@@ -30,7 +29,6 @@ type AuthServiceInterface interface {
 	ResetPassword(ctx context.Context, form models.ResetPasswordForm, userAgent, ip string) error
 }
 type AuthService struct {
-	cfg                 *config.Config
 	userRepo            repositories.UserRepositoryInterface
 	roleRepo            repositories.RolePermissionRepositoryInterface
 	settingsRepo        repositories.SettingsRepositoryInterface
@@ -41,7 +39,6 @@ type AuthService struct {
 }
 
 func NewAuthService(
-	cfg *config.Config,
 	userRepo *repositories.UserRepository,
 	roleRepo *repositories.RolePermissionRepository,
 	settingsRepo *repositories.SettingsRepository,
@@ -51,7 +48,6 @@ func NewAuthService(
 	mailer *mailer.Mailer,
 ) *AuthService {
 	return &AuthService{
-		cfg:                 cfg,
 		userRepo:            userRepo,
 		roleRepo:            roleRepo,
 		settingsRepo:        settingsRepo,

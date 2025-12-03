@@ -59,17 +59,17 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	exportRepo := repositories.NewExportRepository(db)
 
 	// Initialize services
-	loggingService := services.NewLoggingService(cfg, loggingRepo)
-	authService := services.NewAuthService(cfg, userRepo, roleRepo, settingsRepo, loggingRepo, webClientMiddleware, jobDispatcher, mail)
-	roleService := services.NewRolePermissionService(cfg, roleRepo, loggingRepo, jobDispatcher)
-	userService := services.NewUserService(cfg, userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
-	accountService := services.NewAccountService(cfg, accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher)
-	transactionService := services.NewTransactionService(cfg, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
-	settingsService := services.NewSettingsService(cfg, settingsRepo, userRepo, loggingRepo, jobDispatcher)
-	chartingService := services.NewChartingService(cfg, chartingRepo, accountRepo, transactionRepo)
-	statsService := services.NewStatisticsService(cfg, statsRepo, accountRepo, transactionRepo)
-	importService := services.NewImportService(cfg, importRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
-	exportService := services.NewExportService(cfg, exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
+	loggingService := services.NewLoggingService(loggingRepo)
+	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, loggingRepo, webClientMiddleware, jobDispatcher, mail)
+	roleService := services.NewRolePermissionService(roleRepo, loggingRepo, jobDispatcher)
+	userService := services.NewUserService(userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
+	accountService := services.NewAccountService(accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher)
+	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
+	settingsService := services.NewSettingsService(settingsRepo, userRepo, loggingRepo, jobDispatcher)
+	chartingService := services.NewChartingService(chartingRepo, accountRepo, transactionRepo)
+	statsService := services.NewStatisticsService(statsRepo, accountRepo, transactionRepo)
+	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
+	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
 
 	return &Container{
 		Config:             cfg,

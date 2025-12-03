@@ -8,7 +8,6 @@ import (
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
@@ -21,7 +20,6 @@ type SettingsServiceInterface interface {
 }
 
 type SettingsService struct {
-	cfg           *config.Config
 	repo          repositories.SettingsRepositoryInterface
 	userRepo      repositories.UserRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
@@ -29,14 +27,12 @@ type SettingsService struct {
 }
 
 func NewSettingsService(
-	cfg *config.Config,
 	repo *repositories.SettingsRepository,
 	userRepo *repositories.UserRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobs.JobDispatcher,
 ) *SettingsService {
 	return &SettingsService{
-		cfg:           cfg,
 		repo:          repo,
 		userRepo:      userRepo,
 		loggingRepo:   loggingRepo,

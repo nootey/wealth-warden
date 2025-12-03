@@ -51,7 +51,6 @@ type TransactionServiceInterface interface {
 }
 
 type TransactionService struct {
-	cfg           *config.Config
 	repo          repositories.TransactionRepositoryInterface
 	accRepo       repositories.AccountRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
@@ -60,7 +59,6 @@ type TransactionService struct {
 }
 
 func NewTransactionService(
-	cfg *config.Config,
 	repo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
 	settingsRepo *repositories.SettingsRepository,
@@ -68,7 +66,6 @@ func NewTransactionService(
 	jobDispatcher jobs.JobDispatcher,
 ) *TransactionService {
 	return &TransactionService{
-		cfg:           cfg,
 		repo:          repo,
 		accRepo:       accRepo,
 		settingsRepo:  settingsRepo,

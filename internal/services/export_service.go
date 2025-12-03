@@ -39,7 +39,6 @@ type ExportService struct {
 }
 
 func NewExportService(
-	cfg *config.Config,
 	repo *repositories.ExportRepository,
 	txnRepo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
@@ -48,7 +47,6 @@ func NewExportService(
 	jobDispatcher jobs.JobDispatcher,
 ) *ExportService {
 	return &ExportService{
-		cfg:           cfg,
 		repo:          repo,
 		txnRepo:       txnRepo,
 		accRepo:       accRepo,

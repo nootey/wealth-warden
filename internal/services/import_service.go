@@ -38,7 +38,6 @@ type ImportServiceInterface interface {
 }
 
 type ImportService struct {
-	cfg           *config.Config
 	repo          repositories.ImportRepositoryInterface
 	txnRepo       repositories.TransactionRepositoryInterface
 	accRepo       repositories.AccountRepositoryInterface
@@ -48,7 +47,6 @@ type ImportService struct {
 }
 
 func NewImportService(
-	cfg *config.Config,
 	repo *repositories.ImportRepository,
 	txnRepo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
@@ -57,7 +55,6 @@ func NewImportService(
 	jobDispatcher jobs.JobDispatcher,
 ) *ImportService {
 	return &ImportService{
-		cfg:           cfg,
 		repo:          repo,
 		txnRepo:       txnRepo,
 		accRepo:       accRepo,

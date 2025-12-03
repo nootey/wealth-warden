@@ -8,7 +8,6 @@ import (
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 )
 
@@ -21,20 +20,17 @@ type RolePermissionServiceInterface interface {
 	DeleteRole(ctx context.Context, userID, id int64) error
 }
 type RolePermissionService struct {
-	cfg           *config.Config
 	repo          repositories.RolePermissionRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
 	jobDispatcher jobs.JobDispatcher
 }
 
 func NewRolePermissionService(
-	cfg *config.Config,
 	repo *repositories.RolePermissionRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobs.JobDispatcher,
 ) *RolePermissionService {
 	return &RolePermissionService{
-		cfg:           cfg,
 		repo:          repo,
 		loggingRepo:   loggingRepo,
 		jobDispatcher: jobDispatcher,

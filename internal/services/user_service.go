@@ -8,7 +8,6 @@ import (
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
 )
@@ -28,7 +27,6 @@ type UserServiceInterface interface {
 }
 
 type UserService struct {
-	cfg           *config.Config
 	repo          *repositories.UserRepository
 	roleRepo      repositories.RolePermissionRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
@@ -37,7 +35,6 @@ type UserService struct {
 }
 
 func NewUserService(
-	cfg *config.Config,
 	repo *repositories.UserRepository,
 	roleRepo *repositories.RolePermissionRepository,
 	loggingRepo *repositories.LoggingRepository,
@@ -45,7 +42,6 @@ func NewUserService(
 	mailer *mailer.Mailer,
 ) *UserService {
 	return &UserService{
-		cfg:           cfg,
 		repo:          repo,
 		roleRepo:      roleRepo,
 		jobDispatcher: jobDispatcher,

@@ -6,7 +6,6 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 
 	"github.com/shopspring/decimal"
 )
@@ -19,20 +18,17 @@ type StatisticsServiceInterface interface {
 }
 
 type StatisticsService struct {
-	cfg     *config.Config
 	repo    *repositories.StatisticsRepository
 	accRepo *repositories.AccountRepository
 	txnRepo *repositories.TransactionRepository
 }
 
 func NewStatisticsService(
-	cfg *config.Config,
 	repo *repositories.StatisticsRepository,
 	accRepo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
 ) *StatisticsService {
 	return &StatisticsService{
-		cfg:     cfg,
 		repo:    repo,
 		accRepo: accRepo,
 		txnRepo: txnRepo,

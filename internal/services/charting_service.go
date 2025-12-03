@@ -9,7 +9,6 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/config"
 
 	"github.com/shopspring/decimal"
 )
@@ -21,20 +20,17 @@ type ChartingServiceInterface interface {
 	GetCategoryUsageForYears(ctx context.Context, userID int64, years []int, class string, accID, catID *int64, asPercent bool) (*models.MultiYearCategoryUsageResponse, error)
 }
 type ChartingService struct {
-	cfg     *config.Config
 	repo    repositories.ChartingRepositoryInterface
 	accRepo repositories.AccountRepositoryInterface
 	txnRepo repositories.TransactionRepositoryInterface
 }
 
 func NewChartingService(
-	cfg *config.Config,
 	repo *repositories.ChartingRepository,
 	accRepo *repositories.AccountRepository,
 	txRepo *repositories.TransactionRepository,
 ) *ChartingService {
 	return &ChartingService{
-		cfg:     cfg,
 		repo:    repo,
 		accRepo: accRepo,
 		txnRepo: txRepo,
