@@ -772,7 +772,7 @@ func (r *AccountRepository) GetUserFirstBalanceDate(ctx context.Context, tx *gor
 	db = db.WithContext(ctx)
 
 	var d *time.Time
-	err := tx.Raw(`
+	err := db.Raw(`
         SELECT MIN(b.as_of)::date
         FROM balances b
         JOIN accounts a ON a.id = b.account_id
@@ -796,7 +796,7 @@ func (r *AccountRepository) GetUserFirstTxnDate(ctx context.Context, tx *gorm.DB
 	db = db.WithContext(ctx)
 
 	var d *time.Time
-	err := tx.Raw(`
+	err := db.Raw(`
         SELECT MIN(t.txn_date)::date
         FROM transactions t
         JOIN accounts a ON a.id = t.account_id

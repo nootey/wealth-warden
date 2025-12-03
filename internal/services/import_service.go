@@ -1680,7 +1680,7 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 
 func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) error {
 
-	imp, err := s.FetchImportByID(nil, id, userID, "custom")
+	imp, err := s.FetchImportByID(ctx, id, userID, "custom")
 	if err != nil {
 		return err
 	}

@@ -143,7 +143,7 @@ func (r *ChartingRepository) FetchLatestNetWorth(ctx context.Context, tx *gorm.D
 
 	db := tx
 	if db == nil {
-		db = db
+		db = r.db
 	}
 	db = db.WithContext(ctx)
 	src := r.sourceView(accountID)

@@ -54,6 +54,8 @@ func (h *ImportHandler) GetImportsByImportType(c *gin.Context) {
 }
 
 func (h *ImportHandler) GetImportByID(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -75,7 +77,7 @@ func (h *ImportHandler) GetImportByID(c *gin.Context) {
 
 	importType := c.Param("import_type")
 
-	records, err := h.Service.FetchImportByID(nil, id, userID, importType)
+	records, err := h.Service.FetchImportByID(ctx, id, userID, importType)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -104,7 +106,7 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 		step = "cash"
 	}
 
-	imp, err := h.Service.FetchImportByID(nil, id, userID, "custom")
+	imp, err := h.Service.FetchImportByID(ctx, id, userID, "custom")
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return

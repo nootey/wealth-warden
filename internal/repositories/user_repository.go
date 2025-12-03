@@ -327,7 +327,7 @@ func (r *UserRepository) GetAllUsers(ctx context.Context, tx *gorm.DB) ([]models
 	db = db.WithContext(ctx)
 
 	var users []models.User
-	err := r.db.Preload("Role").
+	err := db.Preload("Role").
 		Find(&users).Error
 	if err != nil {
 		return nil, err
