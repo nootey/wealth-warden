@@ -6,11 +6,11 @@ toolchain go1.25.4
 
 require (
 	github.com/gin-contrib/cors v1.7.3
+	github.com/gin-contrib/timeout v1.1.0
 	github.com/gin-contrib/zap v1.1.4
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-co-op/gocron/v2 v2.18.2
 	github.com/go-playground/validator/v10 v10.28.0
-	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/pressly/goose/v3 v3.24.1
 	github.com/shopspring/decimal v1.4.0
@@ -20,7 +20,7 @@ require (
 	github.com/tavsec/gin-healthcheck v1.7.6
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.45.0
-	golang.org/x/time v0.8.0
+	golang.org/x/time v0.12.0
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gorm.io/datatypes v1.2.5
 	gorm.io/driver/postgres v1.5.0
@@ -40,7 +40,6 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.11 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
-	github.com/gin-contrib/timeout v1.1.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
@@ -93,12 +92,10 @@ require (
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.23.0 // indirect
-	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
-	golang.org/x/tools v0.39.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
