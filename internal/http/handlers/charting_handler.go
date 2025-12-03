@@ -30,11 +30,7 @@ func NewChartingHandler(
 func (h *ChartingHandler) NetWorthChart(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	p := c.QueryMap("params")
 
@@ -87,11 +83,7 @@ func (h *ChartingHandler) NetWorthChart(c *gin.Context) {
 func (h *ChartingHandler) GetMonthlyCashFlowForYear(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	p := c.QueryMap("params")
 
@@ -124,12 +116,8 @@ func (h *ChartingHandler) GetMonthlyCashFlowForYear(c *gin.Context) {
 func (h *ChartingHandler) GetMonthlyCategoryBreakdown(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
-
+	userID := c.GetInt64("user_id")
+	
 	p := c.QueryMap("params")
 
 	accStr := c.Query("account")

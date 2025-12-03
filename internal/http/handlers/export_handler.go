@@ -31,11 +31,7 @@ func NewExportHandler(
 func (h *ExportHandler) GetExports(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	records, err := h.Service.FetchExports(ctx, userID)
 	if err != nil {
@@ -49,11 +45,7 @@ func (h *ExportHandler) GetExports(c *gin.Context) {
 func (h *ExportHandler) GetExportsByExportType(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	exportType := c.Param("export_type")
 
@@ -69,13 +61,9 @@ func (h *ExportHandler) GetExportsByExportType(c *gin.Context) {
 func (h *ExportHandler) CreateExport(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
-	_, err = h.Service.CreateExport(ctx, userID)
+	_, err := h.Service.CreateExport(ctx, userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -87,11 +75,7 @@ func (h *ExportHandler) CreateExport(c *gin.Context) {
 func (h *ExportHandler) DownloadExport(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -123,11 +107,7 @@ func (h *ExportHandler) DownloadExport(c *gin.Context) {
 func (h *ExportHandler) DeleteExport(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 

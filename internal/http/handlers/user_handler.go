@@ -136,11 +136,7 @@ func (h *UserHandler) GetInvitationByHash(c *gin.Context) {
 func (h *UserHandler) InsertInvitation(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var req models.InvitationReq
 
@@ -160,7 +156,7 @@ func (h *UserHandler) InsertInvitation(c *gin.Context) {
 		return
 	}
 
-	err = h.Service.InsertInvitation(ctx, userID, req)
+	err := h.Service.InsertInvitation(ctx, userID, req)
 	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -172,11 +168,7 @@ func (h *UserHandler) InsertInvitation(c *gin.Context) {
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -214,11 +206,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -245,11 +233,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 func (h *UserHandler) ResendInvitation(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -276,11 +260,7 @@ func (h *UserHandler) ResendInvitation(c *gin.Context) {
 func (h *UserHandler) DeleteInvitation(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 

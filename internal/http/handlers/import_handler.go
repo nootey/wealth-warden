@@ -36,11 +36,7 @@ func NewImportHandler(
 func (h *ImportHandler) GetImportsByImportType(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	importType := c.Param("import_type")
 
@@ -56,11 +52,7 @@ func (h *ImportHandler) GetImportsByImportType(c *gin.Context) {
 func (h *ImportHandler) GetImportByID(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -89,11 +81,7 @@ func (h *ImportHandler) GetImportByID(c *gin.Context) {
 func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -200,11 +188,7 @@ func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	useBalancesStr := c.Query("use_balances")
 	if useBalancesStr == "" {
@@ -268,11 +252,7 @@ func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 func (h *ImportHandler) ImportCategories(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
 
@@ -324,11 +304,7 @@ func (h *ImportHandler) ImportCategories(c *gin.Context) {
 func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	checkAccIDStr := c.Query("check_acc_id")
 	if checkAccIDStr == "" {
@@ -402,11 +378,7 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 2<<20)
 
@@ -433,11 +405,7 @@ func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
 func (h *ImportHandler) TransferSavingsFromImport(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 2<<20)
 
@@ -464,11 +432,7 @@ func (h *ImportHandler) TransferSavingsFromImport(c *gin.Context) {
 func (h *ImportHandler) TransferRepaymentsFromImport(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 2<<20)
 
@@ -495,11 +459,7 @@ func (h *ImportHandler) TransferRepaymentsFromImport(c *gin.Context) {
 func (h *ImportHandler) DeleteImport(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 

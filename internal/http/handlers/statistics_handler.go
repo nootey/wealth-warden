@@ -28,11 +28,7 @@ func NewStatisticsHandler(
 func (h *StatisticsHandler) GetAccountBasicStatistics(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	// year (required)
 	y := c.Query("year")
@@ -69,11 +65,7 @@ func (h *StatisticsHandler) GetAccountBasicStatistics(c *gin.Context) {
 func (h *StatisticsHandler) GetAvailableStatsYears(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var accID *int64
 	if s := c.Query("acc_id"); s != "" && s != "null" && s != "undefined" {
@@ -97,11 +89,7 @@ func (h *StatisticsHandler) GetAvailableStatsYears(c *gin.Context) {
 func (h *StatisticsHandler) GetCurrentMonthStats(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	records, err := h.Service.GetCurrentMonthStats(ctx, userID, nil)
 	if err != nil {
@@ -115,11 +103,7 @@ func (h *StatisticsHandler) GetCurrentMonthStats(c *gin.Context) {
 func (h *StatisticsHandler) GetYearlyAverageForCategory(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var categoryID int64
 	if s := c.Param("id"); s != "" {

@@ -40,11 +40,7 @@ func (h *SettingsHandler) GetGeneralSettings(c *gin.Context) {
 func (h *SettingsHandler) GetUserSettings(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	record, err := h.Service.FetchUserSettings(ctx, userID)
 	if err != nil {
@@ -70,11 +66,7 @@ func (h *SettingsHandler) GetAvailableTimezones(c *gin.Context) {
 func (h *SettingsHandler) UpdatePreferenceSettings(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var record models.PreferenceSettingsReq
 	if err := c.ShouldBindJSON(&record); err != nil {
@@ -99,11 +91,7 @@ func (h *SettingsHandler) UpdatePreferenceSettings(c *gin.Context) {
 func (h *SettingsHandler) UpdateProfileSettings(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var record models.ProfileSettingsReq
 	if err := c.ShouldBindJSON(&record); err != nil {

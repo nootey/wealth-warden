@@ -84,11 +84,7 @@ func (h *RolePermissionHandler) GetRoleById(c *gin.Context) {
 func (h *RolePermissionHandler) InsertRole(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var req models.RoleReq
 
@@ -108,7 +104,7 @@ func (h *RolePermissionHandler) InsertRole(c *gin.Context) {
 		return
 	}
 
-	err = h.Service.InsertRole(ctx, userID, req)
+	err := h.Service.InsertRole(ctx, userID, req)
 	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -120,11 +116,7 @@ func (h *RolePermissionHandler) InsertRole(c *gin.Context) {
 func (h *RolePermissionHandler) UpdateRole(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -163,12 +155,7 @@ func (h *RolePermissionHandler) UpdateRole(c *gin.Context) {
 func (h *RolePermissionHandler) DeleteRole(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
-
+	userID := c.GetInt64("user_id")
 	idStr := c.Param("id")
 
 	if idStr == "" {

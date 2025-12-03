@@ -31,11 +31,7 @@ func NewAccountHandler(
 func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
@@ -63,11 +59,7 @@ func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
 func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	q := c.Request.URL.Query()
 	includeInactive := strings.EqualFold(q.Get("inactive"), "true")
@@ -84,11 +76,7 @@ func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
 func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -118,11 +106,7 @@ func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 func (h *AccountHandler) GetAccountByName(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	name := c.Param("name")
 	if name == "" {
@@ -143,6 +127,7 @@ func (h *AccountHandler) GetAccountByName(c *gin.Context) {
 func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
 
 	ctx := c.Request.Context()
+
 	records, err := h.service.FetchAllAccountTypes(ctx)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
@@ -155,11 +140,7 @@ func (h *AccountHandler) GetAccountTypes(c *gin.Context) {
 func (h *AccountHandler) GetAccountsBySubtype(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	sub := c.Param("sub")
 	if sub == "" {
@@ -180,11 +161,7 @@ func (h *AccountHandler) GetAccountsBySubtype(c *gin.Context) {
 func (h *AccountHandler) GetAccountsByType(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	t := c.Param("type")
 	if t == "" {
@@ -205,11 +182,7 @@ func (h *AccountHandler) GetAccountsByType(c *gin.Context) {
 func (h *AccountHandler) InsertAccount(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var record *models.AccountReq
 	if err := c.ShouldBindJSON(&record); err != nil {
@@ -234,11 +207,7 @@ func (h *AccountHandler) InsertAccount(c *gin.Context) {
 func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -277,11 +246,7 @@ func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 func (h *AccountHandler) ToggleAccountActiveState(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -308,11 +273,7 @@ func (h *AccountHandler) ToggleAccountActiveState(c *gin.Context) {
 func (h *AccountHandler) CloseAccount(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -338,11 +299,7 @@ func (h *AccountHandler) CloseAccount(c *gin.Context) {
 func (h *AccountHandler) BackfillBalancesForUser(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	from := c.Query("from")
 	to := c.Query("to")
@@ -358,11 +315,7 @@ func (h *AccountHandler) BackfillBalancesForUser(c *gin.Context) {
 func (h *AccountHandler) SaveAccountProjection(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -400,11 +353,7 @@ func (h *AccountHandler) SaveAccountProjection(c *gin.Context) {
 func (h *AccountHandler) RevertAccountProjection(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {
@@ -431,11 +380,7 @@ func (h *AccountHandler) RevertAccountProjection(c *gin.Context) {
 func (h *AccountHandler) GetLatestBalance(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	if idStr == "" {

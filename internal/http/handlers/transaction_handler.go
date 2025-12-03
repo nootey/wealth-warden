@@ -31,11 +31,7 @@ func NewTransactionHandler(
 func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
@@ -73,12 +69,7 @@ func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
 func (h *TransactionHandler) GetTransfersPaginated(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
-
+	userID := c.GetInt64("user_id")
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
 	includeDeleted := strings.EqualFold(qp.Get("include_deleted"), "true")
@@ -104,11 +95,7 @@ func (h *TransactionHandler) GetTransfersPaginated(c *gin.Context) {
 func (h *TransactionHandler) GetTransactionByID(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	queryParams := c.Request.URL.Query()
@@ -140,11 +127,7 @@ func (h *TransactionHandler) GetTransactionByID(c *gin.Context) {
 func (h *TransactionHandler) GetCategories(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	q := c.Request.URL.Query()
 	includeDeleted := strings.EqualFold(q.Get("deleted"), "true")
@@ -161,11 +144,7 @@ func (h *TransactionHandler) GetCategories(c *gin.Context) {
 func (h *TransactionHandler) GetCategoryByID(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 	q := c.Request.URL.Query()
@@ -195,11 +174,7 @@ func (h *TransactionHandler) GetCategoryByID(c *gin.Context) {
 func (h *TransactionHandler) InsertTransaction(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var record *models.TransactionReq
 
@@ -224,11 +199,7 @@ func (h *TransactionHandler) InsertTransaction(c *gin.Context) {
 func (h *TransactionHandler) InsertTransfer(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var record *models.TransferReq
 
@@ -253,11 +224,7 @@ func (h *TransactionHandler) InsertTransfer(c *gin.Context) {
 func (h *TransactionHandler) InsertCategory(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var record *models.CategoryReq
 
@@ -282,11 +249,7 @@ func (h *TransactionHandler) InsertCategory(c *gin.Context) {
 func (h *TransactionHandler) UpdateTransaction(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -325,11 +288,7 @@ func (h *TransactionHandler) UpdateTransaction(c *gin.Context) {
 func (h *TransactionHandler) UpdateCategory(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -368,11 +327,7 @@ func (h *TransactionHandler) UpdateCategory(c *gin.Context) {
 func (h *TransactionHandler) DeleteTransaction(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -399,11 +354,7 @@ func (h *TransactionHandler) DeleteTransaction(c *gin.Context) {
 func (h *TransactionHandler) DeleteTransfer(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -430,11 +381,7 @@ func (h *TransactionHandler) DeleteTransfer(c *gin.Context) {
 func (h *TransactionHandler) DeleteCategory(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -461,11 +408,7 @@ func (h *TransactionHandler) DeleteCategory(c *gin.Context) {
 func (h *TransactionHandler) RestoreTransaction(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var req *models.TrRestoreReq
 
@@ -485,11 +428,7 @@ func (h *TransactionHandler) RestoreTransaction(c *gin.Context) {
 func (h *TransactionHandler) RestoreCategory(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var req *models.TrRestoreReq
 
@@ -509,11 +448,7 @@ func (h *TransactionHandler) RestoreCategory(c *gin.Context) {
 func (h *TransactionHandler) RestoreCategoryName(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var req *models.TrRestoreReq
 
@@ -533,11 +468,7 @@ func (h *TransactionHandler) RestoreCategoryName(c *gin.Context) {
 func (h *TransactionHandler) GetTransactionTemplatesPaginated(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
@@ -563,11 +494,7 @@ func (h *TransactionHandler) GetTransactionTemplatesPaginated(c *gin.Context) {
 func (h *TransactionHandler) GetTransactionTemplateByID(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -595,11 +522,7 @@ func (h *TransactionHandler) GetTransactionTemplateByID(c *gin.Context) {
 func (h *TransactionHandler) InsertTransactionTemplate(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var record *models.TransactionTemplateReq
 
@@ -624,11 +547,7 @@ func (h *TransactionHandler) InsertTransactionTemplate(c *gin.Context) {
 func (h *TransactionHandler) UpdateTransactionTemplate(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -667,11 +586,7 @@ func (h *TransactionHandler) UpdateTransactionTemplate(c *gin.Context) {
 func (h *TransactionHandler) ToggleTransactionTemplateActiveState(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -698,11 +613,7 @@ func (h *TransactionHandler) ToggleTransactionTemplateActiveState(c *gin.Context
 func (h *TransactionHandler) DeleteTransactionTemplate(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -729,11 +640,7 @@ func (h *TransactionHandler) DeleteTransactionTemplate(c *gin.Context) {
 func (h *TransactionHandler) GetTransactionTemplateCount(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	record, err := h.Service.GetTransactionTemplateCount(ctx, userID)
 	if err != nil {
@@ -747,11 +654,7 @@ func (h *TransactionHandler) GetTransactionTemplateCount(c *gin.Context) {
 func (h *TransactionHandler) GetCategoryGroups(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	records, err := h.Service.FetchAllCategoryGroups(ctx, userID)
 	if err != nil {
@@ -765,11 +668,7 @@ func (h *TransactionHandler) GetCategoryGroups(c *gin.Context) {
 func (h *TransactionHandler) GetCategoriesWithGroups(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	records, err := h.Service.FetchAllCategoriesWithGroups(ctx, userID)
 	if err != nil {
@@ -783,11 +682,7 @@ func (h *TransactionHandler) GetCategoriesWithGroups(c *gin.Context) {
 func (h *TransactionHandler) GetCategoryGroupByID(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -815,11 +710,7 @@ func (h *TransactionHandler) GetCategoryGroupByID(c *gin.Context) {
 func (h *TransactionHandler) InsertCategoryGroup(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	var record *models.CategoryGroupReq
 
@@ -844,11 +735,7 @@ func (h *TransactionHandler) InsertCategoryGroup(c *gin.Context) {
 func (h *TransactionHandler) UpdateCategoryGroup(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
@@ -887,11 +774,7 @@ func (h *TransactionHandler) UpdateCategoryGroup(c *gin.Context) {
 func (h *TransactionHandler) DeleteCategoryGroup(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	userID, err := utils.UserIDFromCtx(c)
-	if err != nil {
-		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
+	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
 
