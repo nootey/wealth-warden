@@ -34,6 +34,8 @@ func NewImportHandler(
 }
 
 func (h *ImportHandler) GetImportsByImportType(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -42,7 +44,7 @@ func (h *ImportHandler) GetImportsByImportType(c *gin.Context) {
 
 	importType := c.Param("import_type")
 
-	records, err := h.Service.FetchImportsByImportType(userID, importType)
+	records, err := h.Service.FetchImportsByImportType(ctx, userID, importType)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -83,6 +85,8 @@ func (h *ImportHandler) GetImportByID(c *gin.Context) {
 }
 
 func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -123,7 +127,7 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 		return
 	}
 
-	categories, filteredCount, apiErr := h.Service.ValidateCustomImport(&payload, step)
+	categories, filteredCount, apiErr := h.Service.ValidateCustomImport(ctx, &payload, step)
 	if apiErr != nil {
 		utils.ErrorMessage(c, "Error occurred", apiErr.Error(), http.StatusInternalServerError, nil)
 		return
@@ -149,6 +153,8 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 }
 
 func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	step := strings.ToLower(strings.TrimSpace(c.Query("step")))
 
 	var payload models.TxnImportPayload
@@ -157,7 +163,7 @@ func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 		return
 	}
 
-	categories, filteredCount, apiErr := h.Service.ValidateCustomImport(&payload, step)
+	categories, filteredCount, apiErr := h.Service.ValidateCustomImport(ctx, &payload, step)
 	if apiErr != nil {
 		utils.ErrorMessage(c, "Error occurred", apiErr.Error(), http.StatusInternalServerError, nil)
 		return
@@ -191,6 +197,7 @@ func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 
 func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -248,7 +255,7 @@ func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.ImportAccounts(userID, payload, useBalances); err != nil {
+	if err := h.Service.ImportAccounts(ctx, userID, payload, useBalances); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -258,6 +265,7 @@ func (h *ImportHandler) ImportAccounts(c *gin.Context) {
 
 func (h *ImportHandler) ImportCategories(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -303,7 +311,7 @@ func (h *ImportHandler) ImportCategories(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.ImportCategories(userID, payload); err != nil {
+	if err := h.Service.ImportCategories(ctx, userID, payload); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -312,6 +320,8 @@ func (h *ImportHandler) ImportCategories(c *gin.Context) {
 }
 
 func (h *ImportHandler) ImportTransactions(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -379,7 +389,7 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.ImportTransactions(userID, checkAccID, payload); err != nil {
+	if err := h.Service.ImportTransactions(ctx, userID, checkAccID, payload); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -388,6 +398,8 @@ func (h *ImportHandler) ImportTransactions(c *gin.Context) {
 }
 
 func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -408,7 +420,7 @@ func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.TransferInvestmentsFromImport(userID, payload); err != nil {
+	if err := h.Service.TransferInvestmentsFromImport(ctx, userID, payload); err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -417,6 +429,8 @@ func (h *ImportHandler) TransferInvestmentsFromImport(c *gin.Context) {
 }
 
 func (h *ImportHandler) TransferSavingsFromImport(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -437,7 +451,7 @@ func (h *ImportHandler) TransferSavingsFromImport(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.TransferSavingsFromImport(userID, payload); err != nil {
+	if err := h.Service.TransferSavingsFromImport(ctx, userID, payload); err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -446,6 +460,8 @@ func (h *ImportHandler) TransferSavingsFromImport(c *gin.Context) {
 }
 
 func (h *ImportHandler) TransferRepaymentsFromImport(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -466,7 +482,7 @@ func (h *ImportHandler) TransferRepaymentsFromImport(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.TransferRepaymentsFromImport(userID, payload); err != nil {
+	if err := h.Service.TransferRepaymentsFromImport(ctx, userID, payload); err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -475,6 +491,8 @@ func (h *ImportHandler) TransferRepaymentsFromImport(c *gin.Context) {
 }
 
 func (h *ImportHandler) DeleteImport(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -495,7 +513,7 @@ func (h *ImportHandler) DeleteImport(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.DeleteImport(userID, id); err != nil {
+	if err := h.Service.DeleteImport(ctx, userID, id); err != nil {
 		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

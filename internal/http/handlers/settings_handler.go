@@ -26,7 +26,9 @@ func NewSettingsHandler(
 }
 
 func (h *SettingsHandler) GetGeneralSettings(c *gin.Context) {
-	record, err := h.Service.FetchGeneralSettings()
+
+	ctx := c.Request.Context()
+	record, err := h.Service.FetchGeneralSettings(ctx)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -37,13 +39,14 @@ func (h *SettingsHandler) GetGeneralSettings(c *gin.Context) {
 
 func (h *SettingsHandler) GetUserSettings(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
 		return
 	}
 
-	record, err := h.Service.FetchUserSettings(userID)
+	record, err := h.Service.FetchUserSettings(ctx, userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -53,7 +56,9 @@ func (h *SettingsHandler) GetUserSettings(c *gin.Context) {
 }
 
 func (h *SettingsHandler) GetAvailableTimezones(c *gin.Context) {
-	tzones, err := h.Service.FetchAvailableTimezones()
+
+	ctx := c.Request.Context()
+	tzones, err := h.Service.FetchAvailableTimezones(ctx)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -64,6 +69,7 @@ func (h *SettingsHandler) GetAvailableTimezones(c *gin.Context) {
 
 func (h *SettingsHandler) UpdatePreferenceSettings(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -81,7 +87,7 @@ func (h *SettingsHandler) UpdatePreferenceSettings(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdatePreferenceSettings(userID, record); err != nil {
+	if err := h.Service.UpdatePreferenceSettings(ctx, userID, record); err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -92,6 +98,7 @@ func (h *SettingsHandler) UpdatePreferenceSettings(c *gin.Context) {
 
 func (h *SettingsHandler) UpdateProfileSettings(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -109,7 +116,7 @@ func (h *SettingsHandler) UpdateProfileSettings(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateProfileSettings(userID, record); err != nil {
+	if err := h.Service.UpdateProfileSettings(ctx, userID, record); err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

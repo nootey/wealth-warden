@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,6 +9,8 @@ import (
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
+
+	"github.com/gin-gonic/gin"
 )
 
 type UserHandler struct {
@@ -29,11 +30,12 @@ func NewUserHandler(
 
 func (h *UserHandler) GetUsersPaginated(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
 	includeDeleted := strings.EqualFold(qp.Get("include_deleted"), "true")
 
-	records, paginator, err := h.Service.FetchUsersPaginated(p, includeDeleted)
+	records, paginator, err := h.Service.FetchUsersPaginated(ctx, p, includeDeleted)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -53,10 +55,11 @@ func (h *UserHandler) GetUsersPaginated(c *gin.Context) {
 
 func (h *UserHandler) GetInvitationsPaginated(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
 
-	records, paginator, err := h.Service.FetchInvitationsPaginated(p)
+	records, paginator, err := h.Service.FetchInvitationsPaginated(ctx, p)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -76,8 +79,8 @@ func (h *UserHandler) GetInvitationsPaginated(c *gin.Context) {
 
 func (h *UserHandler) GetUserById(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	idStr := c.Param("id")
-
 	if idStr == "" {
 		err := errors.New("invalid id provided")
 		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
@@ -90,7 +93,7 @@ func (h *UserHandler) GetUserById(c *gin.Context) {
 		return
 	}
 
-	user, err := h.Service.FetchUserByID(id)
+	user, err := h.Service.FetchUserByID(ctx, id)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -99,10 +102,12 @@ func (h *UserHandler) GetUserById(c *gin.Context) {
 }
 
 func (h *UserHandler) GetUserByToken(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	tokenType := c.Query("type")
 	tokenValue := c.Query("value")
 
-	user, err := h.Service.FetchUserByToken(tokenType, tokenValue)
+	user, err := h.Service.FetchUserByToken(ctx, tokenType, tokenValue)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -112,15 +117,15 @@ func (h *UserHandler) GetUserByToken(c *gin.Context) {
 
 func (h *UserHandler) GetInvitationByHash(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	hash := c.Param("hash")
-
 	if hash == "" {
 		err := errors.New("invalid hash provided")
 		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
-	record, err := h.Service.FetchInvitationByHash(hash)
+	record, err := h.Service.FetchInvitationByHash(ctx, hash)
 	if err != nil {
 		utils.ErrorMessage(c, "fetch error", err.Error(), http.StatusBadRequest, err)
 		return
@@ -130,6 +135,7 @@ func (h *UserHandler) GetInvitationByHash(c *gin.Context) {
 
 func (h *UserHandler) InsertInvitation(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -154,7 +160,7 @@ func (h *UserHandler) InsertInvitation(c *gin.Context) {
 		return
 	}
 
-	err = h.Service.InsertInvitation(userID, req)
+	err = h.Service.InsertInvitation(ctx, userID, req)
 	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -165,6 +171,7 @@ func (h *UserHandler) InsertInvitation(c *gin.Context) {
 
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -172,7 +179,6 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	idStr := c.Param("id")
-
 	if idStr == "" {
 		err := errors.New("invalid id provided")
 		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
@@ -197,7 +203,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateUser(userID, id, record); err != nil {
+	if err := h.Service.UpdateUser(ctx, userID, id, record); err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -207,6 +213,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -227,7 +234,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.DeleteUser(userID, id); err != nil {
+	if err := h.Service.DeleteUser(ctx, userID, id); err != nil {
 		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -237,6 +244,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 
 func (h *UserHandler) ResendInvitation(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -257,7 +265,7 @@ func (h *UserHandler) ResendInvitation(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.ResendInvitation(userID, id); err != nil {
+	if err := h.Service.ResendInvitation(ctx, userID, id); err != nil {
 		utils.ErrorMessage(c, "Resend error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -267,6 +275,7 @@ func (h *UserHandler) ResendInvitation(c *gin.Context) {
 
 func (h *UserHandler) DeleteInvitation(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -287,7 +296,7 @@ func (h *UserHandler) DeleteInvitation(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.DeleteInvitation(userID, id); err != nil {
+	if err := h.Service.DeleteInvitation(ctx, userID, id); err != nil {
 		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

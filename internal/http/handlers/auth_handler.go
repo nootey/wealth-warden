@@ -25,6 +25,7 @@ func NewAuthHandler(
 
 func (h *AuthHandler) LoginUser(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	loginIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
@@ -34,7 +35,7 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, expiresAt, err := h.Service.LoginUser(form.Email, form.Password, userAgent, loginIP, form.RememberMe)
+	accessToken, refreshToken, expiresAt, err := h.Service.LoginUser(ctx, form.Email, form.Password, userAgent, loginIP, form.RememberMe)
 	if err != nil {
 		utils.ErrorMessage(c, "Login failed", err.Error(), http.StatusUnauthorized, err)
 		return
@@ -76,6 +77,8 @@ func (h *AuthHandler) LogoutUser(c *gin.Context) {
 }
 
 func (h *AuthHandler) SignUp(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	loginIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
@@ -90,7 +93,7 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.SignUp(form, userAgent, loginIP)
+	err := h.Service.SignUp(ctx, form, userAgent, loginIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Registration failed", err.Error(), http.StatusUnauthorized, err)
 		return
@@ -100,10 +103,12 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 }
 
 func (h *AuthHandler) ValidateInvitationEmail(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	queryParams := c.Request.URL.Query()
 	hash := queryParams.Get("token")
 
-	err := h.Service.ValidateInvitation(hash)
+	err := h.Service.ValidateInvitation(ctxm hash)
 	if err == nil {
 		redirectUrl := utils.GenerateWebClientReleaseLink(h.Service.Config, "")
 		c.Redirect(http.StatusFound, fmt.Sprintf("%s%s?token=%s", redirectUrl, "register", hash))
@@ -117,6 +122,7 @@ func (h *AuthHandler) ValidateInvitationEmail(c *gin.Context) {
 
 func (h *AuthHandler) ResendConfirmationEmail(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	reqIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
@@ -126,7 +132,7 @@ func (h *AuthHandler) ResendConfirmationEmail(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.ResendConfirmationEmail(req.Email, userAgent, reqIP)
+	err := h.Service.ResendConfirmationEmail(ctx, req.Email, userAgent, reqIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Dispatch failed", err.Error(), http.StatusUnauthorized, err)
 		return
@@ -137,12 +143,13 @@ func (h *AuthHandler) ResendConfirmationEmail(c *gin.Context) {
 
 func (h *AuthHandler) ConfirmEmail(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	reqIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 	queryParams := c.Request.URL.Query()
 	token := queryParams.Get("token")
 
-	err := h.Service.ConfirmEmail(token, userAgent, reqIP)
+	err := h.Service.ConfirmEmail(ctx, token, userAgent, reqIP)
 	if err == nil {
 		redirectUrl := utils.GenerateWebClientReleaseLink(h.Service.Config, "")
 		c.Redirect(http.StatusFound, redirectUrl)
@@ -156,6 +163,7 @@ func (h *AuthHandler) ConfirmEmail(c *gin.Context) {
 
 func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	reqIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
@@ -165,7 +173,7 @@ func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.RequestPasswordReset(req.Email, userAgent, reqIP)
+	err := h.Service.RequestPasswordReset(ctx, req.Email, userAgent, reqIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Dispatch failed", err.Error(), http.StatusUnauthorized, err)
 		return
@@ -176,10 +184,11 @@ func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
 
 func (h *AuthHandler) ValidatePasswordReset(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	queryParams := c.Request.URL.Query()
 	tokenValue := queryParams.Get("token")
 
-	token, err := h.Service.ValidatePasswordReset(tokenValue)
+	token, err := h.Service.ValidatePasswordReset(ctx, tokenValue)
 	if err != nil {
 		utils.ErrorMessage(c, "Dispatch failed", err.Error(), http.StatusUnauthorized, err)
 		return
@@ -191,6 +200,7 @@ func (h *AuthHandler) ValidatePasswordReset(c *gin.Context) {
 
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
 
+	ctx := c.Request.Context()
 	loginIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
@@ -205,7 +215,7 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.ResetPassword(form, userAgent, loginIP)
+	err := h.Service.ResetPassword(ctx, form, userAgent, loginIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Password reset failed", err.Error(), http.StatusUnauthorized, err)
 		return
@@ -215,6 +225,8 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 }
 
 func (h *AuthHandler) RegisterUser(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	loginIP := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
@@ -229,7 +241,7 @@ func (h *AuthHandler) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.RegisterUser(form, userAgent, loginIP)
+	err := h.Service.RegisterUser(ctx, form, userAgent, loginIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Registration failed", err.Error(), http.StatusUnauthorized, err)
 		return

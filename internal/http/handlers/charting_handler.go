@@ -28,6 +28,8 @@ func NewChartingHandler(
 }
 
 func (h *ChartingHandler) NetWorthChart(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -74,7 +76,7 @@ func (h *ChartingHandler) NetWorthChart(c *gin.Context) {
 		accID = &v
 	}
 
-	series, err := h.Service.GetNetWorthSeries(userID, currency, r, from, to, accID)
+	series, err := h.Service.GetNetWorthSeries(ctx, userID, currency, r, from, to, accID)
 	if err != nil {
 		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -83,6 +85,8 @@ func (h *ChartingHandler) NetWorthChart(c *gin.Context) {
 }
 
 func (h *ChartingHandler) GetMonthlyCashFlowForYear(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -109,7 +113,7 @@ func (h *ChartingHandler) GetMonthlyCashFlowForYear(c *gin.Context) {
 		accID = &v
 	}
 
-	series, err := h.Service.GetMonthlyCashFlowForYear(userID, year, accID)
+	series, err := h.Service.GetMonthlyCashFlowForYear(ctx, userID, year, accID)
 	if err != nil {
 		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -118,6 +122,8 @@ func (h *ChartingHandler) GetMonthlyCashFlowForYear(c *gin.Context) {
 }
 
 func (h *ChartingHandler) GetMonthlyCategoryBreakdown(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -181,7 +187,7 @@ func (h *ChartingHandler) GetMonthlyCategoryBreakdown(c *gin.Context) {
 			utils.ErrorMessage(c, "param error", "years is empty", http.StatusBadRequest, nil)
 			return
 		}
-		res, err := h.Service.GetCategoryUsageForYears(userID, years, class, accID, catID, asPercent)
+		res, err := h.Service.GetCategoryUsageForYears(ctx, userID, years, class, accID, catID, asPercent)
 		if err != nil {
 			utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
 			return
@@ -201,7 +207,7 @@ func (h *ChartingHandler) GetMonthlyCategoryBreakdown(c *gin.Context) {
 		return
 	}
 
-	series, err := h.Service.GetCategoryUsageForYear(userID, year, class, accID, catID, asPercent)
+	series, err := h.Service.GetCategoryUsageForYear(ctx, userID, year, class, accID, catID, asPercent)
 	if err != nil {
 		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
 		return

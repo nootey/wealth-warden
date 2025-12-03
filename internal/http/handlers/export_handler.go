@@ -29,13 +29,15 @@ func NewExportHandler(
 }
 
 func (h *ExportHandler) GetExports(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
 		return
 	}
 
-	records, err := h.Service.FetchExports(userID)
+	records, err := h.Service.FetchExports(ctx, userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -45,6 +47,8 @@ func (h *ExportHandler) GetExports(c *gin.Context) {
 }
 
 func (h *ExportHandler) GetExportsByExportType(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -53,7 +57,7 @@ func (h *ExportHandler) GetExportsByExportType(c *gin.Context) {
 
 	exportType := c.Param("export_type")
 
-	records, err := h.Service.FetchExportsByExportType(userID, exportType)
+	records, err := h.Service.FetchExportsByExportType(ctx, userID, exportType)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -63,13 +67,15 @@ func (h *ExportHandler) GetExportsByExportType(c *gin.Context) {
 }
 
 func (h *ExportHandler) CreateExport(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
 		return
 	}
 
-	_, err = h.Service.CreateExport(userID)
+	_, err = h.Service.CreateExport(ctx, userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -79,6 +85,8 @@ func (h *ExportHandler) CreateExport(c *gin.Context) {
 }
 
 func (h *ExportHandler) DownloadExport(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -101,7 +109,7 @@ func (h *ExportHandler) DownloadExport(c *gin.Context) {
 
 	todayStr := time.Now().UTC().Format("2006-01-02")
 	filename := fmt.Sprintf("export_%s.zip", todayStr)
-	data, err := h.Service.DownloadExport(id, userID)
+	data, err := h.Service.DownloadExport(ctx, id, userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
 		return
@@ -113,6 +121,8 @@ func (h *ExportHandler) DownloadExport(c *gin.Context) {
 }
 
 func (h *ExportHandler) DeleteExport(c *gin.Context) {
+
+	ctx := c.Request.Context()
 	userID, err := utils.UserIDFromCtx(c)
 	if err != nil {
 		utils.ErrorMessage(c, "Unauthorized", err.Error(), http.StatusUnauthorized, err)
@@ -133,7 +143,7 @@ func (h *ExportHandler) DeleteExport(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.DeleteExport(userID, id); err != nil {
+	if err := h.Service.DeleteExport(ctx, userID, id); err != nil {
 		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
