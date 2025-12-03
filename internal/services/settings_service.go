@@ -23,23 +23,23 @@ type SettingsServiceInterface interface {
 type SettingsService struct {
 	cfg           *config.Config
 	repo          repositories.SettingsRepositoryInterface
-	loggingRepo   repositories.LoggingRepositoryInterface
 	userRepo      repositories.UserRepositoryInterface
+	loggingRepo   repositories.LoggingRepositoryInterface
 	jobDispatcher jobs.JobDispatcher
 }
 
 func NewSettingsService(
 	cfg *config.Config,
 	repo *repositories.SettingsRepository,
-	loggingRepo *repositories.LoggingRepository,
 	userRepo *repositories.UserRepository,
+	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobs.JobDispatcher,
 ) *SettingsService {
 	return &SettingsService{
 		cfg:           cfg,
 		repo:          repo,
-		loggingRepo:   loggingRepo,
 		userRepo:      userRepo,
+		loggingRepo:   loggingRepo,
 		jobDispatcher: jobDispatcher,
 	}
 }

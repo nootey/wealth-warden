@@ -60,17 +60,16 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 
 	// Initialize services
 	loggingService := services.NewLoggingService(cfg, loggingRepo)
-	authService := services.NewAuthService(cfg, logger, userRepo, roleRepo, settingsRepo, loggingService, webClientMiddleware, jobDispatcher, mail)
-
-	roleService := services.NewRolePermissionService(cfg, roleRepo)
-	userService := services.NewUserService(cfg, userRepo, roleService)
+	authService := services.NewAuthService(cfg, userRepo, roleRepo, settingsRepo, loggingRepo, webClientMiddleware, jobDispatcher, mail)
+	roleService := services.NewRolePermissionService(cfg, roleRepo, loggingRepo, jobDispatcher)
+	userService := services.NewUserService(cfg, userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
 	accountService := services.NewAccountService(cfg, accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher)
-	transactionService := services.NewTransactionService(cfg, transactionRepo, accountService)
-	settingsService := services.NewSettingsService(cfg, settingsRepo)
+	transactionService := services.NewTransactionService(cfg, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
+	settingsService := services.NewSettingsService(cfg, settingsRepo, userRepo, loggingRepo, jobDispatcher)
 	chartingService := services.NewChartingService(cfg, chartingRepo, accountRepo, transactionRepo)
 	statsService := services.NewStatisticsService(cfg, statsRepo, accountRepo, transactionRepo)
-	importService := services.NewImportService(cfg, importRepo, transactionRepo, accountService)
-	exportService := services.NewExportService(cfg, exportRepo, transactionRepo, accountService)
+	importService := services.NewImportService(cfg, importRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
+	exportService := services.NewExportService(cfg, exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
 
 	return &Container{
 		Config:             cfg,
