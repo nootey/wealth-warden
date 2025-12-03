@@ -24,18 +24,18 @@ func NewRouteInitializerHTTP(r *gin.Engine, container *bootstrap.Container) *Rou
 	}
 }
 
-func (r *RouteInitializerHTTP) InitEndpoints() {
+func (r *RouteInitializerHTTP) InitEndpoints(wm *middleware.WebClientMiddleware) {
 	api := r.Router.Group("/api")
 
 	r.Router.GET("/", rootHandler)
-	r.initV1Routes(api)
+	r.initV1Routes(api, wm)
 }
 
-func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
+func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware.WebClientMiddleware) {
 
 	validator := validators.NewValidator()
 
-	authHandler := httpHandlers.NewAuthHandler(r.Container.Config, r.Container.Middleware, r.Container.AuthService)
+	authHandler := httpHandlers.NewAuthHandler(r.Container.Config, wm, r.Container.AuthService)
 	userHandler := httpHandlers.NewUserHandler(r.Container.UserService, validator)
 	loggingHandler := httpHandlers.NewLoggingHandler(r.Container.LoggingService)
 	accountHandler := httpHandlers.NewAccountHandler(r.Container.AccountService, validator)
@@ -51,7 +51,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup) {
 
 	// Auth only routes
 	authenticated := _v1.Group("",
-		r.Container.Middleware.WebClientAuthentication(),
+		wm.WebClientAuthentication(),
 	)
 	authRoutes := authenticated.Group("/auth")
 	routes.AuthRoutes(authRoutes, authHandler)

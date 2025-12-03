@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 	"wealth-warden/internal/bootstrap"
+	"wealth-warden/internal/middleware"
 	appConfig "wealth-warden/pkg/config"
 
 	"github.com/gin-contrib/cors"
@@ -80,7 +81,8 @@ func NewRouter(container *bootstrap.Container, logger *zap.Logger) *gin.Engine {
 	}
 
 	// Logging & recovery
-	r.Use(container.Middleware.ErrorLogger())
+	wm := middleware.NewWebClientMiddleware(container.Config, logger)
+	r.Use(wm.ErrorLogger())
 	r.Use(ginzap.RecoveryWithZap(logger, true))
 
 	// Health check (DB)
@@ -103,7 +105,7 @@ func NewRouter(container *bootstrap.Container, logger *zap.Logger) *gin.Engine {
 	}
 
 	routeInitializer := NewRouteInitializerHTTP(r, container)
-	routeInitializer.InitEndpoints()
+	routeInitializer.InitEndpoints(wm)
 
 	return r
 }

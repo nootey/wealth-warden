@@ -7,10 +7,8 @@ import (
 	"fmt"
 	"time"
 	"wealth-warden/internal/jobs"
-	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/constants"
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
 
@@ -18,8 +16,8 @@ import (
 )
 
 type AuthServiceInterface interface {
-	LoginUser(ctx context.Context, email, password, userAgent, ip string, rememberMe bool) (string, string, int, error)
-	GetCurrentUser(ctx context.Context, refreshToken string) (*models.User, error)
+	ValidateLogin(ctx context.Context, email, password, userAgent, ip string) (*models.User, error)
+	GetCurrentUser(ctx context.Context, userID int64) (*models.User, error)
 	ValidateInvitation(ctx context.Context, hash string) error
 	SignUp(ctx context.Context, form models.RegisterForm, userAgent, ip string) error
 	ResendConfirmationEmail(ctx context.Context, email, userAgent, ip string) error
@@ -29,13 +27,12 @@ type AuthServiceInterface interface {
 	ResetPassword(ctx context.Context, form models.ResetPasswordForm, userAgent, ip string) error
 }
 type AuthService struct {
-	userRepo            repositories.UserRepositoryInterface
-	roleRepo            repositories.RolePermissionRepositoryInterface
-	settingsRepo        repositories.SettingsRepositoryInterface
-	loggingRepo         repositories.LoggingRepositoryInterface
-	webClientMiddleware *middleware.WebClientMiddleware
-	jobDispatcher       jobs.JobDispatcher
-	mailer              *mailer.Mailer
+	userRepo      repositories.UserRepositoryInterface
+	roleRepo      repositories.RolePermissionRepositoryInterface
+	settingsRepo  repositories.SettingsRepositoryInterface
+	loggingRepo   repositories.LoggingRepositoryInterface
+	jobDispatcher jobs.JobDispatcher
+	mailer        *mailer.Mailer
 }
 
 func NewAuthService(
@@ -43,18 +40,16 @@ func NewAuthService(
 	roleRepo *repositories.RolePermissionRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
-	webClientMiddleware *middleware.WebClientMiddleware,
 	jobDispatcher jobs.JobDispatcher,
 	mailer *mailer.Mailer,
 ) *AuthService {
 	return &AuthService{
-		userRepo:            userRepo,
-		roleRepo:            roleRepo,
-		settingsRepo:        settingsRepo,
-		loggingRepo:         loggingRepo,
-		webClientMiddleware: webClientMiddleware,
-		jobDispatcher:       jobDispatcher,
-		mailer:              mailer,
+		userRepo:      userRepo,
+		roleRepo:      roleRepo,
+		settingsRepo:  settingsRepo,
+		loggingRepo:   loggingRepo,
+		jobDispatcher: jobDispatcher,
+		mailer:        mailer,
 	}
 }
 
@@ -152,18 +147,15 @@ func (s *AuthService) dispatchPasswordResetEmail(ctx context.Context, user *mode
 	return nil
 }
 
-func (s *AuthService) LoginUser(ctx context.Context, email, password, userAgent, ip string, rememberMe bool) (string, string, int, error) {
-
+func (s *AuthService) ValidateLogin(ctx context.Context, email, password, userAgent, ip string) (*models.User, error) {
 	userPassword, _ := s.userRepo.GetPasswordByEmail(ctx, nil, email)
 	if userPassword == "" {
 		desc := "user does not exist"
 		logErr := s.log("login", email, userAgent, ip, "fail", &desc, nil)
 		if logErr != nil {
-			return "", "", 0, logErr
+			return nil, logErr
 		}
-
-		err := errors.New("invalid credentials")
-		return "", "", 0, err
+		return nil, errors.New("invalid credentials")
 	}
 
 	err := bcrypt.CompareHashAndPassword([]byte(userPassword), []byte(password))
@@ -171,61 +163,32 @@ func (s *AuthService) LoginUser(ctx context.Context, email, password, userAgent,
 		desc := "incorrect_password"
 		logErr := s.log("login", email, userAgent, ip, "fail", &desc, nil)
 		if logErr != nil {
-			return "", "", 0, logErr
+			return nil, logErr
 		}
-
-		err := errors.New("invalid credentials")
-		return "", "", 0, err
+		return nil, errors.New("invalid credentials")
 	}
 
-	user, _ := s.userRepo.FindUserByEmail(ctx, nil, email)
-	if user == nil {
-		err = errors.New("user data unavailable")
-		return "", "", 0, err
-	}
-
-	accessToken, refreshToken, err := s.webClientMiddleware.GenerateLoginTokens(user.ID, rememberMe)
-	if err != nil {
-		return "", "", 0, err
-	}
-
-	var expiresAt int
-	if rememberMe {
-		expiresAt = int(constants.RefreshCookieTTLLong.Seconds())
-	} else {
-		expiresAt = int(constants.RefreshCookieTTLShort.Seconds())
+	user, err := s.userRepo.FindUserByEmail(ctx, nil, email)
+	if err != nil || user == nil {
+		return nil, errors.New("user data unavailable")
 	}
 
 	logErr := s.log("login", email, userAgent, ip, "success", nil, &user.ID)
 	if logErr != nil {
-		return "", "", 0, logErr
+		return nil, logErr
 	}
 
-	return accessToken, refreshToken, expiresAt, nil
+	return user, nil
 }
 
-func (s *AuthService) GetCurrentUser(ctx context.Context, refreshToken string) (*models.User, error) {
+func (s *AuthService) GetCurrentUser(ctx context.Context, userID int64) (*models.User, error) {
 
-	if refreshToken != "" {
-		refreshClaims, err := s.webClientMiddleware.DecodeWebClientToken(refreshToken, "refresh")
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode refresh token: %v", err)
-		}
-
-		userId, decodeErr := s.webClientMiddleware.DecodeWebClientUserID(refreshClaims.UserID)
-		if decodeErr != nil {
-			return nil, fmt.Errorf("failed to decode user ID: %v", decodeErr)
-		}
-
-		user, repoError := s.userRepo.FindUserByID(ctx, nil, userId)
-		if repoError != nil {
-			return nil, fmt.Errorf("failed to get user from repository: %v", repoError)
-		}
-
-		return user, nil
+	user, repoError := s.userRepo.FindUserByID(ctx, nil, userID)
+	if repoError != nil {
+		return nil, fmt.Errorf("failed to get user from repository: %v", repoError)
 	}
 
-	return nil, fmt.Errorf("no refresh token found")
+	return user, nil
 }
 
 func (s *AuthService) ValidateInvitation(ctx context.Context, hash string) error {

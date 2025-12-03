@@ -43,13 +43,27 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, expiresAt, err := h.Service.LoginUser(ctx, form.Email, form.Password, userAgent, loginIP, form.RememberMe)
+	user, err := h.Service.ValidateLogin(ctx, form.Email, form.Password, userAgent, loginIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Login failed", err.Error(), http.StatusUnauthorized, err)
 		return
 	}
 
-	// Set cookies and return success message
+	accessToken, refreshToken, err := h.middleware.GenerateLoginTokens(user.ID, form.RememberMe)
+	if err != nil {
+		utils.ErrorMessage(c, "Failed to generate tokens", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	// Calculate expiration
+	var expiresAt int
+	if form.RememberMe {
+		expiresAt = int(constants.RefreshCookieTTLLong.Seconds())
+	} else {
+		expiresAt = int(constants.RefreshCookieTTLShort.Seconds())
+	}
+
+	// Set cookies
 	c.SetSameSite(http.SameSiteLaxMode)
 	domain := h.middleware.CookieDomainForEnv()
 	secure := h.middleware.CookieSecure()
@@ -67,7 +81,19 @@ func (h *AuthHandler) GetAuthUser(c *gin.Context) {
 		return
 	}
 
-	user, err := h.Service.GetCurrentUser(c, refreshToken)
+	refreshClaims, err := h.middleware.DecodeWebClientToken(refreshToken, "refresh")
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid token", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	userID, err := h.middleware.DecodeWebClientUserID(refreshClaims.UserID)
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid user ID", err.Error(), http.StatusUnauthorized, err)
+		return
+	}
+
+	user, err := h.Service.GetCurrentUser(c.Request.Context(), userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return

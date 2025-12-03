@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"time"
 	"wealth-warden/internal/jobs"
-	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -17,7 +16,6 @@ import (
 type Container struct {
 	Config             *config.Config
 	DB                 *gorm.DB
-	Middleware         *middleware.WebClientMiddleware
 	AuthzService       *authz.Service
 	AuthService        *services.AuthService
 	UserService        *services.UserService
@@ -33,9 +31,6 @@ type Container struct {
 }
 
 func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Container, error) {
-
-	// Initialize middleware
-	webClientMiddleware := middleware.NewWebClientMiddleware(cfg, logger)
 
 	// Initialize mailer
 	mail := mailer.NewMailer(cfg, &mailer.MailConfig{From: cfg.Mailer.Username, FromName: "Wealth Warden Support"})
@@ -60,7 +55,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 
 	// Initialize services
 	loggingService := services.NewLoggingService(loggingRepo)
-	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, loggingRepo, webClientMiddleware, jobDispatcher, mail)
+	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, loggingRepo, jobDispatcher, mail)
 	roleService := services.NewRolePermissionService(roleRepo, loggingRepo, jobDispatcher)
 	userService := services.NewUserService(userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
 	accountService := services.NewAccountService(accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher)
@@ -74,7 +69,6 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	return &Container{
 		Config:             cfg,
 		DB:                 db,
-		Middleware:         webClientMiddleware,
 		AuthzService:       authzSvc,
 		AuthService:        authService,
 		UserService:        userService,
