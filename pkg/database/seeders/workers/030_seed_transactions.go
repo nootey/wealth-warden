@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/rand"
 	"time"
+	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
@@ -26,7 +27,12 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg 
 
 	accRepo := repositories.NewAccountRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
-	accService := services.NewAccountService(nil, nil, accRepo, txnRepo)
+	settingsRepo := repositories.NewSettingsRepository(db)
+	loggingRepo := repositories.NewLoggingRepository(db)
+	jobQueue := jobs.NewJobQueue(1, 25)
+	jobDispatcher := &jobs.InMemoryDispatcher{Queue: jobQueue}
+
+	accService := services.NewAccountService(accRepo, txnRepo, settingsRepo, loggingRepo, jobDispatcher)
 
 	var incCats, expCats []models.Category
 	_ = db.WithContext(ctx).Where("classification = ?", "income").Find(&incCats).Error
@@ -166,7 +172,7 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg 
 					return err
 				}
 
-				if err := accService.UpdateAccountCashBalance(db, &acc, t.TxnDate, ttype, amt); err != nil {
+				if err := accService.UpdateAccountCashBalance(ctx, db, &acc, t.TxnDate, ttype, amt); err != nil {
 					return err
 				}
 
