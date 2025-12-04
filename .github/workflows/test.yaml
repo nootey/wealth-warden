@@ -57,5 +57,4 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          cd tests
           go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
