@@ -5,6 +5,7 @@ packages:
   wealth-warden/internal/services:
     interfaces:
       AccountServiceInterface:
+      TransactionServiceInterface:
   wealth-warden/pkg/validators:
     interfaces:
       Validator:
