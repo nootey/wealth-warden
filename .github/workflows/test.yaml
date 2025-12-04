@@ -9,7 +9,7 @@ on:
       - 'client/**'
     branches:
       - main
-      - tests
+      - testing/**
   workflow_dispatch:
 
 jobs:
