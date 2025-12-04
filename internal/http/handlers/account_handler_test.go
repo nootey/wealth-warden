@@ -47,6 +47,9 @@ func (suite *AccountHandlerTestSuite) SetupTest() {
 	})
 
 	suite.router.POST("/accounts", suite.handler.InsertAccount)
+	suite.router.GET("/accounts/:id", suite.handler.GetAccountByID)
+	suite.router.PUT("/accounts/:id", suite.handler.UpdateAccount)
+	suite.router.DELETE("/accounts/:id", suite.handler.CloseAccount)
 }
 
 func (suite *AccountHandlerTestSuite) TearDownTest() {
@@ -184,6 +187,120 @@ func (suite *AccountHandlerTestSuite) TestInsertAccount_ServiceError() {
 	body, _ := json.Marshal(payload)
 	req := httptest.NewRequest(http.MethodPost, "/accounts", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusInternalServerError, w.Code)
+}
+
+// verifies getting an account by ID with valid ID returns the account
+func (suite *AccountHandlerTestSuite) TestGetAccountByID_Success() {
+	mockAccount := &models.Account{
+		ID:            1,
+		Name:          "Savings Account",
+		AccountTypeID: 2,
+		UserID:        123,
+	}
+
+	suite.mockService.EXPECT().
+		FetchAccountByID(mock.Anything, int64(123), int64(1), false).
+		Return(mockAccount, nil).
+		Once()
+
+	req := httptest.NewRequest(http.MethodGet, "/accounts/1", nil)
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusOK, w.Code)
+
+	var response models.Account
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	suite.NoError(err)
+	suite.Equal(int64(1), response.ID)
+	suite.Equal("Savings Account", response.Name)
+	suite.Equal(int64(123), response.UserID)
+}
+
+// verifies that a non-existent account returns appropriate error
+func (suite *AccountHandlerTestSuite) TestGetAccountByID_NotFound() {
+	suite.mockService.EXPECT().
+		FetchAccountByID(mock.Anything, int64(123), int64(999), false).
+		Return(nil, errors.New("account not found")).
+		Once()
+
+	req := httptest.NewRequest(http.MethodGet, "/accounts/999", nil)
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusInternalServerError, w.Code)
+}
+
+// verifies updating an account with valid data succeeds
+func (suite *AccountHandlerTestSuite) TestUpdateAccount_Success() {
+	balance := decimal.NewFromFloat(2000.00)
+	payload := &models.AccountReq{
+		Name:           "Updated Account",
+		Classification: "asset",
+		Balance:        &balance,
+		AccountTypeID:  1,
+	}
+
+	suite.mockValidator.EXPECT().
+		ValidateStruct(mock.AnythingOfType("*models.AccountReq")).
+		Return(nil).
+		Once()
+
+	suite.mockService.EXPECT().
+		UpdateAccount(mock.Anything, int64(123), int64(1), mock.Anything).
+		Return(nil).
+		Once()
+
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPut, "/accounts/1", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	suite.NoError(err)
+	suite.Equal("Record updated", response["message"])
+}
+
+// verifies closing an account succeeds
+func (suite *AccountHandlerTestSuite) TestCloseAccount_Success() {
+	suite.mockService.EXPECT().
+		CloseAccount(mock.Anything, int64(123), int64(1)).
+		Return(nil).
+		Once()
+
+	req := httptest.NewRequest(http.MethodDelete, "/accounts/1", nil)
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	suite.NoError(err)
+	suite.Equal("Success", response["title"])
+}
+
+// verifies closing a non-existent account returns error
+func (suite *AccountHandlerTestSuite) TestCloseAccount_NotFound() {
+	suite.mockService.EXPECT().
+		CloseAccount(mock.Anything, int64(123), int64(999)).
+		Return(errors.New("account not found")).
+		Once()
+
+	req := httptest.NewRequest(http.MethodDelete, "/accounts/999", nil)
 	w := httptest.NewRecorder()
 
 	suite.router.ServeHTTP(w, req)
