@@ -84,7 +84,7 @@ func (suite *AccountHandlerTestSuite) TestInsertAccount_Success() {
 					req.AccountTypeID == 1
 			}),
 		).
-		Return(nil).
+		Return(123, nil).
 		Once()
 
 	body, _ := json.Marshal(payload)
@@ -181,7 +181,7 @@ func (suite *AccountHandlerTestSuite) TestInsertAccount_ServiceError() {
 
 	suite.mockService.EXPECT().
 		InsertAccount(mock.Anything, int64(123), mock.Anything).
-		Return(serviceErr).
+		Return(0, serviceErr).
 		Once()
 
 	body, _ := json.Marshal(payload)
@@ -255,7 +255,7 @@ func (suite *AccountHandlerTestSuite) TestUpdateAccount_Success() {
 
 	suite.mockService.EXPECT().
 		UpdateAccount(mock.Anything, int64(123), int64(1), mock.Anything).
-		Return(nil).
+		Return(123, nil).
 		Once()
 
 	body, _ := json.Marshal(payload)

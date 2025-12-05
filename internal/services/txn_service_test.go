@@ -34,21 +34,14 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction() {
 		Balance:        &initialBalance,
 		OpenedAt:       time.Now(),
 	}
-	err := accSvc.InsertAccount(s.Ctx, userID, accReq)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, accReq)
 	s.Require().NoError(err, "failed to create account")
-
-	// Query to get the account ID
-	var account models.Account
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("user_id = ? AND name = ?", userID, accReq.Name).
-		First(&account).Error
-	s.Require().NoError(err, "failed to fetch created account")
 
 	desc := "Test transaction"
 	amount := decimal.NewFromInt(10000)
 
 	req := &models.TransactionReq{
-		AccountID:       account.ID,
+		AccountID:       accID,
 		CategoryID:      nil,
 		TransactionType: "expense",
 		Amount:          amount,
@@ -62,7 +55,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction() {
 	var got models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("user_id = ? AND account_id = ? AND amount = ? AND description = ?",
-			userID, account.ID, req.Amount, req.Description).
+			userID, accID, req.Amount, req.Description).
 		First(&got).Error
 	s.Require().NoError(err)
 
