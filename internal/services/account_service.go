@@ -32,8 +32,6 @@ type AccountServiceInterface interface {
 	UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal) error
 	UpdateBalancesForTransfer(ctx context.Context, tx *gorm.DB, fromAcc, toAcc *models.Account, when time.Time, amount decimal.Decimal) error
 	BackfillBalancesForUser(ctx context.Context, userID int64, from, to string) error
-	resolveUserDateRange(ctx context.Context, tx *gorm.DB, userID int64, from, to string) (time.Time, time.Time, error)
-	backfillAccountRange(ctx context.Context, tx *gorm.DB, acc *models.Account, dfrom, dto time.Time) error
 	FrontfillBalancesForAccount(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error
 	UpdateDailyCashNoSnapshot(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal) error
 	SaveAccountProjection(ctx context.Context, id, userID int64, req *models.AccountProjectionReq) error

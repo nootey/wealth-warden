@@ -15,12 +15,12 @@ import (
 
 type AccountHandler struct {
 	service services.AccountServiceInterface
-	v       *validators.GoValidator
+	v       validators.Validator
 }
 
 func NewAccountHandler(
-	service *services.AccountService,
-	v *validators.GoValidator,
+	service services.AccountServiceInterface,
+	v validators.Validator,
 ) *AccountHandler {
 	return &AccountHandler{
 		service: service,

@@ -14,13 +14,13 @@ import (
 )
 
 type TransactionHandler struct {
-	Service *services.TransactionService
-	v       *validators.GoValidator
+	Service services.TransactionServiceInterface
+	v       validators.Validator
 }
 
 func NewTransactionHandler(
-	service *services.TransactionService,
-	v *validators.GoValidator,
+	service services.TransactionServiceInterface,
+	v validators.Validator,
 ) *TransactionHandler {
 	return &TransactionHandler{
 		Service: service,
