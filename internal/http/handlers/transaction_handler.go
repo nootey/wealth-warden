@@ -188,7 +188,8 @@ func (h *TransactionHandler) InsertTransaction(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.InsertTransaction(ctx, userID, record); err != nil {
+	_, err := h.Service.InsertTransaction(ctx, userID, record)
+	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -213,7 +214,8 @@ func (h *TransactionHandler) InsertTransfer(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.InsertTransfer(ctx, userID, record); err != nil {
+	_, err := h.Service.InsertTransfer(ctx, userID, record)
+	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -238,7 +240,8 @@ func (h *TransactionHandler) InsertCategory(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.InsertCategory(ctx, userID, record); err != nil {
+	_, err := h.Service.InsertCategory(ctx, userID, record)
+	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -277,7 +280,8 @@ func (h *TransactionHandler) UpdateTransaction(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateTransaction(ctx, userID, id, record); err != nil {
+	_, err = h.Service.UpdateTransaction(ctx, userID, id, record)
+	if err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -316,7 +320,8 @@ func (h *TransactionHandler) UpdateCategory(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateCategory(ctx, userID, id, record); err != nil {
+	_, err = h.Service.UpdateCategory(ctx, userID, id, record)
+	if err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -536,7 +541,8 @@ func (h *TransactionHandler) InsertTransactionTemplate(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.InsertTransactionTemplate(ctx, userID, record); err != nil {
+	_, err := h.Service.InsertTransactionTemplate(ctx, userID, record)
+	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -575,7 +581,8 @@ func (h *TransactionHandler) UpdateTransactionTemplate(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateTransactionTemplate(ctx, userID, id, record); err != nil {
+	_, err = h.Service.UpdateTransactionTemplate(ctx, userID, id, record)
+	if err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -724,7 +731,8 @@ func (h *TransactionHandler) InsertCategoryGroup(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.InsertCategoryGroup(ctx, userID, record); err != nil {
+	_, err := h.Service.InsertCategoryGroup(ctx, userID, record)
+	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -763,7 +771,8 @@ func (h *TransactionHandler) UpdateCategoryGroup(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateCategoryGroup(ctx, userID, id, record); err != nil {
+	_, err = h.Service.UpdateCategoryGroup(ctx, userID, id, record)
+	if err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

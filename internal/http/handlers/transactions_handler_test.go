@@ -77,7 +77,7 @@ func (suite *TransactionHandlerTestSuite) TestInsertTransaction_Success() {
 
 	suite.mockService.EXPECT().
 		InsertTransaction(mock.Anything, int64(123), mock.Anything).
-		Return(nil).
+		Return(123, nil).
 		Once()
 
 	body, _ := json.Marshal(payload)
@@ -132,7 +132,7 @@ func (suite *TransactionHandlerTestSuite) TestInsertTransfer_Success() {
 
 	suite.mockService.EXPECT().
 		InsertTransfer(mock.Anything, int64(123), mock.Anything).
-		Return(nil).
+		Return(123, nil).
 		Once()
 
 	body, _ := json.Marshal(payload)
@@ -190,7 +190,7 @@ func (suite *TransactionHandlerTestSuite) TestUpdateTransaction_Success() {
 
 	suite.mockService.EXPECT().
 		UpdateTransaction(mock.Anything, int64(123), int64(1), mock.Anything).
-		Return(nil).
+		Return(123, nil).
 		Once()
 
 	body, _ := json.Marshal(payload)

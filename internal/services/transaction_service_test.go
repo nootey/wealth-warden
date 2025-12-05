@@ -49,7 +49,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction() {
 		Description:     &desc,
 	}
 
-	err = svc.InsertTransaction(s.Ctx, userID, req)
+	_, err = svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().NoError(err)
 
 	var got models.Transaction

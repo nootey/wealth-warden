@@ -91,7 +91,7 @@ func (r *TransactionRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 }
 
 func (r *TransactionRepository) baseTxQuery(ctx context.Context, db *gorm.DB, userID int64, includeDeleted bool) *gorm.DB {
-	q := db.Model(&models.Transaction{}).
+	q := db.WithContext(ctx).Model(&models.Transaction{}).
 		Where("transactions.user_id = ?", userID)
 
 	if !includeDeleted {
@@ -111,7 +111,7 @@ func (r *TransactionRepository) baseTxQuery(ctx context.Context, db *gorm.DB, us
 }
 
 func (r *TransactionRepository) baseTransferQuery(ctx context.Context, db *gorm.DB, userID int64, includeDeleted bool) *gorm.DB {
-	q := db.Model(&models.Transfer{}).
+	q := db.WithContext(ctx).Model(&models.Transfer{}).
 		Where("transfers.user_id = ?", userID)
 
 	if !includeDeleted {
