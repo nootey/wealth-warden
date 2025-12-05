@@ -2,9 +2,9 @@ package workers
 
 import (
 	"context"
+	"fmt"
 	"wealth-warden/pkg/config"
 
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -13,7 +13,7 @@ type AccountType struct {
 	Subtype string `gorm:"column:sub_type"`
 }
 
-func SeedAccountTypes(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
+func SeedAccountTypes(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 
 	var accountTypeSeeds = []AccountType{
 		// Cash
@@ -59,8 +59,7 @@ func SeedAccountTypes(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg 
 			Where("type = ? AND sub_type = ?", seed.Type, seed.Subtype).
 			Count(&existing).Error
 		if err != nil {
-			logger.Error("failed checking existing account_type", zap.Error(err))
-			return err
+			return fmt.Errorf("failed checking existing account_type: %w", err)
 		}
 
 		if existing == 0 {
@@ -68,10 +67,8 @@ func SeedAccountTypes(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg 
 				Type:    seed.Type,
 				Subtype: seed.Subtype,
 			}).Error; err != nil {
-				logger.Error("failed inserting account_type", zap.String("type", seed.Type), zap.String("sub_type", seed.Subtype), zap.Error(err))
-				return err
+				return fmt.Errorf("failed inserting account_type: %w", err)
 			}
-			logger.Info("seeded account_type", zap.String("type", seed.Type), zap.String("sub_type", seed.Subtype))
 		}
 	}
 

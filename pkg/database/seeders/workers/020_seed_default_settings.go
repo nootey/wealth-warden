@@ -2,10 +2,10 @@ package workers
 
 import (
 	"context"
+	"fmt"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/config"
 
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -14,7 +14,7 @@ func strPtr(s string) *string {
 	return &s
 }
 
-func SeedDefaultSettings(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
+func SeedDefaultSettings(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 	defaults := models.SettingsGeneral{
 		SupportEmail:    strPtr("support@wealth.warden"),
 		AllowSignups:    true,
@@ -26,10 +26,8 @@ func SeedDefaultSettings(ctx context.Context, db *gorm.DB, logger *zap.Logger, c
 	if err := db.WithContext(ctx).
 		Clauses(clause.OnConflict{DoNothing: true}).
 		Create(&defaults).Error; err != nil {
-		logger.Error("failed to seed settings_general", zap.Error(err))
-		return err
+		return fmt.Errorf("failed to seed settings_general %w", err)
 	}
 
-	logger.Info("seeded settings_general successfully")
 	return nil
 }
