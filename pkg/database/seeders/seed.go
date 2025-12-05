@@ -22,15 +22,16 @@ func clearStorage() error {
 
 	entries, err := os.ReadDir(storagePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return fmt.Errorf("failed to read storage directory: %w", err)
 	}
 
 	for _, entry := range entries {
-		entryPath := filepath.Join(storagePath, entry.Name())
-
-		err := os.RemoveAll(entryPath)
+		err = os.RemoveAll(filepath.Join(storagePath, entry.Name()))
 		if err != nil {
-			return fmt.Errorf("failed to remove %s: %w", entryPath, err)
+			return fmt.Errorf("failed to remove %s: %w", entry.Name(), err)
 		}
 	}
 
