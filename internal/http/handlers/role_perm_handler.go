@@ -104,7 +104,7 @@ func (h *RolePermissionHandler) InsertRole(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.InsertRole(ctx, userID, req)
+	_, err := h.Service.InsertRole(ctx, userID, req)
 	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -144,7 +144,8 @@ func (h *RolePermissionHandler) UpdateRole(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateRole(ctx, userID, id, record); err != nil {
+	_, err = h.Service.UpdateRole(ctx, userID, id, record)
+	if err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

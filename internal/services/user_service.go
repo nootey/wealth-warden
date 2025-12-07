@@ -19,10 +19,10 @@ type UserServiceInterface interface {
 	FetchUserByID(ctx context.Context, ID int64) (*models.User, error)
 	FetchUserByToken(ctx context.Context, tokenType, tokenValue string) (*models.User, error)
 	FetchInvitationByHash(ctx context.Context, hash string) (*models.Invitation, error)
-	InsertInvitation(ctx context.Context, userID int64, req models.InvitationReq) error
-	UpdateUser(ctx context.Context, userID, id int64, req *models.UserReq) error
+	InsertInvitation(ctx context.Context, userID int64, req models.InvitationReq) (int64, error)
+	UpdateUser(ctx context.Context, userID, id int64, req *models.UserReq) (int64, error)
 	DeleteUser(ctx context.Context, userID, id int64) error
-	ResendInvitation(ctx context.Context, userID, id int64) error
+	ResendInvitation(ctx context.Context, userID, id int64) (int64, error)
 	DeleteInvitation(ctx context.Context, userID, id int64) error
 }
 
@@ -174,15 +174,15 @@ func (s *UserService) FetchInvitationByHash(ctx context.Context, hash string) (*
 	return record, nil
 }
 
-func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req models.InvitationReq) error {
+func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req models.InvitationReq) (int64, error) {
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	hash, err := utils.GenerateSecureToken(64)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	invitation := &models.Invitation{
@@ -191,14 +191,14 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 		Hash:   hash,
 	}
 
-	_, err = s.repo.InsertInvitation(ctx, tx, invitation)
+	invID, err := s.repo.InsertInvitation(ctx, tx, invitation)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	err = tx.Commit().Error
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	changes := utils.InitChanges()
@@ -206,7 +206,7 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 	role, err := s.roleRepo.FindRoleByID(ctx, tx, invitation.RoleID, false)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find role wit given id: %w", err)
+		return 0, fmt.Errorf("can't find role wit given id: %w", err)
 	}
 
 	utils.CompareChanges("", role.Name, changes, "role")
@@ -220,23 +220,23 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 		Payload:     changes,
 		Causer:      &userID,
 	}); err != nil {
-		return err
+		return 0, err
 	}
 
 	name := utils.EmailToName(invitation.Email)
 	err = s.mailer.SendRegistrationEmail(invitation.Email, name, hash)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return invID, nil
 }
 
-func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *models.UserReq) error {
+func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *models.UserReq) (int64, error) {
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	defer func() {
@@ -250,21 +250,21 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 	exUsr, err := s.repo.FindUserByID(ctx, tx, id)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find user with given id %w", err)
+		return 0, fmt.Errorf("can't find user with given id %w", err)
 	}
 
 	// Load old relations
 	oldRole, err := s.roleRepo.FindRoleByID(ctx, tx, exUsr.RoleID, false)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find existing role: %w", err)
+		return 0, fmt.Errorf("can't find existing role: %w", err)
 	}
 
 	// Resolve new relations
 	newRole, err := s.roleRepo.FindRoleByID(ctx, tx, req.RoleID, false)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find role wit given id: %w", err)
+		return 0, fmt.Errorf("can't find role wit given id: %w", err)
 	}
 
 	usr := models.User{
@@ -273,33 +273,33 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 		RoleID:      newRole.ID,
 	}
 
-	_, err = s.repo.UpdateUser(ctx, tx, usr)
+	uID, err := s.repo.UpdateUser(ctx, tx, usr)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return 0, err
 	}
 
 	if req.Password != nil {
 		if req.Password != req.PasswordConfirmation {
 			tx.Rollback()
-			return errors.New("password confirmation must match provided password")
+			return 0, errors.New("password confirmation must match provided password")
 		}
 
 		hashedPassword, err := utils.HashAndSaltPassword(*req.Password)
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to hash password: %w", err)
+			return 0, fmt.Errorf("failed to hash password: %w", err)
 		}
 
 		err = s.repo.UpdateUserPassword(ctx, tx, exUsr.ID, hashedPassword)
 		if err != nil {
 			_ = tx.Rollback()
-			return err
+			return 0, err
 		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return err
+		return 0, err
 	}
 
 	changes := utils.InitChanges()
@@ -315,11 +315,11 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 			Payload:     changes,
 			Causer:      &userID,
 		}); err != nil {
-			return err
+			return 0, err
 		}
 	}
 
-	return nil
+	return uID, nil
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
@@ -377,26 +377,26 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 	return nil
 }
 
-func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) error {
+func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) (int64, error) {
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	invitation, err := s.repo.FindInvitationByID(ctx, tx, id)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return 0, err
 	}
 	if invitation == nil {
 		tx.Rollback()
-		return errors.New("invitation with the given ID does not exist")
+		return 0, errors.New("invitation with the given ID does not exist")
 	}
 
 	hash, err := utils.GenerateSecureToken(64)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	newInv := &models.Invitation{
@@ -409,25 +409,25 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) er
 	err = s.repo.DeleteInvitation(ctx, tx, id)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return 0, err
 	}
 
 	// Insert new invitation
-	_, err = s.repo.InsertInvitation(ctx, tx, newInv)
+	invID, err := s.repo.InsertInvitation(ctx, tx, newInv)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	err = tx.Commit().Error
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	name := utils.EmailToName(newInv.Email)
 
 	err = s.mailer.SendRegistrationEmail(newInv.Email, name, hash)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	changes := utils.InitChanges()
@@ -435,7 +435,7 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) er
 	role, err := s.roleRepo.FindRoleByID(ctx, tx, newInv.RoleID, false)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find role wit given id: %w", err)
+		return 0, fmt.Errorf("can't find role wit given id: %w", err)
 	}
 
 	utils.CompareChanges("", role.Name, changes, "role")
@@ -449,10 +449,10 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) er
 		Payload:     changes,
 		Causer:      &userID,
 	}); err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return invID, nil
 }
 
 func (s *UserService) DeleteInvitation(ctx context.Context, userID, id int64) error {

@@ -15,8 +15,8 @@ type RolePermissionServiceInterface interface {
 	FetchAllRoles(ctx context.Context, withPermissions bool) ([]models.Role, error)
 	FetchAllPermissions(ctx context.Context) ([]models.Permission, error)
 	FetchRoleByID(ctx context.Context, ID int64, withPermissions bool) (*models.Role, error)
-	InsertRole(ctx context.Context, userID int64, req models.RoleReq) error
-	UpdateRole(ctx context.Context, userID, id int64, req *models.RoleReq) error
+	InsertRole(ctx context.Context, userID int64, req models.RoleReq) (int64, error)
+	UpdateRole(ctx context.Context, userID, id int64, req *models.RoleReq) (int64, error)
 	DeleteRole(ctx context.Context, userID, id int64) error
 }
 type RolePermissionService struct {
@@ -56,11 +56,11 @@ func (s *RolePermissionService) FetchRoleByID(ctx context.Context, ID int64, wit
 	return record, nil
 }
 
-func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, req models.RoleReq) error {
+func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, req models.RoleReq) (int64, error) {
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	role := models.Role{
@@ -69,9 +69,9 @@ func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, re
 		IsDefault:   false,
 	}
 
-	_, err = s.repo.InsertRole(ctx, tx, &role)
+	roleID, err := s.repo.InsertRole(ctx, tx, &role)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	permIDs := make([]int64, 0, len(req.Permissions))
@@ -81,16 +81,16 @@ func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, re
 		}
 	}
 	if err = s.repo.EnsurePermissionsExist(ctx, tx, permIDs); err != nil {
-		return err
+		return 0, err
 	}
 
 	if err = s.repo.AttachPermissionIDs(ctx, tx, role.ID, permIDs); err != nil {
-		return err
+		return 0, err
 	}
 
 	err = tx.Commit().Error
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	changes := utils.InitChanges()
@@ -123,17 +123,17 @@ func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, re
 		Payload:     changes,
 		Causer:      &userID,
 	}); err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return roleID, nil
 }
 
-func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64, req *models.RoleReq) error {
+func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64, req *models.RoleReq) (int64, error) {
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer func() {
 		if p := recover(); p != nil {
@@ -146,7 +146,7 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 	exRole, err := s.repo.FindRoleByID(ctx, tx, id, true)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find user with given id %w", err)
+		return 0, fmt.Errorf("can't find user with given id %w", err)
 	}
 
 	role := models.Role{
@@ -155,10 +155,10 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 		Description: &req.Description,
 	}
 
-	_, err = s.repo.UpdateRole(ctx, tx, role)
+	roleID, err := s.repo.UpdateRole(ctx, tx, role)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return 0, err
 	}
 
 	if !role.IsDefault {
@@ -170,16 +170,16 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 		}
 		if err := s.repo.EnsurePermissionsExist(ctx, tx, permIDs); err != nil {
 			tx.Rollback()
-			return err
+			return 0, err
 		}
 		if err := s.repo.ReplaceRolePermissions(ctx, tx, role.ID, permIDs); err != nil {
 			tx.Rollback()
-			return err
+			return 0, err
 		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return err
+		return 0, err
 	}
 
 	changes := utils.InitChanges()
@@ -210,11 +210,11 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 			Payload:     changes,
 			Causer:      &userID,
 		}); err != nil {
-			return err
+			return 0, err
 		}
 	}
 
-	return nil
+	return roleID, nil
 }
 
 func (s *RolePermissionService) DeleteRole(ctx context.Context, userID, id int64) error {
