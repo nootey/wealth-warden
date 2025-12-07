@@ -2,9 +2,10 @@ package utils
 
 import (
 	"fmt"
-	"gorm.io/gorm"
 	"regexp"
 	"strings"
+
+	"gorm.io/gorm"
 )
 
 type FieldMetadata struct {

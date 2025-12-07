@@ -1,8 +1,9 @@
 package utils
 
 import (
-	"github.com/shopspring/decimal"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type Changes struct {
