@@ -2,6 +2,7 @@ package workers
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -13,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
+func SeedAccounts(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 	type acctSeed struct {
 		Name              string
 		Type              string
@@ -55,7 +56,7 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 	for _, uname := range usernames {
 		u, ok := usersByName[uname]
 		if !ok {
-			logger.Warn("user not found, skipping", zap.String("username", uname))
+			fmt.Println("user not found, skipping")
 			continue
 		}
 
@@ -114,12 +115,7 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 			if err := db.WithContext(ctx).Create(&bal).Error; err != nil {
 				return err
 			}
-
-			logger.Info("seeded account",
-				zap.String("display_name", uname),
-				zap.String("name", s.Name),
-				zap.String("start_balance", s.StartBalance.StringFixed(2)),
-			)
+			
 		}
 	}
 

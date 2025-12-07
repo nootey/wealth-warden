@@ -156,7 +156,7 @@ func (h *UserHandler) InsertInvitation(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.InsertInvitation(ctx, userID, req)
+	_, err := h.Service.InsertInvitation(ctx, userID, req)
 	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -195,7 +195,8 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.UpdateUser(ctx, userID, id, record); err != nil {
+	_, err = h.Service.UpdateUser(ctx, userID, id, record)
+	if err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -249,7 +250,8 @@ func (h *UserHandler) ResendInvitation(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.ResendInvitation(ctx, userID, id); err != nil {
+	_, err = h.Service.ResendInvitation(ctx, userID, id)
+	if err != nil {
 		utils.ErrorMessage(c, "Resend error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

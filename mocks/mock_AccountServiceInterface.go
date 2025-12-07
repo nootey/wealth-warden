@@ -669,21 +669,31 @@ func (_c *MockAccountServiceInterface_FrontfillBalancesForAccount_Call) RunAndRe
 }
 
 // InsertAccount provides a mock function with given fields: ctx, userID, req
-func (_m *MockAccountServiceInterface) InsertAccount(ctx context.Context, userID int64, req *models.AccountReq) error {
+func (_m *MockAccountServiceInterface) InsertAccount(ctx context.Context, userID int64, req *models.AccountReq) (int64, error) {
 	ret := _m.Called(ctx, userID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for InsertAccount")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.AccountReq) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.AccountReq) (int64, error)); ok {
+		return rf(ctx, userID, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.AccountReq) int64); ok {
 		r0 = rf(ctx, userID, req)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, int64, *models.AccountReq) error); ok {
+		r1 = rf(ctx, userID, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockAccountServiceInterface_InsertAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InsertAccount'
@@ -706,12 +716,12 @@ func (_c *MockAccountServiceInterface_InsertAccount_Call) Run(run func(ctx conte
 	return _c
 }
 
-func (_c *MockAccountServiceInterface_InsertAccount_Call) Return(_a0 error) *MockAccountServiceInterface_InsertAccount_Call {
-	_c.Call.Return(_a0)
+func (_c *MockAccountServiceInterface_InsertAccount_Call) Return(_a0 int64, _a1 error) *MockAccountServiceInterface_InsertAccount_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockAccountServiceInterface_InsertAccount_Call) RunAndReturn(run func(context.Context, int64, *models.AccountReq) error) *MockAccountServiceInterface_InsertAccount_Call {
+func (_c *MockAccountServiceInterface_InsertAccount_Call) RunAndReturn(run func(context.Context, int64, *models.AccountReq) (int64, error)) *MockAccountServiceInterface_InsertAccount_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -862,21 +872,31 @@ func (_c *MockAccountServiceInterface_ToggleAccountActiveState_Call) RunAndRetur
 }
 
 // UpdateAccount provides a mock function with given fields: ctx, userID, id, req
-func (_m *MockAccountServiceInterface) UpdateAccount(ctx context.Context, userID int64, id int64, req *models.AccountReq) error {
+func (_m *MockAccountServiceInterface) UpdateAccount(ctx context.Context, userID int64, id int64, req *models.AccountReq) (int64, error) {
 	ret := _m.Called(ctx, userID, id, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateAccount")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.AccountReq) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.AccountReq) (int64, error)); ok {
+		return rf(ctx, userID, id, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.AccountReq) int64); ok {
 		r0 = rf(ctx, userID, id, req)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, int64, int64, *models.AccountReq) error); ok {
+		r1 = rf(ctx, userID, id, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockAccountServiceInterface_UpdateAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateAccount'
@@ -900,12 +920,12 @@ func (_c *MockAccountServiceInterface_UpdateAccount_Call) Run(run func(ctx conte
 	return _c
 }
 
-func (_c *MockAccountServiceInterface_UpdateAccount_Call) Return(_a0 error) *MockAccountServiceInterface_UpdateAccount_Call {
-	_c.Call.Return(_a0)
+func (_c *MockAccountServiceInterface_UpdateAccount_Call) Return(_a0 int64, _a1 error) *MockAccountServiceInterface_UpdateAccount_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockAccountServiceInterface_UpdateAccount_Call) RunAndReturn(run func(context.Context, int64, int64, *models.AccountReq) error) *MockAccountServiceInterface_UpdateAccount_Call {
+func (_c *MockAccountServiceInterface_UpdateAccount_Call) RunAndReturn(run func(context.Context, int64, int64, *models.AccountReq) (int64, error)) *MockAccountServiceInterface_UpdateAccount_Call {
 	_c.Call.Return(run)
 	return _c
 }

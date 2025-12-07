@@ -2,16 +2,16 @@ package workers
 
 import (
 	"context"
+	"fmt"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-func SeedCategories(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
+func SeedCategories(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 	// Top-level categories
 	mainCategories := []struct {
 		Name           string
@@ -53,8 +53,7 @@ func SeedCategories(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *c
 		}
 
 		if err := db.WithContext(ctx).Create(&mainCategory).Error; err != nil {
-			logger.Error("failed to create main category", zap.String("name", mainCat.Name), zap.Error(err))
-			return err
+			return fmt.Errorf("failed to create main category %w", err)
 		}
 
 		// Subcategories
@@ -70,8 +69,7 @@ func SeedCategories(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *c
 				UpdatedAt:      time.Now().UTC(),
 			}
 			if err := db.WithContext(ctx).Create(&subCategory).Error; err != nil {
-				logger.Error("failed to create subcategory", zap.String("name", childName), zap.Error(err))
-				return err
+				return fmt.Errorf("failed to create sub category %w", err)
 			}
 		}
 	}

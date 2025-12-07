@@ -7,12 +7,10 @@ import (
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
-	"go.uber.org/zap"
-
 	"gorm.io/gorm"
 )
 
-func SeedRootUser(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
+func SeedRootUser(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 
 	email := cfg.Seed.SuperAdminEmail
 

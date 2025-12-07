@@ -195,7 +195,8 @@ func (h *AccountHandler) InsertAccount(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.InsertAccount(ctx, userID, record); err != nil {
+	_, err := h.service.InsertAccount(ctx, userID, record)
+	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -234,7 +235,8 @@ func (h *AccountHandler) UpdateAccount(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.UpdateAccount(ctx, userID, id, req); err != nil {
+	_, err = h.service.UpdateAccount(ctx, userID, id, req)
+	if err != nil {
 		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

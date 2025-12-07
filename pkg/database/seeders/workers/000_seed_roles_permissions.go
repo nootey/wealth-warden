@@ -6,12 +6,10 @@ import (
 	"time"
 	"wealth-warden/pkg/config"
 
-	"go.uber.org/zap"
-
 	"gorm.io/gorm"
 )
 
-func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
+func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 
 	type roleDef struct {
 		Name string
@@ -137,7 +135,6 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 			if err != nil {
 				return fmt.Errorf("error inserting role %s: %w", role.Name, err)
 			}
-			fmt.Printf("Inserted role: %s\n", role.Name)
 			err = db.WithContext(ctx).Raw(`SELECT id FROM roles WHERE name = ?`, role.Name).Scan(&roleID).Error
 			if err != nil {
 				return fmt.Errorf("error retrieving inserted role ID for %s: %w", role.Name, err)
@@ -162,7 +159,6 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 			if err != nil {
 				return fmt.Errorf("error inserting permission %s: %w", perm, err)
 			}
-			fmt.Printf("Inserted permission: %s\n", perm.Name)
 			err = db.WithContext(ctx).Raw(`SELECT id FROM permissions WHERE name = ?`, perm.Name).Scan(&permID).Error
 			if err != nil {
 				return fmt.Errorf("error retrieving inserted permission ID for %s: %w", perm, err)
@@ -189,10 +185,6 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, logger *zap.Logge
 				if err != nil {
 					return fmt.Errorf("error inserting role_permission for %s -> %s: %w", rolePerm.Role, perm, err)
 				}
-				logger.Info("Assigned permission to role",
-					zap.String("permission", perm),
-					zap.String("role", rolePerm.Role),
-				)
 			}
 		}
 	}

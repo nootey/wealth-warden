@@ -2,6 +2,7 @@ package workers
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"math/rand"
 	"time"
@@ -12,11 +13,10 @@ import (
 	"wealth-warden/pkg/config"
 
 	"github.com/shopspring/decimal"
-	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
+func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 	rng := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
@@ -61,7 +61,7 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg 
 			return err
 		}
 		if len(accounts) == 0 {
-			logger.Info("no accounts for user", zap.Int64("user_id", u.ID))
+			fmt.Println("no accounts for user")
 			continue
 		}
 
@@ -184,12 +184,6 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg 
 				}
 			}
 
-			logger.Info("seeded transactions",
-				zap.Int64("user_id", u.ID),
-				zap.Int("count", perAcc),
-				zap.String("account", acc.Name),
-				zap.String("ending_balance", currBal.StringFixed(2)),
-			)
 		}
 	}
 

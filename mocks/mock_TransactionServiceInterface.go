@@ -952,21 +952,31 @@ func (_c *MockTransactionServiceInterface_GetTransactionTemplateCount_Call) RunA
 }
 
 // InsertCategory provides a mock function with given fields: ctx, userID, req
-func (_m *MockTransactionServiceInterface) InsertCategory(ctx context.Context, userID int64, req *models.CategoryReq) error {
+func (_m *MockTransactionServiceInterface) InsertCategory(ctx context.Context, userID int64, req *models.CategoryReq) (int64, error) {
 	ret := _m.Called(ctx, userID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for InsertCategory")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.CategoryReq) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.CategoryReq) (int64, error)); ok {
+		return rf(ctx, userID, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.CategoryReq) int64); ok {
 		r0 = rf(ctx, userID, req)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, int64, *models.CategoryReq) error); ok {
+		r1 = rf(ctx, userID, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockTransactionServiceInterface_InsertCategory_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InsertCategory'
@@ -989,32 +999,42 @@ func (_c *MockTransactionServiceInterface_InsertCategory_Call) Run(run func(ctx 
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertCategory_Call) Return(_a0 error) *MockTransactionServiceInterface_InsertCategory_Call {
-	_c.Call.Return(_a0)
+func (_c *MockTransactionServiceInterface_InsertCategory_Call) Return(_a0 int64, _a1 error) *MockTransactionServiceInterface_InsertCategory_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertCategory_Call) RunAndReturn(run func(context.Context, int64, *models.CategoryReq) error) *MockTransactionServiceInterface_InsertCategory_Call {
+func (_c *MockTransactionServiceInterface_InsertCategory_Call) RunAndReturn(run func(context.Context, int64, *models.CategoryReq) (int64, error)) *MockTransactionServiceInterface_InsertCategory_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // InsertCategoryGroup provides a mock function with given fields: ctx, userID, req
-func (_m *MockTransactionServiceInterface) InsertCategoryGroup(ctx context.Context, userID int64, req *models.CategoryGroupReq) error {
+func (_m *MockTransactionServiceInterface) InsertCategoryGroup(ctx context.Context, userID int64, req *models.CategoryGroupReq) (int64, error) {
 	ret := _m.Called(ctx, userID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for InsertCategoryGroup")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.CategoryGroupReq) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.CategoryGroupReq) (int64, error)); ok {
+		return rf(ctx, userID, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.CategoryGroupReq) int64); ok {
 		r0 = rf(ctx, userID, req)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, int64, *models.CategoryGroupReq) error); ok {
+		r1 = rf(ctx, userID, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockTransactionServiceInterface_InsertCategoryGroup_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InsertCategoryGroup'
@@ -1037,32 +1057,42 @@ func (_c *MockTransactionServiceInterface_InsertCategoryGroup_Call) Run(run func
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertCategoryGroup_Call) Return(_a0 error) *MockTransactionServiceInterface_InsertCategoryGroup_Call {
-	_c.Call.Return(_a0)
+func (_c *MockTransactionServiceInterface_InsertCategoryGroup_Call) Return(_a0 int64, _a1 error) *MockTransactionServiceInterface_InsertCategoryGroup_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertCategoryGroup_Call) RunAndReturn(run func(context.Context, int64, *models.CategoryGroupReq) error) *MockTransactionServiceInterface_InsertCategoryGroup_Call {
+func (_c *MockTransactionServiceInterface_InsertCategoryGroup_Call) RunAndReturn(run func(context.Context, int64, *models.CategoryGroupReq) (int64, error)) *MockTransactionServiceInterface_InsertCategoryGroup_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // InsertTransaction provides a mock function with given fields: ctx, userID, req
-func (_m *MockTransactionServiceInterface) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq) error {
+func (_m *MockTransactionServiceInterface) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq) (int64, error) {
 	ret := _m.Called(ctx, userID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for InsertTransaction")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionReq) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionReq) (int64, error)); ok {
+		return rf(ctx, userID, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionReq) int64); ok {
 		r0 = rf(ctx, userID, req)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, int64, *models.TransactionReq) error); ok {
+		r1 = rf(ctx, userID, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockTransactionServiceInterface_InsertTransaction_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InsertTransaction'
@@ -1085,32 +1115,42 @@ func (_c *MockTransactionServiceInterface_InsertTransaction_Call) Run(run func(c
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertTransaction_Call) Return(_a0 error) *MockTransactionServiceInterface_InsertTransaction_Call {
-	_c.Call.Return(_a0)
+func (_c *MockTransactionServiceInterface_InsertTransaction_Call) Return(_a0 int64, _a1 error) *MockTransactionServiceInterface_InsertTransaction_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertTransaction_Call) RunAndReturn(run func(context.Context, int64, *models.TransactionReq) error) *MockTransactionServiceInterface_InsertTransaction_Call {
+func (_c *MockTransactionServiceInterface_InsertTransaction_Call) RunAndReturn(run func(context.Context, int64, *models.TransactionReq) (int64, error)) *MockTransactionServiceInterface_InsertTransaction_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // InsertTransactionTemplate provides a mock function with given fields: ctx, userID, req
-func (_m *MockTransactionServiceInterface) InsertTransactionTemplate(ctx context.Context, userID int64, req *models.TransactionTemplateReq) error {
+func (_m *MockTransactionServiceInterface) InsertTransactionTemplate(ctx context.Context, userID int64, req *models.TransactionTemplateReq) (int64, error) {
 	ret := _m.Called(ctx, userID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for InsertTransactionTemplate")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionTemplateReq) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionTemplateReq) (int64, error)); ok {
+		return rf(ctx, userID, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionTemplateReq) int64); ok {
 		r0 = rf(ctx, userID, req)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, int64, *models.TransactionTemplateReq) error); ok {
+		r1 = rf(ctx, userID, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockTransactionServiceInterface_InsertTransactionTemplate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InsertTransactionTemplate'
@@ -1133,32 +1173,42 @@ func (_c *MockTransactionServiceInterface_InsertTransactionTemplate_Call) Run(ru
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertTransactionTemplate_Call) Return(_a0 error) *MockTransactionServiceInterface_InsertTransactionTemplate_Call {
-	_c.Call.Return(_a0)
+func (_c *MockTransactionServiceInterface_InsertTransactionTemplate_Call) Return(_a0 int64, _a1 error) *MockTransactionServiceInterface_InsertTransactionTemplate_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertTransactionTemplate_Call) RunAndReturn(run func(context.Context, int64, *models.TransactionTemplateReq) error) *MockTransactionServiceInterface_InsertTransactionTemplate_Call {
+func (_c *MockTransactionServiceInterface_InsertTransactionTemplate_Call) RunAndReturn(run func(context.Context, int64, *models.TransactionTemplateReq) (int64, error)) *MockTransactionServiceInterface_InsertTransactionTemplate_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // InsertTransfer provides a mock function with given fields: ctx, userID, req
-func (_m *MockTransactionServiceInterface) InsertTransfer(ctx context.Context, userID int64, req *models.TransferReq) error {
+func (_m *MockTransactionServiceInterface) InsertTransfer(ctx context.Context, userID int64, req *models.TransferReq) (int64, error) {
 	ret := _m.Called(ctx, userID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for InsertTransfer")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransferReq) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransferReq) (int64, error)); ok {
+		return rf(ctx, userID, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransferReq) int64); ok {
 		r0 = rf(ctx, userID, req)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, int64, *models.TransferReq) error); ok {
+		r1 = rf(ctx, userID, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockTransactionServiceInterface_InsertTransfer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InsertTransfer'
@@ -1181,12 +1231,12 @@ func (_c *MockTransactionServiceInterface_InsertTransfer_Call) Run(run func(ctx 
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertTransfer_Call) Return(_a0 error) *MockTransactionServiceInterface_InsertTransfer_Call {
-	_c.Call.Return(_a0)
+func (_c *MockTransactionServiceInterface_InsertTransfer_Call) Return(_a0 int64, _a1 error) *MockTransactionServiceInterface_InsertTransfer_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertTransfer_Call) RunAndReturn(run func(context.Context, int64, *models.TransferReq) error) *MockTransactionServiceInterface_InsertTransfer_Call {
+func (_c *MockTransactionServiceInterface_InsertTransfer_Call) RunAndReturn(run func(context.Context, int64, *models.TransferReq) (int64, error)) *MockTransactionServiceInterface_InsertTransfer_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1384,21 +1434,31 @@ func (_c *MockTransactionServiceInterface_ToggleTransactionTemplateActiveState_C
 }
 
 // UpdateCategory provides a mock function with given fields: ctx, userID, id, req
-func (_m *MockTransactionServiceInterface) UpdateCategory(ctx context.Context, userID int64, id int64, req *models.CategoryReq) error {
+func (_m *MockTransactionServiceInterface) UpdateCategory(ctx context.Context, userID int64, id int64, req *models.CategoryReq) (int64, error) {
 	ret := _m.Called(ctx, userID, id, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateCategory")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.CategoryReq) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.CategoryReq) (int64, error)); ok {
+		return rf(ctx, userID, id, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.CategoryReq) int64); ok {
 		r0 = rf(ctx, userID, id, req)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, int64, int64, *models.CategoryReq) error); ok {
+		r1 = rf(ctx, userID, id, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockTransactionServiceInterface_UpdateCategory_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateCategory'
@@ -1422,32 +1482,42 @@ func (_c *MockTransactionServiceInterface_UpdateCategory_Call) Run(run func(ctx 
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_UpdateCategory_Call) Return(_a0 error) *MockTransactionServiceInterface_UpdateCategory_Call {
-	_c.Call.Return(_a0)
+func (_c *MockTransactionServiceInterface_UpdateCategory_Call) Return(_a0 int64, _a1 error) *MockTransactionServiceInterface_UpdateCategory_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_UpdateCategory_Call) RunAndReturn(run func(context.Context, int64, int64, *models.CategoryReq) error) *MockTransactionServiceInterface_UpdateCategory_Call {
+func (_c *MockTransactionServiceInterface_UpdateCategory_Call) RunAndReturn(run func(context.Context, int64, int64, *models.CategoryReq) (int64, error)) *MockTransactionServiceInterface_UpdateCategory_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // UpdateCategoryGroup provides a mock function with given fields: ctx, userID, id, req
-func (_m *MockTransactionServiceInterface) UpdateCategoryGroup(ctx context.Context, userID int64, id int64, req *models.CategoryGroupReq) error {
+func (_m *MockTransactionServiceInterface) UpdateCategoryGroup(ctx context.Context, userID int64, id int64, req *models.CategoryGroupReq) (int64, error) {
 	ret := _m.Called(ctx, userID, id, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateCategoryGroup")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.CategoryGroupReq) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.CategoryGroupReq) (int64, error)); ok {
+		return rf(ctx, userID, id, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.CategoryGroupReq) int64); ok {
 		r0 = rf(ctx, userID, id, req)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, int64, int64, *models.CategoryGroupReq) error); ok {
+		r1 = rf(ctx, userID, id, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockTransactionServiceInterface_UpdateCategoryGroup_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateCategoryGroup'
@@ -1471,32 +1541,42 @@ func (_c *MockTransactionServiceInterface_UpdateCategoryGroup_Call) Run(run func
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_UpdateCategoryGroup_Call) Return(_a0 error) *MockTransactionServiceInterface_UpdateCategoryGroup_Call {
-	_c.Call.Return(_a0)
+func (_c *MockTransactionServiceInterface_UpdateCategoryGroup_Call) Return(_a0 int64, _a1 error) *MockTransactionServiceInterface_UpdateCategoryGroup_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_UpdateCategoryGroup_Call) RunAndReturn(run func(context.Context, int64, int64, *models.CategoryGroupReq) error) *MockTransactionServiceInterface_UpdateCategoryGroup_Call {
+func (_c *MockTransactionServiceInterface_UpdateCategoryGroup_Call) RunAndReturn(run func(context.Context, int64, int64, *models.CategoryGroupReq) (int64, error)) *MockTransactionServiceInterface_UpdateCategoryGroup_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // UpdateTransaction provides a mock function with given fields: ctx, userID, id, req
-func (_m *MockTransactionServiceInterface) UpdateTransaction(ctx context.Context, userID int64, id int64, req *models.TransactionReq) error {
+func (_m *MockTransactionServiceInterface) UpdateTransaction(ctx context.Context, userID int64, id int64, req *models.TransactionReq) (int64, error) {
 	ret := _m.Called(ctx, userID, id, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateTransaction")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.TransactionReq) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.TransactionReq) (int64, error)); ok {
+		return rf(ctx, userID, id, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.TransactionReq) int64); ok {
 		r0 = rf(ctx, userID, id, req)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, int64, int64, *models.TransactionReq) error); ok {
+		r1 = rf(ctx, userID, id, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockTransactionServiceInterface_UpdateTransaction_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateTransaction'
@@ -1520,32 +1600,42 @@ func (_c *MockTransactionServiceInterface_UpdateTransaction_Call) Run(run func(c
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_UpdateTransaction_Call) Return(_a0 error) *MockTransactionServiceInterface_UpdateTransaction_Call {
-	_c.Call.Return(_a0)
+func (_c *MockTransactionServiceInterface_UpdateTransaction_Call) Return(_a0 int64, _a1 error) *MockTransactionServiceInterface_UpdateTransaction_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_UpdateTransaction_Call) RunAndReturn(run func(context.Context, int64, int64, *models.TransactionReq) error) *MockTransactionServiceInterface_UpdateTransaction_Call {
+func (_c *MockTransactionServiceInterface_UpdateTransaction_Call) RunAndReturn(run func(context.Context, int64, int64, *models.TransactionReq) (int64, error)) *MockTransactionServiceInterface_UpdateTransaction_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // UpdateTransactionTemplate provides a mock function with given fields: ctx, userID, id, req
-func (_m *MockTransactionServiceInterface) UpdateTransactionTemplate(ctx context.Context, userID int64, id int64, req *models.TransactionTemplateReq) error {
+func (_m *MockTransactionServiceInterface) UpdateTransactionTemplate(ctx context.Context, userID int64, id int64, req *models.TransactionTemplateReq) (int64, error) {
 	ret := _m.Called(ctx, userID, id, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateTransactionTemplate")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.TransactionTemplateReq) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.TransactionTemplateReq) (int64, error)); ok {
+		return rf(ctx, userID, id, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64, *models.TransactionTemplateReq) int64); ok {
 		r0 = rf(ctx, userID, id, req)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, int64, int64, *models.TransactionTemplateReq) error); ok {
+		r1 = rf(ctx, userID, id, req)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockTransactionServiceInterface_UpdateTransactionTemplate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateTransactionTemplate'
@@ -1569,12 +1659,12 @@ func (_c *MockTransactionServiceInterface_UpdateTransactionTemplate_Call) Run(ru
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_UpdateTransactionTemplate_Call) Return(_a0 error) *MockTransactionServiceInterface_UpdateTransactionTemplate_Call {
-	_c.Call.Return(_a0)
+func (_c *MockTransactionServiceInterface_UpdateTransactionTemplate_Call) Return(_a0 int64, _a1 error) *MockTransactionServiceInterface_UpdateTransactionTemplate_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_UpdateTransactionTemplate_Call) RunAndReturn(run func(context.Context, int64, int64, *models.TransactionTemplateReq) error) *MockTransactionServiceInterface_UpdateTransactionTemplate_Call {
+func (_c *MockTransactionServiceInterface_UpdateTransactionTemplate_Call) RunAndReturn(run func(context.Context, int64, int64, *models.TransactionTemplateReq) (int64, error)) *MockTransactionServiceInterface_UpdateTransactionTemplate_Call {
 	_c.Call.Return(run)
 	return _c
 }

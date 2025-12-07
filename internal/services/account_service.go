@@ -25,8 +25,8 @@ type AccountServiceInterface interface {
 	FetchAllAccountTypes(ctx context.Context) ([]models.AccountType, error)
 	FetchAccountsBySubtype(ctx context.Context, userID int64, subtype string) ([]models.Account, error)
 	FetchAccountsByType(ctx context.Context, userID int64, t string) ([]models.Account, error)
-	InsertAccount(ctx context.Context, userID int64, req *models.AccountReq) error
-	UpdateAccount(ctx context.Context, userID int64, id int64, req *models.AccountReq) error
+	InsertAccount(ctx context.Context, userID int64, req *models.AccountReq) (int64, error)
+	UpdateAccount(ctx context.Context, userID int64, id int64, req *models.AccountReq) (int64, error)
 	ToggleAccountActiveState(ctx context.Context, userID int64, id int64) error
 	CloseAccount(ctx context.Context, userID int64, id int64) error
 	UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal) error
@@ -177,31 +177,31 @@ func (s *AccountService) FetchAccountsByType(ctx context.Context, userID int64, 
 	return s.repo.FetchAccountsByType(ctx, nil, userID, t, true)
 }
 
-func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *models.AccountReq) error {
+func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *models.AccountReq) (int64, error) {
 
 	changes := utils.InitChanges()
 
 	if req.Classification == "asset" && req.Balance.LessThan(decimal.NewFromInt(0)) {
-		return errors.New("provided initial balance cannot be negative")
+		return 0, errors.New("provided initial balance cannot be negative")
 	}
 
 	accCount, err := s.repo.CountAccounts(ctx, nil, userID, nil, false, nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	maxAcc, err := s.settingsRepo.FetchMaxAccountsForUser(ctx, nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if accCount >= maxAcc {
-		return fmt.Errorf("you can only have %d active accounts", maxAcc)
+		return 0, fmt.Errorf("you can only have %d active accounts", maxAcc)
 	}
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	defer func() {
@@ -214,7 +214,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't fetch user settings %w", err)
+		return 0, fmt.Errorf("can't fetch user settings %w", err)
 	}
 
 	loc, _ := time.LoadLocation(settings.Timezone)
@@ -230,7 +230,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 
 	accType, err := s.repo.FindAccountTypeByID(ctx, tx, req.AccountTypeID)
 	if err != nil {
-		return fmt.Errorf("can't find account_type for given id %w", err)
+		return 0, fmt.Errorf("can't find account_type for given id %w", err)
 	}
 
 	account := &models.Account{
@@ -256,7 +256,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 	accountID, err := s.repo.InsertAccount(ctx, tx, account)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return 0, err
 	}
 
 	amount := req.Balance.Round(4)
@@ -277,7 +277,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 	_, err = s.repo.InsertBalance(ctx, tx, balance)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return 0, err
 	}
 
 	// seed snapshots from opened day to today
@@ -291,11 +291,11 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 		time.Now().UTC().Truncate(24*time.Hour),
 	); err != nil {
 		tx.Rollback()
-		return err
+		return 0, err
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return err
+		return 0, err
 	}
 
 	err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
@@ -307,17 +307,17 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 		Causer:      &userID,
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return accountID, nil
 }
 
-func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int64, req *models.AccountReq) error {
+func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int64, req *models.AccountReq) (int64, error) {
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	defer func() {
@@ -330,30 +330,30 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 	// Load record
 	exAcc, err := s.repo.FindAccountByIDWithInitialBalance(ctx, tx, id, userID)
 	if err != nil {
-		return fmt.Errorf("can't find account with given id %w", err)
+		return 0, fmt.Errorf("can't find account with given id %w", err)
 	}
 
 	if !exAcc.IsActive {
-		return errors.New("can't update non-active account")
+		return 0, errors.New("can't update non-active account")
 	}
 
 	// Load existing relations for comparison
 	exAccType, err := s.repo.FindAccountTypeByID(ctx, tx, exAcc.AccountTypeID)
 	if err != nil {
-		return fmt.Errorf("can't find account type with given id %w", err)
+		return 0, fmt.Errorf("can't find account type with given id %w", err)
 	}
 
 	// Resolve new relations  from req
 	newAccType, err := s.repo.FindAccountTypeByID(ctx, tx, req.AccountTypeID)
 	if err != nil {
-		return fmt.Errorf("can't find account type with given id %w", err)
+		return 0, fmt.Errorf("can't find account type with given id %w", err)
 	}
 
 	// Handle OpenedAt change
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't fetch user settings %w", err)
+		return 0, fmt.Errorf("can't fetch user settings %w", err)
 	}
 
 	loc, _ := time.LoadLocation(settings.Timezone)
@@ -373,14 +373,14 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		earliestTxnDate, err := s.repo.FindEarliestTransactionDate(ctx, tx, id)
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to check transaction dates: %w", err)
+			return 0, fmt.Errorf("failed to check transaction dates: %w", err)
 		}
 
 		if earliestTxnDate != nil {
 			// validate the new date is before earliest transaction
 			if !newOpenedAt.Before(*earliestTxnDate) {
 				tx.Rollback()
-				return fmt.Errorf("opened date must be before the earliest transaction date (%s)",
+				return 0, fmt.Errorf("opened date must be before the earliest transaction date (%s)",
 					earliestTxnDate.Format("2006-01-02"))
 			}
 		}
@@ -391,7 +391,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		err = s.repo.DeleteAccountSnapshots(ctx, tx, id)
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to delete existing snapshots: %w", err)
+			return 0, fmt.Errorf("failed to delete existing snapshots: %w", err)
 		}
 
 		// Create new initial balance with the true initial amount at the new date
@@ -405,12 +405,12 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		_, err = s.repo.InsertBalance(ctx, tx, newInitialBalance)
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to create new initial balance: %w", err)
+			return 0, fmt.Errorf("failed to create new initial balance: %w", err)
 		}
 
 		if err := s.repo.FrontfillBalances(ctx, tx, id, models.DefaultCurrency, newOpenedAt); err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to rebuild balances from transactions: %w", err)
+			return 0, fmt.Errorf("failed to rebuild balances from transactions: %w", err)
 		}
 
 		// Re-seed snapshots from the new opened date to today
@@ -424,7 +424,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			time.Now().UTC().Truncate(24*time.Hour),
 		); err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to update snapshots: %w", err)
+			return 0, fmt.Errorf("failed to update snapshots: %w", err)
 		}
 	}
 
@@ -457,13 +457,13 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		desired, err := decimal.NewFromString(req.Balance.String())
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("invalid balance value: %w", err)
+			return 0, fmt.Errorf("invalid balance value: %w", err)
 		}
 
 		latestBalance, err := s.repo.FindLatestBalance(ctx, tx, exAcc.ID, userID)
 		if err != nil {
 			tx.Rollback()
-			return err
+			return 0, err
 		}
 
 		// Match sign conventions
@@ -488,7 +488,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			category, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "adjustment", &userID)
 			if err != nil {
 				tx.Rollback()
-				return fmt.Errorf("can't find adjustment category: %w", err)
+				return 0, fmt.Errorf("can't find adjustment category: %w", err)
 			}
 
 			txn := &models.Transaction{
@@ -505,26 +505,26 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 
 			if _, err := s.txnRepo.InsertTransaction(ctx, tx, txn); err != nil {
 				tx.Rollback()
-				return fmt.Errorf("failed to post adjustment transaction: %w", err)
+				return 0, fmt.Errorf("failed to post adjustment transaction: %w", err)
 			}
 
 			err = s.UpdateAccountCashBalance(ctx, tx, acc, txn.TxnDate, txnType, amount)
 			if err != nil {
 				tx.Rollback()
-				return err
+				return 0, err
 			}
 
 		}
 	}
 
-	_, err = s.repo.UpdateAccount(ctx, tx, acc)
+	accID, err := s.repo.UpdateAccount(ctx, tx, acc)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return 0, err
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return err
+		return 0, err
 	}
 
 	// balance log (with the new end_balance)
@@ -545,11 +545,11 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			Causer:      &userID,
 		})
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 
-	return nil
+	return accID, nil
 }
 
 func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID int64, id int64) error {

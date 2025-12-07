@@ -15,22 +15,23 @@ import (
 	"gorm.io/gorm"
 )
 
-type SeederFunc func(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error
+type SeederFunc func(ctx context.Context, db *gorm.DB, cfg *config.Config) error
 
 func clearStorage() error {
 	storagePath := "./storage"
 
 	entries, err := os.ReadDir(storagePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return fmt.Errorf("failed to read storage directory: %w", err)
 	}
 
 	for _, entry := range entries {
-		entryPath := filepath.Join(storagePath, entry.Name())
-
-		err := os.RemoveAll(entryPath)
+		err = os.RemoveAll(filepath.Join(storagePath, entry.Name()))
 		if err != nil {
-			return fmt.Errorf("failed to remove %s: %w", entryPath, err)
+			return fmt.Errorf("failed to remove %s: %w", entry.Name(), err)
 		}
 	}
 
@@ -78,7 +79,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 			seederName := getFunctionName(seeder)
 
 			// Run the seeder
-			if err := seeder(ctx, tx, logger, cfg); err != nil {
+			if err := seeder(ctx, tx, cfg); err != nil {
 				return fmt.Errorf("seeder %s failed: %w", seederName, err)
 			}
 

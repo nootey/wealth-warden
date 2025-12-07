@@ -7,12 +7,10 @@ import (
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
-	"go.uber.org/zap"
-
 	"gorm.io/gorm"
 )
 
-func SeedMemberUser(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config) error {
+func SeedMemberUser(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 
 	email := cfg.Seed.MemberUserEmail
 	hashedPassword, err := utils.HashAndSaltPassword(cfg.Seed.MemberUserPassword)
