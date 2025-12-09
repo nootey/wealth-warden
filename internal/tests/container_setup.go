@@ -91,21 +91,21 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 	}
 }
 
-// SetupTest runs before each test - clean transactional tables
+// SetupTest empties mutable tables between tests, ensuring a clean slate
 func (s *ServiceIntegrationSuite) SetupTest() {
 
-	// Clean tables that change during tests
-	tables := []string{
-		"transfers",
-		"transactions",
-		"balances",
-		"accounts",
-	}
+	const truncateTestTablesSQL = `
+TRUNCATE TABLE
+    transactions,
+    transfers,
+    balances,
+    accounts,
+    account_daily_snapshots
+RESTART IDENTITY CASCADE;
+`
 
-	for _, table := range tables {
-		err := s.TC.DB.Exec("DELETE FROM " + table).Error
-		s.Require().NoError(err, "failed to clean table: "+table)
-	}
+	err := s.TC.DB.Exec(truncateTestTablesSQL).Error
+	s.Require().NoError(err, "failed to truncate test tables")
 }
 
 // TearDownSuite runs once after all tests
@@ -122,92 +122,3 @@ func (s *ServiceIntegrationSuite) TearDownSuite() {
 		}
 	}
 }
-
-//func SetupTestContainer(t *testing.T, ctx context.Context) *TestContainer {
-//	t.Helper()
-//
-//	// Start PostgreSQL container
-//	container, err := postgres.Run(ctx,
-//		"postgres:16-alpine",
-//		postgres.WithDatabase("testdb"),
-//		postgres.WithUsername("testuser"),
-//		postgres.WithPassword("testpass"),
-//		testcontainers.WithWaitStrategy(
-//			wait.ForLog("database system is ready to accept connections").
-//				WithOccurrence(2).
-//				WithStartupTimeout(30*time.Second),
-//		),
-//	)
-//	if err != nil {
-//		t.Fatalf("failed to start container: %s", err)
-//	}
-//
-//	// Connect GORM to the container DB
-//	connStr, err := container.ConnectionString(ctx, "sslmode=disable")
-//	if err != nil {
-//		t.Fatalf("failed to get connection: %s", err)
-//	}
-//
-//	db, err := gorm.Open(postgresdriver.Open(connStr), &gorm.Config{
-//		Logger: logger.Default.LogMode(logger.Silent),
-//	})
-//	if err != nil {
-//		t.Fatalf("failed to connect: %s", err)
-//	}
-//
-//	// Run migrations
-//	sqlDB, err := db.DB()
-//	if err != nil {
-//		t.Fatalf("failed to get sql.DB: %s", err)
-//	}
-//
-//	if err := goose.SetDialect("postgres"); err != nil {
-//		t.Fatalf("goose dialect: %s", err)
-//	}
-//
-//	migrationsPath := filepath.Join("..", "..", "pkg", "database", "migrations")
-//	if err := goose.Up(sqlDB, migrationsPath); err != nil {
-//		t.Fatalf("migrations failed: %s", err)
-//	}
-//
-//	// Load test config
-//	configPath := filepath.Join("..", "..", "pkg", "config")
-//	cfg, err := config.LoadConfig(&configPath, "test")
-//	if err != nil {
-//		t.Fatalf("failed to load test configuration: %s", err)
-//	}
-//
-//	// Seed basic data into the container DB
-//	if err := seeders.SeedDatabase(ctx, db, nil, cfg, "basic"); err != nil {
-//		t.Fatalf("seeding failed: %s", err)
-//	}
-//
-//	// Build application container on top of this DB
-//	logger := zap.NewNop()
-//	appContainer, err := bootstrap.NewContainer(cfg, db, logger)
-//	if err != nil {
-//		t.Fatalf("failed to bootstrap app container: %s", err)
-//	}
-//
-//	return &TestContainer{
-//		container: container,
-//		DB:        db,
-//		App:       appContainer,
-//	}
-//}
-//
-//func (tc *TestContainer) Close(t *testing.T, ctx context.Context) {
-//	t.Helper()
-//
-//	if tc.DB != nil {
-//		if sqlDB, err := tc.DB.DB(); err == nil && sqlDB != nil {
-//			_ = sqlDB.Close()
-//		}
-//	}
-//
-//	if tc.container != nil {
-//		if err := tc.container.Terminate(ctx); err != nil {
-//			t.Logf("container cleanup warning: %s", err)
-//		}
-//	}
-//}
