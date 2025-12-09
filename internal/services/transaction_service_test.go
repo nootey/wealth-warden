@@ -1499,3 +1499,1028 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 		"After update: today should be %s, got %s",
 		expectedAfter.String(), snapshotToday.EndBalance.String())
 }
+
+// TestInsertTransfer_CurrentDate tests creating a transfer today between two accounts
+func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	// Create source account with balance of 20,000
+	srcBalance := decimal.NewFromInt(20000)
+	sourceReq := &models.AccountReq{
+		Name:           "Source Account",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &srcBalance,
+		OpenedAt:       time.Now(),
+	}
+	sourceID, err := accSvc.InsertAccount(s.Ctx, userID, sourceReq)
+	s.Require().NoError(err)
+
+	// Create destination account with balance of 5,000
+	destBalance := decimal.NewFromInt(5000)
+	destReq := &models.AccountReq{
+		Name:           "Destination Account",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &destBalance,
+		OpenedAt:       time.Now(),
+	}
+	destID, err := accSvc.InsertAccount(s.Ctx, userID, destReq)
+	s.Require().NoError(err)
+
+	// Transfer 3,000 from source to destination
+	transferAmount := decimal.NewFromInt(3000)
+	notes := "Test transfer"
+	transferReq := &models.TransferReq{
+		SourceID:      sourceID,
+		DestinationID: destID,
+		Amount:        transferAmount,
+		Notes:         &notes,
+		CreatedAt:     time.Now(),
+	}
+
+	transferID, err := svc.InsertTransfer(s.Ctx, userID, transferReq)
+	s.Require().NoError(err)
+	s.Assert().Greater(transferID, int64(0))
+
+	// Verify transfer was created
+	var transfer models.Transfer
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("id = ?", transferID).
+		First(&transfer).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(userID, transfer.UserID)
+	s.Assert().True(transferAmount.Equal(transfer.Amount))
+	s.Assert().Equal("success", transfer.Status)
+
+	// Verify two transactions were created (outflow and inflow)
+	var outflowTxn models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("id = ? AND is_transfer = ?", transfer.TransactionOutflowID, true).
+		First(&outflowTxn).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(sourceID, outflowTxn.AccountID)
+	s.Assert().Equal("expense", outflowTxn.TransactionType)
+	s.Assert().True(transferAmount.Equal(outflowTxn.Amount))
+
+	var inflowTxn models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("id = ? AND is_transfer = ?", transfer.TransactionInflowID, true).
+		First(&inflowTxn).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(destID, inflowTxn.AccountID)
+	s.Assert().Equal("income", inflowTxn.TransactionType)
+	s.Assert().True(transferAmount.Equal(inflowTxn.Amount))
+
+	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
+
+	// Verify source account balance has 3,000 in outflows
+	var sourceBalance models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
+		First(&sourceBalance).Error
+	s.Require().NoError(err)
+	s.Assert().True(transferAmount.Equal(sourceBalance.CashOutflows),
+		"Source account should have %s in outflows, got %s",
+		transferAmount.String(), sourceBalance.CashOutflows.String())
+
+	// Verify destination account balance has 3,000 in inflows
+	var destBalanceRecord models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
+		First(&destBalanceRecord).Error
+	s.Require().NoError(err)
+	s.Assert().True(transferAmount.Equal(destBalanceRecord.CashInflows),
+		"Destination account should have %s in inflows, got %s",
+		transferAmount.String(), destBalanceRecord.CashInflows.String())
+
+	// Verify source account snapshot: 20,000 - 3,000 = 17,000
+	var sourceSnapshot models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
+		First(&sourceSnapshot).Error
+	s.Require().NoError(err)
+	expectedSourceBalance := srcBalance.Sub(transferAmount)
+	s.Assert().True(expectedSourceBalance.Equal(sourceSnapshot.EndBalance),
+		"Source snapshot should be %s, got %s",
+		expectedSourceBalance.String(), sourceSnapshot.EndBalance.String())
+
+	// Verify destination account snapshot: 5,000 + 3,000 = 8,000
+	var destSnapshot models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
+		First(&destSnapshot).Error
+	s.Require().NoError(err)
+	expectedDestBalance := destBalance.Add(transferAmount)
+	s.Assert().True(expectedDestBalance.Equal(destSnapshot.EndBalance),
+		"Destination snapshot should be %s, got %s",
+		expectedDestBalance.String(), destSnapshot.EndBalance.String())
+}
+
+// Tests creating a transfer in the past and verifying
+// that snapshots are created for both accounts from transfer date to today
+func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	// Create accounts 10 days ago
+	openDate := time.Now().AddDate(0, 0, -10)
+
+	// Source account with balance of 30,000
+	srcBalance := decimal.NewFromInt(30000)
+	sourceReq := &models.AccountReq{
+		Name:           "Source Account Past",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &srcBalance,
+		OpenedAt:       openDate,
+	}
+	sourceID, err := accSvc.InsertAccount(s.Ctx, userID, sourceReq)
+	s.Require().NoError(err)
+
+	// Destination account with balance of 10,000
+	destBalance := decimal.NewFromInt(10000)
+	destReq := &models.AccountReq{
+		Name:           "Destination Account Past",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &destBalance,
+		OpenedAt:       openDate,
+	}
+	destID, err := accSvc.InsertAccount(s.Ctx, userID, destReq)
+	s.Require().NoError(err)
+
+	// Create transfer 5 days in the past
+	transferDaysAgo := 5
+	transferDate := time.Now().AddDate(0, 0, -transferDaysAgo)
+	transferAmount := decimal.NewFromInt(4000)
+	notes := "Past transfer"
+
+	transferReq := &models.TransferReq{
+		SourceID:      sourceID,
+		DestinationID: destID,
+		Amount:        transferAmount,
+		Notes:         &notes,
+		CreatedAt:     transferDate,
+	}
+
+	transferID, err := svc.InsertTransfer(s.Ctx, userID, transferReq)
+	s.Require().NoError(err)
+	s.Assert().Greater(transferID, int64(0))
+
+	// Verify transfer was created
+	var transfer models.Transfer
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("id = ?", transferID).
+		First(&transfer).Error
+	s.Require().NoError(err)
+
+	transferMidnight := transferDate.UTC().Truncate(24 * time.Hour)
+	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
+
+	// Verify balance records exist for transfer date on both accounts
+	var sourceBalanceRecord models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, transferMidnight).
+		First(&sourceBalanceRecord).Error
+	s.Require().NoError(err, "source balance record should exist for transfer date")
+	s.Assert().True(transferAmount.Equal(sourceBalanceRecord.CashOutflows),
+		"source should have %s in outflows", transferAmount.String())
+
+	var destBalanceRecord models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, transferMidnight).
+		First(&destBalanceRecord).Error
+	s.Require().NoError(err, "dest balance record should exist for transfer date")
+	s.Assert().True(transferAmount.Equal(destBalanceRecord.CashInflows),
+		"dest should have %s in inflows", transferAmount.String())
+
+	// Verify snapshots exist for source account from transfer date to today
+	var sourceSnapshots []models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of >= ? AND as_of <= ?",
+			sourceID, transferMidnight, todayMidnight).
+		Order("as_of ASC").
+		Find(&sourceSnapshots).Error
+	s.Require().NoError(err)
+
+	expectedSnapshotCount := transferDaysAgo + 1
+	s.Assert().Equal(expectedSnapshotCount, len(sourceSnapshots),
+		"source should have %d snapshots from transfer date to today", expectedSnapshotCount)
+
+	// Verify snapshots exist for destination account from transfer date to today
+	var destSnapshots []models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of >= ? AND as_of <= ?",
+			destID, transferMidnight, todayMidnight).
+		Order("as_of ASC").
+		Find(&destSnapshots).Error
+	s.Require().NoError(err)
+
+	s.Assert().Equal(expectedSnapshotCount, len(destSnapshots),
+		"dest should have %d snapshots from transfer date to today", expectedSnapshotCount)
+
+	// Verify snapshot values on transfer date
+	var sourceSnapshot models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, transferMidnight).
+		First(&sourceSnapshot).Error
+	s.Require().NoError(err)
+	expectedSourceBalance := srcBalance.Sub(transferAmount)
+	s.Assert().True(expectedSourceBalance.Equal(sourceSnapshot.EndBalance),
+		"source snapshot on transfer date should be %s, got %s",
+		expectedSourceBalance.String(), sourceSnapshot.EndBalance.String())
+
+	var destSnapshot models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, transferMidnight).
+		First(&destSnapshot).Error
+	s.Require().NoError(err)
+	expectedDestBalance := destBalance.Add(transferAmount)
+	s.Assert().True(expectedDestBalance.Equal(destSnapshot.EndBalance),
+		"dest snapshot on transfer date should be %s, got %s",
+		expectedDestBalance.String(), destSnapshot.EndBalance.String())
+
+	// Verify today's snapshots are forward-filled correctly
+	var sourceTodaySnapshot models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
+		First(&sourceTodaySnapshot).Error
+	s.Require().NoError(err)
+	s.Assert().True(expectedSourceBalance.Equal(sourceTodaySnapshot.EndBalance),
+		"source snapshot today should be forward-filled to %s, got %s",
+		expectedSourceBalance.String(), sourceTodaySnapshot.EndBalance.String())
+
+	var destTodaySnapshot models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
+		First(&destTodaySnapshot).Error
+	s.Require().NoError(err)
+	s.Assert().True(expectedDestBalance.Equal(destTodaySnapshot.EndBalance),
+		"dest snapshot today should be forward-filled to %s, got %s",
+		expectedDestBalance.String(), destTodaySnapshot.EndBalance.String())
+}
+
+// Tests inserting an older transfer after newer transfers already exist,
+// verifying snapshots backfill correctly
+func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfers() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	// Create accounts 10 days ago
+	openDate := time.Now().AddDate(0, 0, -10)
+
+	// Source account with balance of 50,000
+	srcBalance := decimal.NewFromInt(50000)
+	sourceReq := &models.AccountReq{
+		Name:           "Source Backfill",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &srcBalance,
+		OpenedAt:       openDate,
+	}
+	sourceID, err := accSvc.InsertAccount(s.Ctx, userID, sourceReq)
+	s.Require().NoError(err)
+
+	// Destination account with balance of 10,000
+	destBalance := decimal.NewFromInt(10000)
+	destReq := &models.AccountReq{
+		Name:           "Dest Backfill",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &destBalance,
+		OpenedAt:       openDate,
+	}
+	destID, err := accSvc.InsertAccount(s.Ctx, userID, destReq)
+	s.Require().NoError(err)
+
+	// Insert first transfer on day -3 (3 days ago) - transfer 5,000
+	transfer1Date := time.Now().AddDate(0, 0, -3)
+	amt1 := decimal.NewFromInt(5000)
+	notes1 := "First transfer"
+
+	req1 := &models.TransferReq{
+		SourceID:      sourceID,
+		DestinationID: destID,
+		Amount:        amt1,
+		Notes:         &notes1,
+		CreatedAt:     transfer1Date,
+	}
+	_, err = svc.InsertTransfer(s.Ctx, userID, req1)
+	s.Require().NoError(err)
+
+	// After first transfer: source = 45,000, dest = 15,000
+	transfer1Midnight := transfer1Date.UTC().Truncate(24 * time.Hour)
+
+	var sourceSnapshotBefore models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, transfer1Midnight).
+		First(&sourceSnapshotBefore).Error
+	s.Require().NoError(err)
+	expectedSourceBefore := srcBalance.Sub(amt1)
+	s.Assert().True(expectedSourceBefore.Equal(sourceSnapshotBefore.EndBalance),
+		"Before backfill: source on day -3 should be %s", expectedSourceBefore.String())
+
+	var destSnapshotBefore models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, transfer1Midnight).
+		First(&destSnapshotBefore).Error
+	s.Require().NoError(err)
+	expectedDestBefore := destBalance.Add(amt1)
+	s.Assert().True(expectedDestBefore.Equal(destSnapshotBefore.EndBalance),
+		"Before backfill: dest on day -3 should be %s", expectedDestBefore.String())
+
+	// Insert older transfer on day -6 (6 days ago) - transfer 3,000
+	// This should trigger backfill and update all snapshots from day -6 forward
+	transfer2Date := time.Now().AddDate(0, 0, -6)
+	amt2 := decimal.NewFromInt(3000)
+	notes2 := "Backdated transfer"
+
+	req2 := &models.TransferReq{
+		SourceID:      sourceID,
+		DestinationID: destID,
+		Amount:        amt2,
+		Notes:         &notes2,
+		CreatedAt:     transfer2Date,
+	}
+	_, err = svc.InsertTransfer(s.Ctx, userID, req2)
+	s.Require().NoError(err)
+
+	// After backfill, the timeline should be:
+	// Day -10 (opening): source = 50k, dest = 10k
+	// Day -6: source = 47k (50k - 3k), dest = 13k (10k + 3k)
+	// Day -3: source = 42k (47k - 5k), dest = 18k (13k + 5k)
+	// Today: source = 42k, dest = 18k
+
+	transfer2Midnight := transfer2Date.UTC().Truncate(24 * time.Hour)
+
+	// Verify balance records for day -6
+	var sourceBalance2 models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, transfer2Midnight).
+		First(&sourceBalance2).Error
+	s.Require().NoError(err)
+	s.Assert().True(amt2.Equal(sourceBalance2.CashOutflows),
+		"Day -6 source should have %s outflows", amt2.String())
+
+	var destBalance2 models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, transfer2Midnight).
+		First(&destBalance2).Error
+	s.Require().NoError(err)
+	s.Assert().True(amt2.Equal(destBalance2.CashInflows),
+		"Day -6 dest should have %s inflows", amt2.String())
+
+	// Verify snapshot on day -6
+	var sourceSnapshot6 models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, transfer2Midnight).
+		First(&sourceSnapshot6).Error
+	s.Require().NoError(err)
+	expectedSource6 := srcBalance.Sub(amt2)
+	s.Assert().True(expectedSource6.Equal(sourceSnapshot6.EndBalance),
+		"After backfill: source on day -6 should be %s, got %s",
+		expectedSource6.String(), sourceSnapshot6.EndBalance.String())
+
+	var destSnapshot6 models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, transfer2Midnight).
+		First(&destSnapshot6).Error
+	s.Require().NoError(err)
+	expectedDest6 := destBalance.Add(amt2)
+	s.Assert().True(expectedDest6.Equal(destSnapshot6.EndBalance),
+		"After backfill: dest on day -6 should be %s, got %s",
+		expectedDest6.String(), destSnapshot6.EndBalance.String())
+
+	// Verify snapshot on day -3 was updated (not 45k/15k anymore)
+	var sourceSnapshotAfter models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, transfer1Midnight).
+		First(&sourceSnapshotAfter).Error
+	s.Require().NoError(err)
+	expectedSource3 := expectedSource6.Sub(amt1)
+	s.Assert().True(expectedSource3.Equal(sourceSnapshotAfter.EndBalance),
+		"After backfill: source on day -3 should be updated to %s, got %s",
+		expectedSource3.String(), sourceSnapshotAfter.EndBalance.String())
+
+	var destSnapshotAfter models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, transfer1Midnight).
+		First(&destSnapshotAfter).Error
+	s.Require().NoError(err)
+	expectedDest3 := expectedDest6.Add(amt1) // 13,000 + 5,000 = 18,000
+	s.Assert().True(expectedDest3.Equal(destSnapshotAfter.EndBalance),
+		"After backfill: dest on day -3 should be updated to %s, got %s",
+		expectedDest3.String(), destSnapshotAfter.EndBalance.String())
+
+	// Verify today's snapshots reflect all transfers
+	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
+
+	var sourceTodaySnapshot models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
+		First(&sourceTodaySnapshot).Error
+	s.Require().NoError(err)
+	s.Assert().True(expectedSource3.Equal(sourceTodaySnapshot.EndBalance),
+		"Today: source should be %s, got %s",
+		expectedSource3.String(), sourceTodaySnapshot.EndBalance.String())
+
+	var destTodaySnapshot models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
+		First(&destTodaySnapshot).Error
+	s.Require().NoError(err)
+	s.Assert().True(expectedDest3.Equal(destTodaySnapshot.EndBalance),
+		"Today: dest should be %s, got %s",
+		expectedDest3.String(), destTodaySnapshot.EndBalance.String())
+}
+
+// Tests multiple transfers on the same day
+// and verifying that balances accumulate correctly
+func (s *TransactionServiceTestSuite) TestInsertTransfer_SameDay() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	// Create three accounts
+	openDate := time.Now().AddDate(0, 0, -5)
+
+	// Account A with balance of 100,000
+	balanceA := decimal.NewFromInt(100000)
+	reqA := &models.AccountReq{
+		Name:           "Account A",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &balanceA,
+		OpenedAt:       openDate,
+	}
+	accountAID, err := accSvc.InsertAccount(s.Ctx, userID, reqA)
+	s.Require().NoError(err)
+
+	// Account B with balance of 20,000
+	balanceB := decimal.NewFromInt(20000)
+	reqB := &models.AccountReq{
+		Name:           "Account B",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &balanceB,
+		OpenedAt:       openDate,
+	}
+	accountBID, err := accSvc.InsertAccount(s.Ctx, userID, reqB)
+	s.Require().NoError(err)
+
+	// Account C with balance of 5,000
+	balanceC := decimal.NewFromInt(5000)
+	reqC := &models.AccountReq{
+		Name:           "Account C",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &balanceC,
+		OpenedAt:       openDate,
+	}
+	accountCID, err := accSvc.InsertAccount(s.Ctx, userID, reqC)
+	s.Require().NoError(err)
+
+	// Create multiple transfers on the same day (day -2)
+	transferDate := time.Now().AddDate(0, 0, -2)
+
+	// Transfer 1: A -> B (10,000)
+	amt1 := decimal.NewFromInt(10000)
+	notes1 := "Transfer 1: A to B"
+	req1 := &models.TransferReq{
+		SourceID:      accountAID,
+		DestinationID: accountBID,
+		Amount:        amt1,
+		Notes:         &notes1,
+		CreatedAt:     transferDate,
+	}
+	_, err = svc.InsertTransfer(s.Ctx, userID, req1)
+	s.Require().NoError(err)
+
+	// Transfer 2: A -> C (15,000)
+	amt2 := decimal.NewFromInt(15000)
+	notes2 := "Transfer 2: A to C"
+	req2 := &models.TransferReq{
+		SourceID:      accountAID,
+		DestinationID: accountCID,
+		Amount:        amt2,
+		Notes:         &notes2,
+		CreatedAt:     transferDate,
+	}
+	_, err = svc.InsertTransfer(s.Ctx, userID, req2)
+	s.Require().NoError(err)
+
+	// Transfer 3: B -> C (5,000)
+	amt3 := decimal.NewFromInt(5000)
+	notes3 := "Transfer 3: B to C"
+	req3 := &models.TransferReq{
+		SourceID:      accountBID,
+		DestinationID: accountCID,
+		Amount:        amt3,
+		Notes:         &notes3,
+		CreatedAt:     transferDate,
+	}
+	_, err = svc.InsertTransfer(s.Ctx, userID, req3)
+	s.Require().NoError(err)
+
+	// Expected balances after all transfers:
+	// Account A: 100,000 - 10,000 - 15,000 = 75,000
+	// Account B: 20,000 + 10,000 - 5,000 = 25,000
+	// Account C: 5,000 + 15,000 + 5,000 = 25,000
+
+	transferMidnight := transferDate.UTC().Truncate(24 * time.Hour)
+
+	// Verify Account A balance: 25,000 in outflows (10k + 15k), 0 inflows
+	var balanceRecordA models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accountAID, transferMidnight).
+		First(&balanceRecordA).Error
+	s.Require().NoError(err)
+	expectedOutflowsA := amt1.Add(amt2) // 10,000 + 15,000 = 25,000
+	s.Assert().True(expectedOutflowsA.Equal(balanceRecordA.CashOutflows),
+		"Account A should have %s in outflows, got %s",
+		expectedOutflowsA.String(), balanceRecordA.CashOutflows.String())
+	s.Assert().True(decimal.Zero.Equal(balanceRecordA.CashInflows),
+		"Account A should have 0 inflows, got %s",
+		balanceRecordA.CashInflows.String())
+
+	// Verify Account B balance: 5,000 in outflows, 10,000 in inflows
+	var balanceRecordB models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accountBID, transferMidnight).
+		First(&balanceRecordB).Error
+	s.Require().NoError(err)
+	s.Assert().True(amt3.Equal(balanceRecordB.CashOutflows),
+		"Account B should have %s in outflows, got %s",
+		amt3.String(), balanceRecordB.CashOutflows.String())
+	s.Assert().True(amt1.Equal(balanceRecordB.CashInflows),
+		"Account B should have %s in inflows, got %s",
+		amt1.String(), balanceRecordB.CashInflows.String())
+
+	// Verify Account C balance: 0 in outflows, 20,000 in inflows (15k + 5k)
+	var balanceRecordC models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accountCID, transferMidnight).
+		First(&balanceRecordC).Error
+	s.Require().NoError(err)
+	expectedInflowsC := amt2.Add(amt3)
+	s.Assert().True(decimal.Zero.Equal(balanceRecordC.CashOutflows),
+		"Account C should have 0 outflows, got %s",
+		balanceRecordC.CashOutflows.String())
+	s.Assert().True(expectedInflowsC.Equal(balanceRecordC.CashInflows),
+		"Account C should have %s in inflows, got %s",
+		expectedInflowsC.String(), balanceRecordC.CashInflows.String())
+
+	// Verify snapshots on transfer date
+	var snapshotA models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accountAID, transferMidnight).
+		First(&snapshotA).Error
+	s.Require().NoError(err)
+	expectedBalanceA := balanceA.Sub(amt1).Sub(amt2)
+	s.Assert().True(expectedBalanceA.Equal(snapshotA.EndBalance),
+		"Account A snapshot should be %s, got %s",
+		expectedBalanceA.String(), snapshotA.EndBalance.String())
+
+	var snapshotB models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accountBID, transferMidnight).
+		First(&snapshotB).Error
+	s.Require().NoError(err)
+	expectedBalanceB := balanceB.Add(amt1).Sub(amt3)
+	s.Assert().True(expectedBalanceB.Equal(snapshotB.EndBalance),
+		"Account B snapshot should be %s, got %s",
+		expectedBalanceB.String(), snapshotB.EndBalance.String())
+
+	var snapshotC models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accountCID, transferMidnight).
+		First(&snapshotC).Error
+	s.Require().NoError(err)
+	expectedBalanceC := balanceC.Add(amt2).Add(amt3)
+	s.Assert().True(expectedBalanceC.Equal(snapshotC.EndBalance),
+		"Account C snapshot should be %s, got %s",
+		expectedBalanceC.String(), snapshotC.EndBalance.String())
+
+	// Verify only one balance record per account for that day
+	var countA, countB, countC int64
+	s.TC.DB.WithContext(s.Ctx).Model(&models.Balance{}).
+		Where("account_id = ? AND as_of = ?", accountAID, transferMidnight).Count(&countA)
+	s.Assert().Equal(int64(1), countA, "Account A should have exactly 1 balance record")
+
+	s.TC.DB.WithContext(s.Ctx).Model(&models.Balance{}).
+		Where("account_id = ? AND as_of = ?", accountBID, transferMidnight).Count(&countB)
+	s.Assert().Equal(int64(1), countB, "Account B should have exactly 1 balance record")
+
+	s.TC.DB.WithContext(s.Ctx).Model(&models.Balance{}).
+		Where("account_id = ? AND as_of = ?", accountCID, transferMidnight).Count(&countC)
+	s.Assert().Equal(int64(1), countC, "Account C should have exactly 1 balance record")
+}
+
+// Tests deleting a transfer on the current date
+func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	// Create source account with balance of 40,000
+	srcBalance := decimal.NewFromInt(40000)
+	sourceReq := &models.AccountReq{
+		Name:           "Source Delete",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &srcBalance,
+		OpenedAt:       time.Now(),
+	}
+	sourceID, err := accSvc.InsertAccount(s.Ctx, userID, sourceReq)
+	s.Require().NoError(err)
+
+	// Create destination account with balance of 10,000
+	destBalance := decimal.NewFromInt(10000)
+	destReq := &models.AccountReq{
+		Name:           "Dest Delete",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &destBalance,
+		OpenedAt:       time.Now(),
+	}
+	destID, err := accSvc.InsertAccount(s.Ctx, userID, destReq)
+	s.Require().NoError(err)
+
+	// Create transfer of 8,000 today
+	transferAmount := decimal.NewFromInt(8000)
+	notes := "Transfer to delete"
+	transferReq := &models.TransferReq{
+		SourceID:      sourceID,
+		DestinationID: destID,
+		Amount:        transferAmount,
+		Notes:         &notes,
+		CreatedAt:     time.Now(),
+	}
+
+	transferID, err := svc.InsertTransfer(s.Ctx, userID, transferReq)
+	s.Require().NoError(err)
+
+	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
+
+	// Before delete: verify balances
+	var sourceBalanceBefore models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
+		First(&sourceBalanceBefore).Error
+	s.Require().NoError(err)
+	s.Assert().True(transferAmount.Equal(sourceBalanceBefore.CashOutflows),
+		"Before delete: source should have %s outflows", transferAmount.String())
+
+	var destBalanceBefore models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
+		First(&destBalanceBefore).Error
+	s.Require().NoError(err)
+	s.Assert().True(transferAmount.Equal(destBalanceBefore.CashInflows),
+		"Before delete: dest should have %s inflows", transferAmount.String())
+
+	// Before delete: verify snapshots (source: 32k, dest: 18k)
+	var sourceSnapshotBefore models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
+		First(&sourceSnapshotBefore).Error
+	s.Require().NoError(err)
+	expectedSourceBefore := srcBalance.Sub(transferAmount)
+	s.Assert().True(expectedSourceBefore.Equal(sourceSnapshotBefore.EndBalance),
+		"Before delete: source snapshot should be %s", expectedSourceBefore.String())
+
+	var destSnapshotBefore models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
+		First(&destSnapshotBefore).Error
+	s.Require().NoError(err)
+	expectedDestBefore := destBalance.Add(transferAmount)
+	s.Assert().True(expectedDestBefore.Equal(destSnapshotBefore.EndBalance),
+		"Before delete: dest snapshot should be %s", expectedDestBefore.String())
+
+	// Delete the transfer
+	err = svc.DeleteTransfer(s.Ctx, userID, transferID)
+	s.Require().NoError(err)
+
+	// Verify transfer is soft-deleted
+	var deletedTransfer models.Transfer
+	err = s.TC.DB.WithContext(s.Ctx).
+		Unscoped().
+		Where("id = ?", transferID).
+		First(&deletedTransfer).Error
+	s.Require().NoError(err)
+	s.Assert().NotNil(deletedTransfer.DeletedAt, "transfer should be soft-deleted")
+
+	// Verify both transactions are soft-deleted
+	var deletedInflow models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).
+		Unscoped().
+		Where("id = ?", deletedTransfer.TransactionInflowID).
+		First(&deletedInflow).Error
+	s.Require().NoError(err)
+	s.Assert().NotNil(deletedInflow.DeletedAt, "inflow transaction should be soft-deleted")
+
+	var deletedOutflow models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).
+		Unscoped().
+		Where("id = ?", deletedTransfer.TransactionOutflowID).
+		First(&deletedOutflow).Error
+	s.Require().NoError(err)
+	s.Assert().NotNil(deletedOutflow.DeletedAt, "outflow transaction should be soft-deleted")
+
+	// After delete: verify source balance outflows reversed to 0
+	var sourceBalanceAfter models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
+		First(&sourceBalanceAfter).Error
+	s.Require().NoError(err)
+	s.Assert().True(decimal.Zero.Equal(sourceBalanceAfter.CashOutflows),
+		"After delete: source should have 0 outflows, got %s",
+		sourceBalanceAfter.CashOutflows.String())
+
+	// After delete: verify dest balance inflows reversed to 0
+	var destBalanceAfter models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
+		First(&destBalanceAfter).Error
+	s.Require().NoError(err)
+	s.Assert().True(decimal.Zero.Equal(destBalanceAfter.CashInflows),
+		"After delete: dest should have 0 inflows, got %s",
+		destBalanceAfter.CashInflows.String())
+
+	// After delete: verify snapshots reverted to original balances
+	var sourceSnapshotAfter models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
+		First(&sourceSnapshotAfter).Error
+	s.Require().NoError(err)
+	s.Assert().True(srcBalance.Equal(sourceSnapshotAfter.EndBalance),
+		"After delete: source snapshot should revert to %s, got %s",
+		srcBalance.String(), sourceSnapshotAfter.EndBalance.String())
+
+	var destSnapshotAfter models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
+		First(&destSnapshotAfter).Error
+	s.Require().NoError(err)
+	s.Assert().True(destBalance.Equal(destSnapshotAfter.EndBalance),
+		"After delete: dest snapshot should revert to %s, got %s",
+		destBalance.String(), destSnapshotAfter.EndBalance.String())
+}
+
+// Tests deleting a middle transfer in the past
+// and verifying that both accounts' snapshots recalculate correctly
+func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	// Create accounts 10 days ago
+	openDate := time.Now().AddDate(0, 0, -10)
+
+	// Source account with balance of 100,000
+	srcBalance := decimal.NewFromInt(100000)
+	sourceReq := &models.AccountReq{
+		Name:           "Source Middle Delete",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &srcBalance,
+		OpenedAt:       openDate,
+	}
+	sourceID, err := accSvc.InsertAccount(s.Ctx, userID, sourceReq)
+	s.Require().NoError(err)
+
+	// Destination account with balance of 20,000
+	destBalance := decimal.NewFromInt(20000)
+	destReq := &models.AccountReq{
+		Name:           "Dest Middle Delete",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &destBalance,
+		OpenedAt:       openDate,
+	}
+	destID, err := accSvc.InsertAccount(s.Ctx, userID, destReq)
+	s.Require().NoError(err)
+
+	// Create 3 transfers at different dates
+	// Transfer 1: Day -8, transfer 10,000
+	transfer1Date := time.Now().AddDate(0, 0, -8)
+	amt1 := decimal.NewFromInt(10000)
+	notes1 := "Transfer 1"
+	req1 := &models.TransferReq{
+		SourceID:      sourceID,
+		DestinationID: destID,
+		Amount:        amt1,
+		Notes:         &notes1,
+		CreatedAt:     transfer1Date,
+	}
+	_, err = svc.InsertTransfer(s.Ctx, userID, req1)
+	s.Require().NoError(err)
+
+	// Transfer 2: Day -5, transfer 5,000
+	transfer2Date := time.Now().AddDate(0, 0, -5)
+	amt2 := decimal.NewFromInt(5000)
+	notes2 := "Transfer 2 to delete"
+	req2 := &models.TransferReq{
+		SourceID:      sourceID,
+		DestinationID: destID,
+		Amount:        amt2,
+		Notes:         &notes2,
+		CreatedAt:     transfer2Date,
+	}
+	transfer2ID, err := svc.InsertTransfer(s.Ctx, userID, req2)
+	s.Require().NoError(err)
+
+	// Transfer 3: Day -2, transfer 8,000
+	transfer3Date := time.Now().AddDate(0, 0, -2)
+	amt3 := decimal.NewFromInt(8000)
+	notes3 := "Transfer 3"
+	req3 := &models.TransferReq{
+		SourceID:      sourceID,
+		DestinationID: destID,
+		Amount:        amt3,
+		Notes:         &notes3,
+		CreatedAt:     transfer3Date,
+	}
+	_, err = svc.InsertTransfer(s.Ctx, userID, req3)
+	s.Require().NoError(err)
+
+	// Before delete, verify timeline:
+	// Day -10: source = 100k, dest = 20k
+	// Day -8: source = 90k, dest = 30k (after transfer 1: -10k/+10k)
+	// Day -5: source = 85k, dest = 35k (after transfer 2: -5k/+5k)
+	// Day -2: source = 77k, dest = 43k (after transfer 3: -8k/+8k)
+
+	transfer2Midnight := transfer2Date.UTC().Truncate(24 * time.Hour)
+	transfer3Midnight := transfer3Date.UTC().Truncate(24 * time.Hour)
+
+	// Before delete: verify day -5 snapshots
+	var sourceSnapshot5Before models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, transfer2Midnight).
+		First(&sourceSnapshot5Before).Error
+	s.Require().NoError(err)
+	expectedSource5Before := srcBalance.Sub(amt1).Sub(amt2) // 100k - 10k - 5k = 85k
+	s.Assert().True(expectedSource5Before.Equal(sourceSnapshot5Before.EndBalance),
+		"Before delete: source day -5 should be %s", expectedSource5Before.String())
+
+	var destSnapshot5Before models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, transfer2Midnight).
+		First(&destSnapshot5Before).Error
+	s.Require().NoError(err)
+	expectedDest5Before := destBalance.Add(amt1).Add(amt2) // 20k + 10k + 5k = 35k
+	s.Assert().True(expectedDest5Before.Equal(destSnapshot5Before.EndBalance),
+		"Before delete: dest day -5 should be %s", expectedDest5Before.String())
+
+	// Before delete: verify day -2 snapshots
+	var sourceSnapshot2Before models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, transfer3Midnight).
+		First(&sourceSnapshot2Before).Error
+	s.Require().NoError(err)
+	expectedSource2Before := expectedSource5Before.Sub(amt3) // 85k - 8k = 77k
+	s.Assert().True(expectedSource2Before.Equal(sourceSnapshot2Before.EndBalance),
+		"Before delete: source day -2 should be %s", expectedSource2Before.String())
+
+	var destSnapshot2Before models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, transfer3Midnight).
+		First(&destSnapshot2Before).Error
+	s.Require().NoError(err)
+	expectedDest2Before := expectedDest5Before.Add(amt3) // 35k + 8k = 43k
+	s.Assert().True(expectedDest2Before.Equal(destSnapshot2Before.EndBalance),
+		"Before delete: dest day -2 should be %s", expectedDest2Before.String())
+
+	// Delete transfer 2 (middle transfer on day -5)
+	err = svc.DeleteTransfer(s.Ctx, userID, transfer2ID)
+	s.Require().NoError(err)
+
+	// After delete, timeline should be:
+	// Day -10: source = 100k, dest = 20k
+	// Day -8: source = 90k, dest = 30k (transfer 1)
+	// Day -5: source = 90k, dest = 30k (no transfer, forward-filled)
+	// Day -2: source = 82k, dest = 38k (transfer 3, recalculated)
+
+	// Verify transfer 2 is soft-deleted
+	var deletedTransfer models.Transfer
+	err = s.TC.DB.WithContext(s.Ctx).
+		Unscoped().
+		Where("id = ?", transfer2ID).
+		First(&deletedTransfer).Error
+	s.Require().NoError(err)
+	s.Assert().NotNil(deletedTransfer.DeletedAt)
+
+	// After delete: verify day -5 balances reversed to 0
+	var sourceBalance5After models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, transfer2Midnight).
+		First(&sourceBalance5After).Error
+	s.Require().NoError(err)
+	s.Assert().True(decimal.Zero.Equal(sourceBalance5After.CashOutflows),
+		"After delete: source day -5 should have 0 outflows, got %s",
+		sourceBalance5After.CashOutflows.String())
+
+	var destBalance5After models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, transfer2Midnight).
+		First(&destBalance5After).Error
+	s.Require().NoError(err)
+	s.Assert().True(decimal.Zero.Equal(destBalance5After.CashInflows),
+		"After delete: dest day -5 should have 0 inflows, got %s",
+		destBalance5After.CashInflows.String())
+
+	// After delete: verify day -5 snapshots (should be 90k/30k, no longer 85k/35k)
+	var sourceSnapshot5After models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, transfer2Midnight).
+		First(&sourceSnapshot5After).Error
+	s.Require().NoError(err)
+	expectedSource5After := srcBalance.Sub(amt1)
+	s.Assert().True(expectedSource5After.Equal(sourceSnapshot5After.EndBalance),
+		"After delete: source day -5 should be %s, got %s",
+		expectedSource5After.String(), sourceSnapshot5After.EndBalance.String())
+
+	var destSnapshot5After models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, transfer2Midnight).
+		First(&destSnapshot5After).Error
+	s.Require().NoError(err)
+	expectedDest5After := destBalance.Add(amt1)
+	s.Assert().True(expectedDest5After.Equal(destSnapshot5After.EndBalance),
+		"After delete: dest day -5 should be %s, got %s",
+		expectedDest5After.String(), destSnapshot5After.EndBalance.String())
+
+	// After delete: verify day -2 snapshots were updated (not 77k/43k anymore)
+	var sourceSnapshot2After models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, transfer3Midnight).
+		First(&sourceSnapshot2After).Error
+	s.Require().NoError(err)
+	expectedSource2After := expectedSource5After.Sub(amt3)
+	s.Assert().True(expectedSource2After.Equal(sourceSnapshot2After.EndBalance),
+		"After delete: source day -2 should be updated to %s, got %s",
+		expectedSource2After.String(), sourceSnapshot2After.EndBalance.String())
+
+	var destSnapshot2After models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, transfer3Midnight).
+		First(&destSnapshot2After).Error
+	s.Require().NoError(err)
+	expectedDest2After := expectedDest5After.Add(amt3)
+	s.Assert().True(expectedDest2After.Equal(destSnapshot2After.EndBalance),
+		"After delete: dest day -2 should be updated to %s, got %s",
+		expectedDest2After.String(), destSnapshot2After.EndBalance.String())
+
+	// Verify today's snapshots are also updated correctly
+	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
+
+	var sourceTodaySnapshot models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
+		First(&sourceTodaySnapshot).Error
+	s.Require().NoError(err)
+	s.Assert().True(expectedSource2After.Equal(sourceTodaySnapshot.EndBalance),
+		"After delete: source today should be %s, got %s",
+		expectedSource2After.String(), sourceTodaySnapshot.EndBalance.String())
+
+	var destTodaySnapshot models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
+		First(&destTodaySnapshot).Error
+	s.Require().NoError(err)
+	s.Assert().True(expectedDest2After.Equal(destTodaySnapshot.EndBalance),
+		"After delete: dest today should be %s, got %s",
+		expectedDest2After.String(), destTodaySnapshot.EndBalance.String())
+}
