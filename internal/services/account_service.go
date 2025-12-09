@@ -469,7 +469,12 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		// Match sign conventions
 		isLiability := strings.EqualFold(newAccType.Type, "liability")
 
-		delta = desired.Sub(latestBalance.EndBalance)
+		desiredFormat := desired
+		if isLiability {
+			desiredFormat = desired.Neg()
+		}
+
+		delta = desiredFormat.Sub(latestBalance.EndBalance)
 		signed := delta
 		if isLiability {
 			signed = delta.Neg()
@@ -700,15 +705,18 @@ func (s *AccountService) UpdateAccountCashBalance(ctx context.Context, tx *gorm.
 	// increment the correct field on balances(as_of)
 	switch strings.ToLower(transactionType) {
 	case "expense":
-		// expense decreases cash => goes to cash_outflows
 		if err := s.repo.AddToDailyBalance(ctx, tx, acc.ID, asOf, "cash_outflows", amount); err != nil {
 			return err
 		}
 	default:
-		// income increases cash => goes to cash_inflows
 		if err := s.repo.AddToDailyBalance(ctx, tx, acc.ID, asOf, "cash_inflows", amount); err != nil {
 			return err
 		}
+	}
+
+	// Frontfill balances before snapshots
+	if err := s.repo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, asOf); err != nil {
+		return err
 	}
 
 	if err := s.repo.UpsertSnapshotsFromBalances(
