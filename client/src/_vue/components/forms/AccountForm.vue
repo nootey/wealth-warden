@@ -256,7 +256,7 @@ async function loadRecord(id: number) {
         if (props.mode === "update" && selectedClassification.value === "Liability") {
             const b = record.value.balance.end_balance;
             if (b !== null) {
-                record.value.balance.end_balance = new Decimal(b).abs().toString(); // NEW
+                record.value.balance.end_balance = new Decimal(b).toString();
             }
         }
 
