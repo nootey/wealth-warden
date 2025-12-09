@@ -746,6 +746,47 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		}
 	}
 
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	// Determine the earliest affected date
+	earliestDate := oldDay
+	if newDay.Before(earliestDate) {
+		earliestDate = newDay
+	}
+
+	// If account changed, we need to update both accounts
+	if oldAccount.ID != newAccount.ID {
+		// Update old account from old date forward
+		if err := s.accRepo.FrontfillBalances(ctx, tx, oldAccount.ID, oldAccount.Currency, oldDay); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, oldAccount.ID, oldAccount.Currency, oldDay, today); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+
+		// Update new account from new date forward
+		if err := s.accRepo.FrontfillBalances(ctx, tx, newAccount.ID, newAccount.Currency, newDay); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, newAccount.ID, newAccount.Currency, newDay, today); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+	} else {
+		// Same account - update from earliest affected date forward
+		if err := s.accRepo.FrontfillBalances(ctx, tx, newAccount.ID, newAccount.Currency, earliestDate); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, newAccount.ID, newAccount.Currency, earliestDate, today); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+	}
+
 	// Commit transaction
 	if err := tx.Commit().Error; err != nil {
 		return 0, err
