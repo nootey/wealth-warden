@@ -455,13 +455,13 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		return 0, err
 	}
 
-	// touch deltas for both accounts
-	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
+	// Update balances for both accounts
+	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
 
-	if err := s.updateAccountBalance(ctx, tx, toAcc, outflow.TxnDate, "income", outflow.Amount.Neg()); err != nil {
+	if err := s.updateAccountBalance(ctx, tx, toAcc, inflow.TxnDate, "income", inflow.Amount); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -469,7 +469,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	from := txDate.UTC().Truncate(24 * time.Hour)
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	// frontfill from the transfer date forward
+	// Frontfill and update snapshots for both accounts
 	if err := s.accRepo.FrontfillBalances(ctx, tx, fromAcc.ID, fromAcc.Currency, from); err != nil {
 		tx.Rollback()
 		return 0, err
@@ -484,17 +484,6 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		return 0, err
 	}
 	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, from, today); err != nil {
-		tx.Rollback()
-		return 0, err
-	}
-
-	// refresh snapshots for both accounts to today
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, fromAcc.ID, models.DefaultCurrency, txDate, today); err != nil {
-		tx.Rollback()
-		return 0, err
-	}
-
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, toAcc.ID, models.DefaultCurrency, txDate, today); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
