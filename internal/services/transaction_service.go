@@ -85,7 +85,7 @@ func (s *TransactionService) updateAccountBalance(ctx context.Context, tx *gorm.
 		"income":  "cash_inflows",
 	}[direction]
 
-	if err := s.accRepo.AddToDailyBalance(ctx, tx, account.ID, txnDate, column, amount.Abs().Round(4)); err != nil {
+	if err := s.accRepo.AddToDailyBalance(ctx, tx, account.ID, txnDate, column, amount.Round(4)); err != nil {
 		return err
 	}
 
@@ -885,23 +885,9 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	}
 
 	// Reverse the original cash effect on the account
-	signed := func(tt string, amt decimal.Decimal) decimal.Decimal {
-		switch strings.ToLower(tt) {
-		case "expense":
-			return amt.Neg()
-		default:
-			return amt
-		}
-	}
-	origEffect := signed(tr.TransactionType, tr.Amount)
-	inverse := origEffect.Neg()
-
-	if !inverse.IsZero() {
-		dir := map[bool]string{true: "expense", false: "income"}[inverse.IsNegative()]
-		if err := s.updateAccountBalance(ctx, tx, account, tr.TxnDate, dir, inverse.Abs()); err != nil {
-			tx.Rollback()
-			return err
-		}
+	if err := s.updateAccountBalance(ctx, tx, account, tr.TxnDate, tr.TransactionType, tr.Amount.Neg()); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	from := tr.TxnDate.UTC().Truncate(24 * time.Hour)
