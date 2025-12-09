@@ -695,54 +695,18 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	}
 
 	// Adjust balances
-	signed := func(tt string, amt decimal.Decimal) decimal.Decimal {
-		if strings.ToLower(tt) == "expense" {
-			return amt.Neg()
-		}
-		return amt
-	}
-	dirFor := func(effect decimal.Decimal) string {
-		if effect.IsNegative() {
-			return "expense"
-		}
-		return "income"
-	}
-	reverseDirFor := func(effect decimal.Decimal) string {
-		if effect.IsPositive() {
-			return "expense"
-		}
-		return "income"
-	}
 
-	oldEffect := signed(exTr.TransactionType, exTr.Amount)
-	newEffect := signed(tr.TransactionType, tr.Amount)
-	dateChanged := !oldDay.Equal(newDay)
-
-	switch {
-	case oldAccount.ID != newAccount.ID || dateChanged:
-		// Reverse the old posting on its original day & account
-		if !oldEffect.IsZero() {
-			if err := s.updateAccountBalance(ctx, tx, oldAccount, oldDay, reverseDirFor(oldEffect), oldEffect.Abs()); err != nil {
-				tx.Rollback()
-				return 0, err
-			}
+	// Reverse old, apply new
+	if !exTr.Amount.IsZero() {
+		if err := s.updateAccountBalance(ctx, tx, oldAccount, oldDay, exTr.TransactionType, exTr.Amount.Neg()); err != nil {
+			tx.Rollback()
+			return 0, err
 		}
-		// Apply the new posting on the new day & account
-		if !newEffect.IsZero() {
-			if err := s.updateAccountBalance(ctx, tx, newAccount, newDay, dirFor(newEffect), newEffect.Abs()); err != nil {
-				tx.Rollback()
-				return 0, err
-			}
-		}
-
-	default:
-		// Same account & same local day → post only the net delta once
-		delta := newEffect.Sub(oldEffect)
-		if !delta.IsZero() {
-			if err := s.updateAccountBalance(ctx, tx, newAccount, newDay, dirFor(delta), delta.Abs()); err != nil {
-				tx.Rollback()
-				return 0, err
-			}
+	}
+	if !tr.Amount.IsZero() {
+		if err := s.updateAccountBalance(ctx, tx, newAccount, newDay, tr.TransactionType, tr.Amount); err != nil {
+			tx.Rollback()
+			return 0, err
 		}
 	}
 
