@@ -343,7 +343,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		return 0, fmt.Errorf("can't find account type with given id %w", err)
 	}
 
-	// Resolve new relations  from req
+	// Resolve new relations from req
 	newAccType, err := s.repo.FindAccountTypeByID(ctx, tx, req.AccountTypeID)
 	if err != nil {
 		return 0, fmt.Errorf("can't find account type with given id %w", err)
@@ -468,6 +468,15 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 
 		// Match sign conventions
 		isLiability := strings.EqualFold(newAccType.Type, "liability")
+
+		fmt.Println(isLiability)
+		fmt.Println(desired.IsNegative())
+
+		// Validate asset accounts cannot go negative
+		if !isLiability && desired.IsNegative() {
+			tx.Rollback()
+			return 0, fmt.Errorf("asset account balance cannot be negative")
+		}
 
 		desiredFormat := desired
 		if isLiability {
