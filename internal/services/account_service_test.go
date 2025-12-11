@@ -270,9 +270,9 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustLiabilityBalance() {
 	accReq := &models.AccountReq{
 		Name:           "Credit Card",
 		AccountTypeID:  19,
-		Type:           "liability",
-		Subtype:        "credit_card",
-		Classification: "current",
+		Type:           "loan",
+		Subtype:        "personal",
+		Classification: "liability",
 		Balance:        &initialBalance,
 		OpenedAt:       time.Now(),
 	}
@@ -296,9 +296,9 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustLiabilityBalance() {
 	updateReq := &models.AccountReq{
 		Name:           "Credit Card",
 		AccountTypeID:  19,
-		Type:           "liability",
-		Subtype:        "credit_card",
-		Classification: "current",
+		Type:           "loan",
+		Subtype:        "personal",
+		Classification: "liability",
 		Balance:        &newBalance,
 		OpenedAt:       time.Now(),
 	}
