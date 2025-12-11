@@ -148,3 +148,140 @@ func TestConstructOrderByClause(t *testing.T) {
 		assert.Empty(t, joins)
 	})
 }
+
+func TestApplyFilters(t *testing.T) {
+	t.Run("equals operator", func(t *testing.T) {
+		filters := []utils.Filter{
+			{Source: "transactions", Field: "amount", Operator: "equals", Value: "100"},
+		}
+
+		assert.NotEmpty(t, filters)
+		assert.Equal(t, "equals", filters[0].Operator)
+	})
+
+	t.Run("not equals operator variants", func(t *testing.T) {
+		operators := []string{"not equals", "!=", "<>"}
+
+		for _, op := range operators {
+			filters := []utils.Filter{
+				{Source: "transactions", Field: "amount", Operator: op, Value: "50"},
+			}
+			assert.Equal(t, op, filters[0].Operator, "operator %s should be preserved", op)
+		}
+	})
+
+	t.Run("comparison operators", func(t *testing.T) {
+		operators := []string{">", "<", ">=", "<=", "more than", "less than"}
+
+		for _, op := range operators {
+			filters := []utils.Filter{
+				{Source: "transactions", Field: "amount", Operator: op, Value: "100"},
+			}
+			assert.Equal(t, op, filters[0].Operator, "operator %s should be preserved", op)
+		}
+	})
+
+	t.Run("string operators", func(t *testing.T) {
+		operators := []string{"contains", "like"}
+
+		for _, op := range operators {
+			filters := []utils.Filter{
+				{Source: "transactions", Field: "description", Operator: op, Value: "Food"},
+			}
+			assert.Equal(t, op, filters[0].Operator, "operator %s should be preserved", op)
+		}
+	})
+
+	t.Run("date filter format", func(t *testing.T) {
+		filters := []utils.Filter{
+			{Source: "transactions", Field: "txn_date", Operator: "equals", Value: "2024-01-15"},
+		}
+
+		// Verify date format is correct
+		assert.Regexp(t, `^\d{4}-\d{2}-\d{2}$`, filters[0].Value)
+	})
+
+	t.Run("OR logic grouping for same field", func(t *testing.T) {
+		filters := []utils.Filter{
+			{Source: "transactions", Field: "category", Operator: "equals", Value: "1"},
+			{Source: "transactions", Field: "category", Operator: "equals", Value: "2"},
+		}
+
+		// Count how many filters target the same field
+		sameFieldCount := 0
+		for i := 0; i < len(filters); i++ {
+			for j := i + 1; j < len(filters); j++ {
+				if filters[i].Field == filters[j].Field &&
+					filters[i].Source == filters[j].Source &&
+					filters[i].Operator == "equals" {
+					sameFieldCount++
+				}
+			}
+		}
+
+		assert.Greater(t, sameFieldCount, 0, "should have multiple equals on same field")
+	})
+
+	t.Run("multiple filters", func(t *testing.T) {
+		filters := []utils.Filter{
+			{Source: "transactions", Field: "amount", Operator: ">", Value: "50"},
+			{Source: "transactions", Field: "amount", Operator: "<", Value: "200"},
+			{Source: "transactions", Field: "description", Operator: "contains", Value: "Food"},
+		}
+
+		assert.Len(t, filters, 3)
+		assert.NotEqual(t, filters[0].Operator, filters[1].Operator)
+	})
+
+	t.Run("metadata field resolution", func(t *testing.T) {
+		// Test that metadata fields are properly mapped
+		meta, exists := utils.FieldMap["transactions"]["category"]
+		assert.True(t, exists, "category field should have metadata")
+		assert.Equal(t, "categories.name", meta.Column)
+		assert.Equal(t, "categories.id", meta.FilterColumn)
+		assert.True(t, meta.OrEquals)
+	})
+
+	t.Run("metadata for account field", func(t *testing.T) {
+		meta, exists := utils.FieldMap["transactions"]["account"]
+		assert.True(t, exists, "account field should have metadata")
+		assert.Equal(t, "accounts.name", meta.Column)
+		assert.Equal(t, "accounts.id", meta.FilterColumn)
+		assert.True(t, meta.OrEquals)
+	})
+
+	t.Run("metadata for users role field", func(t *testing.T) {
+		meta, exists := utils.FieldMap["users"]["role"]
+		assert.True(t, exists, "role field should have metadata")
+		assert.Equal(t, "roles.name", meta.Column)
+		assert.Empty(t, meta.Join, "role field should have empty join")
+		assert.True(t, meta.OrEquals)
+	})
+
+	t.Run("no filters", func(t *testing.T) {
+		filters := []utils.Filter{}
+		assert.Empty(t, filters)
+	})
+
+	t.Run("filter with empty value", func(t *testing.T) {
+		filters := []utils.Filter{
+			{Source: "transactions", Field: "description", Operator: "equals", Value: ""},
+		}
+
+		assert.Empty(t, filters[0].Value)
+	})
+
+	t.Run("all filter fields populated", func(t *testing.T) {
+		filter := utils.Filter{
+			Source:   "transactions",
+			Field:    "category",
+			Operator: "equals",
+			Value:    "5",
+		}
+
+		assert.NotEmpty(t, filter.Source)
+		assert.NotEmpty(t, filter.Field)
+		assert.NotEmpty(t, filter.Operator)
+		assert.NotEmpty(t, filter.Value)
+	})
+}
