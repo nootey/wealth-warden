@@ -642,7 +642,7 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 	}()
 
 	// Load the account
-	acc, err := s.repo.FindAccountByID(ctx, tx, id, userID, false)
+	acc, err := s.repo.FindAccountByID(ctx, tx, id, userID, true)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
@@ -653,9 +653,22 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 		return err
 	}
 
-	// Materialize a real snapshot for today so charts don’t copy yesterday’s value
+	// Create a final balance record for today
 	today := time.Now().UTC().Truncate(24 * time.Hour)
+	finalBalance := &models.Balance{
+		AccountID:    acc.ID,
+		Currency:     acc.Currency,
+		StartBalance: acc.Balance.EndBalance,
+		AsOf:         today,
+	}
 
+	_, err = s.repo.UpsertBalance(ctx, tx, finalBalance)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Materialize a real snapshot for today so charts don’t copy yesterday’s value
 	// Upsert for the just-closed account
 	_ = s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, today, today)
 

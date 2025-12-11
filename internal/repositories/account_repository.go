@@ -35,6 +35,7 @@ type AccountRepositoryInterface interface {
 	UpdateAccountProjection(ctx context.Context, tx *gorm.DB, record *models.Account) (int64, error)
 	FindEarliestTransactionDate(ctx context.Context, tx *gorm.DB, accountID int64) (*time.Time, error)
 	InsertBalance(ctx context.Context, tx *gorm.DB, newRecord *models.Balance) (int64, error)
+	UpsertBalance(ctx context.Context, tx *gorm.DB, newRecord *models.Balance) (int64, error)
 	UpdateBalance(ctx context.Context, tx *gorm.DB, record models.Balance) (int64, error)
 	CloseAccount(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	PurgeImportedAccounts(ctx context.Context, tx *gorm.DB, importID, userID int64) error
@@ -577,6 +578,35 @@ func (r *AccountRepository) InsertBalance(ctx context.Context, tx *gorm.DB, newR
 		return 0, err
 	}
 	return newRecord.ID, nil
+}
+
+func (r *AccountRepository) UpsertBalance(ctx context.Context, tx *gorm.DB, newRecord *models.Balance) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var existing models.Balance
+	err := db.Where("account_id = ? AND as_of = ?", newRecord.AccountID, newRecord.AsOf).
+		First(&existing).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// Record doesn't exist, insert it
+		if err := db.Create(&newRecord).Error; err != nil {
+			return 0, err
+		}
+		return newRecord.ID, nil
+	} else if err != nil {
+		return 0, err
+	}
+
+	// Record exists, update it
+	if err := db.Model(&existing).Updates(newRecord).Error; err != nil {
+		return 0, err
+	}
+
+	return existing.ID, nil
 }
 
 func (r *AccountRepository) UpdateBalance(ctx context.Context, tx *gorm.DB, record models.Balance) (int64, error) {
