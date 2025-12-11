@@ -136,13 +136,6 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 		case "<=":
 			query = query.Where(fmt.Sprintf("%s <= ?", column), f.Value)
 
-		case "in":
-			col := column
-			if ok && meta.FilterColumn != "" {
-				col = meta.FilterColumn
-			}
-			query = query.Where(fmt.Sprintf("%s IN ?", col), f.Value)
-
 		default:
 			fmt.Println("Unknown operator")
 		}
