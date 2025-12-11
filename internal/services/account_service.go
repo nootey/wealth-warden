@@ -177,6 +177,10 @@ func (s *AccountService) FetchAccountsByType(ctx context.Context, userID int64, 
 	return s.repo.FetchAccountsByType(ctx, nil, userID, t, true)
 }
 
+func (s *AccountService) FetchAccountTypesByClassification(ctx context.Context, c string) ([]models.AccountType, error) {
+	return s.repo.FindAccountTypeClassification(ctx, nil, c)
+}
+
 func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *models.AccountReq) (int64, error) {
 
 	changes := utils.InitChanges()

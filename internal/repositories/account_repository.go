@@ -22,6 +22,7 @@ type AccountRepositoryInterface interface {
 	FindAccountsBySubtype(ctx context.Context, tx *gorm.DB, userID int64, subtype string, activeOnly bool) ([]models.Account, error)
 	FetchAccountsByType(ctx context.Context, tx *gorm.DB, userID int64, t string, activeOnly bool) ([]models.Account, error)
 	FindAccountsByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.Account, error)
+	FindAccountTypeClassification(ctx context.Context, tx *gorm.DB, class string) ([]models.AccountType, error)
 	FindAccountByID(ctx context.Context, tx *gorm.DB, ID, userID int64, withBalance bool) (*models.Account, error)
 	FindAccountByName(ctx context.Context, tx *gorm.DB, userID int64, name string) (*models.Account, error)
 	FindAccountTypeByAccID(ctx context.Context, tx *gorm.DB, accID, userID int64) (*models.AccountType, error)
@@ -450,6 +451,19 @@ func (r *AccountRepository) FindAccountTypeByType(ctx context.Context, tx *gorm.
 
 	var record models.AccountType
 	result := db.Where("type = ? AND sub_type =?", atype, sub_type).First(&record)
+	return record, result.Error
+}
+
+func (r *AccountRepository) FindAccountTypeClassification(ctx context.Context, tx *gorm.DB, class string) ([]models.AccountType, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var record []models.AccountType
+	result := db.Where("classification = ?", class).Find(&record)
 	return record, result.Error
 }
 
