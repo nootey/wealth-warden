@@ -471,10 +471,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		}
 
 		// Match sign conventions
-		isLiability := strings.EqualFold(newAccType.Type, "liability")
-
-		fmt.Println(isLiability)
-		fmt.Println(desired.IsNegative())
+		isLiability := strings.EqualFold(newAccType.Classification, "liability")
 
 		// Validate asset accounts cannot go negative
 		if !isLiability && desired.IsNegative() {
@@ -482,16 +479,8 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			return 0, fmt.Errorf("asset account balance cannot be negative")
 		}
 
-		desiredFormat := desired
-		if isLiability {
-			desiredFormat = desired.Neg()
-		}
-
-		delta = desiredFormat.Sub(latestBalance.EndBalance)
+		delta = desired.Sub(latestBalance.EndBalance)
 		signed := delta
-		if isLiability {
-			signed = delta.Neg()
-		}
 
 		if !signed.IsZero() {
 			txnType := "income"
