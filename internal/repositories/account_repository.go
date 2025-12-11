@@ -305,6 +305,18 @@ func (r *AccountRepository) FindAccountByID(ctx context.Context, tx *gorm.DB, ID
 	}
 
 	result := query.First(&record)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		// Check if account exists but is closed / not active
+		var closedAccount models.Account
+		err := db.Where("id = ? AND user_id = ?", ID, userID).First(&closedAccount).Error
+		if err == nil && closedAccount.ClosedAt != nil {
+			return nil, fmt.Errorf("account is closed")
+		}
+		if err == nil && !closedAccount.IsActive {
+			return nil, fmt.Errorf("account is not active")
+		}
+	}
+
 	return &record, result.Error
 }
 
