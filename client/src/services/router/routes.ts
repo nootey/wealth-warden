@@ -40,31 +40,31 @@ const routes: RouteRecordRaw[] = [
     {
         path: '/confirm-email',
         name: 'confirm.email',
-        meta: { title: 'Confirm email', requiresAuth: true, emailConfirmed: false },
+        meta: { title: 'Confirm email', requiresAuth: true, emailConfirmed: false, hideNavigation: true },
         component: ConfirmEmail,
     },
     {
         path: '/login',
         name: 'login',
-        meta: { title: 'Login', guestOnly: true },
+        meta: { title: 'Login', guestOnly: true, hideNavigation: true },
         component: Login,
     },
     {
         path: '/signup',
         name: 'sign.up',
-        meta: { title: 'Sign up', guestOnly: true },
+        meta: { title: 'Sign up', guestOnly: true, hideNavigation: true },
         component: SignUp,
     },
     {
         path: '/forgot-password',
         name: 'forgot.password',
-        meta: { title: 'Forgot password', guestOnly: true },
+        meta: { title: 'Forgot password', guestOnly: true, hideNavigation: true },
         component: ForgotPassword,
     },
     {
         path: '/reset-password/:token',
         name: 'reset.password',
-        meta: { title: 'Reset password', guestOnly: true },
+        meta: { title: 'Reset password', guestOnly: true, hideNavigation: true },
         component: ResetPassword,
     },
     {

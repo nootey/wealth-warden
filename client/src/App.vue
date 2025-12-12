@@ -19,6 +19,7 @@ const {isAuthenticated, isInitialized} = storeToRefs(authStore);
 
 const requiresAuthView = computed<boolean>(() => route.matched.some(r => r.meta.requiresAuth));
 const isGuestOnlyView = computed<boolean>(() => route.matched.some(r => r.meta.guestOnly));
+const hideNavigation = computed<boolean>(() => route.matched.some(r => r.meta.hideNavigation));
 
 const sidebarRef = ref<InstanceType<typeof AppSideBar> | null>(null);
 
@@ -74,14 +75,14 @@ const isSettingsView = computed(() => route.path.startsWith('/settings'));
     </ConfirmDialog>
 
     <div id="app">
-        <AppNavBar v-if="isAuthenticated && isInitialized && !isGuestOnlyView" />
+        <AppNavBar v-if="isAuthenticated && isInitialized && !hideNavigation" />
 
-        <div class="flex-1 app-content" :style="{ 'margin-left': (isAuthenticated && isInitialized && !isGuestOnlyView) ? '80px' : '0px' }">
+        <div class="flex-1 app-content" :style="{ 'margin-left': (isAuthenticated && isInitialized && !hideNavigation) ? '80px' : '0px' }">
             <div v-if="requiresAuthView && !isInitialized" class="w-full h-full flex items-center justify-center">
                 <i class="pi pi-spin pi-spinner text-2xl"></i>
             </div>
             <div v-else>
-                <div v-if="!isSettingsView && isAuthenticated && isInitialized" id="breadcrumb" class="flex flex-row gap-2 mb-2 align-items-center justify-content-between"
+                <div v-if="!isSettingsView && isAuthenticated && isInitialized && !hideNavigation" id="breadcrumb" class="flex flex-row gap-2 mb-2 align-items-center justify-content-between"
                      style="max-width: 1000px; margin: 0 auto;padding: 1rem 0.5rem 0 0;">
 
                     <div class="flex gap-1 text-center align-items-center">
@@ -105,7 +106,7 @@ const isSettingsView = computed(() => route.path.startsWith('/settings'));
             </div>
         </div>
 
-        <AppSideBar ref="sidebarRef" v-if="isAuthenticated && isInitialized && !isGuestOnlyView"/>
+        <AppSideBar ref="sidebarRef" v-if="isAuthenticated && isInitialized && !hideNavigation"/>
     </div>
 </template>
 
