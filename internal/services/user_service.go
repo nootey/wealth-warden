@@ -421,6 +421,17 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) (i
 		return 0, err
 	}
 
+	changes := utils.InitChanges()
+
+	role, err := s.roleRepo.FindRoleByID(ctx, tx, newInv.RoleID, false)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("can't find role wit given id: %w", err)
+	}
+
+	utils.CompareChanges("", role.Name, changes, "role")
+	utils.CompareChanges("", newInv.Email, changes, "email")
+
 	err = tx.Commit().Error
 	if err != nil {
 		return 0, err
@@ -434,17 +445,6 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) (i
 			return 0, err
 		}
 	}
-
-	changes := utils.InitChanges()
-
-	role, err := s.roleRepo.FindRoleByID(ctx, tx, newInv.RoleID, false)
-	if err != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("can't find role wit given id: %w", err)
-	}
-
-	utils.CompareChanges("", role.Name, changes, "role")
-	utils.CompareChanges("", newInv.Email, changes, "email")
 
 	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
