@@ -1,8 +1,9 @@
 package mailer
 
 import (
-	"gopkg.in/gomail.v2"
 	"wealth-warden/pkg/config"
+
+	"gopkg.in/gomail.v2"
 )
 
 type Mailer struct {
@@ -18,6 +19,10 @@ type MailConfig struct {
 }
 
 func NewMailer(cfg *config.Config, mCfg *MailConfig) *Mailer {
+
+	if cfg.Mailer.Host == "" {
+		return nil
+	}
 
 	dialer := gomail.NewDialer(cfg.Mailer.Host, cfg.Mailer.Port, cfg.Mailer.Username, cfg.Mailer.Password)
 

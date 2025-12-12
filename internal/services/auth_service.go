@@ -107,8 +107,10 @@ func (s *AuthService) dispatchConfirmationEmail(ctx context.Context, user *model
 	}
 
 	// Send email after commit
-	if err := s.mailer.SendConfirmationEmail(user.Email, user.DisplayName, newToken.TokenValue); err != nil {
-		return err
+	if s.mailer != nil {
+		if err := s.mailer.SendConfirmationEmail(user.Email, user.DisplayName, newToken.TokenValue); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -140,10 +142,11 @@ func (s *AuthService) dispatchPasswordResetEmail(ctx context.Context, user *mode
 	}
 
 	// Send email after commit
-	if err := s.mailer.SendPasswordResetEmail(user.Email, user.DisplayName, newToken.TokenValue); err != nil {
-		return err
+	if s.mailer != nil {
+		if err := s.mailer.SendPasswordResetEmail(user.Email, user.DisplayName, newToken.TokenValue); err != nil {
+			return err
+		}
 	}
-
 	return nil
 }
 

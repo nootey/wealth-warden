@@ -224,9 +224,12 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 	}
 
 	name := utils.EmailToName(invitation.Email)
-	err = s.mailer.SendRegistrationEmail(invitation.Email, name, hash)
-	if err != nil {
-		return 0, err
+
+	if s.mailer != nil {
+		err = s.mailer.SendRegistrationEmail(invitation.Email, name, hash)
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	return invID, nil
@@ -425,11 +428,13 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) (i
 
 	name := utils.EmailToName(newInv.Email)
 
-	err = s.mailer.SendRegistrationEmail(newInv.Email, name, hash)
-	if err != nil {
-		return 0, err
+	if s.mailer != nil {
+		err = s.mailer.SendRegistrationEmail(newInv.Email, name, hash)
+		if err != nil {
+			return 0, err
+		}
 	}
-
+	
 	changes := utils.InitChanges()
 
 	role, err := s.roleRepo.FindRoleByID(ctx, tx, newInv.RoleID, false)
