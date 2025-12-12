@@ -1,30 +1,26 @@
 package config
 
 type Config struct {
-	Api        ApiConfig        `mapstructure:"api"`
-	Release    bool             `mapstructure:"release"`
-	WebClient  WebClientConfig  `mapstructure:"web_client"`
-	HttpServer HttpServerConfig `mapstructure:"http_server"`
-	Host       string           `mapstructure:"host"`
-	Postgres   PostgresConfig   `mapstructure:"postgres"`
-	JWT        JWTConfig
-	CORS       CorsConfig   `mapstructure:"cors"`
-	Seed       SeedConfig   `mapstructure:"seed"`
-	Mailer     MailerConfig `mapstructure:"mailer"`
-}
-
-type ApiConfig struct {
-	Version string `mapstructure:"version" validate:"required"`
+	Release      bool             `mapstructure:"release"`
+	TraefikEmail string           `mapstructure:"traefik_email"`
+	WebClient    WebClientConfig  `mapstructure:"web_client"`
+	HttpServer   HttpServerConfig `mapstructure:"http_server"`
+	Host         string           `mapstructure:"host"`
+	Postgres     PostgresConfig   `mapstructure:"postgres"`
+	JWT          JWTConfig        `mapstructure:"jwt"`
+	CORS         CorsConfig       `mapstructure:"cors"`
+	Seed         SeedConfig       `mapstructure:"seed"`
+	Mailer       MailerConfig     `mapstructure:"mailer"`
 }
 
 type WebClientConfig struct {
-	Domain string `mapstructure:"domain" validate:"required"`
-	Port   string `mapstructure:"port"  validate:"required"`
+	Domain string `mapstructure:"domain"`
+	Port   string `mapstructure:"port"`
 }
 
 type HttpServerConfig struct {
-	Port       string `mapstructure:"port"  validate:"required"`
-	ReqTimeout int    `mapstructure:"request_timeout" validate:"required"`
+	Port       string `mapstructure:"port"`
+	ReqTimeout int    `mapstructure:"request_timeout"`
 }
 
 type PostgresConfig struct {
@@ -42,21 +38,21 @@ type JWTConfig struct {
 }
 
 type CorsConfig struct {
-	AllowedOrigins   []string `mapstructure:"allowedOrigins" validate:"required"`
+	AllowedOrigins   []string `mapstructure:"allowedOrigins"`
 	WildcardSuffixes []string `mapstructure:"wildcardSuffixes"`
-	AllowedSchemes   []string `mapstructure:"allowedSchemes" validate:"required"`
+	AllowedSchemes   []string `mapstructure:"allowedSchemes"`
 }
 
 type SeedConfig struct {
-	SuperAdminEmail    string `mapstructure:"super_admin_email"`
-	SuperAdminPassword string `mapstructure:"super_admin_password"`
+	SuperAdminEmail    string `mapstructure:"super_admin_email" validate:"required"`
+	SuperAdminPassword string `mapstructure:"super_admin_password" validate:"required"`
 	MemberUserEmail    string `mapstructure:"member_user_email"`
 	MemberUserPassword string `mapstructure:"member_user_password"`
 }
 
 type MailerConfig struct {
-	Host     string `mapstructure:"host" validate:"required"`
-	Port     int    `mapstructure:"port" validate:"required"`
-	Username string `mapstructure:"username" validate:"required"`
-	Password string `mapstructure:"password" validate:"required"`
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
 }

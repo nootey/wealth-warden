@@ -13,6 +13,11 @@ import (
 func SeedMemberUser(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 
 	email := cfg.Seed.MemberUserEmail
+	if email == "" {
+		fmt.Println("No member email provided in config, skipping ...")
+		return nil
+	}
+
 	hashedPassword, err := utils.HashAndSaltPassword(cfg.Seed.MemberUserPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)

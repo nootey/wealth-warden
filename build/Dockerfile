@@ -30,8 +30,6 @@ RUN apk add --no-cache curl
 # Copy only what's needed at runtime
 COPY --from=builder /app/server /usr/local/bin/server
 COPY --from=builder /app/pkg/database/migrations ./pkg/database/migrations
-COPY --from=builder /app/pkg/config/dev.docker.yaml ./pkg/config/dev.yaml
-
 
 RUN chmod +x /usr/local/bin/server
 ENV PATH="/usr/local/bin/server:${PATH}"

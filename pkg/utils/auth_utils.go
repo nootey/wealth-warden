@@ -104,7 +104,6 @@ func GenerateSecureToken(nBytes int) (string, error) {
 func GenerateHttpReleaseLink(cfg *config.Config) string {
 	domain := cfg.WebClient.Domain
 	port := cfg.HttpServer.Port
-	version := cfg.Api.Version
 	production := cfg.Release
 	prefix := "http://"
 
@@ -118,7 +117,7 @@ func GenerateHttpReleaseLink(cfg *config.Config) string {
 		base += ":" + port
 	}
 
-	return fmt.Sprintf("%s/api/v%s/", base, version)
+	return fmt.Sprintf("%s/api/", base)
 }
 
 func GenerateWebClientReleaseLink(cfg *config.Config, subdomain string) string {
