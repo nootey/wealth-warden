@@ -70,18 +70,21 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 	s.Require().NoError(err, "migrations failed")
 
 	// Load test config
-	configPath := filepath.Join("..", "..", "pkg", "config")
-	cfg, err := config.LoadConfig(&configPath, "test")
+	cfg, err := config.LoadConfig(nil)
+	if err != nil {
+		panic(err)
+	}
+	cfg.Postgres.Database = "wealth_warden_test"
 	s.Require().NoError(err, "failed to load test configuration")
 
-	logger := zap.NewNop() // Silent logger for tests
+	l := zap.NewNop() // Silent logger for tests
 
 	// Seed basic data
-	err = seeders.SeedDatabase(s.Ctx, db, logger, cfg, "basic")
+	err = seeders.SeedDatabase(s.Ctx, db, l, cfg, "basic")
 	s.Require().NoError(err, "seeding failed")
 
 	// Build application container
-	appContainer, err := bootstrap.NewContainer(cfg, db, logger)
+	appContainer, err := bootstrap.NewContainer(cfg, db, l)
 	s.Require().NoError(err, "failed to bootstrap app container")
 
 	s.TC = &TestContainer{

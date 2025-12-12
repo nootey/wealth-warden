@@ -213,14 +213,11 @@ func TestGenerateHttpReleaseLink(t *testing.T) {
 			WebClient: config.WebClientConfig{
 				Domain: "localhost",
 			},
-			Api: config.ApiConfig{
-				Version: "1",
-			},
 		}
 
 		link := utils.GenerateHttpReleaseLink(cfg)
 
-		assert.Equal(t, "http://localhost:8080/api/v1/", link)
+		assert.Equal(t, "http://localhost:8080/api/", link)
 	})
 
 	t.Run("production mode without port", func(t *testing.T) {
@@ -232,14 +229,11 @@ func TestGenerateHttpReleaseLink(t *testing.T) {
 			WebClient: config.WebClientConfig{
 				Domain: "example.com",
 			},
-			Api: config.ApiConfig{
-				Version: "2",
-			},
 		}
 
 		link := utils.GenerateHttpReleaseLink(cfg)
 
-		assert.Equal(t, "https://example.com/api/v2/", link)
+		assert.Equal(t, "https://example.com/api/", link)
 	})
 }
 
