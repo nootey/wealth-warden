@@ -33,4 +33,5 @@ go.work.sum
 /client/dist
 /client/.env
 
-/storage
+/storage/*
+!storage/mailer-templates

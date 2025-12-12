@@ -7,7 +7,7 @@ import (
 )
 
 func renderTemplate(templateName string, data interface{}) (string, error) {
-	tmplPath := filepath.Join("pkg", "mailer", "templates", templateName)
+	tmplPath := filepath.Join("storage", "mailer-templates", templateName)
 	t, err := template.ParseFiles(tmplPath)
 	if err != nil {
 		return "", err

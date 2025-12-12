@@ -29,6 +29,12 @@ func clearStorage() error {
 	}
 
 	for _, entry := range entries {
+
+		// Skip the mailer-template folder
+		if entry.Name() == "mailer-templates" {
+			continue
+		}
+
 		err = os.RemoveAll(filepath.Join(storagePath, entry.Name()))
 		if err != nil {
 			return fmt.Errorf("failed to remove %s: %w", entry.Name(), err)
