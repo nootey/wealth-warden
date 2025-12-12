@@ -27,6 +27,7 @@ type UserRepositoryInterface interface {
 	InsertInvitation(ctx context.Context, tx *gorm.DB, record *models.Invitation) (int64, error)
 	InsertToken(ctx context.Context, tx *gorm.DB, tokenType string, dataIndex string, dataValue interface{}) (*models.Token, error)
 	InsertUser(ctx context.Context, tx *gorm.DB, record *models.User) (int64, error)
+	InsertUserSettings(ctx context.Context, tx *gorm.DB, userID int64, record *models.SettingsUser) (int64, error)
 	UpdateUser(ctx context.Context, tx *gorm.DB, record models.User) (int64, error)
 	UpdateUserPassword(ctx context.Context, tx *gorm.DB, id int64, password string) error
 	ValidateUser(ctx context.Context, tx *gorm.DB, userID int64) (int64, error)
@@ -389,6 +390,20 @@ func (r *UserRepository) InsertUser(ctx context.Context, tx *gorm.DB, record *mo
 		return 0, err
 	}
 	return record.ID, nil
+}
+
+func (r *UserRepository) InsertUserSettings(ctx context.Context, tx *gorm.DB, userID int64, record *models.SettingsUser) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	if err := db.Create(&record).Error; err != nil {
+		return 0, err
+	}
+	return userID, nil
+
 }
 
 func (r *UserRepository) UpdateUser(ctx context.Context, tx *gorm.DB, record models.User) (int64, error) {

@@ -259,7 +259,23 @@ func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, user
 			UpdatedAt:   time.Now().UTC(),
 		}
 
-		_, err = s.userRepo.InsertUser(ctx, tx, user)
+		userID, err := s.userRepo.InsertUser(ctx, tx, user)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		settings := &models.SettingsUser{
+			UserID:    userID,
+			Theme:     "system",
+			Accent:    nil,
+			Language:  "en",
+			Timezone:  "UTC",
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
+		}
+
+		_, err = s.userRepo.InsertUserSettings(ctx, tx, userID, settings)
 		if err != nil {
 			tx.Rollback()
 			return err
