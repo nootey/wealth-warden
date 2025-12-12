@@ -5,7 +5,6 @@
 The client requires a .env file to be present in project root. Create it and fill it out according to this template:
 ```js
 VITE_APP_PORT=3000
-VITE_APP_PRODUCTION_MODE=<value>
 VITE_API_BASE_URL="<api-url>"
 ```
 
