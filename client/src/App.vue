@@ -18,7 +18,6 @@ themeStore.initializeTheme();
 const {isAuthenticated, isInitialized} = storeToRefs(authStore);
 
 const requiresAuthView = computed<boolean>(() => route.matched.some(r => r.meta.requiresAuth));
-const isGuestOnlyView = computed<boolean>(() => route.matched.some(r => r.meta.guestOnly));
 const hideNavigation = computed<boolean>(() => route.matched.some(r => r.meta.hideNavigation));
 
 const sidebarRef = ref<InstanceType<typeof AppSideBar> | null>(null);
