@@ -6,7 +6,7 @@ import {PrimeVueResolver} from '@primevue/auto-import-resolver';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '')
 
-    const DEV_PORT = Number(env.VITE_DEV_PORT) ?? 3000
+    const DEV_PORT = Number(env.VITE_DEV_PORT) ?? 5000
     const API_PROXY_TARGET = env.VITE_API_PROXY_TARGET ?? "http://localhost:2000"
 
     return {

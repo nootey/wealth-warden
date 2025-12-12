@@ -1,0 +1,77 @@
+services:
+  db:
+    image: postgres:latest
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-wealth_warden}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-wealth_warden}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wealth-warden
+
+  migrate:
+    profiles: ["migrate"]
+    build:
+      context: ../..
+      dockerfile: ./build/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-wealth_warden}
+      - POSTGRES_PORT=5432
+    entrypoint: ["server"]
+    command: ["migrate", "fresh-seed-basic" ]        # default args
+    networks:
+      - wealth-warden
+
+  server:
+    build:
+      context: ../..
+      dockerfile: ./build/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-wealth_warden}
+      - POSTGRES_PORT=5432
+    volumes:
+      - ../../logs:/app/logs
+      - ../../pkg/config/override:/app/pkg/config/override:ro
+    networks:
+      - wealth-warden
+
+  client:
+    build:
+      context: ../../
+      dockerfile: ./build/Dockerfile.client
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "5000:80"
+    networks:
+      - wealth-warden
+
+volumes:
+  db:
+
+networks:
+  wealth-warden:
