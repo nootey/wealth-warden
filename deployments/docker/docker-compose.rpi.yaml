@@ -24,8 +24,7 @@ services:
     build:
       context: ../..
       dockerfile: ./build/Dockerfile
-      platforms:
-        - linux/arm64
+    platform: linux/arm64
     depends_on:
       db:
         condition: service_healthy
@@ -44,8 +43,7 @@ services:
     build:
       context: ../..
       dockerfile: ./build/Dockerfile
-      platforms:
-        - linux/arm64
+    platform: linux/arm64
     restart: unless-stopped
     depends_on:
       db:
@@ -66,8 +64,7 @@ services:
     build:
       context: ../../
       dockerfile: ./build/Dockerfile.client
-      platforms:
-        - linux/arm64
+    platform: linux/arm64
     restart: unless-stopped
     depends_on:
       server:
