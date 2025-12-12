@@ -1,19 +1,30 @@
-## Docker setup
+# Self-hosting with Docker
 
-### Dockerfile
+This guide will help you setup, update, and maintain your self-hosted application with Docker Compose. 
+Docker Compose is the most popular and recommended way to self-host the app.
 
-The app is built with a multi-stage Dockerfile at `./build/Dockerfile`.
-- The image bakes in a default config: `/pkg/config/dev.docker.yaml` -> copied to `/app/pkg/config/dev.yaml`.
-- You can override the config with: `/pkg/config/override/dev.yaml`
-- Entry command is server http.
+## Setup
 
-### Docker compose
+Follow the guide below to get your app running.
 
-The app can be fully served with `docker-compose`.
-- It is located in `./deployments/docker`
-- DB defaults: you can run without a .env. Defaults are provided.
+### Install Docker
 
-### Deployment
+- Install Docker Engine by following the official guide
+- Start the Docker service on your machine
+
+### Configure your Docker Compose file and environment variables
+
+By default, the app will run with defaults, and does not require any environment variables.
+
+> !Warning This make the app very unsecure, since it uses default credentials and can be easily exploited.
+
+It is recommended to create an override config file in `/pkg/config/override/dev.yaml` and fill it out with your information.
+
+If you're deploying with Traefik, you can also create a file in `/deployments/docker/.env`, to configure your domain and Traefik email.
+
+Both files have examples provided in their respected directories.
+
+### Run the app
 
 To spin up just the db component, you can use:
 
