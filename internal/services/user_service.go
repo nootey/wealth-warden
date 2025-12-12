@@ -196,11 +196,6 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 		return 0, err
 	}
 
-	err = tx.Commit().Error
-	if err != nil {
-		return 0, err
-	}
-
 	changes := utils.InitChanges()
 
 	role, err := s.roleRepo.FindRoleByID(ctx, tx, invitation.RoleID, false)
@@ -211,6 +206,11 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 
 	utils.CompareChanges("", role.Name, changes, "role")
 	utils.CompareChanges("", invitation.Email, changes, "email")
+
+	err = tx.Commit().Error
+	if err != nil {
+		return 0, err
+	}
 
 	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
@@ -434,7 +434,7 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) (i
 			return 0, err
 		}
 	}
-	
+
 	changes := utils.InitChanges()
 
 	role, err := s.roleRepo.FindRoleByID(ctx, tx, newInv.RoleID, false)

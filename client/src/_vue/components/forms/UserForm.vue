@@ -163,6 +163,8 @@ async function manageRecord() {
 
     } catch (error) {
         toastStore.errorResponseToast(error);
+    } finally {
+        loading.value = false;
     }
 
 }
