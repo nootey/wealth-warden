@@ -8,9 +8,13 @@ COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/root/.cache/go-build go mod download
 RUN go mod verify
 
+# Use build args to detect target platform
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
 ENV CGO_ENABLED=0
-ENV GOOS=linux
-ENV GOARCH=amd64
+ENV GOOS=$TARGETOS
+ENV GOARCH=$TARGETARCH
 
 # Copy only necessary folders
 COPY cmd ./cmd
