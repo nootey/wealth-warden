@@ -145,7 +145,7 @@ func (h *AuthHandler) ValidateInvitationEmail(c *gin.Context) {
 	err := h.Service.ValidateInvitation(ctx, hash)
 	if err == nil {
 		redirectUrl := utils.GenerateWebClientReleaseLink(h.cfg, "")
-		c.Redirect(http.StatusFound, fmt.Sprintf("%s%s?token=%s", redirectUrl, "register", hash))
+		c.Redirect(http.StatusFound, fmt.Sprintf("%s%s?token=%s", redirectUrl, "signup", hash))
 	} else {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
