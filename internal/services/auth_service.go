@@ -347,10 +347,8 @@ func (s *AuthService) ConfirmEmail(ctx context.Context, tokenValue, userAgent, i
 		return err
 	}
 
-	now := time.Now().UTC()
-	user.EmailConfirmed = &now
-
-	if err := tx.Save(&user).Error; err != nil {
+	_, err = s.userRepo.ValidateUser(ctx, tx, userID)
+	if err != nil {
 		_ = tx.Rollback()
 		return err
 	}
