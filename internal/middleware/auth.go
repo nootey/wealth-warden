@@ -28,6 +28,16 @@ type WebClientUserClaim struct {
 	jwt.RegisteredClaims
 }
 
+type WebClientMiddlewareInterface interface {
+	CookieDomainForEnv() string
+	CookieSecure() bool
+	WebClientAuthentication() gin.HandlerFunc
+	GenerateLoginTokens(userID int64, rememberMe bool) (string, string, error)
+	ErrorLogger() gin.HandlerFunc
+}
+
+var _ WebClientMiddlewareInterface = (*WebClientMiddleware)(nil)
+
 type WebClientMiddleware struct {
 	config *config.Config
 	logger *zap.Logger
@@ -57,9 +67,9 @@ func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 		// Try access
 		access, _ := c.Cookie("access")
 		if access != "" {
-			claims, err := m.DecodeWebClientToken(access, "access")
+			claims, err := m.decodeWebClientToken(access, "access")
 			if err == nil {
-				userID, err := m.DecodeWebClientUserID(claims.UserID)
+				userID, err := m.decodeWebClientUserID(claims.UserID)
 				if err == nil {
 					c.Set("user_id", userID)
 					c.Next()
@@ -75,13 +85,13 @@ func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 			return
 		}
 
-		rClaims, err := m.DecodeWebClientToken(refresh, "refresh")
+		rClaims, err := m.decodeWebClientToken(refresh, "refresh")
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
 			return
 		}
 
-		userID, err := m.DecodeWebClientUserID(rClaims.UserID)
+		userID, err := m.decodeWebClientUserID(rClaims.UserID)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
 			return
@@ -98,10 +108,51 @@ func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 	}
 }
 
+func (m *WebClientMiddleware) GenerateLoginTokens(userID int64, rememberMe bool) (string, string, error) {
+
+	var expiresAt time.Time
+	if rememberMe {
+		expiresAt = time.Now().Add(1 * 24 * time.Hour) // Token expires in 1 day
+	} else {
+		expiresAt = time.Now().Add(1 * time.Hour) // Token expires in 1 hour
+	}
+
+	accessToken, err := m.generateToken("access", time.Now().Add(15*time.Minute), userID)
+	if err != nil {
+		return "", "", err
+	}
+
+	refreshToken, err := m.generateToken("refresh", expiresAt, userID)
+	if err != nil {
+		return "", "", err
+	}
+
+	return accessToken, refreshToken, nil
+}
+
+func (m *WebClientMiddleware) ErrorLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next() // Process request
+
+		// After request
+		if len(c.Errors) > 0 {
+			for _, err := range c.Errors {
+				m.logger.Info("HTTP error",
+					zap.String("method", c.Request.Method),
+					zap.String("path", c.Request.URL.Path),
+					zap.String("client_ip", c.ClientIP()),
+					zap.Int("status_code", c.Writer.Status()),
+					zap.Error(err),
+				)
+			}
+		}
+	}
+}
+
 func (m *WebClientMiddleware) issueAccessCookie(c *gin.Context, userID int64) error {
 
 	accessExp := time.Now().Add(constants.AccessCookieTTL)
-	token, err := m.GenerateToken("access", accessExp, userID)
+	token, err := m.generateToken("access", accessExp, userID)
 	if err != nil {
 		return err
 	}
@@ -142,7 +193,7 @@ func (m *WebClientMiddleware) encodeWebClientUserID(userID int64) (string, error
 	return encoded, nil
 }
 
-func (m *WebClientMiddleware) DecodeWebClientUserID(encodedString string) (int64, error) {
+func (m *WebClientMiddleware) decodeWebClientUserID(encodedString string) (int64, error) {
 	key := m.config.JWT.WebClientEncodeID
 	if len(key) != 32 {
 		return 0, fmt.Errorf("encryption key must be 32 bytes long for AES-256")
@@ -183,7 +234,7 @@ func (m *WebClientMiddleware) DecodeWebClientUserID(encodedString string) (int64
 	return intUserID, nil
 }
 
-func (m *WebClientMiddleware) GenerateToken(tokenType string, expiration time.Time, userID int64) (string, error) {
+func (m *WebClientMiddleware) generateToken(tokenType string, expiration time.Time, userID int64) (string, error) {
 	var jwtKey []byte
 	issuedAt := time.Now()
 
@@ -223,29 +274,7 @@ func (m *WebClientMiddleware) GenerateToken(tokenType string, expiration time.Ti
 	return signedToken, nil
 }
 
-func (m *WebClientMiddleware) GenerateLoginTokens(userID int64, rememberMe bool) (string, string, error) {
-
-	var expiresAt time.Time
-	if rememberMe {
-		expiresAt = time.Now().Add(1 * 24 * time.Hour) // Token expires in 1 day
-	} else {
-		expiresAt = time.Now().Add(1 * time.Hour) // Token expires in 1 hour
-	}
-
-	accessToken, err := m.GenerateToken("access", time.Now().Add(15*time.Minute), userID)
-	if err != nil {
-		return "", "", err
-	}
-
-	refreshToken, err := m.GenerateToken("refresh", expiresAt, userID)
-	if err != nil {
-		return "", "", err
-	}
-
-	return accessToken, refreshToken, nil
-}
-
-func (m *WebClientMiddleware) DecodeWebClientToken(tokenString string, cookieType string) (*WebClientUserClaim, error) {
+func (m *WebClientMiddleware) decodeWebClientToken(tokenString string, cookieType string) (*WebClientUserClaim, error) {
 	var secret string
 
 	switch cookieType {
@@ -280,23 +309,4 @@ func (m *WebClientMiddleware) DecodeWebClientToken(tokenString string, cookieTyp
 	}
 
 	return nil, nil
-}
-
-func (m *WebClientMiddleware) ErrorLogger() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Next() // Process request
-
-		// After request
-		if len(c.Errors) > 0 {
-			for _, err := range c.Errors {
-				m.logger.Info("HTTP error",
-					zap.String("method", c.Request.Method),
-					zap.String("path", c.Request.URL.Path),
-					zap.String("client_ip", c.ClientIP()),
-					zap.Int("status_code", c.Writer.Status()),
-					zap.Error(err),
-				)
-			}
-		}
-	}
 }
