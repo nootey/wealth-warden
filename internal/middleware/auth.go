@@ -71,30 +71,27 @@ func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 		// If access missing/expired, try refresh
 		refresh, _ := c.Cookie("refresh")
 		if refresh == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
-			return
-		}
-		rClaims, err := m.DecodeWebClientToken(refresh, "refresh")
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
 			return
 		}
 
-		// Check refresh token server-side  and rotation state here
+		rClaims, err := m.DecodeWebClientToken(refresh, "refresh")
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
+			return
+		}
 
 		userID, err := m.DecodeWebClientUserID(rClaims.UserID)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
 			return
 		}
 
-		// 4) Issue new access (and rotate refresh if you implement rotation)
+		// Issue new access
 		if err := m.issueAccessCookie(c, userID); err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
 			return
 		}
-
-		// Optionally rotate refresh cookie here as well
 
 		c.Set("user_id", userID)
 		c.Next()
@@ -114,24 +111,6 @@ func (m *WebClientMiddleware) issueAccessCookie(c *gin.Context, userID int64) er
 	c.SetCookie("access", token, maxAge, "/", m.CookieDomainForEnv(), m.CookieSecure(), true)
 	return nil
 }
-
-//func (m *WebClientMiddleware) issueRefreshCookie(c *gin.Context, userID int64, remember bool) error {
-//
-//	refreshExp := time.Now().Add(map[bool]time.Duration{
-//		true:  constants.RefreshCookieTTLLong,
-//		false: constants.RefreshCookieTTLShort,
-//	}[remember])
-//
-//	token, err := m.GenerateToken("refresh", refreshExp, userID)
-//	if err != nil {
-//		return err
-//	}
-//
-//	c.SetSameSite(http.SameSiteLaxMode)
-//	maxAge := int(time.Until(refreshExp).Seconds())
-//	c.SetCookie("refresh", token, maxAge, "/", m.CookieDomainForEnv(), m.CookieSecure(), true)
-//	return nil
-//}
 
 func (m *WebClientMiddleware) encodeWebClientUserID(userID int64) (string, error) {
 	key := m.config.JWT.WebClientEncodeID
