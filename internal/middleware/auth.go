@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"time"
 	"wealth-warden/pkg/config"
-	"wealth-warden/pkg/constants"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -39,14 +38,20 @@ type WebClientMiddlewareInterface interface {
 var _ WebClientMiddlewareInterface = (*WebClientMiddleware)(nil)
 
 type WebClientMiddleware struct {
-	config *config.Config
-	logger *zap.Logger
+	config          *config.Config
+	logger          *zap.Logger
+	accessTTL       time.Duration
+	refreshTTLShort time.Duration
+	refreshTTLLong  time.Duration
 }
 
-func NewWebClientMiddleware(cfg *config.Config, logger *zap.Logger) *WebClientMiddleware {
+func NewWebClientMiddleware(cfg *config.Config, logger *zap.Logger, accessTTL, refreshShort, refreshLong time.Duration) *WebClientMiddleware {
 	return &WebClientMiddleware{
-		config: cfg,
-		logger: logger,
+		config:          cfg,
+		logger:          logger,
+		accessTTL:       accessTTL,
+		refreshTTLShort: refreshShort,
+		refreshTTLLong:  refreshLong,
 	}
 }
 
@@ -112,12 +117,12 @@ func (m *WebClientMiddleware) GenerateLoginTokens(userID int64, rememberMe bool)
 
 	var expiresAt time.Time
 	if rememberMe {
-		expiresAt = time.Now().Add(1 * 24 * time.Hour) // Token expires in 1 day
+		expiresAt = time.Now().Add(m.refreshTTLLong)
 	} else {
-		expiresAt = time.Now().Add(1 * time.Hour) // Token expires in 1 hour
+		expiresAt = time.Now().Add(m.refreshTTLShort)
 	}
 
-	accessToken, err := m.generateToken("access", time.Now().Add(15*time.Minute), userID)
+	accessToken, err := m.generateToken("access", time.Now().Add(m.accessTTL), userID)
 	if err != nil {
 		return "", "", err
 	}
@@ -151,7 +156,7 @@ func (m *WebClientMiddleware) ErrorLogger() gin.HandlerFunc {
 
 func (m *WebClientMiddleware) issueAccessCookie(c *gin.Context, userID int64) error {
 
-	accessExp := time.Now().Add(constants.AccessCookieTTL)
+	accessExp := time.Now().Add(m.accessTTL)
 	token, err := m.generateToken("access", accessExp, userID)
 	if err != nil {
 		return err
