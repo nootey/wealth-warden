@@ -25,6 +25,7 @@ type AuthServiceInterface interface {
 	RequestPasswordReset(ctx context.Context, email, userAgent, ip string) error
 	ValidatePasswordReset(ctx context.Context, tokenValue string) (string, error)
 	ResetPassword(ctx context.Context, form models.ResetPasswordForm, userAgent, ip string) error
+	RegisterUser(ctx context.Context, form models.RegisterForm, userAgent, ip string) error
 }
 type AuthService struct {
 	userRepo      repositories.UserRepositoryInterface

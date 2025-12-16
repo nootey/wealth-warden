@@ -15,14 +15,14 @@ import (
 
 type AuthHandler struct {
 	cfg        *config.Config
-	middleware *middleware.WebClientMiddleware
-	Service    *services.AuthService
+	middleware middleware.WebClientMiddlewareInterface
+	Service    services.AuthServiceInterface
 }
 
 func NewAuthHandler(
 	cfg *config.Config,
-	middleware *middleware.WebClientMiddleware,
-	service *services.AuthService,
+	middleware middleware.WebClientMiddlewareInterface,
+	service services.AuthServiceInterface,
 ) *AuthHandler {
 	return &AuthHandler{
 		cfg:        cfg,
