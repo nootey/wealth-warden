@@ -112,7 +112,7 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.SignUp(ctx, form, userAgent, loginIP)
+	_, err := h.Service.SignUp(ctx, form, userAgent, loginIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Registration failed", err.Error(), http.StatusUnauthorized, err)
 		return
