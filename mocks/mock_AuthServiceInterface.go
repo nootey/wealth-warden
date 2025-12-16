@@ -327,21 +327,31 @@ func (_c *MockAuthServiceInterface_ResetPassword_Call) RunAndReturn(run func(con
 }
 
 // SignUp provides a mock function with given fields: ctx, form, userAgent, ip
-func (_m *MockAuthServiceInterface) SignUp(ctx context.Context, form models.RegisterForm, userAgent string, ip string) error {
+func (_m *MockAuthServiceInterface) SignUp(ctx context.Context, form models.RegisterForm, userAgent string, ip string) (int64, error) {
 	ret := _m.Called(ctx, form, userAgent, ip)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SignUp")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.RegisterForm, string, string) error); ok {
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.RegisterForm, string, string) (int64, error)); ok {
+		return rf(ctx, form, userAgent, ip)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.RegisterForm, string, string) int64); ok {
 		r0 = rf(ctx, form, userAgent, ip)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(int64)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, models.RegisterForm, string, string) error); ok {
+		r1 = rf(ctx, form, userAgent, ip)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockAuthServiceInterface_SignUp_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SignUp'
@@ -365,12 +375,12 @@ func (_c *MockAuthServiceInterface_SignUp_Call) Run(run func(ctx context.Context
 	return _c
 }
 
-func (_c *MockAuthServiceInterface_SignUp_Call) Return(_a0 error) *MockAuthServiceInterface_SignUp_Call {
-	_c.Call.Return(_a0)
+func (_c *MockAuthServiceInterface_SignUp_Call) Return(_a0 int64, _a1 error) *MockAuthServiceInterface_SignUp_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockAuthServiceInterface_SignUp_Call) RunAndReturn(run func(context.Context, models.RegisterForm, string, string) error) *MockAuthServiceInterface_SignUp_Call {
+func (_c *MockAuthServiceInterface_SignUp_Call) RunAndReturn(run func(context.Context, models.RegisterForm, string, string) (int64, error)) *MockAuthServiceInterface_SignUp_Call {
 	_c.Call.Return(run)
 	return _c
 }
