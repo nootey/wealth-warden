@@ -6,39 +6,36 @@ let isRetrying = false;
 apiClient.interceptors.response.use(
     (response) => response,
     async (error) => {
-
         const { config, response } = error;
         const url: string = error?.config?.url ?? '';
 
         if (!response) return Promise.reject(error);
 
-        if (response.status === 401 && !config.__retried) {
-            config.__retried = true;
+        if (response.status === 401 && !config._retry) {
+            config._retry = true;
+
             try {
-                // if the server minted a new access cookie, retry
+                // The server already set a new access cookie, retry
                 return await apiClient(config);
-            } catch (e) {
-                // fall through to logout
+            } catch (retryError) {
+                // If retry fails, fall through to logout
             }
         }
 
         if (response.status === 401) {
             const auth = useAuthStore();
+            const isAuthEndpoint = /\/auth\/(current|logout|login)/.test(url);
 
-
-            if (auth.isAuthenticated && !isRetrying) {
+            if (!isAuthEndpoint && auth.isAuthenticated && !isRetrying) {
                 isRetrying = true;
                 try {
-                    const isAuthEndpoint = /\/auth\/(current|logout|login)/.test(url);
-                    if (!isAuthEndpoint) {
-                        await auth.logoutUser();
-                    }
-
+                    await auth.logoutUser();
                 } finally {
                     isRetrying = false;
                 }
             }
         }
+
         return Promise.reject(error);
     }
 );
