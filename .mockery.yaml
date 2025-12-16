@@ -6,6 +6,10 @@ packages:
     interfaces:
       AccountServiceInterface:
       TransactionServiceInterface:
+      AuthServiceInterface:
   wealth-warden/pkg/validators:
     interfaces:
       Validator:
+  wealth-warden/internal/middleware:
+    interfaces:
+      WebClientMiddlewareInterface:
