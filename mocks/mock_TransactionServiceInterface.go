@@ -4,9 +4,12 @@ package mocks
 
 import (
 	context "context"
-	models "wealth-warden/internal/models"
+
+	gorm "gorm.io/gorm"
 
 	mock "github.com/stretchr/testify/mock"
+
+	models "wealth-warden/internal/models"
 
 	utils "wealth-warden/pkg/utils"
 )
@@ -894,6 +897,65 @@ func (_c *MockTransactionServiceInterface_FetchTransfersPaginated_Call) RunAndRe
 	return _c
 }
 
+// GetTemplatesReadyToRun provides a mock function with given fields: ctx, tx
+func (_m *MockTransactionServiceInterface) GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error) {
+	ret := _m.Called(ctx, tx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetTemplatesReadyToRun")
+	}
+
+	var r0 []*models.TransactionTemplate
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *gorm.DB) ([]*models.TransactionTemplate, error)); ok {
+		return rf(ctx, tx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *gorm.DB) []*models.TransactionTemplate); ok {
+		r0 = rf(ctx, tx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*models.TransactionTemplate)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *gorm.DB) error); ok {
+		r1 = rf(ctx, tx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTransactionServiceInterface_GetTemplatesReadyToRun_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTemplatesReadyToRun'
+type MockTransactionServiceInterface_GetTemplatesReadyToRun_Call struct {
+	*mock.Call
+}
+
+// GetTemplatesReadyToRun is a helper method to define mock.On call
+//   - ctx context.Context
+//   - tx *gorm.DB
+func (_e *MockTransactionServiceInterface_Expecter) GetTemplatesReadyToRun(ctx interface{}, tx interface{}) *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call {
+	return &MockTransactionServiceInterface_GetTemplatesReadyToRun_Call{Call: _e.mock.On("GetTemplatesReadyToRun", ctx, tx)}
+}
+
+func (_c *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call) Run(run func(ctx context.Context, tx *gorm.DB)) *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*gorm.DB))
+	})
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call) Return(_a0 []*models.TransactionTemplate, _a1 error) *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call) RunAndReturn(run func(context.Context, *gorm.DB) ([]*models.TransactionTemplate, error)) *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetTransactionTemplateCount provides a mock function with given fields: ctx, userID
 func (_m *MockTransactionServiceInterface) GetTransactionTemplateCount(ctx context.Context, userID int64) (int64, error) {
 	ret := _m.Called(ctx, userID)
@@ -1237,6 +1299,53 @@ func (_c *MockTransactionServiceInterface_InsertTransfer_Call) Return(_a0 int64,
 }
 
 func (_c *MockTransactionServiceInterface_InsertTransfer_Call) RunAndReturn(run func(context.Context, int64, *models.TransferReq) (int64, error)) *MockTransactionServiceInterface_InsertTransfer_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ProcessTemplate provides a mock function with given fields: ctx, template
+func (_m *MockTransactionServiceInterface) ProcessTemplate(ctx context.Context, template *models.TransactionTemplate) error {
+	ret := _m.Called(ctx, template)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ProcessTemplate")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *models.TransactionTemplate) error); ok {
+		r0 = rf(ctx, template)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockTransactionServiceInterface_ProcessTemplate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ProcessTemplate'
+type MockTransactionServiceInterface_ProcessTemplate_Call struct {
+	*mock.Call
+}
+
+// ProcessTemplate is a helper method to define mock.On call
+//   - ctx context.Context
+//   - template *models.TransactionTemplate
+func (_e *MockTransactionServiceInterface_Expecter) ProcessTemplate(ctx interface{}, template interface{}) *MockTransactionServiceInterface_ProcessTemplate_Call {
+	return &MockTransactionServiceInterface_ProcessTemplate_Call{Call: _e.mock.On("ProcessTemplate", ctx, template)}
+}
+
+func (_c *MockTransactionServiceInterface_ProcessTemplate_Call) Run(run func(ctx context.Context, template *models.TransactionTemplate)) *MockTransactionServiceInterface_ProcessTemplate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*models.TransactionTemplate))
+	})
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_ProcessTemplate_Call) Return(_a0 error) *MockTransactionServiceInterface_ProcessTemplate_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_ProcessTemplate_Call) RunAndReturn(run func(context.Context, *models.TransactionTemplate) error) *MockTransactionServiceInterface_ProcessTemplate_Call {
 	_c.Call.Return(run)
 	return _c
 }
