@@ -73,6 +73,7 @@ type TransactionRepositoryInterface interface {
 	IsCategoryInGroup(ctx context.Context, tx *gorm.DB, categoryID int64) (bool, error)
 	GetYearlyAverageForCategory(ctx context.Context, tx *gorm.DB, userID int64, accountID int64, categoryID int64, year int) (float64, error)
 	GetYearlyAverageForCategoryGroup(ctx context.Context, tx *gorm.DB, userID int64, accountID int64, groupID int64, year int) (float64, error)
+	GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error)
 }
 
 type TransactionRepository struct {
@@ -1269,4 +1270,35 @@ func (r *TransactionRepository) GetYearlyAverageForCategoryGroup(ctx context.Con
 
 	monthlyAverage := result.Total / float64(result.ActiveMonths)
 	return monthlyAverage, err
+}
+
+func (r *TransactionRepository) GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var templates []*models.TransactionTemplate
+
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+
+	query := db.WithContext(ctx).
+		Preload("Account").
+		Preload("Category").
+		Where("is_active = ?", true).
+		Where("next_run_at <= ?", now)
+
+	// Exclude templates that have reached max runs
+	query = query.Where("max_runs IS NULL OR run_count < max_runs")
+
+	// Exclude templates past their end date
+	query = query.Where("end_date IS NULL OR end_date >= ?", now)
+
+	if err := query.Find(&templates).Error; err != nil {
+		return nil, err
+	}
+
+	return templates, nil
 }

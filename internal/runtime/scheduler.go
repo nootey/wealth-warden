@@ -30,15 +30,16 @@ func NewScheduler(logger *zap.Logger, container *bootstrap.Container) (*Schedule
 }
 
 func (s *Scheduler) Start() error {
-	// Register all jobs
-	if err := s.registerBackfillJob(); err != nil {
+
+	// Register jobs
+	err := s.registerJobs()
+	if err != nil {
 		return err
 	}
 
-	// Add more jobs here as needed
-
 	s.scheduler.Start()
 	s.logger.Info("Scheduler started")
+
 	return nil
 }
 
@@ -46,10 +47,24 @@ func (s *Scheduler) Shutdown() error {
 	s.logger.Info("Scheduler shutting down")
 	return s.scheduler.Shutdown()
 }
+func (s *Scheduler) registerJobs() error {
+
+	err := s.registerBackfillJob()
+	if err != nil {
+		return err
+	}
+
+	err = s.registerTemplateJob()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func (s *Scheduler) registerBackfillJob() error {
 	_, err := s.scheduler.NewJob(
-		gocron.DurationJob(12*time.Hour),
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 0, 0))),
 		gocron.NewTask(func() {
 			s.logger.Info("Starting scheduled backfill job...")
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -59,6 +74,25 @@ func (s *Scheduler) registerBackfillJob() error {
 				s.logger.Error("Backfill failed", zap.Error(err))
 			} else {
 				s.logger.Info("Backfill completed successfully")
+			}
+		}),
+		gocron.WithStartAt(gocron.WithStartImmediately()),
+	)
+	return err
+}
+
+func (s *Scheduler) registerTemplateJob() error {
+	_, err := s.scheduler.NewJob(
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 30, 0))),
+		gocron.NewTask(func() {
+			s.logger.Info("Starting scheduled template processing job...")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+
+			if err := s.runTemplateProcessing(ctx); err != nil {
+				s.logger.Error("Template processing failed", zap.Error(err))
+			} else {
+				s.logger.Info("Template processing completed successfully")
 			}
 		}),
 		gocron.WithStartAt(gocron.WithStartImmediately()),
@@ -101,6 +135,45 @@ func (s *Scheduler) runBackfill(ctx context.Context) error {
 	}
 
 	s.logger.Info("Backfill completed",
+		zap.Int("success", successCount),
+		zap.Int("failed", failCount))
+
+	return nil
+}
+
+func (s *Scheduler) runTemplateProcessing(ctx context.Context) error {
+
+	templates, err := s.container.TransactionService.GetTemplatesReadyToRun(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get templates: %w", err)
+	}
+
+	if len(templates) == 0 {
+		s.logger.Info("No templates ready to process")
+		return nil
+	}
+
+	s.logger.Info("Processing templates", zap.Int("count", len(templates)))
+
+	successCount := 0
+	failCount := 0
+
+	for _, template := range templates {
+		if err := s.container.TransactionService.ProcessTemplate(ctx, template); err != nil {
+			s.logger.Error("Failed to process template",
+				zap.Int64("templateID", template.ID),
+				zap.String("templateName", template.Name),
+				zap.Error(err))
+			failCount++
+		} else {
+			s.logger.Debug("Processed template",
+				zap.Int64("templateID", template.ID),
+				zap.String("templateName", template.Name))
+			successCount++
+		}
+	}
+
+	s.logger.Info("Template processing completed",
 		zap.Int("success", successCount),
 		zap.Int("failed", failCount))
 

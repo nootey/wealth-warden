@@ -31,6 +31,10 @@ const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
 
 onMounted(async () => {
+
+    // Fetch accounts first
+    accounts.value = await accountStore.getAllAccounts(true, true);
+
     if (props.mode === "update" && props.recordId) {
         await loadRecord(props.recordId);
     }
@@ -54,7 +58,7 @@ const amountRef = computed({
 const { number: amountNumber } = currencyHelper.useMoneyField(amountRef, 2);
 
 const frequencies = ref<string[]>(["Weekly", "Biweekly", "Monthly", "Quarterly", "Annually"]);
-const accounts = computed<Account[]>(() => accountStore.accounts);
+const accounts = ref<Account[]>([]);
 const allCategories = computed<Category[]>(() => transactionStore.categories);
 const parentCategories = computed(() => {
     const base = allCategories.value.filter(c =>

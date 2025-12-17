@@ -41,6 +41,8 @@ type TransactionServiceInterface interface {
 	ToggleTransactionTemplateActiveState(ctx context.Context, userID int64, id int64) error
 	DeleteTransactionTemplate(ctx context.Context, userID int64, id int64) error
 	GetTransactionTemplateCount(ctx context.Context, userID int64) (int64, error)
+	GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error)
+	ProcessTemplate(ctx context.Context, template *models.TransactionTemplate) error
 	FetchAllCategoryGroups(ctx context.Context, userID int64) ([]models.CategoryGroup, error)
 	FetchAllCategoriesWithGroups(ctx context.Context, userID int64) ([]models.CategoryOrGroup, error)
 	FetchCategoryGroupByID(ctx context.Context, userID int64, id int64) (*models.CategoryGroup, error)
@@ -1740,6 +1742,76 @@ func (s *TransactionService) DeleteTransactionTemplate(ctx context.Context, user
 
 func (s *TransactionService) GetTransactionTemplateCount(ctx context.Context, userID int64) (int64, error) {
 	return s.repo.CountTransactionTemplates(ctx, nil, userID, true)
+}
+
+func (s *TransactionService) GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error) {
+	return s.repo.GetTemplatesReadyToRun(ctx, tx)
+}
+
+func (s *TransactionService) ProcessTemplate(ctx context.Context, template *models.TransactionTemplate) error {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Create the transaction
+	desc := fmt.Sprintf("Auto: %s", template.Name)
+	txnReq := &models.TransactionReq{
+		AccountID:       template.AccountID,
+		CategoryID:      &template.CategoryID,
+		TransactionType: template.TransactionType,
+		Amount:          template.Amount,
+		TxnDate:         template.NextRunAt,
+		Description:     &desc,
+	}
+
+	_, err = s.InsertTransaction(ctx, template.UserID, txnReq)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Calculate next run date
+	nextRun := utils.CalculateNextRun(template.NextRunAt, template.Frequency)
+	now := time.Now().UTC()
+
+	// Update template
+	updates := map[string]interface{}{
+		"last_run_at": now,
+		"run_count":   template.RunCount + 1,
+		"next_run_at": nextRun,
+	}
+
+	// Check if we should deactivate
+	shouldDeactivate := false
+	if template.MaxRuns != nil && template.RunCount+1 >= *template.MaxRuns {
+		shouldDeactivate = true
+	}
+	if template.EndDate != nil && nextRun.After(*template.EndDate) {
+		shouldDeactivate = true
+	}
+
+	if shouldDeactivate {
+		updates["is_active"] = false
+	}
+
+	if err := tx.Model(&models.TransactionTemplate{}).Where("id = ?", template.ID).Updates(updates).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *TransactionService) FetchAllCategoryGroups(ctx context.Context, userID int64) ([]models.CategoryGroup, error) {
