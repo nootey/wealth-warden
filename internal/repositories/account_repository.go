@@ -17,7 +17,7 @@ type AccountRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
 	FindAccounts(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeInactive bool, classification *string) ([]models.Account, error)
 	CountAccounts(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, includeInactive bool, classification *string) (int64, error)
-	FindAllAccounts(ctx context.Context, tx *gorm.DB, userID int64, includeInactive bool) ([]models.Account, error)
+	FindAllAccounts(ctx context.Context, tx *gorm.DB, userID int64, includeInactive bool, includeAccountTypes bool) ([]models.Account, error)
 	FindAllAccountTypes(ctx context.Context, tx *gorm.DB, userID *int64) ([]models.AccountType, error)
 	FindAccountsBySubtype(ctx context.Context, tx *gorm.DB, userID int64, subtype string, activeOnly bool) ([]models.Account, error)
 	FetchAccountsByType(ctx context.Context, tx *gorm.DB, userID int64, t string, activeOnly bool) ([]models.Account, error)
@@ -181,8 +181,7 @@ func (r *AccountRepository) CountAccounts(ctx context.Context, tx *gorm.DB, user
 	return totalRecords, nil
 }
 
-func (r *AccountRepository) FindAllAccounts(ctx context.Context, tx *gorm.DB, userID int64, includeInactive bool) ([]models.Account, error) {
-
+func (r *AccountRepository) FindAllAccounts(ctx context.Context, tx *gorm.DB, userID int64, includeInactive bool, includeAccountTypes bool) ([]models.Account, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -195,6 +194,10 @@ func (r *AccountRepository) FindAllAccounts(ctx context.Context, tx *gorm.DB, us
 
 	if !includeInactive {
 		query = query.Where("is_active = ?", true)
+	}
+
+	if includeAccountTypes {
+		query = query.Preload("AccountType")
 	}
 
 	if err := query.Find(&records).Error; err != nil {

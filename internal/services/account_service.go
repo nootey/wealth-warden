@@ -21,7 +21,7 @@ type AccountServiceInterface interface {
 	FetchLatestBalance(ctx context.Context, accID, userID int64) (*models.Balance, error)
 	FetchAccountByID(ctx context.Context, userID int64, id int64, initialBalance bool) (*models.Account, error)
 	FetchAccountByName(ctx context.Context, userID int64, name string) (*models.Account, error)
-	FetchAllAccounts(ctx context.Context, userID int64, includeInactive bool) ([]models.Account, error)
+	FetchAllAccounts(ctx context.Context, userID int64, includeInactive bool, options ...bool) ([]models.Account, error)
 	FetchAllAccountTypes(ctx context.Context) ([]models.AccountType, error)
 	FetchAccountsBySubtype(ctx context.Context, userID int64, subtype string) ([]models.Account, error)
 	FetchAccountsByType(ctx context.Context, userID int64, t string) ([]models.Account, error)
@@ -165,8 +165,12 @@ func (s *AccountService) FetchAccountByName(ctx context.Context, userID int64, n
 	return record, nil
 }
 
-func (s *AccountService) FetchAllAccounts(ctx context.Context, userID int64, includeInactive bool) ([]models.Account, error) {
-	return s.repo.FindAllAccounts(ctx, nil, userID, includeInactive)
+func (s *AccountService) FetchAllAccounts(ctx context.Context, userID int64, includeInactive bool, options ...bool) ([]models.Account, error) {
+	includeAccountTypes := false
+	if len(options) > 0 {
+		includeAccountTypes = options[0]
+	}
+	return s.repo.FindAllAccounts(ctx, nil, userID, includeInactive, includeAccountTypes)
 }
 
 func (s *AccountService) FetchAllAccountTypes(ctx context.Context) ([]models.AccountType, error) {
@@ -679,7 +683,7 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 	_ = s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, today, today)
 
 	// Upsert for all still-open accounts for today (so the view has a “today” row)
-	openAccs, err := s.repo.FindAllAccounts(ctx, tx, userID, false)
+	openAccs, err := s.repo.FindAllAccounts(ctx, tx, userID, false, false)
 	if err == nil {
 		for _, a := range openAccs {
 			_ = s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, a.ID, a.Currency, today, today)
@@ -778,7 +782,7 @@ func (s *AccountService) BackfillBalancesForUser(ctx context.Context, userID int
 		}
 	}()
 
-	accounts, err := s.repo.FindAllAccounts(ctx, tx, userID, true)
+	accounts, err := s.repo.FindAllAccounts(ctx, tx, userID, true, false)
 	if err != nil {
 		tx.Rollback()
 		return err

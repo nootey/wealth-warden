@@ -63,8 +63,9 @@ func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
 
 	q := c.Request.URL.Query()
 	includeInactive := strings.EqualFold(q.Get("inactive"), "true")
+	includeTypes := strings.EqualFold(q.Get("types"), "true")
 
-	records, err := h.service.FetchAllAccounts(ctx, userID, includeInactive)
+	records, err := h.service.FetchAllAccounts(ctx, userID, includeInactive, includeTypes)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

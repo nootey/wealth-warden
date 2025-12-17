@@ -11,9 +11,10 @@ export const useAccountStore = defineStore('account', {
     getters: {
     },
     actions: {
-        async getAllAccounts(toReturn: boolean = false) {
+        async getAllAccounts(toReturn: boolean = false, includeTypes: boolean = false) {
             try {
-                const response = await apiClient.get(`${this.apiPrefix}/all`);
+                const params = includeTypes ? '?types=true' : '';
+                const response = await apiClient.get(`${this.apiPrefix}/all${params}`);
                 if(toReturn){
                     return response.data;
                 } else {

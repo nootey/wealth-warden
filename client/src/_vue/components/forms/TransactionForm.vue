@@ -38,11 +38,8 @@ const accountStore = useAccountStore();
 const confirm = useConfirm();
 const { hasPermission } = usePermissions();
 
-onMounted(async () => {
-    if (props.mode === "update" && props.recordId) {
-        await loadRecord(props.recordId);
-    }
-});
+const loading = ref(false);
+const defaultPreSelected = ref(false);
 
 const isGlobalReadOnly = computed(() =>
     !!record.value.deleted_at || !!record.value.is_adjustment
@@ -77,9 +74,7 @@ const isTransferSelected = computed(() =>
     (selectedParentCategory.value?.name ?? '').toLowerCase() === 'transfer'
 );
 
-const loading = ref(false);
-
-const accounts = computed<Account[]>(() => accountStore.accounts);
+const accounts = ref<Account[]>([]);
 const transfer = ref<Transfer>({
     source_id: null,
     destination_id: null,
@@ -169,6 +164,25 @@ const rules = {
 };
 
 const v$ = useVuelidate(rules, { record });
+
+onMounted(async () => {
+    // Fetch accounts first
+    accounts.value = await accountStore.getAllAccounts(true, true);
+
+    if (props.mode === "update" && props.recordId) {
+        await loadRecord(props.recordId);
+    } else if (props.mode === "create") {
+        // Pre-select default checking account
+        const defaultChecking = accounts.value.find(
+            acc => acc.is_default && acc.account_type?.sub_type === 'checking'
+        );
+        if (defaultChecking) {
+            record.value.account = defaultChecking;
+            record.value.account_id = defaultChecking.id;
+            defaultPreSelected.value = true;
+        }
+    }
+});
 
 function initData(): Transaction {
 
@@ -434,6 +448,8 @@ async function deleteRecord(id: number, tx_type: string) {
           <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
       </div>
 
+      <h5 v-if="defaultPreSelected" style="color: var(--text-secondary)">Default checking account pre-selected.</h5>
+
       <div class="flex flex-column gap-3" v-if="isTransferSelected && !isFormReadOnly">
           <TransferForm ref="transferFormRef" v-model:transfer="transfer" :accounts="accounts" />
       </div>
@@ -448,7 +464,7 @@ async function deleteRecord(id: number, tx_type: string) {
                   <AutoComplete :readonly="isAccountPickerDisabled || isFormReadOnly" :disabled="isAccountPickerDisabled || isFormReadOnly" size="small"
                                 v-model="record.account" :suggestions="filteredAccounts"
                                 @complete="searchAccount" optionLabel="name" forceSelection
-                                placeholder="Select account" dropdown>
+                                placeholder="Select account" dropdown @update:modelValue="defaultPreSelected = false;">
                   </AutoComplete>
               </div>
           </div>
