@@ -24,4 +24,5 @@ export interface Account {
     balance_projection?: string
     opened_at?: Date | null;
     closed_at: Date | null;
+    is_default?: boolean;
 }

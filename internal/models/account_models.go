@@ -17,6 +17,7 @@ type Account struct {
 	Balance           Balance         `json:"balance"`
 	Currency          string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	IsActive          bool            `gorm:"type:boolean;not null;default:true" json:"is_active"`
+	IsDefault         bool            `gorm:"type:boolean;not null;default:false" json:"is_default"`
 	IncludeInNetWorth bool            `gorm:"type:boolean;not null;default:true" json:"include_in_net_worth"`
 	ImportID          *int64          `json:"import_id,omitempty"`
 	ExpectedBalance   decimal.Decimal `gorm:"type:decimal(19,4);not null;default:0" json:"expected_balance"`
