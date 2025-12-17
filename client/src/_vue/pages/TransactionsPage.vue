@@ -26,7 +26,6 @@ const accountStore = useAccountStore();
 
 onMounted(async () => {
     await transactionStore.getCategories();
-    await accountStore.getAllAccounts(false);
     await getTrTemplateCount();
 })
 

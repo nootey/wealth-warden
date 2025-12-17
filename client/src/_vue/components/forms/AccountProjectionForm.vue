@@ -32,13 +32,28 @@ const toastStore = useToastStore();
 
 const categories = ref<CategoryOrGroup[]>([]);
 const account = ref<Account|null>(null);
+const effectiveAccountID = ref<number>(props.accID);
+const checkingAccounts = ref<Account[]>([]);
+const showAccountSelector = ref<boolean>(false);
 
 const categoryAverage = ref<number>(0);
 const loadingAverage = ref<boolean>(false);
 
 onMounted(async () => {
     categories.value = await transactionStore.getCategoriesWithGroups();
-    account.value = await sharedStore.getRecordByID("accounts", props.accID);
+
+    // Try to find default checking account
+    checkingAccounts.value = await accountStore.getAccountsBySubtype("checking");
+    const defaultChecking = checkingAccounts.value.find(acc => acc.is_default);
+
+    if (defaultChecking && defaultChecking.id !== props.accID) {
+        effectiveAccountID.value = defaultChecking.id!;
+        showAccountSelector.value = true;
+    }
+
+    // Fetch the account to use
+    account.value = await sharedStore.getRecordByID("accounts", effectiveAccountID.value);
+
 
     if (account.value) {
         if (account.value.balance_projection) {
@@ -48,7 +63,7 @@ onMounted(async () => {
             record.value.expected_balance = account.value.expected_balance;
         }
     }
-})
+});
 
 const record = ref({
     balance_projection: '',
@@ -82,26 +97,6 @@ const categoryOptions = computed(() => {
         label: cat.name,
         value: cat.id
     }));
-});
-
-watch(() => record.value.multiplier_category_id, async (newCategoryId) => {
-    if (newCategoryId && record.value.balance_projection === 'multiplier') {
-        loadingAverage.value = true;
-        categoryAverage.value = 0;
-
-        try {
-            const selectedCategory = categories.value.find(cat => cat.id === newCategoryId);
-            const isGroup = selectedCategory?.is_group || false;
-            const avg = await statStore.getCategoryAverage(newCategoryId, props.accID, isGroup);
-            categoryAverage.value = Math.abs(avg);
-        } catch (error) {
-            categoryAverage.value = 0;
-        } finally {
-            loadingAverage.value = false;
-        }
-    } else {
-        categoryAverage.value = 0;
-    }
 });
 
 const currentBalanceNumber = computed(() => {
@@ -192,6 +187,53 @@ const rules = computed(() => ({
 
 const v$ = useVuelidate(rules, { record });
 
+// Watch for account change to reload data
+watch(effectiveAccountID, async (newID, oldID) => {
+    // If cleared, use props.accID as fallback
+    const accountIDToUse = newID || props.accID;
+
+    if (accountIDToUse && accountIDToUse !== oldID) {
+        const newAccount = await sharedStore.getRecordByID("accounts", accountIDToUse);
+        if (newAccount) {
+            account.value = newAccount;
+
+            // Reset multiplier fields when account changes
+            if (record.value.balance_projection === 'multiplier') {
+                record.value.multiplier_category_id = null;
+                record.value.multiplier_value = 1;
+                categoryAverage.value = 0;
+            }
+
+            // Reset percentage fields when account changes
+            if (record.value.balance_projection === 'percentage') {
+                record.value.percentage_value = 0;
+            }
+        }
+    }
+});
+
+watch(() => record.value.multiplier_category_id, async (newCategoryId) => {
+    if (newCategoryId && record.value.balance_projection === 'multiplier') {
+        loadingAverage.value = true;
+        categoryAverage.value = 0;
+
+        try {
+            const selectedCategory = categories.value.find(cat => cat.id === newCategoryId);
+            const isGroup = selectedCategory?.is_group || false;
+            const accountIDToUse = effectiveAccountID.value || props.accID;
+            const avg = await statStore.getCategoryAverage(newCategoryId, accountIDToUse, isGroup);
+            categoryAverage.value = Math.abs(avg);
+        } catch (error) {
+            categoryAverage.value = 0;
+        } finally {
+            loadingAverage.value = false;
+        }
+    } else {
+        categoryAverage.value = 0;
+    }
+});
+
+
 async function saveProjection() {
 
     let calculatedBalance = expectedBalance.value;
@@ -202,7 +244,7 @@ async function saveProjection() {
     }
 
     try {
-        const res = await accountStore.saveProjection(props.accID, recordData);
+        const res = await accountStore.saveProjection(effectiveAccountID.value, recordData);
         toastStore.successResponseToast(res);
         emit("completeOperation");
     } catch (e) {
@@ -213,7 +255,7 @@ async function saveProjection() {
 async function revertProjection() {
 
     try {
-        const res = await accountStore.revertProjection(props.accID);
+        const res = await accountStore.revertProjection(effectiveAccountID.value);
         toastStore.successResponseToast(res);
         emit("completeOperation");
     } catch (e) {
@@ -330,6 +372,30 @@ async function revertProjection() {
                     <span class="text-sm" style="color: var(--text-secondary)">
                         For example, you can define a 6 times multiplier and select your salary as the category, which would set the expected balance as 6 times the average monthly salary.
                     </span>
+                </div>
+
+                <!-- Account selector - optional -->
+                <div v-if="showAccountSelector && (record.balance_projection === 'multiplier' || record.balance_projection === 'percentage')"
+                     class="flex flex-column gap-1">
+                    <label>Account</label>
+                    <Select v-model="effectiveAccountID"
+                            :options="checkingAccounts" optionValue="id"
+                            placeholder="Select account" size="small" showClear>
+                        <template #value="slotProps">
+                            <span v-if="slotProps.value">
+                                {{ checkingAccounts.find(a => a.id === slotProps.value)?.name }}
+                            </span>
+                            <span v-else>Default account</span>
+                        </template>
+                        <template #option="slotProps">
+                            <div class="flex flex-column">
+                                <span class="font-semibold">{{ slotProps.option.name }}</span>
+                                <span class="text-xs" style="color: var(--text-secondary)">
+                                    {{ slotProps.option.account_type?.sub_type }}
+                                </span>
+                            </div>
+                        </template>
+                    </Select>
                 </div>
 
                 <div class="flex flex-column w-full">

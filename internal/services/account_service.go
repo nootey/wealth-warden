@@ -21,7 +21,7 @@ type AccountServiceInterface interface {
 	FetchLatestBalance(ctx context.Context, accID, userID int64) (*models.Balance, error)
 	FetchAccountByID(ctx context.Context, userID int64, id int64, initialBalance bool) (*models.Account, error)
 	FetchAccountByName(ctx context.Context, userID int64, name string) (*models.Account, error)
-	FetchAllAccounts(ctx context.Context, userID int64, includeInactive bool) ([]models.Account, error)
+	FetchAllAccounts(ctx context.Context, userID int64, includeInactive bool, options ...bool) ([]models.Account, error)
 	FetchAllAccountTypes(ctx context.Context) ([]models.AccountType, error)
 	FetchAccountsBySubtype(ctx context.Context, userID int64, subtype string) ([]models.Account, error)
 	FetchAccountsByType(ctx context.Context, userID int64, t string) ([]models.Account, error)
@@ -36,6 +36,10 @@ type AccountServiceInterface interface {
 	UpdateDailyCashNoSnapshot(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal) error
 	SaveAccountProjection(ctx context.Context, id, userID int64, req *models.AccountProjectionReq) error
 	RevertAccountProjection(ctx context.Context, id, userID int64) error
+	FetchAccountsWithDefaults(ctx context.Context, userID int64) ([]models.Account, error)
+	FetchAccountTypesWithoutDefaults(ctx context.Context, userID int64) ([]models.AccountType, error)
+	SetDefaultAccount(ctx context.Context, userID, accountID int64) error
+	UnsetDefaultAccount(ctx context.Context, userID, accountID int64) error
 }
 
 type AccountService struct {
@@ -161,8 +165,12 @@ func (s *AccountService) FetchAccountByName(ctx context.Context, userID int64, n
 	return record, nil
 }
 
-func (s *AccountService) FetchAllAccounts(ctx context.Context, userID int64, includeInactive bool) ([]models.Account, error) {
-	return s.repo.FindAllAccounts(ctx, nil, userID, includeInactive)
+func (s *AccountService) FetchAllAccounts(ctx context.Context, userID int64, includeInactive bool, options ...bool) ([]models.Account, error) {
+	includeAccountTypes := false
+	if len(options) > 0 {
+		includeAccountTypes = options[0]
+	}
+	return s.repo.FindAllAccounts(ctx, nil, userID, includeInactive, includeAccountTypes)
 }
 
 func (s *AccountService) FetchAllAccountTypes(ctx context.Context) ([]models.AccountType, error) {
@@ -675,7 +683,7 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 	_ = s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, today, today)
 
 	// Upsert for all still-open accounts for today (so the view has a “today” row)
-	openAccs, err := s.repo.FindAllAccounts(ctx, tx, userID, false)
+	openAccs, err := s.repo.FindAllAccounts(ctx, tx, userID, false, false)
 	if err == nil {
 		for _, a := range openAccs {
 			_ = s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, a.ID, a.Currency, today, today)
@@ -774,7 +782,7 @@ func (s *AccountService) BackfillBalancesForUser(ctx context.Context, userID int
 		}
 	}()
 
-	accounts, err := s.repo.FindAllAccounts(ctx, tx, userID, true)
+	accounts, err := s.repo.FindAllAccounts(ctx, tx, userID, true, false)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -1005,6 +1013,65 @@ func (s *AccountService) RevertAccountProjection(ctx context.Context, id, userID
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (s *AccountService) FetchAccountsWithDefaults(ctx context.Context, userID int64) ([]models.Account, error) {
+	return s.repo.FindAccountsWithDefaults(ctx, nil, userID)
+}
+
+func (s *AccountService) FetchAccountTypesWithoutDefaults(ctx context.Context, userID int64) ([]models.AccountType, error) {
+	return s.repo.FindAccountTypesWithoutDefaults(ctx, nil, userID)
+}
+
+func (s *AccountService) SetDefaultAccount(ctx context.Context, userID, accountID int64) error {
+	return s.updateDefaultAccount(ctx, userID, accountID, true)
+}
+
+func (s *AccountService) UnsetDefaultAccount(ctx context.Context, userID, accountID int64) error {
+	return s.updateDefaultAccount(ctx, userID, accountID, false)
+}
+
+func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accountID int64, setAsDefault bool) error {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Confirm account exists
+	account, err := s.repo.FindAccountByID(ctx, tx, accountID, userID, false)
+	if err != nil {
+		return err
+	}
+
+	// Only check for existing default when setting (not unsetting)
+	if setAsDefault {
+		hasDefault, err := s.repo.HasDefaultForAccountType(ctx, tx, userID, account.AccountTypeID)
+		if err != nil {
+			return err
+		}
+
+		if hasDefault {
+			return fmt.Errorf("a default account already exists for this account type")
+		}
+	}
+
+	err = s.repo.UpdateDefaultAccount(ctx, tx, *account, setAsDefault)
+	if err != nil {
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
 	}
 
 	return nil
