@@ -49,6 +49,10 @@ type AccountRepositoryInterface interface {
 	FrontfillBalances(ctx context.Context, tx *gorm.DB, accountID int64, currency string, from time.Time) error
 	DeleteAccountSnapshots(ctx context.Context, tx *gorm.DB, accountID int64) error
 	FindLatestBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64) (*models.Balance, error)
+	FindAccountsWithDefaults(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Account, error)
+	FindAccountTypesWithoutDefaults(ctx context.Context, tx *gorm.DB, userID int64) ([]models.AccountType, error)
+	UpdateDefaultAccount(ctx context.Context, tx *gorm.DB, account models.Account, setAsDefault bool) error
+	HasDefaultForAccountType(ctx context.Context, tx *gorm.DB, userID, accountTypeID int64) (bool, error)
 }
 
 type AccountRepository struct {
@@ -983,4 +987,91 @@ func (r *AccountRepository) FindLatestBalance(ctx context.Context, tx *gorm.DB, 
 	}
 
 	return &balance, nil
+}
+
+func (r *AccountRepository) FindAccountsWithDefaults(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Account, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.Account
+	if err := db.Preload("AccountType").
+		Where("user_id = ?", userID).
+		Where("closed_at IS NULL").
+		Where("is_active = ?", true).
+		Where("is_default = ?", true).
+		Find(&records).Error; err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (r *AccountRepository) FindAccountTypesWithoutDefaults(ctx context.Context, tx *gorm.DB, userID int64) ([]models.AccountType, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.AccountType
+
+	// account_type_ids that do have a default account for this user
+	subQuery := db.Table("accounts").
+		Select("DISTINCT account_type_id").
+		Where("user_id = ?", userID).
+		Where("is_default = ?", true).
+		Where("closed_at IS NULL").
+		Where("is_active = ?", true)
+
+	// Get all account types that are NOT in the subquery
+	if err := db.Select("DISTINCT ON (sub_type) *").
+		Where("id NOT IN (?)", subQuery).
+		Find(&records).Error; err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (r *AccountRepository) UpdateDefaultAccount(ctx context.Context, tx *gorm.DB, account models.Account, setAsDefault bool) error {
+	db := tx.WithContext(ctx)
+
+	// Always unset all defaults for this account type first (whether setting or unsetting)
+	result := db.Model(&models.Account{}).
+		Where("user_id = ? AND account_type_id = ?", account.UserID, account.AccountTypeID).
+		Update("is_default", false)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	// Then set this specific account if requested
+	if setAsDefault {
+		result = db.Model(&models.Account{}).
+			Where("id = ?", account.ID).
+			Update("is_default", true)
+		if result.Error != nil {
+			return result.Error
+		}
+	}
+
+	return nil
+}
+
+func (r *AccountRepository) HasDefaultForAccountType(ctx context.Context, tx *gorm.DB, userID, accountTypeID int64) (bool, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var count int64
+	err := db.Model(&models.Account{}).
+		Where("user_id = ? AND account_type_id = ? AND is_default = ? AND closed_at IS NULL AND is_active = ?",
+			userID, accountTypeID, true, true).
+		Count(&count).Error
+
+	return count > 0, err
 }

@@ -93,5 +93,37 @@ export const useAccountStore = defineStore('account', {
                 throw err;
             }
         },
+        async getAllDefaultAccounts() {
+            try {
+                const response = await apiClient.get(`${this.apiPrefix}/defaults/all`);
+                return response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
+        async getAccountTypesWithoutDefaults() {
+            try {
+                const response = await apiClient.get(`${this.apiPrefix}/defaults/types`);
+                return response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
+        async setDefaultAccount(accountId: number) {
+            try {
+                const response = await apiClient.patch(`${this.apiPrefix}/defaults/set/${accountId}`);
+                return response.data;
+            } catch (err) {
+                throw err;
+            }
+        },
+        async unsetDefaultAccount(accountId: number) {
+            try {
+                const response = await apiClient.patch(`${this.apiPrefix}/defaults/unset/${accountId}`);
+                return response.data;
+            } catch (err) {
+                throw err;
+            }
+        }
     },
 });
