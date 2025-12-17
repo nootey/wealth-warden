@@ -1749,6 +1749,7 @@ func (s *TransactionService) GetTemplatesReadyToRun(ctx context.Context, tx *gor
 }
 
 func (s *TransactionService) ProcessTemplate(ctx context.Context, template *models.TransactionTemplate) error {
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -1790,12 +1791,14 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 	}
 
 	// Check if we should deactivate
-	shouldDeactivate := false
-	if template.MaxRuns != nil && template.RunCount+1 >= *template.MaxRuns {
-		shouldDeactivate = true
-	}
-	if template.EndDate != nil && nextRun.After(*template.EndDate) {
-		shouldDeactivate = true
+	shouldDeactivate := true
+	switch {
+	case template.MaxRuns != nil && template.RunCount+1 >= *template.MaxRuns:
+		// Max runs reached
+	case template.EndDate != nil && nextRun.After(*template.EndDate):
+		// End date passed
+	default:
+		shouldDeactivate = false
 	}
 
 	if shouldDeactivate {
