@@ -162,7 +162,7 @@ func (suite *AuthHandlerTestSuite) TestSignUp_Success() {
 		form,
 		mock.Anything,
 		mock.Anything,
-	).Return(nil)
+	).Return(int64(1), nil)
 
 	body, _ := json.Marshal(form)
 	req := httptest.NewRequest(http.MethodPost, "/auth/signup", bytes.NewBuffer(body))
