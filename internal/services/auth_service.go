@@ -19,12 +19,13 @@ type AuthServiceInterface interface {
 	ValidateLogin(ctx context.Context, email, password, userAgent, ip string) (*models.User, error)
 	GetCurrentUser(ctx context.Context, userID int64) (*models.User, error)
 	ValidateInvitation(ctx context.Context, hash string) error
-	SignUp(ctx context.Context, form models.RegisterForm, userAgent, ip string) error
+	SignUp(ctx context.Context, form models.RegisterForm, userAgent, ip string) (int64, error)
 	ResendConfirmationEmail(ctx context.Context, email, userAgent, ip string) error
 	ConfirmEmail(ctx context.Context, tokenValue, userAgent, ip string) error
 	RequestPasswordReset(ctx context.Context, email, userAgent, ip string) error
 	ValidatePasswordReset(ctx context.Context, tokenValue string) (string, error)
 	ResetPassword(ctx context.Context, form models.ResetPasswordForm, userAgent, ip string) error
+	RegisterUser(ctx context.Context, form models.RegisterForm, userAgent, ip string) error
 }
 type AuthService struct {
 	userRepo      repositories.UserRepositoryInterface
@@ -209,45 +210,46 @@ func (s *AuthService) ValidateInvitation(ctx context.Context, hash string) error
 	return nil
 }
 
-func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, userAgent, ip string) error {
+func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, userAgent, ip string) (int64, error) {
 
 	// Validation
 	settings, err := s.settingsRepo.FetchGeneralSettings(ctx, nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if !settings.AllowSignups {
-		return errors.New("open sign ups are not currently enabled")
+		return 0, errors.New("open sign ups are not currently enabled")
 	}
 
 	if form.Password != form.PasswordConfirmation {
-		return errors.New("password and password confirmation do not match")
+		return 0, errors.New("password and password confirmation do not match")
 	}
 
 	existingUser, _ := s.userRepo.FindUserByEmail(ctx, nil, form.Email)
 
 	password, passwordErr := utils.ValidatePasswordStrength(form.Password)
 	if passwordErr != nil {
-		return passwordErr
+		return 0, passwordErr
 	}
 
 	hashedPass, err := utils.HashAndSaltPassword(password)
 	if err != nil {
-		return err
+		return 0, err
 	}
+	var userID int64
 
 	if existingUser == nil {
 
 		tx, err := s.userRepo.BeginTx(ctx)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		role, err := s.roleRepo.FindRoleByName(ctx, tx, "member")
 		if err != nil {
 			tx.Rollback()
-			return err
+			return 0, err
 		}
 
 		user := &models.User{
@@ -259,10 +261,10 @@ func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, user
 			UpdatedAt:   time.Now().UTC(),
 		}
 
-		userID, err := s.userRepo.InsertUser(ctx, tx, user)
+		userID, err = s.userRepo.InsertUser(ctx, tx, user)
 		if err != nil {
 			tx.Rollback()
-			return err
+			return 0, err
 		}
 
 		settings := &models.SettingsUser{
@@ -278,27 +280,27 @@ func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, user
 		_, err = s.userRepo.InsertUserSettings(ctx, tx, userID, settings)
 		if err != nil {
 			tx.Rollback()
-			return err
+			return 0, err
 		}
 
 		if err := tx.Commit().Error; err != nil {
-			return err
+			return 0, err
 		}
 
 		desc := "Via open signup"
 		logErr := s.log("register", user.Email, userAgent, ip, "success", &desc, &user.ID)
 		if logErr != nil {
-			return logErr
+			return 0, logErr
 		}
 
 		err = s.dispatchConfirmationEmail(ctx, user)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 	}
 
-	return nil
+	return userID, nil
 }
 
 func (s *AuthService) ResendConfirmationEmail(ctx context.Context, email, userAgent, ip string) error {
