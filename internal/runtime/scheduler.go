@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/jobscheduler"
@@ -11,21 +12,32 @@ import (
 )
 
 type Scheduler struct {
-	logger    *zap.Logger
-	container *bootstrap.Container
-	scheduler gocron.Scheduler
+	logger           *zap.Logger
+	container        *bootstrap.Container
+	scheduler        gocron.Scheduler
+	startImmediately bool
 }
 
-func NewScheduler(logger *zap.Logger, container *bootstrap.Container) (*Scheduler, error) {
+func NewScheduler(logger *zap.Logger, container *bootstrap.Container, startImmediately bool) (*Scheduler, error) {
+
+	if logger == nil {
+		return nil, fmt.Errorf("logger cannot be nil")
+	}
+
+	if container == nil {
+		return nil, fmt.Errorf("container cannot be nil")
+	}
+
 	s, err := gocron.NewScheduler()
 	if err != nil {
 		return nil, err
 	}
 
 	return &Scheduler{
-		logger:    logger,
-		container: container,
-		scheduler: s,
+		logger:           logger,
+		container:        container,
+		scheduler:        s,
+		startImmediately: startImmediately,
 	}, nil
 }
 
@@ -66,6 +78,11 @@ func (s *Scheduler) registerBackfillJob() error {
 
 	job := jobscheduler.NewBackfillJob(s.logger, s.container)
 
+	var opts []gocron.JobOption
+	if s.startImmediately {
+		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
+	}
+
 	_, err := s.scheduler.NewJob(
 		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 0, 0))),
 		gocron.NewTask(func() {
@@ -79,7 +96,7 @@ func (s *Scheduler) registerBackfillJob() error {
 				s.logger.Info("Backfill completed successfully")
 			}
 		}),
-		gocron.WithStartAt(gocron.WithStartImmediately()),
+		opts...,
 	)
 	return err
 }
@@ -87,6 +104,11 @@ func (s *Scheduler) registerBackfillJob() error {
 func (s *Scheduler) registerTemplateJob() error {
 
 	job := jobscheduler.NewAutomateTemplateJob(s.logger, s.container)
+
+	var opts []gocron.JobOption
+	if s.startImmediately {
+		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
+	}
 
 	_, err := s.scheduler.NewJob(
 		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 30, 0))),
@@ -101,7 +123,7 @@ func (s *Scheduler) registerTemplateJob() error {
 				s.logger.Info("Template processing completed successfully")
 			}
 		}),
-		gocron.WithStartAt(gocron.WithStartImmediately()),
+		opts...,
 	)
 	return err
 }
