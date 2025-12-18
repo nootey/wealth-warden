@@ -1,6 +1,18 @@
-# Wealth Warden 👋
+# Wealth Warden
 
 An open-source finance tracker focused on simplicity and usability, based on a personal Excel spreadsheet.
+
+## About
+
+Wealth Warden started as a personal Excel spreadsheet for tracking finances. 
+After years of manual updates and growing complexity, it evolved into a web application that maintains the simplicity of spreadsheet-based tracking, 
+while adding the power of automation and visualization.
+
+It's written in Go and Vue, and can be deployed with Docker easily.
+
+![Dashboard](docs/images/dash.png)
+
+![Dashboard](docs/images/chart.png)
 
 ## Deployment
 
