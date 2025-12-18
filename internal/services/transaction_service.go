@@ -1410,7 +1410,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 	if firstRun.Before(firstValidDay) {
 		tx.Rollback()
 		return 0, fmt.Errorf(
-			"first itteration of template cannot be executed in the same day (%s)",
+			"first iteration of template cannot be executed in the same day (%s)",
 			firstValidDay.Format("2006-01-02"),
 		)
 	}
@@ -1495,6 +1495,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 }
 
 func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, userID, id int64, req *models.TransactionTemplateReq) (int64, error) {
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -1513,6 +1514,17 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 	exTp, err := s.repo.FindTransactionTemplateByID(ctx, tx, id, userID)
 	if err != nil {
 		return 0, fmt.Errorf("can't find transaction template with given id %w", err)
+	}
+
+	// Prevent updates if template has completed its runs
+	if exTp.MaxRuns != nil && exTp.RunCount >= *exTp.MaxRuns {
+		tx.Rollback()
+		return 0, fmt.Errorf("cannot update completed template (max runs reached)")
+	}
+
+	if exTp.EndDate != nil && time.Now().UTC().After(*exTp.EndDate) {
+		tx.Rollback()
+		return 0, fmt.Errorf("cannot update expired template (end date passed)")
 	}
 
 	nextRun := time.Date(
@@ -1570,7 +1582,7 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 
 	exAmountString := exTp.Amount.StringFixed(2)
 	amountString := tp.Amount.StringFixed(2)
-	exNextRunStr := tp.NextRunAt.UTC().Format(time.RFC3339)
+	exNextRunStr := exTp.NextRunAt.UTC().Format(time.RFC3339)
 	nextRunStr := tp.NextRunAt.UTC().Format(time.RFC3339)
 	exIsActiveStr := strconv.FormatBool(exTp.IsActive)
 	isActiveStr := strconv.FormatBool(tp.IsActive)
@@ -1635,6 +1647,19 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Co
 	exTp, err := s.repo.FindTransactionTemplateByID(ctx, tx, id, userID)
 	if err != nil {
 		return fmt.Errorf("can't find transaction template with given id %w", err)
+	}
+
+	// Prevent enabling if template has completed its runs
+	if !exTp.IsActive {
+		if exTp.MaxRuns != nil && exTp.RunCount >= *exTp.MaxRuns {
+			tx.Rollback()
+			return fmt.Errorf("cannot enable completed template (max runs reached)")
+		}
+
+		if exTp.EndDate != nil && time.Now().UTC().After(*exTp.EndDate) {
+			tx.Rollback()
+			return fmt.Errorf("cannot enable expired template (end date passed)")
+		}
 	}
 
 	tp := models.TransactionTemplate{
@@ -1838,7 +1863,7 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 		updates["is_active"] = false
 	}
 
-	if err := tx.Model(&models.TransactionTemplate{}).Where("id = ?", template.ID).Updates(updates).Error; err != nil {
+	if err := tx.Model(&models.TransactionTemplate{}).Where("id = ?", currentTemplate.ID).Updates(updates).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
