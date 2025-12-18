@@ -44,7 +44,7 @@ const { colors } = useChartColors();
 const transactionColumns = computed<Column[]>(() => [
     { field: 'category', header: 'Category'},
     { field: 'amount', header: 'Amount'},
-    { field: 'created_at', header: 'Date'},
+    { field: 'txn_date', header: 'Date'},
     { field: 'description', header: 'Description'},
 ]);
 
