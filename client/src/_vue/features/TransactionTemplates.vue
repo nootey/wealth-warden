@@ -235,26 +235,26 @@ defineExpose({ refresh });
                 </template>
 
                 <Column v-for="col of activeColumns" :key="col.field" :header="col.header" :field="col.field" style="width: 25%" >
-                    <template #body="{ data, field }">
-                        <template v-if="field === 'next_run_at' || field === 'end_date'">
-                            {{ dateHelper.formatDate(data[field], false) }}
+                    <template #body="{ data }">
+                        <template v-if="col.field === 'next_run_at' || col.field === 'end_date'">
+                            {{ dateHelper.formatDate(data[col.field], false) }}
                         </template>
-                        <template v-else-if="field === 'name'">
+                        <template v-else-if="col.field === 'name'">
                             <span class="hover" @click="handleEmit('updateTemplate', data.id)">
-                                {{ data[field] }}
+                                {{ data[col.field] }}
                             </span>
                         </template>
-                        <template v-else-if="field === 'account'">
-                            {{ data[field].name}}
+                        <template v-else-if="col.field === 'account'">
+                            {{ data[col.field].name}}
                         </template>
-                        <template v-else-if="field === 'category'">
-                            {{ data[field].display_name }}
+                        <template v-else-if="col.field === 'category'">
+                            {{ data[col.field].display_name }}
                         </template>
-                        <template v-else-if="field === 'transaction_type' || field === 'frequency'">
-                            {{ vueHelper.capitalize(data[field]) }}
+                        <template v-else-if="col.field === 'transaction_type' || col.field === 'frequency'">
+                            {{ vueHelper.capitalize(data[col.field]) }}
                         </template>
                         <template v-else>
-                            {{ data[field] }}
+                            {{ data[col.field] }}
                         </template>
                     </template>
                 </Column>

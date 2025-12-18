@@ -108,9 +108,9 @@ async function handleEmit(type: string, data?: any) {
                                 :field="col.field" :header="col.header"
                                 sortable :headerClass="col.hideOnMobile ? 'mobile-hide ' : ''"
                                 :bodyClass="col.hideOnMobile ? 'mobile-hide ' : ''">
-                            <template #body="{ data, field }">
+                            <template #body="{ data }">
                                <span class="hover" @click="handleEmit('openUpdate', data.id!)">
-                                    {{ data[field] }}
+                                    {{ data[col.field] }}
                                 </span>
                             </template>
                         </Column>

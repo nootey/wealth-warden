@@ -10,7 +10,6 @@ import type {AuthForm} from "../../../models/auth_models.ts";
 import {useAuthStore} from "../../../services/stores/auth_store.ts";
 import {useUserStore} from "../../../services/stores/user_store.ts";
 import type {Invitation} from "../../../models/user_models.ts";
-import vueHelper from "../../../utils/vue_helper.ts";
 
 const authStore = useAuthStore();
 const userStore = useUserStore();

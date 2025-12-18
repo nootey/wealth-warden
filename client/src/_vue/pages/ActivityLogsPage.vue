@@ -290,23 +290,23 @@ provide("removeFilter", removeFilter);
                             <template #header >
                                 <ColumnHeader  :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
                             </template>
-                            <template #body="{ data, field }">
-                                <template v-if="field === 'created_at'">
+                            <template #body="{ data }">
+                                <template v-if="col.field === 'created_at'">
                                     {{ dateHelper.formatDate(data?.created_at, true) }}
                                 </template>
-                                <template v-else-if="field === 'causer_id'">
+                                <template v-else-if="col.field === 'causer_id'">
                                     {{ vueHelper.displayCauserFromId(data.causer_id, availableCausers) }}
                                 </template>
-                                <template v-else-if="field === 'event'">
+                                <template v-else-if="col.field === 'event'">
                                     <IconDisplay :event="data.event"></IconDisplay>
                                 </template>
-                                <template v-else-if="field === 'category'">
+                                <template v-else-if="col.field === 'category'">
                                     <span id="category-row" class="formal" style="display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                        {{ data[field] }}
+                                        {{ data[col.field] }}
                                     </span>
                                 </template>
                                 <template v-else>
-                                    {{ data[field] }}
+                                    {{ data[col.field] }}
                                 </template>
                             </template>
                         </Column>

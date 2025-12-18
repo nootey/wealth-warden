@@ -138,23 +138,23 @@ defineExpose({ refresh });
         <Column v-for="col of activeColumns" :key="col.field" :header="col.header" :field="col.field"
                 :headerClass="col.hideOnMobile ? 'mobile-hide ' : ''"
                 :bodyClass="col.hideOnMobile ? 'mobile-hide ' : ''">
-            <template #body="{ data, field }">
-                <template v-if="field === 'amount'">
+            <template #body="{ data }">
+                <template v-if="col.field === 'amount'">
                     {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
                 </template>
-                <template v-else-if="field === 'created_at'">
+                <template v-else-if="col.field === 'created_at'">
                     {{ dateHelper.formatDate(data?.created_at, true) }}
                 </template>
-                <template v-else-if="field === 'from' || field === 'to'">
-                    {{ data[field]["account"]["name"] }}
+                <template v-else-if="col.field === 'from' || col.field === 'to'">
+                    {{ data[col.field]["account"]["name"] }}
                 </template>
-                <template v-else-if="field === 'notes'">
-                    <span class="truncate-text" v-tooltip.top="data[field]">
-                        {{ data[field] }}
+                <template v-else-if="col.field === 'notes'">
+                    <span class="truncate-text" v-tooltip.top="data[col.field]">
+                        {{ data[col.field] }}
                     </span>
                 </template>
                 <template v-else>
-                    {{ data[field] }}
+                    {{ data[col.field] }}
                 </template>
             </template>
         </Column>

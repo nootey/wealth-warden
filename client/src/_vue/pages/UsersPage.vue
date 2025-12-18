@@ -281,22 +281,22 @@ provide("removeFilter", removeFilter);
                         <template #header >
                             <ColumnHeader  :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
                         </template>
-                        <template #body="{ data, field }">
-                            <template v-if="field === 'email_confirmed'">
+                        <template #body="{ data }">
+                            <template v-if="col.field === 'email_confirmed'">
                                 {{ dateHelper.formatDate(data?.email_confirmed, true) }}
                             </template>
-                            <template v-else-if="field === 'display_name'">
+                            <template v-else-if="col.field === 'display_name'">
                                     <span class="hover-icon font-bold" @click="manipulateDialog('updateUser', data.id)">
-                                        {{ data[field] }}
+                                        {{ data[col.field] }}
                                     </span>
                             </template>
-                            <template v-else-if="field === 'role'">
+                            <template v-else-if="col.field === 'role'">
                                     <span>
-                                        {{ data[field]["name"] }}
+                                        {{ data[col.field]["name"] }}
                                     </span>
                             </template>
                             <template v-else>
-                                {{ data[field] }}
+                                {{ data[col.field] }}
                             </template>
                         </template>
                     </Column>

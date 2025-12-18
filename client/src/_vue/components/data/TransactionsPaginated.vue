@@ -118,8 +118,8 @@ defineExpose({ refresh });
                               @click="!sort && triggerSort(col.field as string)">
                 </ColumnHeader>
             </template>
-            <template #body="{ data, field }">
-                <template v-if="field === 'amount'">
+            <template #body="{ data }">
+                <template v-if="col.field === 'amount'">
                     <div class="flex flex-row gap-2 align-items-center">
                         <i class="text-xs" :class="((data.transaction_type === 'expense' ? data.amount * -1 : data.amount) >= 0)
                                 ? 'pi pi-angle-up': 'pi pi-angle-down'"
@@ -129,27 +129,27 @@ defineExpose({ refresh });
                         <span>{{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}</span>
                     </div>
                 </template>
-                <template v-else-if="field === 'txn_date'">
+                <template v-else-if="col.field === 'txn_date'">
                     {{ dateHelper.combineDateAndTime(data?.txn_date, data?.created_at) }}
                 </template>
-                <template v-else-if="field === 'account'">
+                <template v-else-if="col.field === 'account'">
                     <div class="flex flex-row gap-2 align-items-center account-row">
                         <span class="hover" @click="$emit('rowClick', data.id)">
-                            {{ data[field]["name"] }}
+                            {{ data[col.field]["name"] }}
                         </span>
-                        <i v-if="data[field]['deleted_at']" class="pi pi-ban popup-icon hover-icon" v-tooltip="'This account is closed.'"/>
+                        <i v-if="data[col.field]['deleted_at']" class="pi pi-ban popup-icon hover-icon" v-tooltip="'This account is closed.'"/>
                     </div>
                 </template>
-                <template v-else-if="field === 'category'">
-                    {{ data[field]["display_name"] }}
+                <template v-else-if="col.field === 'category'">
+                    {{ data[col.field]["display_name"] }}
                 </template>
-                <template v-else-if="field === 'description'">
-                    <span class="truncate-text" v-tooltip.top="data[field]">
-                        {{ data[field] }}
+                <template v-else-if="col.field === 'description'">
+                    <span class="truncate-text" v-tooltip.top="data[col.field]">
+                        {{ data[col.field] }}
                     </span>
                 </template>
                 <template v-else>
-                    {{ data[field] }}
+                    {{ data[col.field] }}
                 </template>
             </template>
         </Column>

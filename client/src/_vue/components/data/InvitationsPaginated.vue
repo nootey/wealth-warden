@@ -155,15 +155,15 @@ defineExpose({ refresh });
                 </template>
 
                 <Column v-for="col of activeColumns" :key="col.field" :header="col.header" :field="col.field" style="width: 30%" >
-                    <template #body="{ data, field }">
-                        <template v-if="field === 'created_at'">
+                    <template #body="{ data }">
+                        <template v-if="col.field === 'created_at'">
                             {{ dateHelper.formatDate(data?.created_at, true) }}
                         </template>
-                        <template v-else-if="field === 'role' ">
-                            {{ data[field]["name"] }}
+                        <template v-else-if="col.field === 'role' ">
+                            {{ data[col.field]["name"] }}
                         </template>
                         <template v-else>
-                            {{ data[field] }}
+                            {{ data[col.field] }}
                         </template>
                     </template>
                 </Column>

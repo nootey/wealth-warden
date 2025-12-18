@@ -110,15 +110,15 @@ async function deleteRecord(id: number) {
             <Column v-for="col of activeColumns" :key="col.field" :header="col.header" :field="col.field"
                     :headerClass="col.hideOnMobile ? 'mobile-hide ' : ''"
                     :bodyClass="col.hideOnMobile ? 'mobile-hide ' : ''">
-                <template #body="{ data, field }">
-                    <template v-if="field === 'amount'">
+                <template #body="{ data }">
+                    <template v-if="col.field === 'amount'">
                         {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
                     </template>
-                    <template v-else-if="field === 'started_at' || field === 'completed_at'">
-                        {{ dateHelper.formatDate(data[field], true) }}
+                    <template v-else-if="col.field === 'started_at' || col.field === 'completed_at'">
+                        {{ dateHelper.formatDate(data[col.field], true) }}
                     </template>
                     <template v-else>
-                        {{ data[field] }}
+                        {{ data[col.field] }}
                     </template>
                 </template>
             </Column>

@@ -107,8 +107,8 @@ async function deleteRecord(id: number) {
 
         <Column v-for="col of activeColumns" :key="col.field"
                 :field="col.field" :header="col.header">
-            <template #body="{ data, field }">
-                {{ data[field] }}
+            <template #body="{ data }">
+                {{ data[col.field] }}
             </template>
         </Column>
 

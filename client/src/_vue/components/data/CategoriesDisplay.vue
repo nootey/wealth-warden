@@ -134,12 +134,12 @@ async function deleteRecord(id: number) {
         <Column v-for="col of categoryColumns" :key="col.field"
                 :field="col.field" :header="col.header"
                 :sortable="col.field === 'is_default'">
-            <template #body="{ data, field }">
-                <template v-if="field === 'is_default'">
+            <template #body="{ data }">
+                <template v-if="col.field === 'is_default'">
                     {{ data.user_id ? "Custom" : "Default" }}
                 </template>
                 <template v-else>
-                    {{ data[field] }}
+                    {{ data[col.field] }}
                 </template>
             </template>
         </Column>
