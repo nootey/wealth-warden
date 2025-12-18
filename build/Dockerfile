@@ -8,6 +8,11 @@ COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/root/.cache/go-build go mod download
 RUN go mod verify
 
+# Version tags
+ARG VERSION=dev
+ARG COMMIT_SHA=unknown
+ARG BUILD_TIME=unknown
+
 # Use build args to detect target platform
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
@@ -22,7 +27,10 @@ COPY internal ./internal
 COPY pkg ./pkg
 
 # Build main binary
-RUN --mount=type=cache,target="/root/.cache/go-build" go build -o ./server ./cmd
+RUN --mount=type=cache,target="/root/.cache/go-build" \
+    go build \
+    -ldflags="-X 'main.Version=${VERSION}' -X 'main.CommitSHA=${COMMIT_SHA}' -X 'main.BuildTime=${BUILD_TIME}'" \
+    -o ./server ./cmd
 
 # Stage 2: Runtime
 FROM alpine AS runtime

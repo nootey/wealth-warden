@@ -71,6 +71,11 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            COMMIT_SHA=${{ github.sha }}
+            BUILD_TIME=${{ github.event.repository.updated_at }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -117,5 +122,10 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            COMMIT_SHA=${{ github.sha }}
+            BUILD_TIME=${{ github.event.repository.updated_at }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
