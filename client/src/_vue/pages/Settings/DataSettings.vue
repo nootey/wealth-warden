@@ -67,68 +67,92 @@ function manipulateDialog(modal: string, value: any) {
 </script>
 
 <template>
+  <Dialog
+    v-model:visible="addImportModal"
+    class="rounded-dialog"
+    :breakpoints="{'751px': '90vw'}"
+    :modal="true"
+    :style="{width: '750px'}"
+    header="New Import"
+  >
+    <ImportModule
+      ref="importModuleRef"
+      @refresh-data="(e) => refreshData(e)"
+    />
+    <template #footer>
+      <Button
+        label="Start"
+        class="main-button w-4"
+        :disabled="importModuleRef?.isDisabled"
+        @click="importModuleRef?.startOperation"
+      />
+    </template>
+  </Dialog>
 
-    <Dialog class="rounded-dialog" v-model:visible="addImportModal" :breakpoints="{'751px': '90vw'}"
-            :modal="true" :style="{width: '750px'}" header="New Import">
-        <ImportModule ref="importModuleRef" @refreshData="(e) => refreshData(e)" />
-        <template #footer>
-            <Button label="Start" class="main-button w-4"
-                     :disabled="importModuleRef?.isDisabled" @click="importModuleRef?.startOperation"/>
-        </template>
-    </Dialog>
+  <Dialog
+    v-model:visible="addExportModal"
+    class="rounded-dialog"
+    :breakpoints="{'501px': '90vw'}"
+    :modal="true"
+    :style="{width: '500px'}"
+    header="New Export"
+  >
+    <ExportModule @complete-export="refreshData('export')" />
+  </Dialog>
 
-    <Dialog class="rounded-dialog" v-model:visible="addExportModal" :breakpoints="{'501px': '90vw'}"
-            :modal="true" :style="{width: '500px'}" header="New Export">
-        <ExportModule @completeExport="refreshData('export')"/>
-    </Dialog>
-
-    <div class="flex flex-column w-full gap-3">
-        <SettingsSkeleton class="w-full">
-            <div class="w-full flex flex-column gap-3 p-2">
-
-                <div class="flex flex-row align-items-center gap-2 w-full">
-                    <div class="w-full flex flex-column gap-2">
-                        <h3>Data Import</h3>
-                        <h5 style="color: var(--text-secondary)">Manage your imported data.</h5>
-                    </div>
-                    <Button class="main-button"
-                            @click="manipulateDialog('addImport', true)">
-                        <div class="flex flex-row gap-1 align-items-center">
-                            <i class="pi pi-plus"></i>
-                            <span> New </span>
-                            <span class="mobile-hide"> Import </span>
-                        </div>
-                    </Button>
-                </div>
-
-                <h3>Imports</h3>
-                <ImportList ref="importListRef" />
-
+  <div class="flex flex-column w-full gap-3">
+    <SettingsSkeleton class="w-full">
+      <div class="w-full flex flex-column gap-3 p-2">
+        <div class="flex flex-row align-items-center gap-2 w-full">
+          <div class="w-full flex flex-column gap-2">
+            <h3>Data Import</h3>
+            <h5 style="color: var(--text-secondary)">
+              Manage your imported data.
+            </h5>
+          </div>
+          <Button
+            class="main-button"
+            @click="manipulateDialog('addImport', true)"
+          >
+            <div class="flex flex-row gap-1 align-items-center">
+              <i class="pi pi-plus" />
+              <span> New </span>
+              <span class="mobile-hide"> Import </span>
             </div>
-        </SettingsSkeleton>
+          </Button>
+        </div>
 
-        <SettingsSkeleton class="w-full">
-            <div class="w-full flex flex-column gap-3 p-2">
-                <div class="flex flex-row align-items-center gap-2 w-full">
-                    <div class="w-full flex flex-column gap-2">
-                        <h3>Data Export</h3>
-                        <h5 style="color: var(--text-secondary)">Export your data.</h5>
-                    </div>
-                    <Button class="main-button"
-                            @click="manipulateDialog('addExport', true)">
-                        <div class="flex flex-row gap-1 align-items-center">
-                            <i class="pi pi-plus"></i>
-                            <span> New </span>
-                            <span class="mobile-hide"> Export </span>
-                        </div>
-                    </Button>
-                </div>
+        <h3>Imports</h3>
+        <ImportList ref="importListRef" />
+      </div>
+    </SettingsSkeleton>
 
-                <h3>Exports</h3>
-                <ExportList ref="exportListRef" />
+    <SettingsSkeleton class="w-full">
+      <div class="w-full flex flex-column gap-3 p-2">
+        <div class="flex flex-row align-items-center gap-2 w-full">
+          <div class="w-full flex flex-column gap-2">
+            <h3>Data Export</h3>
+            <h5 style="color: var(--text-secondary)">
+              Export your data.
+            </h5>
+          </div>
+          <Button
+            class="main-button"
+            @click="manipulateDialog('addExport', true)"
+          >
+            <div class="flex flex-row gap-1 align-items-center">
+              <i class="pi pi-plus" />
+              <span> New </span>
+              <span class="mobile-hide"> Export </span>
             </div>
-        </SettingsSkeleton>
-    </div>
+          </Button>
+        </div>
+
+        <h3>Exports</h3>
+        <ExportList ref="exportListRef" />
+      </div>
+    </SettingsSkeleton>
+  </div>
 </template>
 
 <style scoped>

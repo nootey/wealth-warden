@@ -7,12 +7,17 @@ withDefaults(defineProps<{ bg?: 'primary' | 'secondary' | 'transparent' | 'opt'}
 </script>
 
 <template>
-    <div class="w-full flex flex-column border-round-lg"
-            :class="`panel--${bg}`">
-        <Transition appear name="animate">
-            <slot />
-        </Transition>
-    </div>
+  <div
+    class="w-full flex flex-column border-round-lg"
+    :class="`panel--${bg}`"
+  >
+    <Transition
+      appear
+      name="animate"
+    >
+      <slot />
+    </Transition>
+  </div>
 </template>
 
 <style scoped>

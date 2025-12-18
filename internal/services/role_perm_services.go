@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"wealth-warden/internal/jobs"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
@@ -22,13 +22,13 @@ type RolePermissionServiceInterface interface {
 type RolePermissionService struct {
 	repo          repositories.RolePermissionRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher jobs.JobDispatcher
+	jobDispatcher jobqueue.JobDispatcher
 }
 
 func NewRolePermissionService(
 	repo *repositories.RolePermissionRepository,
 	loggingRepo *repositories.LoggingRepository,
-	jobDispatcher jobs.JobDispatcher,
+	jobDispatcher jobqueue.JobDispatcher,
 ) *RolePermissionService {
 	return &RolePermissionService{
 		repo:          repo,
@@ -115,7 +115,7 @@ func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, re
 
 	utils.CompareChanges("", permString, changes, "permissions")
 
-	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "role",
@@ -202,7 +202,7 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 	}
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "role",
@@ -266,7 +266,7 @@ func (s *RolePermissionService) DeleteRole(ctx context.Context, userID, id int64
 	utils.CompareChanges(utils.SafeString(role.Description), "", changes, "description")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "delete",
 			Category:    "user",

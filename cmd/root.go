@@ -10,13 +10,18 @@ import (
 )
 
 var (
+	// Version info (injected at build time via ldflags)
+	Version   = "dev"
+	CommitSHA = "unknown"
+	BuildTime = "unknown"
+
 	cfg    *config.Config
 	logger *zap.Logger
 )
 var rootCmd = &cobra.Command{
 	Use:     "wealth-warden",
 	Short:   "WealthWarden server",
-	Version: "1.0.0",
+	Version: fmt.Sprintf("%s (commit: %s, built: %s)", Version, CommitSHA, BuildTime),
 }
 
 func init() {

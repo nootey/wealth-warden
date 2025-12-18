@@ -2,7 +2,7 @@ package bootstrap
 
 import (
 	"time"
-	"wealth-warden/internal/jobs"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -37,8 +37,8 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 
 	// Initialize job queue system (In-Memory)
 	// Can later be swapped to Redis/Kafka with zero change to service layer
-	jobQueue := jobs.NewJobQueue(1, 25)
-	jobDispatcher := &jobs.InMemoryDispatcher{Queue: jobQueue}
+	jobQueue := jobqueue.NewJobQueue(1, 25)
+	jobDispatcher := &jobqueue.InMemoryDispatcher{Queue: jobQueue}
 	authzSvc := authz.NewService(db, 5*time.Minute)
 
 	// Initialize repositories

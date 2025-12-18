@@ -74,67 +74,161 @@ defineExpose({isDisabled, startOperation})
 </script>
 
 <template>
-    <div style="min-height: 350px;">
-        <div v-if="selectedRef !== ''" class="flex flex-row gap-2 p-3 mb-2 align-items-center cursor-pointer font-bold hoverable"
-             style="color: var(--text-primary)">
-            <i class="pi pi-angle-left"></i>
-            <span @click="selectedRef = ''">Back</span>
-        </div>
-
-        <Transition name="slide-down" mode="out-in">
-            <div class="flex flex-column w-full gap-2" v-if="!selectedRef">
-                <span>You can manually import various types of data via JSON.</span>
-                <div class="flex flex-column w-full border-round-2xl p-2 gap-2" style="background: var(--background-secondary)">
-                    <span>Sources</span>
-                    <div class="flex flex-column w-full border-round-2xl p-2 gap-2" style="background: var(--background-primary)">
-                        <div class="flex flex-row gap-2 p-2 align-items-center hover-icon" @click="selectedRef = 'accounts'">
-                            <i class="pi pi-building" style="color: #F05737"></i>
-                            <span>Import accounts</span>
-                            <i class="pi pi-chevron-right" style="margin-left: auto; color: var(--text-secondary)"></i>
-                        </div>
-                        <div style="border-bottom: 2px solid var(--border-color)"></div>
-                        <div class="flex flex-row gap-2 p-2 align-items-center hover-icon" @click="selectedRef = 'categories'">
-                            <i class="pi pi-gift" style="color: #E39119"></i>
-                            <span>Import categories</span>
-                            <i class="pi pi-chevron-right" style="margin-left: auto; color: var(--text-secondary)"></i>
-                        </div>
-                        <div style="border-bottom: 2px solid var(--border-color)"></div>
-                        <div class="flex flex-row gap-2 p-2 align-items-center hover-icon" @click="selectedRef = 'transactions'">
-                            <i class="pi pi-book" style="color: #486AF0"></i>
-                            <span>Import transactions</span>
-                            <i class="pi pi-chevron-right" style="margin-left: auto; color: var(--text-secondary)"></i>
-                        </div>
-                        <div style="border-bottom: 2px solid var(--border-color)"></div>
-                        <div class="flex flex-row gap-2 p-2 align-items-center hover-icon" @click="selectedRef = 'investments'">
-                            <i class="pi pi-chart-line" style="color: #9948F0"></i>
-                            <span>Transfer investments</span>
-                            <i class="pi pi-chevron-right" style="margin-left: auto; color: var(--text-secondary)"></i>
-                        </div>
-                        <div style="border-bottom: 2px solid var(--border-color)"></div>
-                        <div class="flex flex-row gap-2 p-2 align-items-center hover-icon" @click="selectedRef = 'savings'">
-                            <i class="pi pi-building-columns" style="color: #C166F2"></i>
-                            <span>Transfer savings</span>
-                            <i class="pi pi-chevron-right" style="margin-left: auto; color: var(--text-secondary)"></i>
-                        </div>
-                        <div style="border-bottom: 2px solid var(--border-color)"></div>
-                        <div class="flex flex-row gap-2 p-2 align-items-center hover-icon" @click="selectedRef = 'repayments'">
-                            <i class="pi pi-upload" style="color: #48F05C"></i>
-                            <span>Transfer repayments</span>
-                            <i class="pi pi-chevron-right" style="margin-left: auto; color: var(--text-secondary)"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div v-else-if="selectedRef === 'custom'">Full custom import is not currently supported</div>
-            <ImportAccounts ref="accRef" v-else-if="selectedRef === 'accounts'"  @completeImport="completeAction( 'import')"/>
-            <ImportCategories ref="catRef" v-else-if="selectedRef === 'categories'"  @completeImport="completeAction( 'import')"/>
-            <ImportTransactions ref="txnRef" v-else-if="selectedRef === 'transactions'" @completeImport="completeAction( 'import')"/>
-            <ImportInvestments ref="invRef" v-else-if="selectedRef === 'investments'" @completeTransfer="completeAction( 'import')"/>
-            <ImportSavings ref="savRef" v-else-if="selectedRef === 'savings'" @completeTransfer="completeAction( 'import')"/>
-            <ImportRepayments ref="repRef" v-else-if="selectedRef === 'repayments'" @completeTransfer="completeAction( 'import')"/>
-        </Transition>
+  <div style="min-height: 350px;">
+    <div
+      v-if="selectedRef !== ''"
+      class="flex flex-row gap-2 p-3 mb-2 align-items-center cursor-pointer font-bold hoverable"
+      style="color: var(--text-primary)"
+    >
+      <i class="pi pi-angle-left" />
+      <span @click="selectedRef = ''">Back</span>
     </div>
 
+    <Transition
+      name="slide-down"
+      mode="out-in"
+    >
+      <div
+        v-if="!selectedRef"
+        class="flex flex-column w-full gap-2"
+      >
+        <span>You can manually import various types of data via JSON.</span>
+        <div
+          class="flex flex-column w-full border-round-2xl p-2 gap-2"
+          style="background: var(--background-secondary)"
+        >
+          <span>Sources</span>
+          <div
+            class="flex flex-column w-full border-round-2xl p-2 gap-2"
+            style="background: var(--background-primary)"
+          >
+            <div
+              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              @click="selectedRef = 'accounts'"
+            >
+              <i
+                class="pi pi-building"
+                style="color: #F05737"
+              />
+              <span>Import accounts</span>
+              <i
+                class="pi pi-chevron-right"
+                style="margin-left: auto; color: var(--text-secondary)"
+              />
+            </div>
+            <div style="border-bottom: 2px solid var(--border-color)" />
+            <div
+              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              @click="selectedRef = 'categories'"
+            >
+              <i
+                class="pi pi-gift"
+                style="color: #E39119"
+              />
+              <span>Import categories</span>
+              <i
+                class="pi pi-chevron-right"
+                style="margin-left: auto; color: var(--text-secondary)"
+              />
+            </div>
+            <div style="border-bottom: 2px solid var(--border-color)" />
+            <div
+              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              @click="selectedRef = 'transactions'"
+            >
+              <i
+                class="pi pi-book"
+                style="color: #486AF0"
+              />
+              <span>Import transactions</span>
+              <i
+                class="pi pi-chevron-right"
+                style="margin-left: auto; color: var(--text-secondary)"
+              />
+            </div>
+            <div style="border-bottom: 2px solid var(--border-color)" />
+            <div
+              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              @click="selectedRef = 'investments'"
+            >
+              <i
+                class="pi pi-chart-line"
+                style="color: #9948F0"
+              />
+              <span>Transfer investments</span>
+              <i
+                class="pi pi-chevron-right"
+                style="margin-left: auto; color: var(--text-secondary)"
+              />
+            </div>
+            <div style="border-bottom: 2px solid var(--border-color)" />
+            <div
+              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              @click="selectedRef = 'savings'"
+            >
+              <i
+                class="pi pi-building-columns"
+                style="color: #C166F2"
+              />
+              <span>Transfer savings</span>
+              <i
+                class="pi pi-chevron-right"
+                style="margin-left: auto; color: var(--text-secondary)"
+              />
+            </div>
+            <div style="border-bottom: 2px solid var(--border-color)" />
+            <div
+              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              @click="selectedRef = 'repayments'"
+            >
+              <i
+                class="pi pi-upload"
+                style="color: #48F05C"
+              />
+              <span>Transfer repayments</span>
+              <i
+                class="pi pi-chevron-right"
+                style="margin-left: auto; color: var(--text-secondary)"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-else-if="selectedRef === 'custom'">
+        Full custom import is not currently supported
+      </div>
+      <ImportAccounts
+        v-else-if="selectedRef === 'accounts'"
+        ref="accRef"
+        @complete-import="completeAction( 'import')"
+      />
+      <ImportCategories
+        v-else-if="selectedRef === 'categories'"
+        ref="catRef"
+        @complete-import="completeAction( 'import')"
+      />
+      <ImportTransactions
+        v-else-if="selectedRef === 'transactions'"
+        ref="txnRef"
+        @complete-import="completeAction( 'import')"
+      />
+      <ImportInvestments
+        v-else-if="selectedRef === 'investments'"
+        ref="invRef"
+        @complete-transfer="completeAction( 'import')"
+      />
+      <ImportSavings
+        v-else-if="selectedRef === 'savings'"
+        ref="savRef"
+        @complete-transfer="completeAction( 'import')"
+      />
+      <ImportRepayments
+        v-else-if="selectedRef === 'repayments'"
+        ref="repRef"
+        @complete-transfer="completeAction( 'import')"
+      />
+    </Transition>
+  </div>
 </template>
 
 <style scoped>

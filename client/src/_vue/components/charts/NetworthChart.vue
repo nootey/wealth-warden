@@ -27,11 +27,11 @@ ChartJS.register(
 const hoverXByChart = new WeakMap<any, number | null>()
 
 const props = withDefaults(defineProps<{
-    dataPoints: ChartPoint[]
+    dataPoints?: ChartPoint[]
     currency?: string
     activeColor?: string
-    height: number
-    isLiability: boolean
+    height?: number
+    isLiability?: boolean
 }>(), {
     dataPoints: () => [],
     currency: 'EUR',
@@ -59,7 +59,7 @@ const onMqlChange = (e: MediaQueryListEvent) => {
 }
 
 onMounted(() => {
-    const pos = (Tooltip as any).positioners as Record<string, Function>
+    const pos = (Tooltip as any).positioners as Record<string, (items: any[]) => { x: number; y: number }>
     if (!pos.pinned) {
         pos.pinned = function (items: any[]) {
             const chart = items?.[0]?.chart
@@ -287,13 +287,13 @@ const options = computed(() => {
 </script>
 
 <template>
-    <Chart
-            ref="chartRef"
-            :key="`nw-${themeStore.isDark}-${dataPoints?.length}-${pinnedTooltipOnMobile}`"
-            type="line"
-            :data="data"
-            :options="options"
-            :plugins="[hoverGuidePlugin]"
-            :style="{ height: height + 'px' }"
-    />
+  <Chart
+    ref="chartRef"
+    :key="`nw-${themeStore.isDark}-${dataPoints?.length}-${pinnedTooltipOnMobile}`"
+    type="line"
+    :data="data"
+    :options="options"
+    :plugins="[hoverGuidePlugin]"
+    :style="{ height: height + 'px' }"
+  />
 </template>

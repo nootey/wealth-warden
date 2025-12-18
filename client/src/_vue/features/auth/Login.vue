@@ -88,74 +88,118 @@ function forgotPassword() {
 </script>
 
 <template>
-    <AuthSkeleton>
-        <div class="w-full mx-auto px-3 sm:px-0" style="max-width: 400px;">
+  <AuthSkeleton>
+    <div
+      class="w-full mx-auto px-3 sm:px-0"
+      style="max-width: 400px;"
+    >
+      <div
+        id="hideOnMobile"
+        class="text-center mb-4"
+      >
+        <h2
+          class="m-0 text-2xl sm:text-3xl font-bold"
+          style="color: var(--text-primary); letter-spacing: -0.025em;"
+        >
+          Welcome back
+        </h2>
+        <p
+          class="mt-2 text-base line-height-3"
+          style="color: var(--text-secondary);"
+        >
+          Sign in to your account to continue
+        </p>
+      </div>
 
-            <div id="hideOnMobile" class="text-center mb-4">
-                <h2 class="m-0 text-2xl sm:text-3xl font-bold"
-                    style="color: var(--text-primary); letter-spacing: -0.025em;">
-                    Welcome back
-                </h2>
-                <p class="mt-2 text-base line-height-3" style="color: var(--text-secondary);">
-                    Sign in to your account to continue
-                </p>
-            </div>
-
-            <div class="flex flex-column gap-3">
-
-                <div class="flex flex-row w-full">
-                    <div class="flex flex-column gap-1 w-full">
-                        <ValidationError :isRequired="true" :message="v$.form.email.$errors[0]?.$message">
-                            <label>Email</label>
-                        </ValidationError>
-                        <InputText id="email" v-model="form.email" type="email"
-                                   :placeholder="'Email'"
-                                   class="w-full border-round-xl"/>
-                    </div>
-                </div>
-
-                <div class="flex flex-row w-full">
-                    <div class="flex flex-column gap-1 w-full">
-                        <ValidationError :isRequired="true" :message="v$.form.password.$errors[0]?.$message">
-                            <label>Password</label>
-                        </ValidationError>
-                        <InputText id="password" v-model="form.password" type="password"
-                                   :placeholder="'Password'"
-                                   class="w-full border-round-xl"
-                                   @keydown.enter="login"/>
-                    </div>
-                </div>
-
-                <div class="flex flex-row w-full justify-content-between">
-                    <div class="flex flex-row align-items-center gap-2">
-                        <Checkbox inputId="rememberMe" v-model="form.remember_me" :binary="true" class="scale-90" />
-                        <label for="rememberMe" class="text-sm cursor-pointer" style="color: var(--text-secondary);">
-                            Remember me
-                        </label>
-                    </div>
-
-                    <span class="text-sm hover-icon hover-dim"
-                          @click="forgotPassword">
-                        Forgot password?</span>
-                </div>
-
-                <Button :label="loading ? 'Signing in...' : 'Sign in'"
-                        :icon="loading ? 'pi pi-spin pi-spinner mr-2' : ''" class="w-full auth-accent-button"
-                        :disabled="loading || v$.$error" @click="login"/>
-
-            </div>
-
-            <div class="flex align-items-center justify-content-center gap-2 mt-4 pt-3"
-                 style="border-top: 1px solid var(--border-color);">
-                <span class="text-sm" style="color: var(--text-secondary);">
-                  Don't have an account?
-                </span>
-                <span class="text-sm hover-icon hover-dim"
-                      @click="signUp">
-                        Create account</span>
-            </div>
+      <div class="flex flex-column gap-3">
+        <div class="flex flex-row w-full">
+          <div class="flex flex-column gap-1 w-full">
+            <ValidationError
+              :is-required="true"
+              :message="v$.form.email.$errors[0]?.$message"
+            >
+              <label>Email</label>
+            </ValidationError>
+            <InputText
+              id="email"
+              v-model="form.email"
+              type="email"
+              :placeholder="'Email'"
+              class="w-full border-round-xl"
+            />
+          </div>
         </div>
-    </AuthSkeleton>
+
+        <div class="flex flex-row w-full">
+          <div class="flex flex-column gap-1 w-full">
+            <ValidationError
+              :is-required="true"
+              :message="v$.form.password.$errors[0]?.$message"
+            >
+              <label>Password</label>
+            </ValidationError>
+            <InputText
+              id="password"
+              v-model="form.password"
+              type="password"
+              :placeholder="'Password'"
+              class="w-full border-round-xl"
+              @keydown.enter="login"
+            />
+          </div>
+        </div>
+
+        <div class="flex flex-row w-full justify-content-between">
+          <div class="flex flex-row align-items-center gap-2">
+            <Checkbox
+              v-model="form.remember_me"
+              input-id="rememberMe"
+              :binary="true"
+              class="scale-90"
+            />
+            <label
+              for="rememberMe"
+              class="text-sm cursor-pointer"
+              style="color: var(--text-secondary);"
+            >
+              Remember me
+            </label>
+          </div>
+
+          <span
+            class="text-sm hover-icon hover-dim"
+            @click="forgotPassword"
+          >
+            Forgot password?</span>
+        </div>
+
+        <Button
+          :label="loading ? 'Signing in...' : 'Sign in'"
+          :icon="loading ? 'pi pi-spin pi-spinner mr-2' : ''"
+          class="w-full auth-accent-button"
+          :disabled="loading || v$.$error"
+          @click="login"
+        />
+      </div>
+
+      <div
+        class="flex align-items-center justify-content-center gap-2 mt-4 pt-3"
+        style="border-top: 1px solid var(--border-color);"
+      >
+        <span
+          class="text-sm"
+          style="color: var(--text-secondary);"
+        >
+          Don't have an account?
+        </span>
+        <span
+          class="text-sm hover-icon hover-dim"
+          @click="signUp"
+        >
+          Create account</span>
+      </div>
+    </div>
+  </AuthSkeleton>
 </template>
 
 <style scoped>

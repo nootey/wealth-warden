@@ -105,33 +105,62 @@ function onCommit() {
 </script>
 
 <template>
-  <div id="mobile-row" class="flex flex-row w-full gap-1 p-2" style="height: 250px;">
-      <div class="flex flex-column w-4 gap-2 p-1">
-      <button v-for="i in items" :key="i.key"
-          class="flex align-items-center gap-2 p-2 w-full menu-button" :class="{ active: i.key === selectedKey }"
-          @click="selectedKey = i.key" style="background-color: transparent; border: 2px solid var(--border-color); border-radius: 10px;">
-          <i :class="i.icon" />
-          <span style="display: inline-block; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              {{ i.label }}
-          </span>
+  <div
+    id="mobile-row"
+    class="flex flex-row w-full gap-1 p-2"
+    style="height: 250px;"
+  >
+    <div class="flex flex-column w-4 gap-2 p-1">
+      <button
+        v-for="i in items"
+        :key="i.key"
+        class="flex align-items-center gap-2 p-2 w-full menu-button"
+        :class="{ active: i.key === selectedKey }"
+        style="background-color: transparent; border: 2px solid var(--border-color); border-radius: 10px;"
+        @click="selectedKey = i.key"
+      >
+        <i :class="i.icon" />
+        <span style="display: inline-block; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          {{ i.label }}
+        </span>
       </button>
     </div>
-      <div class="flex flex-column w-8">
-      <component v-if="activeItem" v-model="models[activeItem.key]"
-                 :is="activeItem.def.component"
-                 :field="activeItem.col.field"
-                 :label="activeItem.col.header"
-                 v-bind="activeItem.def.passProps"
-                 @commit="onCommit"
-      >
-      </component>
+    <div class="flex flex-column w-8">
+      <component
+        :is="activeItem.def.component"
+        v-if="activeItem"
+        v-model="models[activeItem.key]"
+        :field="activeItem.col.field"
+        :label="activeItem.col.header"
+        v-bind="activeItem.def.passProps"
+        @commit="onCommit"
+      />
     </div>
   </div>
 
-  <div id="mobile-row" class="flex flex-row w-full justify-content-end align-items-center gap-3 p-1">
-      <div class="hover-icon" style="margin-right: auto;" @click="clear">Clear filters</div>
-      <div class="hover-icon" @click="$emit('cancel')">Cancel</div>
-      <Button size="small" label="Apply" class="main-button" @click="apply"></Button>
+  <div
+    id="mobile-row"
+    class="flex flex-row w-full justify-content-end align-items-center gap-3 p-1"
+  >
+    <div
+      class="hover-icon"
+      style="margin-right: auto;"
+      @click="clear"
+    >
+      Clear filters
+    </div>
+    <div
+      class="hover-icon"
+      @click="$emit('cancel')"
+    >
+      Cancel
+    </div>
+    <Button
+      size="small"
+      label="Apply"
+      class="main-button"
+      @click="apply"
+    />
   </div>
 </template>
 

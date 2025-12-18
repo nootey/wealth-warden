@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { defineAsyncComponent } from 'vue';
 import type { Component } from 'vue';
 import type { FilterObj } from '../models/shared_models';

@@ -1,44 +1,64 @@
 import apiClient from './axios.ts';
 import { useAuthStore } from '../stores/auth_store.ts';
 
-let isRetrying = false;
+let isRefreshing = false;
+let failedQueue: Array<{
+    resolve: (value?: unknown) => void,
+    reject: (reason?: unknown) => void
+}> = [];
+
+const processQueue = (error: unknown) => {
+    failedQueue.forEach(prom => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve();
+        }
+    });
+    failedQueue = [];
+};
 
 apiClient.interceptors.response.use(
     (response) => response,
     async (error) => {
-
         const { config, response } = error;
         const url: string = error?.config?.url ?? '';
 
         if (!response) return Promise.reject(error);
 
-        if (response.status === 401 && !config.__retried) {
-            config.__retried = true;
+        if (response.status === 401 && !config._retry) {
+            if (isRefreshing) {
+                // Queue this request
+                return new Promise((resolve, reject) => {
+                    failedQueue.push({ resolve, reject });
+                }).then(() => apiClient(config)).catch(err => Promise.reject(err));
+            }
+
+            config._retry = true;
+            isRefreshing = true;
+
             try {
-                // if the server minted a new access cookie, retry
+                // First request triggers refresh, others wait
+                await apiClient(config);
+                processQueue(null);
+                isRefreshing = false;
                 return await apiClient(config);
-            } catch (e) {
-                // fall through to logout
+            } catch (retryError) {
+                processQueue(retryError);
+                isRefreshing = false;
+                throw retryError;
             }
         }
 
         if (response.status === 401) {
             const auth = useAuthStore();
+            const isAuthEndpoint = /\/auth\/(current|logout|login)/.test(url);
 
-
-            if (auth.isAuthenticated && !isRetrying) {
-                isRetrying = true;
-                try {
-                    const isAuthEndpoint = /\/auth\/(current|logout|login)/.test(url);
-                    if (!isAuthEndpoint) {
-                        await auth.logoutUser();
-                    }
-
-                } finally {
-                    isRetrying = false;
-                }
+            if (!isAuthEndpoint && auth.isAuthenticated) {
+                await auth.logoutUser();
             }
         }
+
         return Promise.reject(error);
     }
 );

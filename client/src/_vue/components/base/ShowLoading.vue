@@ -19,13 +19,16 @@ const skeletons = computed(() =>
 </script>
 
 <template>
-    <div class="flex flex-column justify-content-center mt-4 gap-4" style="width: 75%; margin: 0 auto;">
-        <Skeleton
-                v-for="s in skeletons"
-                :key="s.id"
-                borderRadius="16px"
-                :width="s.width"
-                :height="s.height"
-        />
-    </div>
+  <div
+    class="flex flex-column justify-content-center mt-4 gap-4"
+    style="width: 75%; margin: 0 auto;"
+  >
+    <Skeleton
+      v-for="s in skeletons"
+      :key="s.id"
+      border-radius="16px"
+      :width="s.width"
+      :height="s.height"
+    />
+  </div>
 </template>

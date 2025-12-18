@@ -10,36 +10,24 @@ export const useDataStore = defineStore('data', {
     },
     actions: {
         async getImports(importType: string) {
-            try {
-                const res = await apiClient.get(`${this.importPrefix}/${importType}`);
-                return res.data;
-            } catch (err) {
-                throw err;
-            }
+            const res = await apiClient.get(`${this.importPrefix}/${importType}`);
+            return res.data;
         },
 
-        async getCustomImportJSON(id: number | string, step: string): Promise<any> {
-            try {
-                const response = await apiClient.get(`${this.importPrefix}/custom/${id}?step=${encodeURIComponent(step)}`);
-                return response.data;
-            } catch (err) {
-                throw err;
-            }
+        async getCustomImportJSON(id: number | string, step: string) {
+            const response = await apiClient.get(`${this.importPrefix}/custom/${id}?step=${encodeURIComponent(step)}`);
+            return response.data;
         },
 
         async validateImport(importType: string, record: object, importStep: string) {
-            try {
-                const response = await apiClient.post(
-                    `${this.importPrefix}/${importType}/validate?step=${encodeURIComponent(importStep)}`,
-                    record
-                );
-                return response.data;
-            } catch (err) {
-                throw err;
-            }
+            const response = await apiClient.post(
+                `${this.importPrefix}/${importType}/validate?step=${encodeURIComponent(importStep)}`,
+                record
+            );
+            return response.data;
         },
 
-        async importTransactions(payload: any, checkID: number) {
+        async importTransactions(payload: unknown, checkID: number) {
             const { data } = await apiClient.post(
                 `${this.importPrefix}/custom/transactions`,
                 payload,
@@ -48,7 +36,7 @@ export const useDataStore = defineStore('data', {
             return data;
         },
 
-        async importAccounts(payload: any, useBalances: boolean) {
+        async importAccounts(payload: unknown, useBalances: boolean) {
             const { data } = await apiClient.post(
                 `${this.importPrefix}/custom/accounts`,
                 payload,
@@ -57,7 +45,7 @@ export const useDataStore = defineStore('data', {
             return data;
         },
 
-        async importCategories(payload: any) {
+        async importCategories(payload: unknown) {
             const { data } = await apiClient.post(
                 `${this.importPrefix}/custom/categories`,
                 payload
@@ -70,15 +58,11 @@ export const useDataStore = defineStore('data', {
             checking_acc_id: number
             investment_mappings: { name: string; account_id: number | null }[]
         }) {
-            try {
-                const res = await apiClient.post(
-                    `${this.importPrefix}/custom/investments`,
-                    payload
-                );
-                return res.data;
-            } catch (err) {
-                throw err;
-            }
+            const res = await apiClient.post(
+                `${this.importPrefix}/custom/investments`,
+                payload
+            );
+            return res.data;
         },
 
         async transferSavingsFromImport(payload: {
@@ -86,15 +70,11 @@ export const useDataStore = defineStore('data', {
             checking_acc_id: number
             savings_mappings: { name: string; account_id: number | null }[]
         }) {
-            try {
-                const res = await apiClient.post(
-                    `${this.importPrefix}/custom/savings`,
-                    payload
-                );
-                return res.data;
-            } catch (err) {
-                throw err;
-            }
+            const res = await apiClient.post(
+                `${this.importPrefix}/custom/savings`,
+                payload
+            );
+            return res.data;
         },
 
         async transferRepaymentsFromImport(payload: {
@@ -102,53 +82,36 @@ export const useDataStore = defineStore('data', {
             checking_acc_id: number
             repayment_mappings: { name: string; account_id: number | null }[]
         }) {
-            try {
-                const res = await apiClient.post(
-                    `${this.importPrefix}/custom/repayments`,
-                    payload
-                );
-                return res.data;
-            } catch (err) {
-                throw err;
-            }
+            const res = await apiClient.post(
+                `${this.importPrefix}/custom/repayments`,
+                payload
+            );
+            return res.data;
         },
 
         async getExports() {
-            try {
-                const res = await apiClient.get(`${this.exportPrefix}`);
-                return res.data;
-            } catch (err) {
-                throw err;
-            }
+            const res = await apiClient.get(`${this.exportPrefix}`);
+            return res.data;
         },
 
         async exportData() {
-            try {
-                const res = await apiClient.post(`${this.exportPrefix}`);
-                return res.data;
-            } catch (err) {
-                throw err;
-            }
+            const res = await apiClient.post(`${this.exportPrefix}`);
+            return res.data;
         },
 
         async downloadExport(id: number) {
-            try {
-                const res = await apiClient.post(`${this.exportPrefix}/${id}/download`, null, {
-                    responseType: 'blob',
-                });
+            const res = await apiClient.post(`${this.exportPrefix}/${id}/download`, null, {
+                responseType: 'blob',
+            });
 
-                const blob = new Blob([res.data], { type: 'application/zip' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'export.zip';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-            } catch (err) {
-                console.error('Export failed', err);
-                throw err;
-            }
+            const blob = new Blob([res.data], { type: 'application/zip' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'export.zip';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
         },
 
     },

@@ -2,7 +2,6 @@
 import {computed, onMounted, type Ref, ref} from "vue";
 import {useDataStore} from "../../services/stores/data_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
-import toastHelper from "../../utils/toast_helper.ts";
 import type { CustomImportValidationResponse } from "../../models/dataio_models"
 import ShowLoading from "../components/base/ShowLoading.vue";
 import {useAccountStore} from "../../services/stores/account_store.ts";
@@ -73,12 +72,7 @@ async function fetchSourceAccounts() {
 
     if (sourceAccounts.value.length === 0) {
         const accountType = useNonCheckingAccount.value ? "source" : "checking";
-        toastStore.infoResponseToast(
-            toastHelper.formatInfoToast(
-                "No accounts",
-                `Please create at least one ${accountType} account`
-            )
-        );
+        toastStore.infoResponseToast({"title": "No accounts", "message": `Please create at least one ${accountType} account`});
     }
 }
 
@@ -101,7 +95,7 @@ async function validateFile(type: string) {
         const res = await dataStore.validateImport("custom", selectedFiles.value[0], type);
         fileValidated.value = true;
         validatedResponse.value = res;
-        toastHelper.formatSuccessToast("File validated", "Check details and proceed with import");
+        toastStore.successResponseToast({"title": "File validated", "message": "Check details and proceed with import"})
 
     } catch (error) {
         toastStore.errorResponseToast(error);
@@ -124,7 +118,7 @@ function onSaveMapping(map: Record<string, number | null>) {
 function resetWizard() {
 
     if(importing.value) {
-        toastStore.infoResponseToast({"Title": "Unavailable", "Message": "An operation is currently being executed!"})
+        toastStore.infoResponseToast({"title": "Unavailable", "message": "An operation is currently being executed!"})
     }
     // clear local state
     selectedFiles.value = [];
@@ -146,7 +140,7 @@ const isDisabled = computed(() => {
     return !selectedCheckingAcc.value;
 });
 
-const importTransactions = async (_nextStep?: any) => {
+const importTransactions = async () => {
     if (!selectedFiles.value.length) return;
     importing.value = true;
 
@@ -164,16 +158,19 @@ const importTransactions = async (_nextStep?: any) => {
         form.append("category_mappings", JSON.stringify(categoryMappingsArray));
 
         // import cash
-        const res = await dataStore.importTransactions(form, selectedCheckingAcc.value?.id!);
+        if (!selectedCheckingAcc.value?.id) {
+            return;
+        }
+        const res = await dataStore.importTransactions(form, selectedCheckingAcc.value.id);
         toastStore.successResponseToast(res);
 
-        resetWizard();
         emit("completeImport");
 
     } catch (error) {
         toastStore.errorResponseToast(error);
     } finally {
         importing.value = false;
+        resetWizard();
     }
 };
 
@@ -182,129 +179,204 @@ defineExpose({isDisabled, importTransactions})
 </script>
 
 <template>
-    <div class="flex flex-column w-full gap-2 p-2">
+  <div class="flex flex-column w-full gap-2 p-2">
+    <Tabs value="0">
+      <TabList>
+        <Tab value="0">
+          Custom
+        </Tab>
+        <Tab value="1">
+          Bank
+        </Tab>
+      </TabList>
+      <TabPanels>
+        <TabPanel value="0">
+          <div
+            v-if="sourceAccounts.length > 0"
+            class="flex flex-column w-full justify-content-center align-items-center gap-3"
+          >
+            <h3>Import your transaction data</h3>
+            <span
+              class="text-sm"
+              style="color: var(--text-secondary)"
+            >Upload your JSON file below. Please review the instructions before starting an import.</span>
+            <span
+              v-if="sourceAccounts.length == 0"
+              style="color: var(--text-secondary)"
+            >At least one checking account is required to proceed!</span>
 
-        <Tabs value="0">
-            <TabList>
-                <Tab value="0">Custom</Tab>
-                <Tab value="1">Bank</Tab>
-            </TabList>
-            <TabPanels>
-                <TabPanel value="0">
+            <FileUpload
+              v-if="!importing"
+              ref="uploadImportRef"
+              accept=".json, application/json"
+              :max-file-size="10485760"
+              :multiple="false"
+              custom-upload
+              :show-upload-button="false"
+              :show-cancel-button="false"
+              @select="onSelect"
+              @clear="onClear"
+            >
+              <template #header="{ chooseCallback }">
+                <div class="w-full flex flex-row justify-content-center">
+                  <Button
+                    v-if="!fileValidated"
+                    class="outline-button w-3"
+                    :disabled="sourceAccounts.length == 0 || importing"
+                    label="Upload"
+                    @click="chooseCallback()"
+                  />
+                </div>
+              </template>
 
-                    <div v-if="sourceAccounts.length > 0" class="flex flex-column w-full justify-content-center align-items-center gap-3">
-                        <h3>Import your transaction data</h3>
-                        <span class="text-sm" style="color: var(--text-secondary)">Upload your JSON file below. Please review the instructions before starting an import.</span>
-                        <span v-if="sourceAccounts.length == 0" style="color: var(--text-secondary)">At least one checking account is required to proceed!</span>
-
-                        <FileUpload v-if="!importing" ref="uploadImportRef" accept=".json, application/json"
-                                    :maxFileSize="10485760" :multiple="false"
-                                    customUpload
-                                    :showUploadButton="false" :showCancelButton="false"
-                                    @select="onSelect" @clear="onClear">
-
-                            <template #header="{ chooseCallback }" class="w-full">
-                                <div class="w-full flex flex-row justify-content-center">
-                                    <Button v-if="!fileValidated" class="outline-button w-3" @click="chooseCallback()"
-                                            :disabled="sourceAccounts.length == 0 || importing"
-                                            label="Upload" />
-                                </div>
-                            </template>
-
-                            <template #content>
-                                <div v-if="selectedFiles.length > 0" class="flex flex-column gap-1 w-full align-items-center">
-                                    <h5>Pending</h5>
-                                    <div class="flex flex-wrap gap-2 w-full">
-                                        <div v-for="file in selectedFiles" :key="file.name + file.type + file.size"
-                                             class="flex flex-row gap-2 p-1 w-full justify-content-center align-items-center w-full">
-                                            <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden">{{ file.name }}</span>
-                                            <Badge :value="fileValidated ? 'Validated' : 'Pending'" :severity="fileValidated ? 'info' : 'warn'" />
-                                            <i class="pi pi-times hover-icon"
-                                               @click="resetWizard"
-                                               style="color: var(--p-red-300)" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </template>
-
-                        </FileUpload>
-                        <ShowLoading v-else :numFields="3" />
-
-                        <div v-if="!fileValidated"class="flex flex-column w-full justify-content-center align-items-center gap-3">
-                            <span style="color: var(--text-secondary)">
-                                Once you have uploaded a document, it needs to be validated.
-                            </span>
-                            <div class="flex flex-row gap-2 align-items-center w-full justify-content-center gap-3">
-                                <Button class="main-button w-3"
-                                        @click="() => validateFile('cash')"
-                                        :disabled="selectedFiles.length === 0 || sourceAccounts.length == 0"
-                                        label="Validate"
-                                />
-                            </div>
-                        </div>
-
-                        <div v-if="validatedResponse">
-                            <div v-if="!importing" class="flex flex-column w-full justify-content-center align-items-center gap-3">
-
-                                <div class="flex flex-column w-full gap-2 align-items-center justify-content-center">
-                                    <div class="text-sm" style="color: var(--text-secondary)">
-                                        Select an account which will receive the import transactions.
-                                        <div class="flex align-items-center gap-1">
-                                            <Checkbox v-model="useNonCheckingAccount"
-                                                      :binary="true" inputId="use-non-check-pt"
-                                                      @update:model-value="fetchSourceAccounts"
-                                            />
-                                            <label for="use-non-check-pt"  style="color: var(--text-secondary)">Use non checking account</label>
-                                        </div>
-                                    </div>
-                                    <AutoComplete size="small" v-model="selectedCheckingAcc" :suggestions="filteredSourceAccounts"
-                                                  @complete="searchAccount($event, 'source')" optionLabel="name" forceSelection
-                                                  placeholder="Select checking account" dropdown />
-                                    <span class="text-sm" v-if="!selectedCheckingAcc" style="color: var(--text-secondary)">Please select an account.</span>
-                                    <span class="text-sm" v-else style="color: var(--text-secondary)">Account's opening date is valid.</span>
-                                </div>
-
-                                <span>---</span>
-
-                                <h4>Validation response</h4>
-                                <span class="text-sm" style="color: var(--text-secondary)">General information about your import.</span>
-                                <div class="flex flex-row w-full gap-2 align-items-center justify-content-center">
-                                    <span>Txn count: </span>
-                                    <span>{{ validatedResponse.filtered_count }} </span>
-                                </div>
-
-                                <span>---</span>
-
-                                <h4>Category mappings</h4>
-                                <ImportCategoryMapping
-                                        :importedCategories="validatedResponse.categories"
-                                        :appCategories="filteredCategories"
-                                        @save="onSaveMapping"
-                                />
-                            </div>
-                            <ShowLoading v-else :numFields="5" />
-                        </div>
-
+              <template #content>
+                <div
+                  v-if="selectedFiles.length > 0"
+                  class="flex flex-column gap-1 w-full align-items-center"
+                >
+                  <h5>Pending</h5>
+                  <div class="flex flex-wrap gap-2 w-full">
+                    <div
+                      v-for="file in selectedFiles"
+                      :key="file.name + file.type + file.size"
+                      class="flex flex-row gap-2 p-1 w-full justify-content-center align-items-center w-full"
+                    >
+                      <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden">{{ file.name }}</span>
+                      <Badge
+                        :value="fileValidated ? 'Validated' : 'Pending'"
+                        :severity="fileValidated ? 'info' : 'warn'"
+                      />
+                      <i
+                        class="pi pi-times hover-icon"
+                        style="color: var(--p-red-300)"
+                        @click="resetWizard"
+                      />
                     </div>
+                  </div>
+                </div>
+              </template>
+            </FileUpload>
+            <ShowLoading
+              v-else
+              :num-fields="3"
+            />
 
-                    <div v-else class="flex flex-column w-100 gap-2 justify-content-center align-items-center">
-                        <i class="pi pi-inbox text-2xl mb-2" style="color: var(--text-secondary)"></i>
-                        <span> No data yet - create a checking
-                            <span class="hover-icon font-bold text-base" @click="router.push({name: 'accounts'})"> account </span>
-                            <span> to start importing. </span>
-                        </span>
+            <div
+              v-if="!fileValidated"
+              class="flex flex-column w-full justify-content-center align-items-center gap-3"
+            >
+              <span style="color: var(--text-secondary)">
+                Once you have uploaded a document, it needs to be validated.
+              </span>
+              <div class="flex flex-row gap-2 align-items-center w-full justify-content-center gap-3">
+                <Button
+                  class="main-button w-3"
+                  :disabled="selectedFiles.length === 0 || sourceAccounts.length == 0"
+                  label="Validate"
+                  @click="() => validateFile('cash')"
+                />
+              </div>
+            </div>
+
+            <div v-if="validatedResponse">
+              <div
+                v-if="!importing"
+                class="flex flex-column w-full justify-content-center align-items-center gap-3"
+              >
+                <div class="flex flex-column w-full gap-2 align-items-center justify-content-center">
+                  <div
+                    class="text-sm"
+                    style="color: var(--text-secondary)"
+                  >
+                    Select an account which will receive the import transactions.
+                    <div class="flex align-items-center gap-1">
+                      <Checkbox
+                        v-model="useNonCheckingAccount"
+                        :binary="true"
+                        input-id="use-non-check-pt"
+                        @update:model-value="fetchSourceAccounts"
+                      />
+                      <label
+                        for="use-non-check-pt"
+                        style="color: var(--text-secondary)"
+                      >Use non checking account</label>
                     </div>
+                  </div>
+                  <AutoComplete
+                    v-model="selectedCheckingAcc"
+                    size="small"
+                    :suggestions="filteredSourceAccounts"
+                    option-label="name"
+                    force-selection
+                    placeholder="Select checking account"
+                    dropdown
+                    @complete="searchAccount($event, 'source')"
+                  />
+                  <span
+                    v-if="!selectedCheckingAcc"
+                    class="text-sm"
+                    style="color: var(--text-secondary)"
+                  >Please select an account.</span>
+                  <span
+                    v-else
+                    class="text-sm"
+                    style="color: var(--text-secondary)"
+                  >Account's opening date is valid.</span>
+                </div>
 
-                </TabPanel>
-                <TabPanel value="1">
-                    <span style="color: var(--text-secondary)">
-                        Bank imports are currently unsupported!
-                    </span>
-                </TabPanel>
-            </TabPanels>
-        </Tabs>
+                <span>---</span>
 
-    </div>
+                <h4>Validation response</h4>
+                <span
+                  class="text-sm"
+                  style="color: var(--text-secondary)"
+                >General information about your import.</span>
+                <div class="flex flex-row w-full gap-2 align-items-center justify-content-center">
+                  <span>Txn count: </span>
+                  <span>{{ validatedResponse.filtered_count }} </span>
+                </div>
+
+                <span>---</span>
+
+                <h4>Category mappings</h4>
+                <ImportCategoryMapping
+                  :imported-categories="validatedResponse.categories"
+                  :app-categories="filteredCategories"
+                  @save="onSaveMapping"
+                />
+              </div>
+              <ShowLoading
+                v-else
+                :num-fields="5"
+              />
+            </div>
+          </div>
+
+          <div
+            v-else
+            class="flex flex-column w-100 gap-2 justify-content-center align-items-center"
+          >
+            <i
+              class="pi pi-inbox text-2xl mb-2"
+              style="color: var(--text-secondary)"
+            />
+            <span> No data yet - create a checking
+              <span
+                class="hover-icon font-bold text-base"
+                @click="router.push({name: 'accounts'})"
+              > account </span>
+              <span> to start importing. </span>
+            </span>
+          </div>
+        </TabPanel>
+        <TabPanel value="1">
+          <span style="color: var(--text-secondary)">
+            Bank imports are currently unsupported!
+          </span>
+        </TabPanel>
+      </TabPanels>
+    </Tabs>
+  </div>
 </template>
 
 <style scoped>

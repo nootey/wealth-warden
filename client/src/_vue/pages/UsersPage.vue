@@ -65,7 +65,7 @@ const activeColumns = computed<Column[]>(() => [
     { field: 'display_name', header: 'Name', type: 'text'},
     { field: 'email', header: 'Email', type: 'text'},
     { field: 'role', header: 'Role', type: 'enum', options: roles.value, optionLabel: 'name'},
-    { field: 'email_confirmed', header: 'Date', type: "date" },
+    { field: 'email_confirmed', header: 'Verified', type: "date" },
 ]);
 
 const invRef = ref<InstanceType<typeof InvitationsPaginated> | null>(null);
@@ -204,112 +204,185 @@ provide("removeFilter", removeFilter);
 </script>
 
 <template>
+  <Popover
+    ref="filterOverlayRef"
+    class="rounded-popover"
+    :style="{width: '420px'}"
+    :breakpoints="{'775px': '90vw'}"
+  >
+    <FilterMenu
+      v-model:value="filters"
+      :columns="activeColumns"
+      :api-source="apiPrefix"
+      @apply="(list) => applyFilters(list)"
+      @clear="clearFilters"
+      @cancel="cancelFilters"
+    />
+  </Popover>
 
-    <Popover ref="filterOverlayRef" class="rounded-popover" :style="{width: '420px'}" :breakpoints="{'775px': '90vw'}">
-        <FilterMenu
-                v-model:value="filters"
-                :columns="activeColumns"
-                :apiSource="apiPrefix"
-                @apply="(list) => applyFilters(list)"
-                @clear="clearFilters"
-                @cancel="cancelFilters"
-        />
-    </Popover>
+  <Dialog
+    v-model:visible="createModal"
+    class="rounded-dialog"
+    :breakpoints="{'501px': '90vw'}"
+    :modal="true"
+    :style="{width: '500px'}"
+    header="Invite user"
+  >
+    <UserForm
+      mode="create"
+      :roles="roles"
+      @complete-operation="handleEmit('completeOperation')"
+    />
+  </Dialog>
 
-    <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{'501px': '90vw'}"
-            :modal="true" :style="{width: '500px'}" header="Invite user">
-        <UserForm mode="create" :roles="roles"
-                  @completeOperation="handleEmit('completeOperation')">
-        </UserForm>
-    </Dialog>
+  <Dialog
+    v-model:visible="updateModal"
+    position="right"
+    class="rounded-dialog"
+    :breakpoints="{'501px': '90vw'}"
+    :modal="true"
+    :style="{width: '500px'}"
+    header="User details"
+  >
+    <UserForm
+      mode="update"
+      :roles="roles"
+      :record-id="updateUserID"
+      @complete-operation="handleEmit('completeOperation')"
+      @complete-user-delete="handleEmit('deleteUser')"
+    />
+  </Dialog>
 
-    <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal" :breakpoints="{'501px': '90vw'}"
-            :modal="true" :style="{width: '500px'}" header="User details">
-        <UserForm mode="update" :roles="roles" :recordId="updateUserID"
-                  @completeOperation="handleEmit('completeOperation')"
-                  @completeUserDelete="handleEmit('deleteUser')">
-        </UserForm>
-    </Dialog>
-
-    <main class="flex flex-column w-full p-2 align-items-center">
-
-        <div id="mobile-container" class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
-             style="border: 1px solid var(--border-color); background: var(--background-secondary);" >
-
-            <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
-
-                <div style="font-weight: bold;">Users</div>
-
-                <i v-if="hasPermission('manage_roles')" class="pi pi-external-link hover-icon mr-auto text-sm" @click="router.push('settings/roles')" v-tooltip="'Go to roles settings.'"></i>
-                <Button class="main-button"
-                        @click="manipulateDialog('inviteUser', true)">
-                    <div class="flex flex-row gap-1 align-items-center">
-                        <i class="pi pi-plus"></i>
-                        <span> New </span>
-                        <span class="mobile-hide"> User </span>
-                    </div>
-                </Button>
-            </div>
-
-            <div class="flex flex-row justify-content-between align-items-center p-1 gap-3 w-full border-round-md"
-                 style="border: 1px solid var(--border-color);background: var(--background-secondary);">
-
-                <ActionRow>
-                    <template #activeFilters>
-                        <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
-                    </template>
-                    <template #filterButton>
-                        <div class="hover-icon flex flex-row align-items-center gap-2" @click="toggleFilterOverlay($event)"
-                             style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color)">
-                            <i class="pi pi-filter" style="font-size: 0.845rem"></i>
-                            <div>Filter</div>
-                        </div>
-                    </template>
-                </ActionRow>
-            </div>
-
-            <div id="mobile-row" class="flex flex-row gap-2 w-full">
-                <DataTable class="w-full enhanced-table" dataKey="id" :loading="loading" :value="records"
-                           :rowHover="true" :showGridlines="false" scrollable columnResizeMode="fit">
-                    <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-                    <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-                    <template #footer>
-                        <CustomPaginator :paginator="paginator" :rows="rows" @onPage="onPage"/>
-                    </template>
-
-                    <Column v-for="col of activeColumns" :key="col.field" :field="col.field">
-                        <template #header >
-                            <ColumnHeader  :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
-                        </template>
-                        <template #body="{ data, field }">
-                            <template v-if="field === 'email_confirmed'">
-                                {{ dateHelper.formatDate(data?.email_confirmed, true) }}
-                            </template>
-                            <template v-else-if="field === 'display_name'">
-                                    <span class="hover-icon font-bold" @click="manipulateDialog('updateUser', data.id)">
-                                        {{ data[field] }}
-                                    </span>
-                            </template>
-                            <template v-else-if="field === 'role'">
-                                    <span>
-                                        {{ data[field]["name"] }}
-                                    </span>
-                            </template>
-                            <template v-else>
-                                {{ data[field] }}
-                            </template>
-                        </template>
-                    </Column>
-                </DataTable>
-            </div>
-
-            <label>Invitations</label>
-            <div class="flex flex-row gap-2 w-full">
-                <InvitationsPaginated ref="invRef"></InvitationsPaginated>
-            </div>
-
+  <main class="flex flex-column w-full p-2 align-items-center">
+    <div
+      id="mobile-container"
+      class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
+      style="border: 1px solid var(--border-color); background: var(--background-secondary);"
+    >
+      <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
+        <div style="font-weight: bold;">
+          Users
         </div>
-    </main>
+
+        <i
+          v-if="hasPermission('manage_roles')"
+          v-tooltip="'Go to roles settings.'"
+          class="pi pi-external-link hover-icon mr-auto text-sm"
+          @click="router.push('settings/roles')"
+        />
+        <Button
+          class="main-button"
+          @click="manipulateDialog('inviteUser', true)"
+        >
+          <div class="flex flex-row gap-1 align-items-center">
+            <i class="pi pi-plus" />
+            <span> New </span>
+            <span class="mobile-hide"> User </span>
+          </div>
+        </Button>
+      </div>
+
+      <div
+        class="flex flex-row justify-content-between align-items-center p-1 gap-3 w-full border-round-md"
+        style="border: 1px solid var(--border-color);background: var(--background-secondary);"
+      >
+        <ActionRow>
+          <template #activeFilters>
+            <ActiveFilters
+              :active-filters="filters"
+              :show-only-active="false"
+              active-filter=""
+            />
+          </template>
+          <template #filterButton>
+            <div
+              class="hover-icon flex flex-row align-items-center gap-2"
+              style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color)"
+              @click="toggleFilterOverlay($event)"
+            >
+              <i
+                class="pi pi-filter"
+                style="font-size: 0.845rem"
+              />
+              <div>Filter</div>
+            </div>
+          </template>
+        </ActionRow>
+      </div>
+
+      <div
+        id="mobile-row"
+        class="flex flex-row gap-2 w-full"
+      >
+        <DataTable
+          class="w-full enhanced-table"
+          data-key="id"
+          :loading="loading"
+          :value="records"
+          :row-hover="true"
+          :show-gridlines="false"
+          scrollable
+          column-resize-mode="fit"
+        >
+          <template #empty>
+            <div style="padding: 10px;">
+              No records found.
+            </div>
+          </template>
+          <template #loading>
+            <LoadingSpinner />
+          </template>
+          <template #footer>
+            <CustomPaginator
+              :paginator="paginator"
+              :rows="rows"
+              @on-page="onPage"
+            />
+          </template>
+
+          <Column
+            v-for="col of activeColumns"
+            :key="col.field"
+            :field="col.field"
+          >
+            <template #header>
+              <ColumnHeader
+                :header="col.header"
+                :field="col.field"
+                :sort="sort"
+              />
+            </template>
+            <template #body="{ data }">
+              <template v-if="col.field === 'email_confirmed'">
+                {{ dateHelper.formatDate(data?.email_confirmed, true) }}
+              </template>
+              <template v-else-if="col.field === 'display_name'">
+                <span
+                  class="hover-icon font-bold"
+                  @click="manipulateDialog('updateUser', data.id)"
+                >
+                  {{ data[col.field] }}
+                </span>
+              </template>
+              <template v-else-if="col.field === 'role'">
+                <span>
+                  {{ data[col.field]["name"] }}
+                </span>
+              </template>
+              <template v-else>
+                {{ data[col.field] }}
+              </template>
+            </template>
+          </Column>
+        </DataTable>
+      </div>
+
+      <label>Invitations</label>
+      <div class="flex flex-row gap-2 w-full">
+        <InvitationsPaginated ref="invRef" />
+      </div>
+    </div>
+  </main>
 </template>
 
 <style scoped>

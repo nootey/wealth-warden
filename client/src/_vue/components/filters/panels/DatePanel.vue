@@ -78,15 +78,28 @@ function toDate(v: unknown): Date|null {
   <div class="flex flex-column gap-2 w-full">
     <div class="flex flex-row w-full">
       <IftaLabel class="w-full">
-        <DatePicker inputID="date" v-model="dpValue" :selectionMode="selectionMode"
-            date-format="dd/mm/yy" showIcon fluid iconDisplay="input" size="small"
-            placeholder="Select date" :manualInput="false"/>
+        <DatePicker
+          v-model="dpValue"
+          input-i-d="date"
+          :selection-mode="selectionMode"
+          date-format="dd/mm/yy"
+          show-icon
+          fluid
+          icon-display="input"
+          size="small"
+          placeholder="Select date"
+          :manual-input="false"
+        />
         <label for="date">{{ isRange ? 'Range' : 'Single' }}</label>
       </IftaLabel>
     </div>
 
     <div class="flex flex-row w-full gap-1 align-items-center">
-      <Checkbox v-model="isRange" :binary="true" inputId="range-picker" />
+      <Checkbox
+        v-model="isRange"
+        :binary="true"
+        input-id="range-picker"
+      />
       <label for="range-picker">Range</label>
     </div>
   </div>

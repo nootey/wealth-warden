@@ -201,60 +201,102 @@ async function deleteRecord(id: number) {
 </script>
 
 <template>
-    <div v-if="!loading" class="flex flex-column gap-3 p-1">
-        <div v-if="readOnly">
-            <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
-        </div>
-
-        <div class="flex flex-column gap-3">
-
-            <div v-if="mode === 'update'" class="flex flex-row w-full">
-                <div class="flex flex-column gap-1 w-full">
-                    <ValidationError :isRequired="true" :message="v$.record.display_name.$errors[0]?.$message">
-                        <label>Display name</label>
-                    </ValidationError>
-                    <InputText :disabled="readOnly" size="small" v-model="record.display_name"
-                               placeholder="Change display name"></InputText>
-                </div>
-            </div>
-
-            <div class="flex flex-row w-full">
-                <div class="flex flex-column gap-1 w-full">
-                    <ValidationError :isRequired="true" :message="v$.record.email.$errors[0]?.$message">
-                        <label>Email</label>
-                    </ValidationError>
-                    <InputText :readonly="readOnly || mode == 'update'" :disabled="readOnly" size="small" v-model="record.email"
-                               placeholder="Input email"></InputText>
-                </div>
-            </div>
-
-            <div class="flex flex-row w-full">
-                <div class="flex flex-column gap-1 w-full">
-                    <ValidationError :isRequired="true" :message="v$.record.role.name.$errors[0]?.$message">
-                        <label>Role</label>
-                    </ValidationError>
-                    <AutoComplete :readonly="readOnly" :disabled="readOnly" size="small"
-                                  v-model="record.role" :suggestions="filteredRoles"
-                                  @complete="searchRole" optionLabel="name" forceSelection
-                                  placeholder="Select role" dropdown>
-                    </AutoComplete>
-                </div>
-            </div>
-
-            <div class="flex flex-row gap-2 w-full" >
-                <div class="flex flex-column w-full gap-2">
-                    <Button v-if="!readOnly" class="main-button"
-                            :label="(mode == 'create' ? 'Invite' : 'Update') +  ' user'"
-                            @click="manageRecord" style="height: 42px;" />
-                    <Button v-if="!readOnly && mode == 'update'"
-                            label="Delete user" class="delete-button"
-                            @click="deleteConfirmation(record.id!)" style="height: 42px;" />
-                </div>
-            </div>
-
-        </div>
+  <div
+    v-if="!loading"
+    class="flex flex-column gap-3 p-1"
+  >
+    <div v-if="readOnly">
+      <h5 style="color: var(--text-secondary)">
+        Read-only mode.
+      </h5>
     </div>
-    <ShowLoading v-else :numFields="7" />
+
+    <div class="flex flex-column gap-3">
+      <div
+        v-if="mode === 'update'"
+        class="flex flex-row w-full"
+      >
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.display_name.$errors[0]?.$message"
+          >
+            <label>Display name</label>
+          </ValidationError>
+          <InputText
+            v-model="record.display_name"
+            :disabled="readOnly"
+            size="small"
+            placeholder="Change display name"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.email.$errors[0]?.$message"
+          >
+            <label>Email</label>
+          </ValidationError>
+          <InputText
+            v-model="record.email"
+            :readonly="readOnly || mode == 'update'"
+            :disabled="readOnly"
+            size="small"
+            placeholder="Input email"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.role.name.$errors[0]?.$message"
+          >
+            <label>Role</label>
+          </ValidationError>
+          <AutoComplete
+            v-model="record.role"
+            :readonly="readOnly"
+            :disabled="readOnly"
+            size="small"
+            :suggestions="filteredRoles"
+            option-label="name"
+            force-selection
+            placeholder="Select role"
+            dropdown
+            @complete="searchRole"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-row gap-2 w-full">
+        <div class="flex flex-column w-full gap-2">
+          <Button
+            v-if="!readOnly"
+            class="main-button"
+            :label="(mode == 'create' ? 'Invite' : 'Update') + ' user'"
+            style="height: 42px;"
+            @click="manageRecord"
+          />
+          <Button
+            v-if="!readOnly && mode == 'update'"
+            label="Delete user"
+            class="delete-button"
+            style="height: 42px;"
+            @click="deleteConfirmation(record.id!)"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+  <ShowLoading
+    v-else
+    :num-fields="7"
+  />
 </template>
 
 <style scoped>

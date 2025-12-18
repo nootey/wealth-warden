@@ -4,8 +4,8 @@ interface ValidationObject {
     $error: boolean;
 }
 
-type ChangeSet = { new?: Record<string, any>; old?: Record<string, any> };
-type Change = { prop: string; oldVal: any; newVal: any };
+type ChangeSet = { new?: Record<string, unknown>; old?: Record<string, unknown> };
+type Change = { prop: string; oldVal: unknown; newVal: unknown };
 
 type Causer = {
     id: number;
@@ -43,7 +43,7 @@ const vueHelper = {
     displayAsCurrency: (amount: Decimal | number | string | null) => {
         // Hardcode for EU region for now
         if (amount === null || amount === undefined) return null;
-        let num = Number(amount);
+        const num = Number(amount);
         if (isNaN(num)) return "Invalid Amount";
 
         return num.toLocaleString("de-DE", {
@@ -59,7 +59,7 @@ const vueHelper = {
         const pct = num * 100; 
         return pct.toFixed(decimals) + " %";
     },
-    formatChanges(payload: any): Change[] | null {
+    formatChanges(payload: unknown): Change[] | null {
         if (!payload) return null;
 
         const obj: ChangeSet = typeof payload === 'string' ? JSON.parse(payload) : payload;
@@ -76,7 +76,7 @@ const vueHelper = {
         }
         return out.length ? out : null;
     },
-    formatValue(item: { newVal: any; oldVal: any }) {
+    formatValue(item: { newVal: unknown; oldVal: unknown }) {
         const hasNew = item.newVal !== undefined && item.newVal !== null && item.newVal !== '';
         const hasOld = item.oldVal !== undefined && item.oldVal !== null && item.oldVal !== '';
         if (hasNew && hasOld && item.newVal !== item.oldVal) {

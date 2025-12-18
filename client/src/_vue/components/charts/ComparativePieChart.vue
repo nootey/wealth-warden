@@ -81,9 +81,16 @@ const chartOptions = computed<ChartOptions<"pie">>(() =>
 </script>
 
 <template>
-    <div :style="{ width: (size ?? chartSize) + 'px', height: (size ?? chartSize) + 'px' }"
-         class="flex justify-content-center align-items-center">
-        <PieChart :height="chartSize" :width="chartSize" :chart-data="chartData" :options="chartOptions" />
-    </div>
+  <div
+    :style="{ width: (size ?? chartSize) + 'px', height: (size ?? chartSize) + 'px' }"
+    class="flex justify-content-center align-items-center"
+  >
+    <PieChart
+      :height="chartSize"
+      :width="chartSize"
+      :chart-data="chartData"
+      :options="chartOptions"
+    />
+  </div>
 </template>
 

@@ -60,80 +60,127 @@ const pageTitle = computed(() => {
 </script>
 
 <template>
-    <div class="settings flex p-2 w-full">
-        <aside class="no-mobile text-white h-full flex flex-column gap-2 p-3 w-12rem">
+  <div class="settings flex p-2 w-full">
+    <aside class="no-mobile text-white h-full flex flex-column gap-2 p-3 w-12rem">
+      <div
+        class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable"
+        style="color: var(--text-primary)"
+      >
+        <i class="pi pi-angle-left" />
+        <span @click="goBack">Back</span>
+      </div>
 
-            <div class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable"
-                 style="color: var(--text-primary)">
-                <i class="pi pi-angle-left"></i>
-                <span @click="goBack">Back</span>
-            </div>
+      <h6
+        class="text-xs font-bold uppercase mb-2"
+        style="color: var(--text-primary);"
+      >
+        General
+      </h6>
 
-            <h6 class="text-xs font-bold uppercase mb-2" style="color: var(--text-primary);">General</h6>
+      <template
+        v-for="item in visibleItems"
+        :key="item.name ?? item.label"
+      >
+        <h6
+          v-if="item.separator"
+          class="text-xs font-bold uppercase mb-2 mt-3"
+          style="color: var(--text-primary);"
+        >
+          {{ item.label }}
+        </h6>
 
-            <template v-for="item in visibleItems" :key="item.name ?? item.label">
+        <RouterLink
+          v-else
+          :to="{ name: item.name }"
+          class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
+          :class="{ active: isActive(item.name!) }"
+          style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);"
+        >
+          <i
+            class="pi text-sm"
+            :class="item.icon"
+            style="color: var(--text-secondary)"
+          />
+          <span class="no-mobile">{{ item.label }}</span>
+        </RouterLink>
+      </template>
+    </aside>
 
-                <h6 v-if="item.separator"
-                    class="text-xs font-bold uppercase mb-2 mt-3"
-                    style="color: var(--text-primary);">
-                    {{ item.label }}
-                </h6>
+    <main
+      class="w-full flex-1 pt-3"
+      style="max-width: 850px; margin: 0 auto;"
+    >
+      <div class="flex flex-row gap-2 mb-2 align-items-center text-center">
+        <i
+          class="pi pi-ellipsis-v mobile-only text-xs"
+          style="cursor:pointer;"
+          @click="toggleOverlay"
+        />
+        <span
+          class="text-sm hover-icon"
+          style="color: var(--text-secondary)"
+          @click="toggleOverlay"
+        >
+          Settings
+        </span>
+        <i class="pi pi-angle-right" />
+        <span style="color: var(--text-primary)">{{ pageTitle }}</span>
+      </div>
 
-                <RouterLink v-else :to="{ name: item.name }"
-                        class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
-                        :class="{ active: isActive(item.name!) }"
-                        style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);">
+      <router-view />
+    </main>
 
-                    <i class="pi text-sm" :class="item.icon" style="color: var(--text-secondary)"></i>
-                    <span class="no-mobile">{{ item.label }}</span>
-                </RouterLink>
-            </template>
-        </aside>
+    <Popover
+      ref="settingsMenuRef"
+      class="rounded-popover"
+      :style="{width: '200px'}"
+      :breakpoints="{'226px': '90vw'}"
+    >
+      <div
+        class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable"
+        style="color: var(--text-primary)"
+      >
+        <i class="pi pi-angle-left" />
+        <span @click="goBack">Back</span>
+      </div>
 
-        <main class="w-full flex-1 pt-3" style="max-width: 850px; margin: 0 auto;">
+      <h6
+        class="text-xs font-bold uppercase mb-2"
+        style="color: var(--text-primary);"
+      >
+        General
+      </h6>
 
-            <div class="flex flex-row gap-2 mb-2 align-items-center text-center">
-                <i class="pi pi-ellipsis-v mobile-only text-xs" @click="toggleOverlay" style="cursor:pointer;" />
-                <span @click="toggleOverlay" class="text-sm hover-icon" style="color: var(--text-secondary)">
-                    Settings
-                </span>
-                <i class="pi pi-angle-right" />
-                <span style="color: var(--text-primary)">{{ pageTitle }}</span>
-            </div>
+      <template
+        v-for="item in visibleItems"
+        :key="item.name ?? item.label"
+      >
+        <h6
+          v-if="item.separator"
+          class="text-xs font-bold uppercase mb-2 mt-3"
+          style="color: var(--text-primary);"
+        >
+          {{ item.label }}
+        </h6>
 
-            <router-view />
-        </main>
-
-        <Popover ref="settingsMenuRef" class="rounded-popover" :style="{width: '200px'}" :breakpoints="{'226px': '90vw'}">
-
-            <div class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable"
-                 style="color: var(--text-primary)">
-                <i class="pi pi-angle-left"></i>
-                <span @click="goBack">Back</span>
-            </div>
-
-            <h6 class="text-xs font-bold uppercase mb-2" style="color: var(--text-primary);">General</h6>
-
-            <template v-for="item in visibleItems" :key="item.name ?? item.label">
-
-                <h6 v-if="item.separator"
-                    class="text-xs font-bold uppercase mb-2 mt-3"
-                    style="color: var(--text-primary);">
-                    {{ item.label }}
-                </h6>
-
-                <RouterLink v-else :to="{ name: item.name }"
-                            class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
-                            :class="{ active: isActive(item.name!) }"
-                            style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);"
-                            @click="toggleOverlay">
-
-                    <i class="pi text-sm" :class="item.icon" style="color: var(--text-secondary)"></i>
-                    <span>{{ item.label }}</span>
-                </RouterLink>
-            </template>
-        </Popover>
-    </div>
+        <RouterLink
+          v-else
+          :to="{ name: item.name }"
+          class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
+          :class="{ active: isActive(item.name!) }"
+          style="text-decoration: none; transition: all 0.2s ease; color: var(--text-primary);"
+          @click="toggleOverlay"
+        >
+          <i
+            class="pi text-sm"
+            :class="item.icon"
+            style="color: var(--text-secondary)"
+          />
+          <span>{{ item.label }}</span>
+        </RouterLink>
+      </template>
+    </Popover>
+  </div>
 </template>
 
 <style scoped>

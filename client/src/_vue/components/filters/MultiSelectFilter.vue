@@ -1,7 +1,18 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 
-const props = defineProps(["selectedValues", "availableValues", "optionLabel", "toUppercase"]);
+const props = withDefaults(defineProps<{
+    selectedValues?: any[];
+    availableValues?: any[];
+    optionLabel?: string;
+    toUppercase?: boolean;
+}>(), {
+    selectedValues: () => [],
+    availableValues: () => [],
+    optionLabel: '',
+    toUppercase: false,
+});
+
 const emit = defineEmits(["getData", "update:selectedValues"]);
 
 const localSelectedValues = ref(props.selectedValues);
@@ -14,10 +25,11 @@ watch(localSelectedValues, (newVal) => {
 <template>
   <div class="flex flex-column p-2 gap-3 justify-content-center">
     <MultiSelect
-        v-model="localSelectedValues"
-        :optionLabel="optionLabel"
-        :options="availableValues"
-        placeholder="Select filter">
+      v-model="localSelectedValues"
+      :option-label="optionLabel"
+      :options="availableValues"
+      placeholder="Select filter"
+    >
       <template #option="slotProps">
         {{ optionLabel !== "" ?
           (toUppercase ? slotProps.option[optionLabel].toUpperCase() : slotProps.option[optionLabel]) :
@@ -27,10 +39,10 @@ watch(localSelectedValues, (newVal) => {
     </MultiSelect>
 
     <Button
-        label="Save"
-        style="width: min-content; margin: 0 auto;"
-        @click="emit('getData')"
-    ></Button>
+      label="Save"
+      style="width: min-content; margin: 0 auto;"
+      @click="emit('getData')"
+    />
   </div>
 </template>
 

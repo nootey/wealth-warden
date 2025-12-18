@@ -139,7 +139,7 @@ async function updateSettings() {
     }
     try {
         let response = await settingsStore.updatePreferenceSettings(settings);
-        themeStore.setTheme(settings?.theme!, settings.accent);
+        themeStore.setTheme(settings.theme!, settings.accent);
         toastStore.successResponseToast(response);
     } catch (error) {
         toastStore.errorResponseToast(error)
@@ -151,98 +151,135 @@ async function updateSettings() {
 </script>
 
 <template>
-    <div class="flex flex-column w-full gap-3">
-        <SettingsSkeleton class="w-full">
-            <div class="w-full flex flex-column gap-3 p-2">
-                <div class="w-full flex flex-column gap-2">
-                    <h3>General</h3>
-                    <h5 style="color: var(--text-secondary)">Configure your preferences.</h5>
-                </div>
-
-                <div v-if="!loading" class="w-full flex flex-column gap-2 w-full">
-                    <div class="w-full flex flex-row gap-2 w-full">
-                        <IftaLabel class="w-full" variant="in">
-                            <AutoComplete
-                                    id="language_input" dropdown size="small"
-                                    v-model="selectedLanguage"
-                                    :suggestions="filteredLanguages"
-                                    @complete="searchLanguage"
-                                    optionLabel="label"
-                                    optionValue="value"
-                                    class="w-full"
-                                    :inputClass="'w-full'"
-                                    placeholder="Search language..."
-                                    forceSelection
-                            />
-                            <label for="in_label">Language</label>
-                        </IftaLabel>
-                    </div>
-
-                    <div class="w-full flex flex-row gap-2 w-full">
-                        <IftaLabel class="w-full" variant="in">
-                            <AutoComplete id="in_label" dropdown size="small"
-                                    v-model="selectedTimezone"
-                                    :suggestions="filteredTimezones"
-                                    @complete="searchTimezone"
-                                    optionLabel="label"
-                                    optionValue="value"
-                                    class="w-full"
-                                    :inputClass="'w-full'"
-                                    placeholder="Search timezone..."
-                                    forceSelection
-                            />
-                            <label for="in_label">Timezone</label>
-                        </IftaLabel>
-                    </div>
-                </div>
-                <ShowLoading v-else :numFields="2" />
-            </div>
-        </SettingsSkeleton>
-
-        <SettingsSkeleton class="w-full">
-            <div class="w-full flex flex-column gap-3 p-2">
-                <div class="w-full flex flex-column gap-2">
-                    <h3>Theme</h3>
-                    <h5 style="color: var(--text-secondary)">Choose a preferred theme for the app.</h5>
-                </div>
-
-                <div v-if="!loading" class="w-full flex flex-column gap-2 w-full">
-                    <div class="w-full flex flex-row gap-2 w-full">
-                        <IftaLabel class="w-full" variant="in">
-                            <Select id="theme_input"
-                                    v-model="selectedTheme"
-                                    :options="themeOptions"
-                                    optionLabel="label"
-                                    class="w-full"
-                                    placeholder="Select theme..."
-                            />
-                            <label for="in_label">Theme</label>
-                        </IftaLabel>
-                    </div>
-
-                    <div class="w-full flex flex-row gap-2 w-full">
-                        <IftaLabel class="w-full" variant="in">
-                            <Select
-                                    id="accent_input"
-                                    v-model="selectedAccent"
-                                    :options="accentOptions"
-                                    optionLabel="label"
-                                    class="w-full"
-                                    placeholder="Select accent..."
-                            />
-                            <label for="in_label">Accent</label>
-                        </IftaLabel>
-                    </div>
-
-                </div>
-                <ShowLoading v-else :numFields="2" />
-            </div>
-        </SettingsSkeleton>
-
-        <div class="w-full flex flex-row gap-2 w-full">
-            <Button class="main-button ml-auto" label="Save" @click="updateSettings"></Button>
+  <div class="flex flex-column w-full gap-3">
+    <SettingsSkeleton class="w-full">
+      <div class="w-full flex flex-column gap-3 p-2">
+        <div class="w-full flex flex-column gap-2">
+          <h3>General</h3>
+          <h5 style="color: var(--text-secondary)">
+            Configure your preferences.
+          </h5>
         </div>
+
+        <div
+          v-if="!loading"
+          class="w-full flex flex-column gap-2 w-full"
+        >
+          <div class="w-full flex flex-row gap-2 w-full">
+            <IftaLabel
+              class="w-full"
+              variant="in"
+            >
+              <AutoComplete
+                id="language_input"
+                v-model="selectedLanguage"
+                dropdown
+                size="small"
+                :suggestions="filteredLanguages"
+                option-label="label"
+                option-value="value"
+                class="w-full"
+                :input-class="'w-full'"
+                placeholder="Search language..."
+                force-selection
+                @complete="searchLanguage"
+              />
+              <label for="in_label">Language</label>
+            </IftaLabel>
+          </div>
+
+          <div class="w-full flex flex-row gap-2 w-full">
+            <IftaLabel
+              class="w-full"
+              variant="in"
+            >
+              <AutoComplete
+                id="in_label"
+                v-model="selectedTimezone"
+                dropdown
+                size="small"
+                :suggestions="filteredTimezones"
+                option-label="label"
+                option-value="value"
+                class="w-full"
+                :input-class="'w-full'"
+                placeholder="Search timezone..."
+                force-selection
+                @complete="searchTimezone"
+              />
+              <label for="in_label">Timezone</label>
+            </IftaLabel>
+          </div>
+        </div>
+        <ShowLoading
+          v-else
+          :num-fields="2"
+        />
+      </div>
+    </SettingsSkeleton>
+
+    <SettingsSkeleton class="w-full">
+      <div class="w-full flex flex-column gap-3 p-2">
+        <div class="w-full flex flex-column gap-2">
+          <h3>Theme</h3>
+          <h5 style="color: var(--text-secondary)">
+            Choose a preferred theme for the app.
+          </h5>
+        </div>
+
+        <div
+          v-if="!loading"
+          class="w-full flex flex-column gap-2 w-full"
+        >
+          <div class="w-full flex flex-row gap-2 w-full">
+            <IftaLabel
+              class="w-full"
+              variant="in"
+            >
+              <Select
+                id="theme_input"
+                v-model="selectedTheme"
+                :options="themeOptions"
+                option-label="label"
+                class="w-full"
+                placeholder="Select theme..."
+              />
+              <label for="in_label">Theme</label>
+            </IftaLabel>
+          </div>
+
+          <div class="w-full flex flex-row gap-2 w-full">
+            <IftaLabel
+              class="w-full"
+              variant="in"
+            >
+              <Select
+                id="accent_input"
+                v-model="selectedAccent"
+                :options="accentOptions"
+                option-label="label"
+                class="w-full"
+                placeholder="Select accent..."
+              />
+              <label for="in_label">Accent</label>
+            </IftaLabel>
+          </div>
+        </div>
+        <ShowLoading
+          v-else
+          :num-fields="2"
+        />
+      </div>
+    </SettingsSkeleton>
+
+    <div class="w-full flex flex-row gap-2 w-full">
+      <Button
+        class="main-button ml-auto"
+        label="Save"
+        @click="updateSettings"
+      />
     </div>
+  </div>
 </template>
 
 <style scoped>

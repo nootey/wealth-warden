@@ -16,7 +16,7 @@ Follow the guide below to get your app running.
 
 By default, the app will run with defaults, and does not require any environment variables.
 
-> !Warning This make the app very unsecure, since it uses default credentials and can be easily exploited.
+> ⚠️ **Warning:** This makes the app very unsecure, since it uses default credentials and can be easily exploited.
 
 It is recommended to create an override config file in `/pkg/config/override/dev.yaml` and fill it out with your information.
 

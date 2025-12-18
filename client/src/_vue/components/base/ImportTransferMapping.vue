@@ -47,47 +47,63 @@ function clearAll() {
 </script>
 
 <template>
-    <div class="flex flex-column w-full">
-
-        <div class="flex flex-column align-items-center w-full gap-3">
-            <span style="color: var(--text-secondary)">
-                Map each category to one of your accounts.
-            </span>
-            <div class="flex flex-row gap-3">
-                <Button size="small" class="delete-button" @click="clearAll" label="Clear" />
-            </div>
-        </div>
-
-        <DataTable :value="tableData" dataKey="name" class="w-full" :rows="10"
-                   paginator :rowsPerPageOptions="[10,25,50]" responsiveLayout="scroll">
-
-            <Column header="Imported">
-                <template #body="{ data }">
-                    <div class="flex align-items-center gap-2">{{ data?.name }}</div>
-                </template>
-            </Column>
-
-            <Column header="Account">
-                <template #body="{ data }">
-                    <Select class="w-full"
-                            :modelValue="mapping[data.name] ?? null"
-                            @update:modelValue="val => onSelect(data.name, val)"
-                            :options="accounts"
-                            optionLabel="name"
-                            optionValue="id"
-                            showClear
-                            filter
-                            placeholder="Select account">
-                        <template #value="slotProps">
-                                <span v-if="slotProps.value">
-                                  {{ accounts.find(a => a.id === slotProps.value)?.name || 'Select account' }}
-                                </span>
-                            <span v-else class="text-color-secondary">Select account</span>
-                        </template>
-                    </Select>
-                </template>
-            </Column>
-
-        </DataTable>
+  <div class="flex flex-column w-full">
+    <div class="flex flex-column align-items-center w-full gap-3">
+      <span style="color: var(--text-secondary)">
+        Map each category to one of your accounts.
+      </span>
+      <div class="flex flex-row gap-3">
+        <Button
+          size="small"
+          class="delete-button"
+          label="Clear"
+          @click="clearAll"
+        />
+      </div>
     </div>
+
+    <DataTable
+      :value="tableData"
+      data-key="name"
+      class="w-full"
+      :rows="10"
+      paginator
+      :rows-per-page-options="[10,25,50]"
+      responsive-layout="scroll"
+    >
+      <Column header="Imported">
+        <template #body="{ data }">
+          <div class="flex align-items-center gap-2">
+            {{ data?.name }}
+          </div>
+        </template>
+      </Column>
+
+      <Column header="Account">
+        <template #body="{ data }">
+          <Select
+            class="w-full"
+            :model-value="mapping[data.name] ?? null"
+            :options="accounts"
+            option-label="name"
+            option-value="id"
+            show-clear
+            filter
+            placeholder="Select account"
+            @update:model-value="val => onSelect(data.name, val)"
+          >
+            <template #value="slotProps">
+              <span v-if="slotProps.value">
+                {{ accounts.find(a => a.id === slotProps.value)?.name || 'Select account' }}
+              </span>
+              <span
+                v-else
+                class="text-color-secondary"
+              >Select account</span>
+            </template>
+          </Select>
+        </template>
+      </Column>
+    </DataTable>
+  </div>
 </template>

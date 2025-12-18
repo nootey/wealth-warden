@@ -28,13 +28,18 @@ async function exportData() {
 </script>
 
 <template>
-    <div class="flex flex-column gap-3">
-        <h3>Export your data</h3>
-        <span>This will create a downloadable snapshot of your accounts, transactions, transfers and categories.</span>
-        <span>A zip file will be created for the seperate exported modules.</span>
-        <Button class="main-button w-3" @click="exportData" label="Export"
-                :disabled="exporting" :icon="exporting ? 'pi pi-spinner pi-spin' : ''" />
-    </div>
+  <div class="flex flex-column gap-3">
+    <h3>Export your data</h3>
+    <span>This will create a downloadable snapshot of your accounts, transactions, transfers and categories.</span>
+    <span>A zip file will be created for the seperate exported modules.</span>
+    <Button
+      class="main-button w-3"
+      label="Export"
+      :disabled="exporting"
+      :icon="exporting ? 'pi pi-spinner pi-spin' : ''"
+      @click="exportData"
+    />
+  </div>
 </template>
 
 <style scoped>

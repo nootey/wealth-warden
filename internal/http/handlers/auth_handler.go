@@ -15,14 +15,14 @@ import (
 
 type AuthHandler struct {
 	cfg        *config.Config
-	middleware *middleware.WebClientMiddleware
-	Service    *services.AuthService
+	middleware middleware.WebClientMiddlewareInterface
+	Service    services.AuthServiceInterface
 }
 
 func NewAuthHandler(
 	cfg *config.Config,
-	middleware *middleware.WebClientMiddleware,
-	service *services.AuthService,
+	middleware middleware.WebClientMiddlewareInterface,
+	service services.AuthServiceInterface,
 ) *AuthHandler {
 	return &AuthHandler{
 		cfg:        cfg,
@@ -75,25 +75,10 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 func (h *AuthHandler) GetAuthUser(c *gin.Context) {
 
-	refreshToken, err := c.Cookie("refresh")
-	if err != nil {
-		utils.ErrorMessage(c, "Failed to retrieve cookie", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
-	refreshClaims, err := h.middleware.DecodeWebClientToken(refreshToken, "refresh")
-	if err != nil {
-		utils.ErrorMessage(c, "Invalid token", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
-
-	userID, err := h.middleware.DecodeWebClientUserID(refreshClaims.UserID)
-	if err != nil {
-		utils.ErrorMessage(c, "Invalid user ID", err.Error(), http.StatusUnauthorized, err)
-		return
-	}
-
-	user, err := h.Service.GetCurrentUser(c.Request.Context(), userID)
+	user, err := h.Service.GetCurrentUser(ctx, userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -127,7 +112,7 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		return
 	}
 
-	err := h.Service.SignUp(ctx, form, userAgent, loginIP)
+	_, err := h.Service.SignUp(ctx, form, userAgent, loginIP)
 	if err != nil {
 		utils.ErrorMessage(c, "Registration failed", err.Error(), http.StatusUnauthorized, err)
 		return

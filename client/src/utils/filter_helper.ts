@@ -25,15 +25,6 @@ const filterHelper = {
                 return 1;
         }
     },
-    sortIcon(sort: any, field: string) {
-        if (sort.order === -1 && sort.field === field) {
-            return 'pi-sort-down';
-        }
-        if (sort.order === 1 && sort.field === field) {
-            return 'pi-sort-up';
-        }
-        return 'pi-sort';
-    },
     mergeFilters(existing: FilterObj[], incoming: FilterObj[]): FilterObj[] {
         // Ops that replace the whole group for (source, field, operator)
         const replaceOps = new Set(['>=', '<=', 'in', 'like', '=', 'equals']);

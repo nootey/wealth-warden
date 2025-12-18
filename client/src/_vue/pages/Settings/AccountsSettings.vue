@@ -8,6 +8,7 @@ import type {Account} from "../../../models/account_models.ts";
 import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import {ref} from "vue";
 import {usePermissions} from "../../../utils/use_permissions.ts";
+import DefaultAccounts from "../../features/DefaultAccounts.vue";
 
 const accountStore = useAccountStore();
 const toastStore = useToastStore();
@@ -54,25 +55,39 @@ async function closeAccount(id: number) {
 </script>
 
 <template>
-    <div class="flex flex-column w-full gap-3">
-        <SettingsSkeleton class="w-full">
-            <div id="main-col" class="w-full flex flex-column gap-3 p-2">
-                <div class="w-full flex flex-column gap-2">
-                    <h3>Accounts</h3>
-                    <h5 style="color: var(--text-secondary)">Manage administrative details for your accounts, like status and closure.</h5>
-                </div>
+  <div class="flex flex-column w-full gap-3">
+    <SettingsSkeleton class="w-full">
+      <div
+        id="main-col"
+        class="w-full flex flex-column gap-3 p-2"
+      >
+        <div class="w-full flex flex-column gap-2">
+          <h3>Account management</h3>
+          <h5 style="color: var(--text-secondary)">
+            Manage administrative details for your accounts, like status and closure.
+          </h5>
+        </div>
 
-                <AccountsPanel
-                        ref="accRef"
-                        :advanced="true"
-                        :allowEdit="true"
-                        :onToggle="toggleEnabled"
-                        :maxHeight="70"
-                        @closeAccount="closeAccount"
-                />
-            </div>
-        </SettingsSkeleton>
-    </div>
+        <AccountsPanel
+          ref="accRef"
+          :advanced="true"
+          :allow-edit="true"
+          :on-toggle="toggleEnabled"
+          :max-height="70"
+          @close-account="closeAccount"
+        />
+      </div>
+    </SettingsSkeleton>
+
+    <SettingsSkeleton class="w-full">
+      <div
+        id="main-col"
+        class="w-full flex flex-column gap-3 p-2"
+      >
+        <DefaultAccounts />
+      </div>
+    </SettingsSkeleton>
+  </div>
 </template>
 
 <style scoped>

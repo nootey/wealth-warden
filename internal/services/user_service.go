@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"wealth-warden/internal/jobs"
+	"strconv"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/mailer"
@@ -30,7 +31,7 @@ type UserService struct {
 	repo          *repositories.UserRepository
 	roleRepo      repositories.RolePermissionRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher jobs.JobDispatcher
+	jobDispatcher jobqueue.JobDispatcher
 	mailer        *mailer.Mailer
 }
 
@@ -38,7 +39,7 @@ func NewUserService(
 	repo *repositories.UserRepository,
 	roleRepo *repositories.RolePermissionRepository,
 	loggingRepo *repositories.LoggingRepository,
-	jobDispatcher jobs.JobDispatcher,
+	jobDispatcher jobqueue.JobDispatcher,
 	mailer *mailer.Mailer,
 ) *UserService {
 	return &UserService{
@@ -180,6 +181,14 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 	if err != nil {
 		return 0, err
 	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
 	hash, err := utils.GenerateSecureToken(64)
 	if err != nil {
 		return 0, err
@@ -212,7 +221,7 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 		return 0, err
 	}
 
-	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "invitation",
@@ -306,11 +315,12 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(id, 10), changes, "id")
 	utils.CompareChanges(oldRole.Name, newRole.Name, changes, "role")
 	utils.CompareChanges(exUsr.DisplayName, usr.DisplayName, changes, "display_name")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "user",
@@ -351,7 +361,9 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 		return fmt.Errorf("can't find role wit given id: %w", err)
 	}
 
-	if err := s.repo.DeleteUser(ctx, tx, usr.ID); err != nil {
+	newEmail := usr.Email + "_" + strconv.FormatInt(usr.ID, 10)
+
+	if err := s.repo.DeleteUser(ctx, tx, usr.ID, newEmail); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -363,9 +375,10 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 	changes := utils.InitChanges()
 	utils.CompareChanges(role.Name, "", changes, "role")
 	utils.CompareChanges(usr.DisplayName, "", changes, "display_name")
+	utils.CompareChanges(usr.Email, "", changes, "email")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "delete",
 			Category:    "user",
@@ -446,7 +459,7 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) (i
 		}
 	}
 
-	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "resend",
 		Category:    "invitation",
@@ -500,7 +513,7 @@ func (s *UserService) DeleteInvitation(ctx context.Context, userID, id int64) er
 	utils.CompareChanges(role.Name, "", changes, "role")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "delete",
 			Category:    "invitation",

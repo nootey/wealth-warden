@@ -31,8 +31,8 @@ function initFilters() {
 }
 
 function clearFilter(originalIndex: number): void {
-  removeFilter && removeFilter(originalIndex);
-  initFilters();
+    removeFilter(originalIndex);
+    initFilters();
 }
 
 const icons: Record<string, string> = {
@@ -49,17 +49,28 @@ function iconClass(field: string | null): string | null {
 </script>
 
 <template>
-  <div v-if="filters.length > 0" class="flex flex-wrap gap-1 w-full" style="line-height: 1; max-height: 135px; overflow-y: auto;">
-    <Chip v-for="filter in filters" :key="filter.originalIndex"
-          style="background-color: transparent; border: 3px solid var(--border-color); padding: 0.65rem;">
-      <div  class="flex flex-row align-items-center gap-2">
-
-        <div v-if="iconClass(filter.field)"
-             v-tooltip="filter.field"
-             style="width: 16px; height: 16px; border-radius: 50%; display:flex;
+  <div
+    v-if="filters.length > 0"
+    class="flex flex-wrap gap-1 w-full"
+    style="line-height: 1; max-height: 135px; overflow-y: auto;"
+  >
+    <Chip
+      v-for="filter in filters"
+      :key="filter.originalIndex"
+      style="background-color: transparent; border: 3px solid var(--border-color); padding: 0.65rem;"
+    >
+      <div class="flex flex-row align-items-center gap-2">
+        <div
+          v-if="iconClass(filter.field)"
+          v-tooltip="filter.field"
+          style="width: 16px; height: 16px; border-radius: 50%; display:flex;
                     align-items:center; justify-content:center; font-size:0.75rem;
-                    color:white; border:2px solid var(--border-color);">
-          <i :class="iconClass(filter.field)" style="font-size: 0.75rem;"></i>
+                    color:white; border:2px solid var(--border-color);"
+        >
+          <i
+            :class="iconClass(filter.field)"
+            style="font-size: 0.75rem;"
+          />
         </div>
 
         <template v-else>
@@ -67,19 +78,25 @@ function iconClass(field: string | null): string | null {
           <div>{{ filter.operator }}</div>
         </template>
 
-        <div>{{ currencyHelper.mightBeBalance(filter.field) ? vueHelper.displayAsCurrency(filter.value) :
-            (dateHelper.mightBeDate(filter.field) ? dateHelper.formatDate(filter.value) : (filter.display ? filter.display : filter.value)) }}</div>
+        <div>
+          {{ currencyHelper.mightBeBalance(filter.field) ? vueHelper.displayAsCurrency(filter.value as number) :
+            (dateHelper.mightBeDate(filter.field) ? dateHelper.formatDate(filter.value as string | Date) :
+              (filter.display ? filter.display : String(filter.value))) }}
+        </div>
         <div
-            @click="clearFilter(filter.originalIndex)"
-            class="flex align-items-center justify-content-center">
-          <i class="pi pi-times hover-icon" style="color: grey; font-size: 0.75rem;" ></i>
+          class="flex align-items-center justify-content-center"
+          @click="clearFilter(filter.originalIndex)"
+        >
+          <i
+            class="pi pi-times hover-icon"
+            style="color: grey; font-size: 0.75rem;"
+          />
         </div>
       </div>
-
     </Chip>
   </div>
   <div v-else>
-    <span> {{ "No filters active"}}</span>
+    <span> {{ "No filters active" }}</span>
   </div>
 </template>
 

@@ -72,85 +72,121 @@ function handleMenuClick(source: string) {
 </script>
 
 <template>
-  <aside v-if="authStore.authenticated && authStore.isValidated"
-         class="flex flex-column overflow-hidden h-screen fixed left-0 top-0"
-         style="width: 80px; color: var(--text-primary); padding: 1rem 0;">
-
-      <div class="logo-section flex align-items-center justify-content-center mb-2 p-1">
-          <div class="flex align-items-center justify-content-center"
-           style="
+  <aside
+    v-if="authStore.authenticated && authStore.isValidated"
+    class="flex flex-column overflow-hidden h-screen fixed left-0 top-0"
+    style="width: 80px; color: var(--text-primary); padding: 1rem 0;"
+  >
+    <div class="logo-section flex align-items-center justify-content-center mb-2 p-1">
+      <div
+        class="flex align-items-center justify-content-center"
+        style="
             width: 32px; height: 32px; border-radius: 8px;box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);">
-        <i class="pi pi-wallet" style="color: white;" />
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);"
+      >
+        <i
+          class="pi pi-wallet"
+          style="color: white;"
+        />
       </div>
+    </div>
+
+    <div class="menu flex flex-column h-full">
+      <router-link
+        v-for="(item, index) in visibleMenuItems"
+        :key="index"
+        :to="item.to"
+        class="flex flex-column align-items-center p-1"
+        style="text-decoration: none; transition: all 0.2s ease; color: var(--text-secondary);"
+      >
+        <i
+          :class="['pi', item.icon]"
+          class="text-sm"
+          style="transition: all 0.2s ease;"
+        />
+        <span class="text-xs text-align-center">{{ item.text }}</span>
+      </router-link>
+
+      <div
+        id="user-menu-trigger"
+        class="flex flex-column align-items-center p-1 border-round-lg mt-auto"
+        style="transition: all 0.2s ease; cursor: pointer; color: var(--text-secondary);"
+        @click="toggleProfileMenu($event)"
+      >
+        <div
+          class="flex align-items-center justify-content-center font-bold text-sm mb-1"
+          style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);color: white;"
+        >
+          {{ user?.display_name.split(' ').map(n => n[0]).join('') }}
+        </div>
       </div>
-
-      <div class="menu flex flex-column h-full">
-          <router-link v-for="(item, index) in visibleMenuItems" :key="index" :to="item.to"
-                       class="flex flex-column align-items-center p-1"
-                       style="text-decoration: none; transition: all 0.2s ease; color: var(--text-secondary);">
-              <i :class="['pi', item.icon]" class="text-sm" style="transition: all 0.2s ease;" />
-              <span class="text-xs text-align-center">{{ item.text }}</span>
-          </router-link>
-
-          <div id="user-menu-trigger" @click="toggleProfileMenu($event)"
-               class="flex flex-column align-items-center p-1 border-round-lg mt-auto"
-               style="transition: all 0.2s ease; cursor: pointer; color: var(--text-secondary);">
-
-              <div class="flex align-items-center justify-content-center font-bold text-sm mb-1"
-                   style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);color: white;">
-                  {{ user?.display_name.split(' ').map(n => n[0]).join('') }}
-              </div>
-          </div>
-      </div>
+    </div>
 
     <Popover ref="profileMenuRef">
       <div style="padding: 1rem;">
-
-        <div class="flex align-items-center gap-3 pb-1 mb-2" style="border-bottom: 1px solid var(--border-color);">
-          <div class="flex align-items-center justify-content-center text-sm font-bold"
-               style="
+        <div
+          class="flex align-items-center gap-3 pb-1 mb-2"
+          style="border-bottom: 1px solid var(--border-color);"
+        >
+          <div
+            class="flex align-items-center justify-content-center text-sm font-bold"
+            style="
                   width: 40px;
                   height: 40px;
                   border-radius: 50%;
                   background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
-                  color: white;">
+                  color: white;"
+          >
             {{ user?.display_name.split(' ').map(n => n[0]).join('') }}
           </div>
           <div>
-            <div class="font-bold mb-1" style="color: var(--text-primary);">{{ user?.display_name }}
+            <div
+              class="font-bold mb-1"
+              style="color: var(--text-primary);"
+            >
+              {{ user?.display_name }}
             </div>
-            <div class="text-sm" style="color: var(--text-secondary);">{{ user?.email }}
+            <div
+              class="text-sm"
+              style="color: var(--text-secondary);"
+            >
+              {{ user?.email }}
             </div>
           </div>
         </div>
 
         <div class="flex flex-column gap-2 p-1">
-
-            <div id="profileMenuItem" v-if="hasPermission('view_activity_logs')"
-               class="flex align-items-center gap-2 p-1 border-round-md"
-               style="cursor: pointer; transition: all 0.2s ease; color: var(--text-primary);"
-               @click="handleMenuClick('logs')">
-            <i class="pi pi-address-book"></i>
+          <div
+            v-if="hasPermission('view_activity_logs')"
+            id="profileMenuItem"
+            class="flex align-items-center gap-2 p-1 border-round-md"
+            style="cursor: pointer; transition: all 0.2s ease; color: var(--text-primary);"
+            @click="handleMenuClick('logs')"
+          >
+            <i class="pi pi-address-book" />
             <span class="text-sm">Activity logs</span>
           </div>
 
-            <div id="profileMenuItem" class="flex align-items-center gap-2 p-1 border-round-md"
-               style="cursor: pointer; transition: all 0.2s ease; color: var(--text-primary);"
-               @click="handleMenuClick('settings')">
-                <i class="pi pi-cog"></i>
-                <span class="text-sm">Settings</span>
-            </div>
-
-            <div id="profileMenuItem" class="flex align-items-center gap-2 p-1 border-round-md"
-               style="cursor: pointer; transition: all 0.2s ease;color: #ef4444;"
-               @click="handleMenuClick('logout')">
-            <i class="pi pi-sign-out"></i>
-            <span class="text-sm">Sign out</span>
+          <div
+            id="profileMenuItem"
+            class="flex align-items-center gap-2 p-1 border-round-md"
+            style="cursor: pointer; transition: all 0.2s ease; color: var(--text-primary);"
+            @click="handleMenuClick('settings')"
+          >
+            <i class="pi pi-cog" />
+            <span class="text-sm">Settings</span>
           </div>
 
+          <div
+            id="profileMenuItem"
+            class="flex align-items-center gap-2 p-1 border-round-md"
+            style="cursor: pointer; transition: all 0.2s ease;color: #ef4444;"
+            @click="handleMenuClick('logout')"
+          >
+            <i class="pi pi-sign-out" />
+            <span class="text-sm">Sign out</span>
+          </div>
         </div>
-
       </div>
     </Popover>
   </aside>

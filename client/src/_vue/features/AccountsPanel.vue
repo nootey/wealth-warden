@@ -16,10 +16,11 @@ const props = withDefaults(defineProps<{
     advanced?: boolean;
     allowEdit?: boolean;
     onToggle?: (acc: Account, nextValue: boolean) => Promise<boolean>;
-    maxHeight: number;
+    maxHeight?: number;
 }>(), {
     advanced: false,
     allowEdit: true,
+    onToggle: undefined,
     maxHeight: 75,
 });
 
@@ -182,123 +183,196 @@ defineExpose({ refresh: getData });
 </script>
 
 <template>
+  <Dialog
+    v-model:visible="updateModal"
+    position="right"
+    class="rounded-dialog"
+    :breakpoints="{ '501px': '90vw' }"
+    :modal="true"
+    :style="{ width: '500px' }"
+    header="Update account"
+  >
+    <AccountForm
+      mode="update"
+      :record-id="selectedID"
+      @complete-operation="handleEmit('completeOperation')"
+    />
+  </Dialog>
 
-    <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal"
-            :breakpoints="{ '501px': '90vw' }" :modal="true" :style="{ width: '500px' }" header="Update account">
-        <AccountForm mode="update" :recordId="selectedID"
-                @completeOperation="handleEmit('completeOperation')"/>
-    </Dialog>
+  <Dialog
+    v-model:visible="detailsModal"
+    position="top"
+    class="rounded-dialog"
+    :breakpoints="{ '851px': '90vw' }"
+    :modal="true"
+    :style="{ width: '850px' }"
+    header="Account details"
+  >
+    <AccountDetails
+      :acc-i-d="selectedAccount?.id!"
+      :advanced="advanced"
+      @close-account="(id) => handleEmit('closeAccount', id)"
+    />
+  </Dialog>
 
-    <Dialog position="top" class="rounded-dialog" v-model:visible="detailsModal"
-            :breakpoints="{ '851px': '90vw' }" :modal="true" :style="{ width: '850px' }" header="Account details">
-        <AccountDetails :accID="selectedAccount?.id!" :advanced="advanced"
-                        @closeAccount="(id) => handleEmit('closeAccount', id)"></AccountDetails>
-    </Dialog>
+  <div
+    class="flex w-full p-3 gap-2 border-round-md bordered justify-content-between align-items-center"
+    style="max-width: 1000px"
+  >
+    <div>
+      <div
+        class="text-xs"
+        style="color: var(--text-secondary)"
+      >
+        Total
+      </div>
+      <div class="font-bold">
+        {{ vueHelper.displayAsCurrency(totals.total) }}
+      </div>
+    </div>
+    <div>
+      <div
+        class="text-xs"
+        style="color: var(--text-secondary)"
+      >
+        Positive
+      </div>
+      <div
+        class="font-bold"
+        style="color: green"
+      >
+        {{ vueHelper.displayAsCurrency(totals.positive) }}
+      </div>
+    </div>
+    <div>
+      <div
+        class="text-xs"
+        style="color: var(--text-secondary)"
+      >
+        Negative
+      </div>
+      <div
+        class="font-bold"
+        style="color: red"
+      >
+        {{ vueHelper.displayAsCurrency(totals.negative) }}
+      </div>
+    </div>
+  </div>
 
-    <div class="flex w-full p-3 gap-2 border-round-md bordered justify-content-between align-items-center"
-         style="max-width: 1000px">
-        <div>
-            <div class="text-xs" style="color: var(--text-secondary)">Total</div>
-            <div class="font-bold">{{ vueHelper.displayAsCurrency(totals.total) }}</div>
-        </div>
-        <div>
-            <div class="text-xs" style="color: var(--text-secondary)">Positive</div>
-            <div class="font-bold" style="color: green">
-                {{ vueHelper.displayAsCurrency(totals.positive) }}
-            </div>
-        </div>
-        <div>
-            <div class="text-xs" style="color: var(--text-secondary)">Negative</div>
-            <div class="font-bold" style="color: red">
-                {{ vueHelper.displayAsCurrency(totals.negative) }}
-            </div>
-        </div>
+  <div
+    class="flex-1 w-full border-round-md overflow-y-auto"
+    :style="{ maxWidth: '1000px', maxHeight: `${maxHeight}vh` }"
+  >
+    <template v-if="loading">
+      <ShowLoading :num-fields="10" />
+    </template>
+
+    <div
+      v-else-if="groupedAccounts.length === 0"
+      class="flex flex-row p-2 w-full justify-content-center"
+    >
+      <div class="flex flex-column gap-2 justify-content-center align-items-center">
+        <i
+          style="color: var(--text-secondary)"
+          class="pi pi-eye-slash text-4xl"
+        />
+        <span>No accounts available</span>
+      </div>
     </div>
 
-    <div class="flex-1 w-full border-round-md overflow-y-auto"
-         :style="{ maxWidth: '1000px', maxHeight: `${maxHeight}vh` }">
+    <div
+      v-for="[type, group] in groupedAccounts"
+      v-else
+      :key="type"
+      class="w-full p-3 mb-2 border-round-md"
+      style="background: var(--background-primary)"
+    >
+      <div
+        class="flex p-2 mb-2 pb-21 align-items-center justify-content-between"
+        style="border-bottom: 1px solid var(--border-color)"
+      >
+        <div
+          class="text-sm"
+          style="color: var(--text-secondary)"
+        >
+          {{ vueHelper.formatString(type) }} · {{ group.length }}
+        </div>
+        <div
+          class="font-bold text-sm"
+          style="color: var(--text-secondary)"
+        >
+          {{ vueHelper.displayAsCurrency(groupTotal(group)) }}
+        </div>
+      </div>
 
-        <template v-if="loading">
-            <ShowLoading :numFields="10" />
-        </template>
+      <div
+        v-for="(account, i) in group"
+        :key="account.id ?? i"
+        class="account-row flex align-items-center justify-content-between p-2 border-round-md mt-1 bordered"
+        :class="{ advanced, inactive: !account.is_active }"
+      >
+        <div class="flex align-items-center">
+          <!-- Avatar -->
+          <div
+            class="flex align-items-center justify-content-center font-bold"
+            :style="{
+              width: '32px',
+              height: '32px',
+              border: '1px solid',
+              borderColor: logoColor(account.account_type?.type).border,
+              borderRadius: '50%',
+              background: logoColor(account.account_type.type).bg,
+              color: logoColor(account.account_type.type).fg,
+            }"
+          >
+            {{ account.name.charAt(0).toUpperCase() }}
+          </div>
 
-        <div v-else-if="groupedAccounts.length === 0" class="flex flex-row p-2 w-full justify-content-center">
-            <div class="flex flex-column gap-2 justify-content-center align-items-center">
-                <i style="color: var(--text-secondary)" class="pi pi-eye-slash text-4xl"></i>
-                <span>No accounts available</span>
+          <!-- Name + subtype -->
+          <div class="ml-2">
+            <div
+              class="font-bold clickable"
+              @click="openModal('details', account)"
+            >
+              {{ account.name }}
             </div>
+
+            <div
+              class="text-sm"
+              style="color: var(--text-secondary)"
+            >
+              {{ vueHelper.formatString(account.account_type?.sub_type) }}  {{ !account.is_active ? " - Inactive" : "" }}
+            </div>
+          </div>
+
+          <!-- Edit icon -->
+          <i
+            v-if="hasPermission('manage_data') && account.is_active"
+            v-tooltip="'Edit account'"
+            class="ml-3 pi pi-pen-to-square text-xs hover-icon edit-icon"
+            style="color: var(--text-secondary)"
+            @click="openModal('update', account.id!)"
+          />
         </div>
 
-        <div v-else v-for="[type, group] in groupedAccounts" :key="type"
-             class="w-full p-3 mb-2 border-round-md"
-             style="background: var(--background-primary)">
-            <div class="flex p-2 mb-2 pb-21 align-items-center justify-content-between"
-                 style="border-bottom: 1px solid var(--border-color)">
-                <div class="text-sm" style="color: var(--text-secondary)">
-                    {{ vueHelper.formatString(type) }} · {{ group.length }}
-                </div>
-                <div class="font-bold text-sm" style="color: var(--text-secondary)">
-                    {{ vueHelper.displayAsCurrency(groupTotal(group)) }}
-                </div>
-            </div>
+        <div class="flex align-items-center gap-2">
+          <div class="font-bold mr-1">
+            {{ vueHelper.displayAsCurrency(account.balance.end_balance) }}
+          </div>
 
-            <div v-for="(account, i) in group" :key="account.id ?? i"
-                 class="account-row flex align-items-center justify-content-between p-2 border-round-md mt-1 bordered"
-                 :class="{ advanced, inactive: !account.is_active }">
-
-                <div class="flex align-items-center">
-                    <!-- Avatar -->
-                    <div class="flex align-items-center justify-content-center font-bold"
-                         :style="{
-                                    width: '32px',
-                                    height: '32px',
-                                    border: '1px solid',
-                                    borderColor: logoColor(account.account_type?.type).border,
-                                    borderRadius: '50%',
-                                    background: logoColor(account.account_type.type).bg,
-                                    color: logoColor(account.account_type.type).fg,
-                                }">
-                        {{ account.name.charAt(0).toUpperCase() }}
-                    </div>
-
-                    <!-- Name + subtype -->
-                    <div class="ml-2">
-                        <div class="font-bold clickable"
-                             @click="openModal('details', account)">
-                            {{ account.name }}
-                        </div>
-
-                        <div class="text-sm" style="color: var(--text-secondary)">
-                            {{ vueHelper.formatString(account.account_type?.sub_type) }}  {{ !account.is_active ? " - Inactive" : "" }}
-                        </div>
-                    </div>
-
-                    <!-- Edit icon -->
-                    <i v-if="hasPermission('manage_data') && account.is_active" class="ml-3 pi pi-pen-to-square text-xs hover-icon edit-icon"
-                       style="color: var(--text-secondary)"
-                       @click="openModal('update', account.id!)"
-                       v-tooltip="'Edit account'" />
-
-                </div>
-
-                <div class="flex align-items-center gap-2">
-                    <div class="font-bold mr-1">
-                        {{ vueHelper.displayAsCurrency(account.balance.end_balance) }}
-                    </div>
-
-                    <template v-if="advanced">
-                        <ToggleSwitch v-if="hasPermission('manage_data')" style="transform: scale(0.675)"
-                                      v-model="account.is_active"
-                                      @update:modelValue="(v) => onToggleEnabled(account, v)" />
-                    </template>
-
-                </div>
-            </div>
-
+          <template v-if="advanced">
+            <ToggleSwitch
+              v-if="hasPermission('manage_data')"
+              v-model="account.is_active"
+              style="transform: scale(0.675)"
+              @update:model-value="(v) => onToggleEnabled(account, v)"
+            />
+          </template>
         </div>
-
+      </div>
     </div>
-
+  </div>
 </template>
 
 <style scoped>

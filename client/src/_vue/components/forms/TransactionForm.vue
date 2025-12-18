@@ -14,7 +14,6 @@ import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import TransferForm from "./TransferForm.vue";
-import toastHelper from "../../../utils/toast_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import {useConfirm} from "primevue/useconfirm";
 import {usePermissions} from "../../../utils/use_permissions.ts";
@@ -38,11 +37,8 @@ const accountStore = useAccountStore();
 const confirm = useConfirm();
 const { hasPermission } = usePermissions();
 
-onMounted(async () => {
-    if (props.mode === "update" && props.recordId) {
-        await loadRecord(props.recordId);
-    }
-});
+const loading = ref(false);
+const defaultPreSelected = ref(false);
 
 const isGlobalReadOnly = computed(() =>
     !!record.value.deleted_at || !!record.value.is_adjustment
@@ -77,9 +73,7 @@ const isTransferSelected = computed(() =>
     (selectedParentCategory.value?.name ?? '').toLowerCase() === 'transfer'
 );
 
-const loading = ref(false);
-
-const accounts = computed<Account[]>(() => accountStore.accounts);
+const accounts = ref<Account[]>([]);
 const transfer = ref<Transfer>({
     source_id: null,
     destination_id: null,
@@ -169,6 +163,25 @@ const rules = {
 };
 
 const v$ = useVuelidate(rules, { record });
+
+onMounted(async () => {
+    // Fetch accounts first
+    accounts.value = accountStore.accounts;
+
+    if (props.mode === "update" && props.recordId) {
+        await loadRecord(props.recordId);
+    } else if (props.mode === "create") {
+        // Pre-select default checking account
+        const defaultChecking = accounts.value.find(
+            acc => acc.is_default && acc.account_type?.sub_type === 'checking'
+        );
+        if (defaultChecking) {
+            record.value.account = defaultChecking;
+            record.value.account_id = defaultChecking.id;
+            defaultPreSelected.value = true;
+        }
+    }
+});
 
 function initData(): Transaction {
 
@@ -285,7 +298,7 @@ async function loadRecord(id: number) {
 async function manageRecord() {
 
     if (isFormReadOnly.value) {
-        toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
+        toastStore.infoResponseToast({"title": "Not allowed", "message": "This record is read only!"})
         return;
     }
 
@@ -419,104 +432,202 @@ async function deleteRecord(id: number, tx_type: string) {
 </script>
 
 <template>
-
-  <div v-if="!loading" class="flex flex-column gap-3 p-1">
-
-      <div v-if="!isFormReadOnly" class="flex flex-row w-full justify-content-center">
-          <div class="flex flex-column w-50">
-                <SelectButton style="font-size: 0.875rem;" size="small"
-                              v-model="selectedParentCategory"
-                              :options="parentCategories" optionLabel="display_name" :allowEmpty="false"
-                              @update:modelValue="updateSelectedParentCategory($event)" />
-          </div>
+  <div
+    v-if="!loading"
+    class="flex flex-column gap-3 p-1"
+  >
+    <div
+      v-if="!isFormReadOnly"
+      class="flex flex-row w-full justify-content-center"
+    >
+      <div class="flex flex-column w-50">
+        <SelectButton
+          v-model="selectedParentCategory"
+          style="font-size: 0.875rem;"
+          size="small"
+          :options="parentCategories"
+          option-label="display_name"
+          :allow-empty="false"
+          @update:model-value="updateSelectedParentCategory($event)"
+        />
       </div>
-      <div v-else>
-          <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
-      </div>
+    </div>
+    <div v-else>
+      <h5 style="color: var(--text-secondary)">
+        Read-only mode.
+      </h5>
+    </div>
 
-      <div class="flex flex-column gap-3" v-if="isTransferSelected && !isFormReadOnly">
-          <TransferForm ref="transferFormRef" v-model:transfer="transfer" :accounts="accounts" />
-      </div>
+    <h5
+      v-if="defaultPreSelected"
+      style="color: var(--text-secondary)"
+    >
+      Default checking account pre-selected.
+    </h5>
 
-      <div class="flex flex-column gap-3" v-else>
+    <div
+      v-if="isTransferSelected && !isFormReadOnly"
+      class="flex flex-column gap-3"
+    >
+      <TransferForm
+        ref="transferFormRef"
+        v-model:transfer="transfer"
+        :accounts="accounts"
+      />
+    </div>
 
-          <div class="flex flex-row w-full">
-              <div class="flex flex-column gap-1 w-full">
-                  <ValidationError :isRequired="true" :message="v$.record.account.name.$errors[0]?.$message">
-                      <label>Account</label>
-                  </ValidationError>
-                  <AutoComplete :readonly="isAccountPickerDisabled || isFormReadOnly" :disabled="isAccountPickerDisabled || isFormReadOnly" size="small"
-                                v-model="record.account" :suggestions="filteredAccounts"
-                                @complete="searchAccount" optionLabel="name" forceSelection
-                                placeholder="Select account" dropdown>
-                  </AutoComplete>
-              </div>
-          </div>
-
-          <div class="flex flex-row w-full">
-              <div class="flex flex-column gap-1 w-full">
-                  <ValidationError :isRequired="true" :message="v$.record.amount.$errors[0]?.$message">
-                      <label>Amount</label>
-                  </ValidationError>
-                  <InputNumber :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
-              </div>
-          </div>
-
-          <div class="flex flex-row w-full">
-              <div class="flex flex-column gap-1 w-full">
-                  <ValidationError :isRequired="false" :message="v$.record.category.name.$errors[0]?.$message">
-                      <label>Category</label>
-                  </ValidationError>
-                  <AutoComplete :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small" v-model="record.category" :suggestions="filteredCategories"
-                                @complete="searchCategory" optionLabel="display_name"
-                                placeholder="Select category" dropdown>
-                  </AutoComplete>
-              </div>
-          </div>
-
-          <div class="flex flex-row w-full">
-              <div class="flex flex-column gap-1 w-full">
-                  <ValidationError :isRequired="true" :message="v$.record.txn_date.$errors[0]?.$message">
-                      <label>Date</label>
-                  </ValidationError>
-                  <DatePicker v-model="record.txn_date" date-format="dd/mm/yy"
-                              showIcon fluid iconDisplay="input" size="small"
-                               :readonly="isFormReadOnly" :disabled="isFormReadOnly"
-                              :maxDate="todayUtcMidnight"
-                  />
-              </div>
-          </div>
-
-          <div class="flex flex-row w-full">
-              <div class="flex flex-column gap-1 w-full">
-                  <ValidationError :isRequired="false" :message="v$.record.description.$errors[0]?.$message">
-                      <label>Description</label>
-                  </ValidationError>
-                  <InputText :readonly="isFormReadOnly" :disabled="isFormReadOnly" size="small" v-model="record.description" placeholder="Describe transaction"></InputText>
-              </div>
-          </div>
-
+    <div
+      v-else
+      class="flex flex-column gap-3"
+    >
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.account.name.$errors[0]?.$message"
+          >
+            <label>Account</label>
+          </ValidationError>
+          <AutoComplete
+            v-model="record.account"
+            :readonly="isAccountPickerDisabled || isFormReadOnly"
+            :disabled="isAccountPickerDisabled || isFormReadOnly"
+            size="small"
+            :suggestions="filteredAccounts"
+            option-label="name"
+            force-selection
+            placeholder="Select account"
+            dropdown
+            @complete="searchAccount"
+            @update:model-value="defaultPreSelected = false;"
+          />
+        </div>
       </div>
 
-      <div v-if="!record.is_adjustment" class="flex flex-row gap-2 w-full" >
-          <div class="flex flex-column w-full gap-2">
-              <Button v-if="!isFormReadOnly" class="main-button"
-                      :label="(selectedParentCategory?.name.toLowerCase() == 'transfer' ? 'Start transfer' :
-                      (mode == 'create' ? 'Add' : 'Update') +  ' transaction')"
-                      @click="manageRecord" style="height: 42px;" />
-              <Button v-else-if="canRestore" class="main-button"
-                      label="Restore"
-                      @click="restoreTransaction" style="height: 42px;" />
-              <Button v-if="!isFormReadOnly && mode == 'update'"
-                      label="Delete transaction" class="delete-button"
-                      @click="deleteConfirmation(record.id!, record.transaction_type)" style="height: 42px;" />
-              <h5 v-else-if="showCantRestore" style="color: var(--text-secondary)">Transaction can not be restored!</h5>
-          </div>
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.amount.$errors[0]?.$message"
+          >
+            <label>Amount</label>
+          </ValidationError>
+          <InputNumber
+            v-model="amountNumber"
+            :readonly="isFormReadOnly"
+            :disabled="isFormReadOnly"
+            size="small"
+            mode="currency"
+            currency="EUR"
+            locale="de-DE"
+            placeholder="0,00 €"
+          />
+        </div>
       </div>
 
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="false"
+            :message="v$.record.category.name.$errors[0]?.$message"
+          >
+            <label>Category</label>
+          </ValidationError>
+          <AutoComplete
+            v-model="record.category"
+            :readonly="isFormReadOnly"
+            :disabled="isFormReadOnly"
+            size="small"
+            :suggestions="filteredCategories"
+            option-label="display_name"
+            placeholder="Select category"
+            dropdown
+            @complete="searchCategory"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.txn_date.$errors[0]?.$message"
+          >
+            <label>Date</label>
+          </ValidationError>
+          <DatePicker
+            v-model="record.txn_date"
+            date-format="dd/mm/yy"
+            show-icon
+            fluid
+            icon-display="input"
+            size="small"
+            :readonly="isFormReadOnly"
+            :disabled="isFormReadOnly"
+            :max-date="todayUtcMidnight"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="false"
+            :message="v$.record.description.$errors[0]?.$message"
+          >
+            <label>Description</label>
+          </ValidationError>
+          <InputText
+            v-model="record.description"
+            :readonly="isFormReadOnly"
+            :disabled="isFormReadOnly"
+            size="small"
+            placeholder="Describe transaction"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="!record.is_adjustment"
+      class="flex flex-row gap-2 w-full"
+    >
+      <div class="flex flex-column w-full gap-2">
+        <Button
+          v-if="!isFormReadOnly"
+          class="main-button"
+          :label="(selectedParentCategory?.name.toLowerCase() == 'transfer' ? 'Start transfer' :
+            (mode == 'create' ? 'Add' : 'Update') + ' transaction')"
+          style="height: 42px;"
+          @click="manageRecord"
+        />
+        <Button
+          v-else-if="canRestore"
+          class="main-button"
+          label="Restore"
+          style="height: 42px;"
+          @click="restoreTransaction"
+        />
+        <Button
+          v-if="!isFormReadOnly && mode == 'update'"
+          label="Delete transaction"
+          class="delete-button"
+          style="height: 42px;"
+          @click="deleteConfirmation(record.id!, record.transaction_type)"
+        />
+        <h5
+          v-else-if="showCantRestore"
+          style="color: var(--text-secondary)"
+        >
+          Transaction can not be restored!
+        </h5>
+      </div>
+    </div>
   </div>
-  <ShowLoading v-else :numFields="7" />
-
+  <ShowLoading
+    v-else
+    :num-fields="7"
+  />
 </template>
 
 <style scoped>

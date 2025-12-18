@@ -51,8 +51,49 @@ func resolveMeta(source, field string) (FieldMetadata, bool) {
 	return meta, ok2
 }
 
-func isString(v any) bool      { _, ok := v.(string); return ok }
+func isString(v any) bool { _, ok := v.(string); return ok }
+
 func asText(col string) string { return fmt.Sprintf("%s::text", col) }
+
+func GetRequiredJoins(filters []Filter) []string {
+	needed := make(map[string]struct{})
+
+	for _, f := range filters {
+		if meta, ok := resolveMeta(f.Source, f.Field); ok && meta.Join != "" { // <— NEW
+			needed[meta.Join] = struct{}{}
+		}
+	}
+
+	var joins []string
+	for join := range needed {
+		joins = append(joins, join)
+	}
+	return joins
+}
+
+func ConstructOrderByClause(joins *[]string, source, sortField, sortOrder string) string {
+	sortColumn := sortField
+
+	if meta, ok := resolveMeta(source, sortField); ok {
+		sortColumn = meta.Column
+
+		if meta.Join != "" {
+			// Deduplicate join
+			alreadyJoined := false
+			for _, j := range *joins {
+				if j == meta.Join {
+					alreadyJoined = true
+					break
+				}
+			}
+			if !alreadyJoined {
+				*joins = append(*joins, meta.Join)
+			}
+		}
+	}
+
+	return sortColumn + " " + sortOrder
+}
 
 func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 	// Group for fields that opt-in to OR behavior
@@ -74,6 +115,27 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 		column := f.Field
 		if ok {
 			column = meta.Column
+		}
+
+		// Special case: amount filters on transactions
+		if f.Source == "transactions" && f.Field == "amount" {
+			signedAmount := "CASE WHEN transaction_type = 'expense' THEN -amount ELSE amount END"
+
+			switch f.Operator {
+			case "equals", "=":
+				query = query.Where(fmt.Sprintf("%s = ?", signedAmount), f.Value)
+			case "not equals", "<>", "!=":
+				query = query.Where(fmt.Sprintf("%s <> ?", signedAmount), f.Value)
+			case "more than", ">":
+				query = query.Where(fmt.Sprintf("%s > ?", signedAmount), f.Value)
+			case "less than", "<":
+				query = query.Where(fmt.Sprintf("%s < ?", signedAmount), f.Value)
+			case ">=":
+				query = query.Where(fmt.Sprintf("%s >= ?", signedAmount), f.Value)
+			case "<=":
+				query = query.Where(fmt.Sprintf("%s <= ?", signedAmount), f.Value)
+			}
+			continue
 		}
 
 		switch f.Operator {
@@ -154,44 +216,4 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 	}
 
 	return query
-}
-
-func GetRequiredJoins(filters []Filter) []string {
-	needed := make(map[string]struct{})
-
-	for _, f := range filters {
-		if meta, ok := resolveMeta(f.Source, f.Field); ok && meta.Join != "" { // <— NEW
-			needed[meta.Join] = struct{}{}
-		}
-	}
-
-	var joins []string
-	for join := range needed {
-		joins = append(joins, join)
-	}
-	return joins
-}
-
-func ConstructOrderByClause(joins *[]string, source, sortField, sortOrder string) string {
-	sortColumn := sortField
-
-	if meta, ok := resolveMeta(source, sortField); ok {
-		sortColumn = meta.Column
-
-		if meta.Join != "" {
-			// Deduplicate join
-			alreadyJoined := false
-			for _, j := range *joins {
-				if j == meta.Join {
-					alreadyJoined = true
-					break
-				}
-			}
-			if !alreadyJoined {
-				*joins = append(*joins, meta.Join)
-			}
-		}
-	}
-
-	return sortColumn + " " + sortOrder
 }

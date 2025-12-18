@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"time"
 	"wealth-warden/pkg/config"
-	"wealth-warden/pkg/constants"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -28,15 +27,31 @@ type WebClientUserClaim struct {
 	jwt.RegisteredClaims
 }
 
-type WebClientMiddleware struct {
-	config *config.Config
-	logger *zap.Logger
+type WebClientMiddlewareInterface interface {
+	CookieDomainForEnv() string
+	CookieSecure() bool
+	WebClientAuthentication() gin.HandlerFunc
+	GenerateLoginTokens(userID int64, rememberMe bool) (string, string, error)
+	ErrorLogger() gin.HandlerFunc
 }
 
-func NewWebClientMiddleware(cfg *config.Config, logger *zap.Logger) *WebClientMiddleware {
+var _ WebClientMiddlewareInterface = (*WebClientMiddleware)(nil)
+
+type WebClientMiddleware struct {
+	config          *config.Config
+	logger          *zap.Logger
+	accessTTL       time.Duration
+	refreshTTLShort time.Duration
+	refreshTTLLong  time.Duration
+}
+
+func NewWebClientMiddleware(cfg *config.Config, logger *zap.Logger, accessTTL, refreshShort, refreshLong time.Duration) *WebClientMiddleware {
 	return &WebClientMiddleware{
-		config: cfg,
-		logger: logger,
+		config:          cfg,
+		logger:          logger,
+		accessTTL:       accessTTL,
+		refreshTTLShort: refreshShort,
+		refreshTTLLong:  refreshLong,
 	}
 }
 
@@ -57,9 +72,9 @@ func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 		// Try access
 		access, _ := c.Cookie("access")
 		if access != "" {
-			claims, err := m.DecodeWebClientToken(access, "access")
+			claims, err := m.decodeWebClientToken(access, "access")
 			if err == nil {
-				userID, err := m.DecodeWebClientUserID(claims.UserID)
+				userID, err := m.decodeWebClientUserID(claims.UserID)
 				if err == nil {
 					c.Set("user_id", userID)
 					c.Next()
@@ -71,40 +86,78 @@ func (m *WebClientMiddleware) WebClientAuthentication() gin.HandlerFunc {
 		// If access missing/expired, try refresh
 		refresh, _ := c.Cookie("refresh")
 		if refresh == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
 			return
 		}
-		rClaims, err := m.DecodeWebClientToken(refresh, "refresh")
+
+		rClaims, err := m.decodeWebClientToken(refresh, "refresh")
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
 			return
 		}
 
-		// Check refresh token server-side  and rotation state here
-
-		userID, err := m.DecodeWebClientUserID(rClaims.UserID)
+		userID, err := m.decodeWebClientUserID(rClaims.UserID)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
 			return
 		}
 
-		// 4) Issue new access (and rotate refresh if you implement rotation)
+		// Issue new access
 		if err := m.issueAccessCookie(c, userID); err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, "Unauthenticated")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
 			return
 		}
-
-		// Optionally rotate refresh cookie here as well
 
 		c.Set("user_id", userID)
 		c.Next()
 	}
 }
 
+func (m *WebClientMiddleware) GenerateLoginTokens(userID int64, rememberMe bool) (string, string, error) {
+
+	var expiresAt time.Time
+	if rememberMe {
+		expiresAt = time.Now().Add(m.refreshTTLLong)
+	} else {
+		expiresAt = time.Now().Add(m.refreshTTLShort)
+	}
+
+	accessToken, err := m.generateToken("access", time.Now().Add(m.accessTTL), userID)
+	if err != nil {
+		return "", "", err
+	}
+
+	refreshToken, err := m.generateToken("refresh", expiresAt, userID)
+	if err != nil {
+		return "", "", err
+	}
+
+	return accessToken, refreshToken, nil
+}
+
+func (m *WebClientMiddleware) ErrorLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next() // Process request
+
+		// After request
+		if len(c.Errors) > 0 {
+			for _, err := range c.Errors {
+				m.logger.Info("HTTP error",
+					zap.String("method", c.Request.Method),
+					zap.String("path", c.Request.URL.Path),
+					zap.String("client_ip", c.ClientIP()),
+					zap.Int("status_code", c.Writer.Status()),
+					zap.Error(err),
+				)
+			}
+		}
+	}
+}
+
 func (m *WebClientMiddleware) issueAccessCookie(c *gin.Context, userID int64) error {
 
-	accessExp := time.Now().Add(constants.AccessCookieTTL)
-	token, err := m.GenerateToken("access", accessExp, userID)
+	accessExp := time.Now().Add(m.accessTTL)
+	token, err := m.generateToken("access", accessExp, userID)
 	if err != nil {
 		return err
 	}
@@ -115,25 +168,7 @@ func (m *WebClientMiddleware) issueAccessCookie(c *gin.Context, userID int64) er
 	return nil
 }
 
-//func (m *WebClientMiddleware) issueRefreshCookie(c *gin.Context, userID int64, remember bool) error {
-//
-//	refreshExp := time.Now().Add(map[bool]time.Duration{
-//		true:  constants.RefreshCookieTTLLong,
-//		false: constants.RefreshCookieTTLShort,
-//	}[remember])
-//
-//	token, err := m.GenerateToken("refresh", refreshExp, userID)
-//	if err != nil {
-//		return err
-//	}
-//
-//	c.SetSameSite(http.SameSiteLaxMode)
-//	maxAge := int(time.Until(refreshExp).Seconds())
-//	c.SetCookie("refresh", token, maxAge, "/", m.CookieDomainForEnv(), m.CookieSecure(), true)
-//	return nil
-//}
-
-func (m *WebClientMiddleware) encodeWebClientUserID(userID int64) (string, error) {
+func (m *WebClientMiddleware) EncodeWebClientUserID(userID int64) (string, error) {
 	key := m.config.JWT.WebClientEncodeID
 	if len(key) != 32 {
 		return "", fmt.Errorf("encryption key must be 32 bytes long for AES-256")
@@ -163,7 +198,7 @@ func (m *WebClientMiddleware) encodeWebClientUserID(userID int64) (string, error
 	return encoded, nil
 }
 
-func (m *WebClientMiddleware) DecodeWebClientUserID(encodedString string) (int64, error) {
+func (m *WebClientMiddleware) decodeWebClientUserID(encodedString string) (int64, error) {
 	key := m.config.JWT.WebClientEncodeID
 	if len(key) != 32 {
 		return 0, fmt.Errorf("encryption key must be 32 bytes long for AES-256")
@@ -204,7 +239,7 @@ func (m *WebClientMiddleware) DecodeWebClientUserID(encodedString string) (int64
 	return intUserID, nil
 }
 
-func (m *WebClientMiddleware) GenerateToken(tokenType string, expiration time.Time, userID int64) (string, error) {
+func (m *WebClientMiddleware) generateToken(tokenType string, expiration time.Time, userID int64) (string, error) {
 	var jwtKey []byte
 	issuedAt := time.Now()
 
@@ -219,7 +254,7 @@ func (m *WebClientMiddleware) GenerateToken(tokenType string, expiration time.Ti
 	}
 
 	// Encrypt the user ID before embedding it into the token
-	encryptedUserID, err := m.encodeWebClientUserID(userID)
+	encryptedUserID, err := m.EncodeWebClientUserID(userID)
 	if err != nil {
 		return "", err
 	}
@@ -244,29 +279,7 @@ func (m *WebClientMiddleware) GenerateToken(tokenType string, expiration time.Ti
 	return signedToken, nil
 }
 
-func (m *WebClientMiddleware) GenerateLoginTokens(userID int64, rememberMe bool) (string, string, error) {
-
-	var expiresAt time.Time
-	if rememberMe {
-		expiresAt = time.Now().Add(1 * 24 * time.Hour) // Token expires in 1 day
-	} else {
-		expiresAt = time.Now().Add(1 * time.Hour) // Token expires in 1 hour
-	}
-
-	accessToken, err := m.GenerateToken("access", time.Now().Add(15*time.Minute), userID)
-	if err != nil {
-		return "", "", err
-	}
-
-	refreshToken, err := m.GenerateToken("refresh", expiresAt, userID)
-	if err != nil {
-		return "", "", err
-	}
-
-	return accessToken, refreshToken, nil
-}
-
-func (m *WebClientMiddleware) DecodeWebClientToken(tokenString string, cookieType string) (*WebClientUserClaim, error) {
+func (m *WebClientMiddleware) decodeWebClientToken(tokenString string, cookieType string) (*WebClientUserClaim, error) {
 	var secret string
 
 	switch cookieType {
@@ -301,23 +314,4 @@ func (m *WebClientMiddleware) DecodeWebClientToken(tokenString string, cookieTyp
 	}
 
 	return nil, nil
-}
-
-func (m *WebClientMiddleware) ErrorLogger() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Next() // Process request
-
-		// After request
-		if len(c.Errors) > 0 {
-			for _, err := range c.Errors {
-				m.logger.Info("HTTP error",
-					zap.String("method", c.Request.Method),
-					zap.String("path", c.Request.URL.Path),
-					zap.String("client_ip", c.ClientIP()),
-					zap.Int("status_code", c.Writer.Status()),
-					zap.Error(err),
-				)
-			}
-		}
-	}
 }

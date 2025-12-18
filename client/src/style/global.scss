@@ -96,3 +96,11 @@ html, body, #app {
 
 }
 
+.truncate-text {
+  display: block;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+

@@ -12,7 +12,6 @@ import vueHelper from "../../../utils/vue_helper.ts"
 import type {Account, AccountType} from "../../../models/account_models.ts"
 import currencyHelper from "../../../utils/currency_helper.ts";
 import {useConfirm} from "primevue/useconfirm";
-import toastHelper from "../../../utils/toast_helper.ts";
 import Decimal from "decimal.js";
 import ShowLoading from "../base/ShowLoading.vue";
 import dayjs from "dayjs";
@@ -306,7 +305,7 @@ async function confirmAdjustments() {
 async function manageRecord() {
 
     if (readOnly.value) {
-        toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
+        toastStore.infoResponseToast({title: "Not allowed", message: "This record is read only!"})
         return;
     }
 
@@ -321,7 +320,7 @@ async function manageRecord() {
       ) || null;
 
   if (!at) {
-    toastStore.errorResponseToast("Account type not found!");
+    toastStore.errorResponseToast({"title": "error", "message": "Account type not found!"});
     return;
   }
 
@@ -383,96 +382,161 @@ async function manageRecord() {
 </script>
 
 <template>
-
-    <div v-if="!initializing" class="flex flex-column gap-3 p-1">
-
-        <div v-if="!readOnly" class="flex flex-row w-full justify-content-center">
-          <div class="flex flex-column w-50">
-            <SelectButton
-                style="font-size: 0.875rem;" size="small"
-                v-model="selectedClassification" :options="['Asset', 'Liability']" :allowEmpty="false" />
-          </div>
-        </div>
-        <div v-else>
-           <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
-        </div>
-
-
-        <div class="flex flex-row w-full">
-          <div class="flex flex-column w-full">
-            <ValidationError :isRequired="true" :message="v$.record.name.$errors[0]?.$message">
-              <label>Name</label>
-            </ValidationError>
-            <InputText :readonly="readOnly" :disabled="readOnly" size="small" v-model="record.name"></InputText>
-          </div>
-        </div>
-
-        <div class="flex flex-column gap-1">
-          <ValidationError :isRequired="true" :message="v$.record.balance.$errors[0]?.$message">
-            <label>Current balance</label>
-          </ValidationError>
-          <InputNumber :readonly="readOnly" :disabled="readOnly" size="small" v-model="balanceNumber"
-                       mode="currency" currency="EUR" locale="de-DE" :min="selectedClassification === 'Asset' ? 0 : -999999999999999"
-                       placeholder="0,00 €" :minFractionDigits="2" :maxFractionDigits="2"
-                       @update:model-value="balanceAdjusted = true">
-          </InputNumber>
-        </div>
-
-        <div class="flex flex-row w-full">
-          <div class="flex flex-column gap-1 w-full">
-            <ValidationError :isRequired="true" :message="v$.record.account_type.type.$errors[0]?.$message">
-              <label>Type</label>
-            </ValidationError>
-            <AutoComplete :readonly="readOnly" :disabled="readOnly" size="small" v-model="formattedTypeModel" :suggestions="filteredAccountTypes"
-                          @complete="searchAccountType" placeholder="Select type" dropdown>
-              <template #option="slotProps">
-                <div class="flex items-center">
-                  {{ vueHelper.formatString(slotProps.option)}}
-                </div>
-              </template>
-            </AutoComplete>
-          </div>
-        </div>
-
-        <div class="flex flex-row gap-2 w-full">
-          <div class="flex flex-column gap-1 w-full">
-            <ValidationError :isRequired="true" :message="v$.record.account_type.sub_type.$errors[0]?.$message">
-              <label>Subtype</label>
-            </ValidationError>
-            <AutoComplete :readonly="readOnly" :disabled="!selectedType || readOnly "
-                size="small" v-model="formattedSubtypeModel" :suggestions="filteredSubtypeOptions"
-                @complete="searchSubtype" placeholder="Select subtype" dropdown>
-              <template #option="slotProps">
-                <div class="flex items-center">
-                  {{ vueHelper.formatString(slotProps.option)}}
-                </div>
-              </template>
-            </AutoComplete>
-          </div>
-        </div>
-
-        <div class="flex flex-row w-full">
-            <div class="flex flex-column gap-1 w-full">
-                <ValidationError :isRequired="true" :message="v$.record.opened_at.$errors[0]?.$message">
-                    <label>Opening date</label>
-                </ValidationError>
-                <DatePicker v-model="record.opened_at" date-format="dd/mm/yy"
-                            showIcon fluid iconDisplay="input" size="small"
-                            @update:model-value="asOfAdjusted = true"
-                />
-            </div>
-        </div>
-
-        <div class="flex flex-row gap-2 w-full">
-          <div class="flex flex-column w-full">
-            <Button v-if="!readOnly" class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' account'" @click="confirmAdjustments" style="height: 42px;" />
-          </div>
-        </div>
-
+  <div
+    v-if="!initializing"
+    class="flex flex-column gap-3 p-1"
+  >
+    <div
+      v-if="!readOnly"
+      class="flex flex-row w-full justify-content-center"
+    >
+      <div class="flex flex-column w-50">
+        <SelectButton
+          v-model="selectedClassification"
+          style="font-size: 0.875rem;"
+          size="small"
+          :options="['Asset', 'Liability']"
+          :allow-empty="false"
+        />
+      </div>
     </div>
-    <ShowLoading v-else :numFields="6" />
+    <div v-else>
+      <h5 style="color: var(--text-secondary)">
+        Read-only mode.
+      </h5>
+    </div>
 
 
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.record.name.$errors[0]?.$message"
+        >
+          <label>Name</label>
+        </ValidationError>
+        <InputText
+          v-model="record.name"
+          :readonly="readOnly"
+          :disabled="readOnly"
+          size="small"
+        />
+      </div>
+    </div>
+
+    <div class="flex flex-column gap-1">
+      <ValidationError
+        :is-required="true"
+        :message="v$.record.balance.$errors[0]?.$message"
+      >
+        <label>Current balance</label>
+      </ValidationError>
+      <InputNumber
+        v-model="balanceNumber"
+        :readonly="readOnly"
+        :disabled="readOnly"
+        size="small"
+        mode="currency"
+        currency="EUR"
+        locale="de-DE"
+        :min="selectedClassification === 'Asset' ? 0 : -999999999999999"
+        placeholder="0,00 €"
+        :min-fraction-digits="2"
+        :max-fraction-digits="2"
+        @update:model-value="balanceAdjusted = true"
+      />
+    </div>
+
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.record.account_type.type.$errors[0]?.$message"
+        >
+          <label>Type</label>
+        </ValidationError>
+        <AutoComplete
+          v-model="formattedTypeModel"
+          :readonly="readOnly"
+          :disabled="readOnly"
+          size="small"
+          :suggestions="filteredAccountTypes"
+          placeholder="Select type"
+          dropdown
+          @complete="searchAccountType"
+        >
+          <template #option="slotProps">
+            <div class="flex items-center">
+              {{ vueHelper.formatString(slotProps.option) }}
+            </div>
+          </template>
+        </AutoComplete>
+      </div>
+    </div>
+
+    <div class="flex flex-row gap-2 w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.record.account_type.sub_type.$errors[0]?.$message"
+        >
+          <label>Subtype</label>
+        </ValidationError>
+        <AutoComplete
+          v-model="formattedSubtypeModel"
+          :readonly="readOnly"
+          :disabled="!selectedType || readOnly "
+          size="small"
+          :suggestions="filteredSubtypeOptions"
+          placeholder="Select subtype"
+          dropdown
+          @complete="searchSubtype"
+        >
+          <template #option="slotProps">
+            <div class="flex items-center">
+              {{ vueHelper.formatString(slotProps.option) }}
+            </div>
+          </template>
+        </AutoComplete>
+      </div>
+    </div>
+
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.record.opened_at.$errors[0]?.$message"
+        >
+          <label>Opening date</label>
+        </ValidationError>
+        <DatePicker
+          v-model="record.opened_at"
+          date-format="dd/mm/yy"
+          show-icon
+          fluid
+          icon-display="input"
+          size="small"
+          @update:model-value="asOfAdjusted = true"
+        />
+      </div>
+    </div>
+
+    <div class="flex flex-row gap-2 w-full">
+      <div class="flex flex-column w-full">
+        <Button
+          v-if="!readOnly"
+          class="main-button"
+          :label="(mode == 'create' ? 'Add' : 'Update') + ' account'"
+          style="height: 42px;"
+          @click="confirmAdjustments"
+        />
+      </div>
+    </div>
+  </div>
+  <ShowLoading
+    v-else
+    :num-fields="6"
+  />
 </template>
 
 <style scoped>

@@ -169,62 +169,89 @@ const searchClassifications = (event: { query: string }) => {
 </script>
 
 <template>
-
-    <div v-if="!loading" class="flex flex-column gap-3 p-1">
-        <div class="flex flex-column gap-3 p-1">
-            <div class="flex flex-row w-full">
-                <div class="flex flex-column w-full gap-1">
-                    <ValidationError :isRequired="true" :message="v$.record.name.$errors[0]?.$message">
-                        <label>Name</label>
-                    </ValidationError>
-                    <InputText size="small" v-model="record.name"></InputText>
-                </div>
-            </div>
-
-            <div class="flex flex-row w-full">
-                <div class="flex flex-column w-full gap-1">
-                    <ValidationError :isRequired="false" :message="v$.record.description.$errors[0]?.$message">
-                        <label>Description</label>
-                    </ValidationError>
-                    <InputText size="small" v-model="record.description"></InputText>
-                </div>
-            </div>
-
-            <div class="flex flex-row w-full">
-                <div class="flex flex-column gap-1 w-full">
-                    <ValidationError :isRequired="true" :message="v$.record.classification.$errors[0]?.$message">
-                        <label>Classification</label>
-                    </ValidationError>
-                    <AutoComplete size="small" v-model="record.classification"
-                                  :suggestions="filteredClassifications" @complete="searchClassifications"
-                                  placeholder="Select classification" dropdown>
-                    </AutoComplete>
-                </div>
-            </div>
-
-            <div class="flex flex-row w-full">
-                <div class="flex flex-column gap-1 w-full">
-                    <label>Selected categories</label>
-                    <MultiSelect size="small" v-model="selectedCategories"
-                                 placeholder="Select categories"
-                                 :options="availableCategories" optionLabel="display_name"
-                    >
-                    </MultiSelect>
-                </div>
-            </div>
-
+  <div
+    v-if="!loading"
+    class="flex flex-column gap-3 p-1"
+  >
+    <div class="flex flex-column gap-3 p-1">
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column w-full gap-1">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.name.$errors[0]?.$message"
+          >
+            <label>Name</label>
+          </ValidationError>
+          <InputText
+            v-model="record.name"
+            size="small"
+          />
         </div>
+      </div>
 
-        <div class="flex flex-row gap-2 w-full">
-            <div class="flex flex-column w-full">
-                <Button class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' group'"
-                        @click="manageRecord" style="height: 42px;" />
-            </div>
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column w-full gap-1">
+          <ValidationError
+            :is-required="false"
+            :message="v$.record.description.$errors[0]?.$message"
+          >
+            <label>Description</label>
+          </ValidationError>
+          <InputText
+            v-model="record.description"
+            size="small"
+          />
         </div>
+      </div>
 
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.classification.$errors[0]?.$message"
+          >
+            <label>Classification</label>
+          </ValidationError>
+          <AutoComplete
+            v-model="record.classification"
+            size="small"
+            :suggestions="filteredClassifications"
+            placeholder="Select classification"
+            dropdown
+            @complete="searchClassifications"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <label>Selected categories</label>
+          <MultiSelect
+            v-model="selectedCategories"
+            size="small"
+            placeholder="Select categories"
+            :options="availableCategories"
+            option-label="display_name"
+          />
+        </div>
+      </div>
     </div>
-    <ShowLoading v-else :numFields="4" />
 
+    <div class="flex flex-row gap-2 w-full">
+      <div class="flex flex-column w-full">
+        <Button
+          class="main-button"
+          :label="(mode == 'create' ? 'Add' : 'Update') + ' group'"
+          style="height: 42px;"
+          @click="manageRecord"
+        />
+      </div>
+    </div>
+  </div>
+  <ShowLoading
+    v-else
+    :num-fields="4"
+  />
 </template>
 
 <style scoped>

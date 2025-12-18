@@ -63,3 +63,59 @@ func TestLocalMidnightUTC(t *testing.T) {
 		assert.Equal(t, 0, result.Hour())
 	})
 }
+
+func TestCalculateNextRun(t *testing.T) {
+	loc := time.UTC
+	current := time.Date(2025, time.January, 15, 10, 30, 0, 0, loc)
+
+	tests := []struct {
+		name      string
+		frequency string
+		want      time.Time
+	}{
+		{
+			name:      "weekly adds 7 days",
+			frequency: "weekly",
+			want:      current.AddDate(0, 0, 7),
+		},
+		{
+			name:      "biweekly adds 14 days",
+			frequency: "biweekly",
+			want:      current.AddDate(0, 0, 14),
+		},
+		{
+			name:      "monthly adds 1 month",
+			frequency: "monthly",
+			want:      current.AddDate(0, 1, 0),
+		},
+		{
+			name:      "quarterly adds 3 months",
+			frequency: "quarterly",
+			want:      current.AddDate(0, 3, 0),
+		},
+		{
+			name:      "annually adds 1 year",
+			frequency: "annually",
+			want:      current.AddDate(1, 0, 0),
+		},
+		{
+			name:      "unknown defaults to monthly",
+			frequency: "something-else",
+			want:      current.AddDate(0, 1, 0),
+		},
+		{
+			name:      "empty defaults to monthly",
+			frequency: "",
+			want:      current.AddDate(0, 1, 0),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := utils.CalculateNextRun(current, tc.frequency)
+			if !got.Equal(tc.want) {
+				t.Fatalf("CalculateNextRun(%v, %q) = %v; want %v", current, tc.frequency, got, tc.want)
+			}
+		})
+	}
+}

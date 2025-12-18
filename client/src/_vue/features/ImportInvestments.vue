@@ -5,7 +5,6 @@ import type {Account} from "../../models/account_models.ts";
 import {useDataStore} from "../../services/stores/data_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import {useAccountStore} from "../../services/stores/account_store.ts";
-import toastHelper from "../../utils/toast_helper.ts";
 import type {CustomImportValidationResponse, Import} from "../../models/dataio_models.ts";
 import ImportTransferMapping from "../components/base/ImportTransferMapping.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
@@ -54,7 +53,7 @@ onMounted(async () => {
 
         checkingAccs.value = await accStore.getAccountsBySubtype("checking");
         if (checkingAccs.value.length == 0) {
-            toastStore.infoResponseToast(toastHelper.formatInfoToast("No accounts", "Please create at least one checking account"));
+            toastStore.infoResponseToast({"title": "No accounts", "message": "Please create at least one checking account"});
         }
         const [investments, crypto] = await Promise.all([
             accStore.getAccountsByType("investment"),
@@ -68,9 +67,7 @@ onMounted(async () => {
         )
 
         if (investmentAccs.value.length === 0) {
-            toastStore.infoResponseToast(
-                toastHelper.formatInfoToast("No accounts", "Please create at least one investment or crypto account")
-            )
+            toastStore.infoResponseToast({"title": "No accounts", "message": "Please create at least one investment or crypto account"})
         }
     } catch (e) {
         toastStore.errorResponseToast(e);
@@ -121,7 +118,7 @@ function searchAccount(event: { query: string }, accType: string) {
 function resetWizard() {
 
     if(transfering.value) {
-        toastStore.infoResponseToast({"Title": "Unavailable", "Message": "An operation is currently being executed!"})
+        toastStore.infoResponseToast({"title": "Unavailable", "message": "An operation is currently being executed!"})
     }
     // clear local state
     selectedCheckingAcc.value = null;
@@ -132,21 +129,26 @@ function resetWizard() {
 async function transferInvestments() {
 
     if (!selectedImport.value?.id) {
-        toastStore.errorResponseToast("Missing import ID");
+        toastStore.errorResponseToast({"title": "Error", "message": "Missing import ID"});
         return;
     }
 
     if (Object.keys(investmentMappings.value).length === 0) {
-        toastStore.errorResponseToast("Please set up your investment mappings first")
+        toastStore.errorResponseToast({"title": "Error", "message": "Please set up your investment mappings first"})
         return
     }
 
     transfering.value = true
 
+    if (!selectedCheckingAcc.value?.id) {
+        toastStore.errorResponseToast({"title": "Error", "message": "No checking account"});
+        return;
+    }
+
     try {
         const payload = {
             import_id: selectedImport.value.id,
-            checking_acc_id: selectedCheckingAcc.value?.id!,
+            checking_acc_id: selectedCheckingAcc.value.id,
             investment_mappings: Object.entries(investmentMappings.value).map(
                 ([name, account_id]) => ({ name, account_id })
             ),
@@ -155,12 +157,12 @@ async function transferInvestments() {
         const res = await dataStore.transferInvestmentsFromImport(payload);
         toastStore.successResponseToast(res);
 
-        resetWizard();
         emit("completeTransfer");
     } catch (error) {
         toastStore.errorResponseToast(error)
     } finally {
-        transfering.value = false
+        transfering.value = false;
+        resetWizard();
     }
 }
 
@@ -178,59 +180,101 @@ defineExpose({isDisabled, transferInvestments})
 </script>
 
 <template>
-    <div v-if="!transfering" class="flex flex-column w-full justify-content-center align-items-center gap-3">
-        <h3>Map investments from imported data</h3>
-        <span>Select import</span>
+  <div
+    v-if="!transfering"
+    class="flex flex-column w-full justify-content-center align-items-center gap-3"
+  >
+    <h3>Map investments from imported data</h3>
+    <span>Select import</span>
 
-        <Select size="small"
-                style="width: 450px;"
-                v-model="selectedImport"
-                :options="imports"
-                optionLabel="name"
-                placeholder="Select import"
-        />
-        <div v-if="loadingValidation" class="flex flex-column w-full p-2">
-            <ShowLoading :numFields="5" />
-        </div>
-        <div v-else-if="validatedResponse && validatedResponse.filtered_count == 0" class="flex flex-column w-full p-2 align-items-center">
-            <span style="color: var(--text-secondary)">No investments were found in the provided import!</span>
-        </div>
-        <div v-else-if="validatedResponse">
-            <div class="flex flex-column w-full gap-3 justify-content-center align-items-center">
-            <div class="flex flex-column w-full gap-2 align-items-center justify-content-center">
-                <span class="text-sm" style="color: var(--text-secondary)">Select an account which will receive the import transactions.</span>
-                <AutoComplete size="small"
-                              v-model="selectedCheckingAcc" :suggestions="filteredCheckingAccs"
-                              @complete="searchAccount($event, 'checking')" optionLabel="name" forceSelection
-                              placeholder="Select checking account" dropdown />
-                <span class="text-sm" v-if="!selectedCheckingAcc" style="color: var(--text-secondary)">Please select an account.</span>
-                <span class="text-sm" v-else style="color: var(--text-secondary)">Account's opening date is valid.</span>
-            </div>
-
-            <span>---</span>
-
-            <h4>Validation response</h4>
-            <span class="text-sm" style="color: var(--text-secondary)">General information about your import.</span>
-            <div class="flex flex-row w-full gap-2 align-items-center justify-content-center">
-                <span>Transfer count: </span>
-                <span>{{ validatedResponse.filtered_count }} </span>
-            </div>
-
-            <span>---</span>
-
-            <h4>Investment mappings</h4>
-            <div v-if="validatedResponse.filtered_count > 0" class="flex flex-row w-full gap-3 align-items-center">
-                <ImportTransferMapping  v-model:modelValue="investmentMappings"
-                                          :importedCategories="validatedResponse.categories"
-                                          :accounts="investmentAccs" @save="onSaveMapping"/>
-            </div>
-        </div>
-        </div>
-        <div v-else-if="!selectedImport" class="flex flex-column w-full p-2 w-full align-items-center">
-            <span style="color: var(--text-secondary)">Please select an import to begin.</span>
-        </div>
+    <Select
+      v-model="selectedImport"
+      size="small"
+      style="width: 450px;"
+      :options="imports"
+      option-label="name"
+      placeholder="Select import"
+    />
+    <div
+      v-if="loadingValidation"
+      class="flex flex-column w-full p-2"
+    >
+      <ShowLoading :num-fields="5" />
     </div>
-    <ShowLoading v-else :numFields="5" />
+    <div
+      v-else-if="validatedResponse && validatedResponse.filtered_count == 0"
+      class="flex flex-column w-full p-2 align-items-center"
+    >
+      <span style="color: var(--text-secondary)">No investments were found in the provided import!</span>
+    </div>
+    <div v-else-if="validatedResponse">
+      <div class="flex flex-column w-full gap-3 justify-content-center align-items-center">
+        <div class="flex flex-column w-full gap-2 align-items-center justify-content-center">
+          <span
+            class="text-sm"
+            style="color: var(--text-secondary)"
+          >Select an account which will receive the import transactions.</span>
+          <AutoComplete
+            v-model="selectedCheckingAcc"
+            size="small"
+            :suggestions="filteredCheckingAccs"
+            option-label="name"
+            force-selection
+            placeholder="Select checking account"
+            dropdown
+            @complete="searchAccount($event, 'checking')"
+          />
+          <span
+            v-if="!selectedCheckingAcc"
+            class="text-sm"
+            style="color: var(--text-secondary)"
+          >Please select an account.</span>
+          <span
+            v-else
+            class="text-sm"
+            style="color: var(--text-secondary)"
+          >Account's opening date is valid.</span>
+        </div>
+
+        <span>---</span>
+
+        <h4>Validation response</h4>
+        <span
+          class="text-sm"
+          style="color: var(--text-secondary)"
+        >General information about your import.</span>
+        <div class="flex flex-row w-full gap-2 align-items-center justify-content-center">
+          <span>Transfer count: </span>
+          <span>{{ validatedResponse.filtered_count }} </span>
+        </div>
+
+        <span>---</span>
+
+        <h4>Investment mappings</h4>
+        <div
+          v-if="validatedResponse.filtered_count > 0"
+          class="flex flex-row w-full gap-3 align-items-center"
+        >
+          <ImportTransferMapping
+            v-model:model-value="investmentMappings"
+            :imported-categories="validatedResponse.categories"
+            :accounts="investmentAccs"
+            @save="onSaveMapping"
+          />
+        </div>
+      </div>
+    </div>
+    <div
+      v-else-if="!selectedImport"
+      class="flex flex-column w-full p-2 w-full align-items-center"
+    >
+      <span style="color: var(--text-secondary)">Please select an import to begin.</span>
+    </div>
+  </div>
+  <ShowLoading
+    v-else
+    :num-fields="5"
+  />
 </template>
 
 <style scoped>

@@ -50,24 +50,35 @@ function remove(value: any) {
   <div class="flex flex-column gap-2">
     <label class="text-sm">{{ label }}</label>
     <MultiSelect
-        v-model="internal"
-        :options="normalizedOptions"
-        optionLabel="label"
-        optionValue="value"
-        :filter="true"
-        :filterFields="['label']"
-        :filterMatchMode="'contains'"
-        :placeholder="`Select ${label}`"
-        display="comma"
-        :maxSelectedLabels="1"
-        selectedItemsLabel="{0} selected"
-        class="w-full"
+      v-model="internal"
+      :options="normalizedOptions"
+      option-label="label"
+      option-value="value"
+      :filter="true"
+      :filter-fields="['label']"
+      :filter-match-mode="'contains'"
+      :placeholder="`Select ${label}`"
+      display="comma"
+      :max-selected-labels="1"
+      selected-items-label="{0} selected"
+      class="w-full"
     />
 
-    <div v-if="selectedChips.length" class="flex flex-wrap gap-1" style="max-height: 125px; overflow-y: auto;">
-      <Chip v-for="s in selectedChips" :key="String(s.value)" class="chip">
+    <div
+      v-if="selectedChips.length"
+      class="flex flex-wrap gap-1"
+      style="max-height: 125px; overflow-y: auto;"
+    >
+      <Chip
+        v-for="s in selectedChips"
+        :key="String(s.value)"
+        class="chip"
+      >
         <span class="chip-text">{{ s.label }}</span>
-        <i class="pi pi-times chip-x" @click="remove(s.value)" />
+        <i
+          class="pi pi-times chip-x"
+          @click="remove(s.value)"
+        />
       </Chip>
     </div>
   </div>

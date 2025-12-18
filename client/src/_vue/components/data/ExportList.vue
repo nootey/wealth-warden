@@ -59,8 +59,8 @@ async function deleteConfirmation(id: number, name: string) {
 
 async function downloadExport(id: number) {
     try {
-        let response = await dataStore.downloadExport(id);
-        toastStore.successResponseToast(response);
+        await dataStore.downloadExport(id);
+        toastStore.successResponseToast({title: "Success", message: `Data exported`});
         await getData();
     } catch (error) {
         toastStore.errorResponseToast(error);
@@ -89,41 +89,65 @@ async function deleteRecord(id: number) {
 </script>
 
 <template>
-    <div class="w-full flex flex-row gap-2 justify-content-center">
-        <DataTable dataKey="id" class="w-full enhanced-table" :loading="loading" :value="exports"
-                   scrollable scroll-height="50vh" columnResizeMode="fit"
-                   scrollDirection="both">
-            <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-            <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-            <Column header="Actions">
-                <template #body="{ data }">
-                    <div class="flex flex-row align-items-center gap-2">
-                        <i v-if="hasPermission('manage_data')"
-                           class="pi pi-download hover-icon" style="font-size: 0.875rem;"
-                           @click="downloadExport(data?.id)"></i>
-                        <i v-if="hasPermission('manage_data')"
-                           class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
-                           @click="deleteConfirmation(data?.id, data?.name)"></i>
-                    </div>
-                </template>
-            </Column>
-            <Column v-for="col of activeColumns" :key="col.field" :header="col.header" :field="col.field"
-                    :headerClass="col.hideOnMobile ? 'mobile-hide ' : ''"
-                    :bodyClass="col.hideOnMobile ? 'mobile-hide ' : ''">
-                <template #body="{ data, field }">
-                    <template v-if="field === 'amount'">
-                        {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
-                    </template>
-                    <template v-else-if="field === 'started_at' || field === 'completed_at'">
-                        {{ dateHelper.formatDate(data[field], true) }}
-                    </template>
-                    <template v-else>
-                        {{ data[field] }}
-                    </template>
-                </template>
-            </Column>
-        </DataTable>
-    </div>
+  <div class="w-full flex flex-row gap-2 justify-content-center">
+    <DataTable
+      data-key="id"
+      class="w-full enhanced-table"
+      :loading="loading"
+      :value="exports"
+      scrollable
+      scroll-height="50vh"
+      column-resize-mode="fit"
+      scroll-direction="both"
+    >
+      <template #empty>
+        <div style="padding: 10px;">
+          No records found.
+        </div>
+      </template>
+      <template #loading>
+        <LoadingSpinner />
+      </template>
+      <Column header="Actions">
+        <template #body="{ data }">
+          <div class="flex flex-row align-items-center gap-2">
+            <i
+              v-if="hasPermission('manage_data')"
+              class="pi pi-download hover-icon"
+              style="font-size: 0.875rem;"
+              @click="downloadExport(data?.id)"
+            />
+            <i
+              v-if="hasPermission('manage_data')"
+              class="pi pi-trash hover-icon"
+              style="font-size: 0.875rem; color: var(--p-red-300);"
+              @click="deleteConfirmation(data?.id, data?.name)"
+            />
+          </div>
+        </template>
+      </Column>
+      <Column
+        v-for="col of activeColumns"
+        :key="col.field"
+        :header="col.header"
+        :field="col.field"
+        :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+        :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+      >
+        <template #body="{ data }">
+          <template v-if="col.field === 'amount'">
+            {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
+          </template>
+          <template v-else-if="col.field === 'started_at' || col.field === 'completed_at'">
+            {{ dateHelper.formatDate(data[col.field], true) }}
+          </template>
+          <template v-else>
+            {{ data[col.field] }}
+          </template>
+        </template>
+      </Column>
+    </DataTable>
+  </div>
 </template>
 
 <style scoped>

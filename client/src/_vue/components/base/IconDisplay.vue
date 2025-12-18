@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import {ref} from "vue";
 
-defineProps(['event']);
+defineProps<{
+    event?: string;
+}>();
 
 const properties = ref<any>({
   event: {
@@ -16,31 +18,46 @@ const properties = ref<any>({
   },
 });
 
-function getProperty(property: string, type: any, value: any): string|null {
-  if (property && type && value && properties.value.hasOwnProperty(property) &&
-      properties.value[property].hasOwnProperty(type) &&
-      properties.value[property][type].hasOwnProperty(value)) {
-    return properties.value[property][type][value];
-  } else if (property && type) {
-    return type;
-  }
-  return null;
+function getProperty(property: string, type: string, value: string): string|null {
+    if (property && type && value &&
+        Object.prototype.hasOwnProperty.call(properties.value, property) &&
+        Object.prototype.hasOwnProperty.call(properties.value[property], type) &&
+        Object.prototype.hasOwnProperty.call(properties.value[property][type], value)) {
+        return properties.value[property][type][value];
+    } else if (property && type) {
+        return type;
+    }
+    return null;
 }
+
 </script>
 
 <template>
-  <div v-if="event" class="flex flex-row align-items-center">
-    <i v-tooltip="getProperty('event', event, ``)" class="mobile-hide">
-            <span class="flex flex-row align-items-center justify-items-center text-center custom-marker shadow-2"
-                  style="background: var(--background-primary); color: var(--text-primary);">
-                <span :class="getProperty('event', event, 'icon')" style="font-size: 0.875rem;"></span>
-            </span>
+  <div
+    v-if="event"
+    class="flex flex-row align-items-center"
+  >
+    <i
+      v-tooltip="getProperty('event', event, ``)"
+      class="mobile-hide"
+    >
+      <span
+        class="flex flex-row align-items-center justify-items-center text-center custom-marker shadow-2"
+        style="background: var(--background-primary); color: var(--text-primary);"
+      >
+        <span
+          :class="getProperty('event', event, 'icon')"
+          style="font-size: 0.875rem;"
+        />
+      </span>
     </i>
-    <div  class="event-text">
+    <div class="event-text">
       {{ event }}
     </div>
   </div>
-  <div v-else> {{ "none"}} </div>
+  <div v-else>
+    {{ "none" }}
+  </div>
 </template>
 
 <style scoped lang="scss">

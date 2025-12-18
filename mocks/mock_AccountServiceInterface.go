@@ -248,6 +248,65 @@ func (_c *MockAccountServiceInterface_FetchAccountByName_Call) RunAndReturn(run 
 	return _c
 }
 
+// FetchAccountTypesWithoutDefaults provides a mock function with given fields: ctx, userID
+func (_m *MockAccountServiceInterface) FetchAccountTypesWithoutDefaults(ctx context.Context, userID int64) ([]models.AccountType, error) {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FetchAccountTypesWithoutDefaults")
+	}
+
+	var r0 []models.AccountType
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) ([]models.AccountType, error)); ok {
+		return rf(ctx, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) []models.AccountType); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AccountType)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FetchAccountTypesWithoutDefaults'
+type MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call struct {
+	*mock.Call
+}
+
+// FetchAccountTypesWithoutDefaults is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+func (_e *MockAccountServiceInterface_Expecter) FetchAccountTypesWithoutDefaults(ctx interface{}, userID interface{}) *MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call {
+	return &MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call{Call: _e.mock.On("FetchAccountTypesWithoutDefaults", ctx, userID)}
+}
+
+func (_c *MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call) Run(run func(ctx context.Context, userID int64)) *MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call) Return(_a0 []models.AccountType, _a1 error) *MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call) RunAndReturn(run func(context.Context, int64) ([]models.AccountType, error)) *MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FetchAccountsBySubtype provides a mock function with given fields: ctx, userID, subtype
 func (_m *MockAccountServiceInterface) FetchAccountsBySubtype(ctx context.Context, userID int64, subtype string) ([]models.Account, error) {
 	ret := _m.Called(ctx, userID, subtype)
@@ -439,6 +498,65 @@ func (_c *MockAccountServiceInterface_FetchAccountsPaginated_Call) RunAndReturn(
 	return _c
 }
 
+// FetchAccountsWithDefaults provides a mock function with given fields: ctx, userID
+func (_m *MockAccountServiceInterface) FetchAccountsWithDefaults(ctx context.Context, userID int64) ([]models.Account, error) {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FetchAccountsWithDefaults")
+	}
+
+	var r0 []models.Account
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) ([]models.Account, error)); ok {
+		return rf(ctx, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) []models.Account); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.Account)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAccountServiceInterface_FetchAccountsWithDefaults_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FetchAccountsWithDefaults'
+type MockAccountServiceInterface_FetchAccountsWithDefaults_Call struct {
+	*mock.Call
+}
+
+// FetchAccountsWithDefaults is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+func (_e *MockAccountServiceInterface_Expecter) FetchAccountsWithDefaults(ctx interface{}, userID interface{}) *MockAccountServiceInterface_FetchAccountsWithDefaults_Call {
+	return &MockAccountServiceInterface_FetchAccountsWithDefaults_Call{Call: _e.mock.On("FetchAccountsWithDefaults", ctx, userID)}
+}
+
+func (_c *MockAccountServiceInterface_FetchAccountsWithDefaults_Call) Run(run func(ctx context.Context, userID int64)) *MockAccountServiceInterface_FetchAccountsWithDefaults_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_FetchAccountsWithDefaults_Call) Return(_a0 []models.Account, _a1 error) *MockAccountServiceInterface_FetchAccountsWithDefaults_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_FetchAccountsWithDefaults_Call) RunAndReturn(run func(context.Context, int64) ([]models.Account, error)) *MockAccountServiceInterface_FetchAccountsWithDefaults_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FetchAllAccountTypes provides a mock function with given fields: ctx
 func (_m *MockAccountServiceInterface) FetchAllAccountTypes(ctx context.Context) ([]models.AccountType, error) {
 	ret := _m.Called(ctx)
@@ -497,9 +615,16 @@ func (_c *MockAccountServiceInterface_FetchAllAccountTypes_Call) RunAndReturn(ru
 	return _c
 }
 
-// FetchAllAccounts provides a mock function with given fields: ctx, userID, includeInactive
-func (_m *MockAccountServiceInterface) FetchAllAccounts(ctx context.Context, userID int64, includeInactive bool) ([]models.Account, error) {
-	ret := _m.Called(ctx, userID, includeInactive)
+// FetchAllAccounts provides a mock function with given fields: ctx, userID, includeInactive, options
+func (_m *MockAccountServiceInterface) FetchAllAccounts(ctx context.Context, userID int64, includeInactive bool, options ...bool) ([]models.Account, error) {
+	_va := make([]interface{}, len(options))
+	for _i := range options {
+		_va[_i] = options[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, userID, includeInactive)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FetchAllAccounts")
@@ -507,19 +632,19 @@ func (_m *MockAccountServiceInterface) FetchAllAccounts(ctx context.Context, use
 
 	var r0 []models.Account
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, bool) ([]models.Account, error)); ok {
-		return rf(ctx, userID, includeInactive)
+	if rf, ok := ret.Get(0).(func(context.Context, int64, bool, ...bool) ([]models.Account, error)); ok {
+		return rf(ctx, userID, includeInactive, options...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, int64, bool) []models.Account); ok {
-		r0 = rf(ctx, userID, includeInactive)
+	if rf, ok := ret.Get(0).(func(context.Context, int64, bool, ...bool) []models.Account); ok {
+		r0 = rf(ctx, userID, includeInactive, options...)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.Account)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, int64, bool) error); ok {
-		r1 = rf(ctx, userID, includeInactive)
+	if rf, ok := ret.Get(1).(func(context.Context, int64, bool, ...bool) error); ok {
+		r1 = rf(ctx, userID, includeInactive, options...)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -536,13 +661,21 @@ type MockAccountServiceInterface_FetchAllAccounts_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - includeInactive bool
-func (_e *MockAccountServiceInterface_Expecter) FetchAllAccounts(ctx interface{}, userID interface{}, includeInactive interface{}) *MockAccountServiceInterface_FetchAllAccounts_Call {
-	return &MockAccountServiceInterface_FetchAllAccounts_Call{Call: _e.mock.On("FetchAllAccounts", ctx, userID, includeInactive)}
+//   - options ...bool
+func (_e *MockAccountServiceInterface_Expecter) FetchAllAccounts(ctx interface{}, userID interface{}, includeInactive interface{}, options ...interface{}) *MockAccountServiceInterface_FetchAllAccounts_Call {
+	return &MockAccountServiceInterface_FetchAllAccounts_Call{Call: _e.mock.On("FetchAllAccounts",
+		append([]interface{}{ctx, userID, includeInactive}, options...)...)}
 }
 
-func (_c *MockAccountServiceInterface_FetchAllAccounts_Call) Run(run func(ctx context.Context, userID int64, includeInactive bool)) *MockAccountServiceInterface_FetchAllAccounts_Call {
+func (_c *MockAccountServiceInterface_FetchAllAccounts_Call) Run(run func(ctx context.Context, userID int64, includeInactive bool, options ...bool)) *MockAccountServiceInterface_FetchAllAccounts_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(int64), args[2].(bool))
+		variadicArgs := make([]bool, len(args)-3)
+		for i, a := range args[3:] {
+			if a != nil {
+				variadicArgs[i] = a.(bool)
+			}
+		}
+		run(args[0].(context.Context), args[1].(int64), args[2].(bool), variadicArgs...)
 	})
 	return _c
 }
@@ -552,7 +685,7 @@ func (_c *MockAccountServiceInterface_FetchAllAccounts_Call) Return(_a0 []models
 	return _c
 }
 
-func (_c *MockAccountServiceInterface_FetchAllAccounts_Call) RunAndReturn(run func(context.Context, int64, bool) ([]models.Account, error)) *MockAccountServiceInterface_FetchAllAccounts_Call {
+func (_c *MockAccountServiceInterface_FetchAllAccounts_Call) RunAndReturn(run func(context.Context, int64, bool, ...bool) ([]models.Account, error)) *MockAccountServiceInterface_FetchAllAccounts_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -823,6 +956,54 @@ func (_c *MockAccountServiceInterface_SaveAccountProjection_Call) RunAndReturn(r
 	return _c
 }
 
+// SetDefaultAccount provides a mock function with given fields: ctx, userID, accountID
+func (_m *MockAccountServiceInterface) SetDefaultAccount(ctx context.Context, userID int64, accountID int64) error {
+	ret := _m.Called(ctx, userID, accountID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SetDefaultAccount")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64) error); ok {
+		r0 = rf(ctx, userID, accountID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAccountServiceInterface_SetDefaultAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetDefaultAccount'
+type MockAccountServiceInterface_SetDefaultAccount_Call struct {
+	*mock.Call
+}
+
+// SetDefaultAccount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - accountID int64
+func (_e *MockAccountServiceInterface_Expecter) SetDefaultAccount(ctx interface{}, userID interface{}, accountID interface{}) *MockAccountServiceInterface_SetDefaultAccount_Call {
+	return &MockAccountServiceInterface_SetDefaultAccount_Call{Call: _e.mock.On("SetDefaultAccount", ctx, userID, accountID)}
+}
+
+func (_c *MockAccountServiceInterface_SetDefaultAccount_Call) Run(run func(ctx context.Context, userID int64, accountID int64)) *MockAccountServiceInterface_SetDefaultAccount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_SetDefaultAccount_Call) Return(_a0 error) *MockAccountServiceInterface_SetDefaultAccount_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_SetDefaultAccount_Call) RunAndReturn(run func(context.Context, int64, int64) error) *MockAccountServiceInterface_SetDefaultAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ToggleAccountActiveState provides a mock function with given fields: ctx, userID, id
 func (_m *MockAccountServiceInterface) ToggleAccountActiveState(ctx context.Context, userID int64, id int64) error {
 	ret := _m.Called(ctx, userID, id)
@@ -867,6 +1048,54 @@ func (_c *MockAccountServiceInterface_ToggleAccountActiveState_Call) Return(_a0 
 }
 
 func (_c *MockAccountServiceInterface_ToggleAccountActiveState_Call) RunAndReturn(run func(context.Context, int64, int64) error) *MockAccountServiceInterface_ToggleAccountActiveState_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UnsetDefaultAccount provides a mock function with given fields: ctx, userID, accountID
+func (_m *MockAccountServiceInterface) UnsetDefaultAccount(ctx context.Context, userID int64, accountID int64) error {
+	ret := _m.Called(ctx, userID, accountID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UnsetDefaultAccount")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64) error); ok {
+		r0 = rf(ctx, userID, accountID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAccountServiceInterface_UnsetDefaultAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UnsetDefaultAccount'
+type MockAccountServiceInterface_UnsetDefaultAccount_Call struct {
+	*mock.Call
+}
+
+// UnsetDefaultAccount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - accountID int64
+func (_e *MockAccountServiceInterface_Expecter) UnsetDefaultAccount(ctx interface{}, userID interface{}, accountID interface{}) *MockAccountServiceInterface_UnsetDefaultAccount_Call {
+	return &MockAccountServiceInterface_UnsetDefaultAccount_Call{Call: _e.mock.On("UnsetDefaultAccount", ctx, userID, accountID)}
+}
+
+func (_c *MockAccountServiceInterface_UnsetDefaultAccount_Call) Run(run func(ctx context.Context, userID int64, accountID int64)) *MockAccountServiceInterface_UnsetDefaultAccount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_UnsetDefaultAccount_Call) Return(_a0 error) *MockAccountServiceInterface_UnsetDefaultAccount_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_UnsetDefaultAccount_Call) RunAndReturn(run func(context.Context, int64, int64) error) *MockAccountServiceInterface_UnsetDefaultAccount_Call {
 	_c.Call.Return(run)
 	return _c
 }

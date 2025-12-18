@@ -94,84 +94,128 @@ async function updateSettings() {
 </script>
 
 <template>
-    <div class="flex flex-column w-full gap-3">
-        <SettingsSkeleton class="w-full">
-            <div class="w-full flex flex-column gap-3 p-2">
-                <div class="w-full flex flex-column gap-2">
-                    <h3>Profile</h3>
-                    <h5 style="color: var(--text-secondary)">Customize how your account details.</h5>
-                </div>
+  <div class="flex flex-column w-full gap-3">
+    <SettingsSkeleton class="w-full">
+      <div class="w-full flex flex-column gap-3 p-2">
+        <div class="w-full flex flex-column gap-2">
+          <h3>Profile</h3>
+          <h5 style="color: var(--text-secondary)">
+            Customize how your account details.
+          </h5>
+        </div>
 
-                <div class="flex flex-row gap-2 w-50" style="margin: 0 auto;">
-                    <div class="flex flex-column gap-3 justify-content-center align-items-center">
-                        <div class="w-8rem h-8rem border-circle border-1 surface-border flex align-items-center justify-content-center cursor-pointer">
-                            <i class="pi pi-image text-2xl"></i>
-                        </div>
-
-                        <Button class="main-button" label="Upload photo" icon="pi pi-image"></Button>
-
-                        <span style="color: var(--text-secondary)">JPG or PNG. 5MB max.</span>
-                    </div>
-                </div>
-
-
-                <div v-if="!loading && currentUser" class="w-full flex flex-column gap-2 w-full">
-                    <div class="flex flex-row w-full">
-                        <div class="flex flex-column w-full">
-                        <ValidationError :isRequired="true" :message="v$.currentUser.email.$errors[0]?.$message">
-                            <label>Email</label>
-                        </ValidationError>
-                        <InputText class="w-full" v-model="currentUser.email" @update:model-value="emailUpdated = true"/>
-                        </div>
-                    </div>
-                    <div class="flex flex-row w-full">
-                        <div class="flex flex-column w-full">
-                            <ValidationError :isRequired="true" :message="v$.currentUser.display_name.$errors[0]?.$message">
-                                <label>Display name</label>
-                            </ValidationError>
-                            <InputText class="w-full" id="in_label" v-model="currentUser.display_name" />
-                        </div>
-                    </div>
-                    <div class="w-full flex flex-row gap-2 w-full">
-                        <Button class="main-button ml-auto" label="Save" @click="confirmUpdateSettings"></Button>
-                    </div>
-                </div>
-                <ShowLoading v-else :numFields="2" />
-
-
+        <div
+          class="flex flex-row gap-2 w-50"
+          style="margin: 0 auto;"
+        >
+          <div class="flex flex-column gap-3 justify-content-center align-items-center">
+            <div class="w-8rem h-8rem border-circle border-1 surface-border flex align-items-center justify-content-center cursor-pointer">
+              <i class="pi pi-image text-2xl" />
             </div>
-        </SettingsSkeleton>
 
-        <SettingsSkeleton class="w-full">
-            <div class="w-full flex flex-column gap-3 p-2">
-                <div class="w-full flex flex-column gap-2">
-                    <h3>Danger zone</h3>
-                    <h5 style="color: var(--text-secondary)">Thread carefully.</h5>
-                </div>
+            <Button
+              class="main-button"
+              label="Upload photo"
+              icon="pi pi-image"
+            />
 
-                <div class="w-full flex flex-row gap-3 align-items-center">
-                    <div class="flex flex-column w-full">
-                        <h4>Reset account</h4>
-                        <h5 style="color: var(--text-secondary)">Resetting your account will delete all your accounts, categories, and other data, but keep your user account intact.</h5>
-                    </div>
-                    <div class="flex flex-column w-3">
-                        <Button size="small" label="Reset account" class="delete-button"></Button>
-                    </div>
-                </div>
+            <span style="color: var(--text-secondary)">JPG or PNG. 5MB max.</span>
+          </div>
+        </div>
 
-                <div class="w-full flex flex-row gap-3 align-items-center">
-                    <div class="flex flex-column w-full">
-                        <h4>Delete account</h4>
-                        <h5 style="color: var(--text-secondary)">Deleting your account will permanently remove all your data and cannot be undone.</h5>
-                    </div>
-                    <div class="flex flex-column w-3">
-                        <Button size="small" label="Delete account" class="delete-button"></Button>
-                    </div>
-                </div>
 
+        <div
+          v-if="!loading && currentUser"
+          class="w-full flex flex-column gap-2 w-full"
+        >
+          <div class="flex flex-row w-full">
+            <div class="flex flex-column w-full">
+              <ValidationError
+                :is-required="true"
+                :message="v$.currentUser.email.$errors[0]?.$message"
+              >
+                <label>Email</label>
+              </ValidationError>
+              <InputText
+                v-model="currentUser.email"
+                class="w-full"
+                @update:model-value="emailUpdated = true"
+              />
             </div>
-        </SettingsSkeleton>
-    </div>
+          </div>
+          <div class="flex flex-row w-full">
+            <div class="flex flex-column w-full">
+              <ValidationError
+                :is-required="true"
+                :message="v$.currentUser.display_name.$errors[0]?.$message"
+              >
+                <label>Display name</label>
+              </ValidationError>
+              <InputText
+                id="in_label"
+                v-model="currentUser.display_name"
+                class="w-full"
+              />
+            </div>
+          </div>
+          <div class="w-full flex flex-row gap-2 w-full">
+            <Button
+              class="main-button ml-auto"
+              label="Save"
+              @click="confirmUpdateSettings"
+            />
+          </div>
+        </div>
+        <ShowLoading
+          v-else
+          :num-fields="2"
+        />
+      </div>
+    </SettingsSkeleton>
+
+    <SettingsSkeleton class="w-full">
+      <div class="w-full flex flex-column gap-3 p-2">
+        <div class="w-full flex flex-column gap-2">
+          <h3>Danger zone</h3>
+          <h5 style="color: var(--text-secondary)">
+            Thread carefully.
+          </h5>
+        </div>
+
+        <div class="w-full flex flex-row gap-3 align-items-center">
+          <div class="flex flex-column w-full">
+            <h4>Reset account</h4>
+            <h5 style="color: var(--text-secondary)">
+              Resetting your account will delete all your accounts, categories, and other data, but keep your user account intact.
+            </h5>
+          </div>
+          <div class="flex flex-column w-3">
+            <Button
+              size="small"
+              label="Reset account"
+              class="delete-button"
+            />
+          </div>
+        </div>
+
+        <div class="w-full flex flex-row gap-3 align-items-center">
+          <div class="flex flex-column w-full">
+            <h4>Delete account</h4>
+            <h5 style="color: var(--text-secondary)">
+              Deleting your account will permanently remove all your data and cannot be undone.
+            </h5>
+          </div>
+          <div class="flex flex-column w-3">
+            <Button
+              size="small"
+              label="Delete account"
+              class="delete-button"
+            />
+          </div>
+        </div>
+      </div>
+    </SettingsSkeleton>
+  </div>
 </template>
 
 <style scoped>

@@ -63,8 +63,9 @@ func (h *AccountHandler) GetAllAccounts(c *gin.Context) {
 
 	q := c.Request.URL.Query()
 	includeInactive := strings.EqualFold(q.Get("inactive"), "true")
+	includeTypes := strings.EqualFold(q.Get("types"), "true")
 
-	records, err := h.service.FetchAllAccounts(ctx, userID, includeInactive)
+	records, err := h.service.FetchAllAccounts(ctx, userID, includeInactive, includeTypes)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -404,4 +405,64 @@ func (h *AccountHandler) GetLatestBalance(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, rec)
+}
+
+func (h *AccountHandler) GetAccountsWithDefaults(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	records, err := h.service.FetchAccountsWithDefaults(ctx, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, records)
+}
+
+func (h *AccountHandler) GetAccountTypesWithoutDefaults(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	records, err := h.service.FetchAccountTypesWithoutDefaults(ctx, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, records)
+}
+
+func (h *AccountHandler) SetDefaultAccount(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid account ID", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.service.SetDefaultAccount(ctx, userID, accountID); err != nil {
+		utils.ErrorMessage(c, "Failed to set default", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Default set", "Success", http.StatusOK)
+}
+
+func (h *AccountHandler) UnsetDefaultAccount(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid account ID", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.service.UnsetDefaultAccount(ctx, userID, accountID); err != nil {
+		utils.ErrorMessage(c, "Failed to set default", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Default unset", "Success", http.StatusOK)
 }

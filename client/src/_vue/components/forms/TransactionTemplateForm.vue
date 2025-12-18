@@ -12,7 +12,6 @@ import {useAccountStore} from "../../../services/stores/account_store.ts";
 import type {Account} from "../../../models/account_models.ts";
 import dayjs from "dayjs";
 import currencyHelper from "../../../utils/currency_helper.ts";
-import toastHelper from "../../../utils/toast_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 
@@ -31,6 +30,10 @@ const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
 
 onMounted(async () => {
+
+    // Fetch accounts first
+    accounts.value = accountStore.accounts;
+
     if (props.mode === "update" && props.recordId) {
         await loadRecord(props.recordId);
     }
@@ -54,7 +57,7 @@ const amountRef = computed({
 const { number: amountNumber } = currencyHelper.useMoneyField(amountRef, 2);
 
 const frequencies = ref<string[]>(["Weekly", "Biweekly", "Monthly", "Quarterly", "Annually"]);
-const accounts = computed<Account[]>(() => accountStore.accounts);
+const accounts = ref<Account[]>([]);
 const allCategories = computed<Category[]>(() => transactionStore.categories);
 const parentCategories = computed(() => {
     const base = allCategories.value.filter(c =>
@@ -293,7 +296,7 @@ async function loadRecord(id: number) {
 async function manageRecord() {
 
     if (isReadOnly.value || isAccountRestricted.value) {
-        toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
+        toastStore.infoResponseToast({"title": "Not allowed", "message": "This record is read only!"})
         return;
     }
 
@@ -357,145 +360,248 @@ async function startOperation() {
 </script>
 
 <template>
-
-  <div v-if="!loading" class="flex flex-column gap-3 p-1">
-
-      <div v-if="!isImmutable" class="flex flex-row w-full justify-content-center">
-          <div class="flex flex-column w-50">
-                <SelectButton style="font-size: 0.875rem;" size="small"
-                              v-model="selectedParentCategory"
-                              :options="parentCategories" optionLabel="display_name" :allowEmpty="false"
-                              @update:modelValue="updateSelectedParentCategory($event)" />
-          </div>
+  <div
+    v-if="!loading"
+    class="flex flex-column gap-3 p-1"
+  >
+    <div
+      v-if="!isImmutable"
+      class="flex flex-row w-full justify-content-center"
+    >
+      <div class="flex flex-column w-50">
+        <SelectButton
+          v-model="selectedParentCategory"
+          style="font-size: 0.875rem;"
+          size="small"
+          :options="parentCategories"
+          option-label="display_name"
+          :allow-empty="false"
+          @update:model-value="updateSelectedParentCategory($event)"
+        />
       </div>
-      <h5 v-else style="color: var(--text-secondary)">Some parts of the record are immutable.</h5>
-      <h5 v-if="isReadOnly" style="color: var(--text-secondary)">Record is read-only.</h5>
+    </div>
+    <h5
+      v-else
+      style="color: var(--text-secondary)"
+    >
+      Some parts of the record are immutable.
+    </h5>
+    <h5
+      v-if="isReadOnly"
+      style="color: var(--text-secondary)"
+    >
+      Record is read-only.
+    </h5>
 
-      <div v-if="mode === 'update'" class="flex flex-row w-full gap-2 pb-3" style="border-bottom: 1px solid var(--border-color)">
-          <div class="flex flex-column gap-1 w-6">
-              <small>Last ran at</small>
-              <span style="color: var(--text-secondary); border: 1px solid var(--border-color);
-              padding: 0.5rem; border-radius: 8px; background: var(--background-secondary);">
-                  {{ record.last_run_at ?? "Not ran yet" }}</span>
-          </div>
-          <div class="flex flex-column gap-1 w-6">
-              <small>Run count</small>
-              <span style="color: var(--text-secondary); border: 1px solid var(--border-color);
-              padding: 0.5rem; border-radius: 8px; background: var(--background-secondary);">
-                  {{ record.run_count }}</span>
-          </div>
+    <div
+      v-if="mode === 'update'"
+      class="flex flex-row w-full gap-2 pb-3"
+      style="border-bottom: 1px solid var(--border-color)"
+    >
+      <div class="flex flex-column gap-1 w-6">
+        <small>Last ran at</small>
+        <span
+          style="color: var(--text-secondary); border: 1px solid var(--border-color);
+              padding: 0.5rem; border-radius: 8px; background: var(--background-secondary);"
+        >
+          {{ record.last_run_at ?? "Not ran yet" }}</span>
       </div>
+      <div class="flex flex-column gap-1 w-6">
+        <small>Run count</small>
+        <span
+          style="color: var(--text-secondary); border: 1px solid var(--border-color);
+              padding: 0.5rem; border-radius: 8px; background: var(--background-secondary);"
+        >
+          {{ record.run_count }}</span>
+      </div>
+    </div>
 
-      <div class="flex flex-column gap-3">
-
-          <div class="flex flex-row w-full">
-              <div class="flex flex-column gap-1 w-full">
-                  <ValidationError :isRequired="true" :message="v$.record.name.$errors[0]?.$message">
-                      <label>Name</label>
-                  </ValidationError>
-                  <InputText :readonly="isReadOnly" :disabled="isReadOnly" size="small" v-model="record.name" placeholder="Input name"></InputText>
-              </div>
-          </div>
-
-          <div class="flex flex-row w-full">
-              <div class="flex flex-column gap-1 w-full">
-                  <ValidationError :isRequired="true" :message="v$.record.account.name.$errors[0]?.$message">
-                      <label>Account</label>
-                  </ValidationError>
-                  <AutoComplete :readonly="isAccountRestricted || isReadOnly || isImmutable" :disabled="isAccountRestricted || isReadOnly || isImmutable" size="small"
-                                v-model="record.account" :suggestions="filteredAccounts"
-                                @complete="searchAccount" optionLabel="name" forceSelection
-                                placeholder="Select account" dropdown>
-                  </AutoComplete>
-              </div>
-          </div>
-
-          <div class="flex flex-row w-full">
-              <div class="flex flex-column gap-1 w-full">
-                  <ValidationError :isRequired="true" :message="v$.record.amount.$errors[0]?.$message">
-                      <label>Amount</label>
-                  </ValidationError>
-                  <InputNumber :readonly="isReadOnly " :disabled="isReadOnly" size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
-              </div>
-          </div>
-
-          <div class="flex flex-row w-full">
-              <div class="flex flex-column gap-1 w-full">
-                  <ValidationError :isRequired="false" :message="v$.record.category.name.$errors[0]?.$message">
-                      <label>Category</label>
-                  </ValidationError>
-                  <AutoComplete :readonly="isImmutable" :disabled="isImmutable" size="small" v-model="record.category" :suggestions="filteredCategories"
-                                @complete="searchCategory" optionLabel="display_name"
-                                placeholder="Select category" dropdown>
-                  </AutoComplete>
-              </div>
-          </div>
-
-          <div class="flex flex-row w-full gap-2 align-items-center">
-              <div class="flex flex-column gap-1 w-12">
-                  <ValidationError :isRequired="true" :message="v$.record.frequency.$errors[0]?.$message">
-                      <label>Frequency</label>
-                  </ValidationError>
-                  <AutoComplete :readonly="isImmutable" :disabled="isImmutable" size="small"
-                                v-model="record.frequency" :suggestions="filteredFrequencies"
-                                @complete="searchFrequency"
-                                placeholder="Select frequency" dropdown>
-                  </AutoComplete>
-              </div>
-          </div>
-
-          <div class="flex flex-row w-full gap-2 align-items-center">
-              <div class="flex flex-column gap-1 w-full">
-                  <ValidationError :isRequired="true" :message="v$.record.frequency.$errors[0]?.$message">
-                      <label>{{ mode === 'create' ? "First run" : "Next run"}}</label>
-                  </ValidationError>
-                  <DatePicker v-model="record.next_run_at" date-format="dd/mm/yy"
-                              showIcon fluid iconDisplay="input" size="small"
-                              :readonly="isReadOnly" :disabled="isReadOnly"
-                              :minDate="tomorrowUtcMidnight"
-                  />
-              </div>
-          </div>
-
-          <div class="flex flex-row w-full gap-2 w-full">
-              <div class="flex flex-column gap-1 w-full">
-                  <ValidationError :isRequired="false" :message="v$.record.end_date.$errors[0]?.$message">
-                      <label>End date</label>
-                  </ValidationError>
-                  <DatePicker v-model="record.end_date" date-format="dd/mm/yy"
-                              showIcon fluid iconDisplay="input" size="small"
-                              :readonly="isReadOnly" :disabled="isReadOnly"
-                              :minDate="endDateMin" class="w-full"
-                  />
-              </div>
-          </div>
-
-          <div class="flex flex-row w-full gap-2 w-full">
-              <div class="flex flex-column gap-1 w-full">
-                  <ValidationError :isRequired="false" :message="v$.record.max_runs.$errors[0]?.$message">
-                      <label>Max runs</label>
-                  </ValidationError>
-                  <InputNumber :readonly="isReadOnly" :disabled="isReadOnly" size="small"
-                               v-model="record.max_runs" placeholder="1">
-                  </InputNumber>
-              </div>
-          </div>
-
+    <div class="flex flex-column gap-3">
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.name.$errors[0]?.$message"
+          >
+            <label>Name</label>
+          </ValidationError>
+          <InputText
+            v-model="record.name"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
+            size="small"
+            placeholder="Input name"
+          />
+        </div>
       </div>
 
-      <div class="flex flex-row gap-2 w-full" >
-          <div class="flex flex-column w-full">
-              <Button v-if="!isReadOnly" class="main-button"
-                      :label="(mode == 'create' ? 'Add' : 'Update') +  ' template'"
-                      @click="manageRecord" style="height: 42px;" />
-          </div>
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.account.name.$errors[0]?.$message"
+          >
+            <label>Account</label>
+          </ValidationError>
+          <AutoComplete
+            v-model="record.account"
+            :readonly="isAccountRestricted || isReadOnly || isImmutable"
+            :disabled="isAccountRestricted || isReadOnly || isImmutable"
+            size="small"
+            :suggestions="filteredAccounts"
+            option-label="name"
+            force-selection
+            placeholder="Select account"
+            dropdown
+            @complete="searchAccount"
+          />
+        </div>
       </div>
 
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.amount.$errors[0]?.$message"
+          >
+            <label>Amount</label>
+          </ValidationError>
+          <InputNumber
+            v-model="amountNumber"
+            :readonly="isReadOnly "
+            :disabled="isReadOnly"
+            size="small"
+            mode="currency"
+            currency="EUR"
+            locale="de-DE"
+            placeholder="0,00 €"
+          />
+        </div>
+      </div>
 
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="false"
+            :message="v$.record.category.name.$errors[0]?.$message"
+          >
+            <label>Category</label>
+          </ValidationError>
+          <AutoComplete
+            v-model="record.category"
+            :readonly="isImmutable"
+            :disabled="isImmutable"
+            size="small"
+            :suggestions="filteredCategories"
+            option-label="display_name"
+            placeholder="Select category"
+            dropdown
+            @complete="searchCategory"
+          />
+        </div>
+      </div>
 
+      <div class="flex flex-row w-full gap-2 align-items-center">
+        <div class="flex flex-column gap-1 w-12">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.frequency.$errors[0]?.$message"
+          >
+            <label>Frequency</label>
+          </ValidationError>
+          <AutoComplete
+            v-model="record.frequency"
+            :readonly="isImmutable"
+            :disabled="isImmutable"
+            size="small"
+            :suggestions="filteredFrequencies"
+            placeholder="Select frequency"
+            dropdown
+            @complete="searchFrequency"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-row w-full gap-2 align-items-center">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.frequency.$errors[0]?.$message"
+          >
+            <label>{{ mode === 'create' ? "First run" : "Next run" }}</label>
+          </ValidationError>
+          <DatePicker
+            v-model="record.next_run_at"
+            date-format="dd/mm/yy"
+            show-icon
+            fluid
+            icon-display="input"
+            size="small"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
+            :min-date="tomorrowUtcMidnight"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-row w-full gap-2 w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="false"
+            :message="v$.record.end_date.$errors[0]?.$message"
+          >
+            <label>End date</label>
+          </ValidationError>
+          <DatePicker
+            v-model="record.end_date"
+            date-format="dd/mm/yy"
+            show-icon
+            fluid
+            icon-display="input"
+            size="small"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
+            :min-date="endDateMin"
+            class="w-full"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-row w-full gap-2 w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="false"
+            :message="v$.record.max_runs.$errors[0]?.$message"
+          >
+            <label>Max runs</label>
+          </ValidationError>
+          <InputNumber
+            v-model="record.max_runs"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
+            size="small"
+            placeholder="1"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-row gap-2 w-full">
+      <div class="flex flex-column w-full">
+        <Button
+          v-if="!isReadOnly"
+          class="main-button"
+          :label="(mode == 'create' ? 'Add' : 'Update') + ' template'"
+          style="height: 42px;"
+          @click="manageRecord"
+        />
+      </div>
+    </div>
   </div>
-  <ShowLoading v-else :numFields="7" />
-
+  <ShowLoading
+    v-else
+    :num-fields="7"
+  />
 </template>
 
 <style scoped>

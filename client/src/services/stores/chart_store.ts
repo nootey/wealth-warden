@@ -12,38 +12,30 @@ export const useChartStore = defineStore('chart', {
             range?: string; from?: string; to?: string; currency?: string;
             account?: number | string | null;
         }) {
-            try {
-                const q: Record<string, any> = {}
-                if (params) {
-                    for (const [k, v] of Object.entries(params)) {
-                        if (v !== undefined && v !== null && v !== '') q[k] = v
-                    }
+            const q: Record<string, unknown> = {}
+            if (params) {
+                for (const [k, v] of Object.entries(params)) {
+                    if (v !== undefined && v !== null && v !== '') q[k] = v
                 }
-
-                const response = await apiClient.get(`${this.apiPrefix}/networth`, { params: q })
-                return response.data
-            } catch (err) {
-                throw err
             }
+
+            const response = await apiClient.get(`${this.apiPrefix}/networth`, { params: q })
+            return response.data
         },
 
         async getMonthlyCashFlowForYear(params?: {
             year: number;
             account?: number | string | null;
         }) {
-            try {
-                const q: Record<string, any> = {}
-                if (params) {
-                    for (const [k, v] of Object.entries(params)) {
-                        if (v !== undefined && v !== null && v !== '') q[k] = v
-                    }
+            const q: Record<string, unknown> = {}
+            if (params) {
+                for (const [k, v] of Object.entries(params)) {
+                    if (v !== undefined && v !== null && v !== '') q[k] = v
                 }
-
-                const response = await apiClient.get(`${this.apiPrefix}/monthly-cash-flow`, { params: q })
-                return response.data
-            } catch (err) {
-                throw err
             }
+
+            const response = await apiClient.get(`${this.apiPrefix}/monthly-cash-flow`, { params: q })
+            return response.data
         },
 
         async getMultiYearMonthlyCategoryBreakdown(params: {
@@ -53,7 +45,7 @@ export const useChartStore = defineStore('chart', {
             percent?: boolean;
             category?: number | string | null;
         }) {
-            const q: Record<string, any> = {};
+            const q: Record<string, unknown> = {};
             q["years"] = params.years.join(",");
             if (params.account != null && params.account !== "") q["account"] = params.account;
             if (params.class) q["class"] = params.class;

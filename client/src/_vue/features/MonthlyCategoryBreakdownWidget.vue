@@ -17,7 +17,7 @@ const transactionStore = useTransactionStore();
 
 const allYears = ref<number[]>([]);
 const selectedYears = ref<number[]>([]);
-const maxYears = 3;
+const maxYears = 5;
 
 const series = ref<{ name: string; data: number[] }[]>([]);
 
@@ -132,105 +132,148 @@ watch(selectedCategory, async () => {
 </script>
 
 <template>
-    <div class="flex flex-column w-full p-3">
-        <div id="mobile-row" class="flex flex-row gap-2 w-full justify-content-between align-items-center">
-
-            <div id="filter-row" class="flex flex-row w-full align-items-center gap-2 justify-content-between">
-
-                <div class="flex flex-column gap-1">
-                    <span class="text-sm" style="color: var(--text-secondary)">
-                      View and compare category totals by month.
-                    </span>
-                </div>
-
-                <div id="action-col" class="flex flex-column w-5">
-                    <Select size="small"
-                            v-model="selectedCategoryId"
-                            :options="categoryOptions"
-                            optionLabel="label"
-                            optionValue="value">
-
-                        <template #value="{ value }">
-                            {{
-                                availableCategories.find(c => c.id === value)?.display_name
-                                ?? availableCategories.find(c => c.id === value)?.name
-                                ?? (value === undefined ? 'All' : 'Select category')
-                            }}
-                        </template>
-
-                        <template #option="{ option }">
-                            <div class="flex justify-content-between w-full">
-                                <span>{{ option.label }}</span>
-                                <small class="text-color-secondary">
-                                    {{ option.meta?.classification }}
-                                </small>
-                            </div>
-                        </template>
-                    </Select>
-                </div>
-
-                <div id="action-col" class="flex flex-column w-5">
-                    <MultiSelect
-                            v-model="selectedYears"
-                            :options="yearOptions"
-                            :maxSelectedLabels="3"
-                            :selectionLimit="3"
-                            display="chip"
-                            placeholder="Years"
-                            optionLabel="label"
-                            optionValue="value"
-                    />
-                </div>
-
-            </div>
+  <div class="flex flex-column w-full p-3">
+    <div
+      id="mobile-row"
+      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
+    >
+      <div
+        id="filter-row"
+        class="flex flex-row w-full align-items-center gap-2 justify-content-between"
+      >
+        <div class="flex flex-column gap-1">
+          <span
+            class="text-sm"
+            style="color: var(--text-secondary)"
+          >
+            View and compare category totals by month.
+          </span>
         </div>
 
-        <div id="mobile-row" class="flex flex-row w-full justify-content-center align-items-center">
-            <CategoryBreakdownChart v-if="hasAnyData" :series="series" />
-            <div v-else class="flex flex-column align-items-center justify-content-center mt-3"
-                 style="height: 400px">
-                <span class="text-sm p-3" style="color: var(--text-secondary); border: 1px dashed var(--border-color); border-radius: 16px;">
-                    Not enough data to display for:
-                    {{ selectedCategory?.display_name ?? 'any category' }}
-                    in {{ selectedYears.join(', ') }}.
-                </span>
-            </div>
+        <div
+          id="action-col"
+          class="flex flex-column w-5"
+        >
+          <Select
+            v-model="selectedCategoryId"
+            size="small"
+            :options="categoryOptions"
+            option-label="label"
+            option-value="value"
+          >
+            <template #value="{ value }">
+              {{
+                availableCategories.find(c => c.id === value)?.display_name
+                  ?? availableCategories.find(c => c.id === value)?.name
+                  ?? (value === undefined ? 'All' : 'Select category')
+              }}
+            </template>
+
+            <template #option="{ option }">
+              <div class="flex justify-content-between w-full">
+                <span>{{ option.label }}</span>
+                <small class="text-color-secondary">
+                  {{ option.meta?.classification }}
+                </small>
+              </div>
+            </template>
+          </Select>
         </div>
 
-        <div v-if="hasAnyData && stats" class="flex flex-column gap-3 mt-4">
-            <h5>Totals and averages</h5>
-
-            <div class="flex flex-row w-full justify-content-between p-3" style="border: 1px solid var(--border-color); border-radius: 16px;">
-                <div class="flex flex-column">
-                    <div class="mb-1">Total over time</div>
-                    <div class="font-bold text-xl">
-                        {{ vueHelper.displayAsCurrency(stats.all_time_total) }}
-                    </div>
-                </div>
-                <div class="flex flex-column text-right">
-                    <div>Average</div>
-                    <div class="font-bold text-xl">
-                        {{ vueHelper.displayAsCurrency(stats.all_time_avg) }}
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex flex-row flex-wrap w-full gap-3 p-3" style="border: 1px solid var(--border-color); border-radius: 16px;">
-                <div v-for="year in selectedYears" :key="year"
-                     class="flex-1 flex flex-column align-items-center text-center p-3 year-box">
-                    <div class="mb-2 font-bold text-xl">{{ year }}</div>
-                    <div class="mb-1">
-                        Spent: {{ vueHelper.displayAsCurrency(stats.year_stats[year]?.total ?? 0) }}
-                    </div>
-                    <div class="text-sm" style="color: var(--text-secondary)">
-                        Avg: {{ vueHelper.displayAsCurrency(stats.year_stats[year]?.monthly_avg ?? 0) }}/mo
-                        ({{ stats.year_stats[year]?.months_with_data ?? 0 }} months)
-                    </div>
-                </div>
-            </div>
+        <div
+          id="action-col"
+          class="flex flex-column w-5"
+        >
+          <MultiSelect
+            v-model="selectedYears"
+            :options="yearOptions"
+            :max-selected-labels="5"
+            :selection-limit="5"
+            size="small"
+            placeholder="Years"
+            option-label="label"
+            option-value="value"
+          />
         </div>
-
+      </div>
     </div>
+
+    <div
+      id="mobile-row"
+      class="flex flex-row w-full justify-content-center align-items-center"
+    >
+      <CategoryBreakdownChart
+        v-if="hasAnyData"
+        :series="series"
+      />
+      <div
+        v-else
+        class="flex flex-column align-items-center justify-content-center mt-3"
+        style="height: 400px"
+      >
+        <span
+          class="text-sm p-3"
+          style="color: var(--text-secondary); border: 1px dashed var(--border-color); border-radius: 16px;"
+        >
+          Not enough data to display for:
+          {{ selectedCategory?.display_name ?? 'any category' }}
+          in {{ selectedYears.join(', ') }}.
+        </span>
+      </div>
+    </div>
+
+    <div
+      v-if="hasAnyData && stats"
+      class="flex flex-column gap-3 mt-4"
+    >
+      <h5>Totals and averages</h5>
+
+      <div
+        class="flex flex-row w-full justify-content-between p-3"
+        style="border: 1px solid var(--border-color); border-radius: 16px;"
+      >
+        <div class="flex flex-column">
+          <div class="mb-1">
+            Total over time
+          </div>
+          <div class="font-bold text-xl">
+            {{ vueHelper.displayAsCurrency(stats.all_time_total) }}
+          </div>
+        </div>
+        <div class="flex flex-column text-right">
+          <div>Average</div>
+          <div class="font-bold text-xl">
+            {{ vueHelper.displayAsCurrency(stats.all_time_avg) }}
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="flex flex-row flex-wrap w-full gap-3 p-3"
+        style="border: 1px solid var(--border-color); border-radius: 16px;"
+      >
+        <div
+          v-for="year in selectedYears"
+          :key="year"
+          class="flex-1 flex flex-column align-items-center text-center p-3 year-box"
+        >
+          <div class="mb-2 font-bold text-xl">
+            {{ year }}
+          </div>
+          <div class="mb-1">
+            Spent: {{ vueHelper.displayAsCurrency(stats.year_stats[year]?.total ?? 0) }}
+          </div>
+          <div
+            class="text-sm"
+            style="color: var(--text-secondary)"
+          >
+            Avg: {{ vueHelper.displayAsCurrency(stats.year_stats[year]?.monthly_avg ?? 0) }}/mo
+            ({{ stats.year_stats[year]?.months_with_data ?? 0 }} months)
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped lang="scss">
