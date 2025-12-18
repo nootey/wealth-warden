@@ -159,6 +159,7 @@ func (s *Scheduler) runTemplateProcessing(ctx context.Context) error {
 	failCount := 0
 
 	for _, template := range templates {
+
 		if err := s.container.TransactionService.ProcessTemplate(ctx, template); err != nil {
 			s.logger.Error("Failed to process template",
 				zap.Int64("templateID", template.ID),

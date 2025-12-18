@@ -1762,11 +1762,44 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 		}
 	}()
 
+	// Reload template to ensure it's still active and valid
+	currentTemplate, err := s.repo.FindTransactionTemplateByID(ctx, tx, template.ID, template.UserID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("template not found: %w", err)
+	}
+
+	if !currentTemplate.IsActive {
+		tx.Rollback()
+		return fmt.Errorf("template is not active")
+	}
+
+	// Verify account still exists and is active
+	acc, err := s.accRepo.FindAccountByID(ctx, tx, currentTemplate.AccountID, currentTemplate.UserID, false)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("account not found: %w", err)
+	}
+
+	// Verify category still exists
+	var categoryID int64
+	_, err = s.repo.FindCategoryByID(ctx, tx, currentTemplate.CategoryID, &currentTemplate.UserID, false)
+	if err != nil {
+		cat, err := s.repo.FindCategoryByClassification(ctx, tx, "uncategorized", &currentTemplate.UserID)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("can't find default category %w", err)
+		}
+		categoryID = cat.ID
+	} else {
+		categoryID = template.CategoryID
+	}
+
 	// Create the transaction
 	desc := fmt.Sprintf("Auto: %s", template.Name)
 	txnReq := &models.TransactionReq{
-		AccountID:       template.AccountID,
-		CategoryID:      &template.CategoryID,
+		AccountID:       acc.ID,
+		CategoryID:      &categoryID,
 		TransactionType: template.TransactionType,
 		Amount:          template.Amount,
 		TxnDate:         template.NextRunAt,
