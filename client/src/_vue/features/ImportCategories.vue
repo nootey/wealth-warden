@@ -59,12 +59,12 @@ async function importCategories() {
         const res = await dataStore.importCategories(form);
         toastStore.successResponseToast(res);
 
-        resetWizard();
         emit("completeImport");
     } catch (error) {
         toastStore.errorResponseToast(error);
     } finally {
         importing.value = false;
+        resetWizard();
     }
 }
 

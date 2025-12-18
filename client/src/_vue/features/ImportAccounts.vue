@@ -61,12 +61,12 @@ async function importAccounts() {
         const res = await dataStore.importAccounts(form, useBalances.value);
         toastStore.successResponseToast(res);
 
-        resetWizard();
         emit("completeImport");
     } catch (error) {
         toastStore.errorResponseToast(error);
     } finally {
         importing.value = false;
+        resetWizard();
     }
 }
 

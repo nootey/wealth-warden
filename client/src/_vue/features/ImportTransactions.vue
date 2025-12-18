@@ -164,13 +164,13 @@ const importTransactions = async () => {
         const res = await dataStore.importTransactions(form, selectedCheckingAcc.value.id);
         toastStore.successResponseToast(res);
 
-        resetWizard();
         emit("completeImport");
 
     } catch (error) {
         toastStore.errorResponseToast(error);
     } finally {
         importing.value = false;
+        resetWizard();
     }
 };
 

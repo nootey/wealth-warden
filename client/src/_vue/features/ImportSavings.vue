@@ -148,12 +148,12 @@ async function transferSavings() {
         const res = await dataStore.transferSavingsFromImport(payload);
         toastStore.successResponseToast(res);
 
-        resetWizard();
         emit("completeTransfer");
     } catch (error) {
         toastStore.errorResponseToast(error)
     } finally {
         transfering.value = false
+        resetWizard();
     }
 }
 

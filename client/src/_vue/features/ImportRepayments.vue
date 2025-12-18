@@ -148,12 +148,12 @@ async function transferRepayments() {
         const res = await dataStore.transferRepaymentsFromImport(payload);
         toastStore.successResponseToast(res);
 
-        resetWizard();
         emit("completeTransfer");
     } catch (error) {
         toastStore.errorResponseToast(error)
     } finally {
-        transfering.value = false
+        transfering.value = false;
+        resetWizard();
     }
 }
 
