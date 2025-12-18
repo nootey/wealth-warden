@@ -1,6 +1,6 @@
 # Wealth Warden
 
-An open-source finance tracker focused on simplicity and usability, based on a personal Excel spreadsheet.
+An open-source finance tracker focused on simplicity and usability.
 
 ## About
 
