@@ -1792,43 +1792,43 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 		}
 		categoryID = cat.ID
 	} else {
-		categoryID = template.CategoryID
+		categoryID = currentTemplate.CategoryID
 	}
 
 	// Create the transaction
-	desc := fmt.Sprintf("Auto: %s", template.Name)
+	desc := fmt.Sprintf("Auto: %s", currentTemplate.Name)
 	txnReq := &models.TransactionReq{
 		AccountID:       acc.ID,
 		CategoryID:      &categoryID,
-		TransactionType: template.TransactionType,
-		Amount:          template.Amount,
-		TxnDate:         template.NextRunAt,
+		TransactionType: currentTemplate.TransactionType,
+		Amount:          currentTemplate.Amount,
+		TxnDate:         currentTemplate.NextRunAt,
 		Description:     &desc,
 	}
 
-	_, err = s.InsertTransaction(ctx, template.UserID, txnReq)
+	_, err = s.InsertTransaction(ctx, currentTemplate.UserID, txnReq)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	// Calculate next run date
-	nextRun := utils.CalculateNextRun(template.NextRunAt, template.Frequency)
+	nextRun := utils.CalculateNextRun(currentTemplate.NextRunAt, currentTemplate.Frequency)
 	now := time.Now().UTC()
 
 	// Update template
 	updates := map[string]interface{}{
 		"last_run_at": now,
-		"run_count":   template.RunCount + 1,
+		"run_count":   currentTemplate.RunCount + 1,
 		"next_run_at": nextRun,
 	}
 
 	// Check if we should deactivate
 	shouldDeactivate := true
 	switch {
-	case template.MaxRuns != nil && template.RunCount+1 >= *template.MaxRuns:
+	case currentTemplate.MaxRuns != nil && currentTemplate.RunCount+1 >= *currentTemplate.MaxRuns:
 		// Max runs reached
-	case template.EndDate != nil && nextRun.After(*template.EndDate):
+	case currentTemplate.EndDate != nil && nextRun.After(*currentTemplate.EndDate):
 		// End date passed
 	default:
 		shouldDeactivate = false
