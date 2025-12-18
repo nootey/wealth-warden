@@ -70,7 +70,7 @@ func (s *SettingsService) FetchAvailableTimezones(ctx context.Context) ([]models
 	for _, tzName := range tzNames {
 		loc, err := time.LoadLocation(tzName)
 		if err != nil {
-			fmt.Println(fmt.Sprintf("settings_service: Loading timezone %s failed: %v", tzName, err))
+			fmt.Printf("settings_service: Loading timezone %s failed: %v", tzName, err)
 			continue
 		}
 
