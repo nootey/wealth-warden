@@ -181,6 +181,14 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 	if err != nil {
 		return 0, err
 	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
 	hash, err := utils.GenerateSecureToken(64)
 	if err != nil {
 		return 0, err
@@ -353,7 +361,9 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 		return fmt.Errorf("can't find role wit given id: %w", err)
 	}
 
-	if err := s.repo.DeleteUser(ctx, tx, usr.ID); err != nil {
+	newEmail := usr.Email + "_" + strconv.FormatInt(usr.ID, 10)
+
+	if err := s.repo.DeleteUser(ctx, tx, usr.ID, newEmail); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -365,6 +375,7 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 	changes := utils.InitChanges()
 	utils.CompareChanges(role.Name, "", changes, "role")
 	utils.CompareChanges(usr.DisplayName, "", changes, "display_name")
+	utils.CompareChanges(usr.Email, "", changes, "email")
 
 	if !changes.IsEmpty() {
 		if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{

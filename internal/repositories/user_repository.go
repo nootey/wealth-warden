@@ -31,7 +31,7 @@ type UserRepositoryInterface interface {
 	UpdateUser(ctx context.Context, tx *gorm.DB, record models.User) (int64, error)
 	UpdateUserPassword(ctx context.Context, tx *gorm.DB, id int64, password string) error
 	ValidateUser(ctx context.Context, tx *gorm.DB, userID int64) (int64, error)
-	DeleteUser(ctx context.Context, tx *gorm.DB, id int64) error
+	DeleteUser(ctx context.Context, tx *gorm.DB, id int64, newEmail string) error
 	DeleteInvitation(ctx context.Context, tx *gorm.DB, id int64) error
 	DeleteTokenByData(ctx context.Context, tx *gorm.DB, tokenType, dataIndex string, dataValue interface{}) error
 }
@@ -474,7 +474,7 @@ func (r *UserRepository) UpdateUserPassword(ctx context.Context, tx *gorm.DB, id
 	return nil
 }
 
-func (r *UserRepository) DeleteUser(ctx context.Context, tx *gorm.DB, id int64) error {
+func (r *UserRepository) DeleteUser(ctx context.Context, tx *gorm.DB, id int64, newEmail string) error {
 
 	db := tx
 	if db == nil {
@@ -485,6 +485,7 @@ func (r *UserRepository) DeleteUser(ctx context.Context, tx *gorm.DB, id int64) 
 	res := db.Model(&models.User{}).
 		Where("id = ? AND deleted_at IS NULL", id).
 		Updates(map[string]any{
+			"email":      newEmail,
 			"deleted_at": time.Now().UTC(),
 			"updated_at": time.Now().UTC(),
 		})
