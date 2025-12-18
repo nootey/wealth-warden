@@ -117,7 +117,7 @@ func (h *ChartingHandler) GetMonthlyCategoryBreakdown(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
-	
+
 	p := c.QueryMap("params")
 
 	accStr := c.Query("account")
@@ -151,11 +151,11 @@ func (h *ChartingHandler) GetMonthlyCategoryBreakdown(c *gin.Context) {
 	class := c.DefaultQuery("class", "expense")
 	asPercent := c.DefaultQuery("percent", "false") == "true"
 
-	// New: multi-year support via ?years=2025,2024,2023 (max 3)
+	// Multi-year support via ?years=
 	if ys := strings.TrimSpace(c.Query("years")); ys != "" {
 		parts := strings.Split(ys, ",")
-		if len(parts) > 3 {
-			utils.ErrorMessage(c, "param error", "years supports up to 3 years", http.StatusBadRequest, nil)
+		if len(parts) > 5 {
+			utils.ErrorMessage(c, "param error", "a maximum of 5 years is supported!", http.StatusBadRequest, nil)
 			return
 		}
 		var years []int
