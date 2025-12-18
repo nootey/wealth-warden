@@ -2,7 +2,6 @@
 import {computed, onMounted, type Ref, ref} from "vue";
 import {useDataStore} from "../../services/stores/data_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
-import toastHelper from "../../utils/toast_helper.ts";
 import type { CustomImportValidationResponse } from "../../models/dataio_models"
 import ShowLoading from "../components/base/ShowLoading.vue";
 import {useAccountStore} from "../../services/stores/account_store.ts";
@@ -73,12 +72,7 @@ async function fetchSourceAccounts() {
 
     if (sourceAccounts.value.length === 0) {
         const accountType = useNonCheckingAccount.value ? "source" : "checking";
-        toastStore.infoResponseToast(
-            toastHelper.formatInfoToast(
-                "No accounts",
-                `Please create at least one ${accountType} account`
-            )
-        );
+        toastStore.infoResponseToast({"title": "No accounts", "message": `Please create at least one ${accountType} account`});
     }
 }
 
@@ -101,7 +95,7 @@ async function validateFile(type: string) {
         const res = await dataStore.validateImport("custom", selectedFiles.value[0], type);
         fileValidated.value = true;
         validatedResponse.value = res;
-        toastHelper.formatSuccessToast("File validated", "Check details and proceed with import");
+        toastStore.successResponseToast({"title": "File validated", "message": "Check details and proceed with import"})
 
     } catch (error) {
         toastStore.errorResponseToast(error);
@@ -124,7 +118,7 @@ function onSaveMapping(map: Record<string, number | null>) {
 function resetWizard() {
 
     if(importing.value) {
-        toastStore.infoResponseToast({"Title": "Unavailable", "Message": "An operation is currently being executed!"})
+        toastStore.infoResponseToast({"title": "Unavailable", "message": "An operation is currently being executed!"})
     }
     // clear local state
     selectedFiles.value = [];

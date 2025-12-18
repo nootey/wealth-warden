@@ -12,7 +12,6 @@ import vueHelper from "../../../utils/vue_helper.ts"
 import type {Account, AccountType} from "../../../models/account_models.ts"
 import currencyHelper from "../../../utils/currency_helper.ts";
 import {useConfirm} from "primevue/useconfirm";
-import toastHelper from "../../../utils/toast_helper.ts";
 import Decimal from "decimal.js";
 import ShowLoading from "../base/ShowLoading.vue";
 import dayjs from "dayjs";
@@ -306,7 +305,7 @@ async function confirmAdjustments() {
 async function manageRecord() {
 
     if (readOnly.value) {
-        toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
+        toastStore.infoResponseToast({title: "Not allowed", message: "This record is read only!"})
         return;
     }
 

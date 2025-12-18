@@ -5,7 +5,6 @@ import {nextTick, onMounted, ref} from "vue";
 import type {Category} from "../../../models/transaction_models.ts";
 import {required} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
-import toastHelper from "../../../utils/toast_helper.ts";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
 import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
@@ -99,7 +98,7 @@ async function manageRecord() {
     }
 
     if (readOnly.value) {
-        toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
+        toastStore.infoResponseToast({"title": "Not allowed", "message": "This record is read only!"})
         return;
     }
 

@@ -59,8 +59,8 @@ async function deleteConfirmation(id: number, name: string) {
 
 async function downloadExport(id: number) {
     try {
-        let response = await dataStore.downloadExport(id);
-        toastStore.successResponseToast(response);
+        await dataStore.downloadExport(id);
+        toastStore.successResponseToast({title: "Success", message: `Data exported`});
         await getData();
     } catch (error) {
         toastStore.errorResponseToast(error);

@@ -12,7 +12,6 @@ import {useAccountStore} from "../../../services/stores/account_store.ts";
 import type {Account} from "../../../models/account_models.ts";
 import dayjs from "dayjs";
 import currencyHelper from "../../../utils/currency_helper.ts";
-import toastHelper from "../../../utils/toast_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 
@@ -297,7 +296,7 @@ async function loadRecord(id: number) {
 async function manageRecord() {
 
     if (isReadOnly.value || isAccountRestricted.value) {
-        toastStore.infoResponseToast(toastHelper.formatInfoToast("Not allowed", "This record is read only!"))
+        toastStore.infoResponseToast({"title": "Not allowed", "message": "This record is read only!"})
         return;
     }
 

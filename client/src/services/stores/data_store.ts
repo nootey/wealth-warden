@@ -100,23 +100,18 @@ export const useDataStore = defineStore('data', {
         },
 
         async downloadExport(id: number) {
-            try {
-                const res = await apiClient.post(`${this.exportPrefix}/${id}/download`, null, {
-                    responseType: 'blob',
-                });
+            const res = await apiClient.post(`${this.exportPrefix}/${id}/download`, null, {
+                responseType: 'blob',
+            });
 
-                const blob = new Blob([res.data], { type: 'application/zip' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'export.zip';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-            } catch (err) {
-                console.error('Export failed', err);
-                throw err;
-            }
+            const blob = new Blob([res.data], { type: 'application/zip' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'export.zip';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
         },
 
     },

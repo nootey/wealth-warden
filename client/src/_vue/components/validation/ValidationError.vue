@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import {computed} from 'vue';
+import {computed, type Ref, unref} from 'vue';
 
 const props = defineProps<{
-    message?: string;
+    message?: string | Ref<string>;
     isRequired?: boolean;
 }>();
 
-const isDisplayed = computed(() => Boolean(props.message));
+const isDisplayed = computed(() => Boolean(unref(props.message)));
 
-const displayMessage = computed(() =>
-    props.message?.replace('Value', ': field') ?? ''
-);
+const displayMessage = computed(() => {
+    const msg = unref(props.message);
+    return msg?.replace('Value', ': field') ?? '';
+});
 
 </script>
 

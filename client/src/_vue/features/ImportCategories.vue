@@ -27,7 +27,7 @@ function onClear() {
 function resetWizard() {
 
     if(importing.value) {
-        toastStore.infoResponseToast({"Title": "Unavailable", "Message": "An operation is currently being executed!"})
+        toastStore.infoResponseToast({"title": "Unavailable", "message": "An operation is currently being executed!"})
     }
     // clear local state
     selectedFiles.value = [];

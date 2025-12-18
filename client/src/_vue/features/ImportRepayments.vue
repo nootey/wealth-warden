@@ -5,7 +5,6 @@ import type {Account} from "../../models/account_models.ts";
 import {useDataStore} from "../../services/stores/data_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import {useAccountStore} from "../../services/stores/account_store.ts";
-import toastHelper from "../../utils/toast_helper.ts";
 import type {CustomImportValidationResponse, Import} from "../../models/dataio_models.ts";
 import ImportTransferMapping from "../components/base/ImportTransferMapping.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
@@ -54,14 +53,12 @@ onMounted(async () => {
 
         checkingAccs.value = await accStore.getAccountsBySubtype("checking");
         if (checkingAccs.value.length == 0) {
-            toastStore.infoResponseToast(toastHelper.formatInfoToast("No accounts", "Please create at least one checking account"));
+            toastStore.infoResponseToast({"title": "No accounts", "message": "Please create at least one checking account"});
         }
         repaymentAccs.value = await accStore.getAccountsByType("loan");
 
         if (repaymentAccs.value.length === 0) {
-            toastStore.infoResponseToast(
-                toastHelper.formatInfoToast("No accounts", "Please create at least one repayment account")
-            )
+            toastStore.infoResponseToast({"title": "No accounts", "message": "Please create at least one repayment account"})
         }
     } catch (e) {
         toastStore.errorResponseToast(e);
@@ -112,7 +109,7 @@ function searchAccount(event: { query: string }, accType: string) {
 function resetWizard() {
 
     if(transfering.value) {
-        toastStore.infoResponseToast({"Title": "Unavailable", "Message": "An operation is currently being executed!"})
+        toastStore.infoResponseToast({"title": "Unavailable", "message": "An operation is currently being executed!"})
     }
     // clear local state
     selectedCheckingAcc.value = null;
