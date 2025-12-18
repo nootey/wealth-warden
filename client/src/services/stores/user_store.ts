@@ -40,6 +40,14 @@ export const useUserStore = defineStore('user', {
                 throw error;
             }
         },
+        async getInvitationByHash(hash: string) {
+            try {
+                const res = await apiClient.get(`${this.apiPrefix}/invitations/${hash}`);
+                return res.data;
+            } catch (error) {
+                throw error;
+            }
+        },
         async createInvitation(authForm: AuthForm) {
             try {
                 return await apiClient.put(`${this.apiPrefix}/invitations`, authForm);

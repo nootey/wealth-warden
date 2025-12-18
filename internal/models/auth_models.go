@@ -14,6 +14,7 @@ type RegisterForm struct {
 	AuthForm
 	DisplayName          string `json:"display_name" validate:"required"`
 	PasswordConfirmation string `json:"password_confirmation" binding:"required"`
+	InvitationID         *int64 `json:"invitation_id"`
 }
 
 type ResetPasswordForm struct {

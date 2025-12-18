@@ -65,7 +65,7 @@ const activeColumns = computed<Column[]>(() => [
     { field: 'display_name', header: 'Name', type: 'text'},
     { field: 'email', header: 'Email', type: 'text'},
     { field: 'role', header: 'Role', type: 'enum', options: roles.value, optionLabel: 'name'},
-    { field: 'email_confirmed', header: 'Date', type: "date" },
+    { field: 'email_confirmed', header: 'Verified', type: "date" },
 ]);
 
 const invRef = ref<InstanceType<typeof InvitationsPaginated> | null>(null);

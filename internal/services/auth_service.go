@@ -246,10 +246,34 @@ func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, user
 			return 0, err
 		}
 
-		role, err := s.roleRepo.FindRoleByName(ctx, tx, "member")
-		if err != nil {
-			tx.Rollback()
-			return 0, err
+		var invitation *models.Invitation
+		var role *models.Role
+
+		if form.InvitationID != nil {
+
+			invitation, err = s.userRepo.FindInvitationByID(ctx, tx, *form.InvitationID)
+			if err != nil {
+				tx.Rollback()
+				return 0, err
+			}
+
+			// Validate email matches invitation
+			if invitation.Email != form.Email {
+				tx.Rollback()
+				return 0, errors.New("email does not match invitation")
+			}
+
+			role, err = s.roleRepo.FindRoleByID(ctx, tx, invitation.RoleID, false)
+			if err != nil {
+				tx.Rollback()
+				return 0, err
+			}
+		} else {
+			role, err = s.roleRepo.FindRoleByName(ctx, tx, "member")
+			if err != nil {
+				tx.Rollback()
+				return 0, err
+			}
 		}
 
 		user := &models.User{
@@ -283,11 +307,22 @@ func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, user
 			return 0, err
 		}
 
+		if invitation != nil {
+			err = s.userRepo.DeleteInvitation(ctx, tx, invitation.ID)
+			if err != nil {
+				tx.Rollback()
+				return 0, err
+			}
+		}
+
 		if err := tx.Commit().Error; err != nil {
 			return 0, err
 		}
 
 		desc := "Via open signup"
+		if invitation != nil {
+			desc = "Via invitation"
+		}
 		logErr := s.log("register", user.Email, userAgent, ip, "success", &desc, &user.ID)
 		if logErr != nil {
 			return 0, logErr

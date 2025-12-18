@@ -1,20 +1,28 @@
 <script setup lang="ts">
-import {ref} from "vue";
+import {onMounted, ref} from "vue";
 import {required, email, minLength, helpers} from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
-import {useRouter} from "vue-router";
+import {useRoute, useRouter} from "vue-router";
 import ValidationError from "../../components/validation/ValidationError.vue";
 import AuthSkeleton from "../../components/layout/AuthSkeleton.vue";
 import {useToastStore} from "../../../services/stores/toast_store.ts";
 import type {AuthForm} from "../../../models/auth_models.ts";
 import {useAuthStore} from "../../../services/stores/auth_store.ts";
+import {useUserStore} from "../../../services/stores/user_store.ts";
+import type {Invitation} from "../../../models/user_models.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
 
 const authStore = useAuthStore();
+const userStore = useUserStore();
 const toastStore = useToastStore()
 
 const router = useRouter();
+const route = useRoute();
 
+const token = ref(route.query.token as string);
 const loading = ref(false);
+const invitation = ref<Invitation|null>(null);
+const wasInvited = ref<boolean>(false);
 
 const form = ref<AuthForm>({
     display_name: '',
@@ -73,13 +81,35 @@ const rules = {
 
 const v$ = useVuelidate(rules, {form})
 
-async function createInvitation() {
+onMounted(async () => {
+    await loadInvitation();
+});
+
+async function loadInvitation() {
+
+    if (!token.value) {
+        return;
+    }
+
+    loading.value = true;
+    try {
+        invitation.value = await userStore.getInvitationByHash(token.value);
+        form.value.email = invitation.value?.email!
+        wasInvited.value = true;
+    } catch (e) {
+        toastStore.errorResponseToast(e)
+    } finally {
+        loading.value = false;
+    }
+}
+
+async function signUp() {
     v$.value.$touch();
     if (v$.value.$error) return;
     loading.value = true;
 
     try {
-        await authStore.signUp(form.value);
+        await authStore.signUp(form.value, invitation.value?.id ?? null);
         await router.push({name: "login"})
     } catch (error) {
         toastStore.errorResponseToast(error)
@@ -126,7 +156,7 @@ function login() {
                             <label>Email</label>
                         </ValidationError>
                         <InputText id="email" v-model="form.email" type="email"
-                                   :placeholder="'Email'" :disabled="loading" :readonly="loading"
+                                   :placeholder="'Email'" :disabled="loading || wasInvited" :readonly="loading || wasInvited"
                                    class="w-full border-round-xl"/>
                     </div>
                 </div>
@@ -150,12 +180,12 @@ function login() {
                         <InputText id="password_confirmation" v-model="form.password_confirmation" type="password"
                                    :placeholder="'Confirm password'"
                                    class="w-full border-round-xl" :disabled="loading" :readonly="loading"
-                                   @keydown.enter="createInvitation"/>
+                                   @keydown.enter="signUp"/>
                     </div>
                 </div>
 
                 <Button label="Sign up" class="w-full auth-accent-button"
-                        :disabled="loading"  @click="createInvitation"></Button>
+                        :disabled="loading"  @click="signUp"></Button>
 
             </div>
 

@@ -32,9 +32,12 @@ export const useAuthStore = defineStore('auth', {
             }
         },
 
-        async signUp(form: AuthForm) {
+        async signUp(form: AuthForm, invitation_id: number | null = null) {
             try {
-                return await apiClient.post(`${this.apiPrefix}/signup`, form);
+                return await apiClient.post(`${this.apiPrefix}/signup`, {
+                    ...form,
+                    ...(invitation_id && { invitation_id })
+                });
             } catch (error) {
                 throw error;
             }
