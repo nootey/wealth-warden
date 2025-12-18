@@ -51,10 +51,6 @@ async function unsetDefault(id: number) {
 function manipulateDialog(modal: string, value: any) {
     switch (modal) {
         case 'insertDefault': {
-            if(accounts.value.length < 1){
-                toastStore.createInfoToast("Access denied", "No accounts exist for this account.");
-                return;
-            }
             if(!hasPermission("manage_data")) {
                 toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
                 return;
@@ -96,7 +92,7 @@ async function handleEmit(type: string) {
                 <h3>Default accounts</h3>
                 <h5 style="color: var(--text-secondary)">Define default accounts for each account. This might help optimize some flows.</h5>
             </div>
-            <Button class="main-button w-4" :disabled="accounts.length < 1"
+            <Button class="main-button w-4"
                     @click="manipulateDialog('insertDefault', true)">
                 <div class="flex flex-row gap-1 align-items-center">
                     <i class="pi pi-plus"></i>
