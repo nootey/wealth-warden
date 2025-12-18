@@ -170,13 +170,19 @@ async function handleEmit(emitType: any, data?: any) {
 }
 
 async function toggleActiveTemplate(tp: TransactionTemplate, nextValue: boolean): Promise<boolean> {
+
     const previous = tp.is_active;
-    tp.is_active = nextValue;
+
     try {
+
+        tp.is_active = nextValue;
+
         const response = await transactionStore.toggleTemplateActiveState(tp.id!);
         toastStore.successResponseToast(response);
+
         emit("refreshTemplateCount");
         return true;
+
     } catch (error) {
         // add a small delay for the toggle animation to complete
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -257,8 +263,7 @@ defineExpose({ refresh });
                     <template #body="{ data }">
                         <div class="flex flex-row align-items-center gap-2">
                             <ToggleSwitch v-if="hasPermission('manage_data')" style="transform: scale(0.675)"
-                                          v-model="data.is_active"
-                                          @update:modelValue="(v) => toggleActiveTemplate(data, v)" />
+                                          :modelValue="data.is_active" @update:modelValue="(v) => toggleActiveTemplate(data, v)" />
                             <i v-if="hasPermission('manage_data')"
                                class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
                                @click="deleteConfirmation(data?.id, data?.name)"></i>
