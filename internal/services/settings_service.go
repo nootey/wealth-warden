@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"time"
+	_ "time/tzdata"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
