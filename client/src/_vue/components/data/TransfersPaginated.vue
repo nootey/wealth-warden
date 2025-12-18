@@ -148,6 +148,11 @@ defineExpose({ refresh });
                 <template v-else-if="field === 'from' || field === 'to'">
                     {{ data[field]["account"]["name"] }}
                 </template>
+                <template v-else-if="field === 'notes'">
+                    <span class="truncate-text" v-tooltip.top="data[field]">
+                        {{ data[field] }}
+                    </span>
+                </template>
                 <template v-else>
                     {{ data[field] }}
                 </template>

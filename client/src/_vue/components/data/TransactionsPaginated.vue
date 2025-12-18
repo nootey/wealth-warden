@@ -143,6 +143,11 @@ defineExpose({ refresh });
                 <template v-else-if="field === 'category'">
                     {{ data[field]["display_name"] }}
                 </template>
+                <template v-else-if="field === 'description'">
+                    <span class="truncate-text" v-tooltip.top="data[field]">
+                        {{ data[field] }}
+                    </span>
+                </template>
                 <template v-else>
                     {{ data[field] }}
                 </template>
