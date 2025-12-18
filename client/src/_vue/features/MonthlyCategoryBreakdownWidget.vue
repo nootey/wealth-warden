@@ -17,7 +17,7 @@ const transactionStore = useTransactionStore();
 
 const allYears = ref<number[]>([]);
 const selectedYears = ref<number[]>([]);
-const maxYears = 3;
+const maxYears = 5;
 
 const series = ref<{ name: string; data: number[] }[]>([]);
 
@@ -170,15 +170,10 @@ watch(selectedCategory, async () => {
                 </div>
 
                 <div id="action-col" class="flex flex-column w-5">
-                    <MultiSelect
-                            v-model="selectedYears"
-                            :options="yearOptions"
-                            :maxSelectedLabels="3"
-                            :selectionLimit="3"
-                            display="chip"
-                            placeholder="Years"
-                            optionLabel="label"
-                            optionValue="value"
+                    <MultiSelect v-model="selectedYears" :options="yearOptions"
+                            :maxSelectedLabels="5" :selectionLimit="5"
+                            size="small" placeholder="Years"
+                            optionLabel="label" optionValue="value"
                     />
                 </div>
 

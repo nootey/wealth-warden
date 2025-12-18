@@ -244,7 +244,7 @@ async function saveProjection() {
     }
 
     try {
-        const res = await accountStore.saveProjection(effectiveAccountID.value, recordData);
+        const res = await accountStore.saveProjection(props.accID, recordData);
         toastStore.successResponseToast(res);
         emit("completeOperation");
     } catch (e) {
@@ -255,7 +255,7 @@ async function saveProjection() {
 async function revertProjection() {
 
     try {
-        const res = await accountStore.revertProjection(effectiveAccountID.value);
+        const res = await accountStore.revertProjection(props.accID);
         toastStore.successResponseToast(res);
         emit("completeOperation");
     } catch (e) {

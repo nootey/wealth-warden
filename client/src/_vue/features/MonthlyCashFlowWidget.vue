@@ -67,7 +67,7 @@ watch(selectedYear, async (newVal, oldVal) => {
 <template>
     <div class="flex flex-column w-full p-3">
 
-        <div id="mobile-row" class="flex flex-row gap-2 w-full justify-content-between align-items-center">
+        <div v-if="years.length > 0" id="mobile-row" class="flex flex-row gap-2 w-full justify-content-between align-items-center">
 
             <div class="flex flex-column gap-1">
                 <div class="flex flex-row">
