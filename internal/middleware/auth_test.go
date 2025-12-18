@@ -117,9 +117,9 @@ func (suite *AuthMiddlewareTestSuite) TestWebClientAuthentication_AccessTokenRot
 	suite.NoError(err)
 	suite.NotNil(user)
 
-	// Generate tokens with short TTLs
-	accessToken, refreshToken, err := suite.middleware.GenerateLoginTokens(user.ID, false)
-	suite.NoError(err)
+	// Create an already-expired access token and valid refresh token
+	expiredAccessToken := suite.createWebClientTokenWithExpiry(user.ID, "access", -5*time.Second)
+	validRefreshToken := suite.createWebClientTokenWithExpiry(user.ID, "refresh", 10*time.Minute)
 
 	// Setup test route with authentication middleware
 	suite.router.Use(suite.middleware.WebClientAuthentication())
@@ -127,17 +127,10 @@ func (suite *AuthMiddlewareTestSuite) TestWebClientAuthentication_AccessTokenRot
 		c.JSON(200, gin.H{"user_id": c.GetInt64("user_id")})
 	})
 
-	fmt.Println("sleeping 4s to test access token rotation ...")
-	time.Sleep(4 * time.Second)
-
-	// Verify token is expired after sleep
-	_, err2 := suite.decodeToken(accessToken, "access")
-	suite.Error(err2, "Token should be expired")
-
 	// Make request with expired access token but valid refresh token
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
-	req.AddCookie(&http.Cookie{Name: "access", Value: accessToken})
-	req.AddCookie(&http.Cookie{Name: "refresh", Value: refreshToken})
+	req.AddCookie(&http.Cookie{Name: "access", Value: expiredAccessToken})
+	req.AddCookie(&http.Cookie{Name: "refresh", Value: validRefreshToken})
 	w := httptest.NewRecorder()
 
 	suite.router.ServeHTTP(w, req)
@@ -154,11 +147,47 @@ func (suite *AuthMiddlewareTestSuite) TestWebClientAuthentication_AccessTokenRot
 	for _, header := range setCookieHeaders {
 		if strings.Contains(header, "access=") {
 			foundAccessCookie = true
-			suite.NotContains(header, accessToken, "Should be a new access token")
+			suite.NotContains(header, expiredAccessToken, "Should be a new access token")
 			break
 		}
 	}
 	suite.True(foundAccessCookie, "New access cookie should be issued")
+}
+
+func (suite *AuthMiddlewareTestSuite) createWebClientTokenWithExpiry(userID int64, tokenType string, expiryOffset time.Duration) string {
+	cfg := suite.TC.App.Config
+
+	var jwtKey []byte
+	switch tokenType {
+	case "access":
+		jwtKey = []byte(cfg.JWT.WebClientAccess)
+	case "refresh":
+		jwtKey = []byte(cfg.JWT.WebClientRefresh)
+	default:
+		suite.T().Fatalf("unsupported token type: %s", tokenType)
+	}
+
+	encryptedUserID, err := suite.middleware.EncodeWebClientUserID(userID)
+	if err != nil {
+		suite.T().Fatal(err)
+	}
+
+	claims := &middleware.WebClientUserClaim{
+		UserID: encryptedUserID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiryOffset)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "wealth-warden-server",
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtKey)
+	if err != nil {
+		suite.T().Fatal(err)
+	}
+
+	return tokenString
 }
 
 func (suite *AuthMiddlewareTestSuite) TestWebClientAuthentication_RefreshTokenExpired() {
@@ -177,9 +206,9 @@ func (suite *AuthMiddlewareTestSuite) TestWebClientAuthentication_RefreshTokenEx
 	)
 	suite.NoError(err)
 
-	// Generate tokens with short TTLs
-	accessToken, refreshToken, err := suite.middleware.GenerateLoginTokens(user.ID, false)
-	suite.NoError(err)
+	// Create both tokens as already expired
+	expiredAccessToken := suite.createWebClientTokenWithExpiry(user.ID, "access", -5*time.Second)
+	expiredRefreshToken := suite.createWebClientTokenWithExpiry(user.ID, "refresh", -1*time.Second)
 
 	// Setup test route
 	suite.router.Use(suite.middleware.WebClientAuthentication())
@@ -187,13 +216,10 @@ func (suite *AuthMiddlewareTestSuite) TestWebClientAuthentication_RefreshTokenEx
 		c.JSON(200, gin.H{"user_id": c.GetInt64("user_id")})
 	})
 
-	fmt.Println("sleeping 7s to test refresh token rotation ...")
-	time.Sleep(7 * time.Second)
-
 	// Make request with both expired tokens
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
-	req.AddCookie(&http.Cookie{Name: "access", Value: accessToken})
-	req.AddCookie(&http.Cookie{Name: "refresh", Value: refreshToken})
+	req.AddCookie(&http.Cookie{Name: "access", Value: expiredAccessToken})
+	req.AddCookie(&http.Cookie{Name: "refresh", Value: expiredRefreshToken})
 	w := httptest.NewRecorder()
 
 	suite.router.ServeHTTP(w, req)

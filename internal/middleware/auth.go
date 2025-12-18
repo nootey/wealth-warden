@@ -168,7 +168,7 @@ func (m *WebClientMiddleware) issueAccessCookie(c *gin.Context, userID int64) er
 	return nil
 }
 
-func (m *WebClientMiddleware) encodeWebClientUserID(userID int64) (string, error) {
+func (m *WebClientMiddleware) EncodeWebClientUserID(userID int64) (string, error) {
 	key := m.config.JWT.WebClientEncodeID
 	if len(key) != 32 {
 		return "", fmt.Errorf("encryption key must be 32 bytes long for AES-256")
@@ -254,7 +254,7 @@ func (m *WebClientMiddleware) generateToken(tokenType string, expiration time.Ti
 	}
 
 	// Encrypt the user ID before embedding it into the token
-	encryptedUserID, err := m.encodeWebClientUserID(userID)
+	encryptedUserID, err := m.EncodeWebClientUserID(userID)
 	if err != nil {
 		return "", err
 	}
