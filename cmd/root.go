@@ -16,7 +16,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:     "wealth-warden",
 	Short:   "WealthWarden server",
-	Version: "1.0.0",
+	Version: "1.1.0",
 }
 
 func init() {
