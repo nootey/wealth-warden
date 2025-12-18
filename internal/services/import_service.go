@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"wealth-warden/internal/jobs"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
@@ -42,7 +42,7 @@ type ImportService struct {
 	accRepo       repositories.AccountRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher jobs.JobDispatcher
+	jobDispatcher jobqueue.JobDispatcher
 }
 
 func NewImportService(
@@ -51,7 +51,7 @@ func NewImportService(
 	accRepo *repositories.AccountRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
-	jobDispatcher jobs.JobDispatcher,
+	jobDispatcher jobqueue.JobDispatcher,
 ) *ImportService {
 	return &ImportService{
 		repo:          repo,
@@ -453,7 +453,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	utils.CompareChanges("", models.DefaultCurrency, changes, "currency")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Txns)), changes, "transactions_count")
 
-	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "import",
@@ -685,7 +685,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 	utils.CompareChanges("", models.DefaultCurrency, changes, "currency")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Accounts)), changes, "accounts_count")
 
-	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "import",
@@ -864,7 +864,7 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 	utils.CompareChanges("", importName, changes, "name")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Categories)), changes, "categories_count")
 
-	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "import",
@@ -1122,7 +1122,7 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 	}
 	utils.CompareChanges("", strings.Join(destNames, ", "), changes, "destination_accounts")
 
-	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "transfer_investments",
 		Category:    "import",
@@ -1393,7 +1393,7 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 	}
 	utils.CompareChanges("", strings.Join(destNames, ", "), changes, "destination_accounts")
 
-	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "transfer_savings",
 		Category:    "import",
@@ -1664,7 +1664,7 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 	}
 	utils.CompareChanges("", strings.Join(destNames, ", "), changes, "destination_accounts")
 
-	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "transfer_repayments",
 		Category:    "import",
@@ -1710,7 +1710,7 @@ func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) erro
 	utils.CompareChanges(imp.Type, "", changes, "type")
 	utils.CompareChanges(imp.SubType, "", changes, "sub_type")
 
-	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "delete",
 		Category:    "import",

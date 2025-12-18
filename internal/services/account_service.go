@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"wealth-warden/internal/jobs"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
@@ -47,7 +47,7 @@ type AccountService struct {
 	txnRepo       repositories.TransactionRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher jobs.JobDispatcher
+	jobDispatcher jobqueue.JobDispatcher
 }
 
 func NewAccountService(
@@ -55,7 +55,7 @@ func NewAccountService(
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
-	jobDispatcher jobs.JobDispatcher,
+	jobDispatcher jobqueue.JobDispatcher,
 ) *AccountService {
 	return &AccountService{
 		repo:          repo,
@@ -84,7 +84,7 @@ func (s *AccountService) LogBalanceChange(ctx context.Context, account *models.A
 	utils.CompareChanges("", endBalance.StringFixed(2), changes, "end_balance")
 	utils.CompareChanges("", account.Currency, changes, "currency")
 
-	return s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	return s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "update",
 		Category:    "balance",
@@ -310,7 +310,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 		return 0, err
 	}
 
-	err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "account",
@@ -551,7 +551,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "account",
@@ -621,7 +621,7 @@ func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID in
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "account",
@@ -701,7 +701,7 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 	utils.CompareChanges(acc.AccountType.Subtype, "", changes, "sub_type")
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "close",
 			Category:    "account",
@@ -941,7 +941,7 @@ func (s *AccountService) SaveAccountProjection(ctx context.Context, id, userID i
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "account_projection",
@@ -1002,7 +1002,7 @@ func (s *AccountService) RevertAccountProjection(ctx context.Context, id, userID
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "account_projection",

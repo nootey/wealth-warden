@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-	"wealth-warden/internal/jobs"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
@@ -33,7 +33,7 @@ type ExportService struct {
 	accRepo       repositories.AccountRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher jobs.JobDispatcher
+	jobDispatcher jobqueue.JobDispatcher
 }
 
 func NewExportService(
@@ -42,7 +42,7 @@ func NewExportService(
 	accRepo *repositories.AccountRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
-	jobDispatcher jobs.JobDispatcher,
+	jobDispatcher jobqueue.JobDispatcher,
 ) *ExportService {
 	return &ExportService{
 		repo:          repo,
@@ -380,7 +380,7 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 	utils.CompareChanges("", fmt.Sprintf("%d", len(txns)), changes, "transactions_count")
 	utils.CompareChanges("", fmt.Sprintf("%d", len(transfers)), changes, "transfers_count")
 
-	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "export",
@@ -498,7 +498,7 @@ func (s *ExportService) DeleteExport(ctx context.Context, userID, id int64) erro
 	changes := utils.InitChanges()
 	utils.CompareChanges(ex.Name, "", changes, "export_name")
 
-	if err := s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "delete",
 		Category:    "export",

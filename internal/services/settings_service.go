@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 	_ "time/tzdata"
-	"wealth-warden/internal/jobs"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
@@ -24,14 +24,14 @@ type SettingsService struct {
 	repo          repositories.SettingsRepositoryInterface
 	userRepo      repositories.UserRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher jobs.JobDispatcher
+	jobDispatcher jobqueue.JobDispatcher
 }
 
 func NewSettingsService(
 	repo *repositories.SettingsRepository,
 	userRepo *repositories.UserRepository,
 	loggingRepo *repositories.LoggingRepository,
-	jobDispatcher jobs.JobDispatcher,
+	jobDispatcher jobqueue.JobDispatcher,
 ) *SettingsService {
 	return &SettingsService{
 		repo:          repo,
@@ -148,7 +148,7 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 	utils.CompareChanges(existingSettings.Language, settings.Language, changes, "language")
 	utils.CompareChanges(existingSettings.Timezone, settings.Timezone, changes, "timezone")
 
-	err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "update",
 		Category:    "user_settings",
@@ -210,7 +210,7 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 	utils.CompareChanges(existingUser.Email, u.Email, changes, "email")
 	utils.CompareChanges(existingUser.DisplayName, u.DisplayName, changes, "display_name")
 
-	err = s.jobDispatcher.Dispatch(&jobs.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "update",
 		Category:    "user",
