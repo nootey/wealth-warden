@@ -54,7 +54,7 @@ async function backfillBalances(){
             </SlotSkeleton>
 
             <SlotSkeleton bg="secondary">
-                <AccountAllocations title="Liablities" classification="liability" />
+                <AccountAllocations title="Liabilities" classification="liability" />
             </SlotSkeleton>
 
             <div class="w-full flex flex-row justify-content-between p-2 gap-2">
