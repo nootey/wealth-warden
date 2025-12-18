@@ -61,7 +61,7 @@ func (s *AuthService) log(event, email, userAgent, ip, status string, descriptio
 	changes := utils.InitChanges()
 	service := utils.DetermineServiceSource(userAgent)
 
-	utils.CompareChanges("", status, changes, status)
+	utils.CompareChanges("", status, changes, "status")
 	utils.CompareChanges("", service, changes, "service")
 	utils.CompareChanges("", email, changes, "email")
 	utils.CompareChanges("", utils.SafeString(&ip), changes, "ip_address")

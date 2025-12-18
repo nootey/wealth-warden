@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -306,6 +307,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(id, 10), changes, "id")
 	utils.CompareChanges(oldRole.Name, newRole.Name, changes, "role")
 	utils.CompareChanges(exUsr.DisplayName, usr.DisplayName, changes, "display_name")
 
