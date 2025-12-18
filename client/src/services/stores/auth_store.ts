@@ -23,67 +23,42 @@ export const useAuthStore = defineStore('auth', {
     },
     actions: {
         async login(form: AuthForm) {
-            try {
-                const response = await apiClient.post(`${this.apiPrefix}/login`, form);
-                await this.init();
-                return response;
-            } catch (error) {
-                throw error;
-            }
+            const response = await apiClient.post(`${this.apiPrefix}/login`, form);
+            await this.init();
+            return response;
         },
 
         async signUp(form: AuthForm, invitation_id: number | null = null) {
-            try {
-                return await apiClient.post(`${this.apiPrefix}/signup`, {
-                    ...form,
-                    ...(invitation_id && { invitation_id })
-                });
-            } catch (error) {
-                throw error;
-            }
+            return await apiClient.post(`${this.apiPrefix}/signup`, {
+                ...form,
+                ...(invitation_id && { invitation_id })
+            });
         },
 
         async resendConfirmationEmail(email?: string) {
-            try {
-                return await apiClient.post(`${this.apiPrefix}/resend-confirmation-email`, {email: email});
-            } catch (error) {
-                console.error(error)
-            }
+            return await apiClient.post(`${this.apiPrefix}/resend-confirmation-email`, {email: email});
         },
 
         async requestPasswordReset(email?: string) {
-            try {
-                return await apiClient.post(`${this.apiPrefix}/request-password-reset`, {email: email});
-            } catch (error) {
-                console.error(error)
-            }
+            return await apiClient.post(`${this.apiPrefix}/request-password-reset`, {email: email});
         },
 
         async resetPassword(form: AuthForm) {
-            try {
-                return await apiClient.post(`${this.apiPrefix}/reset-password`, form);
-            } catch (error) {
-                console.error(error)
-            }
+            return await apiClient.post(`${this.apiPrefix}/reset-password`, form);
         },
 
         async getAuthUser(set = true) {
-            try {
-                const response = await apiClient.get(`${this.apiPrefix}/current`, {params: {withSecrets: true}});
+            const response = await apiClient.get(`${this.apiPrefix}/current`, {params: {withSecrets: true}});
 
-                if (set) {
-                    if (!response.data) {
-                        await this.logoutUser();
-                    } else {
-                        this.setUser(response.data);
-                    }
+            if (set) {
+                if (!response.data) {
+                    await this.logoutUser();
+                } else {
+                    this.setUser(response.data);
                 }
-
-                return response.data;
-            } catch (error) {
-                await this.logoutUser();
-                throw error;
             }
+
+            return response.data;
         },
 
         setUser(userData: User) {
@@ -91,10 +66,7 @@ export const useAuthStore = defineStore('auth', {
         },
 
         async logoutUser() {
-            try {
-                await apiClient.post(`${this.apiPrefix}/logout`, null);
-            } catch (error) {
-            }
+            await apiClient.post(`${this.apiPrefix}/logout`, null);
             this.logout();
         },
 
@@ -148,7 +120,7 @@ export const useAuthStore = defineStore('auth', {
                     this.setAuthenticated(false);
                     this.setInitialized(null);
                 }
-            } catch (error) {
+            } catch {
                 this.setAuthenticated(false);
                 this.setInitialized(null);
             }

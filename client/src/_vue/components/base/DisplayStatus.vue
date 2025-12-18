@@ -1,5 +1,9 @@
 <template>
-    <Chip :label="displayLabel" :class="chipClass" class="status-chip-small" />
+  <Chip
+    :label="displayLabel"
+    :class="chipClass"
+    class="status-chip-small"
+  />
 </template>
 
 <script setup lang="ts">

@@ -197,86 +197,140 @@ defineExpose({ refresh });
 </script>
 
 <template>
+  <Dialog
+    v-model:visible="createModal"
+    class="rounded-dialog"
+    :breakpoints="{'501px': '90vw'}"
+    :modal="true"
+    :style="{width: '500px'}"
+    header="Add template"
+  >
+    <TransactionTemplateForm
+      mode="create"
+      @complete-operation="handleEmit('completeOperation')"
+    />
+  </Dialog>
 
-    <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{'501px': '90vw'}"
-            :modal="true" :style="{width: '500px'}" header="Add template">
-        <TransactionTemplateForm mode="create"
-                         @completeOperation="handleEmit('completeOperation')" />
-    </Dialog>
+  <Dialog
+    v-model:visible="updateModal"
+    position="right"
+    class="rounded-dialog"
+    :breakpoints="{'501px': '90vw'}"
+    :modal="true"
+    :style="{width: '500px'}"
+    header="Template details"
+  >
+    <TransactionTemplateForm
+      mode="update"
+      :record-id="updateRecordID"
+      @complete-operation="handleEmit('completeOperation')"
+    />
+  </Dialog>
 
-    <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal" :breakpoints="{'501px': '90vw'}"
-            :modal="true" :style="{width: '500px'}" header="Template details">
-        <TransactionTemplateForm mode="update" :recordId="updateRecordID"
-                         @completeOperation="handleEmit('completeOperation')" />
-    </Dialog>
-
-    <div class="flex flex-column justify-content-center w-full gap-3"
-         style="max-width: 1000px;">
-
-        <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
-            <span style="color: var(--text-secondary)">Create and manage custom templates, for executing transactions.</span>
-            <Button class="main-button ml-auto"
-                    @click="manipulateDialog('addTemplate', true)">
-                <div class="flex flex-row gap-1 align-items-center">
-                    <i class="pi pi-plus"></i>
-                    <span> New </span>
-                    <span class="mobile-hide"> Template </span>
-                </div>
-            </Button>
+  <div
+    class="flex flex-column justify-content-center w-full gap-3"
+    style="max-width: 1000px;"
+  >
+    <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
+      <span style="color: var(--text-secondary)">Create and manage custom templates, for executing transactions.</span>
+      <Button
+        class="main-button ml-auto"
+        @click="manipulateDialog('addTemplate', true)"
+      >
+        <div class="flex flex-row gap-1 align-items-center">
+          <i class="pi pi-plus" />
+          <span> New </span>
+          <span class="mobile-hide"> Template </span>
         </div>
-
-        <div class="flex flex-row gap-2 w-full">
-            <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingRecords" :value="records"
-                       scrollable scroll-height="50vh">
-                <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-                <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-                <template #footer>
-                    <CustomPaginator :paginator="paginator" :rows="rows" @onPage="onPage"/>
-                </template>
-
-                <Column v-for="col of activeColumns" :key="col.field" :header="col.header" :field="col.field" style="width: 25%" >
-                    <template #body="{ data }">
-                        <template v-if="col.field === 'next_run_at' || col.field === 'end_date'">
-                            {{ dateHelper.formatDate(data[col.field], false) }}
-                        </template>
-                        <template v-else-if="col.field === 'name'">
-                            <span class="hover" @click="handleEmit('updateTemplate', data.id)">
-                                {{ data[col.field] }}
-                            </span>
-                        </template>
-                        <template v-else-if="col.field === 'account'">
-                            {{ data[col.field].name}}
-                        </template>
-                        <template v-else-if="col.field === 'category'">
-                            {{ data[col.field].display_name }}
-                        </template>
-                        <template v-else-if="col.field === 'transaction_type' || col.field === 'frequency'">
-                            {{ vueHelper.capitalize(data[col.field]) }}
-                        </template>
-                        <template v-else>
-                            {{ data[col.field] }}
-                        </template>
-                    </template>
-                </Column>
-
-                <Column header="Actions">
-                    <template #body="{ data }">
-                        <div class="flex flex-row align-items-center gap-2">
-                            <ToggleSwitch v-if="hasPermission('manage_data')" style="transform: scale(0.675)"
-                                          :modelValue="data.is_active" @update:modelValue="(v) => toggleActiveTemplate(data, v)" />
-                            <i v-if="hasPermission('manage_data')"
-                               class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
-                               @click="deleteConfirmation(data?.id, data?.name)"></i>
-                            <i v-else class="pi pi-exclamation-circle" style="font-size: 0.875rem;"
-                               v-tooltip="'No action available'"></i>
-                        </div>
-                    </template>
-                </Column>
-
-            </DataTable>
-        </div>
-
+      </Button>
     </div>
+
+    <div class="flex flex-row gap-2 w-full">
+      <DataTable
+        class="w-full enhanced-table"
+        data-key="id"
+        :loading="loadingRecords"
+        :value="records"
+        scrollable
+        scroll-height="50vh"
+      >
+        <template #empty>
+          <div style="padding: 10px;">
+            No records found.
+          </div>
+        </template>
+        <template #loading>
+          <LoadingSpinner />
+        </template>
+        <template #footer>
+          <CustomPaginator
+            :paginator="paginator"
+            :rows="rows"
+            @on-page="onPage"
+          />
+        </template>
+
+        <Column
+          v-for="col of activeColumns"
+          :key="col.field"
+          :header="col.header"
+          :field="col.field"
+          style="width: 25%"
+        >
+          <template #body="{ data }">
+            <template v-if="col.field === 'next_run_at' || col.field === 'end_date'">
+              {{ dateHelper.formatDate(data[col.field], false) }}
+            </template>
+            <template v-else-if="col.field === 'name'">
+              <span
+                class="hover"
+                @click="handleEmit('updateTemplate', data.id)"
+              >
+                {{ data[col.field] }}
+              </span>
+            </template>
+            <template v-else-if="col.field === 'account'">
+              {{ data[col.field].name }}
+            </template>
+            <template v-else-if="col.field === 'category'">
+              {{ data[col.field].display_name }}
+            </template>
+            <template v-else-if="col.field === 'transaction_type' || col.field === 'frequency'">
+              {{ vueHelper.capitalize(data[col.field]) }}
+            </template>
+            <template v-else>
+              {{ data[col.field] }}
+            </template>
+          </template>
+        </Column>
+
+        <Column header="Actions">
+          <template #body="{ data }">
+            <div class="flex flex-row align-items-center gap-2">
+              <ToggleSwitch
+                v-if="hasPermission('manage_data')"
+                style="transform: scale(0.675)"
+                :model-value="data.is_active"
+                @update:model-value="(v) => toggleActiveTemplate(data, v)"
+              />
+              <i
+                v-if="hasPermission('manage_data')"
+                class="pi pi-trash hover-icon"
+                style="font-size: 0.875rem; color: var(--p-red-300);"
+                @click="deleteConfirmation(data?.id, data?.name)"
+              />
+              <i
+                v-else
+                v-tooltip="'No action available'"
+                class="pi pi-exclamation-circle"
+                style="font-size: 0.875rem;"
+              />
+            </div>
+          </template>
+        </Column>
+      </DataTable>
+    </div>
+  </div>
 </template>
 
 <style scoped>

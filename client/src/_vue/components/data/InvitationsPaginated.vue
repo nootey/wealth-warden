@@ -141,50 +141,76 @@ defineExpose({ refresh });
 </script>
 
 <template>
+  <div
+    class="flex flex-column justify-content-center w-full gap-3"
+    style="background: var(--background-secondary); max-width: 1000px;"
+  >
+    <div class="flex flex-row gap-2 w-full">
+      <DataTable
+        class="w-full enhanced-table"
+        data-key="id"
+        :loading="loading"
+        :value="records"
+        scrollable
+        scroll-height="50vh"
+      >
+        <template #empty>
+          <div style="padding: 10px;">
+            No records found.
+          </div>
+        </template>
+        <template #loading>
+          <LoadingSpinner />
+        </template>
+        <template #footer>
+          <CustomPaginator
+            :paginator="paginator"
+            :rows="rows"
+            @on-page="onPage"
+          />
+        </template>
 
-    <div class="flex flex-column justify-content-center w-full gap-3"
-         style="background: var(--background-secondary); max-width: 1000px;">
+        <Column
+          v-for="col of activeColumns"
+          :key="col.field"
+          :header="col.header"
+          :field="col.field"
+          style="width: 30%"
+        >
+          <template #body="{ data }">
+            <template v-if="col.field === 'created_at'">
+              {{ dateHelper.formatDate(data?.created_at, true) }}
+            </template>
+            <template v-else-if="col.field === 'role' ">
+              {{ data[col.field]["name"] }}
+            </template>
+            <template v-else>
+              {{ data[col.field] }}
+            </template>
+          </template>
+        </Column>
 
-        <div class="flex flex-row gap-2 w-full">
-            <DataTable class="w-full enhanced-table" dataKey="id" :loading="loading" :value="records"
-                       scrollable scroll-height="50vh">
-                <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-                <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-                <template #footer>
-                    <CustomPaginator :paginator="paginator" :rows="rows" @onPage="onPage"/>
-                </template>
-
-                <Column v-for="col of activeColumns" :key="col.field" :header="col.header" :field="col.field" style="width: 30%" >
-                    <template #body="{ data }">
-                        <template v-if="col.field === 'created_at'">
-                            {{ dateHelper.formatDate(data?.created_at, true) }}
-                        </template>
-                        <template v-else-if="col.field === 'role' ">
-                            {{ data[col.field]["name"] }}
-                        </template>
-                        <template v-else>
-                            {{ data[col.field] }}
-                        </template>
-                    </template>
-                </Column>
-
-                <Column header="Actions">
-                    <template #body="{ data }">
-                        <div class="flex flex-row gap-2 align-items-center">
-                            <i class="pi pi-refresh hover-icon text-sm" v-tooltip="'Resend email'"
-                               @click="resendConfirmation(data?.id)"></i>
-                            <i v-if="hasPermission('delete_users')" class="pi pi-trash hover-icon text-sm" v-tooltip="'Delete invitation'" style="color: var(--p-red-300);"
-                               @click="deleteConfirmation(data?.id)"></i>
-                        </div>
-                    </template>
-                </Column>
-
-            </DataTable>
-        </div>
-
-
-
+        <Column header="Actions">
+          <template #body="{ data }">
+            <div class="flex flex-row gap-2 align-items-center">
+              <i
+                v-tooltip="'Resend email'"
+                class="pi pi-refresh hover-icon text-sm"
+                @click="resendConfirmation(data?.id)"
+              />
+              <i
+                v-if="hasPermission('delete_users')"
+                v-tooltip="'Delete invitation'"
+                class="pi pi-trash hover-icon text-sm"
+                style="color: var(--p-red-300);"
+                @click="deleteConfirmation(data?.id)"
+              />
+            </div>
+          </template>
+        </Column>
+      </DataTable>
     </div>
+  </div>
 </template>
 
 <style scoped>

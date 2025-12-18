@@ -12,7 +12,7 @@ import {useSharedStore} from "../../../services/stores/shared_store.ts";
 import CategoryGroupForm from "../forms/CategoryGroupForm.vue";
 
 defineProps<{
-    category_groups: CategoryGroup[];
+    categoryGroups: CategoryGroup[];
     categories: Category[];
 }>();
 
@@ -92,50 +92,91 @@ async function deleteRecord(id: number) {
 </script>
 
 <template>
+  <Dialog
+    v-model:visible="updateModal"
+    position="right"
+    class="rounded-dialog"
+    :breakpoints="{ '501px': '90vw' }"
+    :modal="true"
+    :style="{ width: '500px' }"
+    header="Update group"
+  >
+    <CategoryGroupForm
+      mode="update"
+      :record-id="selectedID"
+      :categories="categories"
+      @complete-operation="handleEmit('completeOperation')"
+    />
+  </Dialog>
 
-    <Dialog position="right" class="rounded-dialog" v-model:visible="updateModal"
-            :breakpoints="{ '501px': '90vw' }" :modal="true" :style="{ width: '500px' }" header="Update group">
-        <CategoryGroupForm mode="update" :recordId="selectedID"
-                     @completeOperation="handleEmit('completeOperation')" :categories="categories"/>
-    </Dialog>
+  <DataTable
+    class="w-full enhanced-table"
+    data-key="id"
+    :value="categoryGroups"
+    paginator
+    :rows="10"
+    :rows-per-page-options="[10, 25]"
+    scrollable
+    scroll-height="75vh"
+    :row-class="vueHelper.deletedRowClass"
+  >
+    <template #empty>
+      <div style="padding: 10px;">
+        No records found.
+      </div>
+    </template>
+    <template #loading>
+      <LoadingSpinner />
+    </template>
 
-    <DataTable class="w-full enhanced-table" dataKey="id" :value="category_groups"
-               paginator :rows="10" :rowsPerPageOptions="[10, 25]" scrollable scroll-height="75vh"
-                :rowClass="vueHelper.deletedRowClass">
-        <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-        <template #loading> <LoadingSpinner></LoadingSpinner> </template>
+    <Column
+      v-for="col of activeColumns"
+      :key="col.field"
+      :field="col.field"
+      :header="col.header"
+    >
+      <template #body="{ data }">
+        {{ data[col.field] }}
+      </template>
+    </Column>
 
-        <Column v-for="col of activeColumns" :key="col.field"
-                :field="col.field" :header="col.header">
-            <template #body="{ data }">
-                {{ data[col.field] }}
-            </template>
-        </Column>
+    <Column header="Categories">
+      <template #body="{ data }">
+        <div
+          v-tooltip="'This group has ' + (data?.categories?.length ?? 0) + ' categories'"
+          class="flex flex-row align-items-center gap-2"
+        >
+          <i class="pi pi-eye" />
+          <span>{{ data?.categories?.length ?? 0 }}</span>
+        </div>
+      </template>
+    </Column>
 
-        <Column header="Categories">
-            <template #body="{ data }">
-                <div class="flex flex-row align-items-center gap-2"
-                     v-tooltip="'This group has ' + (data?.categories?.length ?? 0) + ' categories'">
-                    <i class="pi pi-eye"></i>
-                    <span>{{ data?.categories?.length ?? 0 }}</span>
-                </div>
-            </template>
-        </Column>
-
-        <Column header="Actions">
-            <template #body="{ data }">
-                <div class="flex flex-row align-items-center gap-2">
-                    <i v-if="hasPermission('manage_data')" class="pi pi-pen-to-square hover-icon text-xs" v-tooltip="'Edit category group'"
-                       @click="openModal('update', data.id!)"/>
-                    <i v-if="hasPermission('manage_data')" class="pi pi-trash hover-icon text-xs" v-tooltip="'Delete group'"
-                       style="color: var(--p-red-300);"
-                       @click="handleEmit('deleteCategoryGroup', data)"></i>
-                    <i v-if="!hasPermission('manage_data')" class="pi pi-ban hover-icon" v-tooltip="'No action currently available.'"></i>
-                </div>
-            </template>
-        </Column>
-
-    </DataTable>
+    <Column header="Actions">
+      <template #body="{ data }">
+        <div class="flex flex-row align-items-center gap-2">
+          <i
+            v-if="hasPermission('manage_data')"
+            v-tooltip="'Edit category group'"
+            class="pi pi-pen-to-square hover-icon text-xs"
+            @click="openModal('update', data.id!)"
+          />
+          <i
+            v-if="hasPermission('manage_data')"
+            v-tooltip="'Delete group'"
+            class="pi pi-trash hover-icon text-xs"
+            style="color: var(--p-red-300);"
+            @click="handleEmit('deleteCategoryGroup', data)"
+          />
+          <i
+            v-if="!hasPermission('manage_data')"
+            v-tooltip="'No action currently available.'"
+            class="pi pi-ban hover-icon"
+          />
+        </div>
+      </template>
+    </Column>
+  </DataTable>
 </template>
 
 <style scoped>

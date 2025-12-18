@@ -136,12 +136,12 @@ onUnmounted(() => chartRef.value?.chart?.destroy?.());
 </script>
 
 <template>
-    <Chart
-            ref="chartRef"
-            type="bar"
-            :data="chartData"
-            :options="chartOptions"
-            :plugins="[hoverGuidePlugin]"
-            style="width: 100%; height: 400px"
-    />
+  <Chart
+    ref="chartRef"
+    type="bar"
+    :data="chartData"
+    :options="chartOptions"
+    :plugins="[hoverGuidePlugin]"
+    style="width: 100%; height: 400px"
+  />
 </template>

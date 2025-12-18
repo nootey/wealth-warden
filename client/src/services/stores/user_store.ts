@@ -11,56 +11,32 @@ export const useUserStore = defineStore('user', {
     }),
     actions: {
         async getRoles(with_permissions: boolean = false) {
-            try {
-                const response = await apiClient.get(`${this.apiPrefix}/roles`, {
-                    params: {with_permissions}
-                });
-                this.roles = response.data;
-            } catch (err) {
-                throw err;
-            }
+            const response = await apiClient.get(`${this.apiPrefix}/roles`, {
+                params: {with_permissions}
+            });
+            this.roles = response.data;
         },
         async getPermissions() {
-            try {
-                const response = await apiClient.get(`${this.apiPrefix}/permissions`);
-                this.permissions = response.data;
-            } catch (err) {
-                throw err;
-            }
+            const response = await apiClient.get(`${this.apiPrefix}/permissions`);
+            this.permissions = response.data;
         },
         async getUserByToken(tokenType: string, tokenValue: string) {
-            try {
-                return await apiClient.get(`${this.apiPrefix}/token`, {
-                    params: {
-                        type: tokenType,
-                        value: tokenValue,
-                    },
-                });
-            } catch (error) {
-                throw error;
-            }
+            return await apiClient.get(`${this.apiPrefix}/token`, {
+                params: {
+                    type: tokenType,
+                    value: tokenValue,
+                },
+            });
         },
         async getInvitationByHash(hash: string) {
-            try {
-                const res = await apiClient.get(`${this.apiPrefix}/invitations/${hash}`);
-                return res.data;
-            } catch (error) {
-                throw error;
-            }
+            const res = await apiClient.get(`${this.apiPrefix}/invitations/${hash}`);
+            return res.data;
         },
         async createInvitation(authForm: AuthForm) {
-            try {
-                return await apiClient.put(`${this.apiPrefix}/invitations`, authForm);
-            } catch (error) {
-                throw error;
-            }
+            return await apiClient.put(`${this.apiPrefix}/invitations`, authForm);
         },
         async resendInvitation(id: number) {
-            try {
-                return await apiClient.post(`${this.apiPrefix}/invitations/resend/${id}`);
-            } catch (error) {
-                throw error;
-            }
+            return await apiClient.post(`${this.apiPrefix}/invitations/resend/${id}`);
         },
     },
 });

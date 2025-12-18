@@ -65,30 +65,38 @@ watch(selectedYear, async (newVal, oldVal) => {
 </script>
 
 <template>
-    <div class="flex flex-column w-full p-3">
-
-        <div v-if="years.length > 0" id="mobile-row" class="flex flex-row gap-2 w-full justify-content-between align-items-center">
-
-            <div class="flex flex-column gap-1">
-                <div class="flex flex-row">
-                    <span class="text-sm" style="color: var(--text-secondary)">
-                        Select which year you want to display statistics for. Current year will be used as a default.
-                    </span>
-                </div>
-            </div>
-
-            <div class="flex flex-column gap-2">
-                <Select size="small"
-                        style="width: 100px;"
-                        v-model="selectedYear"
-                        :options="years"
-                />
-            </div>
+  <div class="flex flex-column w-full p-3">
+    <div
+      v-if="years.length > 0"
+      id="mobile-row"
+      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
+    >
+      <div class="flex flex-column gap-1">
+        <div class="flex flex-row">
+          <span
+            class="text-sm"
+            style="color: var(--text-secondary)"
+          >
+            Select which year you want to display statistics for. Current year will be used as a default.
+          </span>
         </div>
+      </div>
 
-        <MonthlyCashFlowChart v-if="monthlyCashFlow.series" :data="monthlyCashFlow" />
-
+      <div class="flex flex-column gap-2">
+        <Select
+          v-model="selectedYear"
+          size="small"
+          style="width: 100px;"
+          :options="years"
+        />
+      </div>
     </div>
+
+    <MonthlyCashFlowChart
+      v-if="monthlyCashFlow.series"
+      :data="monthlyCashFlow"
+    />
+  </div>
 </template>
 
 <style scoped>

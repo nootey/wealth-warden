@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import {computed} from 'vue';
 
-const props = defineProps(['message', 'isRequired']);
+const props = defineProps<{
+    message?: string;
+    isRequired?: boolean;
+}>();
 
 const isDisplayed = computed(() => Boolean(props.message));
+
+const displayMessage = computed(() =>
+    props.message?.replace('Value', ': field') ?? ''
+);
 
 </script>
 
@@ -24,7 +31,7 @@ const isDisplayed = computed(() => Boolean(props.message));
         v-if="isDisplayed"
         class="text-xs"
       >
-        {{ message.replace('Value', ': field') }}
+        {{ displayMessage }}
       </span>
     </Transition>
   </div>

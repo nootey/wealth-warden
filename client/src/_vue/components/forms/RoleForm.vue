@@ -171,79 +171,129 @@ async function deleteRecord(id: number) {
 </script>
 
 <template>
-
-    <div v-if="!loading" class="flex flex-column gap-3 p-1">
-        <div v-if="readOnly">
-            <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
-        </div>
-
-        <div class="flex flex-column gap-3 p-1">
-            <div class="flex flex-row w-full">
-                <div class="flex flex-column w-full">
-                    <ValidationError :isRequired="true" :message="v$.record.name.$errors[0]?.$message">
-                        <label>Name</label>
-                    </ValidationError>
-                    <InputText :readonly="readOnly" :disabled="readOnly" size="small"
-                               v-model="record.name"></InputText>
-                </div>
-            </div>
-
-            <div class="flex flex-row w-full">
-                <div class="flex flex-column gap-1 w-full">
-                    <ValidationError :isRequired="false" :message="v$.record.description.$errors[0]?.$message">
-                        <label>Description</label>
-                    </ValidationError>
-                    <InputText :readonly="readOnly" :disabled="readOnly" size="small"
-                               v-model="record.description"></InputText>
-                </div>
-            </div>
-        </div>
-
-        <div v-if="mode === 'update' && record.is_default" class="flex flex-row w-full align-items-center gap-2">
-            <i class="pi pi-info-circle"></i>
-            <span class="text-sm" style="color: var(--text-secondary)">This role is a default. Permissions are not editable.</span>
-        </div>
-
-        <div v-if="!record.is_default" class="flex flex-row gap-2 w-full">
-            <div class="flex flex-column w-full">
-                <ValidationError :isRequired="true" :message="v$.selectedPermissions.$errors[0]?.$message">
-                    <label>Permissions</label>
-                </ValidationError>
-                <MultiSelect v-model="selectedPermissions" :options="permissions" optionLabel="name"
-                    display="comma" filter dataKey="id"
-                    :disabled="readOnly || (mode === 'update' && record.is_default)"
-                    placeholder="Select permissions" class="w-full"
-                />
-            </div>
-        </div>
-
-        <div class="flex flex-row gap-3 w-full">
-            <div v-if="selectedPermissions.length"
-                 class="flex flex-column gap-2 w-full p-1 w-full"
-                 style="max-height: 220px; overflow-y: auto;">
-
-                <div v-for="perm in selectedPermissions" :key="perm.id" style="width: 99%;"
-                     class="flex flex-column p-2 border-round-lg border-1 surface-border gap-1">
-                    <div><strong>Name:</strong> {{ perm.name }}</div>
-                    <div><strong>Description:</strong> {{ perm.description }}</div>
-                </div>
-
-            </div>
-        </div>
-
-        <div class="flex flex-row gap-2 w-full">
-            <div class="flex flex-column w-full gap-2">
-                <Button v-if="!readOnly" class="main-button" :label="(mode == 'create' ? 'Add' : 'Update') +  ' role'"
-                        @click="manageRecord" style="height: 42px;" />
-                <Button v-if="!readOnly && mode == 'update'"
-                        label="Delete role" class="delete-button"
-                        @click="deleteConfirmation(record.id!, record.name)" style="height: 42px;" />
-            </div>
-        </div>
-
+  <div
+    v-if="!loading"
+    class="flex flex-column gap-3 p-1"
+  >
+    <div v-if="readOnly">
+      <h5 style="color: var(--text-secondary)">
+        Read-only mode.
+      </h5>
     </div>
-    <ShowLoading v-else :numFields="4" />
 
+    <div class="flex flex-column gap-3 p-1">
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.name.$errors[0]?.$message"
+          >
+            <label>Name</label>
+          </ValidationError>
+          <InputText
+            v-model="record.name"
+            :readonly="readOnly"
+            :disabled="readOnly"
+            size="small"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="false"
+            :message="v$.record.description.$errors[0]?.$message"
+          >
+            <label>Description</label>
+          </ValidationError>
+          <InputText
+            v-model="record.description"
+            :readonly="readOnly"
+            :disabled="readOnly"
+            size="small"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="mode === 'update' && record.is_default"
+      class="flex flex-row w-full align-items-center gap-2"
+    >
+      <i class="pi pi-info-circle" />
+      <span
+        class="text-sm"
+        style="color: var(--text-secondary)"
+      >This role is a default. Permissions are not editable.</span>
+    </div>
+
+    <div
+      v-if="!record.is_default"
+      class="flex flex-row gap-2 w-full"
+    >
+      <div class="flex flex-column w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.selectedPermissions.$errors[0]?.$message"
+        >
+          <label>Permissions</label>
+        </ValidationError>
+        <MultiSelect
+          v-model="selectedPermissions"
+          :options="permissions"
+          option-label="name"
+          display="comma"
+          filter
+          data-key="id"
+          :disabled="readOnly || (mode === 'update' && record.is_default)"
+          placeholder="Select permissions"
+          class="w-full"
+        />
+      </div>
+    </div>
+
+    <div class="flex flex-row gap-3 w-full">
+      <div
+        v-if="selectedPermissions.length"
+        class="flex flex-column gap-2 w-full p-1 w-full"
+        style="max-height: 220px; overflow-y: auto;"
+      >
+        <div
+          v-for="perm in selectedPermissions"
+          :key="perm.id"
+          style="width: 99%;"
+          class="flex flex-column p-2 border-round-lg border-1 surface-border gap-1"
+        >
+          <div><strong>Name:</strong> {{ perm.name }}</div>
+          <div><strong>Description:</strong> {{ perm.description }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-row gap-2 w-full">
+      <div class="flex flex-column w-full gap-2">
+        <Button
+          v-if="!readOnly"
+          class="main-button"
+          :label="(mode == 'create' ? 'Add' : 'Update') + ' role'"
+          style="height: 42px;"
+          @click="manageRecord"
+        />
+        <Button
+          v-if="!readOnly && mode == 'update'"
+          label="Delete role"
+          class="delete-button"
+          style="height: 42px;"
+          @click="deleteConfirmation(record.id!, record.name)"
+        />
+      </div>
+    </div>
+  </div>
+  <ShowLoading
+    v-else
+    :num-fields="4"
+  />
 </template>
 
 <style scoped>

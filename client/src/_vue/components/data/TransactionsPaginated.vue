@@ -16,13 +16,13 @@ const props = defineProps<{
     sort?: SortObj;
     rows?: number[];
     filters?: any;
-    include_deleted?: boolean;
+    includeDeleted?: boolean;
     fetchPage: (args: {
         page: number;
         rows: number;
         sort?: SortObj;
         filters?: any;
-        include_deleted?: boolean;
+        includeDeleted?: boolean;
     }) => Promise<{ data: Transaction[]; total: number }>;
     readOnly: boolean;
 }>();
@@ -61,7 +61,7 @@ async function getData() {
             rows: rowsPerPage.value,
             sort: localSort.value,
             filters: props.filters,
-            include_deleted: props.include_deleted,
+            includeDeleted: props.includeDeleted,
         });
 
         // Ignore stale responses
@@ -77,7 +77,7 @@ async function getData() {
 onMounted(getData);
 
 watch(
-    () => [props.sort?.field, props.sort?.order, props.filters, props.include_deleted],
+    () => [props.sort?.field, props.sort?.order, props.filters, props.includeDeleted],
     () => { pageLocal.value = 1; getData(); }
 );
 
@@ -99,61 +99,97 @@ defineExpose({ refresh });
 </script>
 
 <template>
-    <DataTable class="w-full enhanced-table" dataKey="id"
-               :loading="loading" :value="recordsLocal" scrollable scrollHeight="50vh"
-               :rowClass="vueHelper.deletedRowClass" columnResizeMode="fit"
-               scrollDirection="both">
-        <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-        <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-        <template #footer>
-            <CustomPaginator :paginator="derivedPaginator" :rows="rowsOptions" @onPage="handlePage"/>
-        </template>
+  <DataTable
+    class="w-full enhanced-table"
+    data-key="id"
+    :loading="loading"
+    :value="recordsLocal"
+    scrollable
+    scroll-height="50vh"
+    :row-class="vueHelper.deletedRowClass"
+    column-resize-mode="fit"
+    scroll-direction="both"
+  >
+    <template #empty>
+      <div style="padding: 10px;">
+        No records found.
+      </div>
+    </template>
+    <template #loading>
+      <LoadingSpinner />
+    </template>
+    <template #footer>
+      <CustomPaginator
+        :paginator="derivedPaginator"
+        :rows="rowsOptions"
+        @on-page="handlePage"
+      />
+    </template>
 
-        <Column v-for="col of columns" :key="col.field" :field="col.field"
-                :headerClass="col.hideOnMobile ? 'mobile-hide ' : ''"
-                :bodyClass="col.hideOnMobile ? 'mobile-hide ' : ''">
-            <template #header >
-                <ColumnHeader :header="col.header" :field="col.field" :sort="localSort"
-                              :sortable="!!sort"
-                              @click="!sort && triggerSort(col.field as string)">
-                </ColumnHeader>
-            </template>
-            <template #body="{ data }">
-                <template v-if="col.field === 'amount'">
-                    <div class="flex flex-row gap-2 align-items-center">
-                        <i class="text-xs" :class="((data.transaction_type === 'expense' ? data.amount * -1 : data.amount) >= 0)
-                                ? 'pi pi-angle-up': 'pi pi-angle-down'"
-                            :style="{ color: ((data.transaction_type === 'expense' ? data.amount * -1 : data.amount) >= 0)
-                                ? colors.pos: colors.neg }"
-                        />
-                        <span>{{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}</span>
-                    </div>
-                </template>
-                <template v-else-if="col.field === 'txn_date'">
-                    {{ dateHelper.combineDateAndTime(data?.txn_date, data?.created_at) }}
-                </template>
-                <template v-else-if="col.field === 'account'">
-                    <div class="flex flex-row gap-2 align-items-center account-row">
-                        <span class="hover" @click="$emit('rowClick', data.id)">
-                            {{ data[col.field]["name"] }}
-                        </span>
-                        <i v-if="data[col.field]['deleted_at']" class="pi pi-ban popup-icon hover-icon" v-tooltip="'This account is closed.'"/>
-                    </div>
-                </template>
-                <template v-else-if="col.field === 'category'">
-                    {{ data[col.field]["display_name"] }}
-                </template>
-                <template v-else-if="col.field === 'description'">
-                    <span class="truncate-text" v-tooltip.top="data[col.field]">
-                        {{ data[col.field] }}
-                    </span>
-                </template>
-                <template v-else>
-                    {{ data[col.field] }}
-                </template>
-            </template>
-        </Column>
-    </DataTable>
+    <Column
+      v-for="col of columns"
+      :key="col.field"
+      :field="col.field"
+      :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+      :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+    >
+      <template #header>
+        <ColumnHeader
+          :header="col.header"
+          :field="col.field"
+          :sort="localSort"
+          :sortable="!!sort"
+          @click="!sort && triggerSort(col.field as string)"
+        />
+      </template>
+      <template #body="{ data }">
+        <template v-if="col.field === 'amount'">
+          <div class="flex flex-row gap-2 align-items-center">
+            <i
+              class="text-xs"
+              :class="((data.transaction_type === 'expense' ? data.amount * -1 : data.amount) >= 0)
+                ? 'pi pi-angle-up': 'pi pi-angle-down'"
+              :style="{ color: ((data.transaction_type === 'expense' ? data.amount * -1 : data.amount) >= 0)
+                ? colors.pos: colors.neg }"
+            />
+            <span>{{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}</span>
+          </div>
+        </template>
+        <template v-else-if="col.field === 'txn_date'">
+          {{ dateHelper.combineDateAndTime(data?.txn_date, data?.created_at) }}
+        </template>
+        <template v-else-if="col.field === 'account'">
+          <div class="flex flex-row gap-2 align-items-center account-row">
+            <span
+              class="hover"
+              @click="$emit('rowClick', data.id)"
+            >
+              {{ data[col.field]["name"] }}
+            </span>
+            <i
+              v-if="data[col.field]['deleted_at']"
+              v-tooltip="'This account is closed.'"
+              class="pi pi-ban popup-icon hover-icon"
+            />
+          </div>
+        </template>
+        <template v-else-if="col.field === 'category'">
+          {{ data[col.field]["display_name"] }}
+        </template>
+        <template v-else-if="col.field === 'description'">
+          <span
+            v-tooltip.top="data[col.field]"
+            class="truncate-text"
+          >
+            {{ data[col.field] }}
+          </span>
+        </template>
+        <template v-else>
+          {{ data[col.field] }}
+        </template>
+      </template>
+    </Column>
+  </DataTable>
 </template>
 
 <style scoped>

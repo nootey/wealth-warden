@@ -2,7 +2,7 @@ export interface FilterObj {
     source: string;
     field: string | null;
     operator: string;
-    value: any;
+    value: unknown;
     display?: string;
 }
 

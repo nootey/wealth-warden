@@ -71,42 +71,92 @@ const searchOperator = (event: any) => {
 </script>
 
 <template>
-    <div class="flex flex-column gap-2 w-full">
-
-        <div v-if="!useRange" class="flex flex-row w-full">
-            <AutoComplete size="small" class="w-full" :modelValue="selectedOperator"
-                          :disabled="singleDisabled" :suggestions="filteredOperators"   optionLabel="name"
-                          placeholder="Select operator" dropdown @complete="searchOperator" @item-select="onOpSelect"/>
-        </div>
-
-        <div v-if="!useRange" class="flex flex-row w-full">
-            <IftaLabel class="w-full">
-                <InputNumber size="small" class="w-full" inputId="single" :disabled="singleDisabled" :modelValue="singleVal" @update:modelValue="onSingleInput"
-                             mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"/>
-                <label for="single">Single value</label>
-            </IftaLabel>
-        </div>
-
-        <div v-if="useRange" class="flex flex-column gap-2 w-full">
-            <IftaLabel>
-                <InputNumber size="small" class="w-full" inputId="range_min" :disabled="rangeDisabled" :modelValue="model.min" @update:modelValue="onRangeMin"
-                             mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"/>
-                <label for="range_min">Min</label>
-            </IftaLabel>
-
-            <IftaLabel>
-                <InputNumber size="small" class="w-full" inputId="range_max" :disabled="rangeDisabled" :modelValue="model.max" @update:modelValue="onRangeMax"
-                             mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"/>
-                <label for="range_max">Max</label>
-            </IftaLabel>
-        </div>
-
-        <div class="flex align-items-center gap-2">
-            <Checkbox v-model="useRange" inputId="useRange" binary />
-            <label for="useRange">Use range</label>
-        </div>
-
+  <div class="flex flex-column gap-2 w-full">
+    <div
+      v-if="!useRange"
+      class="flex flex-row w-full"
+    >
+      <AutoComplete
+        size="small"
+        class="w-full"
+        :model-value="selectedOperator"
+        :disabled="singleDisabled"
+        :suggestions="filteredOperators"
+        option-label="name"
+        placeholder="Select operator"
+        dropdown
+        @complete="searchOperator"
+        @item-select="onOpSelect"
+      />
     </div>
+
+    <div
+      v-if="!useRange"
+      class="flex flex-row w-full"
+    >
+      <IftaLabel class="w-full">
+        <InputNumber
+          size="small"
+          class="w-full"
+          input-id="single"
+          :disabled="singleDisabled"
+          :model-value="singleVal"
+          mode="currency"
+          currency="EUR"
+          locale="de-DE"
+          placeholder="0,00 €"
+          @update:model-value="onSingleInput"
+        />
+        <label for="single">Single value</label>
+      </IftaLabel>
+    </div>
+
+    <div
+      v-if="useRange"
+      class="flex flex-column gap-2 w-full"
+    >
+      <IftaLabel>
+        <InputNumber
+          size="small"
+          class="w-full"
+          input-id="range_min"
+          :disabled="rangeDisabled"
+          :model-value="model.min"
+          mode="currency"
+          currency="EUR"
+          locale="de-DE"
+          placeholder="0,00 €"
+          @update:model-value="onRangeMin"
+        />
+        <label for="range_min">Min</label>
+      </IftaLabel>
+
+      <IftaLabel>
+        <InputNumber
+          size="small"
+          class="w-full"
+          input-id="range_max"
+          :disabled="rangeDisabled"
+          :model-value="model.max"
+          mode="currency"
+          currency="EUR"
+          locale="de-DE"
+          placeholder="0,00 €"
+          @update:model-value="onRangeMax"
+        />
+        <label for="range_max">Max</label>
+      </IftaLabel>
+    </div>
+
+    <div class="flex align-items-center gap-2">
+      <Checkbox
+        v-model="useRange"
+        input-id="useRange"
+        binary
+      />
+      <label for="useRange">Use range</label>
+    </div>
+  </div>
 </template>
 
 <style scoped></style>

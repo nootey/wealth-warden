@@ -119,7 +119,7 @@ const expectedBalance = computed(() => {
             const percentageIncrease = currentBalance.mul(percentage).div(100);
             const result = currentBalance.plus(percentageIncrease);
             return result.toNumber();
-        } catch (error) {
+        } catch {
             return currentBalanceNumber.value;
         }
     }
@@ -223,7 +223,7 @@ watch(() => record.value.multiplier_category_id, async (newCategoryId) => {
             const accountIDToUse = effectiveAccountID.value || props.accID;
             const avg = await statStore.getCategoryAverage(newCategoryId, accountIDToUse, isGroup);
             categoryAverage.value = Math.abs(avg);
-        } catch (error) {
+        } catch {
             categoryAverage.value = 0;
         } finally {
             loadingAverage.value = false;
@@ -266,150 +266,240 @@ async function revertProjection() {
 </script>
 
 <template>
-    <div v-if="account" class="flex flex-column w-full gap-3">
-        <SlotSkeleton class="w-full" bg="opt">
-            <div class="flex flex-column gap-2 p-3 w-full">
+  <div
+    v-if="account"
+    class="flex flex-column w-full gap-3"
+  >
+    <SlotSkeleton
+      class="w-full"
+      bg="opt"
+    >
+      <div class="flex flex-column gap-2 p-3 w-full">
+        <div class="flex flex-column gap-1">
+          <label>Preview</label>
+          <span
+            v-if="loadingAverage"
+            class="text-lg font-semibold text-gray-500"
+          >
+            Loading...
+          </span>
+          <span
+            v-else
+            style="color: var(--text-secondary)"
+          >
+            {{ expectedBalance.toLocaleString('de-DE', {
+              style: 'currency',
+              currency: 'EUR',
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
+            }) }}
+          </span>
+        </div>
 
-                <div class="flex flex-column gap-1">
-                    <label>Preview</label>
-                    <span v-if="loadingAverage" class="text-lg font-semibold text-gray-500">
-                        Loading...
-                    </span>
-                    <span v-else style="color: var(--text-secondary)">
-                        {{ expectedBalance.toLocaleString('de-DE', {
-                        style: 'currency',
-                        currency: 'EUR',
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                    }) }}
-                    </span>
-                </div>
+        <div class="flex flex-row w-full">
+          <div class="flex flex-column w-full gap-1">
+            <ValidationError
+              :is-required="true"
+              :message="v$.record.balance_projection.$errors[0]?.$message"
+            >
+              <label>Projection</label>
+            </ValidationError>
+            <Select
+              v-model="record.balance_projection"
+              :options="projectionOptions"
+              option-label="label"
+              option-value="value"
+              placeholder="Select projection type"
+              size="small"
+            />
+          </div>
+        </div>
 
-                <div class="flex flex-row w-full">
-                    <div class="flex flex-column w-full gap-1">
-                        <ValidationError :isRequired="true" :message="v$.record.balance_projection.$errors[0]?.$message">
-                            <label>Projection</label>
-                        </ValidationError>
-                        <Select v-model="record.balance_projection"
-                                :options="projectionOptions"
-                                optionLabel="label"
-                                optionValue="value"
-                                placeholder="Select projection type"
-                                size="small"
-                        />
-                    </div>
-                </div>
+        <!-- Fixed projection -->
+        <div
+          v-if="record.balance_projection === 'fixed'"
+          class="flex flex-column gap-1"
+        >
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.expected_balance.$errors[0]?.$message"
+          >
+            <label>Expected balance</label>
+          </ValidationError>
+          <InputNumber
+            v-model="expectedBalanceNumber"
+            size="small"
+            mode="currency"
+            currency="EUR"
+            locale="de-DE"
+            :min="0"
+            placeholder="0,00 €"
+            :min-fraction-digits="2"
+            :max-fraction-digits="2"
+          />
+          <span
+            class="text-sm"
+            style="color: var(--text-secondary)"
+          >
+            Input a fixed balance. This value will be used as the expected balance for this account.
+          </span>
+        </div>
 
-                <!-- Fixed projection -->
-                <div v-if="record.balance_projection === 'fixed'" class="flex flex-column gap-1">
-                    <ValidationError :isRequired="true" :message="v$.record.expected_balance.$errors[0]?.$message">
-                        <label>Expected balance</label>
-                    </ValidationError>
-                    <InputNumber size="small" v-model="expectedBalanceNumber"
-                                 mode="currency" currency="EUR" locale="de-DE" :min="0"
-                                 placeholder="0,00 €" :minFractionDigits="2" :maxFractionDigits="2">
-                    </InputNumber>
-                    <span class="text-sm" style="color: var(--text-secondary)">
-                        Input a fixed balance. This value will be used as the expected balance for this account.
-                    </span>
-                </div>
+        <!-- Percentage projection -->
+        <div
+          v-if="record.balance_projection === 'percentage'"
+          class="flex flex-column gap-2"
+        >
+          <div class="flex flex-column gap-1">
+            <label>Current Balance</label>
+            <InputNumber
+              size="small"
+              :model-value="parseFloat(account.balance.end_balance!)"
+              mode="currency"
+              currency="EUR"
+              locale="de-DE"
+              :min-fraction-digits="2"
+              :max-fraction-digits="2"
+              disabled
+            />
+          </div>
+          <div class="flex flex-column gap-1">
+            <ValidationError :message="v$.record.percentage_value.$errors[0]?.$message">
+              <label>Percentage</label>
+            </ValidationError>
+            <InputNumber
+              v-model="record.percentage_value"
+              size="small"
+              suffix="%"
+              :min="0"
+              :max="100"
+              placeholder="0%"
+              :min-fraction-digits="0"
+              :max-fraction-digits="2"
+            />
+          </div>
+          <span
+            class="text-sm"
+            style="color: var(--text-secondary)"
+          >
+            Input a percentage rate. This value will be used as the expected growth for this account. The growth period is currently unlimited.
+          </span>
+        </div>
 
-                <!-- Percentage projection -->
-                <div v-if="record.balance_projection === 'percentage'" class="flex flex-column gap-2">
-                    <div class="flex flex-column gap-1">
-                        <label>Current Balance</label>
-                        <InputNumber size="small" :modelValue="parseFloat(account.balance.end_balance!)"
-                                     mode="currency" currency="EUR" locale="de-DE"
-                                     :minFractionDigits="2" :maxFractionDigits="2"
-                                     disabled>
-                        </InputNumber>
-                    </div>
-                    <div class="flex flex-column gap-1">
-                        <ValidationError :message="v$.record.percentage_value.$errors[0]?.$message">
-                            <label>Percentage</label>
-                        </ValidationError>
-                        <InputNumber size="small" v-model="record.percentage_value"
-                                     suffix="%" :min="0" :max="100"
-                                     placeholder="0%" :minFractionDigits="0" :maxFractionDigits="2">
-                        </InputNumber>
-                    </div>
-                    <span class="text-sm" style="color: var(--text-secondary)">
-                        Input a percentage rate. This value will be used as the expected growth for this account. The growth period is currently unlimited.
-                    </span>
-                </div>
+        <!-- Multiplier projection -->
+        <div
+          v-if="record.balance_projection === 'multiplier'"
+          class="flex flex-column gap-2"
+        >
+          <div class="flex flex-column gap-1">
+            <ValidationError
+              :is-required="true"
+              :message="v$.record.multiplier_category_id.$errors[0]?.$message"
+            >
+              <label>Category/Group</label>
+            </ValidationError>
+            <Select
+              v-model="record.multiplier_category_id"
+              :options="categoryOptions"
+              option-label="label"
+              option-value="value"
+              placeholder="Select category or group"
+              size="small"
+              :loading="loadingAverage"
+            />
+          </div>
 
-                <!-- Multiplier projection -->
-                <div v-if="record.balance_projection === 'multiplier'" class="flex flex-column gap-2">
-                    <div class="flex flex-column gap-1">
-                        <ValidationError :isRequired="true" :message="v$.record.multiplier_category_id.$errors[0]?.$message">
-                            <label>Category/Group</label>
-                        </ValidationError>
-                        <Select v-model="record.multiplier_category_id"
-                                :options="categoryOptions"
-                                optionLabel="label"
-                                optionValue="value"
-                                placeholder="Select category or group"
-                                size="small"
-                                :loading="loadingAverage"
-                        />
-                    </div>
+          <div class="flex flex-column gap-1">
+            <ValidationError
+              :is-required="true"
+              :message="v$.record.multiplier_value.$errors[0]?.$message"
+            >
+              <label>Multiplier</label>
+            </ValidationError>
+            <InputNumber
+              v-model="record.multiplier_value"
+              size="small"
+              :min="1"
+              :max="10"
+              placeholder="1"
+              :max-fraction-digits="0"
+            />
+          </div>
 
-                    <div class="flex flex-column gap-1">
-                        <ValidationError :isRequired="true" :message="v$.record.multiplier_value.$errors[0]?.$message">
-                            <label>Multiplier</label>
-                        </ValidationError>
-                        <InputNumber size="small" v-model="record.multiplier_value"
-                                     :min="1" :max="10"
-                                     placeholder="1" :maxFractionDigits="0">
-                        </InputNumber>
-                    </div>
+          <span
+            class="text-sm"
+            style="color: var(--text-secondary)"
+          >
+            Select a category or group and input a multiplier.
+            The expected balance will be the monthly average of transactions, linked to this category, constrained to the current year - with the provided multiplier.
+          </span>
 
-                    <span class="text-sm" style="color: var(--text-secondary)">
-                        Select a category or group and input a multiplier.
-                        The expected balance will be the monthly average of transactions, linked to this category, constrained to the current year - with the provided multiplier.
-                    </span>
+          <span
+            class="text-sm"
+            style="color: var(--text-secondary)"
+          >
+            For example, you can define a 6 times multiplier and select your salary as the category, which would set the expected balance as 6 times the average monthly salary.
+          </span>
+        </div>
 
-                    <span class="text-sm" style="color: var(--text-secondary)">
-                        For example, you can define a 6 times multiplier and select your salary as the category, which would set the expected balance as 6 times the average monthly salary.
-                    </span>
-                </div>
+        <!-- Account selector - optional -->
+        <div
+          v-if="showAccountSelector && (record.balance_projection === 'multiplier' || record.balance_projection === 'percentage')"
+          class="flex flex-column gap-1"
+        >
+          <label>Account</label>
+          <Select
+            v-model="effectiveAccountID"
+            :options="checkingAccounts"
+            option-value="id"
+            placeholder="Select account"
+            size="small"
+            show-clear
+          >
+            <template #value="slotProps">
+              <span v-if="slotProps.value">
+                {{ checkingAccounts.find(a => a.id === slotProps.value)?.name }}
+              </span>
+              <span v-else>Default account</span>
+            </template>
+            <template #option="slotProps">
+              <div class="flex flex-column">
+                <span class="font-semibold">{{ slotProps.option.name }}</span>
+                <span
+                  class="text-xs"
+                  style="color: var(--text-secondary)"
+                >
+                  {{ slotProps.option.account_type?.sub_type }}
+                </span>
+              </div>
+            </template>
+          </Select>
+        </div>
 
-                <!-- Account selector - optional -->
-                <div v-if="showAccountSelector && (record.balance_projection === 'multiplier' || record.balance_projection === 'percentage')"
-                     class="flex flex-column gap-1">
-                    <label>Account</label>
-                    <Select v-model="effectiveAccountID"
-                            :options="checkingAccounts" optionValue="id"
-                            placeholder="Select account" size="small" showClear>
-                        <template #value="slotProps">
-                            <span v-if="slotProps.value">
-                                {{ checkingAccounts.find(a => a.id === slotProps.value)?.name }}
-                            </span>
-                            <span v-else>Default account</span>
-                        </template>
-                        <template #option="slotProps">
-                            <div class="flex flex-column">
-                                <span class="font-semibold">{{ slotProps.option.name }}</span>
-                                <span class="text-xs" style="color: var(--text-secondary)">
-                                    {{ slotProps.option.account_type?.sub_type }}
-                                </span>
-                            </div>
-                        </template>
-                    </Select>
-                </div>
+        <div class="flex flex-column w-full">
+          <Button
+            class="main-button"
+            label="Save"
+            style="height: 42px;"
+            @click="saveProjection"
+          />
+        </div>
 
-                <div class="flex flex-column w-full">
-                    <Button class="main-button" label="Save" @click="saveProjection" style="height: 42px;" />
-                </div>
-
-                <div class="flex flex-column w-full">
-                    <Button class="delete-button" label="Revert" @click="revertProjection" style="height: 42px;" />
-                </div>
-
-            </div>
-        </SlotSkeleton>
-    </div>
-    <ShowLoading v-else :numFields="3" />
+        <div class="flex flex-column w-full">
+          <Button
+            class="delete-button"
+            label="Revert"
+            style="height: 42px;"
+            @click="revertProjection"
+          />
+        </div>
+      </div>
+    </SlotSkeleton>
+  </div>
+  <ShowLoading
+    v-else
+    :num-fields="3"
+  />
 </template>
 
 <style scoped>

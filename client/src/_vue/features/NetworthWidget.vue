@@ -12,7 +12,7 @@ const props = withDefaults(defineProps<{
     accountId?: number | null
     title?: string
     storageKeyPrefix?: string
-    chartHeight: number
+    chartHeight?: number
 }>(), {
     accountId: null,
     title: 'Net worth',
@@ -181,11 +181,17 @@ onMounted(getData)
 </script>
 
 <template>
-  <div v-if="payload" class="w-full flex flex-column justify-content-center p-3 gap-1">
+  <div
+    v-if="payload"
+    class="w-full flex flex-column justify-content-center p-3 gap-1"
+  >
     <div class="flex flex-row gap-2 w-full justify-content-between">
       <div class="flex flex-column gap-2">
         <div class="flex flex-row">
-          <span class="text-sm" style="color: var(--text-secondary)">{{ title }}</span>
+          <span
+            class="text-sm"
+            style="color: var(--text-secondary)"
+          >{{ title }}</span>
         </div>
         <div class="flex flex-row">
           <strong>{{ vueHelper.displayAsCurrency(payload.current.value) }}</strong>
@@ -193,50 +199,72 @@ onMounted(getData)
       </div>
 
       <div class="flex flex-column gap-2">
-          <Select size="small"
-                  style="width: 90px;"
-                  v-model="selectedDTO"
-                  :options="dateRanges"
-                  optionLabel="name"
-          />
+        <Select
+          v-model="selectedDTO"
+          size="small"
+          style="width: 90px;"
+          :options="dateRanges"
+          option-label="name"
+        />
       </div>
     </div>
 
-    <div v-if="payload?.change && hasSeries"
-         class="flex flex-row gap-2 align-items-center"
-         :style="{ color: activeColor }">
+    <div
+      v-if="payload?.change && hasSeries"
+      class="flex flex-row gap-2 align-items-center"
+      :style="{ color: activeColor }"
+    >
       <span>{{ vueHelper.displayAsCurrency(Math.abs(effectiveAbs)) }}</span>
 
       <div class="flex flex-row gap-1 align-items-center">
-        <i class="text-sm" :class="effectiveAbs >= 0 ? 'pi pi-angle-double-up' : 'pi pi-angle-double-down'"></i>
+        <i
+          class="text-sm"
+          :class="effectiveAbs >= 0 ? 'pi pi-angle-double-up' : 'pi pi-angle-double-down'"
+        />
         <span>({{ pctStr }})</span>
       </div>
 
-      <span class="text-sm" style="color: var(--text-secondary)">
-          {{ displayNetworthChange(periodLabels[selectedKey]) }}
+      <span
+        class="text-sm"
+        style="color: var(--text-secondary)"
+      >
+        {{ displayNetworthChange(periodLabels[selectedKey]) }}
       </span>
     </div>
 
     <NetworthChart
-        v-if="hasSeries"
-        :height="chartHeight"
-        :dataPoints="displayPoints"
-        :currency="payload.currency"
-        :activeColor="activeColor"
-        :isLiability="payload?.asset_type === 'liability'"
+      v-if="hasSeries"
+      :height="chartHeight"
+      :data-points="displayPoints"
+      :currency="payload.currency"
+      :active-color="activeColor"
+      :is-liability="payload?.asset_type === 'liability'"
     />
 
-    <div v-else
-         class="flex flex-column align-items-center justify-content-center border-1 border-dashed border-round-md surface-border"
-         :style="{ height: (chartHeight/2) + 'px' }">
-      <i class="pi pi-inbox text-2xl mb-2" style="color: var(--text-secondary)"></i>
-      <div class="text-sm" style="color: var(--text-secondary)">
-            <span> No data yet - connect an</span>
-            <span class="hover-icon font-bold text-base" @click="router.push({name: 'accounts'})"> account </span>
-            <span> to see your net worth over time. </span>
+    <div
+      v-else
+      class="flex flex-column align-items-center justify-content-center border-1 border-dashed border-round-md surface-border"
+      :style="{ height: (chartHeight/2) + 'px' }"
+    >
+      <i
+        class="pi pi-inbox text-2xl mb-2"
+        style="color: var(--text-secondary)"
+      />
+      <div
+        class="text-sm"
+        style="color: var(--text-secondary)"
+      >
+        <span> No data yet - connect an</span>
+        <span
+          class="hover-icon font-bold text-base"
+          @click="router.push({name: 'accounts'})"
+        > account </span>
+        <span> to see your net worth over time. </span>
       </div>
     </div>
-
   </div>
-  <ShowLoading v-else :numFields="6" />
+  <ShowLoading
+    v-else
+    :num-fields="6"
+  />
 </template>

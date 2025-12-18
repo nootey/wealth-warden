@@ -205,119 +205,178 @@ provide("removeFilter", removeFilter);
 </script>
 
 <template>
+  <Popover
+    ref="filterOverlayRef"
+    class="rounded-popover"
+    :style="{width: '420px'}"
+    :breakpoints="{'775px': '90vw'}"
+  >
+    <FilterMenu
+      v-model:value="filters"
+      :columns="activeColumns"
+      :api-source="apiPrefix"
+      @apply="(list) => applyFilters(list)"
+      @clear="clearFilters"
+      @cancel="cancelFilters"
+    />
+  </Popover>
 
-    <Popover ref="filterOverlayRef" class="rounded-popover" :style="{width: '420px'}" :breakpoints="{'775px': '90vw'}">
-        <FilterMenu
-                v-model:value="filters"
-                :columns="activeColumns"
-                :apiSource="apiPrefix"
-                @apply="(list) => applyFilters(list)"
-                @clear="clearFilters"
-                @cancel="cancelFilters"
-        />
-    </Popover>
+  <main class="flex flex-column w-full p-2 align-items-center">
+    <div
+      class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
+      style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;"
+    >
+      <div style="font-weight: bold;">
+        Activity logs
+      </div>
 
-    <main class="flex flex-column w-full p-2 align-items-center">
-
-        <div class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
-             style="border: 1px solid var(--border-color); background: var(--background-secondary); max-width: 1000px;">
-
-            <div style="font-weight: bold;">Activity logs</div>
-
-            <div class="flex flex-row justify-content-between align-items-center p-1 gap-3 w-full border-round-md"
-                 style="border: 1px solid var(--border-color);background: var(--background-secondary);">
-
-                <ActionRow>
-                    <template #activeFilters>
-                        <ActiveFilters :activeFilters="filters" :showOnlyActive="false" activeFilter="" />
-                    </template>
-                    <template #filterButton>
-                        <div class="hover-icon flex flex-row align-items-center gap-2" @click="toggleFilterOverlay($event)"
-                             style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color)">
-                            <i class="pi pi-filter" style="font-size: 0.845rem"></i>
-                            <div>Filter</div>
-                        </div>
-                    </template>
-                </ActionRow>
+      <div
+        class="flex flex-row justify-content-between align-items-center p-1 gap-3 w-full border-round-md"
+        style="border: 1px solid var(--border-color);background: var(--background-secondary);"
+      >
+        <ActionRow>
+          <template #activeFilters>
+            <ActiveFilters
+              :active-filters="filters"
+              :show-only-active="false"
+              active-filter=""
+            />
+          </template>
+          <template #filterButton>
+            <div
+              class="hover-icon flex flex-row align-items-center gap-2"
+              style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color)"
+              @click="toggleFilterOverlay($event)"
+            >
+              <i
+                class="pi pi-filter"
+                style="font-size: 0.845rem"
+              />
+              <div>Filter</div>
             </div>
+          </template>
+        </ActionRow>
+      </div>
 
-            <div class="flex flex-row gap-2 w-full">
-                <div class="w-full">
-                    <DataTable class="w-full enhanced-table" dataKey="id" :loading="loadingRecords" :value="records"
-                               v-model:expandedRows="expandedRows" :rowHover="true" :showGridlines="false">
-                        <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-                        <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-                        <template #footer>
-                            <CustomPaginator :paginator="paginator" :rows="rows" @onPage="onPage"/>
-                        </template>
+      <div class="flex flex-row gap-2 w-full">
+        <div class="w-full">
+          <DataTable
+            v-model:expanded-rows="expandedRows"
+            class="w-full enhanced-table"
+            data-key="id"
+            :loading="loadingRecords"
+            :value="records"
+            :row-hover="true"
+            :show-gridlines="false"
+          >
+            <template #empty>
+              <div style="padding: 10px;">
+                No records found.
+              </div>
+            </template>
+            <template #loading>
+              <LoadingSpinner />
+            </template>
+            <template #footer>
+              <CustomPaginator
+                :paginator="paginator"
+                :rows="rows"
+                @on-page="onPage"
+              />
+            </template>
 
-                        <Column>
-                            <template #header>
-                                <span class="mobile-hide">Actions</span>
-                            </template>
-                            <template #body="slotProps">
-                                <i v-if="hasPermission('delete_activity_logs')" class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
-                                   @click="deleteConfirmation(slotProps.data?.id)"></i>
-                                <i v-else class="pi pi-ban hover-icon" v-tooltip="'No action currently available.'"></i>
-                            </template>
-                        </Column>
+            <Column>
+              <template #header>
+                <span class="mobile-hide">Actions</span>
+              </template>
+              <template #body="slotProps">
+                <i
+                  v-if="hasPermission('delete_activity_logs')"
+                  class="pi pi-trash hover-icon"
+                  style="font-size: 0.875rem; color: var(--p-red-300);"
+                  @click="deleteConfirmation(slotProps.data?.id)"
+                />
+                <i
+                  v-else
+                  v-tooltip="'No action currently available.'"
+                  class="pi pi-ban hover-icon"
+                />
+              </template>
+            </Column>
 
-                        <Column :expander="true">
-                            <template #header>
-                                <span class="mobile-hide">Metadata</span>
-                            </template>
-                        </Column>
-                        <template #expansion="slotProps">
-                            <div>
-                                <div>
-                                    <b> {{ "Description: "  }}</b>
-                                    {{ slotProps.data.description ? slotProps.data?.description : "none provided" }}
-                                </div>
-                                <div v-if="slotProps.data?.metadata" class="truncate-text" style="max-width: 50rem;">
-                                    <div v-for="item in vueHelper.formatChanges(slotProps.data?.metadata)">
-                                        <label>{{ (item?.prop || '').toUpperCase() + ': ' }}</label>
-                                        <span v-tooltip="vueHelper.formatValue(item)">
-                                          {{ vueHelper.formatValue(item) }}
-                                        </span>
-                                    </div>
-
-                                </div>
-                                <div v-else>{{ "Payload is empty" }}</div>
-                            </div>
-                        </template>
-
-                        <Column v-for="col of activeColumns" :key="col.field" :field="col.field">
-                            <template #header >
-                                <ColumnHeader  :header="col.header" :field="col.field" :sort="sort"></ColumnHeader>
-                            </template>
-                            <template #body="{ data }">
-                                <template v-if="col.field === 'created_at'">
-                                    {{ dateHelper.formatDate(data?.created_at, true) }}
-                                </template>
-                                <template v-else-if="col.field === 'causer_id'">
-                                    {{ vueHelper.displayCauserFromId(data.causer_id, availableCausers) }}
-                                </template>
-                                <template v-else-if="col.field === 'event'">
-                                    <IconDisplay :event="data.event"></IconDisplay>
-                                </template>
-                                <template v-else-if="col.field === 'category'">
-                                    <span id="category-row" class="formal" style="display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                        {{ data[col.field] }}
-                                    </span>
-                                </template>
-                                <template v-else>
-                                    {{ data[col.field] }}
-                                </template>
-                            </template>
-                        </Column>
-                    </DataTable>
+            <Column :expander="true">
+              <template #header>
+                <span class="mobile-hide">Metadata</span>
+              </template>
+            </Column>
+            <template #expansion="slotProps">
+              <div>
+                <div>
+                  <b> {{ "Description: " }}</b>
+                  {{ slotProps.data.description ? slotProps.data?.description : "none provided" }}
                 </div>
-            </div>
+                <div
+                  v-if="slotProps.data?.metadata"
+                  class="truncate-text"
+                  style="max-width: 50rem;"
+                >
+                  <div
+                    v-for="(item, index) in vueHelper.formatChanges(slotProps.data?.metadata)"
+                    :key="index"
+                  >
+                    <label>{{ (item?.prop || '').toUpperCase() + ': ' }}</label>
+                    <span v-tooltip="vueHelper.formatValue(item)">
+                      {{ vueHelper.formatValue(item) }}
+                    </span>
+                  </div>
+                </div>
+                <div v-else>
+                  {{ "Payload is empty" }}
+                </div>
+              </div>
+            </template>
+
+            <Column
+              v-for="col of activeColumns"
+              :key="col.field"
+              :field="col.field"
+            >
+              <template #header>
+                <ColumnHeader
+                  :header="col.header"
+                  :field="col.field"
+                  :sort="sort"
+                />
+              </template>
+              <template #body="{ data }">
+                <template v-if="col.field === 'created_at'">
+                  {{ dateHelper.formatDate(data?.created_at, true) }}
+                </template>
+                <template v-else-if="col.field === 'causer_id'">
+                  {{ vueHelper.displayCauserFromId(data.causer_id, availableCausers) }}
+                </template>
+                <template v-else-if="col.field === 'event'">
+                  <IconDisplay :event="data.event" />
+                </template>
+                <template v-else-if="col.field === 'category'">
+                  <span
+                    id="category-row"
+                    class="formal"
+                    style="display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                  >
+                    {{ data[col.field] }}
+                  </span>
+                </template>
+                <template v-else>
+                  {{ data[col.field] }}
+                </template>
+              </template>
+            </Column>
+          </DataTable>
         </div>
-
-
-    </main>
-
+      </div>
+    </div>
+  </main>
 </template>
 
 <style scoped lang="scss">

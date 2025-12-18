@@ -6,22 +6,30 @@ export const useToastStore = defineStore('toast', () => {
     const isMobile = window.matchMedia('(max-width: 768px)').matches;
     const group = isMobile ? 'bc' : 'br';
 
-    const errorResponseToast = (error: any) => {
-
+    const errorResponseToast = (error: unknown) => {
         console.error("triggered error", error);
 
-        const data = error?.response?.data;
+        const isAxiosError = (err: unknown): err is { response?: { data?: { title?: string; message?: string } }; code?: string; message?: string } => {
+            return typeof err === 'object' && err !== null;
+        };
+
         let summary = 'Unexpected Error';
-        let detail = error?.message ?? 'An unknown error occurred.';
+        let detail = 'An unknown error occurred.';
 
-        if (data?.title || data?.message) {
-            summary = data.title ?? 'Error';
-            detail = data.message ?? 'Something went wrong.';
-        }
+        if (isAxiosError(error)) {
+            const data = error.response?.data;
 
-        if (error?.code === 'ERR_NETWORK' || error?.message === 'Network Error') {
-            summary = 'Server unreachable';
-            detail = 'The server is currently not reachable.';
+            if (data?.title || data?.message) {
+                summary = data.title ?? 'Error';
+                detail = data.message ?? 'Something went wrong.';
+            }
+
+            if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+                summary = 'Server unreachable';
+                detail = 'The server is currently not reachable.';
+            } else if (error.message) {
+                detail = error.message;
+            }
         }
 
         toast.add({
@@ -33,7 +41,16 @@ export const useToastStore = defineStore('toast', () => {
         });
     };
 
-    const successResponseToast = (response: any) => {
+    type ToastResponse = {
+        data?: {
+            title?: string;
+            message?: string;
+        };
+        title?: string;
+        message?: string;
+    };
+
+    const successResponseToast = (response: ToastResponse) => {
         const data = response?.data || response;
         if (data?.title || data?.message) {
             toast.add({
@@ -46,7 +63,7 @@ export const useToastStore = defineStore('toast', () => {
         }
     };
 
-    const infoResponseToast = (response: any) => {
+    const infoResponseToast = (response: ToastResponse) => {
         const data = response?.data || response;
         if (data?.title || data?.message) {
             toast.add({

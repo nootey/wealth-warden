@@ -7,35 +7,23 @@ export const useLoggingStore = defineStore('logging', {
     }),
     actions: {
         async getLogsPaginated(params: object, page: number) {
-            try {
+            const queryParams = {
+                ...params,
+                page: page,
+            };
 
-                const queryParams = {
-                    ...params,
-                    page: page,
-                };
+            const response = await apiClient.get(`${this.apiPrefix}`, {
+                params: queryParams,
+            });
 
-                const response = await apiClient.get(`${this.apiPrefix}`, {
-                    params: queryParams,
-                });
-
-                return response.data;
-
-            } catch (err) {
-                throw err;
-            }
+            return response.data;
         },
         async getFilterData(index: string) {
-            try {
+            const response = await apiClient.get(`${this.apiPrefix}/filter-data`, {
+                params: {index: index},
+            });
 
-                const response = await apiClient.get(`${this.apiPrefix}/filter-data`, {
-                    params: {index: index},
-                });
-
-                return response.data;
-
-            } catch (err) {
-                throw err;
-            }
+            return response.data;
         },
     }
 });

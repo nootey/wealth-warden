@@ -1,7 +1,18 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 
-const props = defineProps(["selectedValues", "availableValues", "optionLabel", "toUppercase"]);
+const props = withDefaults(defineProps<{
+    selectedValues?: any[];
+    availableValues?: any[];
+    optionLabel?: string;
+    toUppercase?: boolean;
+}>(), {
+    selectedValues: () => [],
+    availableValues: () => [],
+    optionLabel: '',
+    toUppercase: false,
+});
+
 const emit = defineEmits(["getData", "update:selectedValues"]);
 
 const localSelectedValues = ref(props.selectedValues);

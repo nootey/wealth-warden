@@ -48,7 +48,13 @@ async function onTypeChange() {
 
 async function setAsDefault() {
     try {
-        const res = await accStore.setDefaultAccount(selectedAccount.value?.id!);
+
+        if (!selectedAccount.value?.id) {
+            toastStore.errorResponseToast({"title": "Error", "message": "No account selected"});
+            return;
+        }
+
+        const res = await accStore.setDefaultAccount(selectedAccount.value.id);
         toastStore.successResponseToast(res);
         selectedType.value = null;
         selectedAccount.value = null;
@@ -61,40 +67,61 @@ async function setAsDefault() {
 </script>
 
 <template>
-    <div class="flex flex-column gap-3 p-1">
+  <div class="flex flex-column gap-3 p-1">
+    <span
+      class="text-sm"
+      style="color: var(--text-secondary)"
+    >Select an account type, and define which account should be the default for it.</span>
+    <span
+      class="text-sm"
+      style="color: var(--text-secondary)"
+    >Only types which do not already have a default account assigned, are shown.</span>
 
-        <span class="text-sm" style="color: var(--text-secondary)">Select an account type, and define which account should be the default for it.</span>
-        <span class="text-sm" style="color: var(--text-secondary)">Only types which do not already have a default account assigned, are shown.</span>
-
-        <div class="flex flex-row w-full">
-            <div class="flex flex-column gap-1 w-full">
-                <label>Account Type</label>
-                <Select v-model="selectedType" :options="accTypes" filter
-                        optionLabel="sub_type" placeholder="Select account type"
-                        @change="onTypeChange" class="w-full" size="small"/>
-            </div>
-        </div>
-
-        <div v-if="selectedType" class="flex flex-row w-full">
-            <div class="flex flex-column gap-1 w-full">
-                <label>Account</label>
-                <Select v-model="selectedAccount" filter
-                        :options="accounts" :loading="loading"
-                        optionLabel="name" size="small"
-                        placeholder="Select account"
-                        class="w-full"/>
-            </div>
-        </div>
-        <div class="flex flex-row w-full">
-            <div class="flex flex-column gap-1 w-full">
-                <Button v-if="selectedAccount"
-                        label="Set as Default"
-                        @click="setAsDefault"
-                        class="main-button"
-                />
-            </div>
-        </div>
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <label>Account Type</label>
+        <Select
+          v-model="selectedType"
+          :options="accTypes"
+          filter
+          option-label="sub_type"
+          placeholder="Select account type"
+          class="w-full"
+          size="small"
+          @change="onTypeChange"
+        />
+      </div>
     </div>
+
+    <div
+      v-if="selectedType"
+      class="flex flex-row w-full"
+    >
+      <div class="flex flex-column gap-1 w-full">
+        <label>Account</label>
+        <Select
+          v-model="selectedAccount"
+          filter
+          :options="accounts"
+          :loading="loading"
+          option-label="name"
+          size="small"
+          placeholder="Select account"
+          class="w-full"
+        />
+      </div>
+    </div>
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <Button
+          v-if="selectedAccount"
+          label="Set as Default"
+          class="main-button"
+          @click="setAsDefault"
+        />
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>

@@ -144,118 +144,176 @@ async function handleEmit(type: string) {
 </script>
 
 <template>
+  <Dialog
+    v-model:visible="projectionsModal"
+    position="right"
+    class="rounded-dialog"
+    :breakpoints="{ '501px': '90vw' }"
+    :modal="true"
+    :style="{ width: '500px' }"
+    header="Edit account projections"
+  >
+    <AccountProjectionForm
+      :acc-i-d="accID"
+      @complete-operation="handleEmit('completeOperation')"
+    />
+  </Dialog>
 
-    <Dialog position="right" class="rounded-dialog" v-model:visible="projectionsModal"
-            :breakpoints="{ '501px': '90vw' }" :modal="true" :style="{ width: '500px' }" header="Edit account projections">
-            <AccountProjectionForm :accID="accID" @completeOperation="handleEmit('completeOperation')"/>
-    </Dialog>
-
-    <div v-if="account" class="flex flex-column w-full gap-3">
-
-        <div class="flex flex-row gap-2 align-items-center text-center">
-            <i :class="['pi', account.account_type.classification === 'liability' ? 'pi-credit-card' : 'pi-wallet']">
-            </i>
-            <h3>{{ account.name }}</h3>
-            <Tag :severity="!account.is_active ? 'secondary' : 'success'" style="transform: scale(0.8)">
-                {{ !account.is_active ? 'Inactive' : 'Active' }}
-            </Tag>
-            <Button v-if="advanced" size="small"
-                    label="Close account" class="delete-button" style="margin-left: auto;"
-                    @click="confirmCloseAccount(account.id!)">
-                    <div class="flex flex-row gap-1 align-items-center">
-                        <span> Close </span>
-                        <span class="mobile-hide"> account </span>
-                    </div>
-            </Button>
+  <div
+    v-if="account"
+    class="flex flex-column w-full gap-3"
+  >
+    <div class="flex flex-row gap-2 align-items-center text-center">
+      <i :class="['pi', account.account_type.classification === 'liability' ? 'pi-credit-card' : 'pi-wallet']" />
+      <h3>{{ account.name }}</h3>
+      <Tag
+        :severity="!account.is_active ? 'secondary' : 'success'"
+        style="transform: scale(0.8)"
+      >
+        {{ !account.is_active ? 'Inactive' : 'Active' }}
+      </Tag>
+      <Button
+        v-if="advanced"
+        size="small"
+        label="Close account"
+        class="delete-button"
+        style="margin-left: auto;"
+        @click="confirmCloseAccount(account.id!)"
+      >
+        <div class="flex flex-row gap-1 align-items-center">
+          <span> Close </span>
+          <span class="mobile-hide"> account </span>
         </div>
-
-        <div v-if="!account.is_active" class="flex flex-row gap-2 align-items-center text-center pl-1">
-            <small style="color: var(--text-secondary)">Account is inactive, some aspects will not be shown.</small>
-        </div>
-
-        <SlotSkeleton class="w-full" bg="opt">
-            <div class="flex flex-column gap-2 p-3 w-full">
-                <div class="flex flex-row gap-1 align-items-center">
-                    <h4>KPI</h4>
-                    ·
-                    <span style="color: var(--text-secondary)">{{ account.currency }}</span>
-                </div>
-                <span> Start balance: <b>{{ vueHelper.displayAsCurrency(account.balance.start_balance) }} </b> </span>
-
-                <span> Opened: <b>{{ dateHelper.formatDate(account.opened_at!, false) }} </b> </span>
-                <span v-if="account.closed_at"> Closed: <b>{{ dateHelper.formatDate(account.closed_at!, true) }} </b> </span>
-            </div>
-        </SlotSkeleton>
-
-        <SlotSkeleton class="w-full" bg="opt">
-            <div class="flex flex-column gap-2 p-3 w-full">
-                <div class="flex flex-row gap-1 align-items-center">
-                    <h4>Details</h4>
-                    ·
-                    <span style="color: var(--text-secondary)">
-                        <Tag :severity="account.account_type.classification === 'liability' ? 'danger' : 'success'" style="transform: scale(0.8)">
-                        {{ vueHelper.capitalize(account.account_type.classification) }}
-                        </Tag>
-                    </span>
-                </div>
-                <span> Type: <b>{{ vueHelper.capitalize(vueHelper.denormalize(account.account_type.type)) }} </b> </span>
-                <span> Subtype: <b>{{ vueHelper.capitalize(account.account_type.sub_type) }} </b> </span>
-            </div>
-        </SlotSkeleton>
-
-        <SlotSkeleton v-if="account.is_active" class="w-full" bg="opt">
-            <div class="flex flex-column gap-2 p-3 w-full">
-                <div class="flex flex-row gap-1 align-items-center text-center">
-                    <h4>Projections</h4>
-                    ·
-                    <i class="pi pi-pen-to-square hover-icon text-xs" v-tooltip="'Edit account projections'"
-                       @click="openModal('editProjection')"/>
-                </div>
-                <span> Expected balance: <b> {{ vueHelper.displayAsCurrency(account.expected_balance! )}} </b> </span>
-                <span> Difference:
-                    <b :style="{ color: differenceColor }">
-                    {{  vueHelper.displayAsCurrency(expectedDifference) }}
-                    </b>
-                </span>
-            </div>
-        </SlotSkeleton>
-
-        <Divider />
-
-        <SlotSkeleton class="w-full">
-          <NetworthWidget ref="nWidgetRef" :accountId="account.id" :chartHeight="200"/>
-        </SlotSkeleton>
-
-        <div v-if="account.is_active" class="w-full flex flex-column gap-2">
-            <h3 style="color: var(--text-primary)">Stats</h3>
-        </div>
-        <SlotSkeleton v-if="account.is_active" class="w-full">
-            <AccountBasicStats :accID="account.id" :pieChartSize="250" />
-        </SlotSkeleton>
-
-        <div class="w-full flex flex-column gap-2">
-            <h3 style="color: var(--text-primary)">Activity</h3>
-        </div>
-        <SlotSkeleton class="w-full">
-            <div class="w-full flex flex-column gap-3 p-3">
-                <div class="w-full flex flex-column gap-2">
-                    <h4 style="color: var(--text-primary)">Transactions</h4>
-                </div>
-
-                <div class="flex flex-row gap-2">
-                    <TransactionsPaginated
-                            ref="txRef"
-                            :readOnly="true"
-                            :columns="transactionColumns"
-                            :fetchPage="loadTransactionsPage"
-                            :rowClass="vueHelper.deletedRowClass"
-                    />
-                </div>
-
-            </div>
-        </SlotSkeleton>
+      </Button>
     </div>
-    <ShowLoading v-else :numFields="7" />
+
+    <div
+      v-if="!account.is_active"
+      class="flex flex-row gap-2 align-items-center text-center pl-1"
+    >
+      <small style="color: var(--text-secondary)">Account is inactive, some aspects will not be shown.</small>
+    </div>
+
+    <SlotSkeleton
+      class="w-full"
+      bg="opt"
+    >
+      <div class="flex flex-column gap-2 p-3 w-full">
+        <div class="flex flex-row gap-1 align-items-center">
+          <h4>KPI</h4>
+          ·
+          <span style="color: var(--text-secondary)">{{ account.currency }}</span>
+        </div>
+        <span> Start balance: <b>{{ vueHelper.displayAsCurrency(account.balance.start_balance) }} </b> </span>
+
+        <span> Opened: <b>{{ dateHelper.formatDate(account.opened_at!, false) }} </b> </span>
+        <span v-if="account.closed_at"> Closed: <b>{{ dateHelper.formatDate(account.closed_at!, true) }} </b> </span>
+      </div>
+    </SlotSkeleton>
+
+    <SlotSkeleton
+      class="w-full"
+      bg="opt"
+    >
+      <div class="flex flex-column gap-2 p-3 w-full">
+        <div class="flex flex-row gap-1 align-items-center">
+          <h4>Details</h4>
+          ·
+          <span style="color: var(--text-secondary)">
+            <Tag
+              :severity="account.account_type.classification === 'liability' ? 'danger' : 'success'"
+              style="transform: scale(0.8)"
+            >
+              {{ vueHelper.capitalize(account.account_type.classification) }}
+            </Tag>
+          </span>
+        </div>
+        <span> Type: <b>{{ vueHelper.capitalize(vueHelper.denormalize(account.account_type.type)) }} </b> </span>
+        <span> Subtype: <b>{{ vueHelper.capitalize(account.account_type.sub_type) }} </b> </span>
+      </div>
+    </SlotSkeleton>
+
+    <SlotSkeleton
+      v-if="account.is_active"
+      class="w-full"
+      bg="opt"
+    >
+      <div class="flex flex-column gap-2 p-3 w-full">
+        <div class="flex flex-row gap-1 align-items-center text-center">
+          <h4>Projections</h4>
+          ·
+          <i
+            v-tooltip="'Edit account projections'"
+            class="pi pi-pen-to-square hover-icon text-xs"
+            @click="openModal('editProjection')"
+          />
+        </div>
+        <span> Expected balance: <b> {{ vueHelper.displayAsCurrency(account.expected_balance! ) }} </b> </span>
+        <span> Difference:
+          <b :style="{ color: differenceColor }">
+            {{ vueHelper.displayAsCurrency(expectedDifference) }}
+          </b>
+        </span>
+      </div>
+    </SlotSkeleton>
+
+    <Divider />
+
+    <SlotSkeleton class="w-full">
+      <NetworthWidget
+        ref="nWidgetRef"
+        :account-id="account.id"
+        :chart-height="200"
+      />
+    </SlotSkeleton>
+
+    <div
+      v-if="account.is_active"
+      class="w-full flex flex-column gap-2"
+    >
+      <h3 style="color: var(--text-primary)">
+        Stats
+      </h3>
+    </div>
+    <SlotSkeleton
+      v-if="account.is_active"
+      class="w-full"
+    >
+      <AccountBasicStats
+        :acc-i-d="account.id"
+        :pie-chart-size="250"
+      />
+    </SlotSkeleton>
+
+    <div class="w-full flex flex-column gap-2">
+      <h3 style="color: var(--text-primary)">
+        Activity
+      </h3>
+    </div>
+    <SlotSkeleton class="w-full">
+      <div class="w-full flex flex-column gap-3 p-3">
+        <div class="w-full flex flex-column gap-2">
+          <h4 style="color: var(--text-primary)">
+            Transactions
+          </h4>
+        </div>
+
+        <div class="flex flex-row gap-2">
+          <TransactionsPaginated
+            ref="txRef"
+            :read-only="true"
+            :columns="transactionColumns"
+            :fetch-page="loadTransactionsPage"
+            :row-class="vueHelper.deletedRowClass"
+          />
+        </div>
+      </div>
+    </SlotSkeleton>
+  </div>
+  <ShowLoading
+    v-else
+    :num-fields="7"
+  />
 </template>
 
 <style scoped>

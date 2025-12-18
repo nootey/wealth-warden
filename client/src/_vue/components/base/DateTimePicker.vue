@@ -91,17 +91,36 @@ defineExpose({
 </script>
 
 <template>
-  <DatePicker v-model="dateRange" :disabled="loading" :inputStyle="{'text-align':'center', 'cursor':'pointer'}"
-            :manualInput="false" date-format="dd/mm/yy" selectionMode="range" @hide="dateHide"
-              showIcon fluid iconDisplay="input" size="small">
+  <DatePicker
+    v-model="dateRange"
+    :disabled="loading"
+    :input-style="{'text-align':'center', 'cursor':'pointer'}"
+    :manual-input="false"
+    date-format="dd/mm/yy"
+    selection-mode="range"
+    show-icon
+    fluid
+    icon-display="input"
+    size="small"
+    @hide="dateHide"
+  >
     <template #footer>
       <div class="flex justify-content-around w-full">
-        <Button size="small" label="This week"
-                @click="thisWeek"/>
-        <Button size="small" label="Last 2 weeks"
-                @click="lastTwoWeeks"/>
-        <Button size="small" label="This month"
-                @click="thisMonth"/>
+        <Button
+          size="small"
+          label="This week"
+          @click="thisWeek"
+        />
+        <Button
+          size="small"
+          label="Last 2 weeks"
+          @click="lastTwoWeeks"
+        />
+        <Button
+          size="small"
+          label="This month"
+          @click="thisMonth"
+        />
       </div>
     </template>
   </DatePicker>

@@ -110,65 +110,106 @@ defineExpose({ v$, localTransfer });
 </script>
 
 <template>
-
-    <div v-if="!loading" class="flex flex-column gap-3">
-
-        <div class="flex flex-row w-full">
-            <div class="flex flex-column gap-1 w-full">
-                <ValidationError :isRequired="true" :message="v$.localTransfer.source.$errors[0]?.$message">
-                    <label>Source</label>
-                </ValidationError>
-                <AutoComplete size="small"
-                        v-model="localTransfer.source"
-                        :suggestions="filteredSourceAccounts"
-                        optionLabel="name" @complete="(e) => searchAccount('source', e)"
-                        placeholder="Select source account" dropdown/>
-            </div>
-        </div>
-
-        <div class="flex flex-row w-full">
-            <div class="flex flex-column gap-1 w-full">
-                <ValidationError :isRequired="true" :message="v$.localTransfer.destination.$errors[0]?.$message">
-                    <label>Destination</label>
-                </ValidationError>
-            <AutoComplete size="small"
-                    v-model="localTransfer.destination"
-                    :suggestions="filteredDestinationAccounts"
-                    optionLabel="name" @complete="(e) => searchAccount('destination', e)"
-                    placeholder="Select destination account" dropdown />
-            </div>
-        </div>
-
-        <div class="flex flex-row w-full">
-            <div class="flex flex-column gap-1 w-full">
-                <ValidationError :isRequired="true" :message="v$.localTransfer.amount.$errors[0]?.$message">
-                    <label>Amount</label>
-                </ValidationError>
-                <InputNumber size="small" v-model="amountNumber" mode="currency" currency="EUR" locale="de-DE" placeholder="0,00 €"></InputNumber>
-            </div>
-        </div>
-
-        <div class="flex flex-row w-full">
-            <div class="flex flex-column gap-1 w-full">
-                <ValidationError :isRequired="true" :message="v$.localTransfer.created_at.$errors[0]?.$message">
-                    <label>Date</label>
-                </ValidationError>
-                <DatePicker v-model="localTransfer.created_at" date-format="dd/mm/yy"
-                            showIcon fluid iconDisplay="input" size="small"
-                />
-            </div>
-        </div>
-
-        <div class="flex flex-row w-full">
-            <div class="flex flex-column gap-1 w-full">
-                <ValidationError :isRequired="false" :message="v$.localTransfer.notes.$errors[0]?.$message">
-                    <label>Notes</label>
-                </ValidationError>
-            <InputText size="small" v-model="localTransfer.notes" placeholder="Describe transfer"/>
-        </div>
+  <div
+    v-if="!loading"
+    class="flex flex-column gap-3"
+  >
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.localTransfer.source.$errors[0]?.$message"
+        >
+          <label>Source</label>
+        </ValidationError>
+        <AutoComplete
+          v-model="localTransfer.source"
+          size="small"
+          :suggestions="filteredSourceAccounts"
+          option-label="name"
+          placeholder="Select source account"
+          dropdown
+          @complete="(e) => searchAccount('source', e)"
+        />
+      </div>
     </div>
 
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.localTransfer.destination.$errors[0]?.$message"
+        >
+          <label>Destination</label>
+        </ValidationError>
+        <AutoComplete
+          v-model="localTransfer.destination"
+          size="small"
+          :suggestions="filteredDestinationAccounts"
+          option-label="name"
+          placeholder="Select destination account"
+          dropdown
+          @complete="(e) => searchAccount('destination', e)"
+        />
+      </div>
     </div>
-    <ShowLoading v-else :numFields="6" />
 
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.localTransfer.amount.$errors[0]?.$message"
+        >
+          <label>Amount</label>
+        </ValidationError>
+        <InputNumber
+          v-model="amountNumber"
+          size="small"
+          mode="currency"
+          currency="EUR"
+          locale="de-DE"
+          placeholder="0,00 €"
+        />
+      </div>
+    </div>
+
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.localTransfer.created_at.$errors[0]?.$message"
+        >
+          <label>Date</label>
+        </ValidationError>
+        <DatePicker
+          v-model="localTransfer.created_at"
+          date-format="dd/mm/yy"
+          show-icon
+          fluid
+          icon-display="input"
+          size="small"
+        />
+      </div>
+    </div>
+
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="false"
+          :message="v$.localTransfer.notes.$errors[0]?.$message"
+        >
+          <label>Notes</label>
+        </ValidationError>
+        <InputText
+          v-model="localTransfer.notes"
+          size="small"
+          placeholder="Describe transfer"
+        />
+      </div>
+    </div>
+  </div>
+  <ShowLoading
+    v-else
+    :num-fields="6"
+  />
 </template>

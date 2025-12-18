@@ -2,9 +2,12 @@ import apiClient from './axios.ts';
 import { useAuthStore } from '../stores/auth_store.ts';
 
 let isRefreshing = false;
-let failedQueue: Array<{resolve: Function, reject: Function}> = [];
+let failedQueue: Array<{
+    resolve: (value?: unknown) => void,
+    reject: (reason?: unknown) => void
+}> = [];
 
-const processQueue = (error: any) => {
+const processQueue = (error: unknown) => {
     failedQueue.forEach(prom => {
         if (error) {
             prom.reject(error);

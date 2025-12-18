@@ -13,94 +13,53 @@ export const useTransactionStore = defineStore('transaction', {
     },
     actions: {
         async getPaginatedTransactionsForAccount(params: object, page: number, accID: number) {
-            try {
+            const queryParams = {
+                ...params,
+                page: page,
+                account: accID,
+            };
 
-                const queryParams = {
-                    ...params,
-                    page: page,
-                    account: accID,
-                };
+            const response = await apiClient.get(`${this.apiPrefix}`, {
+                params: queryParams,
+            });
 
-                const response = await apiClient.get(`${this.apiPrefix}`, {
-                    params: queryParams,
-                });
-
-                return response.data;
-            } catch (err) {
-                throw err;
-            }
+            return response.data;
         },
         async getCategories(deleted: boolean = false) {
-            try {
-                const response = await apiClient.get(`${this.apiPrefix}/categories`, {
-                    params: {deleted}
-                });
-                this.categories = response.data;
-            } catch (err) {
-                throw err;
-            }
+            const response = await apiClient.get(`${this.apiPrefix}/categories`, {
+                params: {deleted}
+            });
+            this.categories = response.data;
         },
         async getCategoryGroups() {
-            try {
-                const response = await apiClient.get(`${this.apiPrefix}/categories/groups`);
-                this.category_groups = response.data;
-            } catch (err) {
-                throw err;
-            }
+            const response = await apiClient.get(`${this.apiPrefix}/categories/groups`);
+            this.category_groups = response.data;
         },
         async getCategoriesWithGroups() {
-            try {
-                const response = await apiClient.get(`${this.apiPrefix}/categories/groups/all`);
-                return response.data;
-            } catch (err) {
-                throw err;
-            }
+            const response = await apiClient.get(`${this.apiPrefix}/categories/groups/all`);
+            return response.data;
         },
         async startTransfer(record: object) {
-            try {
-                const response = await apiClient.put(`${this.apiPrefix}/transfers`, record);
-                return response.data;
-            } catch (err) {
-                throw err;
-            }
+            const response = await apiClient.put(`${this.apiPrefix}/transfers`, record);
+            return response.data;
         },
         async restoreTransaction(id: number) {
-            try {
-                const response = await apiClient.post(`${this.apiPrefix}/restore`, { id });
-                return response.data;
-            } catch (err) {
-                throw err;
-            }
+            const response = await apiClient.post(`${this.apiPrefix}/restore`, { id });
+            return response.data;
         },
         async restoreCategory(id: number) {
-            try {
-                const response = await apiClient.post(`${this.apiPrefix}/categories/restore`, { id });
-                return response.data;
-            } catch (err) {
-                throw err;
-            }
+            const response = await apiClient.post(`${this.apiPrefix}/categories/restore`, { id });
+            return response.data;
         },
         async restoreCategoryName(id: number) {
-            try {
-                const response = await apiClient.post(`${this.apiPrefix}/categories/restore/name`, { id });
-                return response.data;
-            } catch (err) {
-                throw err;
-            }
+            const response = await apiClient.post(`${this.apiPrefix}/categories/restore/name`, { id });
+            return response.data;
         },
         async toggleTemplateActiveState(id: number) {
-            try {
-                return await apiClient.post(`${this.apiPrefix}/templates/${id}/active`);
-            } catch (err) {
-                throw err;
-            }
+            return await apiClient.post(`${this.apiPrefix}/templates/${id}/active`);
         },
         async getTransactionTemplateCount() {
-            try {
-                return await apiClient.get(`${this.apiPrefix}/templates/count`);
-            } catch (err) {
-                throw err;
-            }
+            return await apiClient.get(`${this.apiPrefix}/templates/count`);
         },
     },
 });

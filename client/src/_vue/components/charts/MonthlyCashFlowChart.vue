@@ -55,7 +55,7 @@ const hoverGuidePlugin = {
             chart.options.animation = prevAnim;
         }
     },
-    afterDatasetsDraw(chart: any, _args: any, _opts: any) {
+    afterDatasetsDraw(chart: any) {
         const hv = hoverXByChart.get(chart);
         if (hv == null) return;
         const { ctx, chartArea, scales } = chart;
@@ -195,23 +195,32 @@ onUnmounted(() => chartRef.value?.chart?.destroy?.());
 </script>
 
 <template>
-    <Chart
-            v-if="hasAnyData"
-            ref="chartRef"
-            type="line"
-            :data="chartData"
-            :options="chartOptions"
-            :plugins="[hoverGuidePlugin]"
-            style="width: 100%; height: 400px"
-    />
-    <div v-else class="flex flex-column align-items-center justify-content-center mt-3 p-3 w-6"
-         style="border: 1px dashed var(--border-color); border-radius: 16px; margin: 0 auto;">
-        <span class="text-sm" style="color: var(--text-secondary);">
-            No cash flow data available for {{ props.data.year }}.
-        </span>
+  <Chart
+    v-if="hasAnyData"
+    ref="chartRef"
+    type="line"
+    :data="chartData"
+    :options="chartOptions"
+    :plugins="[hoverGuidePlugin]"
+    style="width: 100%; height: 400px"
+  />
+  <div
+    v-else
+    class="flex flex-column align-items-center justify-content-center mt-3 p-3 w-6"
+    style="border: 1px dashed var(--border-color); border-radius: 16px; margin: 0 auto;"
+  >
+    <span
+      class="text-sm"
+      style="color: var(--text-secondary);"
+    >
+      No cash flow data available for {{ props.data.year }}.
+    </span>
 
-        <span class="text-sm" style="color: var(--text-secondary);">
-            Add transactions to see your monthly inflows and outflows.
-        </span>
-    </div>
+    <span
+      class="text-sm"
+      style="color: var(--text-secondary);"
+    >
+      Add transactions to see your monthly inflows and outflows.
+    </span>
+  </div>
 </template>

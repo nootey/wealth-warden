@@ -25,7 +25,7 @@ function toNumber(v: unknown): number {
     if (v == null) return 0;
     if (typeof v === "number") return v;
     if (typeof v === "string") {
-        const cleaned = v.replace(/[^0-9.\-]/g, "");
+        const cleaned = v.replace(/[^0-9.-]/g, "");
         const n = Number(cleaned);
         return Number.isFinite(n) ? n : 0;
     }
@@ -80,51 +80,68 @@ async function getData(page = 1) {
 </script>
 
 <template>
-    <div class="flex flex-column gap-2 w-full p-3">
-
-        <div class="flex align-items-center gap-2">
-            <span class="font-semibold">{{ title }}</span>
-            <span class="opacity-60">·</span>
-            <span class="opacity-90">{{ vueHelper.displayAsCurrency(totalAmount) }}</span>
-        </div>
-
-        <div class="px-2 pt-1 w-full" :class="{ 'opacity-60': loading }">
-            <div v-if="!loading && totalAmount !== 0"
-                    class="flex w-full"
-                    :style="{ height: '8px', borderRadius: '9999px', overflow: 'hidden', gap: '2px' }"
-                    role="progressbar">
-
-                <div v-for="b in buckets"
-                        :key="b.key"
-                        class="flex"
-                        :style="{
-                                  width: Math.max(b.percent, 0.5) + '%',
-                                  backgroundColor: b.color,
-                                  borderRadius: '9999px'
-                                }"
-                        :title="`${b.key}: ${vueHelper.displayAsCurrency(b.amount)} (${b.percent.toFixed(0)}%)`"
-                />
-
-            </div>
-
-            <div v-else class="w-full"
-                 :style="{ height: '8px', borderRadius: '9999px', background: 'rgba(128,128,128,.25)' }"
-            />
-
-        </div>
-
-        <div class="flex align-items-center flex-wrap gap-3 px-0 pt-1">
-            <span v-if="loading" class="opacity-70 text-sm">Loading…</span>
-
-            <template v-else-if="buckets.length">
-                <div v-for="b in buckets" :key="b.key" class="flex align-items-center gap-2 text-sm">
-                    <span class="inline-block" :style="{ width: '8px', height: '8px', borderRadius: '9999px', backgroundColor: b.color }"></span>
-                    <span class="opacity-90">{{ vueHelper.capitalize(vueHelper.denormalize(b.key)) }}</span>
-                    <span class="font-semibold opacity-95">{{ b.percent.toFixed(0) }}%</span>
-                </div>
-            </template>
-
-            <span v-else class="opacity-70 text-sm">No accounts found.</span>
-        </div>
+  <div class="flex flex-column gap-2 w-full p-3">
+    <div class="flex align-items-center gap-2">
+      <span class="font-semibold">{{ title }}</span>
+      <span class="opacity-60">·</span>
+      <span class="opacity-90">{{ vueHelper.displayAsCurrency(totalAmount) }}</span>
     </div>
+
+    <div
+      class="px-2 pt-1 w-full"
+      :class="{ 'opacity-60': loading }"
+    >
+      <div
+        v-if="!loading && totalAmount !== 0"
+        class="flex w-full"
+        :style="{ height: '8px', borderRadius: '9999px', overflow: 'hidden', gap: '2px' }"
+        role="progressbar"
+      >
+        <div
+          v-for="b in buckets"
+          :key="b.key"
+          class="flex"
+          :style="{
+            width: Math.max(b.percent, 0.5) + '%',
+            backgroundColor: b.color,
+            borderRadius: '9999px'
+          }"
+          :title="`${b.key}: ${vueHelper.displayAsCurrency(b.amount)} (${b.percent.toFixed(0)}%)`"
+        />
+      </div>
+
+      <div
+        v-else
+        class="w-full"
+        :style="{ height: '8px', borderRadius: '9999px', background: 'rgba(128,128,128,.25)' }"
+      />
+    </div>
+
+    <div class="flex align-items-center flex-wrap gap-3 px-0 pt-1">
+      <span
+        v-if="loading"
+        class="opacity-70 text-sm"
+      >Loading…</span>
+
+      <template v-else-if="buckets.length">
+        <div
+          v-for="b in buckets"
+          :key="b.key"
+          class="flex align-items-center gap-2 text-sm"
+        >
+          <span
+            class="inline-block"
+            :style="{ width: '8px', height: '8px', borderRadius: '9999px', backgroundColor: b.color }"
+          />
+          <span class="opacity-90">{{ vueHelper.capitalize(vueHelper.denormalize(b.key)) }}</span>
+          <span class="font-semibold opacity-95">{{ b.percent.toFixed(0) }}%</span>
+        </div>
+      </template>
+
+      <span
+        v-else
+        class="opacity-70 text-sm"
+      >No accounts found.</span>
+    </div>
+  </div>
 </template>

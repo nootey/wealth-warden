@@ -41,11 +41,11 @@ watch(localYear, (newYear) => {
 
 <template>
   <AutoComplete
-      size="small"
-      v-model="localYear"
-      :suggestions="filteredYears"
-      placeholder="Select Year"
-      dropdown
-      @complete="searchDesiredYear"
-  ></AutoComplete>
+    v-model="localYear"
+    size="small"
+    :suggestions="filteredYears"
+    placeholder="Select Year"
+    dropdown
+    @complete="searchDesiredYear"
+  />
 </template>

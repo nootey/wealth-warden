@@ -93,8 +93,10 @@ async function loadInvitation() {
     loading.value = true;
     try {
         invitation.value = await userStore.getInvitationByHash(token.value);
-        form.value.email = invitation.value?.email!
-        wasInvited.value = true;
+        if (invitation.value?.email) {
+            form.value.email = invitation.value.email;
+            wasInvited.value = true;
+        }
     } catch (e) {
         toastStore.errorResponseToast(e)
     } finally {
@@ -126,79 +128,131 @@ function login() {
 </script>
 
 <template>
-    <AuthSkeleton>
-        <div class="w-full mx-auto px-3 sm:px-0" style="max-width: 400px;">
+  <AuthSkeleton>
+    <div
+      class="w-full mx-auto px-3 sm:px-0"
+      style="max-width: 400px;"
+    >
+      <div
+        id="hideOnMobile"
+        class="text-center mb-4"
+      >
+        <h2
+          class="m-0 text-2xl sm:text-3xl font-bold"
+          style="color: var(--text-primary); letter-spacing: -0.025em;"
+        >
+          Create an account
+        </h2>
+      </div>
 
-            <div id="hideOnMobile" class="text-center mb-4">
-                <h2 class="m-0 text-2xl sm:text-3xl font-bold"
-                    style="color: var(--text-primary); letter-spacing: -0.025em;">
-                    Create an account
-                </h2>
-            </div>
-
-            <div class="flex flex-column gap-3">
-
-                <div class="flex flex-row w-full">
-                    <div class="flex flex-column gap-1 w-full">
-                        <ValidationError :isRequired="true" :message="v$.form.display_name.$errors[0]?.$message">
-                            <label>Display name</label>
-                        </ValidationError>
-                        <InputText id="display_name" v-model="form.display_name" type="text"
-                                   :placeholder="'Display name'" :disabled="loading" :readonly="loading"
-                                   class="w-full border-round-xl"/>
-                    </div>
-                </div>
-
-                <div class="flex flex-row w-full">
-                    <div class="flex flex-column gap-1 w-full">
-                        <ValidationError :isRequired="true" :message="v$.form.email.$errors[0]?.$message">
-                            <label>Email</label>
-                        </ValidationError>
-                        <InputText id="email" v-model="form.email" type="email"
-                                   :placeholder="'Email'" :disabled="loading || wasInvited" :readonly="loading || wasInvited"
-                                   class="w-full border-round-xl"/>
-                    </div>
-                </div>
-
-                <div class="flex flex-row w-full">
-                    <div class="flex flex-column gap-1 w-full">
-                        <ValidationError :isRequired="true" :message="v$.form.password.$errors[0]?.$message">
-                            <label>Password</label>
-                        </ValidationError>
-                        <InputText id="password" v-model="form.password" type="password"
-                                   :placeholder="'Password'" :disabled="loading" :readonly="loading"
-                                   class="w-full border-round-xl"/>
-                    </div>
-                </div>
-
-                <div class="flex flex-row w-full">
-                    <div class="flex flex-column gap-1 w-full">
-                        <ValidationError :isRequired="true" :message="v$.form.password_confirmation.$errors[0]?.$message">
-                            <label>Confirm password</label>
-                        </ValidationError>
-                        <InputText id="password_confirmation" v-model="form.password_confirmation" type="password"
-                                   :placeholder="'Confirm password'"
-                                   class="w-full border-round-xl" :disabled="loading" :readonly="loading"
-                                   @keydown.enter="signUp"/>
-                    </div>
-                </div>
-
-                <Button label="Sign up" class="w-full auth-accent-button"
-                        :disabled="loading"  @click="signUp"></Button>
-
-            </div>
-
-            <div class="flex align-items-center justify-content-center gap-2 mt-4 pt-3"
-                 style="border-top: 1px solid var(--border-color);">
-                <span class="text-sm" style="color: var(--text-secondary);">
-                  Already have an account?
-                </span>
-                <span class="text-sm hover-icon hover-dim"
-                      @click="login">
-                        Log in</span>
-            </div>
+      <div class="flex flex-column gap-3">
+        <div class="flex flex-row w-full">
+          <div class="flex flex-column gap-1 w-full">
+            <ValidationError
+              :is-required="true"
+              :message="v$.form.display_name.$errors[0]?.$message"
+            >
+              <label>Display name</label>
+            </ValidationError>
+            <InputText
+              id="display_name"
+              v-model="form.display_name"
+              type="text"
+              :placeholder="'Display name'"
+              :disabled="loading"
+              :readonly="loading"
+              class="w-full border-round-xl"
+            />
+          </div>
         </div>
-    </AuthSkeleton>
+
+        <div class="flex flex-row w-full">
+          <div class="flex flex-column gap-1 w-full">
+            <ValidationError
+              :is-required="true"
+              :message="v$.form.email.$errors[0]?.$message"
+            >
+              <label>Email</label>
+            </ValidationError>
+            <InputText
+              id="email"
+              v-model="form.email"
+              type="email"
+              :placeholder="'Email'"
+              :disabled="loading || wasInvited"
+              :readonly="loading || wasInvited"
+              class="w-full border-round-xl"
+            />
+          </div>
+        </div>
+
+        <div class="flex flex-row w-full">
+          <div class="flex flex-column gap-1 w-full">
+            <ValidationError
+              :is-required="true"
+              :message="v$.form.password.$errors[0]?.$message"
+            >
+              <label>Password</label>
+            </ValidationError>
+            <InputText
+              id="password"
+              v-model="form.password"
+              type="password"
+              :placeholder="'Password'"
+              :disabled="loading"
+              :readonly="loading"
+              class="w-full border-round-xl"
+            />
+          </div>
+        </div>
+
+        <div class="flex flex-row w-full">
+          <div class="flex flex-column gap-1 w-full">
+            <ValidationError
+              :is-required="true"
+              :message="v$.form.password_confirmation.$errors[0]?.$message"
+            >
+              <label>Confirm password</label>
+            </ValidationError>
+            <InputText
+              id="password_confirmation"
+              v-model="form.password_confirmation"
+              type="password"
+              :placeholder="'Confirm password'"
+              class="w-full border-round-xl"
+              :disabled="loading"
+              :readonly="loading"
+              @keydown.enter="signUp"
+            />
+          </div>
+        </div>
+
+        <Button
+          label="Sign up"
+          class="w-full auth-accent-button"
+          :disabled="loading"
+          @click="signUp"
+        />
+      </div>
+
+      <div
+        class="flex align-items-center justify-content-center gap-2 mt-4 pt-3"
+        style="border-top: 1px solid var(--border-color);"
+      >
+        <span
+          class="text-sm"
+          style="color: var(--text-secondary);"
+        >
+          Already have an account?
+        </span>
+        <span
+          class="text-sm hover-icon hover-dim"
+          @click="login"
+        >
+          Log in</span>
+      </div>
+    </div>
+  </AuthSkeleton>
 </template>
 
 <style scoped>

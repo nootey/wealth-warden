@@ -126,53 +126,84 @@ defineExpose({ refresh });
 </script>
 
 <template>
-    <DataTable dataKey="id" class="w-full enhanced-table" :loading="loadingRecords" :value="records"
-                scrollable scroll-height="50vh" columnResizeMode="fit"
-                scrollDirection="both">
-        <template #empty> <div style="padding: 10px;"> No records found. </div> </template>
-        <template #loading> <LoadingSpinner></LoadingSpinner> </template>
-        <template #footer>
-            <CustomPaginator :paginator="paginator" :rows="rows" @onPage="onPage"/>
+  <DataTable
+    data-key="id"
+    class="w-full enhanced-table"
+    :loading="loadingRecords"
+    :value="records"
+    scrollable
+    scroll-height="50vh"
+    column-resize-mode="fit"
+    scroll-direction="both"
+  >
+    <template #empty>
+      <div style="padding: 10px;">
+        No records found.
+      </div>
+    </template>
+    <template #loading>
+      <LoadingSpinner />
+    </template>
+    <template #footer>
+      <CustomPaginator
+        :paginator="paginator"
+        :rows="rows"
+        @on-page="onPage"
+      />
+    </template>
+
+    <Column
+      v-for="col of activeColumns"
+      :key="col.field"
+      :header="col.header"
+      :field="col.field"
+      :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+      :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+    >
+      <template #body="{ data }">
+        <template v-if="col.field === 'amount'">
+          {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
         </template>
+        <template v-else-if="col.field === 'created_at'">
+          {{ dateHelper.formatDate(data?.created_at, true) }}
+        </template>
+        <template v-else-if="col.field === 'from' || col.field === 'to'">
+          {{ data[col.field]["account"]["name"] }}
+        </template>
+        <template v-else-if="col.field === 'notes'">
+          <span
+            v-tooltip.top="data[col.field]"
+            class="truncate-text"
+          >
+            {{ data[col.field] }}
+          </span>
+        </template>
+        <template v-else>
+          {{ data[col.field] }}
+        </template>
+      </template>
+    </Column>
 
-        <Column v-for="col of activeColumns" :key="col.field" :header="col.header" :field="col.field"
-                :headerClass="col.hideOnMobile ? 'mobile-hide ' : ''"
-                :bodyClass="col.hideOnMobile ? 'mobile-hide ' : ''">
-            <template #body="{ data }">
-                <template v-if="col.field === 'amount'">
-                    {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
-                </template>
-                <template v-else-if="col.field === 'created_at'">
-                    {{ dateHelper.formatDate(data?.created_at, true) }}
-                </template>
-                <template v-else-if="col.field === 'from' || col.field === 'to'">
-                    {{ data[col.field]["account"]["name"] }}
-                </template>
-                <template v-else-if="col.field === 'notes'">
-                    <span class="truncate-text" v-tooltip.top="data[col.field]">
-                        {{ data[col.field] }}
-                    </span>
-                </template>
-                <template v-else>
-                    {{ data[col.field] }}
-                </template>
-            </template>
-        </Column>
-
-        <Column>
-            <template #header>
-                <span class="mobile-hide">Actions</span>
-            </template>
-            <template #body="{ data }">
-                <i v-if="hasPermission('manage_data') && canDelete(data)"
-                   class="pi pi-trash hover-icon" style="font-size: 0.875rem; color: var(--p-red-300);"
-                   @click="deleteConfirmation(data?.id)"></i>
-                <i v-else class="pi pi-exclamation-circle" style="font-size: 0.875rem;"
-                   v-tooltip="'This transfer is in read only state!'"></i>
-            </template>
-        </Column>
-
-    </DataTable>
+    <Column>
+      <template #header>
+        <span class="mobile-hide">Actions</span>
+      </template>
+      <template #body="{ data }">
+        <i
+          v-if="hasPermission('manage_data') && canDelete(data)"
+          class="pi pi-trash hover-icon"
+          style="font-size: 0.875rem; color: var(--p-red-300);"
+          @click="deleteConfirmation(data?.id)"
+        />
+        <i
+          v-else
+          v-tooltip="'This transfer is in read only state!'"
+          class="pi pi-exclamation-circle"
+          style="font-size: 0.875rem;"
+        />
+      </template>
+    </Column>
+  </DataTable>
 </template>
 
 <style scoped>
