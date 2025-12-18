@@ -8,18 +8,25 @@ const isDisplayed = computed(() => Boolean(props.message));
 </script>
 
 <template>
-  <div class="flex flex-row align-items-center gap-1" :class="[isDisplayed ? 'invalid' : '']">
+  <div
+    class="flex flex-row align-items-center gap-1"
+    :class="[isDisplayed ? 'invalid' : '']"
+  >
     <div class="flex flex-column label align-items-center">
-      <slot></slot>
+      <slot />
     </div>
-    <small v-show="!isDisplayed && props.isRequired" class="invalid disclaimer"> * </small>
+    <small
+      v-show="!isDisplayed && props.isRequired"
+      class="invalid disclaimer"
+    > * </small>
     <Transition name="slide-fade">
-      <span v-if="isDisplayed" class="text-xs">
+      <span
+        v-if="isDisplayed"
+        class="text-xs"
+      >
         {{ message.replace('Value', ': field') }}
       </span>
     </Transition>
-
-
   </div>
 </template>
 

@@ -1,6 +1,6 @@
 const toastHelper = {
     formatSuccessToast(title: string, msg: string) {
-        let message = {
+        const message = {
             'data': {
                 'messages': {
                     'success': [] as string[]
@@ -13,7 +13,7 @@ const toastHelper = {
         return message;
     },
     formatInfoToast(title: string, msg: string) {
-        let message = {
+        const message = {
             'data': {
                 'message': {},
                 'title': {}
@@ -24,7 +24,7 @@ const toastHelper = {
         return message;
     },
     formatErrorToast(title: string, msg: string){
-        let message = {
+        const message = {
             'response': {
                 'data': {
                     'messages': {

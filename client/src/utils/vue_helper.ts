@@ -43,7 +43,7 @@ const vueHelper = {
     displayAsCurrency: (amount: Decimal | number | string | null) => {
         // Hardcode for EU region for now
         if (amount === null || amount === undefined) return null;
-        let num = Number(amount);
+        const num = Number(amount);
         if (isNaN(num)) return "Invalid Amount";
 
         return num.toLocaleString("de-DE", {

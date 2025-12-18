@@ -4,8 +4,11 @@ const props = defineProps(['validationObject']);
 </script>
 
 <template>
-  <div :class="vueHelper.getValidationClass(props.validationObject, 'p-invalid')" class="flex flex-row align-items-center text-align-center gap-1">
-    <slot></slot>
+  <div
+    :class="vueHelper.getValidationClass(props.validationObject, 'p-invalid')"
+    class="flex flex-row align-items-center text-align-center gap-1"
+  >
+    <slot />
   </div>
 </template>
 

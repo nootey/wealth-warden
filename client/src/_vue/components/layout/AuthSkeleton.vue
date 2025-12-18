@@ -4,15 +4,29 @@
 
 <template>
   <div class="auth-background">
-    <Transition appear name="auth-animation">
+    <Transition
+      appear
+      name="auth-animation"
+    >
       <div class="auth-card">
         <div class="auth-content">
-          <slot></slot>
+          <slot />
         </div>
         <div class="auth-brand">
-          <img src="../../../assets/images/logo.png" alt="WealthWarden Logo" class="auth-logo"/>
-          <h1 class="auth-title">WealthWarden</h1>
-          <p id="hideOnMobile" class="auth-subtitle">Tap. Track. Relax.</p>
+          <img
+            src="../../../assets/images/logo.png"
+            alt="WealthWarden Logo"
+            class="auth-logo"
+          >
+          <h1 class="auth-title">
+            WealthWarden
+          </h1>
+          <p
+            id="hideOnMobile"
+            class="auth-subtitle"
+          >
+            Tap. Track. Relax.
+          </p>
         </div>
       </div>
     </Transition>
