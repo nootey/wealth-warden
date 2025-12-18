@@ -26,6 +26,7 @@ const accountStore = useAccountStore();
 
 onMounted(async () => {
     await transactionStore.getCategories();
+    await accountStore.getAllAccounts(false, true);
     await getTrTemplateCount();
 })
 
@@ -205,7 +206,7 @@ provide("removeFilter", removeFilter);
 
     <Dialog class="rounded-dialog" v-model:visible="createModal" :breakpoints="{'501px': '90vw'}"
           :modal="true" :style="{width: '500px'}" header="Add transaction">
-    <TransactionForm mode="create"
+        <TransactionForm mode="create"
                      @completeTxOperation="handleEmit('completeTxOperation')"
                      @completeTrOperation="handleEmit('completeTrOperation')"
     />

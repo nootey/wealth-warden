@@ -167,7 +167,7 @@ const v$ = useVuelidate(rules, { record });
 
 onMounted(async () => {
     // Fetch accounts first
-    accounts.value = await accountStore.getAllAccounts(true, true);
+    accounts.value = accountStore.accounts;
 
     if (props.mode === "update" && props.recordId) {
         await loadRecord(props.recordId);
