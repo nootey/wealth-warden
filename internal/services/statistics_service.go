@@ -75,38 +75,84 @@ func (s *StatisticsService) GetAccountBasicStatistics(ctx context.Context, accID
 
 	takeHomeYear := decimal.Zero
 	overflowYear := decimal.Zero
-	activeMonthsForAvg := 0
+	takeHomeMonthCount := 0
+	overflowMonthCount := 0
+
+	var shouldSubtractTransfers bool
+	var transferAccountIDs []int64
+
+	if accID != nil {
+		acc, errAcc := s.accRepo.FindAccountByID(ctx, tx, *accID, userID, false)
+		if errAcc != nil {
+			tx.Rollback()
+			return nil, errAcc
+		}
+		if acc.AccountType.Subtype == "checking" {
+			shouldSubtractTransfers = true
+			transferAccountIDs = []int64{*accID}
+		}
+	} else {
+		checkingAccounts, err := s.accRepo.FindAccountsBySubtype(ctx, tx, userID, "checking", true)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if len(checkingAccounts) > 0 {
+			shouldSubtractTransfers = true
+			transferAccountIDs = make([]int64, len(checkingAccounts))
+			for i, a := range checkingAccounts {
+				transferAccountIDs[i] = a.ID
+			}
+		}
+	}
 
 	for _, mr := range mrows {
 		inm, _ := decimal.NewFromString(mr.InflowText)
 		outm, _ := decimal.NewFromString(mr.OutflowText)
 		netm := inm.Add(outm)
 
-		if !inm.IsZero() || !outm.IsZero() {
-			activeMonthsForAvg++
+		if shouldSubtractTransfers {
+			transfers, err := s.txnRepo.GetMonthlyTransfersFromChecking(ctx, tx, userID, transferAccountIDs, year, mr.Month)
+			if err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+
+			for _, tr := range transfers {
+				if tr.TransactionInflow.Account.AccountType.Subtype == "savings" {
+					netm = netm.Sub(tr.Amount)
+				}
+				if tr.TransactionInflow.Account.AccountType.Type == "investment" {
+					netm = netm.Sub(tr.Amount)
+				}
+				if tr.TransactionInflow.Account.AccountType.Classification == "liability" {
+					netm = netm.Sub(tr.Amount)
+				}
+			}
 		}
 
 		if netm.GreaterThan(decimal.Zero) {
 			takeHomeYear = takeHomeYear.Add(netm)
+			takeHomeMonthCount++
 		} else if netm.LessThan(decimal.Zero) {
 			overflowYear = overflowYear.Add(netm)
+			overflowMonthCount++
 		}
 	}
 
 	takeHome := takeHomeYear
 	overflow := overflowYear
 
-	avgTakeHome := decimal.Zero
-	avgOverflow := decimal.Zero
-	if activeMonthsForAvg > 0 {
-		div := decimal.NewFromInt(int64(activeMonthsForAvg))
-		if !takeHome.IsZero() {
-			avgTakeHome = takeHome.Div(div)
-		}
-		if !overflow.IsZero() {
-			avgOverflow = overflow.Div(div)
-		}
-	}
+	//avgTakeHome := decimal.Zero
+	//avgOverflow := decimal.Zero
+	//if takeHomeMonthCount > 0 {
+	//	avgTakeHome = takeHome.Div(decimal.NewFromInt(int64(takeHomeMonthCount)))
+	//}
+	//if overflowMonthCount > 0 {
+	//	avgOverflow = overflow.Div(decimal.NewFromInt(int64(overflowMonthCount)))
+	//}
+	avgTakeHome := takeHome.Div(decimal.NewFromInt(12))
+	avgOverflow := overflow.Div(decimal.NewFromInt(12))
 
 	activeMonths := tot.ActiveMonths
 	if activeMonths < 1 {

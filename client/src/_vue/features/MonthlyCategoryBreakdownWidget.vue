@@ -149,7 +149,7 @@ watch(
         // Handle year limit
         if (years.length > maxYears) {
             selectedYears.value = years.slice(0, maxYears);
-            return; 
+            return;
         }
 
         // Only fetch if something actually changed
