@@ -191,7 +191,8 @@ watch(
         >
           <Select
             v-model="selectedCategoryId"
-            size="small" filter
+            size="small"
+            filter
             :options="categoryOptions"
             option-label="label"
             option-value="value"
@@ -233,50 +234,50 @@ watch(
       </div>
     </div>
 
-      <div
-              class="flex flex-row gap-2 w-full justify-content-between align-items-center"
-      >
-          <div class="flex flex-column gap-2">
-              <div class="flex flex-row">
+    <div
+      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
+    >
+      <div class="flex flex-column gap-2">
+        <div class="flex flex-row">
           <span
-                  class="text-sm"
-                  style="color: var(--text-secondary)"
+            class="text-sm"
+            style="color: var(--text-secondary)"
           >
             A default checking account was found. The stats are representative of the cash flow to this account.
           </span>
-              </div>
-          </div>
+        </div>
+      </div>
 
-          <div class="flex flex-column gap-2">
-              <Select
-                      v-model="selectedAccountID"
-                      size="small"
-                      style="width: 150px;"
-                      :options="accounts"
-                      option-value="id"
-                      placeholder="All accounts"
-                      show-clear
-              >
-                  <template #value="slotProps">
+      <div class="flex flex-column gap-2">
+        <Select
+          v-model="selectedAccountID"
+          size="small"
+          style="width: 150px;"
+          :options="accounts"
+          option-value="id"
+          placeholder="All accounts"
+          show-clear
+        >
+          <template #value="slotProps">
             <span v-if="slotProps.value">
               {{ accounts.find(a => a.id === slotProps.value)?.name }}
             </span>
-                      <span v-else>All accounts</span>
-                  </template>
-                  <template #option="slotProps">
-                      <div class="flex flex-column">
-                          <span class="font-semibold">{{ slotProps.option.name }}</span>
-                          <span
-                                  class="text-xs"
-                                  style="color: var(--text-secondary)"
-                          >
+            <span v-else>All accounts</span>
+          </template>
+          <template #option="slotProps">
+            <div class="flex flex-column">
+              <span class="font-semibold">{{ slotProps.option.name }}</span>
+              <span
+                class="text-xs"
+                style="color: var(--text-secondary)"
+              >
                 {{ vueHelper.formatString(slotProps.option.account_type?.sub_type) }}
               </span>
-                      </div>
-                  </template>
-              </Select>
-          </div>
+            </div>
+          </template>
+        </Select>
       </div>
+    </div>
 
     <div
       id="mobile-row"
