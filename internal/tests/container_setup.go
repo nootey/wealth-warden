@@ -65,7 +65,7 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 	err = goose.SetDialect("postgres")
 	s.Require().NoError(err, "failed to set goose dialect")
 
-	migrationsPath := filepath.Join("..", "..", "pkg", "database", "migrations")
+	migrationsPath := filepath.Join("..", "..", "storage", "migrations")
 	err = goose.Up(sqlDB, migrationsPath)
 	s.Require().NoError(err, "migrations failed")
 
