@@ -68,7 +68,7 @@ watch(selectedAccountID, async (newVal, oldVal) => {
     }
 });
 
-const loadStats = async () => {
+async function loadStats() {
     isLoadingStats.value = true;
     try {
         accBasicStats.value = await statsStore.getBasicStatisticsForAccount(
@@ -78,10 +78,10 @@ const loadStats = async () => {
     } finally {
         isLoadingStats.value = false;
     }
-};
+}
 
-const loadYears = async () => {
-    isLoadingAccounts.value = true;
+async function loadYears() {
+    isLoadingYears.value = true;
     try {
         const result = await statsStore.getAvailableStatsYears(selectedAccountID.value ?? null);
         years.value = Array.isArray(result) ? result : [];
@@ -92,18 +92,18 @@ const loadYears = async () => {
             : (years.value[0] ?? current);
 
     } finally {
-        isLoadingAccounts.value = false;
+        isLoadingYears.value = false;
     }
-};
+}
 
-const loadAccounts = async () => {
-    isLoadingYears.value = true;
+async function loadAccounts() {
+    isLoadingAccounts.value = true;
     try {
         accounts.value = await accStore.getAccountsBySubtype("checking");
     } finally {
-        isLoadingYears.value = false;
+        isLoadingAccounts.value = false;
     }
-};
+}
 
 const toNumber = (val?: string | null) => {
     if (val == null) return 0;

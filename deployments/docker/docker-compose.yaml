@@ -62,7 +62,7 @@ services:
     volumes:
       - ../../logs:/app/logs
       - ../../pkg/config/override:/app/pkg/config/override:ro
-      - ../../storage/mailer-templates:/app/storage/mailer-templates:ro
+      - ../../storage/migrations:/app/storage/migrations:ro
     networks:
       - wealth-warden
 
@@ -83,6 +83,8 @@ services:
     volumes:
       - ../../logs:/app/logs
       - ../../pkg/config/override:/app/pkg/config/override:ro
+      - ../../storage/mailer-templates:/app/storage/mailer-templates:ro
+      - ../../storage/migrations:/app/storage/migrations:ro
     labels:
       - traefik.enable=true
       - traefik.http.routers.api.rule=Host(`${HOST:-localhost}`) && PathPrefix(`/api`)

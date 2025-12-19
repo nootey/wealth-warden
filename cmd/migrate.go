@@ -47,7 +47,7 @@ func runMigrations(migrationType string, cfg *config.Config, logger *zap.Logger)
 		return fmt.Errorf("failed to get raw SQL DB: %v", err)
 	}
 
-	migrationsDir := "./pkg/database/migrations"
+	migrationsDir := "./storage/migrations"
 	err = goose.SetDialect("postgres")
 	if err != nil {
 		return err

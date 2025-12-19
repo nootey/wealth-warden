@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onUnmounted } from "vue";
+import {computed, ref, onUnmounted, onMounted} from "vue";
 import Chart from "primevue/chart";
 import {
     Chart as ChartJS,
@@ -15,12 +15,6 @@ ChartJS.register(LineController, LineElement, PointElement, LinearScale, Categor
 
 const props = defineProps<{ data: MonthlyCashFlowResponse }>();
 const { colors } = useChartColors();
-
-function toNumber(v: string | string[] | undefined): number {
-    if (Array.isArray(v)) return v.reduce((a, s) => a + (parseFloat(s) || 0), 0);
-    if (typeof v === "string") return parseFloat(v) || 0;
-    return 0;
-}
 
 const labels = computed(() =>
     props.data.series.map(m =>
@@ -190,13 +184,29 @@ const chartOptions = computed(() => ({
 }));
 
 const chartRef = ref<any>(null);
-onUnmounted(() => chartRef.value?.chart?.destroy?.());
+const isChartReady = ref(false);
+
+onMounted(() => {
+    isChartReady.value = true;
+});
+
+onUnmounted(() => {
+    if (chartRef.value?.chart) {
+        chartRef.value.chart.destroy();
+    }
+});
+
+function toNumber(v: string | string[] | undefined): number {
+    if (Array.isArray(v)) return v.reduce((a, s) => a + (parseFloat(s) || 0), 0);
+    if (typeof v === "string") return parseFloat(v) || 0;
+    return 0;
+}
 
 </script>
 
 <template>
   <Chart
-    v-if="hasAnyData"
+    v-if="hasAnyData && isChartReady"
     ref="chartRef"
     type="line"
     :data="chartData"

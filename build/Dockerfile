@@ -24,7 +24,7 @@ ENV GOARCH=$TARGETARCH
 # Copy only necessary folders
 COPY cmd ./cmd
 COPY internal ./internal
-COPY pkg ./pkg
+COPY pkg/ ./pkg
 
 # Build main binary
 RUN --mount=type=cache,target="/root/.cache/go-build" \
@@ -41,7 +41,6 @@ RUN apk add --no-cache curl
 
 # Copy only what's needed at runtime
 COPY --from=builder /app/server /usr/local/bin/server
-COPY --from=builder /app/pkg/database/migrations ./pkg/database/migrations
 
 RUN chmod +x /usr/local/bin/server
 ENV PATH="/usr/local/bin/server:${PATH}"

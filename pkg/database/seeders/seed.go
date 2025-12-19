@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"time"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database/seeders/workers"
@@ -20,6 +21,12 @@ type SeederFunc func(ctx context.Context, db *gorm.DB, cfg *config.Config) error
 func clearStorage() error {
 	storagePath := "./storage"
 
+	// Whitelist of folders to preserve
+	whitelist := []string{
+		"mailer-templates",
+		"migrations",
+	}
+
 	entries, err := os.ReadDir(storagePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -30,11 +37,10 @@ func clearStorage() error {
 
 	for _, entry := range entries {
 
-		// Skip the mailer-template folder
-		if entry.Name() == "mailer-templates" {
+		// Skip whitelisted folders
+		if slices.Contains(whitelist, entry.Name()) {
 			continue
 		}
-
 		err = os.RemoveAll(filepath.Join(storagePath, entry.Name()))
 		if err != nil {
 			return fmt.Errorf("failed to remove %s: %w", entry.Name(), err)
