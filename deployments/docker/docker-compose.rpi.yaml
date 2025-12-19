@@ -41,6 +41,7 @@ services:
     volumes:
       - ../../logs:/app/logs
       - ../../pkg/config/override:/app/pkg/config/override:ro
+      - ../../storage/migrations:/app/storage/migrations:ro
     networks:
       - wealth-warden
 
@@ -65,6 +66,7 @@ services:
       - ../../logs:/app/logs
       - ../../pkg/config/override:/app/pkg/config/override:ro
       - ../../storage/mailer-templates:/app/storage/mailer-templates:ro
+      - ../../storage/migrations:/app/storage/migrations:ro
     networks:
       - wealth-warden
 

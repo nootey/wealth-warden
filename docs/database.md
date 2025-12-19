@@ -21,7 +21,7 @@ Migrations are handled using [Goose](https://github.com/pressly/goose).
 ### Creating a Migration
 
 ```sh
-goose -dir ./pkg/database/migrations create create_{table}_table sql
+goose -dir ./storage/migrations create create_{table}_table sql
 ```
 
 This will generate a new .sql file where you define both Up and Down migration steps.
