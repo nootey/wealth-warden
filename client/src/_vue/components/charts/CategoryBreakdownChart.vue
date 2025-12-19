@@ -134,8 +134,7 @@ const chartOptions = computed(() => ({
 const chartRef = ref<any>(null);
 const isChartReady = ref(false);
 
-onMounted(async () => {
-    await nextTick();
+onMounted(() => {
     isChartReady.value = true;
 });
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, onMounted, ref, watch} from "vue";
+import {computed, nextTick, onMounted, ref, watch} from "vue";
 import MultiSelect from "primevue/multiselect";
 import CategoryBreakdownChart from "../components/charts/CategoryBreakdownChart.vue";
 
@@ -116,7 +116,7 @@ const fetchData = async () => {
             return { name: String(y), data };
         });
 
-        // if (!selectedCategory.value) selectedCategory.value = ALL_CATEGORY;
+        await nextTick();
 
     } catch (e) {
         toastStore.errorResponseToast(e);
@@ -143,25 +143,26 @@ onMounted(async () => {
     }
 });
 
-watch(selectedYears, async (arr) => {
-    if (arr.length > maxYears) selectedYears.value = arr.slice(0, maxYears);
-    await fetchData();
-});
-
-watch(selectedCategory, async () => {
-    await fetchData();
-});
-
-watch(selectedAccountID, async (newVal, oldVal) => {
-    if (newVal !== oldVal) {
-        try {
-            await loadYears();
-            await fetchData();
-        } catch (e) {
-            toastStore.errorResponseToast(e);
+watch(
+    () => [selectedYears.value, selectedCategoryId.value, selectedAccountID.value] as const,
+    async ([years, category, account], [oldYears, oldCategory, oldAccount]) => {
+        // Handle year limit
+        if (years.length > maxYears) {
+            selectedYears.value = years.slice(0, maxYears);
+            return; 
         }
-    }
-});
+
+        // Only fetch if something actually changed
+        if (
+            JSON.stringify(years) !== JSON.stringify(oldYears) ||
+            category !== oldCategory ||
+            account !== oldAccount
+        ) {
+            await fetchData();
+        }
+    },
+    { deep: true }
+);
 
 </script>
 

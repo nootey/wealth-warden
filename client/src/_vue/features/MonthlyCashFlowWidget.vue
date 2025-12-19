@@ -2,7 +2,7 @@
 
 import MonthlyCashFlowChart from "../components/charts/MonthlyCashFlowChart.vue";
 import type {MonthlyCashFlowResponse} from "../../models/chart_models.ts";
-import {computed, nextTick, onMounted, ref, watch} from "vue";
+import {onMounted, ref, watch} from "vue";
 import {useStatisticsStore} from "../../services/stores/statistics_store.ts";
 import {useToastStore} from "../../services/stores/toast_store.ts";
 import {useChartStore} from "../../services/stores/chart_store.ts";
@@ -22,13 +22,13 @@ const monthlyCashFlow = ref<MonthlyCashFlowResponse>({ year: 0, series: [] });
 const accounts = ref<Account[]>([]);
 const selectedAccountID = ref<number | null>(null);
 
-const isLoadingAccounts = ref(false);
 const isLoadingStats = ref(false);
-const isLoading = computed(() => isLoadingStats.value || isLoadingAccounts.value);
 
 async function fetchMonthlyCashFlows(year: number | null, account: number | null = null) {
 
     isLoadingStats.value = true;
+    // Clear data first to prevent chart rendering with stale data
+    monthlyCashFlow.value = { year: 0, series: [] };
 
     if(!year) {
         year = new Date().getFullYear();
@@ -40,9 +40,7 @@ async function fetchMonthlyCashFlows(year: number | null, account: number | null
             params.account = account;
         }
 
-        const data = await chartStore.getMonthlyCashFlowForYear(params);
-        await nextTick();
-        monthlyCashFlow.value = data;
+        monthlyCashFlow.value = await chartStore.getMonthlyCashFlowForYear(params);
     } catch (error) {
         toastStore.errorResponseToast(error)
     } finally {
@@ -67,50 +65,32 @@ async function loadYears() {
 }
 
 async function loadAccounts() {
-    isLoadingAccounts.value = true;
     try {
         accounts.value = await accStore.getAccountsBySubtype("checking");
-    } finally {
-        isLoadingAccounts.value = false;
+    } catch (e) {
+        toastStore.errorResponseToast(e);
     }
 }
 
 onMounted(async () => {
-    try {
-        await loadAccounts();
-        await loadYears();
-        const defaultChecking = accounts.value.find(
-            acc => acc.is_default && acc.account_type?.sub_type === 'checking'
-        );
-        if (defaultChecking) {
-            selectedAccountID.value = defaultChecking.id;
-        }
-        await fetchMonthlyCashFlows(null, selectedAccountID.value);
-    } catch (e) {
-        toastStore.errorResponseToast(e);
+    await loadAccounts();
+    await loadYears();
+    const defaultChecking = accounts.value.find(
+        acc => acc.is_default && acc.account_type?.sub_type === 'checking'
+    );
+    if (defaultChecking) {
+        selectedAccountID.value = defaultChecking.id;
     }
+    await fetchMonthlyCashFlows(null, selectedAccountID.value);
 });
 
-watch(selectedYear, async (newVal, oldVal) => {
-    if (newVal !== oldVal) {
-        try {
-            await fetchMonthlyCashFlows(newVal, selectedAccountID.value);
-        } catch (e) {
-            toastStore.errorResponseToast(e);
-        }
-    }
-});
-
-watch(selectedAccountID, async (newVal, oldVal) => {
-    if (newVal !== oldVal) {
-        try {
-            await loadYears();
-            await fetchMonthlyCashFlows(selectedYear.value, newVal);
-        } catch (e) {
-            toastStore.errorResponseToast(e);
-        }
-    }
-});
+watch(
+    () => [selectedYear.value, selectedAccountID.value] as const,
+    async ([year, account]) => {
+        await fetchMonthlyCashFlows(year, account);
+    },
+    { flush: "post" }
+);
 
 </script>
 
@@ -186,12 +166,12 @@ watch(selectedAccountID, async (newVal, oldVal) => {
         </div>
 
         <ShowLoading
-                v-if="isLoading"
+                v-if="isLoadingStats"
                 :num-fields="7"
         />
         <MonthlyCashFlowChart
                 v-else-if="monthlyCashFlow.series.length > 0"
-                :key="`${selectedYear ?? 'all'}-${selectedAccountID ?? 'all'}`"
+                :key="`chart-${selectedYear}-${selectedAccountID ?? 'all'}-${monthlyCashFlow.series.length}`"
                 :data="monthlyCashFlow"
         />
     </div>

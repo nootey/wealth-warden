@@ -186,12 +186,15 @@ const chartOptions = computed(() => ({
 const chartRef = ref<any>(null);
 const isChartReady = ref(false);
 
-onMounted(async () => {
-    await nextTick();
+onMounted(() => {
     isChartReady.value = true;
 });
 
-onUnmounted(() => chartRef.value?.chart?.destroy?.());
+onUnmounted(() => {
+    if (chartRef.value?.chart) {
+        chartRef.value.chart.destroy();
+    }
+});
 
 function toNumber(v: string | string[] | undefined): number {
     if (Array.isArray(v)) return v.reduce((a, s) => a + (parseFloat(s) || 0), 0);
