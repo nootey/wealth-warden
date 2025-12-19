@@ -10,24 +10,27 @@ import {useTransactionStore} from "../../services/stores/transaction_store.ts";
 import Select from "primevue/select";
 import type {YearlyCategoryStats} from "../../models/chart_models.ts";
 import vueHelper from "../../utils/vue_helper.ts";
+import type {Account} from "../../models/account_models.ts";
+import {useAccountStore} from "../../services/stores/account_store.ts";
 
 const chartStore = useChartStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
+const accStore = useAccountStore();
 
 const allYears = ref<number[]>([]);
 const selectedYears = ref<number[]>([]);
 const maxYears = 5;
 
 const series = ref<{ name: string; data: number[] }[]>([]);
+const stats = ref<YearlyCategoryStats | null>(null);
+const accounts = ref<Account[]>([]);
+const selectedAccountID = ref<number | null>(null);
 
+type OptionItem = { label: string; value: number | undefined; meta: Category }
 const yearOptions = computed(() =>
     allYears.value.map(y => ({ label: String(y), value: y }))
 );
-
-const stats = ref<YearlyCategoryStats | null>(null);
-
-type OptionItem = { label: string; value: number | undefined; meta: Category }
 
 const ALL_CATEGORY = {
     id: undefined,
@@ -38,7 +41,10 @@ const ALL_CATEGORY = {
 
 const availableCategories = computed<Category[]>(() => [
     ALL_CATEGORY,
-    ...transactionStore.categories.filter(c => !!c.parent_id && c.classification == "expense")
+    ...transactionStore.categories.filter(c =>
+        (c.classification == "expense" && c.parent_id) ||
+        c.classification == "uncategorized"
+    )
 ])
 
 const selectedCategoryId = ref<number | undefined>(ALL_CATEGORY.id!)
@@ -85,6 +91,7 @@ const fetchData = async () => {
             class: "expense",
             percent: false,
             category: selectedCategory.value?.id ?? null,
+            account: selectedAccountID.value ?? null
         });
 
         const ys: number[] = res?.years ?? [];
@@ -116,9 +123,24 @@ const fetchData = async () => {
     }
 };
 
+async function loadAccounts() {
+    try {
+        accounts.value = await accStore.getAccountsBySubtype("checking");
+    } catch (e) {
+        toastStore.errorResponseToast(e);
+    }
+}
+
 onMounted(async () => {
     await loadYears();
     await fetchData();
+    await loadAccounts();
+    const defaultChecking = accounts.value.find(
+        acc => acc.is_default && acc.account_type?.sub_type === 'checking'
+    );
+    if (defaultChecking) {
+        selectedAccountID.value = defaultChecking.id;
+    }
 });
 
 watch(selectedYears, async (arr) => {
@@ -129,10 +151,22 @@ watch(selectedYears, async (arr) => {
 watch(selectedCategory, async () => {
     await fetchData();
 });
+
+watch(selectedAccountID, async (newVal, oldVal) => {
+    if (newVal !== oldVal) {
+        try {
+            await loadYears();
+            await fetchData();
+        } catch (e) {
+            toastStore.errorResponseToast(e);
+        }
+    }
+});
+
 </script>
 
 <template>
-  <div class="flex flex-column w-full p-3">
+  <div class="flex flex-column w-full p-3 gap-3">
     <div
       id="mobile-row"
       class="flex flex-row gap-2 w-full justify-content-between align-items-center"
@@ -156,7 +190,7 @@ watch(selectedCategory, async () => {
         >
           <Select
             v-model="selectedCategoryId"
-            size="small"
+            size="small" filter
             :options="categoryOptions"
             option-label="label"
             option-value="value"
@@ -197,6 +231,51 @@ watch(selectedCategory, async () => {
         </div>
       </div>
     </div>
+
+      <div
+              class="flex flex-row gap-2 w-full justify-content-between align-items-center"
+      >
+          <div class="flex flex-column gap-2">
+              <div class="flex flex-row">
+          <span
+                  class="text-sm"
+                  style="color: var(--text-secondary)"
+          >
+            A default checking account was found. The stats are representative of the cash flow to this account.
+          </span>
+              </div>
+          </div>
+
+          <div class="flex flex-column gap-2">
+              <Select
+                      v-model="selectedAccountID"
+                      size="small"
+                      style="width: 150px;"
+                      :options="accounts"
+                      option-value="id"
+                      placeholder="All accounts"
+                      show-clear
+              >
+                  <template #value="slotProps">
+            <span v-if="slotProps.value">
+              {{ accounts.find(a => a.id === slotProps.value)?.name }}
+            </span>
+                      <span v-else>All accounts</span>
+                  </template>
+                  <template #option="slotProps">
+                      <div class="flex flex-column">
+                          <span class="font-semibold">{{ slotProps.option.name }}</span>
+                          <span
+                                  class="text-xs"
+                                  style="color: var(--text-secondary)"
+                          >
+                {{ vueHelper.formatString(slotProps.option.account_type?.sub_type) }}
+              </span>
+                      </div>
+                  </template>
+              </Select>
+          </div>
+      </div>
 
     <div
       id="mobile-row"

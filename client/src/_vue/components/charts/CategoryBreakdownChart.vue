@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onUnmounted } from "vue";
+import {computed, ref, onUnmounted, onMounted, nextTick} from "vue";
 import Chart from "primevue/chart";
 import {
     Chart as ChartJS,
@@ -132,16 +132,24 @@ const chartOptions = computed(() => ({
 }));
 
 const chartRef = ref<any>(null);
+const isChartReady = ref(false);
+
+onMounted(async () => {
+    await nextTick();
+    isChartReady.value = true;
+});
+
 onUnmounted(() => chartRef.value?.chart?.destroy?.());
 </script>
 
 <template>
   <Chart
-    ref="chartRef"
-    type="bar"
-    :data="chartData"
-    :options="chartOptions"
-    :plugins="[hoverGuidePlugin]"
-    style="width: 100%; height: 400px"
+          v-if="isChartReady"
+          ref="chartRef"
+          type="bar"
+          :data="chartData"
+          :options="chartOptions"
+          :plugins="[hoverGuidePlugin]"
+          style="width: 100%; height: 400px"
   />
 </template>
