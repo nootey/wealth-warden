@@ -1,15 +1,24 @@
 <script setup lang="ts">
 import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
-import { onMounted } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import MonthlyCashFlowWidget from "../features/widgets/MonthlyCashFlowWidget.vue";
 import MonthlyCategoryBreakdownWidget from "../features/widgets/MonthlyCategoryBreakdownWidget.vue";
 import { useTransactionStore } from "../../services/stores/transaction_store.ts";
 import YearlyCashFlowWidget from "../features/widgets/YearlyCashFlowWidget.vue";
 
 const transactionStore = useTransactionStore();
+const isMobile = ref(window.innerWidth <= 768);
+const handleResize = () => {
+  isMobile.value = window.innerWidth <= 768;
+};
 
 onMounted(async () => {
   await transactionStore.getCategories();
+  window.addEventListener("resize", handleResize);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("resize", handleResize);
 });
 </script>
 
@@ -34,7 +43,7 @@ onMounted(async () => {
       </SlotSkeleton>
 
       <div class="w-full flex flex-row justify-content-between p-1">
-        <h4>Yearly cash-flow breakdown</h4>
+        <h4>Cash-flow breakdown</h4>
       </div>
 
       <div class="w-full flex flex-row justify-content-between p-1">
@@ -49,39 +58,41 @@ onMounted(async () => {
       </div>
 
       <SlotSkeleton bg="secondary">
-        <YearlyCashFlowWidget />
+        <YearlyCashFlowWidget :is-mobile="isMobile" />
       </SlotSkeleton>
 
       <div class="w-full flex flex-row justify-content-between p-1">
-        <h4>Monthly cash-flow breakdown</h4>
+        <h4>Cash-flow pattern</h4>
       </div>
 
       <div class="w-full flex flex-row justify-content-between p-1">
         <span style="color: var(--text-secondary)" class="text-sm">
           Track your monthly income and expenses throughout the year. This chart
-          shows the flow of money in (green) and out (red) of your selected
-          account, helping you identify spending patterns and seasonal trends.
+          is the most basic representation of cash-flow. It shows the flow of
+          money in (green) and out (red) of your selected account, helping you
+          identify spending patterns and seasonal trends.
         </span>
       </div>
 
       <SlotSkeleton bg="secondary">
-        <MonthlyCashFlowWidget />
+        <MonthlyCashFlowWidget :is-mobile="isMobile" />
       </SlotSkeleton>
 
       <div class="w-full flex flex-row justify-content-between p-1">
-        <h4>Monthly category display</h4>
+        <h4>Comparative breakdown by category</h4>
       </div>
 
       <div class="w-full flex flex-row justify-content-between p-1">
         <span style="color: var(--text-secondary)" class="text-sm">
-          Compare spending across categories and years. View how much you spend
-          in each category by month, and see year-over-year trends to understand
-          where your money goes over time.
+          View and compare how your money moves through out different years and
+          categories. You can compare up to 5 years at a time, with the option
+          to filter by any income or expense category. Totals and average over
+          time include ALL of your data.
         </span>
       </div>
 
       <SlotSkeleton bg="secondary">
-        <MonthlyCategoryBreakdownWidget />
+        <MonthlyCategoryBreakdownWidget :is-mobile="isMobile" />
       </SlotSkeleton>
     </div>
   </main>

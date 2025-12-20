@@ -20,7 +20,7 @@ type TransactionRepositoryInterface interface {
 	baseTransferQuery(ctx context.Context, db *gorm.DB, userID int64, includeDeleted bool, accountID *int64) *gorm.DB
 	FindTransactions(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool, accountID *int64) ([]models.Transaction, error)
 	FindAllTransactionsForUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Transaction, error)
-	FindTransfers(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, includeDeleted bool, accountID *int64) ([]models.Transfer, error)
+	FindTransfers(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, includeDeleted bool, accountID *int64) ([]models.Transfer, error)
 	FindAllTransfersForUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Transfer, error)
 	GetMonthlyTransfersFromChecking(ctx context.Context, tx *gorm.DB, userID int64, checkingAccountIDs []int64, year, month int) ([]models.Transfer, error)
 	CountTransactions(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, includeDeleted bool, accountID *int64) (int64, error)
@@ -198,7 +198,7 @@ func (r *TransactionRepository) FindAllTransactionsForUser(ctx context.Context, 
 	return records, nil
 }
 
-func (r *TransactionRepository) FindTransfers(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, includeDeleted bool, accountID *int64) ([]models.Transfer, error) {
+func (r *TransactionRepository) FindTransfers(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, includeDeleted bool, accountID *int64) ([]models.Transfer, error) {
 
 	db := tx
 	if db == nil {
@@ -221,8 +221,15 @@ func (r *TransactionRepository) FindTransfers(ctx context.Context, tx *gorm.DB, 
 			Preload("TransactionOutflow.Account")
 	}
 
+	joins := utils.GetRequiredJoins(nil)
+	orderBy := utils.ConstructOrderByClause(&joins, "transfers", sortField, sortOrder)
+
+	for _, join := range joins {
+		q = q.Joins(join)
+	}
+
 	err := q.
-		Order("created_at desc").
+		Order(orderBy).
 		Limit(limit).
 		Offset(offset).
 		Find(&records).Error
@@ -934,7 +941,7 @@ func (r *TransactionRepository) GetTransactionsForYear(ctx context.Context, tx *
 	}
 	db = db.WithContext(ctx)
 
-	query := db.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ?", userID, year)
+	query := db.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ? AND is_transfer = ? AND is_adjustment = ?", userID, year, false, false)
 
 	if accountID != nil {
 		query = query.Where("account_id = ?", *accountID)

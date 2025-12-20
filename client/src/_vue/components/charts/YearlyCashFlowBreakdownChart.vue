@@ -23,7 +23,16 @@ ChartJS.register(
   Legend,
 );
 
-const props = defineProps<{ data: YearlyCashFlowResponse }>();
+const props = withDefaults(
+  defineProps<{
+    isMobile?: boolean;
+    data: YearlyCashFlowResponse;
+  }>(),
+  {
+    isMobile: false,
+  },
+);
+
 const { colors } = useChartColors();
 
 const labels = computed(() =>
@@ -198,7 +207,7 @@ const chartOptions = computed(() => ({
       stacked: true,
       grid: { display: false, drawBorder: false },
       ticks: {
-        display: true,
+        display: !props.isMobile,
         color: colors.value.axisText,
         callback: (v: number) => vueHelper.displayAsCurrency(v),
       },

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { Account, Balance } from "../../../models/account_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
-import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import { computed, nextTick, onMounted, ref } from "vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import TransactionsPaginated from "./TransactionsPaginated.vue";
@@ -29,7 +28,6 @@ const emit = defineEmits<{
 }>();
 
 const toastStore = useToastStore();
-const transactionStore = useTransactionStore();
 const sharedStore = useSharedStore();
 const accountStore = useAccountStore();
 
@@ -96,27 +94,6 @@ async function loadLatestBalance(id: number) {
   } catch (err) {
     toastStore.errorResponseToast(err);
   }
-}
-
-async function loadTransactionsPage({
-  page,
-  rows,
-  sort: s,
-  filters: f,
-  include_deleted,
-}: any) {
-  let response = null;
-
-  try {
-    response = await transactionStore.getPaginatedTransactionsForAccount(
-      { rowsPerPage: rows, sort: s, filters: f, include_deleted },
-      page,
-      props.accID!,
-    );
-  } catch (e) {
-    toastStore.errorResponseToast(e);
-  }
-  return { data: response?.data, total: response?.total_records };
 }
 
 async function confirmCloseAccount(id: number) {
@@ -322,8 +299,6 @@ async function handleEmit(type: string) {
             ref="txRef"
             :read-only="true"
             :columns="transactionColumns"
-            :fetch-page="loadTransactionsPage"
-            :row-class="vueHelper.deletedRowClass"
           />
         </div>
       </div>

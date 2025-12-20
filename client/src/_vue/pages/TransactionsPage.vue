@@ -1,14 +1,8 @@
 <script setup lang="ts">
 import TransactionForm from "../components/forms/TransactionForm.vue";
-import { computed, onMounted, provide, ref } from "vue";
-import { useSharedStore } from "../../services/stores/shared_store.ts";
+import { computed, onMounted, ref } from "vue";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useTransactionStore } from "../../services/stores/transaction_store.ts";
-import ActionRow from "../components/layout/ActionRow.vue";
-import type { FilterObj } from "../../models/shared_models.ts";
-import FilterMenu from "../components/filters/FilterMenu.vue";
-import ActiveFilters from "../components/filters/ActiveFilters.vue";
-import filterHelper from "../../utils/filter_helper.ts";
 import type { Category } from "../../models/transaction_models.ts";
 import type { Column } from "../../services/filter_registry.ts";
 import { useAccountStore } from "../../services/stores/account_store.ts";
@@ -19,7 +13,6 @@ import { useRouter } from "vue-router";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import TransactionTemplates from "../features/TransactionTemplates.vue";
 
-const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
@@ -33,8 +26,6 @@ onMounted(async () => {
 const router = useRouter();
 const { hasPermission } = usePermissions();
 
-const apiPrefix = "transactions";
-
 const trRef = ref<InstanceType<typeof TransfersPaginated> | null>(null);
 const txRef = ref<InstanceType<typeof TransactionsPaginated> | null>(null);
 const tpRef = ref<InstanceType<typeof TransactionTemplates> | null>(null);
@@ -43,18 +34,10 @@ const createModal = ref(false);
 const updateModal = ref(false);
 const templateModal = ref(false);
 const updateTransactionID = ref(null);
-const includeDeleted = ref(false);
 
 const categories = computed<Category[]>(() => transactionStore.categories);
 const accounts = computed<Account[]>(() => accountStore.accounts);
 const trTemplateCount = ref<number>(0);
-
-const sort = ref(filterHelper.initSort("txn_date"));
-const filterStorageIndex = ref(apiPrefix + "-filters");
-const filters = ref(
-  JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "[]"),
-);
-const filterOverlayRef = ref<any>(null);
 
 const activeColumns = computed<Column[]>(() => [
   {
@@ -89,28 +72,6 @@ async function getTrTemplateCount() {
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
-}
-
-async function loadTransactionsPage({
-  page,
-  rows,
-  sort: s,
-  filters: f,
-  include_deleted,
-}: any) {
-  let response = null;
-
-  try {
-    response = await sharedStore.getRecordsPaginated(
-      apiPrefix,
-      { rowsPerPage: rows, sort: s, filters: f, include_deleted },
-      page,
-    );
-  } catch (e) {
-    toastStore.errorResponseToast(e);
-  }
-
-  return { data: response?.data, total: response?.total_records };
 }
 
 function manipulateDialog(modal: string, value: any) {
@@ -183,59 +144,6 @@ async function handleEmit(emitType: any) {
     }
   }
 }
-
-function applyFilters(list: FilterObj[]) {
-  filters.value = filterHelper.mergeFilters(filters.value, list);
-  localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
-  txRef.value?.refresh();
-  filterOverlayRef.value.hide();
-}
-
-function clearFilters() {
-  filters.value = [];
-  localStorage.removeItem(filterStorageIndex.value);
-  cancelFilters();
-  txRef.value?.refresh();
-}
-
-function cancelFilters() {
-  filterOverlayRef.value.hide();
-}
-
-function removeFilter(index: number) {
-  if (index < 0 || index >= filters.value.length) return;
-
-  const next = filters.value.slice();
-  next.splice(index, 1);
-  filters.value = next;
-
-  if (filters.value.length > 0) {
-    localStorage.setItem(
-      filterStorageIndex.value,
-      JSON.stringify(filters.value),
-    );
-  } else {
-    localStorage.removeItem(filterStorageIndex.value);
-  }
-
-  txRef.value?.refresh();
-}
-
-function switchSort(column: string) {
-  if (sort.value.field === column) {
-    sort.value.order = filterHelper.toggleSort(sort.value.order);
-  } else {
-    sort.value.order = 1;
-  }
-  sort.value.field = column;
-}
-
-function toggleFilterOverlay(event: any) {
-  filterOverlayRef.value.toggle(event);
-}
-
-provide("switchSort", switchSort);
-provide("removeFilter", removeFilter);
 </script>
 
 <template>
@@ -285,22 +193,6 @@ provide("removeFilter", removeFilter);
     />
   </Dialog>
 
-  <Popover
-    ref="filterOverlayRef"
-    class="rounded-popover"
-    :style="{ width: '420px' }"
-    :breakpoints="{ '775px': '90vw' }"
-  >
-    <FilterMenu
-      v-model:value="filters"
-      :columns="activeColumns"
-      :api-source="apiPrefix"
-      @apply="(list) => applyFilters(list)"
-      @clear="clearFilters"
-      @cancel="cancelFilters"
-    />
-  </Popover>
-
   <main
     class="flex flex-column w-full p-2 align-items-center"
     style="height: 100%"
@@ -348,51 +240,11 @@ provide("removeFilter", removeFilter);
         </Button>
       </div>
 
-      <div class="flex flex-row w-full">
-        <ActionRow>
-          <template #activeFilters>
-            <ActiveFilters
-              :active-filters="filters"
-              :show-only-active="false"
-              active-filter=""
-            />
-          </template>
-          <template #filterButton>
-            <div
-              class="hover-icon flex flex-row align-items-center gap-2"
-              style="
-                padding: 0.5rem 1rem;
-                border-radius: 8px;
-                border: 1px solid var(--border-color);
-              "
-              @click="toggleFilterOverlay($event)"
-            >
-              <i class="pi pi-filter" style="font-size: 0.845rem" />
-              <div>Filter</div>
-            </div>
-          </template>
-          <template #includeDeleted>
-            <div
-              class="flex align-items-center gap-2"
-              style="margin-left: auto"
-            >
-              <span style="font-size: 0.8rem">Include deleted</span>
-              <ToggleSwitch v-model="includeDeleted" />
-            </div>
-          </template>
-        </ActionRow>
-      </div>
-
       <div id="mobile-row" class="flex flex-row w-full">
         <TransactionsPaginated
           ref="txRef"
           :read-only="false"
           :columns="activeColumns"
-          :sort="sort"
-          :filters="filters"
-          :include-deleted="includeDeleted"
-          :fetch-page="loadTransactionsPage"
-          @sort-change="switchSort"
           @row-click="(id) => manipulateDialog('updateTransaction', id)"
         />
       </div>
