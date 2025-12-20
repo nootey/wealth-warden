@@ -34,13 +34,10 @@ const createModal = ref(false);
 const updateModal = ref(false);
 const templateModal = ref(false);
 const updateTransactionID = ref(null);
-const includeDeleted = ref(false);
 
 const categories = computed<Category[]>(() => transactionStore.categories);
 const accounts = computed<Account[]>(() => accountStore.accounts);
 const trTemplateCount = ref<number>(0);
-
-
 
 const activeColumns = computed<Column[]>(() => [
   {
@@ -147,7 +144,6 @@ async function handleEmit(emitType: any) {
     }
   }
 }
-
 </script>
 
 <template>
@@ -201,14 +197,18 @@ async function handleEmit(emitType: any) {
     class="flex flex-column w-full p-2 align-items-center"
     style="height: 100%"
   >
-    <div id="mobile-container"
+    <div
+      id="mobile-container"
       class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
       style="
         border: 1px solid var(--border-color);
         background: var(--background-secondary);
         max-width: 1000px;
-      ">
-      <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
+      "
+    >
+      <div
+        class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
+      >
         <div style="font-weight: bold">Transactions</div>
         <i
           v-if="hasPermission('manage_data')"

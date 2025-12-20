@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { Account, Balance } from "../../../models/account_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
-import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import { computed, nextTick, onMounted, ref } from "vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import TransactionsPaginated from "./TransactionsPaginated.vue";
@@ -29,7 +28,6 @@ const emit = defineEmits<{
 }>();
 
 const toastStore = useToastStore();
-const transactionStore = useTransactionStore();
 const sharedStore = useSharedStore();
 const accountStore = useAccountStore();
 

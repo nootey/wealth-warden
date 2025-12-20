@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, onMounted, provide, ref} from "vue";
+import { computed, onMounted, provide, ref } from "vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
@@ -140,7 +140,6 @@ function refresh() {
 provide("switchSort", switchSort);
 
 defineExpose({ refresh });
-
 </script>
 
 <template>

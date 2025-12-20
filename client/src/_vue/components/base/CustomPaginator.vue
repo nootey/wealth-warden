@@ -29,7 +29,8 @@ const emit = defineEmits<{
         'FirstPageLink PrevPageLink CurrentPageReport NextPageLink LastPageLink',
       '1300px':
         'FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown',
-      default: 'FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown',
+      default:
+        'FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown',
     }"
     @page="(e) => emit('onPage', e)"
   >
@@ -43,6 +44,4 @@ const emit = defineEmits<{
   </Paginator>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

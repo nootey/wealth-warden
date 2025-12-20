@@ -6,12 +6,12 @@ import ColumnHeader from "../base/ColumnHeader.vue";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
 import type { Transaction } from "../../../models/transaction_models.ts";
 import type { Column } from "../../../services/filter_registry.ts";
-import {computed, onMounted, provide, ref, watch} from "vue";
+import { computed, onMounted, provide, ref, watch } from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
-import {useToastStore} from "../../../services/stores/toast_store.ts";
-import {useSharedStore} from "../../../services/stores/shared_store.ts";
-import type {FilterObj} from "../../../models/shared_models.ts";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { useSharedStore } from "../../../services/stores/shared_store.ts";
+import type { FilterObj } from "../../../models/shared_models.ts";
 import FilterMenu from "../filters/FilterMenu.vue";
 import ActiveFilters from "../filters/ActiveFilters.vue";
 import ActionRow from "../layout/ActionRow.vue";
@@ -20,11 +20,10 @@ const props = defineProps<{
   columns: Column[];
   readOnly: boolean;
   accID?: number;
-  rows?: number[];
 }>();
 
 defineEmits<{
-  rowClick: [id: number]
+  rowClick: [id: number];
 }>();
 
 const sharedStore = useSharedStore();
@@ -87,9 +86,8 @@ async function getData(new_page: number | null = null) {
     paginator.value.to = paginationResponse.to;
     paginator.value.from = paginationResponse.from;
   } catch (e) {
-    toastStore.errorResponseToast(e)
-  }
-  finally {
+    toastStore.errorResponseToast(e);
+  } finally {
     loading.value = false;
   }
 }
@@ -101,8 +99,7 @@ async function onPage(event: any) {
 }
 
 async function applyFilters(list: FilterObj[]) {
-  if(props.readOnly)
-    return;
+  if (props.readOnly) return;
 
   filters.value = filterHelper.mergeFilters(filters.value, list);
   localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
@@ -151,8 +148,7 @@ async function switchSort(column: string) {
 }
 
 function toggleFilterOverlay(event: any) {
-  if(props.readOnly)
-    return;
+  if (props.readOnly) return;
   filterOverlayRef.value.toggle(event);
 }
 
@@ -167,7 +163,6 @@ defineExpose({ refresh });
 </script>
 
 <template>
-
   <Popover
     ref="filterOverlayRef"
     class="rounded-popover"
@@ -185,7 +180,6 @@ defineExpose({ refresh });
   </Popover>
 
   <div class="flex flex-column w-full">
-
     <div v-if="!readOnly" class="flex flex-row w-full">
       <ActionRow>
         <template #activeFilters>
@@ -199,10 +193,10 @@ defineExpose({ refresh });
           <div
             class="hover-icon flex flex-row align-items-center gap-2"
             style="
-                padding: 0.5rem 1rem;
-                border-radius: 8px;
-                border: 1px solid var(--border-color);
-              "
+              padding: 0.5rem 1rem;
+              border-radius: 8px;
+              border: 1px solid var(--border-color);
+            "
             @click="toggleFilterOverlay($event)"
           >
             <i class="pi pi-filter" style="font-size: 0.845rem" />
@@ -210,10 +204,7 @@ defineExpose({ refresh });
           </div>
         </template>
         <template #includeDeleted>
-          <div
-            class="flex align-items-center gap-2"
-            style="margin-left: auto"
-          >
+          <div class="flex align-items-center gap-2" style="margin-left: auto">
             <span style="font-size: 0.8rem">Include deleted</span>
             <ToggleSwitch v-model="includeDeleted" />
           </div>
@@ -268,38 +259,40 @@ defineExpose({ refresh });
               <i
                 class="text-xs"
                 :class="
-                (data.transaction_type === 'expense'
-                  ? data.amount * -1
-                  : data.amount) >= 0
-                  ? 'pi pi-angle-up'
-                  : 'pi pi-angle-down'
-              "
-                :style="{
-                color:
                   (data.transaction_type === 'expense'
                     ? data.amount * -1
                     : data.amount) >= 0
-                    ? colors.pos
-                    : colors.neg,
-              }"
+                    ? 'pi pi-angle-up'
+                    : 'pi pi-angle-down'
+                "
+                :style="{
+                  color:
+                    (data.transaction_type === 'expense'
+                      ? data.amount * -1
+                      : data.amount) >= 0
+                      ? colors.pos
+                      : colors.neg,
+                }"
               />
               <span>{{
-                  vueHelper.displayAsCurrency(
-                    data.transaction_type == "expense"
-                      ? data.amount * -1
-                      : data.amount,
-                  )
-                }}</span>
+                vueHelper.displayAsCurrency(
+                  data.transaction_type == "expense"
+                    ? data.amount * -1
+                    : data.amount,
+                )
+              }}</span>
             </div>
           </template>
           <template v-else-if="col.field === 'txn_date'">
-            {{ dateHelper.combineDateAndTime(data?.txn_date, data?.created_at) }}
+            {{
+              dateHelper.combineDateAndTime(data?.txn_date, data?.created_at)
+            }}
           </template>
           <template v-else-if="col.field === 'account'">
             <div class="flex flex-row gap-2 align-items-center account-row">
-    <span class="hover" @click="$emit('rowClick', data.id)">
-      {{ data[col.field]?.["name"] }}
-    </span>
+              <span class="hover" @click="$emit('rowClick', data.id)">
+                {{ data[col.field]?.["name"] }}
+              </span>
               <i
                 v-if="data[col.field]?.['deleted_at']"
                 v-tooltip="'This account is closed.'"
@@ -311,9 +304,9 @@ defineExpose({ refresh });
             {{ data[col.field]?.["display_name"] }}
           </template>
           <template v-else-if="col.field === 'description'">
-          <span v-tooltip.top="data[col.field]" class="truncate-text">
-            {{ data[col.field] }}
-          </span>
+            <span v-tooltip.top="data[col.field]" class="truncate-text">
+              {{ data[col.field] }}
+            </span>
           </template>
           <template v-else>
             {{ data[col.field] }}
@@ -322,7 +315,6 @@ defineExpose({ refresh });
       </Column>
     </DataTable>
   </div>
-
 </template>
 
 <style scoped>
