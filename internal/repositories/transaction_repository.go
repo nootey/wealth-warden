@@ -934,7 +934,7 @@ func (r *TransactionRepository) GetTransactionsForYear(ctx context.Context, tx *
 	}
 	db = db.WithContext(ctx)
 
-	query := db.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ?", userID, year)
+	query := db.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ? AND is_transfer = ? AND is_adjustment = ?", userID, year, false, false)
 
 	if accountID != nil {
 		query = query.Where("account_id = ?", *accountID)
