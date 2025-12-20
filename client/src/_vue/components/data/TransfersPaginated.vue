@@ -24,10 +24,6 @@ const confirm = useConfirm();
 
 const apiPrefix = "transactions/transfers";
 
-onMounted(async () => {
-  await getData();
-});
-
 const loadingRecords = ref(true);
 const records = ref<Transfer[]>([]);
 
@@ -57,6 +53,10 @@ const activeColumns = computed<Column[]>(() => [
   { field: "created_at", header: "Date", type: "date" },
   { field: "notes", header: "Notes", hideOnMobile: true },
 ]);
+
+onMounted(async () => {
+  await getData();
+});
 
 async function getData(new_page = null) {
   loadingRecords.value = true;

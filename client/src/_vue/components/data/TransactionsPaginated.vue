@@ -6,163 +6,270 @@ import ColumnHeader from "../base/ColumnHeader.vue";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
 import type { Transaction } from "../../../models/transaction_models.ts";
 import type { Column } from "../../../services/filter_registry.ts";
-import { computed, onMounted, ref, watch } from "vue";
+import {computed, onMounted, provide, ref, watch} from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
-import type { SortObj } from "../../../models/shared_models.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
+import {useToastStore} from "../../../services/stores/toast_store.ts";
+import {useSharedStore} from "../../../services/stores/shared_store.ts";
+import type {FilterObj} from "../../../models/shared_models.ts";
+import FilterMenu from "../filters/FilterMenu.vue";
+import ActiveFilters from "../filters/ActiveFilters.vue";
+import ActionRow from "../layout/ActionRow.vue";
 
 const props = defineProps<{
   columns: Column[];
-  sort?: SortObj;
-  rows?: number[];
-  filters?: any;
-  includeDeleted?: boolean;
-  fetchPage: (args: {
-    page: number;
-    rows: number;
-    sort?: SortObj;
-    filters?: any;
-    includeDeleted?: boolean;
-  }) => Promise<{ data: Transaction[]; total: number }>;
   readOnly: boolean;
+  accID?: number;
+  rows?: number[];
 }>();
 
-const emits = defineEmits<{
-  (e: "onPage", payload: { page: number; rows: number }): void;
-  (e: "sortChange", column: string): void;
-  (e: "rowClick", id: number): void;
+defineEmits<{
+  rowClick: [id: number]
 }>();
 
+const sharedStore = useSharedStore();
+const toastStore = useToastStore();
 const { colors } = useChartColors();
 
-const rowsOptions = computed(() => props.rows ?? [25, 50, 100]);
-const pageLocal = ref(1);
-const rowsPerPage = ref(rowsOptions.value[0]);
-const total = ref(0);
-const localSort = ref<SortObj>(props.sort ?? filterHelper.initSort());
-
-const recordsLocal = ref<Transaction[]>([]);
 const loading = ref(false);
-const requestSeq = ref(0);
+const records = ref<Transaction[]>([]);
 
-const derivedPaginator = computed(() => {
-  const from =
-    total.value === 0 ? 0 : (pageLocal.value - 1) * rowsPerPage.value + 1;
-  const to = Math.min(pageLocal.value * rowsPerPage.value, total.value);
-  return { total: total.value, from, to, rowsPerPage: rowsPerPage.value };
+const apiPrefix = "transactions";
+const includeDeleted = ref(false);
+
+const params = computed(() => {
+  return {
+    rowsPerPage: paginator.value.rowsPerPage,
+    sort: sort.value,
+    filters: filters.value,
+    account_id: props.accID ?? null,
+    include_deleted: includeDeleted.value,
+  };
+});
+const rows = ref([25, 50, 100]);
+const default_rows = ref(rows.value[0]);
+const paginator = ref({
+  total: 0,
+  from: 0,
+  to: 0,
+  rowsPerPage: default_rows.value,
+});
+const page = ref(1);
+const sort = ref(filterHelper.initSort("txn_date"));
+
+const filterStorageIndex = ref(apiPrefix + "-filters");
+const filters = ref(
+  JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "[]"),
+);
+const filterOverlayRef = ref<any>(null);
+
+onMounted(async () => {
+  await getData();
 });
 
-async function getData() {
+watch(includeDeleted, async () => {
+  await getData(1); // Reset to page 1 when toggling
+});
+
+async function getData(new_page: number | null = null) {
   loading.value = true;
-  const mySeq = ++requestSeq.value;
+  if (new_page) page.value = new_page;
 
   try {
-    const res = await props.fetchPage({
-      page: pageLocal.value,
-      rows: rowsPerPage.value,
-      sort: localSort.value,
-      filters: props.filters,
-      includeDeleted: props.includeDeleted,
-    });
+    const paginationResponse = await sharedStore.getRecordsPaginated(
+      apiPrefix,
+      { ...params.value },
+      page.value,
+    );
 
-    // Ignore stale responses
-    if (mySeq !== requestSeq.value) return;
-
-    recordsLocal.value = res.data;
-    total.value = res.total ?? 0;
-  } finally {
-    if (mySeq === requestSeq.value) loading.value = false;
+    records.value = paginationResponse.data;
+    paginator.value.total = paginationResponse.total_records;
+    paginator.value.to = paginationResponse.to;
+    paginator.value.from = paginationResponse.from;
+  } catch (e) {
+    toastStore.errorResponseToast(e)
+  }
+  finally {
+    loading.value = false;
   }
 }
 
-onMounted(getData);
-
-watch(
-  () => [
-    props.sort?.field,
-    props.sort?.order,
-    props.filters,
-    props.includeDeleted,
-  ],
-  () => {
-    pageLocal.value = 1;
-    getData();
-  },
-);
-
-function handlePage(e: { page: number; rows: number }) {
-  pageLocal.value = e.page + 1;
-  rowsPerPage.value = e.rows;
-  emits("onPage", { page: pageLocal.value, rows: rowsPerPage.value });
-  getData();
+async function onPage(event: any) {
+  paginator.value.rowsPerPage = event.rows;
+  page.value = event.page + 1;
+  await getData();
 }
 
-function triggerSort(col: string) {
-  emits("sortChange", col);
+async function applyFilters(list: FilterObj[]) {
+  filters.value = filterHelper.mergeFilters(filters.value, list);
+  localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
+  await getData();
+  filterOverlayRef.value.hide();
+}
+
+async function clearFilters() {
+  filters.value = [];
+  localStorage.removeItem(filterStorageIndex.value);
+  cancelFilters();
+  await getData();
+}
+
+function cancelFilters() {
+  filterOverlayRef.value.hide();
+}
+
+async function removeFilter(index: number) {
+  if (index < 0 || index >= filters.value.length) return;
+
+  const next = filters.value.slice();
+  next.splice(index, 1);
+  filters.value = next;
+
+  if (filters.value.length > 0) {
+    localStorage.setItem(
+      filterStorageIndex.value,
+      JSON.stringify(filters.value),
+    );
+  } else {
+    localStorage.removeItem(filterStorageIndex.value);
+  }
+
+  await getData();
+}
+
+async function switchSort(column: string) {
+  if (sort.value.field === column) {
+    sort.value.order = filterHelper.toggleSort(sort.value.order);
+  } else {
+    sort.value.order = 1;
+  }
+  sort.value.field = column;
+  await getData();
+}
+
+function toggleFilterOverlay(event: any) {
+  filterOverlayRef.value.toggle(event);
 }
 
 function refresh() {
   getData();
 }
 
+provide("removeFilter", removeFilter);
+provide("switchSort", switchSort);
+
 defineExpose({ refresh });
 </script>
 
 <template>
-  <DataTable
-    class="w-full enhanced-table"
-    data-key="id"
-    :loading="loading"
-    :value="recordsLocal"
-    scrollable
-    scroll-height="50vh"
-    :row-class="vueHelper.deletedRowClass"
-    column-resize-mode="fit"
-    scroll-direction="both"
-  >
-    <template #empty>
-      <div style="padding: 10px">No records found.</div>
-    </template>
-    <template #loading>
-      <LoadingSpinner />
-    </template>
-    <template #footer>
-      <CustomPaginator
-        :paginator="derivedPaginator"
-        :rows="rowsOptions"
-        @on-page="handlePage"
-      />
-    </template>
 
-    <Column
-      v-for="col of columns"
-      :key="col.field"
-      :field="col.field"
-      :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
-      :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+  <Popover
+    ref="filterOverlayRef"
+    class="rounded-popover"
+    :style="{ width: '420px' }"
+    :breakpoints="{ '775px': '90vw' }"
+  >
+    <FilterMenu
+      v-model:value="filters"
+      :columns="props.columns"
+      :api-source="apiPrefix"
+      @apply="(list) => applyFilters(list)"
+      @clear="clearFilters"
+      @cancel="cancelFilters"
+    />
+  </Popover>
+
+  <div class="flex flex-column w-full">
+
+    <div class="flex flex-row w-full">
+      <ActionRow>
+        <template #activeFilters>
+          <ActiveFilters
+            :active-filters="filters"
+            :show-only-active="false"
+            active-filter=""
+          />
+        </template>
+        <template #filterButton>
+          <div
+            class="hover-icon flex flex-row align-items-center gap-2"
+            style="
+                padding: 0.5rem 1rem;
+                border-radius: 8px;
+                border: 1px solid var(--border-color);
+              "
+            @click="toggleFilterOverlay($event)"
+          >
+            <i class="pi pi-filter" style="font-size: 0.845rem" />
+            <div>Filter</div>
+          </div>
+        </template>
+        <template #includeDeleted>
+          <div
+            class="flex align-items-center gap-2"
+            style="margin-left: auto"
+          >
+            <span style="font-size: 0.8rem">Include deleted</span>
+            <ToggleSwitch v-model="includeDeleted" />
+          </div>
+        </template>
+      </ActionRow>
+    </div>
+
+    <DataTable
+      data-key="id"
+      class="w-full enhanced-table"
+      :loading="loading"
+      :value="records"
+      scrollable
+      scroll-height="50vh"
+      :row-class="vueHelper.deletedRowClass"
+      column-resize-mode="fit"
+      scroll-direction="both"
     >
-      <template #header>
-        <ColumnHeader
-          :header="col.header"
-          :field="col.field"
-          :sort="localSort"
-          :sortable="!!sort"
-          @click="!sort && triggerSort(col.field as string)"
+      <template #empty>
+        <div style="padding: 10px">No records found.</div>
+      </template>
+      <template #loading>
+        <LoadingSpinner />
+      </template>
+      <template #footer>
+        <CustomPaginator
+          :paginator="paginator"
+          :rows="rows"
+          @on-page="onPage"
         />
       </template>
-      <template #body="{ data }">
-        <template v-if="col.field === 'amount'">
-          <div class="flex flex-row gap-2 align-items-center">
-            <i
-              class="text-xs"
-              :class="
+
+      <Column
+        v-for="col of columns"
+        :key="col.field"
+        :field="col.field"
+        :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+        :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+      >
+        <template #header>
+          <ColumnHeader
+            :header="col.header"
+            :field="col.field"
+            :sort="sort"
+            :sortable="!!sort"
+            @click="!sort"
+          />
+        </template>
+        <template #body="{ data }">
+          <template v-if="col.field === 'amount'">
+            <div class="flex flex-row gap-2 align-items-center">
+              <i
+                class="text-xs"
+                :class="
                 (data.transaction_type === 'expense'
                   ? data.amount * -1
                   : data.amount) >= 0
                   ? 'pi pi-angle-up'
                   : 'pi pi-angle-down'
               "
-              :style="{
+                :style="{
                 color:
                   (data.transaction_type === 'expense'
                     ? data.amount * -1
@@ -170,45 +277,47 @@ defineExpose({ refresh });
                     ? colors.pos
                     : colors.neg,
               }"
-            />
-            <span>{{
-              vueHelper.displayAsCurrency(
-                data.transaction_type == "expense"
-                  ? data.amount * -1
-                  : data.amount,
-              )
-            }}</span>
-          </div>
-        </template>
-        <template v-else-if="col.field === 'txn_date'">
-          {{ dateHelper.combineDateAndTime(data?.txn_date, data?.created_at) }}
-        </template>
-        <template v-else-if="col.field === 'account'">
-          <div class="flex flex-row gap-2 align-items-center account-row">
-            <span class="hover" @click="$emit('rowClick', data.id)">
-              {{ data[col.field]["name"] }}
-            </span>
-            <i
-              v-if="data[col.field]['deleted_at']"
-              v-tooltip="'This account is closed.'"
-              class="pi pi-ban popup-icon hover-icon"
-            />
-          </div>
-        </template>
-        <template v-else-if="col.field === 'category'">
-          {{ data[col.field]["display_name"] }}
-        </template>
-        <template v-else-if="col.field === 'description'">
+              />
+              <span>{{
+                  vueHelper.displayAsCurrency(
+                    data.transaction_type == "expense"
+                      ? data.amount * -1
+                      : data.amount,
+                  )
+                }}</span>
+            </div>
+          </template>
+          <template v-else-if="col.field === 'txn_date'">
+            {{ dateHelper.combineDateAndTime(data?.txn_date, data?.created_at) }}
+          </template>
+          <template v-else-if="col.field === 'account'">
+            <div class="flex flex-row gap-2 align-items-center account-row">
+    <span class="hover" @click="$emit('rowClick', data.id)">
+      {{ data[col.field]?.["name"] }}
+    </span>
+              <i
+                v-if="data[col.field]?.['deleted_at']"
+                v-tooltip="'This account is closed.'"
+                class="pi pi-ban popup-icon hover-icon"
+              />
+            </div>
+          </template>
+          <template v-else-if="col.field === 'category'">
+            {{ data[col.field]?.["display_name"] }}
+          </template>
+          <template v-else-if="col.field === 'description'">
           <span v-tooltip.top="data[col.field]" class="truncate-text">
             {{ data[col.field] }}
           </span>
+          </template>
+          <template v-else>
+            {{ data[col.field] }}
+          </template>
         </template>
-        <template v-else>
-          {{ data[col.field] }}
-        </template>
-      </template>
-    </Column>
-  </DataTable>
+      </Column>
+    </DataTable>
+  </div>
+
 </template>
 
 <style scoped>

@@ -98,27 +98,6 @@ async function loadLatestBalance(id: number) {
   }
 }
 
-async function loadTransactionsPage({
-  page,
-  rows,
-  sort: s,
-  filters: f,
-  include_deleted,
-}: any) {
-  let response = null;
-
-  try {
-    response = await transactionStore.getPaginatedTransactionsForAccount(
-      { rowsPerPage: rows, sort: s, filters: f, include_deleted },
-      page,
-      props.accID!,
-    );
-  } catch (e) {
-    toastStore.errorResponseToast(e);
-  }
-  return { data: response?.data, total: response?.total_records };
-}
-
 async function confirmCloseAccount(id: number) {
   confirm.require({
     header: "Confirm account close",
@@ -322,8 +301,6 @@ async function handleEmit(type: string) {
             ref="txRef"
             :read-only="true"
             :columns="transactionColumns"
-            :fetch-page="loadTransactionsPage"
-            :row-class="vueHelper.deletedRowClass"
           />
         </div>
       </div>
