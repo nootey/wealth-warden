@@ -45,3 +45,14 @@ export interface MonthlyStats {
   debt_repayment_rate: string;
   generated_at: Date;
 }
+
+export interface DailyStats {
+  user_id: number;
+  account_id?: number | null;
+  currency: string;
+  year: number;
+  inflow: string;
+  outflow: string;
+  net: string;
+  generated_at: Date;
+}

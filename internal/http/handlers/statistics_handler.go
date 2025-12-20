@@ -100,6 +100,20 @@ func (h *StatisticsHandler) GetCurrentMonthStats(c *gin.Context) {
 	c.JSON(http.StatusOK, records)
 }
 
+func (h *StatisticsHandler) GetTodayStats(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	records, err := h.Service.GetTodayStats(ctx, userID, nil)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", "Error getting todays stats", http.StatusBadRequest, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, records)
+}
+
 func (h *StatisticsHandler) GetYearlyAverageForCategory(c *gin.Context) {
 
 	ctx := c.Request.Context()

@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import apiClient from "../api/axios.ts";
 import type {
   BasicAccountStats,
+  DailyStats,
   MonthlyStats,
 } from "../../models/statistics_models.ts";
 
@@ -35,6 +36,14 @@ export const useStatisticsStore = defineStore("statistics", {
     },
     async getCurrentMonthsStats(accID: number | null | undefined) {
       const res = await apiClient.get<MonthlyStats>(`${this.apiPrefix}/month`, {
+        params: {
+          acc_id: accID ?? undefined,
+        },
+      });
+      return res.data;
+    },
+    async getTodayStats(accID: number | null | undefined) {
+      const res = await apiClient.get<DailyStats>(`${this.apiPrefix}/today`, {
         params: {
           acc_id: accID ?? undefined,
         },

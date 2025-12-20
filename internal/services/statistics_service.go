@@ -365,6 +365,73 @@ func (s *StatisticsService) GetCurrentMonthStats(ctx context.Context, userID int
 	}, nil
 }
 
+func (s *StatisticsService) GetTodayStats(ctx context.Context, userID int64, accountID *int64) (*models.TodayStats, error) {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	var row *models.MonthlyTotalsRow
+	var checkingAccounts []models.Account
+
+	if accountID != nil {
+		acc, errAcc := s.accRepo.FindAccountByID(ctx, tx, *accountID, userID, false)
+		if errAcc != nil {
+			tx.Rollback()
+			return nil, errAcc
+		}
+		checkingAccounts = []models.Account{*acc}
+		row, err = s.repo.FetchDailyTotals(ctx, tx, userID, accountID, today)
+	} else {
+		checkingAccounts, err = s.accRepo.FindAccountsBySubtype(ctx, tx, userID, "checking", true)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if len(checkingAccounts) == 0 {
+			tx.Commit()
+			return nil, nil
+		}
+
+		accountIDs := make([]int64, len(checkingAccounts))
+		for i, a := range checkingAccounts {
+			accountIDs[i] = a.ID
+		}
+		row, err = s.repo.FetchDailyTotalsCheckingOnly(ctx, tx, userID, accountIDs, today)
+	}
+
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	inflow, _ := decimal.NewFromString(row.InflowText)
+	outflow, _ := decimal.NewFromString(row.OutflowText)
+	net, _ := decimal.NewFromString(row.NetText)
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return &models.TodayStats{
+		UserID:      userID,
+		AccountID:   accountID,
+		Currency:    models.DefaultCurrency,
+		Inflow:      inflow,
+		Outflow:     outflow,
+		Net:         net,
+		GeneratedAt: time.Now().UTC(),
+	}, nil
+}
+
 func (s *StatisticsService) GetYearlyAverageForCategory(ctx context.Context, userID int64, accountID int64, categoryID int64, isGroup bool) (float64, error) {
 	currentYear := time.Now().UTC().Year()
 

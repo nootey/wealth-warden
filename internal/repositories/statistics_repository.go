@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"fmt"
+	"time"
 	"wealth-warden/internal/models"
 
 	"gorm.io/gorm"
@@ -10,6 +11,8 @@ import (
 
 type StatisticsRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
+	FetchDailyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, date time.Time) (*models.MonthlyTotalsRow, error)
+	FetchDailyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, date time.Time) (*models.MonthlyTotalsRow, error)
 	FetchYearlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) (models.YearlyTotalsRow, error)
 	FetchMonthlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.MonthlyTotalsRow, error)
 	FetchMonthlyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.MonthlyTotalsRow, error)
@@ -282,4 +285,81 @@ func (r *StatisticsRepository) GetAvailableStatsYears(ctx context.Context, tx *g
 		return nil, fmt.Errorf("querying available stats years: %w", err)
 	}
 	return years, nil
+}
+
+func (r *StatisticsRepository) FetchDailyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, date time.Time) (*models.MonthlyTotalsRow, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var row models.MonthlyTotalsRow
+
+	base := `
+        SELECT
+            COALESCE(SUM(CASE WHEN transaction_type='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
+            COALESCE(SUM(CASE WHEN transaction_type='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
+            COALESCE(SUM(
+                CASE
+                    WHEN transaction_type='income'  THEN amount
+                    WHEN transaction_type='expense' THEN -amount
+                    ELSE 0
+                END
+            ),0)::text AS net_text
+        FROM transactions
+        WHERE user_id = ? %s
+            AND is_adjustment = false
+            AND is_transfer = false
+            AND txn_date = ?
+    `
+
+	if accountID != nil {
+		sql := fmt.Sprintf(base, "AND account_id = ?")
+		if err := db.Raw(sql, userID, *accountID, date).Scan(&row).Error; err != nil {
+			return nil, err
+		}
+	} else {
+		sql := fmt.Sprintf(base, "")
+		if err := db.Raw(sql, userID, date).Scan(&row).Error; err != nil {
+			return nil, err
+		}
+	}
+	return &row, nil
+}
+
+func (r *StatisticsRepository) FetchDailyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, date time.Time) (*models.MonthlyTotalsRow, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var row models.MonthlyTotalsRow
+
+	if len(accountIDs) == 0 {
+		return &row, nil
+	}
+
+	query := `
+        SELECT
+            COALESCE(SUM(CASE WHEN transaction_type='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
+            COALESCE(SUM(CASE WHEN transaction_type='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
+            COALESCE(SUM(
+                CASE
+                    WHEN transaction_type='income'  THEN amount
+                    WHEN transaction_type='expense' THEN -amount
+                    ELSE 0
+                END
+            ),0)::text AS net_text
+        FROM transactions
+        WHERE user_id = ?
+            AND is_adjustment = false
+            AND is_transfer = false
+            AND txn_date = ?
+            AND account_id IN ?
+    `
+
+	err := db.Raw(query, userID, date, accountIDs).Scan(&row).Error
+	return &row, err
 }
