@@ -101,6 +101,9 @@ async function onPage(event: any) {
 }
 
 async function applyFilters(list: FilterObj[]) {
+  if(props.readOnly)
+    return;
+
   filters.value = filterHelper.mergeFilters(filters.value, list);
   localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
   await getData();
@@ -119,7 +122,7 @@ function cancelFilters() {
 }
 
 async function removeFilter(index: number) {
-  if (index < 0 || index >= filters.value.length) return;
+  if (props.readOnly || index < 0 || index >= filters.value.length) return;
 
   const next = filters.value.slice();
   next.splice(index, 1);
@@ -148,6 +151,8 @@ async function switchSort(column: string) {
 }
 
 function toggleFilterOverlay(event: any) {
+  if(props.readOnly)
+    return;
   filterOverlayRef.value.toggle(event);
 }
 
@@ -181,7 +186,7 @@ defineExpose({ refresh });
 
   <div class="flex flex-column w-full">
 
-    <div class="flex flex-row w-full">
+    <div v-if="!readOnly" class="flex flex-row w-full">
       <ActionRow>
         <template #activeFilters>
           <ActiveFilters
