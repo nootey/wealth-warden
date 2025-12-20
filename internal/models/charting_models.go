@@ -73,3 +73,23 @@ type YearStat struct {
 	MonthlyAvg     decimal.Decimal `json:"monthly_avg"`
 	MonthsWithData int             `json:"months_with_data"`
 }
+
+type YearlyCashflowBreakdown struct {
+	Year   int              `json:"year"`
+	Months []MonthBreakdown `json:"months"`
+}
+
+type MonthBreakdown struct {
+	Month      int             `json:"month"`
+	Categories MonthCategories `json:"categories"`
+}
+
+type MonthCategories struct {
+	Inflows        decimal.Decimal `json:"inflows"`
+	Outflows       decimal.Decimal `json:"outflows"`
+	Investments    decimal.Decimal `json:"investments"`
+	Savings        decimal.Decimal `json:"savings"`
+	DebtRepayments decimal.Decimal `json:"debt_repayments"`
+	TakeHome       decimal.Decimal `json:"take_home"`
+	Overflow       decimal.Decimal `json:"overflow"`
+}

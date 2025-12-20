@@ -32,13 +32,23 @@ export type MonthlyCashFlowResponse = {
   series: MonthlyCashFlow[];
 };
 
-export interface MonthlyCategoryUsage {
+export type YearlyCashFlowResponse = {
+  year: number;
+  months: MonthData[];
+};
+
+export type MonthData = {
   month: number;
-  category_id: number;
-  category: string;
-  amount: string;
-  percentage?: string;
-}
+  categories: {
+    inflows: string | number;
+    outflows: string | number;
+    investments: string | number;
+    savings: string | number;
+    debt_repayments: string | number;
+    take_home: string | number;
+    overflow?: string | number;
+  };
+};
 
 export interface YearStat {
   total: string;

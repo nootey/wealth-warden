@@ -270,7 +270,7 @@ func (r *TransactionRepository) GetMonthlyTransfersFromChecking(ctx context.Cont
 
 	err := q.
 		Where("tx_out.account_id IN ?", checkingAccountIDs).
-		Where("transfers.created_at >= ? AND transfers.created_at < ?", start, end).
+		Where("tx_out.txn_date >= ? AND tx_out.txn_date < ?", start, end).
 		Find(&transfers).Error
 
 	return transfers, err

@@ -113,6 +113,39 @@ func (h *ChartingHandler) GetMonthlyCashFlowForYear(c *gin.Context) {
 	c.JSON(http.StatusOK, series)
 }
 
+func (h *ChartingHandler) GetYearlyCashFlowBreakdown(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	p := c.QueryMap("params")
+
+	yearStr := c.Query("year")
+	year, _ := strconv.Atoi(yearStr)
+
+	accStr := c.Query("account")
+	if accStr == "" {
+		accStr = p["account"]
+	}
+
+	var accID *int64
+	if strings.TrimSpace(accStr) != "" {
+		v, err := strconv.ParseInt(accStr, 10, 64)
+		if err != nil {
+			utils.ErrorMessage(c, "param error", "account must be a valid integer", http.StatusBadRequest, err)
+			return
+		}
+		accID = &v
+	}
+
+	series, err := h.Service.GetYearlyCashFlowBreakdown(ctx, userID, year, accID)
+	if err != nil {
+		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, series)
+}
+
 func (h *ChartingHandler) GetMonthlyCategoryBreakdown(c *gin.Context) {
 
 	ctx := c.Request.Context()

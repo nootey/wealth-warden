@@ -6,6 +6,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
 )
@@ -119,13 +120,15 @@ func (s *StatisticsService) GetAccountBasicStatistics(ctx context.Context, accID
 			}
 
 			for _, tr := range transfers {
-				if tr.TransactionInflow.Account.AccountType.Subtype == "savings" {
+				isSavings, isInvestment, isDebt := utils.CategorizeTransferDestination(&tr.TransactionInflow.Account.AccountType)
+
+				if isSavings {
 					netm = netm.Sub(tr.Amount)
 				}
-				if tr.TransactionInflow.Account.AccountType.Type == "investment" {
+				if isInvestment {
 					netm = netm.Sub(tr.Amount)
 				}
-				if tr.TransactionInflow.Account.AccountType.Classification == "liability" {
+				if isDebt {
 					netm = netm.Sub(tr.Amount)
 				}
 			}
@@ -312,14 +315,15 @@ func (s *StatisticsService) GetCurrentMonthStats(ctx context.Context, userID int
 
 	for _, tr := range transfers {
 
-		if tr.TransactionInflow.Account.AccountType.Subtype == "savings" {
+		isSavings, isInvestment, isDebt := utils.CategorizeTransferDestination(&tr.TransactionInflow.Account.AccountType)
+
+		if isSavings {
 			savingsTotal = savingsTotal.Add(tr.Amount)
 		}
-		if tr.TransactionInflow.Account.AccountType.Type == "investment" {
+		if isInvestment {
 			investmentsTotal = investmentsTotal.Add(tr.Amount)
 		}
-
-		if tr.TransactionInflow.Account.AccountType.Classification == "liability" {
+		if isDebt {
 			debtRepaymentTotal = debtRepaymentTotal.Add(tr.Amount)
 		}
 
