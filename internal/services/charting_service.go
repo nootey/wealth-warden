@@ -318,24 +318,24 @@ func (s *ChartingService) GetCategoryUsageForYears(ctx context.Context, userID i
 		byYear[y] = *one
 
 		var yearTotal = decimal.NewFromInt(0)
-		monthsWithData := 0
+		monthsWithData := make(map[int]bool)
 
 		for _, entry := range one.Series {
 			if entry.Amount.GreaterThan(decimal.NewFromInt(0)) {
 				yearTotal = yearTotal.Add(entry.Amount)
-				monthsWithData++
+				monthsWithData[entry.Month] = true
 			}
 		}
 
 		var monthlyAvg = decimal.NewFromInt(0)
-		if monthsWithData > 0 {
-			monthlyAvg = yearTotal.Div(decimal.NewFromInt(int64(monthsWithData)))
+		if len(monthsWithData) > 0 {
+			monthlyAvg = yearTotal.Div(decimal.NewFromInt(int64(len(monthsWithData))))
 		}
 
 		yearStats[y] = models.YearStat{
 			Total:          yearTotal,
 			MonthlyAvg:     monthlyAvg,
-			MonthsWithData: monthsWithData,
+			MonthsWithData: len(monthsWithData),
 		}
 	}
 
@@ -355,9 +355,10 @@ func (s *ChartingService) GetCategoryUsageForYears(ctx context.Context, userID i
 		Class:  class,
 		ByYear: byYear,
 		Stats: models.MultiYearYCategoryStats{
-			YearStats:    yearStats,
-			AllTimeTotal: allTimeTotal,
-			AllTimeAvg:   allTimeAvg,
+			YearStats:     yearStats,
+			AllTimeTotal:  allTimeTotal,
+			AllTimeAvg:    allTimeAvg,
+			AllTimeMonths: allTimeMonths,
 		},
 	}, nil
 }

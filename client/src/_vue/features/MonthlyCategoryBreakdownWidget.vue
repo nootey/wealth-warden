@@ -315,6 +315,12 @@ watch(
           <div class="font-bold text-xl">
             {{ vueHelper.displayAsCurrency(stats.all_time_avg) }}
           </div>
+          <div
+            class="text-xs"
+            style="color: var(--text-secondary)"
+          >
+            ({{ stats.all_time_months }} months)
+          </div>
         </div>
       </div>
 
@@ -338,6 +344,11 @@ watch(
             style="color: var(--text-secondary)"
           >
             Avg: {{ vueHelper.displayAsCurrency(stats.year_stats[year]?.monthly_avg ?? 0) }}/mo
+          </div>
+          <div
+            class="text-xs"
+            style="color: var(--text-secondary)"
+          >
             ({{ stats.year_stats[year]?.months_with_data ?? 0 }} months)
           </div>
         </div>
