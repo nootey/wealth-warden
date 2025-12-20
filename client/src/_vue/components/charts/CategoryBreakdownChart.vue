@@ -123,6 +123,7 @@ const chartOptions = computed(() => ({
         y: {
             grid: { display: false, drawBorder: false },
             ticks: {
+                display: !isMobile.value,
                 color: colors.value.axisText,
                 callback: (v: number) => vueHelper.displayAsCurrency(v)
             },
@@ -133,12 +134,21 @@ const chartOptions = computed(() => ({
 
 const chartRef = ref<any>(null);
 const isChartReady = ref(false);
+const isMobile = ref(window.innerWidth <= 768);
+const handleResize = () => {
+    isMobile.value = window.innerWidth <= 768;
+};
 
 onMounted(() => {
     isChartReady.value = true;
+    window.addEventListener('resize', handleResize);
 });
 
-onUnmounted(() => chartRef.value?.chart?.destroy?.());
+onUnmounted(() => {
+    chartRef.value?.chart?.destroy?.();
+    window.removeEventListener('resize', handleResize);
+});
+
 </script>
 
 <template>
