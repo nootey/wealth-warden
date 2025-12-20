@@ -582,7 +582,7 @@ func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID in
 	}()
 
 	// Load record to confirm it exists
-	exAcc, err := s.repo.FindAccountByID(ctx, tx, id, userID, false)
+	exAcc, err := s.repo.FindAccountByID(ctx, tx, id, userID, false, true)
 	if err != nil {
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
