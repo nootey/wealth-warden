@@ -1,26 +1,26 @@
 <script setup lang="ts">
-import {useSharedStore} from "../../../services/stores/shared_store.ts";
-import {useToastStore} from "../../../services/stores/toast_store.ts";
-import {nextTick, onMounted, ref} from "vue";
-import type {Category} from "../../../models/transaction_models.ts";
-import {required} from "@vuelidate/validators";
+import { useSharedStore } from "../../../services/stores/shared_store.ts";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { nextTick, onMounted, ref } from "vue";
+import type { Category } from "../../../models/transaction_models.ts";
+import { required } from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
-import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
+import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
-import {usePermissions} from "../../../utils/use_permissions.ts";
+import { usePermissions } from "../../../utils/use_permissions.ts";
 
 const props = defineProps<{
-    mode?: "create" | "update";
-    recordId?: number | null;
+  mode?: "create" | "update";
+  recordId?: number | null;
 }>();
 
 const emit = defineEmits<{
-    (event: 'completeOperation'): void;
+  (event: "completeOperation"): void;
 }>();
 
-const apiPrefix = "transactions/categories"
+const apiPrefix = "transactions/categories";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -28,9 +28,9 @@ const transactionStore = useTransactionStore();
 const { hasPermission } = usePermissions();
 
 onMounted(async () => {
-    if (props.mode === "update" && props.recordId) {
-        await loadRecord(props.recordId);
-    }
+  if (props.mode === "update" && props.recordId) {
+    await loadRecord(props.recordId);
+  }
 });
 
 const readOnly = ref(false);
@@ -39,164 +39,153 @@ const loading = ref(false);
 const changedName = ref(false);
 const record = ref<Category>(initData());
 
-const classifications = ref<string[]>(['income', 'expense']);
+const classifications = ref<string[]>(["income", "expense"]);
 const filteredClassifications = ref<string[]>([]);
 
 const rules = {
-    record: {
-        display_name: { required, $autoDirty: true },
-        classification: { required, $autoDirty: true },
-    },
+  record: {
+    display_name: { required, $autoDirty: true },
+    classification: { required, $autoDirty: true },
+  },
 };
 
 const v$ = useVuelidate(rules, { record });
 
 function initData(): Category {
-
-    return {
-        id: null,
-        name: "",
-        display_name: "",
-        classification: "",
-        parent_id: null,
-        is_default: false,
-        deleted_at: null,
-    };
+  return {
+    id: null,
+    name: "",
+    display_name: "",
+    classification: "",
+    parent_id: null,
+    is_default: false,
+    deleted_at: null,
+  };
 }
 
 async function loadRecord(id: number) {
-    try {
-        loading.value = true;
-        const data = await sharedStore.getRecordByID(apiPrefix, id, { deleted: true});
+  try {
+    loading.value = true;
+    const data = await sharedStore.getRecordByID(apiPrefix, id, {
+      deleted: true,
+    });
 
-        readOnly.value = !!data?.deleted_at
+    readOnly.value = !!data?.deleted_at;
 
-        record.value = {
-            ...initData(),
-            ...data,
-        };
+    record.value = {
+      ...initData(),
+      ...data,
+    };
 
-        await nextTick();
-        loading.value = false;
-
-    } catch (err) {
-        toastStore.errorResponseToast(err);
-    }
+    await nextTick();
+    loading.value = false;
+  } catch (err) {
+    toastStore.errorResponseToast(err);
+  }
 }
 
 async function isRecordValid() {
-    const isValid = await v$.value.record.$validate();
-    if (!isValid) return false;
-    return true;
+  const isValid = await v$.value.record.$validate();
+  if (!isValid) return false;
+  return true;
 }
 
 async function manageRecord() {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
 
-    if(!hasPermission("manage_data")) {
-        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
-        return;
+  if (readOnly.value) {
+    toastStore.infoResponseToast({
+      title: "Not allowed",
+      message: "This record is read only!",
+    });
+    return;
+  }
+
+  if (!(await isRecordValid())) return;
+
+  const recordData: any = {
+    display_name: record.value.display_name,
+    classification: record.value.classification,
+  };
+
+  try {
+    let response = null;
+
+    switch (props.mode) {
+      case "create":
+        response = await sharedStore.createRecord(apiPrefix, recordData);
+        break;
+      case "update":
+        response = await sharedStore.updateRecord(
+          apiPrefix,
+          record.value.id!,
+          recordData,
+        );
+        break;
+      default:
+        emit("completeOperation");
+        break;
     }
 
-    if (readOnly.value) {
-        toastStore.infoResponseToast({"title": "Not allowed", "message": "This record is read only!"})
-        return;
-    }
-
-    if (!await isRecordValid()) return;
-
-    const recordData: any = {
-        display_name: record.value.display_name,
-        classification: record.value.classification,
-    }
-
-    try {
-
-        let response = null;
-
-        switch (props.mode) {
-            case "create":
-                response = await sharedStore.createRecord(
-                    apiPrefix,
-                    recordData
-                );
-                break;
-            case "update":
-                response = await sharedStore.updateRecord(
-                    apiPrefix,
-                    record.value.id!,
-                    recordData
-                );
-                break;
-            default:
-                emit("completeOperation")
-                break;
-        }
-
-        v$.value.record.$reset();
-        toastStore.successResponseToast(response);
-        emit("completeOperation")
-
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    }
+    v$.value.record.$reset();
+    toastStore.successResponseToast(response);
+    emit("completeOperation");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
 }
 
 const searchClassifications = (event: { query: string }) => {
-    const q = event.query.trim().toLowerCase();
-    const all = classifications.value;
-    filteredClassifications.value = !q ? [...all] : all.filter(t => t.toLowerCase().startsWith(q));
+  const q = event.query.trim().toLowerCase();
+  const all = classifications.value;
+  filteredClassifications.value = !q
+    ? [...all]
+    : all.filter((t) => t.toLowerCase().startsWith(q));
 };
 
 async function restoreCategory() {
+  try {
+    let response = await transactionStore.restoreCategory(props.recordId!);
 
-    try {
-
-        let response = await transactionStore.restoreCategory(
-            props.recordId!
-        );
-
-        v$.value.record.$reset();
-        toastStore.successResponseToast(response);
-        emit("completeOperation")
-
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    }
+    v$.value.record.$reset();
+    toastStore.successResponseToast(response);
+    emit("completeOperation");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
 }
 
 function checkCategoryName() {
-    if(changedName.value) return;
-    return record.value.name.toLowerCase() != vueHelper.normalize(record.value.display_name).toLowerCase()
+  if (changedName.value) return;
+  return (
+    record.value.name.toLowerCase() !=
+    vueHelper.normalize(record.value.display_name).toLowerCase()
+  );
 }
 
 async function restoreCategoryName() {
+  try {
+    let response = await transactionStore.restoreCategoryName(props.recordId!);
 
-    try {
-
-        let response = await transactionStore.restoreCategoryName(
-            props.recordId!
-        );
-
-        v$.value.record.$reset();
-        toastStore.successResponseToast(response);
-        emit("completeOperation")
-
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    }
+    v$.value.record.$reset();
+    toastStore.successResponseToast(response);
+    emit("completeOperation");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
 }
-
 </script>
 
 <template>
-  <div
-    v-if="!loading"
-    class="flex flex-column gap-3 p-1"
-  >
+  <div v-if="!loading" class="flex flex-column gap-3 p-1">
     <div v-if="readOnly">
-      <h5 style="color: var(--text-secondary)">
-        Read-only mode.
-      </h5>
+      <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
     </div>
     <div
       v-else-if="mode === 'update' && record.is_default && checkCategoryName()"
@@ -206,12 +195,10 @@ async function restoreCategoryName() {
         class="pi pi-spin pi-refresh hover-icon"
         @click="restoreCategoryName"
       />
-      <span
-        class="text-sm"
-        style="color: var(--text-secondary)"
-      >Restore default category name.</span>
+      <span class="text-sm" style="color: var(--text-secondary)"
+        >Restore default category name.</span
+      >
     </div>
-
 
     <div class="flex flex-column gap-3 p-1">
       <div class="flex flex-row w-full">
@@ -227,7 +214,7 @@ async function restoreCategoryName() {
             :readonly="readOnly"
             :disabled="readOnly"
             size="small"
-            @update:model-value="changedName=true"
+            @update:model-value="changedName = true"
           />
         </div>
       </div>
@@ -259,10 +246,9 @@ async function restoreCategoryName() {
       class="flex flex-row w-full align-items-center gap-2"
     >
       <i class="pi pi-info-circle" />
-      <span
-        class="text-sm"
-        style="color: var(--text-secondary)"
-      >This category is a default. Some parts are not editable.</span>
+      <span class="text-sm" style="color: var(--text-secondary)"
+        >This category is a default. Some parts are not editable.</span
+      >
     </div>
 
     <div class="flex flex-row gap-2 w-full">
@@ -271,25 +257,20 @@ async function restoreCategoryName() {
           v-if="!readOnly"
           class="main-button"
           :label="(mode == 'create' ? 'Add' : 'Update') + ' category'"
-          style="height: 42px;"
+          style="height: 42px"
           @click="manageRecord"
         />
         <Button
           v-else
           class="main-button"
           label="Restore"
-          style="height: 42px;"
+          style="height: 42px"
           @click="restoreCategory"
         />
       </div>
     </div>
   </div>
-  <ShowLoading
-    v-else
-    :num-fields="4"
-  />
+  <ShowLoading v-else :num-fields="4" />
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

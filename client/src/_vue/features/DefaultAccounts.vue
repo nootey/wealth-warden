@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import {onMounted, ref} from "vue";
-import type {Account} from "../../models/account_models.ts";
-import {useAccountStore} from "../../services/stores/account_store.ts";
-import {useToastStore} from "../../services/stores/toast_store.ts";
+import { onMounted, ref } from "vue";
+import type { Account } from "../../models/account_models.ts";
+import { useAccountStore } from "../../services/stores/account_store.ts";
+import { useToastStore } from "../../services/stores/toast_store.ts";
 import ShowLoading from "../components/base/ShowLoading.vue";
-import {usePermissions} from "../../utils/use_permissions.ts";
+import { usePermissions } from "../../utils/use_permissions.ts";
 import DefaultAccountForm from "../components/forms/DefaultAccountForm.vue";
 import vueHelper from "../../utils/vue_helper.ts";
-import {colorForAccountType} from "../../style/theme/accountColors.ts";
+import { colorForAccountType } from "../../style/theme/accountColors.ts";
 
 const accStore = useAccountStore();
 const toastStore = useToastStore();
@@ -19,64 +19,66 @@ const accounts = ref<Account[]>([]);
 const createModal = ref(false);
 
 onMounted(async () => {
-    await getData();
+  await getData();
 });
 
 async function getData() {
-    loading.value = true;
+  loading.value = true;
 
-    try {
-        accounts.value = await accStore.getAllDefaultAccounts();
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    } finally {
-        loading.value = false;
-    }
+  try {
+    accounts.value = await accStore.getAllDefaultAccounts();
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function unsetDefault(id: number) {
-    loading.value = true;
+  loading.value = true;
 
-    try {
-        const res = await accStore.unsetDefaultAccount(id);
-        toastStore.successResponseToast(res);
-        await getData();
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    } finally {
-        loading.value = false;
-    }
+  try {
+    const res = await accStore.unsetDefaultAccount(id);
+    toastStore.successResponseToast(res);
+    await getData();
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  } finally {
+    loading.value = false;
+  }
 }
 
 function manipulateDialog(modal: string, value: any) {
-    switch (modal) {
-        case 'insertDefault': {
-            if(!hasPermission("manage_data")) {
-                toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
-                return;
-            }
-            createModal.value = value;
-            break;
-        }
-        default: {
-            break;
-        }
+  switch (modal) {
+    case "insertDefault": {
+      if (!hasPermission("manage_data")) {
+        toastStore.createInfoToast(
+          "Access denied",
+          "You don't have permission to perform this action.",
+        );
+        return;
+      }
+      createModal.value = value;
+      break;
     }
+    default: {
+      break;
+    }
+  }
 }
 
 async function handleEmit(type: string) {
-    switch (type) {
-        case 'completeCatOperation': {
-            createModal.value = false;
-            await getData();
-            break;
-        }
-        default: {
-            break;
-        }
+  switch (type) {
+    case "completeCatOperation": {
+      createModal.value = false;
+      await getData();
+      break;
     }
+    default: {
+      break;
+    }
+  }
 }
-
 </script>
 
 <template>
@@ -88,7 +90,9 @@ async function handleEmit(type: string) {
     :style="{ width: '500px' }"
     header="Create default"
   >
-    <DefaultAccountForm @complete-operation="handleEmit('completeCatOperation')" />
+    <DefaultAccountForm
+      @complete-operation="handleEmit('completeCatOperation')"
+    />
   </Dialog>
 
   <div class="w-full flex flex-column gap-2">
@@ -96,7 +100,8 @@ async function handleEmit(type: string) {
       <div class="w-full flex flex-column gap-2">
         <h3>Default accounts</h3>
         <h5 style="color: var(--text-secondary)">
-          Define default accounts for each account. This might help optimize some flows.
+          Define default accounts for each account. This might help optimize
+          some flows.
         </h5>
       </div>
       <Button
@@ -123,7 +128,9 @@ async function handleEmit(type: string) {
       v-else-if="accounts.length === 0"
       class="flex flex-row p-2 w-full justify-content-center"
     >
-      <div class="flex flex-column gap-2 justify-content-center align-items-center">
+      <div
+        class="flex flex-column gap-2 justify-content-center align-items-center"
+      >
         <i
           style="color: var(--text-secondary)"
           class="pi pi-eye-slash text-4xl"
@@ -163,10 +170,7 @@ async function handleEmit(type: string) {
               {{ account.name }}
             </div>
 
-            <div
-              class="text-sm"
-              style="color: var(--text-secondary)"
-            >
+            <div class="text-sm" style="color: var(--text-secondary)">
               {{ vueHelper.formatString(account.account_type?.sub_type) }}
             </div>
           </div>
@@ -184,6 +188,4 @@ async function handleEmit(type: string) {
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

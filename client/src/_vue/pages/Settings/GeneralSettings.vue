@@ -1,10 +1,9 @@
 <script setup lang="ts">
-
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
-import {onMounted, ref} from "vue";
+import { onMounted, ref } from "vue";
 import type { GeneralSettings } from "../../../models/settings_models.ts";
-import {useToastStore} from "../../../services/stores/toast_store.ts";
-import {useSettingsStore} from "../../../services/stores/settings_store.ts";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 
 const settingsStore = useSettingsStore();
 const toastStore = useToastStore();
@@ -12,18 +11,17 @@ const toastStore = useToastStore();
 const settings = ref<GeneralSettings>();
 
 onMounted(async () => {
-    await initSettings();
-})
+  await initSettings();
+});
 
 async function initSettings() {
-    try {
-        let response = await settingsStore.getGeneralSettings();
-        settings.value = response.data;
-    } catch (error) {
-        toastStore.errorResponseToast(error)
-    }
+  try {
+    let response = await settingsStore.getGeneralSettings();
+    settings.value = response.data;
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
 }
-
 </script>
 
 <template>
@@ -37,15 +35,9 @@ async function initSettings() {
           </h5>
         </div>
 
-        <div
-          v-if="settings"
-          class="w-full flex flex-column gap-2 w-full"
-        >
+        <div v-if="settings" class="w-full flex flex-column gap-2 w-full">
           <div class="w-full flex flex-row gap-2 w-full">
-            <IftaLabel
-              class="w-full"
-              variant="in"
-            >
+            <IftaLabel class="w-full" variant="in">
               <InputText
                 id="in_label"
                 class="w-full"
@@ -56,10 +48,7 @@ async function initSettings() {
           </div>
 
           <div class="w-full flex flex-row gap-2 w-full">
-            <IftaLabel
-              class="w-full"
-              variant="in"
-            >
+            <IftaLabel class="w-full" variant="in">
               <InputText
                 id="in_label"
                 class="w-full"
@@ -70,10 +59,7 @@ async function initSettings() {
           </div>
 
           <div class="w-full flex flex-row gap-2 w-full">
-            <IftaLabel
-              class="w-full"
-              variant="in"
-            >
+            <IftaLabel class="w-full" variant="in">
               <InputText
                 id="in_label"
                 class="w-full"
@@ -84,10 +70,7 @@ async function initSettings() {
           </div>
 
           <div class="w-full flex flex-row gap-2 w-full">
-            <IftaLabel
-              class="w-full"
-              variant="in"
-            >
+            <IftaLabel class="w-full" variant="in">
               <InputNumber
                 id="in_label"
                 class="w-full"
@@ -106,10 +89,7 @@ async function initSettings() {
           </div>
 
           <div class="w-full flex flex-row gap-2 w-full">
-            <Button
-              class="main-button ml-auto"
-              label="Save"
-            />
+            <Button class="main-button ml-auto" label="Save" />
           </div>
         </div>
       </div>
@@ -117,6 +97,4 @@ async function initSettings() {
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

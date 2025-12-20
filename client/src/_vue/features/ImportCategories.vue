@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import {computed, ref} from "vue";
+import { computed, ref } from "vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
-import {useToastStore} from "../../services/stores/toast_store.ts";
-import {useDataStore} from "../../services/stores/data_store.ts";
+import { useToastStore } from "../../services/stores/toast_store.ts";
+import { useDataStore } from "../../services/stores/data_store.ts";
 
 const emit = defineEmits<{
-    (e: 'completeImport'): void;
+  (e: "completeImport"): void;
 }>();
 
 const toastStore = useToastStore();
@@ -17,68 +17,70 @@ const selectedFiles = ref<File[]>([]);
 const uploadImportRef = ref<{ files: File[] } | null>(null);
 
 function onSelect(e: { files: File[] }) {
-    selectedFiles.value = e.files.slice(0, 1);
+  selectedFiles.value = e.files.slice(0, 1);
 }
 
 function onClear() {
-    selectedFiles.value = [];
+  selectedFiles.value = [];
 }
 
 function resetWizard() {
+  if (importing.value) {
+    toastStore.infoResponseToast({
+      title: "Unavailable",
+      message: "An operation is currently being executed!",
+    });
+  }
+  // clear local state
+  selectedFiles.value = [];
+  importing.value = false;
 
-    if(importing.value) {
-        toastStore.infoResponseToast({"title": "Unavailable", "message": "An operation is currently being executed!"})
-    }
-    // clear local state
-    selectedFiles.value = [];
-    importing.value = false;
-
-    // clear FileUpload UI
-    try {
-        (uploadImportRef.value as any)?.clear?.();
-    } catch { /* no-op */ }
-
+  // clear FileUpload UI
+  try {
+    (uploadImportRef.value as any)?.clear?.();
+  } catch {
+    /* no-op */
+  }
 }
 
 const isDisabled = computed(() => {
-    if (importing.value) return true;
-    if (!selectedFiles.value.length) return true;
-    return false
+  if (importing.value) return true;
+  if (!selectedFiles.value.length) return true;
+  return false;
 });
 
 async function importCategories() {
+  if (!selectedFiles.value.length) return;
+  importing.value = true;
 
-    if (!selectedFiles.value.length) return;
-    importing.value = true;
+  try {
+    const form = new FormData();
+    form.append("file", selectedFiles.value[0], "categories.json");
 
-    try {
+    const res = await dataStore.importCategories(form);
+    toastStore.successResponseToast(res);
 
-        const form = new FormData();
-        form.append("file", selectedFiles.value[0], "categories.json");
-
-        const res = await dataStore.importCategories(form);
-        toastStore.successResponseToast(res);
-
-        emit("completeImport");
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    } finally {
-        importing.value = false;
-        resetWizard();
-    }
+    emit("completeImport");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  } finally {
+    importing.value = false;
+    resetWizard();
+  }
 }
 
-defineExpose({isDisabled, importCategories})
-
+defineExpose({ isDisabled, importCategories });
 </script>
 
 <template>
-  <div class="flex flex-column w-full justify-content-center align-items-center text-center gap-3">
+  <div
+    class="flex flex-column w-full justify-content-center align-items-center text-center gap-3"
+  >
     <h3>Import your category data</h3>
-    <span
-      class="text-sm"
-      style="color: var(--text-secondary)"
-    >Upload your JSON file below. Please review the instructions before starting an import.</span>
+    <span class="text-sm" style="color: var(--text-secondary)"
+      >Upload your JSON file below. Please review the instructions before
+      starting an import.</span
+    >
 
     <FileUpload
       v-if="!importing"
@@ -115,11 +117,11 @@ defineExpose({isDisabled, importCategories})
               :key="file.name + file.type + file.size"
               class="flex flex-row gap-2 p-1 w-full justify-content-center align-items-center w-full"
             >
-              <span class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden">{{ file.name }}</span>
-              <Badge
-                value="Pending"
-                severity="warn"
-              />
+              <span
+                class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden"
+                >{{ file.name }}</span
+              >
+              <Badge value="Pending" severity="warn" />
               <i
                 class="pi pi-times hover-icon"
                 style="color: var(--p-red-300)"
@@ -130,15 +132,12 @@ defineExpose({isDisabled, importCategories})
         </div>
       </template>
     </FileUpload>
-    <ShowLoading
-      v-else
-      :num-fields="3"
-    />
+    <ShowLoading v-else :num-fields="3" />
   </div>
 </template>
 
 <style scoped>
 .p-fileupload {
-    width: 80% !important;
+  width: 80% !important;
 }
 </style>

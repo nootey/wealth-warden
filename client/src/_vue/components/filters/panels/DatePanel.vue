@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from "vue";
 
-type Model = { date: Date|null; from: Date|null; to: Date|null };
+type Model = { date: Date | null; from: Date | null; to: Date | null };
 const model = defineModel<Model>({ required: true });
 
 const props = defineProps<{
   label?: string;
-  defaultDate?: Date | string | [Date|string, Date|string];
+  defaultDate?: Date | string | [Date | string, Date | string];
 }>();
 
 const isRange = ref(false);
@@ -19,22 +19,22 @@ onMounted(() => {
     isRange.value = true;
     model.value.date = null;
     model.value.from = toDate(a);
-    model.value.to   = toDate(b);
+    model.value.to = toDate(b);
   } else {
     isRange.value = false;
     model.value.date = toDate(props.defaultDate);
     model.value.from = null;
-    model.value.to   = null;
+    model.value.to = null;
   }
 });
 
-const selectionMode = computed(() => (isRange.value ? 'range' : 'single'));
+const selectionMode = computed(() => (isRange.value ? "range" : "single"));
 
 const dpValue = computed({
   get() {
     if (isRange.value) {
       if (model.value.from || model.value.to) {
-        return [model.value.from, model.value.to] as [Date|null, Date|null];
+        return [model.value.from, model.value.to] as [Date | null, Date | null];
       }
       return null;
     }
@@ -42,33 +42,35 @@ const dpValue = computed({
   },
   set(v) {
     if (isRange.value) {
-      const [start, end] = Array.isArray(v) ? v as [Date|null, Date|null] : [null, null];
+      const [start, end] = Array.isArray(v)
+        ? (v as [Date | null, Date | null])
+        : [null, null];
       model.value.date = null;
       model.value.from = start ?? null;
-      model.value.to   = end ?? null;
+      model.value.to = end ?? null;
     } else {
       model.value.date = (v as Date) ?? null;
       model.value.from = null;
-      model.value.to   = null;
+      model.value.to = null;
     }
-  }
+  },
 });
 
 watch(isRange, (nowRange) => {
   if (nowRange) {
     if (model.value.date) {
       model.value.from = model.value.date;
-      model.value.to   = model.value.date;
+      model.value.to = model.value.date;
       model.value.date = null;
     }
   } else {
     if (model.value.from) model.value.date = model.value.from;
     model.value.from = null;
-    model.value.to   = null;
+    model.value.to = null;
   }
 });
 
-function toDate(v: unknown): Date|null {
+function toDate(v: unknown): Date | null {
   if (!v) return null;
   return v instanceof Date ? v : new Date(String(v));
 }
@@ -90,16 +92,12 @@ function toDate(v: unknown): Date|null {
           placeholder="Select date"
           :manual-input="false"
         />
-        <label for="date">{{ isRange ? 'Range' : 'Single' }}</label>
+        <label for="date">{{ isRange ? "Range" : "Single" }}</label>
       </IftaLabel>
     </div>
 
     <div class="flex flex-row w-full gap-1 align-items-center">
-      <Checkbox
-        v-model="isRange"
-        :binary="true"
-        input-id="range-picker"
-      />
+      <Checkbox v-model="isRange" :binary="true" input-id="range-picker" />
       <label for="range-picker">Range</label>
     </div>
   </div>

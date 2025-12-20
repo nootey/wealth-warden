@@ -18,7 +18,7 @@ root/
 │   │   ├── views/      # Page-level views (used in routing)
 │   │   │   └── Dashboard.vue
 │   │   ├── components/ # Shared components across features
-│   │   │   ├── auth/     
+│   │   │   ├── auth/
 │   │   │      └── AuthSkeleton.vue
 │   │   ├── features/   # Feature modules
 │   │   │   ├── auth/

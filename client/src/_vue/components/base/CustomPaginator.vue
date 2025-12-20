@@ -1,21 +1,19 @@
 <script setup lang="ts">
-
 type PaginatorState = {
-    total: number;
-    from: number;
-    to: number;
-    rowsPerPage: number;
+  total: number;
+  from: number;
+  to: number;
+  rowsPerPage: number;
 };
 
 defineProps<{
-    paginator: PaginatorState;
-    rows: number[];
+  paginator: PaginatorState;
+  rows: number[];
 }>();
 
 const emit = defineEmits<{
-    'onPage': [value: any];
+  onPage: [value: any];
 }>();
-
 </script>
 
 <template>
@@ -26,18 +24,19 @@ const emit = defineEmits<{
     :total-records="paginator.total"
     :template="{
       '640px': 'PrevPageLink CurrentPageReport NextPageLink',
-      '960px': 'FirstPageLink PrevPageLink CurrentPageReport NextPageLink LastPageLink',
-      '1300px': 'FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink',
-      default: 'FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink'
+      '960px':
+        'FirstPageLink PrevPageLink CurrentPageReport NextPageLink LastPageLink',
+      '1300px':
+        'FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink',
+      default: 'FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink',
     }"
-    @page="e => emit('onPage', e)"
+    @page="(e) => emit('onPage', e)"
   >
     <template #end>
-      <div
-        id="end"
-        class="ml-2 text-sm"
-      >
-        {{ `Showing ${paginator.from} to ${paginator.to} out of ${paginator.total} records` }}
+      <div id="end" class="ml-2 text-sm">
+        {{
+          `Showing ${paginator.from} to ${paginator.to} out of ${paginator.total} records`
+        }}
       </div>
     </template>
   </Paginator>

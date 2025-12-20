@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import vueHelper from "../../../utils/vue_helper.ts";
 const props = defineProps<{
-    validationObject?: any;
+  validationObject?: any;
 }>();
 </script>
 
@@ -14,6 +14,4 @@ const props = defineProps<{
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

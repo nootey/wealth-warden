@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import {inject, ref, watch} from "vue";
-import type {FilterObj} from "../../../models/shared_models.ts";
+import { inject, ref, watch } from "vue";
+import type { FilterObj } from "../../../models/shared_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import dateHelper from "../../../utils/date_helper.ts";
@@ -11,33 +11,39 @@ const props = defineProps<{
   activeFilter: string;
 }>();
 
-const removeFilter = inject<(originalIndex: number) => void>("removeFilter", () => {});
+const removeFilter = inject<(originalIndex: number) => void>(
+  "removeFilter",
+  () => {},
+);
 type FilterWithIndex = FilterObj & { originalIndex: number };
 
 const filters = ref<FilterWithIndex[]>([]);
 
 watch(
-    () => [props.activeFilters, props.showOnlyActive, props.activeFilter],
-    initFilters,
-    { immediate: true, deep: true }
+  () => [props.activeFilters, props.showOnlyActive, props.activeFilter],
+  initFilters,
+  { immediate: true, deep: true },
 );
 
 function initFilters() {
-  const withIndex = props.activeFilters.map((f, i) => ({ ...f, originalIndex: i }));
+  const withIndex = props.activeFilters.map((f, i) => ({
+    ...f,
+    originalIndex: i,
+  }));
 
   filters.value = props.showOnlyActive
-      ? withIndex.filter(f => f.field === props.activeFilter)
-      : withIndex;
+    ? withIndex.filter((f) => f.field === props.activeFilter)
+    : withIndex;
 }
 
 function clearFilter(originalIndex: number): void {
-    removeFilter(originalIndex);
-    initFilters();
+  removeFilter(originalIndex);
+  initFilters();
 }
 
 const icons: Record<string, string> = {
-  'account': 'pi pi-wallet',
-  'category': 'pi pi-book',
+  account: "pi pi-wallet",
+  category: "pi pi-book",
 };
 
 function iconClass(field: string | null): string | null {
@@ -45,32 +51,40 @@ function iconClass(field: string | null): string | null {
   const key = field.toLowerCase();
   return icons[key] ?? null;
 }
-
 </script>
 
 <template>
   <div
     v-if="filters.length > 0"
     class="flex flex-wrap gap-1 w-full"
-    style="line-height: 1; max-height: 135px; overflow-y: auto;"
+    style="line-height: 1; max-height: 135px; overflow-y: auto"
   >
     <Chip
       v-for="filter in filters"
       :key="filter.originalIndex"
-      style="background-color: transparent; border: 3px solid var(--border-color); padding: 0.65rem;"
+      style="
+        background-color: transparent;
+        border: 3px solid var(--border-color);
+        padding: 0.65rem;
+      "
     >
       <div class="flex flex-row align-items-center gap-2">
         <div
           v-if="iconClass(filter.field)"
           v-tooltip="filter.field"
-          style="width: 16px; height: 16px; border-radius: 50%; display:flex;
-                    align-items:center; justify-content:center; font-size:0.75rem;
-                    color:white; border:2px solid var(--border-color);"
+          style="
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            color: white;
+            border: 2px solid var(--border-color);
+          "
         >
-          <i
-            :class="iconClass(filter.field)"
-            style="font-size: 0.75rem;"
-          />
+          <i :class="iconClass(filter.field)" style="font-size: 0.75rem" />
         </div>
 
         <template v-else>
@@ -79,9 +93,15 @@ function iconClass(field: string | null): string | null {
         </template>
 
         <div>
-          {{ currencyHelper.mightBeBalance(filter.field) ? vueHelper.displayAsCurrency(filter.value as number) :
-            (dateHelper.mightBeDate(filter.field) ? dateHelper.formatDate(filter.value as string | Date) :
-              (filter.display ? filter.display : String(filter.value))) }}
+          {{
+            currencyHelper.mightBeBalance(filter.field)
+              ? vueHelper.displayAsCurrency(filter.value as number)
+              : dateHelper.mightBeDate(filter.field)
+                ? dateHelper.formatDate(filter.value as string | Date)
+                : filter.display
+                  ? filter.display
+                  : String(filter.value)
+          }}
         </div>
         <div
           class="flex align-items-center justify-content-center"
@@ -89,7 +109,7 @@ function iconClass(field: string | null): string | null {
         >
           <i
             class="pi pi-times hover-icon"
-            style="color: grey; font-size: 0.75rem;"
+            style="color: grey; font-size: 0.75rem"
           />
         </div>
       </div>
@@ -100,6 +120,4 @@ function iconClass(field: string | null): string | null {
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

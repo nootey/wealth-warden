@@ -1,15 +1,22 @@
 <script setup lang="ts">
-import {useSharedStore} from "../../../services/stores/shared_store.ts";
-import {useToastStore} from "../../../services/stores/toast_store.ts";
-import {useTransactionStore} from "../../../services/stores/transaction_store.ts";
-import {computed, nextTick, onMounted, ref, watch} from "vue";
-import type {Category, TransactionTemplate} from "../../../models/transaction_models.ts";
-import {maxValue, minValue, required} from "@vuelidate/validators";
-import {decimalValid, decimalMin, decimalMax} from "../../../validators/currency.ts";
+import { useSharedStore } from "../../../services/stores/shared_store.ts";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
+import type {
+  Category,
+  TransactionTemplate,
+} from "../../../models/transaction_models.ts";
+import { maxValue, minValue, required } from "@vuelidate/validators";
+import {
+  decimalValid,
+  decimalMin,
+  decimalMax,
+} from "../../../validators/currency.ts";
 import useVuelidate from "@vuelidate/core";
 import ValidationError from "../validation/ValidationError.vue";
-import {useAccountStore} from "../../../services/stores/account_store.ts";
-import type {Account} from "../../../models/account_models.ts";
+import { useAccountStore } from "../../../services/stores/account_store.ts";
+import type { Account } from "../../../models/account_models.ts";
 import dayjs from "dayjs";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
@@ -21,7 +28,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    (event: 'completeOperation'): void;
+  (event: "completeOperation"): void;
 }>();
 
 const sharedStore = useSharedStore();
@@ -30,21 +37,22 @@ const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
 
 onMounted(async () => {
+  // Fetch accounts first
+  accounts.value = accountStore.accounts;
 
-    // Fetch accounts first
-    accounts.value = accountStore.accounts;
-
-    if (props.mode === "update" && props.recordId) {
-        await loadRecord(props.recordId);
-    }
+  if (props.mode === "update" && props.recordId) {
+    await loadRecord(props.recordId);
+  }
 });
 
 const isReadOnly = ref(false);
 const isImmutable = ref(false);
 
 const isAccountRestricted = computed<boolean>(() => {
-    const acc = record.value.account as Account | null | undefined;
-    return !!acc && typeof acc === 'object' && (!!acc.closed_at || !acc.is_active);
+  const acc = record.value.account as Account | null | undefined;
+  return (
+    !!acc && typeof acc === "object" && (!!acc.closed_at || !acc.is_active)
+  );
 });
 
 const loading = ref(false);
@@ -52,34 +60,38 @@ const loading = ref(false);
 const record = ref<TransactionTemplate>(initData());
 const amountRef = computed({
   get: () => record.value.amount,
-  set: v => record.value.amount = v
+  set: (v) => (record.value.amount = v),
 });
 const { number: amountNumber } = currencyHelper.useMoneyField(amountRef, 2);
 
-const frequencies = ref<string[]>(["Weekly", "Biweekly", "Monthly", "Quarterly", "Annually"]);
+const frequencies = ref<string[]>([
+  "Weekly",
+  "Biweekly",
+  "Monthly",
+  "Quarterly",
+  "Annually",
+]);
 const accounts = ref<Account[]>([]);
 const allCategories = computed<Category[]>(() => transactionStore.categories);
 const parentCategories = computed(() => {
-    const base = allCategories.value.filter(c =>
-        c.display_name === "Expense" || c.display_name === "Income"
-    );
+  const base = allCategories.value.filter(
+    (c) => c.display_name === "Expense" || c.display_name === "Income",
+  );
 
-    if(props.mode === "update") {
-        return base
-    }
+  if (props.mode === "update") {
+    return base;
+  }
 
-    return [
-        ...base
-    ];
+  return [...base];
 });
 
 const selectedParentCategory = ref<Category | null>(
-    parentCategories.value.find(cat => cat.name === "expense") || null
+  parentCategories.value.find((cat) => cat.name === "expense") || null,
 );
 
 const availableCategories = computed<Category[]>(() => {
   return allCategories.value.filter(
-      (category) => category.parent_id === selectedParentCategory.value?.id
+    (category) => category.parent_id === selectedParentCategory.value?.id,
   );
 });
 
@@ -89,179 +101,178 @@ const filteredFrequencies = ref<string[]>([]);
 
 const rules = {
   record: {
-      category: {
-          name: {
-          $autoDirty: true
-        }
-    },
-      account: {
-          name: {
-        required,
-        $autoDirty: true
-      }
-    },
-      transaction_type: {
-          required,
-          $autoDirty: true
-    },
-      amount: {
-          required,
-          decimalValid,
-          decimalMin: decimalMin(0),
-          decimalMax: decimalMax(1_000_000_000),
-          $autoDirty: true
-    },
+    category: {
       name: {
-          required,
-          $autoDirty: true,
+        $autoDirty: true,
       },
-      frequency: {
-          required,
-          $autoDirty: true,
+    },
+    account: {
+      name: {
+        required,
+        $autoDirty: true,
       },
-      next_run_at: {
-          required,
-          $autoDirty: true,
-      },
-      end_date: {
-          $autoDirty: true,
-      },
-      max_runs: {
-          $autoDirty: true,
-          min: minValue(1),
-          max: maxValue(99999),
-      },
-      is_active: {
-          required,
-          $autoDirty: true,
-      },
+    },
+    transaction_type: {
+      required,
+      $autoDirty: true,
+    },
+    amount: {
+      required,
+      decimalValid,
+      decimalMin: decimalMin(0),
+      decimalMax: decimalMax(1_000_000_000),
+      $autoDirty: true,
+    },
+    name: {
+      required,
+      $autoDirty: true,
+    },
+    frequency: {
+      required,
+      $autoDirty: true,
+    },
+    next_run_at: {
+      required,
+      $autoDirty: true,
+    },
+    end_date: {
+      $autoDirty: true,
+    },
+    max_runs: {
+      $autoDirty: true,
+      min: minValue(1),
+      max: maxValue(99999),
+    },
+    is_active: {
+      required,
+      $autoDirty: true,
+    },
   },
 };
 
 const v$ = useVuelidate(rules, { record });
 
 function initData(): TransactionTemplate {
-
   return {
+    id: null,
+    name: "",
+    account_id: null,
+    category_id: null,
+    category: {
       id: null,
       name: "",
-      account_id: null,
-      category_id: null,
-      category: {
-          id: null,
-          name: "",
-          display_name: "",
-          classification: "",
-          is_default: true,
-          parent_id: null,
-          deleted_at: null,
-      },
-      account: {
-          id: null,
-          name: "",
-          is_active: true,
-          closed_at: null,
-          account_type: {
-              id: null,
-              name: "",
-              type: "",
-              sub_type: "",
-              classification: ""
-          },
-          balance: {
-              id: null,
-              as_of: null,
-              start_balance: null,
-              end_balance: null
-          }
-      },
-      transaction_type: "Expense",
-      amount: null,
-      period: "",
-      run_count: 0,
-      next_run_at: null,
-      end_date: null,
+      display_name: "",
+      classification: "",
+      is_default: true,
+      parent_id: null,
+      deleted_at: null,
+    },
+    account: {
+      id: null,
+      name: "",
       is_active: true,
-      frequency: "",
+      closed_at: null,
+      account_type: {
+        id: null,
+        name: "",
+        type: "",
+        sub_type: "",
+        classification: "",
+      },
+      balance: {
+        id: null,
+        as_of: null,
+        start_balance: null,
+        end_balance: null,
+      },
+    },
+    transaction_type: "Expense",
+    amount: null,
+    period: "",
+    run_count: 0,
+    next_run_at: null,
+    end_date: null,
+    is_active: true,
+    frequency: "",
   };
 }
 
 const tomorrowUtcMidnight = computed(() => {
-    const now = new Date()
-    return new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
-    )
-})
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
+  );
+});
 
 const endDateMin = computed(() => {
-    if (record.value.next_run_at) {
-        return dayjs(record.value.next_run_at).add(1, "day").toDate()
-    }
-    return tomorrowUtcMidnight.value
-})
+  if (record.value.next_run_at) {
+    return dayjs(record.value.next_run_at).add(1, "day").toDate();
+  }
+  return tomorrowUtcMidnight.value;
+});
 
 watch(
-    () => record.value.next_run_at,
-    (newNextRun) => {
-        if (!newNextRun) {
-            record.value.end_date = null
-            return
-        }
-
-        if (record.value.end_date && record.value.end_date < newNextRun) {
-            record.value.end_date = null
-        }
+  () => record.value.next_run_at,
+  (newNextRun) => {
+    if (!newNextRun) {
+      record.value.end_date = null;
+      return;
     }
-)
+
+    if (record.value.end_date && record.value.end_date < newNextRun) {
+      record.value.end_date = null;
+    }
+  },
+);
 
 function updateSelectedParentCategory($event: any) {
-    if ($event) {
-        selectedParentCategory.value = $event;
-        record.value.category = null;
-        filteredCategories.value = [];
-    }
+  if ($event) {
+    selectedParentCategory.value = $event;
+    record.value.category = null;
+    filteredCategories.value = [];
+  }
 }
 
 const searchCategory = (event: { query: string }) => {
-    setTimeout(() => {
-        if (!event.query.trim().length) {
-            filteredCategories.value = [...availableCategories.value];
-        } else {
-            filteredCategories.value = availableCategories.value.filter((record) => {
-                return record.name.toLowerCase().startsWith(event.query.toLowerCase());
-            });
-        }
-    }, 250);
-}
+  setTimeout(() => {
+    if (!event.query.trim().length) {
+      filteredCategories.value = [...availableCategories.value];
+    } else {
+      filteredCategories.value = availableCategories.value.filter((record) => {
+        return record.name.toLowerCase().startsWith(event.query.toLowerCase());
+      });
+    }
+  }, 250);
+};
 
 const searchAccount = (event: { query: string }) => {
-    setTimeout(() => {
-        if (!event.query.trim().length) {
-            filteredAccounts.value = [...accounts.value];
-        } else {
-            filteredAccounts.value = accounts.value.filter((record) => {
-                return record.name.toLowerCase().startsWith(event.query.toLowerCase());
-            });
-        }
-    }, 250);
-}
+  setTimeout(() => {
+    if (!event.query.trim().length) {
+      filteredAccounts.value = [...accounts.value];
+    } else {
+      filteredAccounts.value = accounts.value.filter((record) => {
+        return record.name.toLowerCase().startsWith(event.query.toLowerCase());
+      });
+    }
+  }, 250);
+};
 
 const searchFrequency = (event: { query: string }) => {
-    setTimeout(() => {
-        if (!event.query.trim().length) {
-            filteredFrequencies.value = [...frequencies.value];
-        } else {
-            filteredFrequencies.value = frequencies.value.filter((record) => {
-                return record.toLowerCase().startsWith(event.query.toLowerCase());
-            });
-        }
-    }, 250);
-}
+  setTimeout(() => {
+    if (!event.query.trim().length) {
+      filteredFrequencies.value = [...frequencies.value];
+    } else {
+      filteredFrequencies.value = frequencies.value.filter((record) => {
+        return record.toLowerCase().startsWith(event.query.toLowerCase());
+      });
+    }
+  }, 250);
+};
 
 async function isRecordValid() {
-    const isValid = await v$.value.record.$validate();
-    if (!isValid) return false;
-    return true;
+  const isValid = await v$.value.record.$validate();
+  if (!isValid) return false;
+  return true;
 }
 
 async function loadRecord(id: number) {
@@ -276,94 +287,89 @@ async function loadRecord(id: number) {
       frequency: vueHelper.capitalize(data.frequency),
     };
 
-    if(!record.value.is_active) isReadOnly.value = true;
+    if (!record.value.is_active) isReadOnly.value = true;
 
     selectedParentCategory.value =
-        parentCategories.value.find(
-            p =>
-                (p.classification?.toLowerCase?.() === String(data.transaction_type).toLowerCase()) ||
-                (p.name?.toLowerCase?.() === String(data.transaction_type).toLowerCase())
-        ) || null;
+      parentCategories.value.find(
+        (p) =>
+          p.classification?.toLowerCase?.() ===
+            String(data.transaction_type).toLowerCase() ||
+          p.name?.toLowerCase?.() ===
+            String(data.transaction_type).toLowerCase(),
+      ) || null;
 
     await nextTick();
     loading.value = false;
-
   } catch (err) {
     toastStore.errorResponseToast(err);
   }
 }
 
 async function manageRecord() {
-
-    if (isReadOnly.value || isAccountRestricted.value) {
-        toastStore.infoResponseToast({"title": "Not allowed", "message": "This record is read only!"})
-        return;
-    }
-
-    if (selectedParentCategory.value == null) {
+  if (isReadOnly.value || isAccountRestricted.value) {
+    toastStore.infoResponseToast({
+      title: "Not allowed",
+      message: "This record is read only!",
+    });
     return;
-    }
+  }
 
-    if (!await isRecordValid()) return;
-    await startOperation();
+  if (selectedParentCategory.value == null) {
+    return;
+  }
 
+  if (!(await isRecordValid())) return;
+  await startOperation();
 }
 
 async function startOperation() {
+  const recordData = {
+    name: record.value.name,
+    is_active: record.value.is_active,
+    account_id: record.value.account.id,
+    category_id: record.value.category?.id,
+    transaction_type: selectedParentCategory.value?.classification,
+    amount: record.value.amount,
+    frequency: record.value.frequency,
+    next_run_at: record.value.next_run_at,
+    end_date: record.value.end_date,
+    max_runs: record.value.max_runs,
+  };
 
-    const recordData = {
-        name: record.value.name,
-        is_active: record.value.is_active,
-        account_id: record.value.account.id,
-        category_id: record.value.category?.id,
-        transaction_type: selectedParentCategory.value?.classification,
-        amount: record.value.amount,
-        frequency: record.value.frequency,
-        next_run_at: record.value.next_run_at,
-        end_date: record.value.end_date,
-        max_runs: record.value.max_runs,
+  try {
+    let response = null;
+
+    switch (props.mode) {
+      case "create":
+        response = await sharedStore.createRecord(
+          "transactions/templates",
+          recordData,
+        );
+        break;
+      case "update":
+        response = await sharedStore.updateRecord(
+          "transactions/templates",
+          record.value.id!,
+          recordData,
+        );
+        break;
+      default:
+        emit("completeOperation");
+        break;
     }
 
-    try {
-
-        let response = null;
-
-        switch (props.mode) {
-            case "create":
-                response = await sharedStore.createRecord(
-                    "transactions/templates",
-                    recordData
-                );
-                break;
-            case "update":
-                response = await sharedStore.updateRecord(
-                    "transactions/templates",
-                    record.value.id!,
-                    recordData
-                );
-                break;
-            default:
-                emit("completeOperation")
-                break;
-        }
-
-        // record.value = initData();
-        v$.value.record.$reset();
-        toastStore.successResponseToast(response);
-        emit("completeOperation")
-
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    }
+    // record.value = initData();
+    v$.value.record.$reset();
+    toastStore.successResponseToast(response);
+    emit("completeOperation");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
 }
-
 </script>
 
 <template>
-  <div
-    v-if="!loading"
-    class="flex flex-column gap-3 p-1"
-  >
+  <div v-if="!loading" class="flex flex-column gap-3 p-1">
     <div
       v-if="!isImmutable"
       class="flex flex-row w-full justify-content-center"
@@ -371,7 +377,7 @@ async function startOperation() {
       <div class="flex flex-column w-50">
         <SelectButton
           v-model="selectedParentCategory"
-          style="font-size: 0.875rem;"
+          style="font-size: 0.875rem"
           size="small"
           :options="parentCategories"
           option-label="display_name"
@@ -380,16 +386,10 @@ async function startOperation() {
         />
       </div>
     </div>
-    <h5
-      v-else
-      style="color: var(--text-secondary)"
-    >
+    <h5 v-else style="color: var(--text-secondary)">
       Some parts of the record are immutable.
     </h5>
-    <h5
-      v-if="isReadOnly"
-      style="color: var(--text-secondary)"
-    >
+    <h5 v-if="isReadOnly" style="color: var(--text-secondary)">
       Record is read-only.
     </h5>
 
@@ -401,18 +401,30 @@ async function startOperation() {
       <div class="flex flex-column gap-1 w-6">
         <small>Last ran at</small>
         <span
-          style="color: var(--text-secondary); border: 1px solid var(--border-color);
-              padding: 0.5rem; border-radius: 8px; background: var(--background-secondary);"
+          style="
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            padding: 0.5rem;
+            border-radius: 8px;
+            background: var(--background-secondary);
+          "
         >
-          {{ record.last_run_at ?? "Not ran yet" }}</span>
+          {{ record.last_run_at ?? "Not ran yet" }}</span
+        >
       </div>
       <div class="flex flex-column gap-1 w-6">
         <small>Run count</small>
         <span
-          style="color: var(--text-secondary); border: 1px solid var(--border-color);
-              padding: 0.5rem; border-radius: 8px; background: var(--background-secondary);"
+          style="
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            padding: 0.5rem;
+            border-radius: 8px;
+            background: var(--background-secondary);
+          "
         >
-          {{ record.run_count }}</span>
+          {{ record.run_count }}</span
+        >
       </div>
     </div>
 
@@ -468,7 +480,7 @@ async function startOperation() {
           </ValidationError>
           <InputNumber
             v-model="amountNumber"
-            :readonly="isReadOnly "
+            :readonly="isReadOnly"
             :disabled="isReadOnly"
             size="small"
             mode="currency"
@@ -528,7 +540,7 @@ async function startOperation() {
             :is-required="true"
             :message="v$.record.frequency.$errors[0]?.$message"
           >
-            <label>{{ mode === 'create' ? "First run" : "Next run" }}</label>
+            <label>{{ mode === "create" ? "First run" : "Next run" }}</label>
           </ValidationError>
           <DatePicker
             v-model="record.next_run_at"
@@ -592,18 +604,13 @@ async function startOperation() {
           v-if="!isReadOnly"
           class="main-button"
           :label="(mode == 'create' ? 'Add' : 'Update') + ' template'"
-          style="height: 42px;"
+          style="height: 42px"
           @click="manageRecord"
         />
       </div>
     </div>
   </div>
-  <ShowLoading
-    v-else
-    :num-fields="7"
-  />
+  <ShowLoading v-else :num-fields="7" />
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

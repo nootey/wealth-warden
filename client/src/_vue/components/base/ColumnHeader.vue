@@ -1,22 +1,24 @@
 <script setup lang="ts">
-import {inject} from "vue";
+import { inject } from "vue";
 import type { SortObj } from "../../../models/shared_models";
 
 defineProps<{
-    header: string;
-    field: string;
-    sort?: SortObj;
-    sortable?: boolean;
+  header: string;
+  field: string;
+  sort?: SortObj;
+  sortable?: boolean;
 }>();
 
-const switchSort = inject<(column: string) => void>('switchSort', () => {});
-
+const switchSort = inject<(column: string) => void>("switchSort", () => {});
 </script>
 
 <template>
   <div class="flex flex-column">
     <div
-      :class="[{ highlight: sort && sort.field === field }, 'flex flex-row header_text align-items-center p-1']"
+      :class="[
+        { highlight: sort && sort.field === field },
+        'flex flex-row header_text align-items-center p-1',
+      ]"
       :style="{ cursor: sortable ? 'pointer' : 'default' }"
       @click="sortable && switchSort(field)"
     >
@@ -44,7 +46,9 @@ const switchSort = inject<(column: string) => void>('switchSort', () => {});
   width: 0;
   height: 2.5px;
   background-color: var(--accent-primary);
-  transition: width 0.3s ease, left 0.3s ease;
+  transition:
+    width 0.3s ease,
+    left 0.3s ease;
 }
 
 .highlight::after {

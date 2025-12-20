@@ -1,18 +1,17 @@
 <script setup lang="ts">
-import {computed, type Ref, unref} from 'vue';
+import { computed, type Ref, unref } from "vue";
 
 const props = defineProps<{
-    message?: string | Ref<string>;
-    isRequired?: boolean;
+  message?: string | Ref<string>;
+  isRequired?: boolean;
 }>();
 
 const isDisplayed = computed(() => Boolean(unref(props.message)));
 
 const displayMessage = computed(() => {
-    const msg = unref(props.message);
-    return msg?.replace('Value', ': field') ?? '';
+  const msg = unref(props.message);
+  return msg?.replace("Value", ": field") ?? "";
 });
-
 </script>
 
 <template>
@@ -23,15 +22,11 @@ const displayMessage = computed(() => {
     <div class="flex flex-column label align-items-center">
       <slot />
     </div>
-    <small
-      v-show="!isDisplayed && props.isRequired"
-      class="invalid disclaimer"
-    > * </small>
+    <small v-show="!isDisplayed && props.isRequired" class="invalid disclaimer">
+      *
+    </small>
     <Transition name="slide-fade">
-      <span
-        v-if="isDisplayed"
-        class="text-xs"
-      >
+      <span v-if="isDisplayed" class="text-xs">
         {{ displayMessage }}
       </span>
     </Transition>
@@ -39,7 +34,6 @@ const displayMessage = computed(() => {
 </template>
 
 <style scoped>
-
 .invalid {
   color: #dd0025;
 }
@@ -50,7 +44,9 @@ const displayMessage = computed(() => {
 }
 
 .slide-fade-enter-active {
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
 }
 .slide-fade-enter-from {
   opacity: 0;
@@ -62,7 +58,9 @@ const displayMessage = computed(() => {
 }
 
 .slide-fade-leave-active {
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
 }
 .slide-fade-leave-from {
   opacity: 1;
