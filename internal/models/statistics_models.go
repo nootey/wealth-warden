@@ -78,3 +78,14 @@ type CurrentMonthStats struct {
 	DebtRepaymentRate decimal.Decimal `json:"debt_repayment_rate"`
 	GeneratedAt       time.Time       `json:"generated_at"`
 }
+
+type TodayStats struct {
+	UserID      int64           `json:"user_id"`
+	AccountID   *int64          `json:"account_id,omitempty"`
+	Currency    string          `json:"currency"`
+	Year        int             `json:"year"`
+	Inflow      decimal.Decimal `json:"inflow"`
+	Outflow     decimal.Decimal `json:"outflow"`
+	Net         decimal.Decimal `json:"net"`
+	GeneratedAt time.Time       `json:"generated_at"`
+}

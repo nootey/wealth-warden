@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import {useAccountStore} from "../../../services/stores/account_store.ts";
-import {useToastStore} from "../../../services/stores/toast_store.ts";
-import {onMounted, ref} from "vue";
-import type {Account, AccountType} from "../../../models/account_models.ts";
+import { useAccountStore } from "../../../services/stores/account_store.ts";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { onMounted, ref } from "vue";
+import type { Account, AccountType } from "../../../models/account_models.ts";
 
 const emit = defineEmits<{
-    (event: 'completeOperation'): void;
+  (event: "completeOperation"): void;
 }>();
 
 const accStore = useAccountStore();
@@ -18,64 +18,65 @@ const accounts = ref<Account[]>([]);
 const loading = ref(false);
 
 onMounted(async () => {
-    await getAccTypes();
+  await getAccTypes();
 });
 
 async function getAccTypes() {
-    try {
-        accTypes.value = await accStore.getAccountTypesWithoutDefaults();
-    } catch (e) {
-        toastStore.errorResponseToast(e)
-    }
+  try {
+    accTypes.value = await accStore.getAccountTypesWithoutDefaults();
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+  }
 }
 
 async function onTypeChange() {
-    if (!selectedType.value) {
-        accounts.value = [];
-        return;
-    }
+  if (!selectedType.value) {
+    accounts.value = [];
+    return;
+  }
 
-    loading.value = true;
-    try {
-        accounts.value = await accStore.getAccountsByType(selectedType.value.type);
-    } catch (e) {
-        toastStore.errorResponseToast(e);
-        accounts.value = [];
-    } finally {
-        loading.value = false;
-    }
+  loading.value = true;
+  try {
+    accounts.value = await accStore.getAccountsByType(selectedType.value.type);
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+    accounts.value = [];
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function setAsDefault() {
-    try {
-
-        if (!selectedAccount.value?.id) {
-            toastStore.errorResponseToast({"title": "Error", "message": "No account selected"});
-            return;
-        }
-
-        const res = await accStore.setDefaultAccount(selectedAccount.value.id);
-        toastStore.successResponseToast(res);
-        selectedType.value = null;
-        selectedAccount.value = null;
-        emit("completeOperation")
-    } catch (e) {
-        toastStore.errorResponseToast(e);
+  try {
+    if (!selectedAccount.value?.id) {
+      toastStore.errorResponseToast({
+        title: "Error",
+        message: "No account selected",
+      });
+      return;
     }
-}
 
+    const res = await accStore.setDefaultAccount(selectedAccount.value.id);
+    toastStore.successResponseToast(res);
+    selectedType.value = null;
+    selectedAccount.value = null;
+    emit("completeOperation");
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+  }
+}
 </script>
 
 <template>
   <div class="flex flex-column gap-3 p-1">
-    <span
-      class="text-sm"
-      style="color: var(--text-secondary)"
-    >Select an account type, and define which account should be the default for it.</span>
-    <span
-      class="text-sm"
-      style="color: var(--text-secondary)"
-    >Only types which do not already have a default account assigned, are shown.</span>
+    <span class="text-sm" style="color: var(--text-secondary)"
+      >Select an account type, and define which account should be the default
+      for it.</span
+    >
+    <span class="text-sm" style="color: var(--text-secondary)"
+      >Only types which do not already have a default account assigned, are
+      shown.</span
+    >
 
     <div class="flex flex-row w-full">
       <div class="flex flex-column gap-1 w-full">
@@ -93,10 +94,7 @@ async function setAsDefault() {
       </div>
     </div>
 
-    <div
-      v-if="selectedType"
-      class="flex flex-row w-full"
-    >
+    <div v-if="selectedType" class="flex flex-row w-full">
       <div class="flex flex-column gap-1 w-full">
         <label>Account</label>
         <Select
@@ -124,6 +122,4 @@ async function setAsDefault() {
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

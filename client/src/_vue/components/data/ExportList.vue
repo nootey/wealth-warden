@@ -1,16 +1,15 @@
 <script setup lang="ts">
-
 import vueHelper from "../../../utils/vue_helper.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
-import type {Column} from "../../../services/filter_registry.ts";
-import {useDataStore} from "../../../services/stores/data_store.ts";
-import {useToastStore} from "../../../services/stores/toast_store.ts";
-import {useSharedStore} from "../../../services/stores/shared_store.ts";
-import {usePermissions} from "../../../utils/use_permissions.ts";
-import {useConfirm} from "primevue/useconfirm";
-import {computed, onMounted, ref} from "vue";
-import type {Export} from "../../../models/dataio_models.ts";
+import type { Column } from "../../../services/filter_registry.ts";
+import { useDataStore } from "../../../services/stores/data_store.ts";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { useSharedStore } from "../../../services/stores/shared_store.ts";
+import { usePermissions } from "../../../utils/use_permissions.ts";
+import { useConfirm } from "primevue/useconfirm";
+import { computed, onMounted, ref } from "vue";
+import type { Export } from "../../../models/dataio_models.ts";
 
 const dataStore = useDataStore();
 const toastStore = useToastStore();
@@ -23,69 +22,72 @@ const exports = ref<Export[]>([]);
 const loading = ref(false);
 
 onMounted(async () => {
-    await getData()
-})
+  await getData();
+});
 
 async function getData() {
-    try {
-        exports.value = await dataStore.getExports();
-    } catch (e) {
-        toastStore.errorResponseToast(e)
-    }
+  try {
+    exports.value = await dataStore.getExports();
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+  }
 }
 
-function refresh() { getData(); }
+function refresh() {
+  getData();
+}
 
 defineExpose({ refresh });
 
 const activeColumns = computed<Column[]>(() => [
-    { field: 'name', header: 'Name'},
-    { field: 'status', header: 'Status'},
-    { field: 'currency', header: 'Currency'},
+  { field: "name", header: "Name" },
+  { field: "status", header: "Status" },
+  { field: "currency", header: "Currency" },
 ]);
 
 async function deleteConfirmation(id: number, name: string) {
-    confirm.require({
-        header: 'Delete record?',
-        message: `This will delete export: ${name}".`,
-        icon: "pi pi-exclamation-triangle",
-        acceptLabel: "Delete",
-        rejectLabel: "Cancel",
-        acceptClass: "p-button-danger",
-        rejectClass: "p-button-text",
-        accept: () => deleteRecord(id),
-    });
+  confirm.require({
+    header: "Delete record?",
+    message: `This will delete export: ${name}".`,
+    icon: "pi pi-exclamation-triangle",
+    acceptLabel: "Delete",
+    rejectLabel: "Cancel",
+    acceptClass: "p-button-danger",
+    rejectClass: "p-button-text",
+    accept: () => deleteRecord(id),
+  });
 }
 
 async function downloadExport(id: number) {
-    try {
-        await dataStore.downloadExport(id);
-        toastStore.successResponseToast({title: "Success", message: `Data exported`});
-        await getData();
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    }
+  try {
+    await dataStore.downloadExport(id);
+    toastStore.successResponseToast({
+      title: "Success",
+      message: `Data exported`,
+    });
+    await getData();
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
 }
 
 async function deleteRecord(id: number) {
+  if (!hasPermission("delete_export")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
 
-    if(!hasPermission("delete_export")) {
-        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
-        return;
-    }
-
-    try {
-        let response = await sharedStore.deleteRecord(
-            "exports",
-            id
-        );
-        toastStore.successResponseToast(response);
-        await getData();
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    }
+  try {
+    let response = await sharedStore.deleteRecord("exports", id);
+    toastStore.successResponseToast(response);
+    await getData();
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
 }
-
 </script>
 
 <template>
@@ -101,9 +103,7 @@ async function deleteRecord(id: number) {
       scroll-direction="both"
     >
       <template #empty>
-        <div style="padding: 10px;">
-          No records found.
-        </div>
+        <div style="padding: 10px">No records found.</div>
       </template>
       <template #loading>
         <LoadingSpinner />
@@ -114,13 +114,13 @@ async function deleteRecord(id: number) {
             <i
               v-if="hasPermission('manage_data')"
               class="pi pi-download hover-icon"
-              style="font-size: 0.875rem;"
+              style="font-size: 0.875rem"
               @click="downloadExport(data?.id)"
             />
             <i
               v-if="hasPermission('manage_data')"
               class="pi pi-trash hover-icon"
-              style="font-size: 0.875rem; color: var(--p-red-300);"
+              style="font-size: 0.875rem; color: var(--p-red-300)"
               @click="deleteConfirmation(data?.id, data?.name)"
             />
           </div>
@@ -136,9 +136,19 @@ async function deleteRecord(id: number) {
       >
         <template #body="{ data }">
           <template v-if="col.field === 'amount'">
-            {{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}
+            {{
+              vueHelper.displayAsCurrency(
+                data.transaction_type == "expense"
+                  ? data.amount * -1
+                  : data.amount,
+              )
+            }}
           </template>
-          <template v-else-if="col.field === 'started_at' || col.field === 'completed_at'">
+          <template
+            v-else-if="
+              col.field === 'started_at' || col.field === 'completed_at'
+            "
+          >
             {{ dateHelper.formatDate(data[col.field], true) }}
           </template>
           <template v-else>
@@ -150,6 +160,4 @@ async function deleteRecord(id: number) {
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

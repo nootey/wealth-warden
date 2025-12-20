@@ -38,3 +38,30 @@ func CalculateNextRun(current time.Time, frequency string) time.Time {
 		return current.AddDate(0, 1, 0) // default to monthly
 	}
 }
+
+func CategorizeTransferDestination(accountType *models.AccountType) (isSavings, isInvestment, isDebt bool) {
+	if accountType == nil {
+		return false, false, false
+	}
+
+	subtype := accountType.Subtype
+	accType := accountType.Type
+	classification := accountType.Classification
+
+	// Savings category
+	if subtype == "savings" || subtype == "health_savings" || subtype == "money_market" {
+		return true, false, false
+	}
+
+	// Investment category
+	if accType == "investment" || accType == "crypto" {
+		return false, true, false
+	}
+
+	// Debt category
+	if classification == "liability" {
+		return false, false, true
+	}
+
+	return false, false, false
+}

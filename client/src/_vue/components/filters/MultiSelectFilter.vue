@@ -1,24 +1,27 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch } from "vue";
 
-const props = withDefaults(defineProps<{
+const props = withDefaults(
+  defineProps<{
     selectedValues?: any[];
     availableValues?: any[];
     optionLabel?: string;
     toUppercase?: boolean;
-}>(), {
+  }>(),
+  {
     selectedValues: () => [],
     availableValues: () => [],
-    optionLabel: '',
+    optionLabel: "",
     toUppercase: false,
-});
+  },
+);
 
 const emit = defineEmits(["getData", "update:selectedValues"]);
 
 const localSelectedValues = ref(props.selectedValues);
 
 watch(localSelectedValues, (newVal) => {
-  emit('update:selectedValues', newVal);
+  emit("update:selectedValues", newVal);
 });
 </script>
 
@@ -31,21 +34,24 @@ watch(localSelectedValues, (newVal) => {
       placeholder="Select filter"
     >
       <template #option="slotProps">
-        {{ optionLabel !== "" ?
-          (toUppercase ? slotProps.option[optionLabel].toUpperCase() : slotProps.option[optionLabel]) :
-          (toUppercase ? slotProps.option.toUpperCase() : slotProps.option)
+        {{
+          optionLabel !== ""
+            ? toUppercase
+              ? slotProps.option[optionLabel].toUpperCase()
+              : slotProps.option[optionLabel]
+            : toUppercase
+              ? slotProps.option.toUpperCase()
+              : slotProps.option
         }}
       </template>
     </MultiSelect>
 
     <Button
       label="Save"
-      style="width: min-content; margin: 0 auto;"
+      style="width: min-content; margin: 0 auto"
       @click="emit('getData')"
     />
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

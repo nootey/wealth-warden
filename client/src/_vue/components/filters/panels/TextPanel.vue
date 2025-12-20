@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const model = defineModel<string | null>();
 defineProps<{ label?: string }>();
-const emit = defineEmits<{ (e: 'commit'): void }>();
+const emit = defineEmits<{ (e: "commit"): void }>();
 </script>
 
 <template>
@@ -10,12 +10,10 @@ const emit = defineEmits<{ (e: 'commit'): void }>();
     <InputText
       v-model="model"
       :placeholder="`Filter by ${label}`"
-      style="border-radius: 8px;"
+      style="border-radius: 8px"
       @keydown.enter.prevent="emit('commit')"
     />
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

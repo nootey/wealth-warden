@@ -4,10 +4,7 @@
 
 <template>
   <div class="auth-background">
-    <Transition
-      appear
-      name="auth-animation"
-    >
+    <Transition appear name="auth-animation">
       <div class="auth-card">
         <div class="auth-content">
           <slot />
@@ -17,16 +14,9 @@
             src="../../../assets/images/logo.png"
             alt="WealthWarden Logo"
             class="auth-logo"
-          >
-          <h1 class="auth-title">
-            WealthWarden
-          </h1>
-          <p
-            id="hideOnMobile"
-            class="auth-subtitle"
-          >
-            Tap. Track. Relax.
-          </p>
+          />
+          <h1 class="auth-title">WealthWarden</h1>
+          <p id="hideOnMobile" class="auth-subtitle">Tap. Track. Relax.</p>
         </div>
       </div>
     </Transition>
@@ -35,7 +25,11 @@
 
 <style scoped>
 .auth-background {
-  background: linear-gradient(135deg, var(--background-primary) 0%, var(--background-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--background-primary) 0%,
+    var(--background-secondary) 100%
+  );
   min-height: 100vh;
   width: 100%;
   display: flex;
@@ -47,14 +41,23 @@
 }
 
 .auth-background::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(circle at 20% 80%, var(--accent-primary) 0%, transparent 50%),
-              radial-gradient(circle at 80% 20%, var(--accent-secondary) 0%, transparent 50%);
+  background:
+    radial-gradient(
+      circle at 20% 80%,
+      var(--accent-primary) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 80% 20%,
+      var(--accent-secondary) 0%,
+      transparent 50%
+    );
   opacity: 0.1;
   z-index: 1;
 }
@@ -85,7 +88,11 @@
 
 .auth-brand {
   flex: 1;
-  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--accent-primary) 0%,
+    var(--accent-secondary) 100%
+  );
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -97,7 +104,7 @@
 }
 
 .auth-brand::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -128,10 +135,9 @@
 }
 
 @media (max-width: 768px) {
-
-   #hideOnMobile {
-     display: none;
-   }
+  #hideOnMobile {
+    display: none;
+  }
 
   .auth-card {
     flex-direction: column;
@@ -139,21 +145,21 @@
     max-width: 400px;
     min-height: auto;
   }
-  
+
   .auth-content {
     padding: 1rem;
   }
-  
+
   .auth-brand {
     padding: 1.5rem 1rem;
     order: -1;
   }
-  
+
   .auth-logo {
     width: 80px;
     margin-bottom: 1rem;
   }
-  
+
   .auth-title {
     font-size: 1.55rem;
   }
@@ -163,11 +169,11 @@
   .auth-background {
     padding: 0.5rem;
   }
-  
+
   .auth-content {
     padding: 1.5rem;
   }
-  
+
   .auth-brand {
     padding: 1.5rem 1rem;
   }

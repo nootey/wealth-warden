@@ -1,53 +1,60 @@
 <script setup lang="ts">
-import {ref} from "vue";
+import { ref } from "vue";
 
 defineProps<{
-    event?: string;
+  event?: string;
 }>();
 
 const properties = ref<any>({
   event: {
-    'login': { icon: 'pi pi-unlock' },
-    'register': { icon: 'pi pi-user-plus' },
-    'create': { icon: 'pi pi-plus' },
-    'update': { icon: 'pi pi-pencil' },
-    'delete': { icon: 'pi pi-trash' },
-    'confirm-email': { icon: 'pi pi-envelope' },
-    'password-reset': { icon: 'pi pi-undo' },
-    'resend': { icon: 'pi pi-sync' },
+    login: { icon: "pi pi-unlock" },
+    register: { icon: "pi pi-user-plus" },
+    create: { icon: "pi pi-plus" },
+    update: { icon: "pi pi-pencil" },
+    delete: { icon: "pi pi-trash" },
+    "confirm-email": { icon: "pi pi-envelope" },
+    "password-reset": { icon: "pi pi-undo" },
+    resend: { icon: "pi pi-sync" },
   },
 });
 
-function getProperty(property: string, type: string, value: string): string|null {
-    if (property && type && value &&
-        Object.prototype.hasOwnProperty.call(properties.value, property) &&
-        Object.prototype.hasOwnProperty.call(properties.value[property], type) &&
-        Object.prototype.hasOwnProperty.call(properties.value[property][type], value)) {
-        return properties.value[property][type][value];
-    } else if (property && type) {
-        return type;
-    }
-    return null;
+function getProperty(
+  property: string,
+  type: string,
+  value: string,
+): string | null {
+  if (
+    property &&
+    type &&
+    value &&
+    Object.prototype.hasOwnProperty.call(properties.value, property) &&
+    Object.prototype.hasOwnProperty.call(properties.value[property], type) &&
+    Object.prototype.hasOwnProperty.call(
+      properties.value[property][type],
+      value,
+    )
+  ) {
+    return properties.value[property][type][value];
+  } else if (property && type) {
+    return type;
+  }
+  return null;
 }
-
 </script>
 
 <template>
-  <div
-    v-if="event"
-    class="flex flex-row align-items-center"
-  >
-    <i
-      v-tooltip="getProperty('event', event, ``)"
-      class="mobile-hide"
-    >
+  <div v-if="event" class="flex flex-row align-items-center">
+    <i v-tooltip="getProperty('event', event, ``)" class="mobile-hide">
       <span
         class="flex flex-row align-items-center justify-items-center text-center custom-marker shadow-2"
-        style="background: var(--background-primary); color: var(--text-primary);"
+        style="
+          background: var(--background-primary);
+          color: var(--text-primary);
+        "
       >
         <span
           :class="getProperty('event', event, 'icon')"
-          style="font-size: 0.875rem;"
+          style="font-size: 0.875rem"
         />
       </span>
     </i>

@@ -17,14 +17,14 @@ import (
 type TransactionRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
 	baseTxQuery(ctx context.Context, db *gorm.DB, userID int64, includeDeleted bool) *gorm.DB
-	baseTransferQuery(ctx context.Context, db *gorm.DB, userID int64, includeDeleted bool) *gorm.DB
+	baseTransferQuery(ctx context.Context, db *gorm.DB, userID int64, includeDeleted bool, accountID *int64) *gorm.DB
 	FindTransactions(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, includeDeleted bool, accountID *int64) ([]models.Transaction, error)
 	FindAllTransactionsForUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Transaction, error)
-	FindTransfers(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, includeDeleted bool) ([]models.Transfer, error)
+	FindTransfers(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, includeDeleted bool, accountID *int64) ([]models.Transfer, error)
 	FindAllTransfersForUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Transfer, error)
 	GetMonthlyTransfersFromChecking(ctx context.Context, tx *gorm.DB, userID int64, checkingAccountIDs []int64, year, month int) ([]models.Transfer, error)
 	CountTransactions(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, includeDeleted bool, accountID *int64) (int64, error)
-	CountTransfers(ctx context.Context, tx *gorm.DB, userID int64, includeDeleted bool) (int64, error)
+	CountTransfers(ctx context.Context, tx *gorm.DB, userID int64, includeDeleted bool, accountID *int64) (int64, error)
 	scopeCategories(ctx context.Context, tx *gorm.DB, userID *int64, includeDeleted bool) *gorm.DB
 	FindAllCategories(ctx context.Context, tx *gorm.DB, userID *int64, includeDeleted bool) ([]models.Category, error)
 	FindAllCustomCategories(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Category, error)
@@ -111,7 +111,7 @@ func (r *TransactionRepository) baseTxQuery(ctx context.Context, db *gorm.DB, us
 	return q
 }
 
-func (r *TransactionRepository) baseTransferQuery(ctx context.Context, db *gorm.DB, userID int64, includeDeleted bool) *gorm.DB {
+func (r *TransactionRepository) baseTransferQuery(ctx context.Context, db *gorm.DB, userID int64, includeDeleted bool, accountID *int64) *gorm.DB {
 	q := db.WithContext(ctx).Model(&models.Transfer{}).
 		Where("transfers.user_id = ?", userID)
 
@@ -128,6 +128,12 @@ func (r *TransactionRepository) baseTransferQuery(ctx context.Context, db *gorm.
 		`)
 	}
 
+	if accountID != nil {
+		q = q.
+			Joins("JOIN transactions AS transaction_inflow ON transfers.transaction_inflow_id = transaction_inflow.id").
+			Joins("JOIN transactions AS transaction_outflow ON transfers.transaction_outflow_id = transaction_outflow.id").
+			Where("transaction_inflow.account_id = ? OR transaction_outflow.account_id = ?", *accountID, *accountID)
+	}
 	return q
 }
 
@@ -192,7 +198,7 @@ func (r *TransactionRepository) FindAllTransactionsForUser(ctx context.Context, 
 	return records, nil
 }
 
-func (r *TransactionRepository) FindTransfers(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, includeDeleted bool) ([]models.Transfer, error) {
+func (r *TransactionRepository) FindTransfers(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, includeDeleted bool, accountID *int64) ([]models.Transfer, error) {
 
 	db := tx
 	if db == nil {
@@ -201,7 +207,7 @@ func (r *TransactionRepository) FindTransfers(ctx context.Context, tx *gorm.DB, 
 	db = db.WithContext(ctx)
 
 	var records []models.Transfer
-	q := r.baseTransferQuery(ctx, db, userID, includeDeleted)
+	q := r.baseTransferQuery(ctx, db, userID, includeDeleted, accountID)
 
 	if !includeDeleted {
 		q = q.
@@ -237,7 +243,7 @@ func (r *TransactionRepository) FindAllTransfersForUser(ctx context.Context, tx 
 
 	var records []models.Transfer
 
-	q := r.baseTransferQuery(ctx, db, userID, false).
+	q := r.baseTransferQuery(ctx, db, userID, false, nil).
 		Preload("TransactionInflow.Account.AccountType")
 
 	err := q.
@@ -256,7 +262,7 @@ func (r *TransactionRepository) GetMonthlyTransfersFromChecking(ctx context.Cont
 	start := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
 	end := start.AddDate(0, 1, 0)
 
-	q := r.baseTransferQuery(ctx, tx, userID, false).
+	q := r.baseTransferQuery(ctx, tx, userID, false, nil).
 		Preload("TransactionOutflow.Account.AccountType").
 		Preload("TransactionInflow.Account.AccountType")
 
@@ -264,7 +270,7 @@ func (r *TransactionRepository) GetMonthlyTransfersFromChecking(ctx context.Cont
 
 	err := q.
 		Where("tx_out.account_id IN ?", checkingAccountIDs).
-		Where("transfers.created_at >= ? AND transfers.created_at < ?", start, end).
+		Where("tx_out.txn_date >= ? AND tx_out.txn_date < ?", start, end).
 		Find(&transfers).Error
 
 	return transfers, err
@@ -297,7 +303,7 @@ func (r *TransactionRepository) CountTransactions(ctx context.Context, tx *gorm.
 	return totalRecords, nil
 }
 
-func (r *TransactionRepository) CountTransfers(ctx context.Context, tx *gorm.DB, userID int64, includeDeleted bool) (int64, error) {
+func (r *TransactionRepository) CountTransfers(ctx context.Context, tx *gorm.DB, userID int64, includeDeleted bool, accountID *int64) (int64, error) {
 
 	db := tx
 	if db == nil {
@@ -306,7 +312,7 @@ func (r *TransactionRepository) CountTransfers(ctx context.Context, tx *gorm.DB,
 	db = db.WithContext(ctx)
 
 	var totalRecords int64
-	q := r.baseTransferQuery(ctx, db, userID, includeDeleted)
+	q := r.baseTransferQuery(ctx, db, userID, includeDeleted, accountID)
 
 	if err := q.Count(&totalRecords).Error; err != nil {
 		return 0, err

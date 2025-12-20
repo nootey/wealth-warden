@@ -3,13 +3,14 @@
 ### Dockerfile
 
 The app uses a Dockerfile, which is provided in `./build/Dockerfile`
+
 - It's still a work in progress
 
 ### Docker compose
 
 The app can be fully served with `docker-compose`.
-- It is located in `./deployments/docker`
 
+- It is located in `./deployments/docker`
 
 ### Deployment
 

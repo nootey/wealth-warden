@@ -1,6 +1,4 @@
-<script setup lang="ts">
-
-</script>
+<script setup lang="ts"></script>
 
 <template>
   <span class="loader" />
@@ -34,9 +32,15 @@
 }
 
 @keyframes rotate {
-  0% { transform: rotate(0deg) scale(0.8) }
-  50% { transform: rotate(360deg) scale(1.2) }
-  100% { transform: rotate(720deg) scale(0.8) }
+  0% {
+    transform: rotate(0deg) scale(0.8);
+  }
+  50% {
+    transform: rotate(360deg) scale(1.2);
+  }
+  100% {
+    transform: rotate(720deg) scale(0.8);
+  }
 }
 
 @keyframes ball1 {
@@ -68,5 +72,4 @@
     margin-top: 0;
   }
 }
-
 </style>

@@ -1,11 +1,10 @@
 <script setup lang="ts">
-
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
 import ImportList from "../../components/data/ImportList.vue";
-import {ref} from "vue";
-import {usePermissions} from "../../../utils/use_permissions.ts";
-import {useToastStore} from "../../../services/stores/toast_store.ts";
-import ExportModule from "../../features/ExportModule.vue";
+import { ref } from "vue";
+import { usePermissions } from "../../../utils/use_permissions.ts";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
+import ExportModule from "../../features/imports/ExportModule.vue";
 import ExportList from "../../components/data/ExportList.vue";
 import ImportModule from "../../components/data/ImportModule.vue";
 
@@ -21,64 +20,65 @@ const addExportModal = ref(false);
 const transferModal = ref(false);
 
 function refreshData(module: string) {
-    switch(module) {
-        case "import": {
-            importListRef.value?.refresh();
-            addImportModal.value = false;
-            transferModal.value = false;
-            break;
-        }
-        case "export": {
-            addExportModal.value = false;
-            exportListRef.value?.refresh();
-            break;
-        }
-        default: {
-            break;
-        }
+  switch (module) {
+    case "import": {
+      importListRef.value?.refresh();
+      addImportModal.value = false;
+      transferModal.value = false;
+      break;
     }
-
+    case "export": {
+      addExportModal.value = false;
+      exportListRef.value?.refresh();
+      break;
+    }
+    default: {
+      break;
+    }
+  }
 }
 
 function manipulateDialog(modal: string, value: any) {
-    switch (modal) {
-        case 'addImport': {
-            if(!hasPermission("manage_data")) {
-                toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
-                return;
-            }
-            addImportModal.value = value;
-            break;
-        }
-        case 'addExport': {
-            if(!hasPermission("manage_data")) {
-                toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
-                return;
-            }
-            addExportModal.value = value;
-            break;
-        }
-        default: {
-            break;
-        }
+  switch (modal) {
+    case "addImport": {
+      if (!hasPermission("manage_data")) {
+        toastStore.createInfoToast(
+          "Access denied",
+          "You don't have permission to perform this action.",
+        );
+        return;
+      }
+      addImportModal.value = value;
+      break;
     }
+    case "addExport": {
+      if (!hasPermission("manage_data")) {
+        toastStore.createInfoToast(
+          "Access denied",
+          "You don't have permission to perform this action.",
+        );
+        return;
+      }
+      addExportModal.value = value;
+      break;
+    }
+    default: {
+      break;
+    }
+  }
 }
-
 </script>
 
 <template>
   <Dialog
     v-model:visible="addImportModal"
     class="rounded-dialog"
-    :breakpoints="{'751px': '90vw'}"
+    :breakpoints="{ '751px': '90vw' }"
     :modal="true"
-    :style="{width: '750px'}"
+    :style="{ width: '750px' }"
     header="New Import"
   >
-    <ImportModule
-      ref="importModuleRef"
-      @refresh-data="(e) => refreshData(e)"
-    />
+    <ImportModule ref="importModuleRef" @refresh-data="(e) => refreshData(e)" />
     <template #footer>
       <Button
         label="Start"
@@ -92,9 +92,9 @@ function manipulateDialog(modal: string, value: any) {
   <Dialog
     v-model:visible="addExportModal"
     class="rounded-dialog"
-    :breakpoints="{'501px': '90vw'}"
+    :breakpoints="{ '501px': '90vw' }"
     :modal="true"
-    :style="{width: '500px'}"
+    :style="{ width: '500px' }"
     header="New Export"
   >
     <ExportModule @complete-export="refreshData('export')" />
@@ -132,9 +132,7 @@ function manipulateDialog(modal: string, value: any) {
         <div class="flex flex-row align-items-center gap-2 w-full">
           <div class="w-full flex flex-column gap-2">
             <h3>Data Export</h3>
-            <h5 style="color: var(--text-secondary)">
-              Export your data.
-            </h5>
+            <h5 style="color: var(--text-secondary)">Export your data.</h5>
           </div>
           <Button
             class="main-button"
@@ -155,6 +153,4 @@ function manipulateDialog(modal: string, value: any) {
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import {computed, ref} from "vue";
+import { computed, ref } from "vue";
 
-const loading = ref(false)
+const loading = ref(false);
 
-const dateRange = ref([setMinTime(new Date), setMaxTime(new Date)]);
-const timeRange = ref([setMinTime(new Date), setMaxTime(new Date)]);
+const dateRange = ref([setMinTime(new Date()), setMaxTime(new Date())]);
+const timeRange = ref([setMinTime(new Date()), setMaxTime(new Date())]);
 
 const datetimeRange = computed(() => {
   let start = new Date(dateRange.value[0].getTime());
   start.setHours(timeRange.value[0].getHours());
   start.setMinutes(timeRange.value[0].getMinutes());
 
-  let end = dateRange.value[1] !== null ? new Date(dateRange.value[1].getTime()) : new Date(dateRange.value[0].getTime());
+  let end =
+    dateRange.value[1] !== null
+      ? new Date(dateRange.value[1].getTime())
+      : new Date(dateRange.value[0].getTime());
   end.setHours(timeRange.value[1].getHours());
   end.setMinutes(timeRange.value[1].getMinutes());
 
@@ -25,7 +28,7 @@ function dateHide() {
 }
 
 function thisWeek() {
-  let today = new Date;
+  let today = new Date();
   let lastDay = new Date(today);
   let firstDay = new Date(today.setDate(today.getDate() - today.getDay() + 1));
 
@@ -34,17 +37,21 @@ function thisWeek() {
 }
 
 function lastWeek() {
-  let today = new Date;
+  let today = new Date();
   let lastDay = new Date(today.setDate(today.getDate() - today.getDay()));
-  let firstDay = new Date(today.setDate(lastDay.getDate() - lastDay.getDay() - 6));
+  let firstDay = new Date(
+    today.setDate(lastDay.getDate() - lastDay.getDay() - 6),
+  );
   dateRange.value = [setMinTime(firstDay), setMaxTime(lastDay)];
   timeRange.value = [setMinTime(firstDay), setMaxTime(lastDay)];
 }
 
 function lastTwoWeeks() {
-  let today = new Date;
+  let today = new Date();
   let lastDay = new Date(today.setDate(today.getDate() - today.getDay()));
-  let firstDay = new Date(today.setDate(lastDay.getDate() - lastDay.getDay() - 13));
+  let firstDay = new Date(
+    today.setDate(lastDay.getDate() - lastDay.getDay() - 13),
+  );
   dateRange.value = [setMinTime(firstDay), setMaxTime(lastDay)];
   timeRange.value = [setMinTime(firstDay), setMaxTime(lastDay)];
 }
@@ -60,7 +67,11 @@ function thisMonth() {
 function lastTwoMonths() {
   let today = new Date();
   let endDate = new Date();
-  let startDate = new Date(today.getFullYear(), today.getMonth() - 2, today.getDate());
+  let startDate = new Date(
+    today.getFullYear(),
+    today.getMonth() - 2,
+    today.getDate(),
+  );
 
   dateRange.value = [setMinTime(startDate), setMaxTime(endDate)];
   timeRange.value = [setMinTime(startDate), setMaxTime(endDate)];
@@ -86,15 +97,15 @@ defineExpose({
   lastWeek,
   lastTwoWeeks,
   thisMonth,
-  lastTwoMonths
-})
+  lastTwoMonths,
+});
 </script>
 
 <template>
   <DatePicker
     v-model="dateRange"
     :disabled="loading"
-    :input-style="{'text-align':'center', 'cursor':'pointer'}"
+    :input-style="{ 'text-align': 'center', cursor: 'pointer' }"
     :manual-input="false"
     date-format="dd/mm/yy"
     selection-mode="range"
@@ -106,21 +117,9 @@ defineExpose({
   >
     <template #footer>
       <div class="flex justify-content-around w-full">
-        <Button
-          size="small"
-          label="This week"
-          @click="thisWeek"
-        />
-        <Button
-          size="small"
-          label="Last 2 weeks"
-          @click="lastTwoWeeks"
-        />
-        <Button
-          size="small"
-          label="This month"
-          @click="thisMonth"
-        />
+        <Button size="small" label="This week" @click="thisWeek" />
+        <Button size="small" label="Last 2 weeks" @click="lastTwoWeeks" />
+        <Button size="small" label="This month" @click="thisMonth" />
       </div>
     </template>
   </DatePicker>

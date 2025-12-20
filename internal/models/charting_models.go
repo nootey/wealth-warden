@@ -62,13 +62,34 @@ type MultiYearCategoryUsageResponse struct {
 }
 
 type MultiYearYCategoryStats struct {
-	YearStats    map[int]YearStat `json:"year_stats"`
-	AllTimeTotal decimal.Decimal  `json:"all_time_total"`
-	AllTimeAvg   decimal.Decimal  `json:"all_time_avg"`
+	YearStats     map[int]YearStat `json:"year_stats"`
+	AllTimeTotal  decimal.Decimal  `json:"all_time_total"`
+	AllTimeAvg    decimal.Decimal  `json:"all_time_avg"`
+	AllTimeMonths int              `json:"all_time_months"`
 }
 
 type YearStat struct {
 	Total          decimal.Decimal `json:"total"`
 	MonthlyAvg     decimal.Decimal `json:"monthly_avg"`
 	MonthsWithData int             `json:"months_with_data"`
+}
+
+type YearlyCashflowBreakdown struct {
+	Year   int              `json:"year"`
+	Months []MonthBreakdown `json:"months"`
+}
+
+type MonthBreakdown struct {
+	Month      int             `json:"month"`
+	Categories MonthCategories `json:"categories"`
+}
+
+type MonthCategories struct {
+	Inflows        decimal.Decimal `json:"inflows"`
+	Outflows       decimal.Decimal `json:"outflows"`
+	Investments    decimal.Decimal `json:"investments"`
+	Savings        decimal.Decimal `json:"savings"`
+	DebtRepayments decimal.Decimal `json:"debt_repayments"`
+	TakeHome       decimal.Decimal `json:"take_home"`
+	Overflow       decimal.Decimal `json:"overflow"`
 }

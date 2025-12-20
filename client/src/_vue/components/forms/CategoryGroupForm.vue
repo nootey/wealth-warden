@@ -1,25 +1,28 @@
 <script setup lang="ts">
-import {useSharedStore} from "../../../services/stores/shared_store.ts";
-import {useToastStore} from "../../../services/stores/toast_store.ts";
-import {computed, nextTick, onMounted, ref, watch} from "vue";
-import type {Category, CategoryGroup} from "../../../models/transaction_models.ts";
-import {required} from "@vuelidate/validators";
+import { useSharedStore } from "../../../services/stores/shared_store.ts";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
+import type {
+  Category,
+  CategoryGroup,
+} from "../../../models/transaction_models.ts";
+import { required } from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
-import {usePermissions} from "../../../utils/use_permissions.ts";
+import { usePermissions } from "../../../utils/use_permissions.ts";
 
 const props = defineProps<{
-    mode?: "create" | "update";
-    recordId?: number | null;
-    categories: Category[];
+  mode?: "create" | "update";
+  recordId?: number | null;
+  categories: Category[];
 }>();
 
 const emit = defineEmits<{
-    (event: 'completeOperation'): void;
+  (event: "completeOperation"): void;
 }>();
 
-const apiPrefix = "transactions/categories/groups"
+const apiPrefix = "transactions/categories/groups";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -27,152 +30,154 @@ const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
 
 onMounted(async () => {
-    if (props.mode === "update" && props.recordId) {
-        await loadRecord(props.recordId);
-    }
+  if (props.mode === "update" && props.recordId) {
+    await loadRecord(props.recordId);
+  }
 });
 
 const loading = ref(false);
 
 const parentCategories = computed(() => {
-    return props.categories.filter(c =>
-        c.display_name === "Expense" || c.display_name === "Income"
-    )
+  return props.categories.filter(
+    (c) => c.display_name === "Expense" || c.display_name === "Income",
+  );
 });
 
 const selectedParentCategory = computed<Category | null>(() => {
-    const classification = record.value.classification || "income";
-    return parentCategories.value.find(cat => cat.name === classification.toLowerCase()) || null;
+  const classification = record.value.classification || "income";
+  return (
+    parentCategories.value.find(
+      (cat) => cat.name === classification.toLowerCase(),
+    ) || null
+  );
 });
 
 const availableCategories = computed<Category[]>(() => {
-    return props.categories.filter(
-        (category) => category.parent_id === selectedParentCategory.value?.id
-    );
+  return props.categories.filter(
+    (category) => category.parent_id === selectedParentCategory.value?.id,
+  );
 });
 
 const selectedCategories = ref<Category[]>([]);
 const record = ref<CategoryGroup>(initData());
 
-const classifications = ref<string[]>(['income', 'expense']);
+const classifications = ref<string[]>(["income", "expense"]);
 const filteredClassifications = ref<string[]>([]);
 
 const rules = {
-    record: {
-        name: { required, $autoDirty: true },
-        classification: { required, $autoDirty: true },
-        description: { $autoDirty: true },
-    },
+  record: {
+    name: { required, $autoDirty: true },
+    classification: { required, $autoDirty: true },
+    description: { $autoDirty: true },
+  },
 };
 
 const v$ = useVuelidate(rules, { record });
 
-watch(() => record.value.classification, () => {
+watch(
+  () => record.value.classification,
+  () => {
     if (!loading.value) {
-        selectedCategories.value = [];
+      selectedCategories.value = [];
     }
-});
+  },
+);
 
 function initData(): CategoryGroup {
-
-    return {
-        name: "",
-        classification: "income",
-        description: null,
-    };
+  return {
+    name: "",
+    classification: "income",
+    description: null,
+  };
 }
 
 async function loadRecord(id: number) {
-    try {
-        loading.value = true;
-        const data = await sharedStore.getRecordByID(apiPrefix, id, { deleted: true});
+  try {
+    loading.value = true;
+    const data = await sharedStore.getRecordByID(apiPrefix, id, {
+      deleted: true,
+    });
 
-        record.value = {
-            ...initData(),
-            ...data,
-        };
+    record.value = {
+      ...initData(),
+      ...data,
+    };
 
-        if (data.categories && Array.isArray(data.categories)) {
-            selectedCategories.value = data.categories.map((cat: any) =>
-                props.categories.find(c => c.id === cat.id)
-            ).filter(Boolean) as Category[];
-        }
-
-        await nextTick();
-        loading.value = false;
-
-    } catch (err) {
-        toastStore.errorResponseToast(err);
+    if (data.categories && Array.isArray(data.categories)) {
+      selectedCategories.value = data.categories
+        .map((cat: any) => props.categories.find((c) => c.id === cat.id))
+        .filter(Boolean) as Category[];
     }
+
+    await nextTick();
+    loading.value = false;
+  } catch (err) {
+    toastStore.errorResponseToast(err);
+  }
 }
 
 async function isRecordValid() {
-    const isValid = await v$.value.record.$validate();
-    if (!isValid) return false;
-    return true;
+  const isValid = await v$.value.record.$validate();
+  if (!isValid) return false;
+  return true;
 }
 
 async function manageRecord() {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
 
-    if(!hasPermission("manage_data")) {
-        toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
-        return;
+  if (!(await isRecordValid())) return;
+
+  const recordData: any = {
+    name: record.value.name,
+    classification: record.value.classification,
+    description: record.value.description,
+    selected_categories: selectedCategories.value.map((cat) => cat.id),
+  };
+
+  try {
+    let response = null;
+
+    switch (props.mode) {
+      case "create":
+        response = await sharedStore.createRecord(apiPrefix, recordData);
+        break;
+      case "update":
+        response = await sharedStore.updateRecord(
+          apiPrefix,
+          record.value.id!,
+          recordData,
+        );
+        break;
+      default:
+        emit("completeOperation");
+        break;
     }
 
-    if (!await isRecordValid()) return;
-
-    const recordData: any = {
-        name: record.value.name,
-        classification: record.value.classification,
-        description: record.value.description,
-        selected_categories: selectedCategories.value.map(cat => cat.id)
-    }
-
-    try {
-
-        let response = null;
-
-        switch (props.mode) {
-            case "create":
-                response = await sharedStore.createRecord(
-                    apiPrefix,
-                    recordData
-                );
-                break;
-            case "update":
-                response = await sharedStore.updateRecord(
-                    apiPrefix,
-                    record.value.id!,
-                    recordData
-                );
-                break;
-            default:
-                emit("completeOperation")
-                break;
-        }
-
-        v$.value.record.$reset();
-        toastStore.successResponseToast(response);
-        emit("completeOperation")
-
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    }
+    v$.value.record.$reset();
+    toastStore.successResponseToast(response);
+    emit("completeOperation");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
 }
 
 const searchClassifications = (event: { query: string }) => {
-    const q = event.query.trim().toLowerCase();
-    const all = classifications.value;
-    filteredClassifications.value = !q ? [...all] : all.filter(t => t.toLowerCase().startsWith(q));
+  const q = event.query.trim().toLowerCase();
+  const all = classifications.value;
+  filteredClassifications.value = !q
+    ? [...all]
+    : all.filter((t) => t.toLowerCase().startsWith(q));
 };
-
 </script>
 
 <template>
-  <div
-    v-if="!loading"
-    class="flex flex-column gap-3 p-1"
-  >
+  <div v-if="!loading" class="flex flex-column gap-3 p-1">
     <div class="flex flex-column gap-3 p-1">
       <div class="flex flex-row w-full">
         <div class="flex flex-column w-full gap-1">
@@ -182,10 +187,7 @@ const searchClassifications = (event: { query: string }) => {
           >
             <label>Name</label>
           </ValidationError>
-          <InputText
-            v-model="record.name"
-            size="small"
-          />
+          <InputText v-model="record.name" size="small" />
         </div>
       </div>
 
@@ -197,10 +199,7 @@ const searchClassifications = (event: { query: string }) => {
           >
             <label>Description</label>
           </ValidationError>
-          <InputText
-            v-model="record.description"
-            size="small"
-          />
+          <InputText v-model="record.description" size="small" />
         </div>
       </div>
 
@@ -242,18 +241,13 @@ const searchClassifications = (event: { query: string }) => {
         <Button
           class="main-button"
           :label="(mode == 'create' ? 'Add' : 'Update') + ' group'"
-          style="height: 42px;"
+          style="height: 42px"
           @click="manageRecord"
         />
       </div>
     </div>
   </div>
-  <ShowLoading
-    v-else
-    :num-fields="4"
-  />
+  <ShowLoading v-else :num-fields="4" />
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import {useSharedStore} from "../../services/stores/shared_store.ts";
-import {useToastStore} from "../../services/stores/toast_store.ts";
-import {computed, onMounted, provide, ref} from "vue";
-import {useUserStore} from "../../services/stores/user_store.ts";
-import type {Role, User} from "../../models/user_models.ts";
+import { useSharedStore } from "../../services/stores/shared_store.ts";
+import { useToastStore } from "../../services/stores/toast_store.ts";
+import { computed, onMounted, provide, ref } from "vue";
+import { useUserStore } from "../../services/stores/user_store.ts";
+import type { Role, User } from "../../models/user_models.ts";
 import filterHelper from "../../utils/filter_helper.ts";
-import type {Column} from "../../services/filter_registry.ts";
-import type {FilterObj} from "../../models/shared_models.ts";
+import type { Column } from "../../services/filter_registry.ts";
+import type { FilterObj } from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import ActionRow from "../components/layout/ActionRow.vue";
@@ -16,8 +16,8 @@ import ColumnHeader from "../components/base/ColumnHeader.vue";
 import CustomPaginator from "../components/base/CustomPaginator.vue";
 import UserForm from "../components/forms/UserForm.vue";
 import InvitationsPaginated from "../components/data/InvitationsPaginated.vue";
-import {useRouter} from "vue-router";
-import {usePermissions} from "../../utils/use_permissions.ts";
+import { useRouter } from "vue-router";
+import { usePermissions } from "../../utils/use_permissions.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -25,8 +25,8 @@ const userStore = useUserStore();
 const { hasPermission } = usePermissions();
 
 onMounted(async () => {
-    await userStore.getRoles();
-})
+  await userStore.getRoles();
+});
 
 const router = useRouter();
 const apiPrefix = userStore.apiPrefix;
@@ -40,175 +40,182 @@ const records = ref<User[]>([]);
 const roles = computed<Role[]>(() => userStore.roles);
 
 const params = computed(() => {
-    return {
-        rowsPerPage: paginator.value.rowsPerPage,
-        sort: sort.value,
-        filters: filters.value,
-    }
+  return {
+    rowsPerPage: paginator.value.rowsPerPage,
+    sort: sort.value,
+    filters: filters.value,
+  };
 });
 
 const rows = ref([10, 25, 50, 100]);
 const default_rows = ref(rows.value[0]);
 const paginator = ref({
-    total: 0,
-    from: 0,
-    to: 0,
-    rowsPerPage: default_rows.value
+  total: 0,
+  from: 0,
+  to: 0,
+  rowsPerPage: default_rows.value,
 });
 const page = ref(1);
 const sort = ref(filterHelper.initSort());
-const filterStorageIndex = ref(apiPrefix+"-filters");
-const filters = ref(JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "[]"));
+const filterStorageIndex = ref(apiPrefix + "-filters");
+const filters = ref(
+  JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "[]"),
+);
 const filterOverlayRef = ref<any>(null);
 
 const activeColumns = computed<Column[]>(() => [
-    { field: 'display_name', header: 'Name', type: 'text'},
-    { field: 'email', header: 'Email', type: 'text'},
-    { field: 'role', header: 'Role', type: 'enum', options: roles.value, optionLabel: 'name'},
-    { field: 'email_confirmed', header: 'Verified', type: "date" },
+  { field: "display_name", header: "Name", type: "text" },
+  { field: "email", header: "Email", type: "text" },
+  {
+    field: "role",
+    header: "Role",
+    type: "enum",
+    options: roles.value,
+    optionLabel: "name",
+  },
+  { field: "email_confirmed", header: "Verified", type: "date" },
 ]);
 
 const invRef = ref<InstanceType<typeof InvitationsPaginated> | null>(null);
 
 onMounted(async () => {
-    await init();
+  await init();
 });
 
 async function init() {
-    await getData();
+  await getData();
 }
 
-async function getData(new_page: number|null = null) {
+async function getData(new_page: number | null = null) {
+  loading.value = true;
+  if (new_page) page.value = new_page;
 
-    loading.value = true;
-    if(new_page)
-        page.value = new_page;
+  try {
+    let payload = {
+      ...params.value,
+    };
 
-    try {
+    let paginationResponse = await sharedStore.getRecordsPaginated(
+      apiPrefix,
+      payload,
+      page.value,
+    );
 
-        let payload = {
-            ...params.value,
-        };
-
-        let paginationResponse = await sharedStore.getRecordsPaginated(
-            apiPrefix,
-            payload,
-            page.value
-        );
-
-        records.value = paginationResponse.data;
-        paginator.value.total = paginationResponse.total_records;
-        paginator.value.to = paginationResponse.to;
-        paginator.value.from = paginationResponse.from;
-        loading.value = false;
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    }
+    records.value = paginationResponse.data;
+    paginator.value.total = paginationResponse.total_records;
+    paginator.value.to = paginationResponse.to;
+    paginator.value.from = paginationResponse.from;
+    loading.value = false;
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
 }
 
 function manipulateDialog(modal: string, value: any) {
-    switch (modal) {
-        case 'inviteUser': {
-            createModal.value = value;
-            break;
-        }
-        case 'updateUser': {
-            updateModal.value = true;
-            updateUserID.value = value;
-            break;
-        }
-        default: {
-            break;
-        }
+  switch (modal) {
+    case "inviteUser": {
+      createModal.value = value;
+      break;
     }
+    case "updateUser": {
+      updateModal.value = true;
+      updateUserID.value = value;
+      break;
+    }
+    default: {
+      break;
+    }
+  }
 }
 
 async function handleEmit(emitType: any) {
-    switch (emitType) {
-        case 'completeOperation': {
-            createModal.value = false;
-            updateModal.value = false;
-            await getData();
-            invRef.value?.refresh();
-            break;
-        }
-        case 'deleteUser': {
-            createModal.value = false;
-            updateModal.value = false;
-            await getData();
-            break;
-        }
-        default: {
-            break;
-        }
+  switch (emitType) {
+    case "completeOperation": {
+      createModal.value = false;
+      updateModal.value = false;
+      await getData();
+      invRef.value?.refresh();
+      break;
     }
+    case "deleteUser": {
+      createModal.value = false;
+      updateModal.value = false;
+      await getData();
+      break;
+    }
+    default: {
+      break;
+    }
+  }
 }
 
 async function onPage(event: any) {
-    paginator.value.rowsPerPage = event.rows;
-    page.value = (event.page+1)
-    await getData();
+  paginator.value.rowsPerPage = event.rows;
+  page.value = event.page + 1;
+  await getData();
 }
 
-function applyFilters(list: FilterObj[]){
-    filters.value = filterHelper.mergeFilters(filters.value, list);
-    localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
-    getData();
-    filterOverlayRef.value.hide();
+function applyFilters(list: FilterObj[]) {
+  filters.value = filterHelper.mergeFilters(filters.value, list);
+  localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
+  getData();
+  filterOverlayRef.value.hide();
 }
 
-function clearFilters(){
-    filters.value = [];
-    localStorage.removeItem(filterStorageIndex.value);
-    cancelFilters();
-    getData();
+function clearFilters() {
+  filters.value = [];
+  localStorage.removeItem(filterStorageIndex.value);
+  cancelFilters();
+  getData();
 }
 
-function cancelFilters(){
-    filterOverlayRef.value.hide();
+function cancelFilters() {
+  filterOverlayRef.value.hide();
 }
 
 function removeFilter(index: number) {
-    if (index < 0 || index >= filters.value.length) return;
+  if (index < 0 || index >= filters.value.length) return;
 
-    const next = filters.value.slice();
-    next.splice(index, 1);
-    filters.value = next;
+  const next = filters.value.slice();
+  next.splice(index, 1);
+  filters.value = next;
 
-    if (filters.value.length > 0) {
-        localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
-    } else {
-        localStorage.removeItem(filterStorageIndex.value);
-    }
+  if (filters.value.length > 0) {
+    localStorage.setItem(
+      filterStorageIndex.value,
+      JSON.stringify(filters.value),
+    );
+  } else {
+    localStorage.removeItem(filterStorageIndex.value);
+  }
 
-    getData();
+  getData();
 }
 
-function switchSort(column:string) {
-    if (sort.value.field === column) {
-        sort.value.order = filterHelper.toggleSort(sort.value.order);
-    } else {
-        sort.value.order = 1;
-    }
-    sort.value.field = column;
-    getData();
+function switchSort(column: string) {
+  if (sort.value.field === column) {
+    sort.value.order = filterHelper.toggleSort(sort.value.order);
+  } else {
+    sort.value.order = 1;
+  }
+  sort.value.field = column;
+  getData();
 }
 
 function toggleFilterOverlay(event: any) {
-    filterOverlayRef.value.toggle(event);
+  filterOverlayRef.value.toggle(event);
 }
 
 provide("switchSort", switchSort);
 provide("removeFilter", removeFilter);
-
 </script>
 
 <template>
   <Popover
     ref="filterOverlayRef"
     class="rounded-popover"
-    :style="{width: '420px'}"
-    :breakpoints="{'775px': '90vw'}"
+    :style="{ width: '420px' }"
+    :breakpoints="{ '775px': '90vw' }"
   >
     <FilterMenu
       v-model:value="filters"
@@ -223,9 +230,9 @@ provide("removeFilter", removeFilter);
   <Dialog
     v-model:visible="createModal"
     class="rounded-dialog"
-    :breakpoints="{'501px': '90vw'}"
+    :breakpoints="{ '501px': '90vw' }"
     :modal="true"
-    :style="{width: '500px'}"
+    :style="{ width: '500px' }"
     header="Invite user"
   >
     <UserForm
@@ -239,9 +246,9 @@ provide("removeFilter", removeFilter);
     v-model:visible="updateModal"
     position="right"
     class="rounded-dialog"
-    :breakpoints="{'501px': '90vw'}"
+    :breakpoints="{ '501px': '90vw' }"
     :modal="true"
-    :style="{width: '500px'}"
+    :style="{ width: '500px' }"
     header="User details"
   >
     <UserForm
@@ -257,12 +264,15 @@ provide("removeFilter", removeFilter);
     <div
       id="mobile-container"
       class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
-      style="border: 1px solid var(--border-color); background: var(--background-secondary);"
+      style="
+        border: 1px solid var(--border-color);
+        background: var(--background-secondary);
+      "
     >
-      <div class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full">
-        <div style="font-weight: bold;">
-          Users
-        </div>
+      <div
+        class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
+      >
+        <div style="font-weight: bold">Users</div>
 
         <i
           v-if="hasPermission('manage_roles')"
@@ -284,7 +294,10 @@ provide("removeFilter", removeFilter);
 
       <div
         class="flex flex-row justify-content-between align-items-center p-1 gap-3 w-full border-round-md"
-        style="border: 1px solid var(--border-color);background: var(--background-secondary);"
+        style="
+          border: 1px solid var(--border-color);
+          background: var(--background-secondary);
+        "
       >
         <ActionRow>
           <template #activeFilters>
@@ -297,23 +310,21 @@ provide("removeFilter", removeFilter);
           <template #filterButton>
             <div
               class="hover-icon flex flex-row align-items-center gap-2"
-              style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color)"
+              style="
+                padding: 0.5rem 1rem;
+                border-radius: 8px;
+                border: 1px solid var(--border-color);
+              "
               @click="toggleFilterOverlay($event)"
             >
-              <i
-                class="pi pi-filter"
-                style="font-size: 0.845rem"
-              />
+              <i class="pi pi-filter" style="font-size: 0.845rem" />
               <div>Filter</div>
             </div>
           </template>
         </ActionRow>
       </div>
 
-      <div
-        id="mobile-row"
-        class="flex flex-row gap-2 w-full"
-      >
+      <div id="mobile-row" class="flex flex-row gap-2 w-full">
         <DataTable
           class="w-full enhanced-table"
           data-key="id"
@@ -325,9 +336,7 @@ provide("removeFilter", removeFilter);
           column-resize-mode="fit"
         >
           <template #empty>
-            <div style="padding: 10px;">
-              No records found.
-            </div>
+            <div style="padding: 10px">No records found.</div>
           </template>
           <template #loading>
             <LoadingSpinner />
@@ -385,6 +394,4 @@ provide("removeFilter", removeFilter);
   </main>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

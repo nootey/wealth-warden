@@ -1,4 +1,4 @@
-.p-button.main-button{
+.p-button.main-button {
   background-color: var(--text-primary);
   color: var(--background-primary);
   border: none;
@@ -7,7 +7,7 @@
   padding: 0.5rem 1rem;
 }
 
-.p-button.outline-button{
+.p-button.outline-button {
   background-color: transparent;
   color: var(--text-primary);
   border: 1px solid var(--text-primary);
@@ -16,8 +16,8 @@
   padding: 0.5rem 1rem;
 }
 
-.p-button.delete-button{
-  background-color: #EF5350;
+.p-button.delete-button {
+  background-color: #ef5350;
   color: white;
   border: none;
   border-radius: 10px;
@@ -44,7 +44,7 @@ button.p-button.outline-button:hover {
 }
 
 button.p-button.delete-button:hover {
-  background-color: #E57373;
+  background-color: #e57373;
   color: white;
   border: none;
   border-radius: 10px;
@@ -58,7 +58,12 @@ button.p-button.accent-button:hover {
 }
 
 .p-button.auth-accent-button {
-  background-image: linear-gradient(to right, var(--accent-primary) 0%, var(--accent-secondary)  51%, var(--accent-primary)  100%)
+  background-image: linear-gradient(
+    to right,
+    var(--accent-primary) 0%,
+    var(--accent-secondary) 51%,
+    var(--accent-primary) 100%
+  );
 }
 
 .p-button.auth-accent-button {
@@ -76,12 +81,12 @@ button.p-button.auth-accent-button:hover {
   text-decoration: none;
 }
 
-.p-dialog.rounded-dialog{
+.p-dialog.rounded-dialog {
   border-radius: 20px;
   padding: 0.33rem;
 }
 
-.p-popover.rounded-popover{
+.p-popover.rounded-popover {
   border-radius: 20px;
   padding: 0.33rem;
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
 )
@@ -18,22 +19,26 @@ type ChartingServiceInterface interface {
 	GetMonthlyCashFlowForYear(ctx context.Context, userID int64, year int, accountID *int64) (*models.MonthlyCashflowResponse, error)
 	GetCategoryUsageForYear(ctx context.Context, userID int64, year int, class string, accID, catID *int64, asPercent bool) (*models.CategoryUsageResponse, error)
 	GetCategoryUsageForYears(ctx context.Context, userID int64, years []int, class string, accID, catID *int64, asPercent bool) (*models.MultiYearCategoryUsageResponse, error)
+	GetYearlyCashFlowBreakdown(ctx context.Context, userID int64, year int, accountID *int64) (*models.YearlyCashflowBreakdown, error)
 }
 type ChartingService struct {
-	repo    repositories.ChartingRepositoryInterface
-	accRepo repositories.AccountRepositoryInterface
-	txnRepo repositories.TransactionRepositoryInterface
+	repo      repositories.ChartingRepositoryInterface
+	accRepo   repositories.AccountRepositoryInterface
+	txnRepo   repositories.TransactionRepositoryInterface
+	statsRepo repositories.StatisticsRepositoryInterface
 }
 
 func NewChartingService(
 	repo *repositories.ChartingRepository,
 	accRepo *repositories.AccountRepository,
 	txRepo *repositories.TransactionRepository,
+	statsRepo *repositories.StatisticsRepository,
 ) *ChartingService {
 	return &ChartingService{
-		repo:    repo,
-		accRepo: accRepo,
-		txnRepo: txRepo,
+		repo:      repo,
+		accRepo:   accRepo,
+		txnRepo:   txRepo,
+		statsRepo: statsRepo,
 	}
 }
 
@@ -249,6 +254,132 @@ func (s *ChartingService) GetMonthlyCashFlowForYear(ctx context.Context, userID 
 	}, nil
 }
 
+func (s *ChartingService) GetYearlyCashFlowBreakdown(ctx context.Context, userID int64, year int, accountID *int64) (*models.YearlyCashflowBreakdown, error) {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Validate account if provided
+	if accountID != nil {
+		if _, err := s.accRepo.FindAccountByID(ctx, tx, *accountID, userID, true); err != nil {
+			return nil, err
+		}
+	}
+
+	// Get monthly totals
+	mrows, err := s.statsRepo.FetchMonthlyTotals(ctx, tx, userID, accountID, year)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	var shouldSubtractTransfers bool
+	var transferAccountIDs []int64
+
+	if accountID != nil {
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, *accountID, userID, false)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if acc.AccountType.Subtype == "checking" {
+			shouldSubtractTransfers = true
+			transferAccountIDs = []int64{*accountID}
+		}
+	} else {
+		checkingAccounts, err := s.accRepo.FindAccountsBySubtype(ctx, tx, userID, "checking", true)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if len(checkingAccounts) > 0 {
+			shouldSubtractTransfers = true
+			for _, a := range checkingAccounts {
+				transferAccountIDs = append(transferAccountIDs, a.ID)
+			}
+		}
+	}
+
+	// Build monthly breakdown
+	months := make([]models.MonthBreakdown, 0, 12)
+
+	for month := 1; month <= 12; month++ {
+		var inflow, outflow, investments, savings, debtRepayments decimal.Decimal
+
+		for _, mr := range mrows {
+			if mr.Month == month {
+				inflow, _ = decimal.NewFromString(mr.InflowText)
+				outflow, _ = decimal.NewFromString(mr.OutflowText)
+				break
+			}
+		}
+
+		netMonth := inflow.Add(outflow)
+
+		// Get transfers and calculate categories
+		if shouldSubtractTransfers {
+			transfers, err := s.txnRepo.GetMonthlyTransfersFromChecking(ctx, tx, userID, transferAccountIDs, year, month)
+			if err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+
+			for _, tr := range transfers {
+
+				isSavings, isInvestment, isDebt := utils.CategorizeTransferDestination(&tr.TransactionInflow.Account.AccountType)
+
+				if isSavings {
+					savings = savings.Add(tr.Amount)
+				} else if isInvestment {
+					investments = investments.Add(tr.Amount)
+				} else if isDebt {
+					debtRepayments = debtRepayments.Add(tr.Amount)
+				}
+
+				netMonth = netMonth.Sub(tr.Amount)
+			}
+		}
+
+		takeHome := decimal.Zero
+		overflow := decimal.Zero
+		if netMonth.GreaterThan(decimal.Zero) {
+			takeHome = netMonth
+		} else if netMonth.LessThan(decimal.Zero) {
+			overflow = netMonth
+		}
+
+		months = append(months, models.MonthBreakdown{
+			Month: month,
+			Categories: models.MonthCategories{
+				Inflows:        inflow,
+				Outflows:       outflow,
+				Investments:    investments,
+				Savings:        savings,
+				DebtRepayments: debtRepayments,
+				TakeHome:       takeHome,
+				Overflow:       overflow,
+			},
+		})
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return &models.YearlyCashflowBreakdown{
+		Year:   year,
+		Months: months,
+	}, nil
+}
+
 func (s *ChartingService) GetCategoryUsageForYear(ctx context.Context, userID int64, year int, class string, accID, catID *int64, asPercent bool) (*models.CategoryUsageResponse, error) {
 
 	txs, err := s.txnRepo.GetTransactionsByYearAndClass(ctx, nil, userID, year, class, accID)
@@ -318,24 +449,24 @@ func (s *ChartingService) GetCategoryUsageForYears(ctx context.Context, userID i
 		byYear[y] = *one
 
 		var yearTotal = decimal.NewFromInt(0)
-		monthsWithData := 0
+		monthsWithData := make(map[int]bool)
 
 		for _, entry := range one.Series {
 			if entry.Amount.GreaterThan(decimal.NewFromInt(0)) {
 				yearTotal = yearTotal.Add(entry.Amount)
-				monthsWithData++
+				monthsWithData[entry.Month] = true
 			}
 		}
 
 		var monthlyAvg = decimal.NewFromInt(0)
-		if monthsWithData > 0 {
-			monthlyAvg = yearTotal.Div(decimal.NewFromInt(int64(monthsWithData)))
+		if len(monthsWithData) > 0 {
+			monthlyAvg = yearTotal.Div(decimal.NewFromInt(int64(len(monthsWithData))))
 		}
 
 		yearStats[y] = models.YearStat{
 			Total:          yearTotal,
 			MonthlyAvg:     monthlyAvg,
-			MonthsWithData: monthsWithData,
+			MonthsWithData: len(monthsWithData),
 		}
 	}
 
@@ -355,9 +486,10 @@ func (s *ChartingService) GetCategoryUsageForYears(ctx context.Context, userID i
 		Class:  class,
 		ByYear: byYear,
 		Stats: models.MultiYearYCategoryStats{
-			YearStats:    yearStats,
-			AllTimeTotal: allTimeTotal,
-			AllTimeAvg:   allTimeAvg,
+			YearStats:     yearStats,
+			AllTimeTotal:  allTimeTotal,
+			AllTimeAvg:    allTimeAvg,
+			AllTimeMonths: allTimeMonths,
 		},
 	}, nil
 }

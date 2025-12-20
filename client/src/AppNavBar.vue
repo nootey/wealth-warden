@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import {useAuthStore} from './services/stores/auth_store.ts';
-import {storeToRefs} from "pinia";
-import {computed, ref} from 'vue';
-import {useRouter} from "vue-router";
-import {usePermissions} from "./utils/use_permissions.ts";
+import { useAuthStore } from "./services/stores/auth_store.ts";
+import { storeToRefs } from "pinia";
+import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
+import { usePermissions } from "./utils/use_permissions.ts";
 
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
@@ -19,15 +19,20 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
-  {to: "/", icon: "pi-home", text: "Home"},
-  {to: "/accounts", icon: "pi-hashtag", text: "Acc"},
-  {to: "/transactions", icon: "pi-credit-card", text: "Txn"},
-  {to: "/charts", icon: "pi-chart-bar", text: "Charts"},
-  {to: "/users", icon: "pi-users", text: "Users", block: !hasPermission('manage_users')},
+  { to: "/", icon: "pi-home", text: "Home" },
+  { to: "/accounts", icon: "pi-hashtag", text: "Acc" },
+  { to: "/transactions", icon: "pi-credit-card", text: "Txn" },
+  { to: "/charts", icon: "pi-chart-bar", text: "Charts" },
+  {
+    to: "/users",
+    icon: "pi-users",
+    text: "Users",
+    block: !hasPermission("manage_users"),
+  },
 ];
 
 const visibleMenuItems = computed(() =>
-    menuItems.filter(item => !item.block)
+  menuItems.filter((item) => !item.block),
 );
 
 const profileMenuRef = ref<any>(null);
@@ -38,56 +43,62 @@ function toggleProfileMenu(event: any) {
   }
 }
 
-function checkAccess(route: string){
-    switch(route){
-        case 'logs':
-            if(hasPermission('view_activity_logs')) {
-                router.push('/logs');
-            }
-            break;
-    }
+function checkAccess(route: string) {
+  switch (route) {
+    case "logs":
+      if (hasPermission("view_activity_logs")) {
+        router.push("/logs");
+      }
+      break;
+  }
 }
 
 function handleMenuClick(source: string) {
-    switch(source) {
-        case 'logs': {
-            checkAccess('logs')
-            break;
-        }
-        case 'settings': {
-            router.push('/settings');
-            break;
-        }
-        case 'logout': {
-            authStore.logoutUser();
-            break;
-        }
-        default: {
-            break;
-        }
+  switch (source) {
+    case "logs": {
+      checkAccess("logs");
+      break;
     }
-    toggleProfileMenu(false);
+    case "settings": {
+      router.push("/settings");
+      break;
+    }
+    case "logout": {
+      authStore.logoutUser();
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+  toggleProfileMenu(false);
 }
-
 </script>
 
 <template>
   <aside
     v-if="authStore.authenticated && authStore.isValidated"
     class="flex flex-column overflow-hidden h-screen fixed left-0 top-0"
-    style="width: 80px; color: var(--text-primary); padding: 1rem 0;"
+    style="width: 80px; color: var(--text-primary); padding: 1rem 0"
   >
-    <div class="logo-section flex align-items-center justify-content-center mb-2 p-1">
+    <div
+      class="logo-section flex align-items-center justify-content-center mb-2 p-1"
+    >
       <div
         class="flex align-items-center justify-content-center"
         style="
-            width: 32px; height: 32px; border-radius: 8px;box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);"
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+          background: linear-gradient(
+            135deg,
+            var(--accent-primary) 0%,
+            var(--accent-secondary) 100%
+          );
+        "
       >
-        <i
-          class="pi pi-wallet"
-          style="color: white;"
-        />
+        <i class="pi pi-wallet" style="color: white" />
       </div>
     </div>
 
@@ -97,12 +108,16 @@ function handleMenuClick(source: string) {
         :key="index"
         :to="item.to"
         class="flex flex-column align-items-center p-1"
-        style="text-decoration: none; transition: all 0.2s ease; color: var(--text-secondary);"
+        style="
+          text-decoration: none;
+          transition: all 0.2s ease;
+          color: var(--text-secondary);
+        "
       >
         <i
           :class="['pi', item.icon]"
           class="text-sm"
-          style="transition: all 0.2s ease;"
+          style="transition: all 0.2s ease"
         />
         <span class="text-xs text-align-center">{{ item.text }}</span>
       </router-link>
@@ -110,46 +125,69 @@ function handleMenuClick(source: string) {
       <div
         id="user-menu-trigger"
         class="flex flex-column align-items-center p-1 border-round-lg mt-auto"
-        style="transition: all 0.2s ease; cursor: pointer; color: var(--text-secondary);"
+        style="
+          transition: all 0.2s ease;
+          cursor: pointer;
+          color: var(--text-secondary);
+        "
         @click="toggleProfileMenu($event)"
       >
         <div
           class="flex align-items-center justify-content-center font-bold text-sm mb-1"
-          style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);color: white;"
+          style="
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(
+              135deg,
+              var(--accent-primary) 0%,
+              var(--accent-secondary) 100%
+            );
+            color: white;
+          "
         >
-          {{ user?.display_name.split(' ').map(n => n[0]).join('') }}
+          {{
+            user?.display_name
+              .split(" ")
+              .map((n) => n[0])
+              .join("")
+          }}
         </div>
       </div>
     </div>
 
     <Popover ref="profileMenuRef">
-      <div style="padding: 1rem;">
+      <div style="padding: 1rem">
         <div
           class="flex align-items-center gap-3 pb-1 mb-2"
-          style="border-bottom: 1px solid var(--border-color);"
+          style="border-bottom: 1px solid var(--border-color)"
         >
           <div
             class="flex align-items-center justify-content-center text-sm font-bold"
             style="
-                  width: 40px;
-                  height: 40px;
-                  border-radius: 50%;
-                  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
-                  color: white;"
+              width: 40px;
+              height: 40px;
+              border-radius: 50%;
+              background: linear-gradient(
+                135deg,
+                var(--accent-primary) 0%,
+                var(--accent-secondary) 100%
+              );
+              color: white;
+            "
           >
-            {{ user?.display_name.split(' ').map(n => n[0]).join('') }}
+            {{
+              user?.display_name
+                .split(" ")
+                .map((n) => n[0])
+                .join("")
+            }}
           </div>
           <div>
-            <div
-              class="font-bold mb-1"
-              style="color: var(--text-primary);"
-            >
+            <div class="font-bold mb-1" style="color: var(--text-primary)">
               {{ user?.display_name }}
             </div>
-            <div
-              class="text-sm"
-              style="color: var(--text-secondary);"
-            >
+            <div class="text-sm" style="color: var(--text-secondary)">
               {{ user?.email }}
             </div>
           </div>
@@ -160,7 +198,11 @@ function handleMenuClick(source: string) {
             v-if="hasPermission('view_activity_logs')"
             id="profileMenuItem"
             class="flex align-items-center gap-2 p-1 border-round-md"
-            style="cursor: pointer; transition: all 0.2s ease; color: var(--text-primary);"
+            style="
+              cursor: pointer;
+              transition: all 0.2s ease;
+              color: var(--text-primary);
+            "
             @click="handleMenuClick('logs')"
           >
             <i class="pi pi-address-book" />
@@ -170,7 +212,11 @@ function handleMenuClick(source: string) {
           <div
             id="profileMenuItem"
             class="flex align-items-center gap-2 p-1 border-round-md"
-            style="cursor: pointer; transition: all 0.2s ease; color: var(--text-primary);"
+            style="
+              cursor: pointer;
+              transition: all 0.2s ease;
+              color: var(--text-primary);
+            "
             @click="handleMenuClick('settings')"
           >
             <i class="pi pi-cog" />
@@ -180,7 +226,7 @@ function handleMenuClick(source: string) {
           <div
             id="profileMenuItem"
             class="flex align-items-center gap-2 p-1 border-round-md"
-            style="cursor: pointer; transition: all 0.2s ease;color: #ef4444;"
+            style="cursor: pointer; transition: all 0.2s ease; color: #ef4444"
             @click="handleMenuClick('logout')"
           >
             <i class="pi pi-sign-out" />
@@ -193,7 +239,6 @@ function handleMenuClick(source: string) {
 </template>
 
 <style scoped lang="scss">
-
 .menu {
   gap: 1rem;
   padding: 0 0.5rem;
@@ -217,7 +262,7 @@ aside .menu div:hover {
 }
 
 .router-link-exact-active::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 1px;
   top: 50%;

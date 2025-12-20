@@ -1,118 +1,126 @@
-import {defineStore} from 'pinia';
+import { defineStore } from "pinia";
 import apiClient from "../api/axios_interceptor.ts";
 
-export const useDataStore = defineStore('data', {
-    state: () => ({
-        importPrefix: "imports",
-        exportPrefix: "exports",
-    }),
-    getters: {
+export const useDataStore = defineStore("data", {
+  state: () => ({
+    importPrefix: "imports",
+    exportPrefix: "exports",
+  }),
+  getters: {},
+  actions: {
+    async getImports(importType: string) {
+      const res = await apiClient.get(`${this.importPrefix}/${importType}`);
+      return res.data;
     },
-    actions: {
-        async getImports(importType: string) {
-            const res = await apiClient.get(`${this.importPrefix}/${importType}`);
-            return res.data;
-        },
 
-        async getCustomImportJSON(id: number | string, step: string) {
-            const response = await apiClient.get(`${this.importPrefix}/custom/${id}?step=${encodeURIComponent(step)}`);
-            return response.data;
-        },
-
-        async validateImport(importType: string, record: object, importStep: string) {
-            const response = await apiClient.post(
-                `${this.importPrefix}/${importType}/validate?step=${encodeURIComponent(importStep)}`,
-                record
-            );
-            return response.data;
-        },
-
-        async importTransactions(payload: unknown, checkID: number) {
-            const { data } = await apiClient.post(
-                `${this.importPrefix}/custom/transactions`,
-                payload,
-                { params: { check_acc_id: checkID } }
-            );
-            return data;
-        },
-
-        async importAccounts(payload: unknown, useBalances: boolean) {
-            const { data } = await apiClient.post(
-                `${this.importPrefix}/custom/accounts`,
-                payload,
-                { params: { use_balances: useBalances } }
-            );
-            return data;
-        },
-
-        async importCategories(payload: unknown) {
-            const { data } = await apiClient.post(
-                `${this.importPrefix}/custom/categories`,
-                payload
-            );
-            return data;
-        },
-
-        async transferInvestmentsFromImport(payload: {
-            import_id: number | string
-            checking_acc_id: number
-            investment_mappings: { name: string; account_id: number | null }[]
-        }) {
-            const res = await apiClient.post(
-                `${this.importPrefix}/custom/investments`,
-                payload
-            );
-            return res.data;
-        },
-
-        async transferSavingsFromImport(payload: {
-            import_id: number | string
-            checking_acc_id: number
-            savings_mappings: { name: string; account_id: number | null }[]
-        }) {
-            const res = await apiClient.post(
-                `${this.importPrefix}/custom/savings`,
-                payload
-            );
-            return res.data;
-        },
-
-        async transferRepaymentsFromImport(payload: {
-            import_id: number | string
-            checking_acc_id: number
-            repayment_mappings: { name: string; account_id: number | null }[]
-        }) {
-            const res = await apiClient.post(
-                `${this.importPrefix}/custom/repayments`,
-                payload
-            );
-            return res.data;
-        },
-
-        async getExports() {
-            const res = await apiClient.get(`${this.exportPrefix}`);
-            return res.data;
-        },
-
-        async exportData() {
-            const res = await apiClient.post(`${this.exportPrefix}`);
-            return res.data;
-        },
-
-        async downloadExport(id: number) {
-            const res = await apiClient.post(`${this.exportPrefix}/${id}/download`, null, {
-                responseType: 'blob',
-            });
-
-            const blob = new Blob([res.data], { type: 'application/zip' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'export.zip';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-        },
-
+    async getCustomImportJSON(id: number | string, step: string) {
+      const response = await apiClient.get(
+        `${this.importPrefix}/custom/${id}?step=${encodeURIComponent(step)}`,
+      );
+      return response.data;
     },
+
+    async validateImport(
+      importType: string,
+      record: object,
+      importStep: string,
+    ) {
+      const response = await apiClient.post(
+        `${this.importPrefix}/${importType}/validate?step=${encodeURIComponent(importStep)}`,
+        record,
+      );
+      return response.data;
+    },
+
+    async importTransactions(payload: unknown, checkID: number) {
+      const { data } = await apiClient.post(
+        `${this.importPrefix}/custom/transactions`,
+        payload,
+        { params: { check_acc_id: checkID } },
+      );
+      return data;
+    },
+
+    async importAccounts(payload: unknown, useBalances: boolean) {
+      const { data } = await apiClient.post(
+        `${this.importPrefix}/custom/accounts`,
+        payload,
+        { params: { use_balances: useBalances } },
+      );
+      return data;
+    },
+
+    async importCategories(payload: unknown) {
+      const { data } = await apiClient.post(
+        `${this.importPrefix}/custom/categories`,
+        payload,
+      );
+      return data;
+    },
+
+    async transferInvestmentsFromImport(payload: {
+      import_id: number | string;
+      checking_acc_id: number;
+      investment_mappings: { name: string; account_id: number | null }[];
+    }) {
+      const res = await apiClient.post(
+        `${this.importPrefix}/custom/investments`,
+        payload,
+      );
+      return res.data;
+    },
+
+    async transferSavingsFromImport(payload: {
+      import_id: number | string;
+      checking_acc_id: number;
+      savings_mappings: { name: string; account_id: number | null }[];
+    }) {
+      const res = await apiClient.post(
+        `${this.importPrefix}/custom/savings`,
+        payload,
+      );
+      return res.data;
+    },
+
+    async transferRepaymentsFromImport(payload: {
+      import_id: number | string;
+      checking_acc_id: number;
+      repayment_mappings: { name: string; account_id: number | null }[];
+    }) {
+      const res = await apiClient.post(
+        `${this.importPrefix}/custom/repayments`,
+        payload,
+      );
+      return res.data;
+    },
+
+    async getExports() {
+      const res = await apiClient.get(`${this.exportPrefix}`);
+      return res.data;
+    },
+
+    async exportData() {
+      const res = await apiClient.post(`${this.exportPrefix}`);
+      return res.data;
+    },
+
+    async downloadExport(id: number) {
+      const res = await apiClient.post(
+        `${this.exportPrefix}/${id}/download`,
+        null,
+        {
+          responseType: "blob",
+        },
+      );
+
+      const blob = new Blob([res.data], { type: "application/zip" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "export.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    },
+  },
 });

@@ -19,7 +19,7 @@ import (
 
 type TransactionServiceInterface interface {
 	FetchTransactionsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transaction, *utils.Paginator, error)
-	FetchTransfersPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool) ([]models.Transfer, *utils.Paginator, error)
+	FetchTransfersPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transfer, *utils.Paginator, error)
 	FetchTransactionByID(ctx context.Context, userID int64, id int64, includeDeleted bool) (*models.Transaction, error)
 	FetchAllCategories(ctx context.Context, userID int64, includeDeleted bool) ([]models.Category, error)
 	FetchCategoryByID(ctx context.Context, userID int64, id int64, includeDeleted bool) (*models.Category, error)
@@ -141,16 +141,16 @@ func (s *TransactionService) FetchTransactionsPaginated(ctx context.Context, use
 	return records, paginator, nil
 }
 
-func (s *TransactionService) FetchTransfersPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool) ([]models.Transfer, *utils.Paginator, error) {
+func (s *TransactionService) FetchTransfersPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transfer, *utils.Paginator, error) {
 
-	totalRecords, err := s.repo.CountTransfers(ctx, nil, userID, includeDeleted)
+	totalRecords, err := s.repo.CountTransfers(ctx, nil, userID, includeDeleted, accountID)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
 
-	records, err := s.repo.FindTransfers(ctx, nil, userID, offset, p.RowsPerPage, includeDeleted)
+	records, err := s.repo.FindTransfers(ctx, nil, userID, offset, p.RowsPerPage, includeDeleted, accountID)
 	if err != nil {
 		return nil, nil, err
 	}

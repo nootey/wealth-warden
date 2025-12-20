@@ -827,9 +827,9 @@ func (_c *MockTransactionServiceInterface_FetchTransactionsPaginated_Call) RunAn
 	return _c
 }
 
-// FetchTransfersPaginated provides a mock function with given fields: ctx, userID, p, includeDeleted
-func (_m *MockTransactionServiceInterface) FetchTransfersPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool) ([]models.Transfer, *utils.Paginator, error) {
-	ret := _m.Called(ctx, userID, p, includeDeleted)
+// FetchTransfersPaginated provides a mock function with given fields: ctx, userID, p, includeDeleted, accountID
+func (_m *MockTransactionServiceInterface) FetchTransfersPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transfer, *utils.Paginator, error) {
+	ret := _m.Called(ctx, userID, p, includeDeleted, accountID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FetchTransfersPaginated")
@@ -838,27 +838,27 @@ func (_m *MockTransactionServiceInterface) FetchTransfersPaginated(ctx context.C
 	var r0 []models.Transfer
 	var r1 *utils.Paginator
 	var r2 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams, bool) ([]models.Transfer, *utils.Paginator, error)); ok {
-		return rf(ctx, userID, p, includeDeleted)
+	if rf, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams, bool, *int64) ([]models.Transfer, *utils.Paginator, error)); ok {
+		return rf(ctx, userID, p, includeDeleted, accountID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams, bool) []models.Transfer); ok {
-		r0 = rf(ctx, userID, p, includeDeleted)
+	if rf, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams, bool, *int64) []models.Transfer); ok {
+		r0 = rf(ctx, userID, p, includeDeleted, accountID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.Transfer)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, int64, utils.PaginationParams, bool) *utils.Paginator); ok {
-		r1 = rf(ctx, userID, p, includeDeleted)
+	if rf, ok := ret.Get(1).(func(context.Context, int64, utils.PaginationParams, bool, *int64) *utils.Paginator); ok {
+		r1 = rf(ctx, userID, p, includeDeleted, accountID)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(*utils.Paginator)
 		}
 	}
 
-	if rf, ok := ret.Get(2).(func(context.Context, int64, utils.PaginationParams, bool) error); ok {
-		r2 = rf(ctx, userID, p, includeDeleted)
+	if rf, ok := ret.Get(2).(func(context.Context, int64, utils.PaginationParams, bool, *int64) error); ok {
+		r2 = rf(ctx, userID, p, includeDeleted, accountID)
 	} else {
 		r2 = ret.Error(2)
 	}
@@ -876,13 +876,14 @@ type MockTransactionServiceInterface_FetchTransfersPaginated_Call struct {
 //   - userID int64
 //   - p utils.PaginationParams
 //   - includeDeleted bool
-func (_e *MockTransactionServiceInterface_Expecter) FetchTransfersPaginated(ctx interface{}, userID interface{}, p interface{}, includeDeleted interface{}) *MockTransactionServiceInterface_FetchTransfersPaginated_Call {
-	return &MockTransactionServiceInterface_FetchTransfersPaginated_Call{Call: _e.mock.On("FetchTransfersPaginated", ctx, userID, p, includeDeleted)}
+//   - accountID *int64
+func (_e *MockTransactionServiceInterface_Expecter) FetchTransfersPaginated(ctx interface{}, userID interface{}, p interface{}, includeDeleted interface{}, accountID interface{}) *MockTransactionServiceInterface_FetchTransfersPaginated_Call {
+	return &MockTransactionServiceInterface_FetchTransfersPaginated_Call{Call: _e.mock.On("FetchTransfersPaginated", ctx, userID, p, includeDeleted, accountID)}
 }
 
-func (_c *MockTransactionServiceInterface_FetchTransfersPaginated_Call) Run(run func(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool)) *MockTransactionServiceInterface_FetchTransfersPaginated_Call {
+func (_c *MockTransactionServiceInterface_FetchTransfersPaginated_Call) Run(run func(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64)) *MockTransactionServiceInterface_FetchTransfersPaginated_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(int64), args[2].(utils.PaginationParams), args[3].(bool))
+		run(args[0].(context.Context), args[1].(int64), args[2].(utils.PaginationParams), args[3].(bool), args[4].(*int64))
 	})
 	return _c
 }
@@ -892,7 +893,7 @@ func (_c *MockTransactionServiceInterface_FetchTransfersPaginated_Call) Return(_
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_FetchTransfersPaginated_Call) RunAndReturn(run func(context.Context, int64, utils.PaginationParams, bool) ([]models.Transfer, *utils.Paginator, error)) *MockTransactionServiceInterface_FetchTransfersPaginated_Call {
+func (_c *MockTransactionServiceInterface_FetchTransfersPaginated_Call) RunAndReturn(run func(context.Context, int64, utils.PaginationParams, bool, *int64) ([]models.Transfer, *utils.Paginator, error)) *MockTransactionServiceInterface_FetchTransfersPaginated_Call {
 	_c.Call.Return(run)
 	return _c
 }

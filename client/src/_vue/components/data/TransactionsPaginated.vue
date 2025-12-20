@@ -4,33 +4,33 @@ import dateHelper from "../../../utils/date_helper.ts";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import ColumnHeader from "../base/ColumnHeader.vue";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
-import type {Transaction} from "../../../models/transaction_models.ts";
-import type {Column} from "../../../services/filter_registry.ts";
-import {computed, onMounted, ref, watch} from "vue";
+import type { Transaction } from "../../../models/transaction_models.ts";
+import type { Column } from "../../../services/filter_registry.ts";
+import { computed, onMounted, ref, watch } from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
 import type { SortObj } from "../../../models/shared_models.ts";
-import {useChartColors} from "../../../style/theme/chartColors.ts";
+import { useChartColors } from "../../../style/theme/chartColors.ts";
 
 const props = defineProps<{
-    columns: Column[];
+  columns: Column[];
+  sort?: SortObj;
+  rows?: number[];
+  filters?: any;
+  includeDeleted?: boolean;
+  fetchPage: (args: {
+    page: number;
+    rows: number;
     sort?: SortObj;
-    rows?: number[];
     filters?: any;
     includeDeleted?: boolean;
-    fetchPage: (args: {
-        page: number;
-        rows: number;
-        sort?: SortObj;
-        filters?: any;
-        includeDeleted?: boolean;
-    }) => Promise<{ data: Transaction[]; total: number }>;
-    readOnly: boolean;
+  }) => Promise<{ data: Transaction[]; total: number }>;
+  readOnly: boolean;
 }>();
 
 const emits = defineEmits<{
-    (e: "onPage", payload: { page: number; rows: number }): void;
-    (e: "sortChange", column: string): void;
-    (e: "rowClick", id: number): void;
+  (e: "onPage", payload: { page: number; rows: number }): void;
+  (e: "sortChange", column: string): void;
+  (e: "rowClick", id: number): void;
 }>();
 
 const { colors } = useChartColors();
@@ -46,56 +46,66 @@ const loading = ref(false);
 const requestSeq = ref(0);
 
 const derivedPaginator = computed(() => {
-    const from = total.value === 0 ? 0 : (pageLocal.value - 1) * rowsPerPage.value + 1;
-    const to = Math.min(pageLocal.value * rowsPerPage.value, total.value);
-    return { total: total.value, from, to, rowsPerPage: rowsPerPage.value };
+  const from =
+    total.value === 0 ? 0 : (pageLocal.value - 1) * rowsPerPage.value + 1;
+  const to = Math.min(pageLocal.value * rowsPerPage.value, total.value);
+  return { total: total.value, from, to, rowsPerPage: rowsPerPage.value };
 });
 
 async function getData() {
-    loading.value = true;
-    const mySeq = ++requestSeq.value;
+  loading.value = true;
+  const mySeq = ++requestSeq.value;
 
-    try {
-        const res = await props.fetchPage({
-            page: pageLocal.value,
-            rows: rowsPerPage.value,
-            sort: localSort.value,
-            filters: props.filters,
-            includeDeleted: props.includeDeleted,
-        });
+  try {
+    const res = await props.fetchPage({
+      page: pageLocal.value,
+      rows: rowsPerPage.value,
+      sort: localSort.value,
+      filters: props.filters,
+      includeDeleted: props.includeDeleted,
+    });
 
-        // Ignore stale responses
-        if (mySeq !== requestSeq.value) return;
+    // Ignore stale responses
+    if (mySeq !== requestSeq.value) return;
 
-        recordsLocal.value = res.data;
-        total.value = res.total ?? 0;
-    } finally {
-        if (mySeq === requestSeq.value) loading.value = false;
-    }
+    recordsLocal.value = res.data;
+    total.value = res.total ?? 0;
+  } finally {
+    if (mySeq === requestSeq.value) loading.value = false;
+  }
 }
 
 onMounted(getData);
 
 watch(
-    () => [props.sort?.field, props.sort?.order, props.filters, props.includeDeleted],
-    () => { pageLocal.value = 1; getData(); }
+  () => [
+    props.sort?.field,
+    props.sort?.order,
+    props.filters,
+    props.includeDeleted,
+  ],
+  () => {
+    pageLocal.value = 1;
+    getData();
+  },
 );
 
 function handlePage(e: { page: number; rows: number }) {
-    pageLocal.value = e.page + 1;
-    rowsPerPage.value = e.rows;
-    emits("onPage", { page: pageLocal.value, rows: rowsPerPage.value });
-    getData();
+  pageLocal.value = e.page + 1;
+  rowsPerPage.value = e.rows;
+  emits("onPage", { page: pageLocal.value, rows: rowsPerPage.value });
+  getData();
 }
 
 function triggerSort(col: string) {
-    emits("sortChange", col);
+  emits("sortChange", col);
 }
 
-function refresh() { getData(); }
+function refresh() {
+  getData();
+}
 
 defineExpose({ refresh });
-
 </script>
 
 <template>
@@ -111,9 +121,7 @@ defineExpose({ refresh });
     scroll-direction="both"
   >
     <template #empty>
-      <div style="padding: 10px;">
-        No records found.
-      </div>
+      <div style="padding: 10px">No records found.</div>
     </template>
     <template #loading>
       <LoadingSpinner />
@@ -147,12 +155,29 @@ defineExpose({ refresh });
           <div class="flex flex-row gap-2 align-items-center">
             <i
               class="text-xs"
-              :class="((data.transaction_type === 'expense' ? data.amount * -1 : data.amount) >= 0)
-                ? 'pi pi-angle-up': 'pi pi-angle-down'"
-              :style="{ color: ((data.transaction_type === 'expense' ? data.amount * -1 : data.amount) >= 0)
-                ? colors.pos: colors.neg }"
+              :class="
+                (data.transaction_type === 'expense'
+                  ? data.amount * -1
+                  : data.amount) >= 0
+                  ? 'pi pi-angle-up'
+                  : 'pi pi-angle-down'
+              "
+              :style="{
+                color:
+                  (data.transaction_type === 'expense'
+                    ? data.amount * -1
+                    : data.amount) >= 0
+                    ? colors.pos
+                    : colors.neg,
+              }"
             />
-            <span>{{ vueHelper.displayAsCurrency(data.transaction_type == "expense" ? (data.amount*-1) : data.amount) }}</span>
+            <span>{{
+              vueHelper.displayAsCurrency(
+                data.transaction_type == "expense"
+                  ? data.amount * -1
+                  : data.amount,
+              )
+            }}</span>
           </div>
         </template>
         <template v-else-if="col.field === 'txn_date'">
@@ -160,10 +185,7 @@ defineExpose({ refresh });
         </template>
         <template v-else-if="col.field === 'account'">
           <div class="flex flex-row gap-2 align-items-center account-row">
-            <span
-              class="hover"
-              @click="$emit('rowClick', data.id)"
-            >
+            <span class="hover" @click="$emit('rowClick', data.id)">
               {{ data[col.field]["name"] }}
             </span>
             <i
@@ -177,10 +199,7 @@ defineExpose({ refresh });
           {{ data[col.field]["display_name"] }}
         </template>
         <template v-else-if="col.field === 'description'">
-          <span
-            v-tooltip.top="data[col.field]"
-            class="truncate-text"
-          >
+          <span v-tooltip.top="data[col.field]" class="truncate-text">
             {{ data[col.field] }}
           </span>
         </template>
@@ -193,19 +212,23 @@ defineExpose({ refresh });
 </template>
 
 <style scoped>
-.hover { font-weight: bold; }
-.hover:hover { cursor: pointer; text-decoration: underline; }
+.hover {
+  font-weight: bold;
+}
+.hover:hover {
+  cursor: pointer;
+  text-decoration: underline;
+}
 
 .account-row .popup-icon {
-    opacity: 0;
-    transition: opacity .15s ease;
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
 .account-row:hover .popup-icon {
-    opacity: 1;
+  opacity: 1;
 }
 
 .account-row.advanced .popup-icon {
-    opacity: 1;
+  opacity: 1;
 }
-
 </style>

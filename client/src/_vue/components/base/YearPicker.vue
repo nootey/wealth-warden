@@ -12,9 +12,12 @@ const localYear = ref(props.year); // Local copy of the selected year
 const filteredYears = ref<number[]>([]);
 
 // Watch for prop changes and update local state
-watch(() => props.year, (newYear) => {
-  localYear.value = newYear;
-});
+watch(
+  () => props.year,
+  (newYear) => {
+    localYear.value = newYear;
+  },
+);
 
 // Watch for availableYears update
 const availableYearsComputed = computed(() => props.availableYears || []);
@@ -25,8 +28,8 @@ const searchDesiredYear = (event: any) => {
     if (!event.query.trim().length) {
       filteredYears.value = [...availableYearsComputed.value];
     } else {
-      filteredYears.value = availableYearsComputed.value.filter((year) =>
-          year.toString().startsWith(event.query) // Convert to string before filtering
+      filteredYears.value = availableYearsComputed.value.filter(
+        (year) => year.toString().startsWith(event.query), // Convert to string before filtering
       );
     }
   }, 250);
@@ -36,7 +39,6 @@ const searchDesiredYear = (event: any) => {
 watch(localYear, (newYear) => {
   emit("update:year", newYear);
 });
-
 </script>
 
 <template>

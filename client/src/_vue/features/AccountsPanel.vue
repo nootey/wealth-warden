@@ -9,24 +9,27 @@ import vueHelper from "../../utils/vue_helper.ts";
 import type { Account } from "../../models/account_models.ts";
 import AccountDetails from "../components/data/AccountDetails.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
-import {colorForAccountType} from "../../style/theme/accountColors.ts";
-import {usePermissions} from "../../utils/use_permissions.ts";
+import { colorForAccountType } from "../../style/theme/accountColors.ts";
+import { usePermissions } from "../../utils/use_permissions.ts";
 
-const props = withDefaults(defineProps<{
+const props = withDefaults(
+  defineProps<{
     advanced?: boolean;
     allowEdit?: boolean;
     onToggle?: (acc: Account, nextValue: boolean) => Promise<boolean>;
     maxHeight?: number;
-}>(), {
+  }>(),
+  {
     advanced: false,
     allowEdit: true,
     onToggle: undefined,
     maxHeight: 75,
-});
+  },
+);
 
 const emit = defineEmits<{
-    (e: "refresh"): void;
-    (e: "closeAccount", id: number): void;
+  (e: "refresh"): void;
+  (e: "closeAccount", id: number): void;
 }>();
 
 const accountStore = useAccountStore();
@@ -47,139 +50,151 @@ const accounts = ref<Account[]>([]);
 const rows = ref([25]);
 const default_rows = ref(rows.value[0]);
 const paginator = ref({
-    total: 0,
-    from: 0,
-    to: 0,
-    rowsPerPage: default_rows.value,
+  total: 0,
+  from: 0,
+  to: 0,
+  rowsPerPage: default_rows.value,
 });
 const page = ref(1);
 const sort = ref({
-    order: -1,
-    field: 'opened_at'
+  order: -1,
+  field: "opened_at",
 });
 
 const params = computed(() => ({
-    rowsPerPage: paginator.value.rowsPerPage,
-    sort: sort.value,
-    filters: [],
+  rowsPerPage: paginator.value.rowsPerPage,
+  sort: sort.value,
+  filters: [],
 }));
 
 onMounted(async () => {
-    await accountStore.getAccountTypes();
-    await getData();
+  await accountStore.getAccountTypes();
+  await getData();
 });
 
 async function getData(new_page: number | null = null) {
-    loading.value = true;
-    if (new_page) page.value = new_page;
+  loading.value = true;
+  if (new_page) page.value = new_page;
 
-    try {
-        const paginationResponse = await sharedStore.getRecordsPaginated(
-            apiPrefix,
-            { ...params.value, inactive: true }, // props.advanced
-            page.value
-        );
-        accounts.value = paginationResponse.data;
-        paginator.value.total = paginationResponse.total_records;
-        paginator.value.to = paginationResponse.to;
-        paginator.value.from = paginationResponse.from;
-    } catch (error) {
-        toastStore.errorResponseToast(error);
-    } finally {
-        loading.value = false;
-    }
+  try {
+    const paginationResponse = await sharedStore.getRecordsPaginated(
+      apiPrefix,
+      { ...params.value, inactive: true }, // props.advanced
+      page.value,
+    );
+    accounts.value = paginationResponse.data;
+    paginator.value.total = paginationResponse.total_records;
+    paginator.value.to = paginationResponse.to;
+    paginator.value.from = paginationResponse.from;
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  } finally {
+    loading.value = false;
+  }
 }
 
 const logoColor = (type?: string) => colorForAccountType(type);
 
 const typeMap: Record<string, string> = {};
 
-accountStore.accountTypes.forEach(t => {
-    typeMap[t.type] = t.classification;
+accountStore.accountTypes.forEach((t) => {
+  typeMap[t.type] = t.classification;
 });
 
 const groupedAccounts = computed(() => {
-    const groups = new Map<string, typeof accounts.value>();
-    for (const acc of accounts.value) {
-        const t = acc.account_type?.type || "other_asset";
-        if (!groups.has(t)) groups.set(t, []);
-        groups.get(t)!.push(acc);
-    }
+  const groups = new Map<string, typeof accounts.value>();
+  for (const acc of accounts.value) {
+    const t = acc.account_type?.type || "other_asset";
+    if (!groups.has(t)) groups.set(t, []);
+    groups.get(t)!.push(acc);
+  }
 
-    return Array.from(groups.entries())
-        .sort(([typeA], [typeB]) => {
-            const ca = typeMap[typeA] ?? "asset";
-            const cb = typeMap[typeB] ?? "asset";
-            if (ca !== cb) return ca === "asset" ? -1 : 1;
-            return typeA.localeCompare(typeB);
-        });
+  return Array.from(groups.entries()).sort(([typeA], [typeB]) => {
+    const ca = typeMap[typeA] ?? "asset";
+    const cb = typeMap[typeB] ?? "asset";
+    if (ca !== cb) return ca === "asset" ? -1 : 1;
+    return typeA.localeCompare(typeB);
+  });
 });
 
 const groupTotal = (group: Account[]) =>
-    group.reduce((sum, acc) => sum.add(new Decimal(acc.balance.end_balance || 0)), new Decimal(0));
+  group.reduce(
+    (sum, acc) => sum.add(new Decimal(acc.balance.end_balance || 0)),
+    new Decimal(0),
+  );
 
 const totals = computed(() => {
-    // const activeAccounts = accounts.value.filter(a => a.is_active);
+  // const activeAccounts = accounts.value.filter(a => a.is_active);
 
-    const vals = accounts.value.map(a => new Decimal(a.balance.end_balance || 0));
-    const total = vals.reduce((s, v) => s.add(v), new Decimal(0));
-    const positive = vals.reduce((s, v) => (v.greaterThan(0) ? s.add(v) : s), new Decimal(0));
-    const negative = vals.reduce((s, v) => (v.lessThan(0) ? s.add(v) : s), new Decimal(0));
+  const vals = accounts.value.map(
+    (a) => new Decimal(a.balance.end_balance || 0),
+  );
+  const total = vals.reduce((s, v) => s.add(v), new Decimal(0));
+  const positive = vals.reduce(
+    (s, v) => (v.greaterThan(0) ? s.add(v) : s),
+    new Decimal(0),
+  );
+  const negative = vals.reduce(
+    (s, v) => (v.lessThan(0) ? s.add(v) : s),
+    new Decimal(0),
+  );
 
-    return {
-        total: total.toString(),
-        positive: positive.toString(),
-        negative: negative.toString(),
-    };
+  return {
+    total: total.toString(),
+    positive: positive.toString(),
+    negative: negative.toString(),
+  };
 });
 
 function openModal(type: string, data: any) {
-    switch (type) {
-        case "update": {
-            if(!hasPermission("manage_data")) {
-                toastStore.createInfoToast("Access denied", "You don't have permission to perform this action.");
-                return;
-            }
+  switch (type) {
+    case "update": {
+      if (!hasPermission("manage_data")) {
+        toastStore.createInfoToast(
+          "Access denied",
+          "You don't have permission to perform this action.",
+        );
+        return;
+      }
 
-            if (!props.allowEdit) return;
-            updateModal.value = true;
-            selectedID.value = data;
-            break;
-        }
-        case "details": {
-            detailsModal.value = true;
-            selectedAccount.value = data;
-            break;
-        }
+      if (!props.allowEdit) return;
+      updateModal.value = true;
+      selectedID.value = data;
+      break;
     }
+    case "details": {
+      detailsModal.value = true;
+      selectedAccount.value = data;
+      break;
+    }
+  }
 }
 
 async function handleEmit(type: string, data?: any) {
-    switch (type) {
-        case "completeOperation": {
-            updateModal.value = false;
-            await getData();
-            emit("refresh");
-            break;
-        }
-        case "closeAccount": {
-            emit("closeAccount", data);
-            detailsModal.value = false;
-            break;
-        }
+  switch (type) {
+    case "completeOperation": {
+      updateModal.value = false;
+      await getData();
+      emit("refresh");
+      break;
     }
+    case "closeAccount": {
+      emit("closeAccount", data);
+      detailsModal.value = false;
+      break;
+    }
+  }
 }
 
 async function onToggleEnabled(acc: Account, nextValue: boolean) {
-    const prev = !nextValue;
-    if (props.onToggle) {
-        const ok = await props.onToggle(acc, nextValue);
-        if (!ok) acc.is_active = prev;
-    }
+  const prev = !nextValue;
+  if (props.onToggle) {
+    const ok = await props.onToggle(acc, nextValue);
+    if (!ok) acc.is_active = prev;
+  }
 }
 
 defineExpose({ refresh: getData });
-
 </script>
 
 <template>
@@ -220,41 +235,20 @@ defineExpose({ refresh: getData });
     style="max-width: 1000px"
   >
     <div>
-      <div
-        class="text-xs"
-        style="color: var(--text-secondary)"
-      >
-        Total
-      </div>
+      <div class="text-xs" style="color: var(--text-secondary)">Total</div>
       <div class="font-bold">
         {{ vueHelper.displayAsCurrency(totals.total) }}
       </div>
     </div>
     <div>
-      <div
-        class="text-xs"
-        style="color: var(--text-secondary)"
-      >
-        Positive
-      </div>
-      <div
-        class="font-bold"
-        style="color: green"
-      >
+      <div class="text-xs" style="color: var(--text-secondary)">Positive</div>
+      <div class="font-bold" style="color: green">
         {{ vueHelper.displayAsCurrency(totals.positive) }}
       </div>
     </div>
     <div>
-      <div
-        class="text-xs"
-        style="color: var(--text-secondary)"
-      >
-        Negative
-      </div>
-      <div
-        class="font-bold"
-        style="color: red"
-      >
+      <div class="text-xs" style="color: var(--text-secondary)">Negative</div>
+      <div class="font-bold" style="color: red">
         {{ vueHelper.displayAsCurrency(totals.negative) }}
       </div>
     </div>
@@ -272,7 +266,9 @@ defineExpose({ refresh: getData });
       v-else-if="groupedAccounts.length === 0"
       class="flex flex-row p-2 w-full justify-content-center"
     >
-      <div class="flex flex-column gap-2 justify-content-center align-items-center">
+      <div
+        class="flex flex-column gap-2 justify-content-center align-items-center"
+      >
         <i
           style="color: var(--text-secondary)"
           class="pi pi-eye-slash text-4xl"
@@ -292,16 +288,10 @@ defineExpose({ refresh: getData });
         class="flex p-2 mb-2 pb-21 align-items-center justify-content-between"
         style="border-bottom: 1px solid var(--border-color)"
       >
-        <div
-          class="text-sm"
-          style="color: var(--text-secondary)"
-        >
+        <div class="text-sm" style="color: var(--text-secondary)">
           {{ vueHelper.formatString(type) }} · {{ group.length }}
         </div>
-        <div
-          class="font-bold text-sm"
-          style="color: var(--text-secondary)"
-        >
+        <div class="font-bold text-sm" style="color: var(--text-secondary)">
           {{ vueHelper.displayAsCurrency(groupTotal(group)) }}
         </div>
       </div>
@@ -338,11 +328,9 @@ defineExpose({ refresh: getData });
               {{ account.name }}
             </div>
 
-            <div
-              class="text-sm"
-              style="color: var(--text-secondary)"
-            >
-              {{ vueHelper.formatString(account.account_type?.sub_type) }}  {{ !account.is_active ? " - Inactive" : "" }}
+            <div class="text-sm" style="color: var(--text-secondary)">
+              {{ vueHelper.formatString(account.account_type?.sub_type) }}
+              {{ !account.is_active ? " - Inactive" : "" }}
             </div>
           </div>
 
@@ -376,57 +364,66 @@ defineExpose({ refresh: getData });
 </template>
 
 <style scoped>
-
 .bordered {
-    border: 1px solid var(--border-color);
-    background: var(--background-secondary);
+  border: 1px solid var(--border-color);
+  background: var(--background-secondary);
 }
 
-.clickable { cursor: pointer; }
+.clickable {
+  cursor: pointer;
+}
 
 .account-row .font-bold.clickable:hover {
-    text-decoration: underline;
+  text-decoration: underline;
 }
 
 .account-row .edit-icon {
-    opacity: 0;
-    transition: opacity .15s ease;
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
 .account-row:hover .edit-icon {
-    opacity: 1;
+  opacity: 1;
 }
 
 .account-row.advanced .edit-icon {
-    opacity: 1;
+  opacity: 1;
 }
 .account-row.inactive {
-    filter: grayscale(100%);
-    opacity: 0.6;
+  filter: grayscale(100%);
+  opacity: 0.6;
 }
 
 @media (max-width: 768px) {
+  .account-row {
+    padding: 0.5rem !important;
+  }
 
-    .account-row { padding: .5rem !important; }
+  .account-row > .flex:first-child > div:first-child {
+    width: 26px !important;
+    height: 26px !important;
+  }
 
-    .account-row > .flex:first-child > div:first-child {
-        width: 26px !important; height: 26px !important;
-    }
+  .account-row > .flex:first-child .font-bold {
+    font-size: 0.8rem !important;
+  }
+  .account-row > .flex:first-child .text-sm {
+    font-size: 0.7rem !important;
+  }
 
-    .account-row > .flex:first-child .font-bold {
-        font-size: 0.8rem !important;
-    }
-    .account-row > .flex:first-child .text-sm {
-        font-size: 0.7rem !important;
-    }
+  .account-row > .flex:last-child .font-bold {
+    font-size: 0.85rem !important;
+    white-space: nowrap !important;
+  }
 
-    .account-row > .flex:last-child .font-bold {
-        font-size: 0.85rem !important;
-        white-space: nowrap !important;
-    }
+  .account-row .ml-2 {
+    margin-left: 0.5rem !important;
+  }
+  .account-row .ml-3 {
+    margin-left: 0.4rem !important;
+  }
 
-    .account-row .ml-2 { margin-left: .5rem !important; }
-    .account-row .ml-3 { margin-left: .4rem !important; }
-
-    .account-row .edit-icon { opacity: 1 !important; }
+  .account-row .edit-icon {
+    opacity: 1 !important;
+  }
 }
 </style>
