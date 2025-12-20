@@ -10,6 +10,15 @@ import { useAccountStore } from "../../../services/stores/account_store.ts";
 import ShowLoading from "../../components/base/ShowLoading.vue";
 import YearlyCashFlowBreakdownChart from "../../components/charts/YearlyCashFlowBreakdownChart.vue";
 
+withDefaults(
+  defineProps<{
+    isMobile?: boolean;
+  }>(),
+  {
+    isMobile: false,
+  },
+);
+
 const statsStore = useStatisticsStore();
 const toastStore = useToastStore();
 const chartStore = useChartStore();
@@ -164,6 +173,7 @@ watch(
     <YearlyCashFlowBreakdownChart
       v-else-if="cashFlow.months.length > 0"
       :key="`chart-${selectedYear}-${selectedAccountID ?? 'all'}-${cashFlow.months.length}`"
+      :is-mobile="isMobile"
       :data="cashFlow"
     />
   </div>

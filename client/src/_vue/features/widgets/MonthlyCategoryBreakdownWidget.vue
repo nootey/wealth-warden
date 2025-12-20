@@ -13,6 +13,15 @@ import vueHelper from "../../../utils/vue_helper.ts";
 import type { Account } from "../../../models/account_models.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 
+withDefaults(
+  defineProps<{
+    isMobile?: boolean;
+  }>(),
+  {
+    isMobile: false,
+  },
+);
+
 const chartStore = useChartStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
@@ -296,7 +305,11 @@ watch(
     </div>
 
     <div class="flex flex-row w-full justify-content-center align-items-center">
-      <CategoryBreakdownChart v-if="hasAnyData" :series="series" />
+      <CategoryBreakdownChart
+        v-if="hasAnyData"
+        :series="series"
+        :is-mobile="isMobile"
+      />
       <div
         v-else
         class="flex flex-column align-items-center justify-content-center mt-3"

@@ -1,15 +1,24 @@
 <script setup lang="ts">
 import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
-import { onMounted } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import MonthlyCashFlowWidget from "../features/widgets/MonthlyCashFlowWidget.vue";
 import MonthlyCategoryBreakdownWidget from "../features/widgets/MonthlyCategoryBreakdownWidget.vue";
 import { useTransactionStore } from "../../services/stores/transaction_store.ts";
 import YearlyCashFlowWidget from "../features/widgets/YearlyCashFlowWidget.vue";
 
 const transactionStore = useTransactionStore();
+const isMobile = ref(window.innerWidth <= 768);
+const handleResize = () => {
+  isMobile.value = window.innerWidth <= 768;
+};
 
 onMounted(async () => {
   await transactionStore.getCategories();
+  window.addEventListener("resize", handleResize);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("resize", handleResize);
 });
 </script>
 
@@ -49,7 +58,7 @@ onMounted(async () => {
       </div>
 
       <SlotSkeleton bg="secondary">
-        <YearlyCashFlowWidget />
+        <YearlyCashFlowWidget :is-mobile="isMobile" />
       </SlotSkeleton>
 
       <div class="w-full flex flex-row justify-content-between p-1">
@@ -65,7 +74,7 @@ onMounted(async () => {
       </div>
 
       <SlotSkeleton bg="secondary">
-        <MonthlyCashFlowWidget />
+        <MonthlyCashFlowWidget :is-mobile="isMobile" />
       </SlotSkeleton>
 
       <div class="w-full flex flex-row justify-content-between p-1">
@@ -81,7 +90,7 @@ onMounted(async () => {
       </div>
 
       <SlotSkeleton bg="secondary">
-        <MonthlyCategoryBreakdownWidget />
+        <MonthlyCategoryBreakdownWidget :is-mobile="isMobile" />
       </SlotSkeleton>
     </div>
   </main>

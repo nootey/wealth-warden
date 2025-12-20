@@ -10,6 +10,15 @@ import type { Account } from "../../../models/account_models.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import ShowLoading from "../../components/base/ShowLoading.vue";
 
+withDefaults(
+  defineProps<{
+    isMobile?: boolean;
+  }>(),
+  {
+    isMobile: false,
+  },
+);
+
 const statsStore = useStatisticsStore();
 const toastStore = useToastStore();
 const chartStore = useChartStore();
@@ -167,6 +176,7 @@ watch(
     <MonthlyCashFlowChart
       v-else-if="monthlyCashFlow.series.length > 0"
       :key="`chart-${selectedYear}-${selectedAccountID ?? 'all'}-${monthlyCashFlow.series.length}`"
+      :is-mobile="isMobile"
       :data="monthlyCashFlow"
     />
   </div>

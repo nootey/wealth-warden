@@ -27,7 +27,16 @@ ChartJS.register(
   Filler,
 );
 
-const props = defineProps<{ data: MonthlyCashFlowResponse }>();
+const props = withDefaults(
+  defineProps<{
+    isMobile?: boolean;
+    data: MonthlyCashFlowResponse;
+  }>(),
+  {
+    isMobile: false,
+  },
+);
+
 const { colors } = useChartColors();
 
 const labels = computed(() =>
@@ -197,12 +206,16 @@ const chartOptions = computed(() => ({
       type: "category",
       grid: { display: false, drawBorder: false },
       ticks: { color: colors.value.axisText, maxRotation: 0, minRotation: 0 },
-      border: { color: colors.value.axisBorder }, // bottom axis line
+      border: { color: colors.value.axisBorder },
     },
     y: {
       grid: { display: false, drawBorder: false },
-      ticks: { display: false },
-      border: { color: colors.value.axisBorder }, // <-- y-axis line, darker in light mode
+      ticks: {
+        display: !props.isMobile,
+        color: colors.value.axisText,
+        callback: (v: number) => vueHelper.displayAsCurrency(v),
+      },
+      border: { color: colors.value.axisBorder },
     },
   },
 }));
