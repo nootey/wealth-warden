@@ -30,6 +30,26 @@ var FieldMap = map[string]map[string]FieldMetadata{
 			OrEquals:     true,
 		},
 	},
+	"transfers": {
+		"from": {
+			Column:       "from_accounts.name",
+			FilterColumn: "from_accounts.id",
+			Join:         "LEFT JOIN transactions AS from_txn ON from_txn.id = transfers.transaction_outflow_id LEFT JOIN accounts AS from_accounts ON from_accounts.id = from_txn.account_id",
+			OrEquals:     true,
+		},
+		"to": {
+			Column:       "to_accounts.name",
+			FilterColumn: "to_accounts.id",
+			Join:         "LEFT JOIN transactions AS to_txn ON to_txn.id = transfers.transaction_inflow_id LEFT JOIN accounts AS to_accounts ON to_accounts.id = to_txn.account_id",
+			OrEquals:     true,
+		},
+		"txn_date": {
+			Column:       "from_txn.txn_date",
+			FilterColumn: "from_txn.txn_date",
+			Join:         "LEFT JOIN transactions AS from_txn ON from_txn.id = transfers.transaction_outflow_id",
+			OrEquals:     false,
+		},
+	},
 	"users": {
 		"role": {
 			Column:       "roles.name",

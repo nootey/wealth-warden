@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import {computed, onMounted, provide, ref} from "vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
@@ -11,6 +11,7 @@ import type { Column } from "../../../services/filter_registry.ts";
 import { useConfirm } from "primevue/useconfirm";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
+import ColumnHeader from "../base/ColumnHeader.vue";
 
 const props = defineProps<{
   accID?: number;
@@ -122,11 +123,24 @@ function canDelete(tr: Transfer) {
   );
 }
 
+async function switchSort(column: string) {
+  if (sort.value.field === column) {
+    sort.value.order = filterHelper.toggleSort(sort.value.order);
+  } else {
+    sort.value.order = 1;
+  }
+  sort.value.field = column;
+  await getData();
+}
+
 function refresh() {
   getData();
 }
 
+provide("switchSort", switchSort);
+
 defineExpose({ refresh });
+
 </script>
 
 <template>
@@ -153,11 +167,19 @@ defineExpose({ refresh });
     <Column
       v-for="col of activeColumns"
       :key="col.field"
-      :header="col.header"
       :field="col.field"
       :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
       :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
     >
+      <template #header>
+        <ColumnHeader
+          :header="col.header"
+          :field="col.field"
+          :sort="sort"
+          :sortable="!!sort"
+          @click="!sort"
+        />
+      </template>
       <template #body="{ data }">
         <template v-if="col.field === 'amount'">
           {{

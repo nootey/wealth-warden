@@ -150,7 +150,7 @@ func (s *TransactionService) FetchTransfersPaginated(ctx context.Context, userID
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
 
-	records, err := s.repo.FindTransfers(ctx, nil, userID, offset, p.RowsPerPage, includeDeleted, accountID)
+	records, err := s.repo.FindTransfers(ctx, nil, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, includeDeleted, accountID)
 	if err != nil {
 		return nil, nil, err
 	}
