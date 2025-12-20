@@ -96,14 +96,19 @@ async function loadTransactionsPage({
   rows,
   sort: s,
   filters: f,
-  include_deleted,
+  includeDeleted,
 }: any) {
   let response = null;
 
   try {
     response = await sharedStore.getRecordsPaginated(
       apiPrefix,
-      { rowsPerPage: rows, sort: s, filters: f, include_deleted },
+      {
+        rowsPerPage: rows,
+        sort: s,
+        filters: f,
+        include_deleted: includeDeleted,
+      },
       page,
     );
   } catch (e) {
