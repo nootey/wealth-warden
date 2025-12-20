@@ -12,6 +12,10 @@ import { useConfirm } from "primevue/useconfirm";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 
+const props = defineProps<{
+  accID?: number;
+}>();
+
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
@@ -32,6 +36,7 @@ const params = computed(() => {
     rowsPerPage: paginator.value.rowsPerPage,
     sort: sort.value,
     filters: null,
+    account_id: props.accID ?? null,
   };
 });
 const rows = ref([5, 10, 25]);

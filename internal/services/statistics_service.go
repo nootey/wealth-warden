@@ -383,13 +383,13 @@ func (s *StatisticsService) GetTodayStats(ctx context.Context, userID int64, acc
 	var checkingAccounts []models.Account
 
 	if accountID != nil {
+		// Verify acc is valid
 		acc, errAcc := s.accRepo.FindAccountByID(ctx, tx, *accountID, userID, false)
 		if errAcc != nil {
 			tx.Rollback()
 			return nil, errAcc
 		}
-		checkingAccounts = []models.Account{*acc}
-		row, err = s.repo.FetchDailyTotals(ctx, tx, userID, accountID, today)
+		row, err = s.repo.FetchDailyTotals(ctx, tx, userID, &acc.ID, today)
 	} else {
 		checkingAccounts, err = s.accRepo.FindAccountsBySubtype(ctx, tx, userID, "checking", true)
 		if err != nil {

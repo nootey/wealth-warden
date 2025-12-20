@@ -17,6 +17,7 @@ import Decimal from "decimal.js";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
 import AccountProjectionForm from "../forms/AccountProjectionForm.vue";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
+import TransfersPaginated from "./TransfersPaginated.vue";
 
 const props = defineProps<{
   accID: number;
@@ -324,6 +325,18 @@ async function handleEmit(type: string) {
             :fetch-page="loadTransactionsPage"
             :row-class="vueHelper.deletedRowClass"
           />
+        </div>
+      </div>
+    </SlotSkeleton>
+
+    <SlotSkeleton class="w-full">
+      <div class="w-full flex flex-column gap-3 p-3">
+        <div class="w-full flex flex-column gap-2">
+          <h4 style="color: var(--text-primary)">Transfers</h4>
+        </div>
+
+        <div class="flex flex-row gap-2">
+          <TransfersPaginated ref="trRef" :acc-i-d="accID" />
         </div>
       </div>
     </SlotSkeleton>
