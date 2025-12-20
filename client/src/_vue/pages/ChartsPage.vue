@@ -19,7 +19,7 @@ onMounted(async () => {
   >
     <div
       id="mobile-container"
-      class="flex flex-column justify-content-center w-full gap-1 border-round-md"
+      class="flex flex-column justify-content-center w-full gap-3 border-round-md"
     >
       <SlotSkeleton bg="transparent">
         <div
@@ -36,6 +36,14 @@ onMounted(async () => {
         <h4>Monthly cash-flow breakdown</h4>
       </div>
 
+      <div class="w-full flex flex-row justify-content-between p-1">
+        <span style="color: var(--text-secondary)" class="text-sm">
+          Track your monthly income and expenses throughout the year.
+          This chart shows the flow of money in (green) and out (red) of your selected account,
+          helping you identify spending patterns and seasonal trends.
+        </span>
+      </div>
+
       <SlotSkeleton bg="secondary">
         <MonthlyCashFlowWidget />
       </SlotSkeleton>
@@ -43,6 +51,14 @@ onMounted(async () => {
       <div class="w-full flex flex-row justify-content-between p-1">
         <h4>Monthly category display</h4>
       </div>
+
+      <div class="w-full flex flex-row justify-content-between p-1">
+        <span style="color: var(--text-secondary)" class="text-sm">
+          Compare spending across categories and years.
+          View how much you spend in each category by month, and see year-over-year trends to understand where your money goes over time.
+        </span>
+      </div>
+
       <SlotSkeleton bg="secondary">
         <MonthlyCategoryBreakdownWidget />
       </SlotSkeleton>
