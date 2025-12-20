@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
-import { useToastStore } from "../../services/stores/toast_store.ts";
-import { useChartStore } from "../../services/stores/chart_store.ts";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { useChartStore } from "../../../services/stores/chart_store.ts";
 import type {
   NetworthResponse,
   ChartPoint,
-} from "../../models/chart_models.ts";
-import vueHelper from "../../utils/vue_helper.ts";
-import NetworthChart from "../components/charts/NetworthChart.vue";
-import ShowLoading from "../components/base/ShowLoading.vue";
+} from "../../../models/chart_models.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
+import NetworthChart from "../../components/charts/NetworthChart.vue";
+import ShowLoading from "../../components/base/ShowLoading.vue";
 import { useRouter } from "vue-router";
 
 const props = withDefaults(

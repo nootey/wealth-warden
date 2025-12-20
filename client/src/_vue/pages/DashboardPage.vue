@@ -3,7 +3,7 @@ import { useAuthStore } from "../../services/stores/auth_store.ts";
 import { useAccountStore } from "../../services/stores/account_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
-import NetworthWidget from "../features/NetworthWidget.vue";
+import NetworthWidget from "../features/widgets/NetworthWidget.vue";
 import { ref } from "vue";
 import AccountAllocations from "../features/AccountAllocations.vue";
 import AccountBasicStats from "../features/AccountBasicStats.vue";

@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import MultiSelect from "primevue/multiselect";
-import CategoryBreakdownChart from "../components/charts/CategoryBreakdownChart.vue";
+import CategoryBreakdownChart from "../../components/charts/CategoryBreakdownChart.vue";
 
-import { useToastStore } from "../../services/stores/toast_store.ts";
-import { useChartStore } from "../../services/stores/chart_store.ts";
-import type { Category } from "../../models/transaction_models.ts";
-import { useTransactionStore } from "../../services/stores/transaction_store.ts";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { useChartStore } from "../../../services/stores/chart_store.ts";
+import type { Category } from "../../../models/transaction_models.ts";
+import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import Select from "primevue/select";
-import type { YearlyCategoryStats } from "../../models/chart_models.ts";
-import vueHelper from "../../utils/vue_helper.ts";
-import type { Account } from "../../models/account_models.ts";
-import { useAccountStore } from "../../services/stores/account_store.ts";
+import type { YearlyCategoryStats } from "../../../models/chart_models.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
+import type { Account } from "../../../models/account_models.ts";
+import { useAccountStore } from "../../../services/stores/account_store.ts";
 
 const chartStore = useChartStore();
 const toastStore = useToastStore();

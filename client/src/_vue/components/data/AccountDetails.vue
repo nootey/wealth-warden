@@ -7,7 +7,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import TransactionsPaginated from "./TransactionsPaginated.vue";
 import type { Column } from "../../../services/filter_registry.ts";
 import { useConfirm } from "primevue/useconfirm";
-import NetworthWidget from "../../features/NetworthWidget.vue";
+import NetworthWidget from "../../features/widgets/NetworthWidget.vue";
 import AccountBasicStats from "../../features/AccountBasicStats.vue";
 import SlotSkeleton from "../layout/SlotSkeleton.vue";
 import dateHelper from "../../../utils/date_helper.ts";

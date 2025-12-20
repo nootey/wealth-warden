@@ -4,7 +4,7 @@ import ImportList from "../../components/data/ImportList.vue";
 import { ref } from "vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import ExportModule from "../../features/ExportModule.vue";
+import ExportModule from "../../features/imports/ExportModule.vue";
 import ExportList from "../../components/data/ExportList.vue";
 import ImportModule from "../../components/data/ImportModule.vue";
 

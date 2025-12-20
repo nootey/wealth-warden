@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import ShowLoading from "../components/base/ShowLoading.vue";
-import { useToastStore } from "../../services/stores/toast_store.ts";
-import { useDataStore } from "../../services/stores/data_store.ts";
+import ShowLoading from "../../components/base/ShowLoading.vue";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { useDataStore } from "../../../services/stores/data_store.ts";
 
 const emit = defineEmits<{
   (e: "completeImport"): void;

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
 import { onMounted } from "vue";
-import MonthlyCashFlowWidget from "../features/MonthlyCashFlowWidget.vue";
-import MonthlyCategoryBreakdownWidget from "../features/MonthlyCategoryBreakdownWidget.vue";
+import MonthlyCashFlowWidget from "../features/widgets/MonthlyCashFlowWidget.vue";
+import MonthlyCategoryBreakdownWidget from "../features/widgets/MonthlyCategoryBreakdownWidget.vue";
 import { useTransactionStore } from "../../services/stores/transaction_store.ts";
 
 const transactionStore = useTransactionStore();

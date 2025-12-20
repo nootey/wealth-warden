@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, type Ref, watch } from "vue";
-import type { Account } from "../../models/account_models.ts";
-import { useDataStore } from "../../services/stores/data_store.ts";
-import { useToastStore } from "../../services/stores/toast_store.ts";
-import { useAccountStore } from "../../services/stores/account_store.ts";
+import type { Account } from "../../../models/account_models.ts";
+import { useDataStore } from "../../../services/stores/data_store.ts";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { useAccountStore } from "../../../services/stores/account_store.ts";
 import type {
   CustomImportValidationResponse,
   Import,
-} from "../../models/dataio_models.ts";
-import ImportTransferMapping from "../components/base/ImportTransferMapping.vue";
-import ShowLoading from "../components/base/ShowLoading.vue";
+} from "../../../models/dataio_models.ts";
+import ImportTransferMapping from "../../components/base/ImportTransferMapping.vue";
+import ShowLoading from "../../components/base/ShowLoading.vue";
 
 const emit = defineEmits<{
   (e: "completeTransfer"): void;
@@ -23,8 +23,8 @@ const transfering = ref(false);
 const checkingAccs = ref<Account[]>([]);
 const selectedCheckingAcc = ref<Account | null>(null);
 const filteredCheckingAccs = ref<Account[]>([]);
-const savingsAccs = ref<Account[]>([]);
-const savingsMappings = ref<Record<string, number | null>>({});
+const repaymentAccs = ref<Account[]>([]);
+const repaymentMappings = ref<Record<string, number | null>>({});
 const validatedResponse = ref<CustomImportValidationResponse | null>(null);
 
 const imports = ref<Import[]>([]);
@@ -44,7 +44,7 @@ watch(selectedImport, async (newImport) => {
     await fetchValidationResponse(newImport.id);
   } else {
     validatedResponse.value = null;
-    savingsMappings.value = {};
+    repaymentMappings.value = {};
   }
 });
 
@@ -59,12 +59,12 @@ onMounted(async () => {
         message: "Please create at least one checking account",
       });
     }
-    savingsAccs.value = await accStore.getAccountsBySubtype("savings");
+    repaymentAccs.value = await accStore.getAccountsByType("loan");
 
-    if (savingsAccs.value.length === 0) {
+    if (repaymentAccs.value.length === 0) {
       toastStore.infoResponseToast({
         title: "No accounts",
-        message: "Please create at least one savings account",
+        message: "Please create at least one repayment account",
       });
     }
   } catch (e) {
@@ -77,10 +77,10 @@ async function fetchValidationResponse(importId: number) {
   try {
     validatedResponse.value = await dataStore.getCustomImportJSON(
       importId,
-      "savings",
+      "repayment",
     );
     // Reset mappings when a new import is selected
-    savingsMappings.value = {};
+    repaymentMappings.value = {};
   } catch (e) {
     toastStore.errorResponseToast(e);
     validatedResponse.value = null;
@@ -95,7 +95,7 @@ async function getImports() {
 
     imports.value = allImports.filter(
       (importItem: any) =>
-        !importItem.savings_transferred &&
+        !importItem.repayments_transferred &&
         !importItem.name.toLowerCase().includes("account") &&
         !importItem.name.toLowerCase().includes("categories"),
     );
@@ -105,7 +105,7 @@ async function getImports() {
 }
 
 function onSaveMapping(map: Record<string, number | null>) {
-  savingsMappings.value = map;
+  repaymentMappings.value = map;
 }
 
 function searchAccount(event: { query: string }, accType: string) {
@@ -130,7 +130,7 @@ function resetWizard() {
   validatedResponse.value = null;
 }
 
-async function transferSavings() {
+async function transferRepayments() {
   if (!selectedImport.value?.id) {
     toastStore.errorResponseToast({
       title: "Error",
@@ -139,10 +139,10 @@ async function transferSavings() {
     return;
   }
 
-  if (Object.keys(savingsMappings.value).length === 0) {
+  if (Object.keys(repaymentMappings.value).length === 0) {
     toastStore.errorResponseToast({
       title: "Error",
-      message: "Please set up your savings mappings first",
+      message: "Please set up your repayment mappings first",
     });
     return;
   }
@@ -161,12 +161,12 @@ async function transferSavings() {
     const payload = {
       import_id: selectedImport.value.id,
       checking_acc_id: selectedCheckingAcc.value.id,
-      savings_mappings: Object.entries(savingsMappings.value).map(
+      repayment_mappings: Object.entries(repaymentMappings.value).map(
         ([name, account_id]) => ({ name, account_id }),
       ),
     };
 
-    const res = await dataStore.transferSavingsFromImport(payload);
+    const res = await dataStore.transferRepaymentsFromImport(payload);
     toastStore.successResponseToast(res);
 
     emit("completeTransfer");
@@ -182,12 +182,12 @@ const isDisabled = computed(() => {
   if (transfering.value) return true;
   if (!selectedCheckingAcc.value) return true;
 
-  const mappings = Object.values(savingsMappings.value);
+  const mappings = Object.values(repaymentMappings.value);
   const hasAtLeastOne = mappings.some((v) => v !== null);
   return !hasAtLeastOne;
 });
 
-defineExpose({ isDisabled, transferSavings });
+defineExpose({ isDisabled, transferRepayments });
 </script>
 
 <template>
@@ -195,7 +195,7 @@ defineExpose({ isDisabled, transferSavings });
     v-if="!transfering"
     class="flex flex-column w-full justify-content-center align-items-center gap-3"
   >
-    <h3>Map savings from imported data</h3>
+    <h3>Map repayments from imported data</h3>
     <span>Select import</span>
 
     <Select
@@ -214,7 +214,7 @@ defineExpose({ isDisabled, transferSavings });
       class="flex flex-column w-full p-2 align-items-center"
     >
       <span style="color: var(--text-secondary)"
-        >No savings were found in the provided import!</span
+        >No repayments were found in the provided import!</span
       >
     </div>
     <div v-else-if="validatedResponse">
@@ -263,15 +263,15 @@ defineExpose({ isDisabled, transferSavings });
 
         <span>---</span>
 
-        <h4>Savings mappings</h4>
+        <h4>Repayments mappings</h4>
         <div
           v-if="validatedResponse.filtered_count > 0"
           class="flex flex-row w-full gap-3 align-items-center"
         >
           <ImportTransferMapping
-            v-model:model-value="savingsMappings"
+            v-model:model-value="repaymentMappings"
             :imported-categories="validatedResponse.categories"
-            :accounts="savingsAccs"
+            :accounts="repaymentAccs"
             @save="onSaveMapping"
           />
         </div>

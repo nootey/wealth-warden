@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useDataStore } from "../../services/stores/data_store.ts";
-import { useToastStore } from "../../services/stores/toast_store.ts";
+import { useDataStore } from "../../../services/stores/data_store.ts";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { ref } from "vue";
 
 const emit = defineEmits<{

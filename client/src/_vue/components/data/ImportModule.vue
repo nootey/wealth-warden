@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import ImportTransactions from "../../features/ImportTransactions.vue";
-import ImportInvestments from "../../features/ImportInvestments.vue";
-import ImportAccounts from "../../features/ImportAccounts.vue";
-import ImportCategories from "../../features/ImportCategories.vue";
-import ImportSavings from "../../features/ImportSavings.vue";
-import ImportRepayments from "../../features/ImportRepayments.vue";
+import ImportTransactions from "../../features/imports/ImportTransactions.vue";
+import ImportInvestments from "../../features/imports/ImportInvestments.vue";
+import ImportAccounts from "../../features/imports/ImportAccounts.vue";
+import ImportCategories from "../../features/imports/ImportCategories.vue";
+import ImportSavings from "../../features/imports/ImportSavings.vue";
+import ImportRepayments from "../../features/imports/ImportRepayments.vue";
 
 const emit = defineEmits<{
   (e: "refreshData", value: string): void;
