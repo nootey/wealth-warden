@@ -26,6 +26,7 @@ const series = ref<{ name: string; data: number[] }[]>([]);
 const stats = ref<YearlyCategoryStats | null>(null);
 const accounts = ref<Account[]>([]);
 const selectedAccountID = ref<number | null>(null);
+const selectedClassification = ref<'income' | 'expense'>('expense');
 
 type OptionItem = { label: string; value: number | undefined; meta: Category }
 const yearOptions = computed(() =>
@@ -42,7 +43,7 @@ const ALL_CATEGORY = {
 const availableCategories = computed<Category[]>(() => [
     ALL_CATEGORY,
     ...transactionStore.categories.filter(c =>
-        (c.classification == "expense" && c.parent_id) ||
+        (c.classification == selectedClassification.value && c.parent_id) ||
         c.classification == "uncategorized"
     )
 ])
@@ -88,7 +89,7 @@ const fetchData = async () => {
 
         const res = await chartStore.getMultiYearMonthlyCategoryBreakdown({
             years: selectedYears.value.slice(0, maxYears),
-            class: "expense",
+            class: selectedClassification.value,
             percent: false,
             category: selectedCategory.value?.id ?? null,
             account: selectedAccountID.value ?? null
@@ -144,19 +145,18 @@ onMounted(async () => {
 });
 
 watch(
-    () => [selectedYears.value, selectedCategoryId.value, selectedAccountID.value] as const,
-    async ([years, category, account], [oldYears, oldCategory, oldAccount]) => {
-        // Handle year limit
+    () => [selectedYears.value, selectedCategoryId.value, selectedAccountID.value, selectedClassification.value] as const,
+    async ([years, category, account, classification], [oldYears, oldCategory, oldAccount, oldClassification]) => {
         if (years.length > maxYears) {
             selectedYears.value = years.slice(0, maxYears);
             return;
         }
 
-        // Only fetch if something actually changed
         if (
             JSON.stringify(years) !== JSON.stringify(oldYears) ||
             category !== oldCategory ||
-            account !== oldAccount
+            account !== oldAccount ||
+            classification !== oldClassification
         ) {
             await fetchData();
         }
@@ -168,91 +168,72 @@ watch(
 
 <template>
   <div class="flex flex-column w-full p-3 gap-3">
-    <div
-      id="mobile-row"
-      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
-    >
-      <div
-        id="filter-row"
-        class="flex flex-row w-full align-items-center gap-2 justify-content-between"
-      >
-        <div class="flex flex-column gap-1">
-          <span
-            class="text-sm"
-            style="color: var(--text-secondary)"
-          >
-            View and compare category totals by month.
-          </span>
-        </div>
-
-        <div
-          id="action-col"
-          class="flex flex-column w-5"
+    <div class="flex flex-row gap-2 w-full justify-content-between align-items-center">
+      <div class="mobile-hide flex flex-column gap-1 flex-grow-1">
+        <span
+          class="text-sm"
+          style="color: var(--text-secondary)"
         >
-          <Select
-            v-model="selectedCategoryId"
-            size="small"
-            filter
-            :options="categoryOptions"
-            option-label="label"
-            option-value="value"
-          >
-            <template #value="{ value }">
-              {{
-                availableCategories.find(c => c.id === value)?.display_name
-                  ?? availableCategories.find(c => c.id === value)?.name
-                  ?? (value === undefined ? 'All' : 'Select category')
-              }}
-            </template>
+          View and compare category totals by month.
+        </span>
+      </div>
 
-            <template #option="{ option }">
-              <div class="flex justify-content-between w-full">
-                <span>{{ option.label }}</span>
-                <small class="text-color-secondary">
-                  {{ option.meta?.classification }}
-                </small>
-              </div>
-            </template>
-          </Select>
-        </div>
-
-        <div
-          id="action-col"
-          class="flex flex-column w-5"
+      <div class="flex flex-row gap-2 flex-shrink-0 select-container">
+        <Select
+          v-model="selectedCategoryId"
+          size="small"
+          filter
+          class="select-width"
+          :options="categoryOptions"
+          option-label="label"
+          option-value="value"
         >
-          <MultiSelect
-            v-model="selectedYears"
-            :options="yearOptions"
-            :max-selected-labels="5"
-            :selection-limit="5"
-            size="small"
-            placeholder="Years"
-            option-label="label"
-            option-value="value"
-          />
-        </div>
+          <template #value="{ value }">
+            {{
+              availableCategories.find(c => c.id === value)?.display_name
+                ?? availableCategories.find(c => c.id === value)?.name
+                ?? (value === undefined ? 'All' : 'Select category')
+            }}
+          </template>
+
+          <template #option="{ option }">
+            <div class="flex justify-content-between w-full">
+              <span>{{ option.label }}</span>
+              <small class="text-color-secondary">
+                {{ option.meta?.classification }}
+              </small>
+            </div>
+          </template>
+        </Select>
+        <MultiSelect
+          v-model="selectedYears"
+          :options="yearOptions"
+          :max-selected-labels="5"
+          :selection-limit="5"
+          size="small"
+          class="select-width"
+          placeholder="Years"
+          option-label="label"
+          option-value="value"
+        />
       </div>
     </div>
 
-    <div
-      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
-    >
-      <div class="flex flex-column gap-2">
-        <div class="flex flex-row">
-          <span
-            class="text-sm"
-            style="color: var(--text-secondary)"
-          >
-            A default checking account was found. The stats are representative of the cash flow to this account.
-          </span>
-        </div>
+    <div class="flex flex-row gap-2 w-full justify-content-between align-items-center">
+      <div class="mobile-hide flex flex-column gap-2 flex-grow-1">
+        <span
+          class="text-sm"
+          style="color: var(--text-secondary)"
+        >
+          A default checking account was found. The stats are representative of the cash flow to this account.
+        </span>
       </div>
 
-      <div class="flex flex-column gap-2">
+      <div class="flex flex-row gap-2 flex-shrink-0 select-container">
         <Select
           v-model="selectedAccountID"
           size="small"
-          style="width: 150px;"
+          class="select-width"
           :options="accounts"
           option-value="id"
           placeholder="All accounts"
@@ -276,13 +257,21 @@ watch(
             </div>
           </template>
         </Select>
+        <Select
+          v-model="selectedClassification"
+          size="small"
+          class="select-width"
+          :options="[
+            { label: 'Expenses', value: 'expense' },
+            { label: 'Income', value: 'income' }
+          ]"
+          option-label="label"
+          option-value="value"
+        />
       </div>
     </div>
 
-    <div
-      id="mobile-row"
-      class="flex flex-row w-full justify-content-center align-items-center"
-    >
+    <div class="flex flex-row w-full justify-content-center align-items-center">
       <CategoryBreakdownChart
         v-if="hasAnyData"
         :series="series"
@@ -342,7 +331,7 @@ watch(
             {{ year }}
           </div>
           <div class="mb-1">
-            Spent: {{ vueHelper.displayAsCurrency(stats.year_stats[year]?.total ?? 0) }}
+            {{ (selectedClassification === "expense" ? "Spent: " : "Earned: ") + vueHelper.displayAsCurrency(stats.year_stats[year]?.total ?? 0) }}
           </div>
           <div
             class="text-sm"
@@ -358,14 +347,18 @@ watch(
 </template>
 
 <style scoped lang="scss">
+
+.select-width {
+  width: 200px;
+}
+
 @media (max-width: 768px) {
-    #filter-row {
-        flex-direction: column !important;
-        align-items: center !important;
-        min-width: 0 !important;
+
+    .select-container {
+        width: 100% !important;
     }
 
-    #action-col {
+    .select-width {
         width: 100% !important;
     }
 
