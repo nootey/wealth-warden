@@ -266,6 +266,7 @@ func (r *StatisticsRepository) GetAvailableStatsYears(ctx context.Context, tx *g
 			SELECT DISTINCT EXTRACT(YEAR FROM txn_date)::int AS year
 			FROM transactions
 			WHERE user_id = ?
+			AND deleted_at IS NULL
 			ORDER BY year;
 		`
 		args = []any{userID}
@@ -275,6 +276,7 @@ func (r *StatisticsRepository) GetAvailableStatsYears(ctx context.Context, tx *g
 			FROM transactions
 			WHERE user_id = ?
 			  AND account_id = ?
+			  AND deleted_at IS NULL
 			ORDER BY year;
 		`
 		args = []any{userID, *accID}
