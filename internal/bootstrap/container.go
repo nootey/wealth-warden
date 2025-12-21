@@ -9,6 +9,7 @@ import (
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/mailer"
 
+	"github.com/Finnhub-Stock-API/finnhub-go"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -42,6 +43,11 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	jobDispatcher := &jobqueue.InMemoryDispatcher{Queue: jobQueue}
 	authzSvc := authz.NewService(db, 5*time.Minute)
 
+	// Initialize Finnhub client
+	c := finnhub.NewConfiguration()
+	c.AddDefaultHeader("X-Finnhub-Token", cfg.FinnhubAPIKey)
+	finnClient := finnhub.NewAPIClient(c).DefaultApi
+
 	// Initialize repositories
 	loggingRepo := repositories.NewLoggingRepository(db)
 	userRepo := repositories.NewUserRepository(db)
@@ -67,7 +73,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	statsService := services.NewStatisticsService(statsRepo, accountRepo, transactionRepo)
 	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
-	investmentService := services.NewInvestmentService(investmentRepo, accountRepo, loggingRepo, jobDispatcher)
+	investmentService := services.NewInvestmentService(investmentRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, finnClient)
 
 	return &Container{
 		Config:             cfg,

@@ -2,6 +2,13 @@ export type InvestmentType = 'stock' | 'etf' | 'crypto';
 
 export type TransactionType = 'buy' | 'sell';
 
+export interface TickerData {
+    name: string;
+    exchange?: string;
+    currency?: string;
+}
+
+
 export interface InvestmentHolding {
     id?: number | null;
     account_id: number | null;

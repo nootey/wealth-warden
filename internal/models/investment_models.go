@@ -54,3 +54,11 @@ type InvestmentTransaction struct {
 	CreatedAt         time.Time       `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
+
+type InvestmentHoldingReq struct {
+	AccountID      int64           `json:"account_id" validate:"required"`
+	InvestmentType InvestmentType  `json:"investment_type" validate:"required"`
+	Name           string          `json:"name" validate:"required"`
+	Ticker         string          `json:"ticker" validate:"required"`
+	Quantity       decimal.Decimal `json:"quantity" validate:"required"`
+}
