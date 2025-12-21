@@ -278,6 +278,7 @@ func (r *TransactionRepository) GetMonthlyTransfersFromChecking(ctx context.Cont
 	err := q.
 		Where("tx_out.account_id IN ?", checkingAccountIDs).
 		Where("tx_out.txn_date >= ? AND tx_out.txn_date < ?", start, end).
+		Where("transfers.deleted_at IS NULL").
 		Find(&transfers).Error
 
 	return transfers, err
@@ -941,7 +942,7 @@ func (r *TransactionRepository) GetTransactionsForYear(ctx context.Context, tx *
 	}
 	db = db.WithContext(ctx)
 
-	query := db.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ? AND is_transfer = ? AND is_adjustment = ?", userID, year, false, false)
+	query := db.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ? AND is_transfer = ? AND is_adjustment = ? AND deleted_at IS NULL", userID, year, false, false)
 
 	if accountID != nil {
 		query = query.Where("account_id = ?", *accountID)
@@ -962,7 +963,7 @@ func (r *TransactionRepository) GetTransactionsByYearAndClass(ctx context.Contex
 	}
 	db = db.WithContext(ctx)
 
-	q := db.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ? AND transaction_type = ? AND is_transfer = ? AND is_adjustment = ?", userID, year, class, false, false)
+	q := db.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ? AND transaction_type = ? AND is_transfer = ? AND is_adjustment = ? AND deleted_at IS NULL", userID, year, class, false, false)
 
 	if accountID != nil {
 		q = q.Where("account_id = ?", *accountID)
@@ -983,7 +984,7 @@ func (r *TransactionRepository) GetAllTimeStatsByClass(ctx context.Context, tx *
 
 	q := db.Model(&models.Transaction{}).
 		Select("COALESCE(SUM(amount), 0) as total, COUNT(DISTINCT EXTRACT(YEAR FROM txn_date) || '-' || EXTRACT(MONTH FROM txn_date)) as months_with_data").
-		Where("user_id = ? AND transaction_type = ? AND is_transfer = ? AND is_adjustment = ?", userID, class, false, false)
+		Where("user_id = ? AND transaction_type = ? AND is_transfer = ? AND is_adjustment = ? AND deleted_at IS NULL", userID, class, false, false)
 
 	if accountID != nil {
 		q = q.Where("account_id = ?", *accountID)
