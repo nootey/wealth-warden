@@ -4,6 +4,7 @@ import { useToastStore } from "../../services/stores/toast_store.ts";
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { usePermissions } from "../../utils/use_permissions.ts";
+import InvestmentForm from "../components/forms/InvestmentForm.vue";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -18,6 +19,17 @@ const updateRecordID = ref(null);
 
 function manipulateDialog(modal: string, value: any) {
   switch (modal) {
+    case "addHolding": {
+      if (!hasPermission("manage_data")) {
+        toastStore.createInfoToast(
+          "Access denied",
+          "You don't have permission to perform this action.",
+        );
+        return;
+      }
+      createModal.value = value;
+      break;
+    }
     default: {
       break;
     }
@@ -35,6 +47,21 @@ async function handleEmit(emitType: any) {
 </script>
 
 <template>
+
+  <Dialog
+    v-model:visible="createModal"
+    class="rounded-dialog"
+    :breakpoints="{ '501px': '90vw' }"
+    :modal="true"
+    :style="{ width: '500px' }"
+    header="Add holding"
+  >
+    <InvestmentForm
+      mode="create"
+      @complete-operation="handleEmit('completeOperation')"
+    />
+  </Dialog>
+
   <main class="flex flex-column w-full p-2 align-items-center">
     <div
       id="mobile-container"
@@ -50,7 +77,7 @@ async function handleEmit(emitType: any) {
         <div style="font-weight: bold">Investments</div>
         <Button
           class="main-button"
-          @click="manipulateDialog('inviteUser', true)"
+          @click="manipulateDialog('addHolding', true)"
         >
           <div class="flex flex-row gap-1 align-items-center">
             <i class="pi pi-plus" />
