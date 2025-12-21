@@ -189,6 +189,7 @@ func (r *StatisticsRepository) FetchMonthlyTotals(ctx context.Context, tx *gorm.
 	    AND is_adjustment = false
 	    AND is_transfer = false
 	    AND txn_date >= make_date(?,1,1) AND txn_date < make_date(?+1,1,1)
+	    AND deleted_at IS NULL
 	  GROUP BY month
 	  ORDER BY month;
 	`
@@ -240,6 +241,7 @@ func (r *StatisticsRepository) FetchMonthlyTotalsCheckingOnly(ctx context.Contex
 	    AND txn_date >= make_date(?,1,1)
 	    AND txn_date < make_date(?+1,1,1)
 	    AND account_id IN ?
+	  	AND deleted_at IS NULL
 	  GROUP BY month
 	  ORDER BY month;
 	`
