@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { useToast } from "primevue/usetoast";
+import axios from "axios";
 
 export const useToastStore = defineStore("toast", () => {
   const toast = useToast();
@@ -9,33 +10,33 @@ export const useToastStore = defineStore("toast", () => {
   const errorResponseToast = (error: unknown) => {
     console.error("triggered error", error);
 
-    const isAxiosError = (
-      err: unknown,
-    ): err is {
-      response?: { data?: { title?: string; message?: string } };
-      code?: string;
-      message?: string;
-    } => {
-      return typeof err === "object" && err !== null;
-    };
-
     let summary = "Unexpected Error";
     let detail = "An unknown error occurred.";
 
-    if (isAxiosError(error)) {
-      const data = error.response?.data;
+    if (axios.isAxiosError(error)) {
+      const data = error.response?.data as
+          | { title?: string; message?: string }
+          | undefined;
 
       if (data?.title || data?.message) {
         summary = data.title ?? "Error";
         detail = data.message ?? "Something went wrong.";
       }
 
-      if (error.code === "ERR_NETWORK" || error.message === "Network Error") {
+      if (!error.response || error.code === "ERR_NETWORK" || error.message === "Network Error") {
         summary = "Server unreachable";
         detail = "The server is currently not reachable.";
-      } else if (error.message) {
+      }
+
+      if (
+          (!data?.message || detail === "Something went wrong.") &&
+          error.message &&
+          error.message !== "Request failed with status code 500"
+      ) {
         detail = error.message;
       }
+    } else if (error instanceof Error) {
+      detail = error.message;
     }
 
     toast.add({
