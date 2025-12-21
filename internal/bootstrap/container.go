@@ -28,6 +28,7 @@ type Container struct {
 	StatsService       *services.StatisticsService
 	ImportService      *services.ImportService
 	ExportService      *services.ExportService
+	InvestmentService  *services.InvestmentService
 }
 
 func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Container, error) {
@@ -52,6 +53,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	statsRepo := repositories.NewStatisticsRepository(db)
 	importRepo := repositories.NewImportRepository(db)
 	exportRepo := repositories.NewExportRepository(db)
+	investmentRepo := repositories.NewInvestmentRepository(db)
 
 	// Initialize services
 	loggingService := services.NewLoggingService(loggingRepo)
@@ -65,6 +67,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	statsService := services.NewStatisticsService(statsRepo, accountRepo, transactionRepo)
 	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
+	investmentService := services.NewInvestmentService(investmentRepo, accountRepo, loggingRepo, jobDispatcher)
 
 	return &Container{
 		Config:             cfg,
@@ -81,5 +84,6 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 		StatsService:       statsService,
 		ImportService:      importService,
 		ExportService:      exportService,
+		InvestmentService:  investmentService,
 	}, nil
 }
