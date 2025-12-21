@@ -71,6 +71,11 @@ func (s *Scheduler) registerJobs() error {
 		return err
 	}
 
+	err = s.registerInvestmentPriceSyncJob()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -121,6 +126,36 @@ func (s *Scheduler) registerTemplateJob() error {
 				s.logger.Error("Template processing failed", zap.Error(err))
 			} else {
 				s.logger.Info("Template processing completed successfully")
+			}
+		}),
+		opts...,
+	)
+	return err
+}
+
+func (s *Scheduler) registerInvestmentPriceSyncJob() error {
+
+	if s.container.Config.FinnhubAPIKey == "" {
+		s.logger.Warn("Finnhub API key not provided - investment price sync disabled")
+		return nil // Skip registration
+	}
+
+	job := jobscheduler.NewInvestmentPriceSyncJob(s.logger, s.container)
+
+	var opts []gocron.JobOption
+	opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
+
+	_, err := s.scheduler.NewJob(
+		gocron.DurationJob(1*time.Hour),
+		gocron.NewTask(func() {
+			s.logger.Info("Starting investment price sync ...")
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+
+			if err := job.Run(ctx); err != nil {
+				s.logger.Error("Price sync failed", zap.Error(err))
+			} else {
+				s.logger.Info("Price sync completed")
 			}
 		}),
 		opts...,

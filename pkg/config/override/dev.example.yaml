@@ -1,5 +1,6 @@
 host: "127.0.0.1"
 release: false
+finnhub_api_key: ""
 
 http_server:
   port: 2000

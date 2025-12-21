@@ -9,9 +9,10 @@ import (
 func setDefaults() *Config {
 
 	return &Config{
-		Host:         "0.0.0.0",
-		Release:      false,
-		TraefikEmail: "",
+		Host:          "0.0.0.0",
+		Release:       false,
+		TraefikEmail:  "",
+		FinnhubAPIKey: "",
 		HttpServer: HttpServerConfig{
 			Port:       "2000",
 			ReqTimeout: 60,
