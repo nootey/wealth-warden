@@ -25,6 +25,7 @@ type InvestmentHolding struct {
 	AverageBuyPrice decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"average_buy_price"`
 	CurrentPrice    *decimal.Decimal `gorm:"type:decimal(19,4)" json:"current_price"`
 	LastPriceUpdate *time.Time       `json:"last_price_update"`
+	Account         Account          `json:"account"`
 	CreatedAt       time.Time        `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt       time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -51,6 +52,7 @@ type InvestmentTransaction struct {
 	Currency          string          `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
 	ExchangeRateToUSD decimal.Decimal `gorm:"type:decimal(19,6);not null;default:1.0" json:"exchange_rate_to_usd"`
 	TxnDate           time.Time       `gorm:"type:date;not null;index:idx_inv_trans_date" json:"txn_date"`
+	Account           Account         `json:"account"`
 	CreatedAt         time.Time       `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }

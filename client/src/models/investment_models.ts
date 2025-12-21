@@ -1,3 +1,5 @@
+import type {Account} from "./account_models.ts";
+
 export type InvestmentType = 'stock' | 'etf' | 'crypto';
 
 export type TransactionType = 'buy' | 'sell';
@@ -11,7 +13,7 @@ export interface TickerData {
 
 export interface InvestmentHolding {
     id?: number | null;
-    account_id: number | null;
+    account?: Account | null;
     user_id?: number;
     investment_type: InvestmentType;
     name: string;

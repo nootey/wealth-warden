@@ -121,7 +121,7 @@ function initData(): InvestmentHolding {
     investment_type: "crypto",
     name: "",
     ticker: "",
-    quantity: ""
+    quantity: "0"
   };
 }
 
@@ -176,6 +176,8 @@ async function loadRecord(id: number) {
 async function manageRecord() {
 
   if (!(await isRecordValid())) return;
+
+  if(!record.value.account) return;
 
   let ticker = tickerData.value.name;
 
@@ -324,7 +326,7 @@ async function manageRecord() {
         </div>
       </div>
 
-      <div class="flex flex-row w-full">
+      <div v-if="mode === 'update'" class="flex flex-row w-full">
         <div class="flex flex-column gap-1 w-full">
           <ValidationError
             :is-required="true"

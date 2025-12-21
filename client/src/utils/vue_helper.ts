@@ -68,6 +68,18 @@ const vueHelper = {
     const pct = num * 100;
     return pct.toFixed(decimals) + " %";
   },
+  displayAssetPrice: (amount: Decimal | number | string | null, investmentType?: string) => {
+    if (amount === null || amount === undefined) return null;
+    const num = Number(amount);
+    if (isNaN(num)) return "Invalid Amount";
+
+    const decimals = investmentType === 'crypto' ? 4 : 2;
+
+    return num.toLocaleString("de-DE", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  },
   formatChanges(payload: unknown): Change[] | null {
     if (!payload) return null;
 

@@ -8,5 +8,7 @@ import (
 )
 
 func InvestmentRoutes(ap *gin.RouterGroup, h *handlers.InvestmentHandler) {
-	ap.PUT("", authz.RequireAllMW("manage_data"), h.InsertHolding)
+	ap.GET("", authz.RequireAllMW("view_data"), h.GetInvestmentHoldingsPaginated)
+	ap.GET("transactions", authz.RequireAllMW("view_data"), h.GetInvestmentTransactionsPaginated)
+	ap.PUT("", authz.RequireAllMW("manage_data"), h.InsertInvestmentHolding)
 }

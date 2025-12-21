@@ -2,16 +2,15 @@
 import { useSharedStore } from "../../services/stores/shared_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { ref } from "vue";
-import { useRouter } from "vue-router";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import InvestmentForm from "../components/forms/InvestmentForm.vue";
+import InvestmentHoldingsPaginated from "../components/data/InvestmentHoldingsPaginated.vue";
 
-const sharedStore = useSharedStore();
 const toastStore = useToastStore();
+
 const { hasPermission } = usePermissions();
 
-
-const router = useRouter();
+const holdRef = ref<InstanceType<typeof InvestmentHoldingsPaginated> | null>(null);
 
 const createModal = ref(false);
 const updateModal = ref(false);
@@ -30,6 +29,18 @@ function manipulateDialog(modal: string, value: any) {
       createModal.value = value;
       break;
     }
+    case "updateHolding": {
+      if (!hasPermission("manage_data")) {
+        toastStore.createInfoToast(
+          "Access denied",
+          "You don't have permission to perform this action.",
+        );
+        return;
+      }
+      updateModal.value = true;
+      updateRecordID.value = value;
+      break;
+    }
     default: {
       break;
     }
@@ -38,6 +49,12 @@ function manipulateDialog(modal: string, value: any) {
 
 async function handleEmit(emitType: any) {
   switch (emitType) {
+    case "completeOperation": {
+      createModal.value = false;
+      updateModal.value = false;
+      holdRef.value?.refresh();
+      break;
+    }
     default: {
       break;
     }
@@ -54,10 +71,24 @@ async function handleEmit(emitType: any) {
     :breakpoints="{ '501px': '90vw' }"
     :modal="true"
     :style="{ width: '500px' }"
-    header="Add holding"
+    header="Add asset"
   >
     <InvestmentForm
       mode="create"
+      @complete-operation="handleEmit('completeOperation')"
+    />
+  </Dialog>
+
+  <Dialog
+    v-model:visible="updateModal"
+    class="rounded-dialog"
+    :breakpoints="{ '501px': '90vw' }"
+    :modal="true"
+    :style="{ width: '500px' }"
+    header="Update asset"
+  >
+    <InvestmentForm
+      mode="update"
       @complete-operation="handleEmit('completeOperation')"
     />
   </Dialog>
@@ -86,6 +117,12 @@ async function handleEmit(emitType: any) {
           </div>
         </Button>
       </div>
+
+      <div id="mobile-row" class="flex flex-row w-full">
+        <InvestmentHoldingsPaginated  @update-holding="(id) => manipulateDialog('updateHolding', id)" />
+      </div>
+
+
     </div>
   </main>
 </template>
