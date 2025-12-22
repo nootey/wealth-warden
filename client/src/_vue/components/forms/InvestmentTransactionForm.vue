@@ -72,6 +72,10 @@ const rules = {
       required,
       $autoDirty: true,
     },
+    txn_date: {
+      required,
+      $autoDirty: true,
+    },
     transaction_type: {
       required,
       $autoDirty: true,
@@ -264,6 +268,25 @@ async function manageRecord() {
             placeholder="Select holding"
             dropdown
             @complete="searchHolding"
+          />
+        </div>
+      </div>
+
+      <div class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.txn_date.$errors[0]?.$message"
+          >
+            <label>Date</label>
+          </ValidationError>
+          <DatePicker
+            v-model="record.txn_date"
+            date-format="dd/mm/yy"
+            show-icon
+            fluid
+            icon-display="input"
+            size="small"
           />
         </div>
       </div>
