@@ -128,7 +128,7 @@ function initData(): InvestmentTransaction {
     txn_date: dayjs().toDate(),
     transaction_type: "buy",
     quantity: "",
-    fee: "",
+    fee: "0",
     price_per_unit: "",
     currency: "USD",
     description: "",
@@ -136,6 +136,9 @@ function initData(): InvestmentTransaction {
 }
 
 function getCurrencyPlaceholder(currency: string) {
+  if(record.value.holding?.investment_type === 'crypto')
+    return '0'
+
   const symbols: Record<string, string> = {
     USD: '$',
     EUR: '€',
@@ -355,6 +358,8 @@ async function manageRecord() {
             mode="currency"
             :currency="record.currency"
             locale="de-DE"
+            :min-fraction-digits="2"
+            :max-fraction-digits="record.holding?.investment_type === 'crypto' ? 6 : 2"
             :placeholder="getCurrencyPlaceholder(record.currency)"
           />
         </div>

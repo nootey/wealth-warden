@@ -388,11 +388,8 @@ function toggleInfoPopup(event: any) {
       </div>
 
       <div class="flex flex-row w-full gap-2">
-        <div
-          class="flex flex-column gap-1"
-          :class="
-            selectedInvestmentType.toLowerCase() === 'crypto' ? 'w-6' : 'w-full'
-          "
+        <div v-if="selectedInvestmentType.toLowerCase() !== 'crypto'"
+          class="flex flex-column gap-1 w-full"
         >
           <ValidationError
             :is-required="selectedInvestmentType.toLowerCase() !== 'crypto'"
@@ -406,9 +403,8 @@ function toggleInfoPopup(event: any) {
             placeholder="Input exchange"
           />
         </div>
-        <div
-          v-if="selectedInvestmentType.toLowerCase() === 'crypto'"
-          class="flex flex-column gap-1 w-6"
+        <div v-else
+          class="flex flex-column gap-1 w-full"
         >
           <ValidationError
             :is-required="false"

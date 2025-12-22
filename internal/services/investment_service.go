@@ -304,10 +304,11 @@ func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, use
 	}
 
 	var valueAtBuy decimal.Decimal
+	effectiveQuantity := req.Quantity
 	if holding.InvestmentType == models.InvestmentCrypto {
 		// Crypto: (quantity - fee) * price_per_unit
-		totalQuantity := req.Quantity.Sub(fee)
-		valueAtBuy = totalQuantity.Mul(req.PricePerUnit)
+		effectiveQuantity = req.Quantity.Sub(fee)
+		valueAtBuy = effectiveQuantity.Mul(req.PricePerUnit)
 	} else {
 		// Stock/ETF: (quantity * price_per_unit) - fee
 		valueAtBuy = req.Quantity.Mul(req.PricePerUnit).Sub(fee)
@@ -375,7 +376,7 @@ func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, use
 		HoldingID:         req.HoldingID,
 		TxnDate:           req.TxnDate,
 		TransactionType:   req.TransactionType,
-		Quantity:          req.Quantity,
+		Quantity:          effectiveQuantity,
 		PricePerUnit:      req.PricePerUnit,
 		Fee:               fee,
 		ValueAtBuy:        valueAtBuy,
@@ -394,7 +395,7 @@ func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, use
 	}
 
 	// Update holding with new quantity, average buy price, and current price
-	err = s.repo.UpdateHoldingAfterTransaction(ctx, tx, holding.ID, req.Quantity, req.PricePerUnit, currentPrice, lastPriceUpdate, req.TransactionType, valueAtBuy)
+	err = s.repo.UpdateHoldingAfterTransaction(ctx, tx, holding.ID, effectiveQuantity, req.PricePerUnit, currentPrice, lastPriceUpdate, req.TransactionType, valueAtBuy)
 	if err != nil {
 		tx.Rollback()
 		return 0, err
