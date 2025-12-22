@@ -3,15 +3,14 @@ package services
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/prices"
 	"wealth-warden/pkg/utils"
 
-	"github.com/Finnhub-Stock-API/finnhub-go"
 	"github.com/shopspring/decimal"
 )
 
@@ -22,12 +21,12 @@ type InvestmentServiceInterface interface {
 }
 
 type InvestmentService struct {
-	repo          repositories.InvestmentRepositoryInterface
-	accRepo       repositories.AccountRepositoryInterface
-	settingsRepo  *repositories.SettingsRepository
-	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher jobqueue.JobDispatcher
-	finnhubClient *finnhub.DefaultApiService
+	repo             repositories.InvestmentRepositoryInterface
+	accRepo          repositories.AccountRepositoryInterface
+	settingsRepo     *repositories.SettingsRepository
+	loggingRepo      repositories.LoggingRepositoryInterface
+	jobDispatcher    jobqueue.JobDispatcher
+	priceFetchClient prices.PriceFetcher
 }
 
 func NewInvestmentService(
@@ -36,15 +35,15 @@ func NewInvestmentService(
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobqueue.JobDispatcher,
-	finnhubClient *finnhub.DefaultApiService,
+	priceFetchClient prices.PriceFetcher,
 ) *InvestmentService {
 	return &InvestmentService{
-		repo:          repo,
-		accRepo:       accRepo,
-		settingsRepo:  settingsRepo,
-		jobDispatcher: jobDispatcher,
-		loggingRepo:   loggingRepo,
-		finnhubClient: finnhubClient,
+		repo:             repo,
+		accRepo:          accRepo,
+		settingsRepo:     settingsRepo,
+		jobDispatcher:    jobDispatcher,
+		loggingRepo:      loggingRepo,
+		priceFetchClient: priceFetchClient,
 	}
 }
 
@@ -139,38 +138,50 @@ func (s *InvestmentService) InsertHolding(ctx context.Context, userID int64, req
 		return 0, fmt.Errorf("can't find account with given id %w", err)
 	}
 
-	t := strings.ToUpper(req.Ticker)
-	log.Printf("DEBUG: Investment type = '%s', Ticker = '%s'", req.InvestmentType, t)
+	// Validate ticker and fetch price
+	var currentPrice *decimal.Decimal
+	var lastPriceUpdate *time.Time
 
-	var ticker string
-	switch req.InvestmentType {
-	case models.InvestmentCrypto:
-		// Crypto format: "BINANCE:BTCUSDT" - use as-is
-		ticker = t
-	case models.InvestmentStock, models.InvestmentETF:
-		// Stock/ETF format: "AAPL|L" -> "IWDA.L"
-		if parts := strings.Split(t, "|"); len(parts) == 2 {
-			ticker = parts[0] + "." + parts[1]
-		} else {
-			ticker = t // No exchange specified, try US (default)
+	if s.priceFetchClient != nil {
+		var ticker, exchangeOrCurrency string
+		ut := strings.ToUpper(req.Ticker)
+
+		switch req.InvestmentType {
+		case models.InvestmentCrypto:
+			// "BTC-USD"
+			if parts := strings.Split(ut, "-"); len(parts) == 2 {
+				ticker = parts[0]
+				exchangeOrCurrency = parts[1]
+			} else {
+				ticker = ut
+			}
+		case models.InvestmentStock, models.InvestmentETF:
+			// "IWDA.L"
+			if parts := strings.Split(ut, "."); len(parts) == 2 {
+				ticker = parts[0]
+				exchangeOrCurrency = parts[1]
+			} else {
+				ticker = ut
+			}
 		}
+
+		// Fetch price
+		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, ticker, req.InvestmentType, exchangeOrCurrency)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to fetch price for ticker '%s': %w", ticker, err)
+		}
+
+		price := decimal.NewFromFloat(priceData.Price)
+		now := time.Unix(priceData.LastUpdate, 0)
+		currentPrice = &price
+		lastPriceUpdate = &now
+
+	} else {
+		// Client not available - allow creation but without price
+		currentPrice = nil
+		lastPriceUpdate = nil
 	}
-
-	log.Printf("DEBUG2: Ticker = '%s'", ticker)
-
-	quote, _, err := s.finnhubClient.Quote(ctx, ticker)
-	if err != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("error validating ticker %w", err)
-	}
-
-	if quote.C == 0 {
-		tx.Rollback()
-		return 0, fmt.Errorf("invalid ticker '%s': no price data available", ticker)
-	}
-
-	currentPrice := decimal.NewFromFloat(float64(quote.C))
-	now := time.Now()
 
 	hold := models.InvestmentHolding{
 		UserID:          userID,
@@ -180,8 +191,8 @@ func (s *InvestmentService) InsertHolding(ctx context.Context, userID int64, req
 		Ticker:          req.Ticker,
 		Quantity:        req.Quantity,
 		AverageBuyPrice: decimal.Zero,
-		CurrentPrice:    &currentPrice,
-		LastPriceUpdate: &now,
+		CurrentPrice:    currentPrice,
+		LastPriceUpdate: lastPriceUpdate,
 	}
 
 	holdID, err := s.repo.InsertHolding(ctx, tx, &hold)

@@ -10,33 +10,30 @@ import (
 )
 
 type InvestmentPriceSyncJob struct {
-	logger    *zap.Logger
-	container *bootstrap.Container
+	logger           *zap.Logger
+	container        *bootstrap.Container
+	priceFetchClient prices.PriceFetcher
 }
 
-func NewInvestmentPriceSyncJob(logger *zap.Logger, container *bootstrap.Container) *InvestmentPriceSyncJob {
+func NewInvestmentPriceSyncJob(logger *zap.Logger, container *bootstrap.Container, priceFetchClient prices.PriceFetcher) *InvestmentPriceSyncJob {
 	return &InvestmentPriceSyncJob{
-		logger:    logger,
-		container: container,
+		logger:           logger,
+		container:        container,
+		priceFetchClient: priceFetchClient,
 	}
 }
 
 func (j *InvestmentPriceSyncJob) Run(ctx context.Context) error {
 	j.logger.Info("Starting investment price sync job")
 
-	// Create price fetch client
-	client, err := prices.NewPriceFetchClient(j.container.Config.FinanceAPIBaseURL)
-	if err != nil {
-		return fmt.Errorf("failed to initialize price client: %w", err)
+	if j.priceFetchClient != nil {
+		btc, err := j.priceFetchClient.GetAssetPrice(ctx, "btc", "crypto")
+		if err != nil {
+			return err
+		}
+		fmt.Println(fmt.Sprintln("BTC price info", btc))
 	}
-
-	btc, err := client.GetAssetPrice(ctx, "btc", "crypto")
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(fmt.Sprintln("BTC price info", btc))
-
+	
 	j.logger.Info("Investment price sync completed")
 	return nil
 }

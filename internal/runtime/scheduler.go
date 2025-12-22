@@ -6,6 +6,7 @@ import (
 	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/jobscheduler"
+	"wealth-warden/pkg/prices"
 
 	"github.com/go-co-op/gocron/v2"
 	"go.uber.org/zap"
@@ -135,17 +136,18 @@ func (s *Scheduler) registerTemplateJob() error {
 
 func (s *Scheduler) registerInvestmentPriceSyncJob() error {
 
-	if s.container.Config.FinnhubAPIKey == "" {
-		s.logger.Warn("Finnhub API key not provided - investment price sync disabled")
-		return nil // Skip registration
+	// Create price fetch client
+	client, err := prices.NewPriceFetchClient(s.container.Config.FinanceAPIBaseURL)
+	if err != nil {
+		s.logger.Warn("Failed to create price fetch client", zap.Error(err))
 	}
 
-	job := jobscheduler.NewInvestmentPriceSyncJob(s.logger, s.container)
+	job := jobscheduler.NewInvestmentPriceSyncJob(s.logger, s.container, client)
 
 	var opts []gocron.JobOption
 	opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 
-	_, err := s.scheduler.NewJob(
+	_, err = s.scheduler.NewJob(
 		gocron.DurationJob(1*time.Hour),
 		gocron.NewTask(func() {
 			s.logger.Info("Starting investment price sync ...")

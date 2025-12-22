@@ -151,18 +151,15 @@ async function loadRecord(id: number) {
 
     // Parse ticker based on format
     if (data.ticker) {
-      if (data.investment_type.toLowerCase() === "crypto" && data.ticker.includes(":")) {
-        // Crypto: "BINANCE:BTCUSDT"
-        const [exchange, symbolCurrency] = data.ticker.split(":");
-        const currency = symbolCurrency.slice(-4);
-        const name = symbolCurrency.slice(0, -4);
-        tickerData.value = { name, exchange, currency };
-      } else if (data.ticker.includes("|")) {
-        // Stock/ETF: "IWDA|L"
-        const [name, exchange] = data.ticker.split("|");
+      if (data.ticker.includes("-")) {
+        // Crypto: "BTC-USD"
+        const [name, currency] = data.ticker.split("-");
+        tickerData.value = { name, exchange: "", currency };
+      } else if (data.ticker.includes(".")) {
+        // Stock/ETF: "IWDA.L"
+        const [name, exchange] = data.ticker.split(".");
         tickerData.value = { name, exchange, currency: "" };
       } else {
-        // No exchange specified
         tickerData.value = { name: data.ticker, exchange: "", currency: "" };
       }
     }
@@ -187,14 +184,13 @@ async function manageRecord() {
   let ticker = tickerData.value.name;
 
   if (selectedInvestmentType.value.toLowerCase() === "crypto") {
-    // Crypto: "BINANCE:BTCUSDT"
-    if (tickerData.value.exchange && tickerData.value.currency) {
-      ticker = `${tickerData.value.exchange}:${tickerData.value.name}${tickerData.value.currency}`;
-    }
+    // Crypto: "BTC-USD"
+    const currency = tickerData.value.currency ? tickerData.value.currency.toUpperCase() : "USD";
+    ticker = `${ticker}-${currency}`;
   } else {
-    // Stock/ETF: "IWDA|L"
+    // Stock/ETF: "IWDA.L"
     if (tickerData.value.exchange) {
-      ticker = `${tickerData.value.name}|${tickerData.value.exchange}`;
+      ticker = `${ticker}.${tickerData.value.exchange.toUpperCase()}`;
     }
   }
 

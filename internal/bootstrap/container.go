@@ -8,8 +8,8 @@ import (
 	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/mailer"
+	"wealth-warden/pkg/prices"
 
-	"github.com/Finnhub-Stock-API/finnhub-go"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -43,10 +43,11 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	jobDispatcher := &jobqueue.InMemoryDispatcher{Queue: jobQueue}
 	authzSvc := authz.NewService(db, 5*time.Minute)
 
-	// Initialize Finnhub client
-	c := finnhub.NewConfiguration()
-	c.AddDefaultHeader("X-Finnhub-Token", cfg.FinnhubAPIKey)
-	finnClient := finnhub.NewAPIClient(c).DefaultApi
+	// Initialize price fetch client
+	client, err := prices.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
+	if err != nil {
+		logger.Warn("Failed to create price fetch client", zap.Error(err))
+	}
 
 	// Initialize repositories
 	loggingRepo := repositories.NewLoggingRepository(db)
@@ -73,7 +74,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	statsService := services.NewStatisticsService(statsRepo, accountRepo, transactionRepo)
 	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
-	investmentService := services.NewInvestmentService(investmentRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, finnClient)
+	investmentService := services.NewInvestmentService(investmentRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, client)
 
 	return &Container{
 		Config:             cfg,
