@@ -38,20 +38,21 @@ const (
 )
 
 type InvestmentTransaction struct {
-	ID                int64           `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID            int64           `gorm:"not null" json:"user_id"`
-	HoldingID         int64           `gorm:"not null;index:idx_inv_trans_holding" json:"holding_id"`
-	TxnDate           time.Time       `gorm:"type:date;not null;index:idx_inv_trans_date" json:"txn_date"`
-	TransactionType   TransactionType `gorm:"type:varchar(4);not null" json:"transaction_type"`
-	Quantity          decimal.Decimal `gorm:"type:decimal(19,8);not null" json:"quantity"`
-	Fee               decimal.Decimal `gorm:"type:decimal(19,4);not null;default:0" json:"fee"`
-	PricePerUnit      decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"price_per_unit"`
-	ValueAtBuy        decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
-	Currency          string          `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
-	ExchangeRateToUSD decimal.Decimal `gorm:"type:decimal(19,6);not null;default:1.0" json:"exchange_rate_to_usd"`
-	Description       *string         `gorm:"type:varchar(255)" json:"description"`
-	CreatedAt         time.Time       `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt         time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
+	ID                int64             `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID            int64             `gorm:"not null" json:"user_id"`
+	HoldingID         int64             `gorm:"not null;index:idx_inv_trans_holding" json:"holding_id"`
+	TxnDate           time.Time         `gorm:"type:date;not null;index:idx_inv_trans_date" json:"txn_date"`
+	TransactionType   TransactionType   `gorm:"type:varchar(4);not null" json:"transaction_type"`
+	Quantity          decimal.Decimal   `gorm:"type:decimal(19,8);not null" json:"quantity"`
+	Fee               decimal.Decimal   `gorm:"type:decimal(19,4);not null;default:0" json:"fee"`
+	PricePerUnit      decimal.Decimal   `gorm:"type:decimal(19,4);not null" json:"price_per_unit"`
+	ValueAtBuy        decimal.Decimal   `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
+	Currency          string            `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
+	ExchangeRateToUSD decimal.Decimal   `gorm:"type:decimal(19,6);not null;default:1.0" json:"exchange_rate_to_usd"`
+	Description       *string           `gorm:"type:varchar(255)" json:"description"`
+	Holding           InvestmentHolding `json:"holding"`
+	CreatedAt         time.Time         `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt         time.Time         `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type InvestmentHoldingReq struct {

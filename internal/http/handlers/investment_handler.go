@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"wealth-warden/internal/models"
@@ -63,6 +64,48 @@ func (h *InvestmentHandler) GetInvestmentHoldingsPaginated(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (h *InvestmentHandler) GetAllInvestmentHoldings(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+	
+	records, err := h.Service.FetchAllInvestmentHoldings(ctx, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, records)
+
+}
+
+func (h *InvestmentHandler) GetInvestmentHoldingByID(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	record, err := h.Service.FetchInvestmentHoldingByID(ctx, userID, id)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, record)
+}
+
 func (h *InvestmentHandler) GetInvestmentTransactionsPaginated(c *gin.Context) {
 
 	ctx := c.Request.Context()
@@ -98,6 +141,34 @@ func (h *InvestmentHandler) GetInvestmentTransactionsPaginated(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+func (h *InvestmentHandler) GetInvestmentTransactionByID(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	record, err := h.Service.FetchInvestmentTransactionByID(ctx, userID, id)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, record)
 }
 
 func (h *InvestmentHandler) InsertInvestmentHolding(c *gin.Context) {

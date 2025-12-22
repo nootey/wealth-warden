@@ -16,7 +16,10 @@ import (
 
 type InvestmentServiceInterface interface {
 	FetchInvestmentHoldingsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentHolding, *utils.Paginator, error)
+	FetchAllInvestmentHoldings(ctx context.Context, userID int64) ([]models.InvestmentHolding, error)
+	FetchInvestmentHoldingByID(ctx context.Context, userID int64, id int64) (*models.InvestmentHolding, error)
 	FetchInvestmentTransactionsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentTransaction, *utils.Paginator, error)
+	FetchInvestmentTransactionByID(ctx context.Context, userID int64, id int64) (*models.InvestmentTransaction, error)
 	InsertHolding(ctx context.Context, userID int64, req *models.InvestmentHoldingReq) (int64, error)
 }
 
@@ -84,6 +87,20 @@ func (s *InvestmentService) FetchInvestmentHoldingsPaginated(ctx context.Context
 	return records, paginator, nil
 }
 
+func (s *InvestmentService) FetchAllInvestmentHoldings(ctx context.Context, userID int64) ([]models.InvestmentHolding, error) {
+	return s.repo.FindAllInvestmentHoldings(ctx, nil, userID)
+}
+
+func (s *InvestmentService) FetchInvestmentHoldingByID(ctx context.Context, userID int64, id int64) (*models.InvestmentHolding, error) {
+
+	record, err := s.repo.FindInvestmentHoldingByID(ctx, nil, id, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &record, nil
+}
+
 func (s *InvestmentService) FetchInvestmentTransactionsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentTransaction, *utils.Paginator, error) {
 
 	totalRecords, err := s.repo.CountInvestmentTransactions(ctx, nil, userID, p.Filters, accountID)
@@ -117,6 +134,16 @@ func (s *InvestmentService) FetchInvestmentTransactionsPaginated(ctx context.Con
 	}
 
 	return records, paginator, nil
+}
+
+func (s *InvestmentService) FetchInvestmentTransactionByID(ctx context.Context, userID int64, id int64) (*models.InvestmentTransaction, error) {
+
+	record, err := s.repo.FindInvestmentTransactionByID(ctx, nil, id, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &record, nil
 }
 
 func (s *InvestmentService) InsertHolding(ctx context.Context, userID int64, req *models.InvestmentHoldingReq) (int64, error) {
