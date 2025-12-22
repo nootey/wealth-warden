@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import vueHelper from "../../../utils/vue_helper.ts";
-import dateHelper from "../../../utils/date_helper.ts";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import ColumnHeader from "../base/ColumnHeader.vue";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
@@ -9,7 +8,7 @@ import { computed, onMounted, provide, ref, watch } from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
-import type {InvestmentHolding} from "../../../models/investment_models.ts";
+import type { InvestmentHolding } from "../../../models/investment_models.ts";
 
 const props = defineProps<{
   accID?: number;
@@ -49,8 +48,8 @@ const page = ref(1);
 const sort = ref(filterHelper.initSort());
 
 const activeColumns = computed<Column[]>(() => [
-  {field: "name", header: "Name"},
-  {field: "ticker", header: "Ticker"},
+  { field: "name", header: "Name" },
+  { field: "ticker", header: "Ticker" },
   { field: "quantity", header: "Quantity" },
   { field: "average_buy_price", header: "Average" },
   { field: "current_price", header: "Price" },
@@ -98,7 +97,6 @@ async function onPage(event: any) {
   await getData();
 }
 
-
 async function switchSort(column: string) {
   if (sort.value.field === column) {
     sort.value.order = filterHelper.toggleSort(sort.value.order);
@@ -119,9 +117,7 @@ defineExpose({ refresh });
 </script>
 
 <template>
-
   <div class="flex flex-column w-full">
-
     <DataTable
       data-key="id"
       class="w-full enhanced-table"
@@ -167,20 +163,21 @@ defineExpose({ refresh });
           <template v-if="col.field === 'average_buy_price'">
             <div class="flex flex-row gap-2 align-items-center">
               <span>{{
-                vueHelper.displayAssetPrice(data.average_buy_price, data.investment_type)
+                vueHelper.displayAssetPrice(
+                  data.average_buy_price,
+                  data.investment_type,
+                )
               }}</span>
             </div>
           </template>
           <template v-if="col.field === 'current_price'">
             <div class="flex flex-row gap-2 align-items-center">
-              <span>{{
-                  vueHelper.displayAsCurrency(data.current_price)
-                }}</span>
+              <span>{{ vueHelper.displayAsCurrency(data.current_price) }}</span>
             </div>
           </template>
           <template v-else-if="col.field === 'account'">
             <div class="flex flex-row gap-2 align-items-center account-row">
-                {{ data[col.field]?.["name"] }}
+              {{ data[col.field]?.["name"] }}
             </div>
           </template>
           <template v-else-if="col.field === 'name'">

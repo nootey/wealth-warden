@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useSharedStore } from "../../services/stores/shared_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { ref } from "vue";
 import { usePermissions } from "../../utils/use_permissions.ts";
@@ -10,7 +9,9 @@ const toastStore = useToastStore();
 
 const { hasPermission } = usePermissions();
 
-const holdRef = ref<InstanceType<typeof InvestmentHoldingsPaginated> | null>(null);
+const holdRef = ref<InstanceType<typeof InvestmentHoldingsPaginated> | null>(
+  null,
+);
 
 const createModal = ref(false);
 const updateModal = ref(false);
@@ -60,11 +61,9 @@ async function handleEmit(emitType: any) {
     }
   }
 }
-
 </script>
 
 <template>
-
   <Dialog
     v-model:visible="createModal"
     class="rounded-dialog"
@@ -119,10 +118,10 @@ async function handleEmit(emitType: any) {
       </div>
 
       <div id="mobile-row" class="flex flex-row w-full">
-        <InvestmentHoldingsPaginated  @update-holding="(id) => manipulateDialog('updateHolding', id)" />
+        <InvestmentHoldingsPaginated
+          @update-holding="(id) => manipulateDialog('updateHolding', id)"
+        />
       </div>
-
-
     </div>
   </main>
 </template>

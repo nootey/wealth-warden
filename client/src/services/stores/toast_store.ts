@@ -15,23 +15,27 @@ export const useToastStore = defineStore("toast", () => {
 
     if (axios.isAxiosError(error)) {
       const data = error.response?.data as
-          | { title?: string; message?: string }
-          | undefined;
+        | { title?: string; message?: string }
+        | undefined;
 
       if (data?.title || data?.message) {
         summary = data.title ?? "Error";
         detail = data.message ?? "Something went wrong.";
       }
 
-      if (!error.response || error.code === "ERR_NETWORK" || error.message === "Network Error") {
+      if (
+        !error.response ||
+        error.code === "ERR_NETWORK" ||
+        error.message === "Network Error"
+      ) {
         summary = "Server unreachable";
         detail = "The server is currently not reachable.";
       }
 
       if (
-          (!data?.message || detail === "Something went wrong.") &&
-          error.message &&
-          error.message !== "Request failed with status code 500"
+        (!data?.message || detail === "Something went wrong.") &&
+        error.message &&
+        error.message !== "Request failed with status code 500"
       ) {
         detail = error.message;
       }
