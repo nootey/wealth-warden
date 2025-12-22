@@ -39,4 +39,5 @@ CREATE TRIGGER set_investment_holdings_updated_at
 -- +goose StatementBegin
 DROP TRIGGER IF EXISTS set_investment_holdings_updated_at ON investment_holdings;
 DROP TABLE IF EXISTS investment_holdings;
+DROP TYPE IF EXISTS investment_type;
 -- +goose StatementEnd
