@@ -25,6 +25,13 @@ import TransferForm from "./TransferForm.vue";
 import ShowLoading from "../base/ShowLoading.vue";
 import { useConfirm } from "primevue/useconfirm";
 import { usePermissions } from "../../../utils/use_permissions.ts";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+import {useSettingsStore} from "../../../services/stores/settings_store.ts";
+import type {UserSettings} from "../../../models/settings_models.ts";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -41,12 +48,14 @@ const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
+const settingsStore = useSettingsStore();
 
 const confirm = useConfirm();
 const { hasPermission } = usePermissions();
 
 const loading = ref(false);
 const defaultPreSelected = ref(false);
+const userSettings = ref<UserSettings>();
 
 const isGlobalReadOnly = computed(
   () => !!record.value.deleted_at || !!record.value.is_adjustment,
@@ -179,6 +188,7 @@ const v$ = useVuelidate(rules, { record });
 onMounted(async () => {
   // Fetch accounts first
   accounts.value = accountStore.accounts;
+  await getSettings();
 
   if (props.mode === "update" && props.recordId) {
     await loadRecord(props.recordId);
@@ -194,6 +204,15 @@ onMounted(async () => {
     }
   }
 });
+
+async function getSettings() {
+  try {
+    const res = await settingsStore.getUserSettings();
+    userSettings.value = res.data;
+  } catch (e) {
+    toastStore.errorResponseToast(e)
+  }
+}
 
 function initData(): Transaction {
   return {
@@ -237,11 +256,19 @@ function initData(): Transaction {
   };
 }
 
-const todayUtcMidnight = computed(() => {
-  const now = new Date();
-  return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-  );
+const todayInUserTimezone = computed(() => {
+  try {
+    const tz = userSettings.value?.timezone;
+    if (!tz) {
+      // Fallback to browser's local timezone if settings not loaded
+      return dayjs().startOf('day').toDate();
+    }
+    return dayjs().tz(tz).startOf('day').toDate();
+  } catch (error) {
+    // If timezone is invalid or dayjs fails, fallback to browser local time
+    console.warn('Failed to calculate date in user timezone, using local:', error);
+    return dayjs().startOf('day').toDate();
+  }
 });
 
 function updateSelectedParentCategory($event: any) {
@@ -572,7 +599,7 @@ async function deleteRecord(id: number, tx_type: string) {
             size="small"
             :readonly="isFormReadOnly"
             :disabled="isFormReadOnly"
-            :max-date="todayUtcMidnight"
+            :max-date="todayInUserTimezone"
           />
         </div>
       </div>

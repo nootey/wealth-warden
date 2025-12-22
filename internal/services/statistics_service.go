@@ -19,20 +19,23 @@ type StatisticsServiceInterface interface {
 }
 
 type StatisticsService struct {
-	repo    *repositories.StatisticsRepository
-	accRepo *repositories.AccountRepository
-	txnRepo *repositories.TransactionRepository
+	repo         *repositories.StatisticsRepository
+	accRepo      *repositories.AccountRepository
+	txnRepo      *repositories.TransactionRepository
+	settingsRepo *repositories.SettingsRepository
 }
 
 func NewStatisticsService(
 	repo *repositories.StatisticsRepository,
 	accRepo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
+	settingsRepo *repositories.SettingsRepository,
 ) *StatisticsService {
 	return &StatisticsService{
-		repo:    repo,
-		accRepo: accRepo,
-		txnRepo: txnRepo,
+		repo:         repo,
+		accRepo:      accRepo,
+		txnRepo:      txnRepo,
+		settingsRepo: settingsRepo,
 	}
 }
 
@@ -381,7 +384,18 @@ func (s *StatisticsService) GetTodayStats(ctx context.Context, userID int64, acc
 		}
 	}()
 
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	today := utils.LocalMidnightUTC(time.Now(), loc)
 
 	var row *models.MonthlyTotalsRow
 	var checkingAccounts []models.Account
