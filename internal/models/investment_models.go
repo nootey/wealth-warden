@@ -9,9 +9,9 @@ import (
 type InvestmentType string
 
 const (
-	InvestmentTypeStock  InvestmentType = "stock"
-	InvestmentTypeETF    InvestmentType = "etf"
-	InvestmentTypeCrypto InvestmentType = "crypto"
+	InvestmentStock  InvestmentType = "stock"
+	InvestmentETF    InvestmentType = "etf"
+	InvestmentCrypto InvestmentType = "crypto"
 )
 
 type InvestmentHolding struct {

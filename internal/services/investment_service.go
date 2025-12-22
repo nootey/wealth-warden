@@ -144,10 +144,10 @@ func (s *InvestmentService) InsertHolding(ctx context.Context, userID int64, req
 
 	var ticker string
 	switch req.InvestmentType {
-	case models.InvestmentTypeCrypto:
+	case models.InvestmentCrypto:
 		// Crypto format: "BINANCE:BTCUSDT" - use as-is
 		ticker = t
-	case models.InvestmentTypeStock, models.InvestmentTypeETF:
+	case models.InvestmentStock, models.InvestmentETF:
 		// Stock/ETF format: "AAPL|L" -> "IWDA.L"
 		if parts := strings.Split(t, "|"); len(parts) == 2 {
 			ticker = parts[0] + "." + parts[1]

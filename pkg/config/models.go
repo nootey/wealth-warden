@@ -1,17 +1,17 @@
 package config
 
 type Config struct {
-	Release       bool             `mapstructure:"release"`
-	TraefikEmail  string           `mapstructure:"traefik_email"`
-	FinnhubAPIKey string           `mapstructure:"finnhub_api_key"`
-	WebClient     WebClientConfig  `mapstructure:"web_client"`
-	HttpServer    HttpServerConfig `mapstructure:"http_server"`
-	Host          string           `mapstructure:"host"`
-	Postgres      PostgresConfig   `mapstructure:"postgres"`
-	JWT           JWTConfig        `mapstructure:"jwt"`
-	CORS          CorsConfig       `mapstructure:"cors"`
-	Seed          SeedConfig       `mapstructure:"seed"`
-	Mailer        MailerConfig     `mapstructure:"mailer"`
+	Release           bool             `mapstructure:"release"`
+	TraefikEmail      string           `mapstructure:"traefik_email"`
+	FinanceAPIBaseURL string           `mapstructure:"finance_api_base_url"`
+	WebClient         WebClientConfig  `mapstructure:"web_client"`
+	HttpServer        HttpServerConfig `mapstructure:"http_server"`
+	Host              string           `mapstructure:"host"`
+	Postgres          PostgresConfig   `mapstructure:"postgres"`
+	JWT               JWTConfig        `mapstructure:"jwt"`
+	CORS              CorsConfig       `mapstructure:"cors"`
+	Seed              SeedConfig       `mapstructure:"seed"`
+	Mailer            MailerConfig     `mapstructure:"mailer"`
 }
 
 type WebClientConfig struct {

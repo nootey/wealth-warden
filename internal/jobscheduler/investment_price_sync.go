@@ -2,9 +2,10 @@ package jobscheduler
 
 import (
 	"context"
+	"fmt"
 	"wealth-warden/internal/bootstrap"
+	"wealth-warden/pkg/prices"
 
-	"github.com/Finnhub-Stock-API/finnhub-go"
 	"go.uber.org/zap"
 )
 
@@ -23,23 +24,18 @@ func NewInvestmentPriceSyncJob(logger *zap.Logger, container *bootstrap.Containe
 func (j *InvestmentPriceSyncJob) Run(ctx context.Context) error {
 	j.logger.Info("Starting investment price sync job")
 
-	// Create Finnhub client
-	cfg := finnhub.NewConfiguration()
-	cfg.AddDefaultHeader("X-Finnhub-Token", j.container.Config.FinnhubAPIKey)
-	client := finnhub.NewAPIClient(cfg).DefaultApi
-
-	// Fetch BTC price (Binance BTC/USDT)
-	quote, _, err := client.Quote(ctx, "BINANCE:BTCUSDT")
+	// Create price fetch client
+	client, err := prices.NewPriceFetchClient(j.container.Config.FinanceAPIBaseURL)
 	if err != nil {
-		j.logger.Error("Failed to fetch BTC price", zap.Error(err))
+		return fmt.Errorf("failed to initialize price client: %w", err)
+	}
+
+	btc, err := client.GetAssetPrice(ctx, "btc", "crypto")
+	if err != nil {
 		return err
 	}
 
-	j.logger.Info("BTC Price",
-		zap.Float32("current", quote.C),
-		zap.Float32("high", quote.H),
-		zap.Float32("low", quote.L),
-	)
+	fmt.Println(fmt.Sprintln("BTC price info", btc))
 
 	j.logger.Info("Investment price sync completed")
 	return nil
