@@ -313,27 +313,6 @@ func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, use
 		valueAtBuy = req.Quantity.Mul(req.PricePerUnit).Sub(fee)
 	}
 
-	txn := models.InvestmentTransaction{
-		UserID:            userID,
-		HoldingID:         req.HoldingID,
-		TxnDate:           req.TxnDate,
-		TransactionType:   req.TransactionType,
-		Quantity:          req.Quantity,
-		PricePerUnit:      req.PricePerUnit,
-		Fee:               fee,
-		ValueAtBuy:        valueAtBuy,
-		Currency:          req.Currency,
-		ExchangeRateToUSD: exchangeRate,
-		Description:       req.Description,
-	}
-
-	txnID, err := s.repo.InsertInvestmentTransaction(ctx, tx, &txn)
-	if err != nil {
-		tx.Rollback()
-		return 0, err
-	}
-
-	// Fetch current price and update holding
 	var currentPrice *decimal.Decimal
 	var lastPriceUpdate *time.Time
 
@@ -369,8 +348,53 @@ func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, use
 		}
 	}
 
+	// Calculate transaction current value and profit/loss
+	var txnCurrentValue decimal.Decimal
+	var txnProfitLoss decimal.Decimal
+	var txnProfitLossPercent decimal.Decimal
+
+	if currentPrice != nil && !currentPrice.IsZero() {
+		// Current value of this specific transaction
+		txnCurrentValue = req.Quantity.Mul(*currentPrice)
+
+		// Profit/loss for this transaction
+		txnProfitLoss = txnCurrentValue.Sub(valueAtBuy)
+
+		// Profit/loss percentage
+		if !valueAtBuy.IsZero() {
+			txnProfitLossPercent = txnProfitLoss.Div(valueAtBuy).Mul(decimal.NewFromInt(100))
+		}
+	} else {
+		txnCurrentValue = decimal.Zero
+		txnProfitLoss = decimal.Zero
+		txnProfitLossPercent = decimal.Zero
+	}
+
+	txn := models.InvestmentTransaction{
+		UserID:            userID,
+		HoldingID:         req.HoldingID,
+		TxnDate:           req.TxnDate,
+		TransactionType:   req.TransactionType,
+		Quantity:          req.Quantity,
+		PricePerUnit:      req.PricePerUnit,
+		Fee:               fee,
+		ValueAtBuy:        valueAtBuy,
+		CurrentValue:      txnCurrentValue,
+		ProfitLoss:        txnProfitLoss,
+		ProfitLossPercent: txnProfitLossPercent,
+		Currency:          req.Currency,
+		ExchangeRateToUSD: exchangeRate,
+		Description:       req.Description,
+	}
+
+	txnID, err := s.repo.InsertInvestmentTransaction(ctx, tx, &txn)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
 	// Update holding with new quantity, average buy price, and current price
-	err = s.repo.UpdateHoldingAfterTransaction(ctx, tx, holding.ID, req.Quantity, req.PricePerUnit, currentPrice, lastPriceUpdate, req.TransactionType)
+	err = s.repo.UpdateHoldingAfterTransaction(ctx, tx, holding.ID, req.Quantity, req.PricePerUnit, currentPrice, lastPriceUpdate, req.TransactionType, valueAtBuy)
 	if err != nil {
 		tx.Rollback()
 		return 0, err

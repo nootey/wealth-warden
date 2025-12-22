@@ -19,6 +19,10 @@ export interface InvestmentHolding {
   ticker: string;
   quantity: string;
   average_buy_price?: string;
+  value_at_buy?: string;
+  current_value?: string;
+  profit_loss?: string;
+  profit_loss_percent?: string;
   current_price?: string | null;
   last_price_update?: Date | null;
   created_at?: Date;
@@ -35,6 +39,9 @@ export interface InvestmentTransaction {
   fee: string;
   price_per_unit: string;
   value_at_buy?: string;
+  current_value?: string;
+  profit_loss?: string;
+  profit_loss_percent?: string;
   currency: string;
   exchange_rate_to_usd?: string;
   description: string | null;

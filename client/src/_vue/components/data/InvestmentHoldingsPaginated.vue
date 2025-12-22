@@ -48,11 +48,13 @@ const page = ref(1);
 const sort = ref(filterHelper.initSort());
 
 const activeColumns = computed<Column[]>(() => [
-  { field: "name", header: "Name" },
   { field: "ticker", header: "Ticker" },
   { field: "quantity", header: "Quantity" },
-  { field: "average_buy_price", header: "Average" },
   { field: "current_price", header: "Price" },
+  { field: "value_at_buy", header: "Value on buy" },
+  { field: "current_value", header: "Current value" },
+  { field: "average_buy_price", header: "Average" },
+  { field: "profit_loss", header: "PNL" },
   {
     field: "account",
     header: "Account",
@@ -170,9 +172,9 @@ defineExpose({ refresh });
               }}</span>
             </div>
           </template>
-          <template v-else-if="col.field === 'current_price'">
+          <template v-else-if="['current_price', 'value_at_buy', 'current_value', 'profit_loss'].includes(col.field)">
             <div class="flex flex-row gap-2 align-items-center">
-              <span>{{ vueHelper.displayAsCurrency(data.current_price) }}</span>
+              <span>{{ vueHelper.displayAsCurrency(data[col.field]) }}</span>
             </div>
           </template>
           <template v-else-if="col.field === 'account'">
@@ -180,7 +182,7 @@ defineExpose({ refresh });
               {{ data[col.field]?.["name"] }}
             </div>
           </template>
-          <template v-else-if="col.field === 'name'">
+          <template v-else-if="col.field === 'ticker'">
             <div class="flex flex-row gap-2 align-items-center account-row">
               <span class="hover" @click="$emit('updateHolding', data.id)">
                 {{ data[col.field] }}

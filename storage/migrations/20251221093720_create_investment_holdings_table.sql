@@ -13,7 +13,11 @@ CREATE TABLE investment_holdings (
     name VARCHAR(255) NOT NULL,
     ticker VARCHAR(20) NOT NULL,
     quantity NUMERIC(19,8) NOT NULL,
+    value_at_buy NUMERIC(19,4) NOT NULL,
+    current_value NUMERIC(19,4) NOT NULL,
     average_buy_price NUMERIC(19,4) NOT NULL,
+    profit_loss NUMERIC(19,4) NOT NULL,
+    profit_loss_percent NUMERIC(19,4) NOT NULL,
     current_price NUMERIC(19,4),
     last_price_update TIMESTAMPTZ,
 

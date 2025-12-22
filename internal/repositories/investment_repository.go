@@ -21,7 +21,7 @@ type InvestmentRepositoryInterface interface {
 	FindInvestmentTransactionByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTransaction, error)
 	InsertHolding(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentHolding) (int64, error)
 	InsertInvestmentTransaction(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTransaction) (int64, error)
-	UpdateHoldingAfterTransaction(ctx context.Context, tx *gorm.DB, holdingID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, transactionType models.TransactionType) error
+	UpdateHoldingAfterTransaction(ctx context.Context, tx *gorm.DB, holdingID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, transactionType models.TransactionType, transactionValueAtBuy decimal.Decimal) error
 }
 
 type InvestmentRepository struct {
@@ -252,7 +252,7 @@ func (r *InvestmentRepository) InsertInvestmentTransaction(ctx context.Context, 
 	return newRecord.ID, nil
 }
 
-func (r *InvestmentRepository) UpdateHoldingAfterTransaction(ctx context.Context, tx *gorm.DB, holdingID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, transactionType models.TransactionType) error {
+func (r *InvestmentRepository) UpdateHoldingAfterTransaction(ctx context.Context, tx *gorm.DB, holdingID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, transactionType models.TransactionType, transactionValueAtBuy decimal.Decimal) error {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -267,6 +267,7 @@ func (r *InvestmentRepository) UpdateHoldingAfterTransaction(ctx context.Context
 	// Update quantity based on transaction type
 	var newQuantity decimal.Decimal
 	var newAverageBuyPrice decimal.Decimal
+	var newTotalValueAtBuy decimal.Decimal
 
 	if transactionType == models.InvestmentBuy {
 		newQuantity = holding.Quantity.Add(quantity)
@@ -276,15 +277,45 @@ func (r *InvestmentRepository) UpdateHoldingAfterTransaction(ctx context.Context
 		newValue := quantity.Mul(pricePerUnit)
 		totalValue := oldValue.Add(newValue)
 		newAverageBuyPrice = totalValue.Div(newQuantity)
+
+		// Total value at buy
+		newTotalValueAtBuy = holding.ValueAtBuy.Add(transactionValueAtBuy)
 	} else {
-		// Sell: decrease quantity, keep average buy price
+		// Sell: decrease quantity and value at buy proportionally
 		newQuantity = holding.Quantity.Sub(quantity)
 		newAverageBuyPrice = holding.AverageBuyPrice
+
+		// Reduce total value at buy proportionally
+		soldProportion := quantity.Div(holding.Quantity)
+		valueAtBuyReduction := holding.ValueAtBuy.Mul(soldProportion)
+		newTotalValueAtBuy = holding.ValueAtBuy.Sub(valueAtBuyReduction)
+	}
+
+	// Calculate current value
+	var newCurrentValue decimal.Decimal
+	var newProfitLoss decimal.Decimal
+	var newProfitLossPercent decimal.Decimal
+
+	if currentPrice != nil && !currentPrice.IsZero() {
+		newCurrentValue = newQuantity.Mul(*currentPrice)
+		newProfitLoss = newCurrentValue.Sub(newTotalValueAtBuy)
+
+		if !newTotalValueAtBuy.IsZero() {
+			newProfitLossPercent = newProfitLoss.Div(newTotalValueAtBuy).Mul(decimal.NewFromInt(100))
+		}
+	} else {
+		newCurrentValue = decimal.Zero
+		newProfitLoss = decimal.Zero
+		newProfitLossPercent = decimal.Zero
 	}
 
 	updates := map[string]interface{}{
-		"quantity":          newQuantity,
-		"average_buy_price": newAverageBuyPrice,
+		"quantity":            newQuantity,
+		"average_buy_price":   newAverageBuyPrice,
+		"value_at_buy":        newTotalValueAtBuy,
+		"current_value":       newCurrentValue,
+		"profit_loss":         newProfitLoss,
+		"profit_loss_percent": newProfitLossPercent,
 	}
 
 	if currentPrice != nil {
