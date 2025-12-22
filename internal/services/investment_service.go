@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 	"wealth-warden/internal/jobqueue"
@@ -138,7 +139,24 @@ func (s *InvestmentService) InsertHolding(ctx context.Context, userID int64, req
 		return 0, fmt.Errorf("can't find account with given id %w", err)
 	}
 
-	ticker := strings.ToUpper(req.Ticker)
+	t := strings.ToUpper(req.Ticker)
+	log.Printf("DEBUG: Investment type = '%s', Ticker = '%s'", req.InvestmentType, t)
+
+	var ticker string
+	switch req.InvestmentType {
+	case models.InvestmentTypeCrypto:
+		// Crypto format: "BINANCE:BTCUSDT" - use as-is
+		ticker = t
+	case models.InvestmentTypeStock, models.InvestmentTypeETF:
+		// Stock/ETF format: "AAPL|L" -> "IWDA.L"
+		if parts := strings.Split(t, "|"); len(parts) == 2 {
+			ticker = parts[0] + "." + parts[1]
+		} else {
+			ticker = t // No exchange specified, try US (default)
+		}
+	}
+
+	log.Printf("DEBUG2: Ticker = '%s'", ticker)
 
 	quote, _, err := s.finnhubClient.Quote(ctx, ticker)
 	if err != nil {

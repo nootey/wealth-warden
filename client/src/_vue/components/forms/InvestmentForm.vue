@@ -94,7 +94,6 @@ const rules = {
       $autoDirty: true
     },
     exchange: {
-      required: requiredIf(() => selectedInvestmentType.value.toLowerCase() === 'crypto'),
       $autoDirty: true
     },
     currency: {
@@ -150,15 +149,22 @@ async function loadRecord(id: number) {
       deleted: true,
     });
 
-    // Parse ticker if crypto
-    if (data.ticker && data.investment_type.toLowerCase() === "crypto" && data.ticker.includes(":")) {
-      const [exchange, symbolCurrency] = data.ticker.split(":");
-      const currency = symbolCurrency.slice(-4);
-      const name = symbolCurrency.slice(0, -4);
-
-      tickerData.value = { name, exchange, currency };
-    } else {
-      tickerData.value = { name: data.ticker || "", exchange: "", currency: "" };
+    // Parse ticker based on format
+    if (data.ticker) {
+      if (data.investment_type.toLowerCase() === "crypto" && data.ticker.includes(":")) {
+        // Crypto: "BINANCE:BTCUSDT"
+        const [exchange, symbolCurrency] = data.ticker.split(":");
+        const currency = symbolCurrency.slice(-4);
+        const name = symbolCurrency.slice(0, -4);
+        tickerData.value = { name, exchange, currency };
+      } else if (data.ticker.includes("|")) {
+        // Stock/ETF: "IWDA|L"
+        const [name, exchange] = data.ticker.split("|");
+        tickerData.value = { name, exchange, currency: "" };
+      } else {
+        // No exchange specified
+        tickerData.value = { name: data.ticker, exchange: "", currency: "" };
+      }
     }
 
     record.value = {
@@ -176,18 +182,25 @@ async function loadRecord(id: number) {
 async function manageRecord() {
 
   if (!(await isRecordValid())) return;
-
   if(!record.value.account) return;
 
   let ticker = tickerData.value.name;
 
-  if (selectedInvestmentType.value.toLowerCase() === "crypto" && tickerData.value.exchange && tickerData.value.currency) {
-    ticker = `${tickerData.value.exchange}:${tickerData.value.name}${tickerData.value.currency}`;
+  if (selectedInvestmentType.value.toLowerCase() === "crypto") {
+    // Crypto: "BINANCE:BTCUSDT"
+    if (tickerData.value.exchange && tickerData.value.currency) {
+      ticker = `${tickerData.value.exchange}:${tickerData.value.name}${tickerData.value.currency}`;
+    }
+  } else {
+    // Stock/ETF: "IWDA|L"
+    if (tickerData.value.exchange) {
+      ticker = `${tickerData.value.name}|${tickerData.value.exchange}`;
+    }
   }
 
   const recordData = {
     account_id: record.value.account.id,
-    investment_type: record.value.investment_type.toLowerCase(),
+    investment_type: selectedInvestmentType.value.toLowerCase(),
     quantity: record.value.quantity,
     name: record.value.name,
     ticker: ticker,
@@ -297,8 +310,8 @@ async function manageRecord() {
         </div>
       </div>
 
-      <div v-if="selectedInvestmentType.toLowerCase() === 'crypto'" class="flex flex-row w-full gap-2">
-        <div class="flex flex-column gap-1 w-6">
+      <div class="flex flex-row w-full gap-2">
+        <div class="flex flex-column gap-1" :class="selectedInvestmentType.toLowerCase() === 'crypto' ? 'w-6' : 'w-full'">
           <ValidationError
             :is-required="false"
             :message="v$.tickerData.exchange.$errors[0]?.$message"
@@ -311,7 +324,7 @@ async function manageRecord() {
             placeholder="Input exchange"
           />
         </div>
-        <div class="flex flex-column gap-1 w-6">
+        <div v-if="selectedInvestmentType.toLowerCase() === 'crypto'" class="flex flex-column gap-1 w-6">
           <ValidationError
             :is-required="false"
             :message="v$.tickerData.currency.$errors[0]?.$message"
