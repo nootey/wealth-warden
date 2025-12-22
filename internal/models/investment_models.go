@@ -62,3 +62,14 @@ type InvestmentHoldingReq struct {
 	Ticker         string          `json:"ticker" validate:"required"`
 	Quantity       decimal.Decimal `json:"quantity" validate:"required"`
 }
+
+type InvestmentTransactionReq struct {
+	HoldingID       int64            `json:"holding_id" validate:"required"`
+	TransactionType TransactionType  `json:"transaction_type" validate:"required"`
+	TxnDate         time.Time        `json:"txn_date" validate:"required"`
+	Quantity        decimal.Decimal  `json:"quantity" validate:"required"`
+	PricePerUnit    decimal.Decimal  `json:"price_per_unit" validate:"required"`
+	Currency        string           `json:"currency" validate:"required"`
+	Fee             *decimal.Decimal `json:"fee"`
+	Description     *string          `json:"description,omitempty"`
+}

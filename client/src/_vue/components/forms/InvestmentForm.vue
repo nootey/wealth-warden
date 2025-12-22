@@ -395,7 +395,7 @@ function toggleInfoPopup(event: any) {
           "
         >
           <ValidationError
-            :is-required="false"
+            :is-required="selectedInvestmentType.toLowerCase() !== 'crypto'"
             :message="v$.tickerData.exchange.$errors[0]?.$message"
           >
             <label>Exchange</label>
@@ -435,6 +435,9 @@ function toggleInfoPopup(event: any) {
           <InputNumber
             v-model="quantityNumber"
             size="small"
+            locale="de-DE"
+            :min-fraction-digits="2"
+            :max-fraction-digits="6"
             placeholder="0,00"
           />
         </div>

@@ -170,7 +170,7 @@ defineExpose({ refresh });
               }}</span>
             </div>
           </template>
-          <template v-if="col.field === 'current_price'">
+          <template v-else-if="col.field === 'current_price'">
             <div class="flex flex-row gap-2 align-items-center">
               <span>{{ vueHelper.displayAsCurrency(data.current_price) }}</span>
             </div>

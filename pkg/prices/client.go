@@ -13,6 +13,7 @@ import (
 type PriceFetcher interface {
 	GetAssetPrice(ctx context.Context, ticker string, investmentType models.InvestmentType, opts ...string) (*PriceData, error)
 	GetPricesForMultipleAssets(ctx context.Context, assets []AssetRequest) (map[string]*PriceData, error)
+	GetExchangeRate(ctx context.Context, currency string) (float64, error)
 }
 
 type PriceFetchClient struct {
@@ -234,4 +235,48 @@ func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, asset
 	}
 
 	return result, nil
+}
+
+func (c *PriceFetchClient) GetExchangeRate(ctx context.Context, currency string) (float64, error) {
+	if strings.ToUpper(currency) == "USD" {
+		return 1.0, nil
+	}
+
+	// Yahoo format: EUR=X for EUR/USD rate
+	symbol := fmt.Sprintf("%s=X", strings.ToUpper(currency))
+
+	url := fmt.Sprintf("%s/v8/finance/chart/%s?interval=1d&range=1d", c.baseURL, symbol)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch exchange rate: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("failed to get exchange rate for %s (status %d)", currency, resp.StatusCode)
+	}
+
+	var data chartResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return 0, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(data.Chart.Result) == 0 {
+		return 0, fmt.Errorf("no exchange rate data for %s", currency)
+	}
+
+	rate := data.Chart.Result[0].Meta.RegularMarketPrice
+	if rate == 0 {
+		return 0, fmt.Errorf("invalid exchange rate (0) for %s", currency)
+	}
+
+	return rate, nil
 }

@@ -21,6 +21,7 @@ type InvestmentServiceInterface interface {
 	FetchInvestmentTransactionsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentTransaction, *utils.Paginator, error)
 	FetchInvestmentTransactionByID(ctx context.Context, userID int64, id int64) (*models.InvestmentTransaction, error)
 	InsertHolding(ctx context.Context, userID int64, req *models.InvestmentHoldingReq) (int64, error)
+	InsertInvestmentTransaction(ctx context.Context, userID int64, req *models.InvestmentTransactionReq) (int64, error)
 }
 
 type InvestmentService struct {
@@ -254,4 +255,161 @@ func (s *InvestmentService) InsertHolding(ctx context.Context, userID int64, req
 	}
 
 	return holdID, nil
+}
+
+func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, userID int64, req *models.InvestmentTransactionReq) (int64, error) {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	holding, err := s.repo.FindInvestmentHoldingByID(ctx, tx, req.HoldingID, userID)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	if req.TransactionType == models.InvestmentSell && req.Quantity.GreaterThan(holding.Quantity) {
+		tx.Rollback()
+		return 0, fmt.Errorf("cannot sell %s: insufficient quantity (have %s, trying to sell %s)",
+			holding.Ticker,
+			holding.Quantity.String(),
+			req.Quantity.String())
+	}
+
+	// Get exchange rate to USD
+	var exchangeRate decimal.Decimal
+	if s.priceFetchClient != nil {
+		rate, err := s.priceFetchClient.GetExchangeRate(ctx, req.Currency)
+		if err != nil {
+			fmt.Printf("Warning: Failed to get exchange rate for %s, defaulting to 1.0: %v\n", req.Currency, err)
+			exchangeRate = decimal.NewFromFloat(1.0)
+		} else {
+			exchangeRate = decimal.NewFromFloat(rate)
+		}
+	} else {
+		exchangeRate = decimal.NewFromFloat(1.0)
+	}
+
+	fee := decimal.NewFromFloat(0.00)
+	if req.Fee != nil {
+		fee = *req.Fee
+	}
+
+	var valueAtBuy decimal.Decimal
+	if holding.InvestmentType == models.InvestmentCrypto {
+		// Crypto: (quantity - fee) * price_per_unit
+		totalQuantity := req.Quantity.Sub(fee)
+		valueAtBuy = totalQuantity.Mul(req.PricePerUnit)
+	} else {
+		// Stock/ETF: (quantity * price_per_unit) - fee
+		valueAtBuy = req.Quantity.Mul(req.PricePerUnit).Sub(fee)
+	}
+
+	txn := models.InvestmentTransaction{
+		UserID:            userID,
+		HoldingID:         req.HoldingID,
+		TxnDate:           req.TxnDate,
+		TransactionType:   req.TransactionType,
+		Quantity:          req.Quantity,
+		PricePerUnit:      req.PricePerUnit,
+		Fee:               fee,
+		ValueAtBuy:        valueAtBuy,
+		Currency:          req.Currency,
+		ExchangeRateToUSD: exchangeRate,
+		Description:       req.Description,
+	}
+
+	txnID, err := s.repo.InsertInvestmentTransaction(ctx, tx, &txn)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	// Fetch current price and update holding
+	var currentPrice *decimal.Decimal
+	var lastPriceUpdate *time.Time
+
+	if s.priceFetchClient != nil {
+		var ticker, exchangeOrCurrency string
+		ut := strings.ToUpper(holding.Ticker)
+
+		switch holding.InvestmentType {
+		case models.InvestmentCrypto:
+			if parts := strings.Split(ut, "-"); len(parts) == 2 {
+				ticker = parts[0]
+				exchangeOrCurrency = parts[1]
+			} else {
+				ticker = ut
+			}
+		case models.InvestmentStock, models.InvestmentETF:
+			if parts := strings.Split(ut, "."); len(parts) == 2 {
+				ticker = parts[0]
+				exchangeOrCurrency = parts[1]
+			} else {
+				ticker = ut
+			}
+		}
+
+		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, ticker, holding.InvestmentType, exchangeOrCurrency)
+		if err != nil {
+			fmt.Printf("Warning: Failed to fetch current price for %s: %v", holding.Ticker, err)
+		} else {
+			price := decimal.NewFromFloat(priceData.Price)
+			now := time.Unix(priceData.LastUpdate, 0)
+			currentPrice = &price
+			lastPriceUpdate = &now
+		}
+	}
+
+	// Update holding with new quantity, average buy price, and current price
+	err = s.repo.UpdateHoldingAfterTransaction(ctx, tx, holding.ID, req.Quantity, req.PricePerUnit, currentPrice, lastPriceUpdate, req.TransactionType)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+
+	changes := utils.InitChanges()
+	quantityString := txn.Quantity.StringFixed(2)
+	pricePerUnitString := txn.PricePerUnit.StringFixed(2)
+	feeString := txn.Fee.StringFixed(2)
+	dateStr := txn.TxnDate.UTC().Format(time.RFC3339)
+	var desc string
+	if req.Description != nil {
+		desc = *req.Description
+	}
+
+	utils.CompareChanges("", holding.Ticker, changes, "holding")
+	utils.CompareChanges("", quantityString, changes, "quantity")
+	utils.CompareChanges("", pricePerUnitString, changes, "price_per_unit")
+	utils.CompareChanges("", feeString, changes, "price_per_unit")
+	utils.CompareChanges("", dateStr, changes, "date")
+	utils.CompareChanges("", string(txn.TransactionType), changes, "type")
+	utils.CompareChanges("", txn.Currency, changes, "currency")
+	utils.CompareChanges("", desc, changes, "description")
+
+	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
+		Event:       "create",
+		Category:    "investment_transaction",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return txnID, nil
 }

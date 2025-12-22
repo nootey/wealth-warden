@@ -2,9 +2,11 @@ package repositories
 
 import (
 	"context"
+	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
 
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -18,6 +20,8 @@ type InvestmentRepositoryInterface interface {
 	FindInvestmentTransactions(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTransaction, error)
 	FindInvestmentTransactionByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTransaction, error)
 	InsertHolding(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentHolding) (int64, error)
+	InsertInvestmentTransaction(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTransaction) (int64, error)
+	UpdateHoldingAfterTransaction(ctx context.Context, tx *gorm.DB, holdingID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, transactionType models.TransactionType) error
 }
 
 type InvestmentRepository struct {
@@ -157,7 +161,9 @@ func (r *InvestmentRepository) FindInvestmentHoldingByID(ctx context.Context, tx
 
 	var record models.InvestmentHolding
 	q := db.
-		Preload("Account").
+		Preload("Account.Balance", func(db *gorm.DB) *gorm.DB {
+			return db.Order("created_at DESC").Limit(1)
+		}).
 		Where("id = ? AND user_id = ?", ID, userID)
 
 	q = q.First(&record)
@@ -231,4 +237,64 @@ func (r *InvestmentRepository) InsertHolding(ctx context.Context, tx *gorm.DB, n
 		return 0, err
 	}
 	return newRecord.ID, nil
+}
+
+func (r *InvestmentRepository) InsertInvestmentTransaction(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTransaction) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	if err := db.Create(&newRecord).Error; err != nil {
+		return 0, err
+	}
+	return newRecord.ID, nil
+}
+
+func (r *InvestmentRepository) UpdateHoldingAfterTransaction(ctx context.Context, tx *gorm.DB, holdingID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, transactionType models.TransactionType) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var holding models.InvestmentHolding
+	if err := db.First(&holding, holdingID).Error; err != nil {
+		return err
+	}
+
+	// Update quantity based on transaction type
+	var newQuantity decimal.Decimal
+	var newAverageBuyPrice decimal.Decimal
+
+	if transactionType == models.InvestmentBuy {
+		newQuantity = holding.Quantity.Add(quantity)
+
+		// Weighted average: (old_qty * old_avg + new_qty * new_price) / total_qty
+		oldValue := holding.Quantity.Mul(holding.AverageBuyPrice)
+		newValue := quantity.Mul(pricePerUnit)
+		totalValue := oldValue.Add(newValue)
+		newAverageBuyPrice = totalValue.Div(newQuantity)
+	} else {
+		// Sell: decrease quantity, keep average buy price
+		newQuantity = holding.Quantity.Sub(quantity)
+		newAverageBuyPrice = holding.AverageBuyPrice
+	}
+
+	updates := map[string]interface{}{
+		"quantity":          newQuantity,
+		"average_buy_price": newAverageBuyPrice,
+	}
+
+	if currentPrice != nil {
+		updates["current_price"] = currentPrice
+	}
+	if lastPriceUpdate != nil {
+		updates["last_price_update"] = lastPriceUpdate
+	}
+
+	return db.Model(&models.InvestmentHolding{}).
+		Where("id = ?", holdingID).
+		Updates(updates).Error
 }

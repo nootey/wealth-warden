@@ -68,7 +68,7 @@ func (h *InvestmentHandler) GetAllInvestmentHoldings(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
-	
+
 	records, err := h.Service.FetchAllInvestmentHoldings(ctx, userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
@@ -189,6 +189,32 @@ func (h *InvestmentHandler) InsertInvestmentHolding(c *gin.Context) {
 	}
 
 	_, err := h.Service.InsertHolding(ctx, userID, record)
+	if err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
+}
+
+func (h *InvestmentHandler) InsertInvestmentTransaction(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var record *models.InvestmentTransactionReq
+
+	if err := c.ShouldBindJSON(&record); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(record); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	_, err := h.Service.InsertInvestmentTransaction(ctx, userID, record)
 	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return

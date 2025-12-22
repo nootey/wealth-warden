@@ -4,6 +4,7 @@ import { ref } from "vue";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import InvestmentForm from "../components/forms/InvestmentForm.vue";
 import InvestmentHoldingsPaginated from "../components/data/InvestmentHoldingsPaginated.vue";
+import InvestmentTransactionForm from "../components/forms/InvestmentTransactionForm.vue";
 
 const toastStore = useToastStore();
 
@@ -13,9 +14,13 @@ const holdRef = ref<InstanceType<typeof InvestmentHoldingsPaginated> | null>(
   null,
 );
 
-const createModal = ref(false);
-const updateModal = ref(false);
-const updateRecordID = ref(null);
+const createHoldingModal = ref(false);
+const updateHoldingModal = ref(false);
+const updateHoldingID = ref(null);
+
+const createTxnModal = ref(false);
+const updateTxnModal = ref(false);
+const updateTxnID = ref(null);
 
 function manipulateDialog(modal: string, value: any) {
   switch (modal) {
@@ -27,7 +32,7 @@ function manipulateDialog(modal: string, value: any) {
         );
         return;
       }
-      createModal.value = value;
+      createHoldingModal.value = value;
       break;
     }
     case "updateHolding": {
@@ -38,8 +43,31 @@ function manipulateDialog(modal: string, value: any) {
         );
         return;
       }
-      updateModal.value = true;
-      updateRecordID.value = value;
+      updateHoldingModal.value = true;
+      updateHoldingID.value = value;
+      break;
+    }
+    case "addTransaction": {
+      if (!hasPermission("manage_data")) {
+        toastStore.createInfoToast(
+          "Access denied",
+          "You don't have permission to perform this action.",
+        );
+        return;
+      }
+      createTxnModal.value = value;
+      break;
+    }
+    case "updateTransaction": {
+      if (!hasPermission("manage_data")) {
+        toastStore.createInfoToast(
+          "Access denied",
+          "You don't have permission to perform this action.",
+        );
+        return;
+      }
+      updateTxnModal.value = true;
+      updateTxnID.value = value;
       break;
     }
     default: {
@@ -50,9 +78,15 @@ function manipulateDialog(modal: string, value: any) {
 
 async function handleEmit(emitType: any) {
   switch (emitType) {
-    case "completeOperation": {
-      createModal.value = false;
-      updateModal.value = false;
+    case "completeHoldingOperation": {
+      createHoldingModal.value = false;
+      updateHoldingModal.value = false;
+      holdRef.value?.refresh();
+      break;
+    }
+    case "completeTxnOperation": {
+      createTxnModal.value = false;
+      updateTxnModal.value = false;
       holdRef.value?.refresh();
       break;
     }
@@ -65,7 +99,7 @@ async function handleEmit(emitType: any) {
 
 <template>
   <Dialog
-    v-model:visible="createModal"
+    v-model:visible="createHoldingModal"
     class="rounded-dialog"
     :breakpoints="{ '501px': '90vw' }"
     :modal="true"
@@ -74,12 +108,12 @@ async function handleEmit(emitType: any) {
   >
     <InvestmentForm
       mode="create"
-      @complete-operation="handleEmit('completeOperation')"
+      @complete-operation="handleEmit('completeHoldingOperation')"
     />
   </Dialog>
 
   <Dialog
-    v-model:visible="updateModal"
+    v-model:visible="updateHoldingModal"
     class="rounded-dialog"
     :breakpoints="{ '501px': '90vw' }"
     :modal="true"
@@ -88,7 +122,21 @@ async function handleEmit(emitType: any) {
   >
     <InvestmentForm
       mode="update"
-      @complete-operation="handleEmit('completeOperation')"
+      @complete-operation="handleEmit('completeHoldingOperation')"
+    />
+  </Dialog>
+
+  <Dialog
+    v-model:visible="createTxnModal"
+    class="rounded-dialog"
+    :breakpoints="{ '501px': '90vw' }"
+    :modal="true"
+    :style="{ width: '500px' }"
+    header="Add transaction"
+  >
+    <InvestmentTransactionForm
+      mode="create"
+      @complete-operation="handleEmit('completeTxnOperation')"
     />
   </Dialog>
 
@@ -102,9 +150,9 @@ async function handleEmit(emitType: any) {
       "
     >
       <div
-        class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
+        class="flex flex-row align-items-center text-center gap-2 w-full"
       >
-        <div style="font-weight: bold">Investments</div>
+        <div style="font-weight: bold" class="mr-auto">Investments</div>
         <Button
           class="main-button"
           @click="manipulateDialog('addHolding', true)"
@@ -115,10 +163,20 @@ async function handleEmit(emitType: any) {
             <span class="mobile-hide"> Holding </span>
           </div>
         </Button>
+        <Button
+          class="main-button"
+          @click="manipulateDialog('addTransaction', true)"
+        >
+          <div class="flex flex-row gap-1 align-items-center">
+            <i class="pi pi-plus" />
+            <span> Add </span>
+            <span class="mobile-hide"> Transaction </span>
+          </div>
+        </Button>
       </div>
 
       <div id="mobile-row" class="flex flex-row w-full">
-        <InvestmentHoldingsPaginated
+        <InvestmentHoldingsPaginated ref="holdRef"
           @update-holding="(id) => manipulateDialog('updateHolding', id)"
         />
       </div>

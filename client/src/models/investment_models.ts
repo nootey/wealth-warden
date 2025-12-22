@@ -26,20 +26,18 @@ export interface InvestmentHolding {
 }
 
 export interface InvestmentTransaction {
-  id: number | null;
-  account_id: number;
-  user_id: number;
-  holding_id: number;
+  id?: number | null;
+  user_id?: number;
+  holding?: InvestmentHolding | null;
+  txn_date: Date;
   transaction_type: TransactionType;
-  name: string;
-  ticker: string;
   quantity: string;
   fee: string;
   price_per_unit: string;
-  value_at_buy: string;
+  value_at_buy?: string;
   currency: string;
-  exchange_rate_to_usd: string;
-  txn_date: Date;
-  created_at: Date;
-  updated_at: Date;
+  exchange_rate_to_usd?: string;
+  description: string | null;
+  created_at?: Date;
+  updated_at?: Date;
 }
