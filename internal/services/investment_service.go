@@ -261,205 +261,6 @@ func (s *InvestmentService) InsertHolding(ctx context.Context, userID int64, req
 	return holdID, nil
 }
 
-func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, userID int64, req *models.InvestmentTransactionReq) (int64, error) {
-	tx, err := s.repo.BeginTx(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p)
-		}
-	}()
-
-	holding, err := s.repo.FindInvestmentHoldingByID(ctx, tx, req.HoldingID, userID)
-	if err != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("can't find account with given id %w", err)
-	}
-
-	if req.TransactionType == models.InvestmentSell && req.Quantity.GreaterThan(holding.Quantity) {
-		tx.Rollback()
-		return 0, fmt.Errorf("cannot sell %s: insufficient quantity (have %s, trying to sell %s)",
-			holding.Ticker,
-			holding.Quantity.String(),
-			req.Quantity.String())
-	}
-
-	// Get exchange rate to USD
-	var exchangeRate decimal.Decimal
-	if s.priceFetchClient != nil {
-		rate, err := s.priceFetchClient.GetExchangeRate(ctx, req.Currency)
-		if err != nil {
-			fmt.Printf("Warning: Failed to get exchange rate for %s, defaulting to 1.0: %v\n", req.Currency, err)
-			exchangeRate = decimal.NewFromFloat(1.0)
-		} else {
-			exchangeRate = decimal.NewFromFloat(rate)
-		}
-	} else {
-		exchangeRate = decimal.NewFromFloat(1.0)
-	}
-
-	fee := decimal.NewFromFloat(0.00)
-	if req.Fee != nil {
-		fee = *req.Fee
-	}
-
-	var valueAtBuy decimal.Decimal
-	effectiveQuantity := req.Quantity
-	if holding.InvestmentType == models.InvestmentCrypto {
-		// Crypto: (quantity - fee) * price_per_unit
-		effectiveQuantity = req.Quantity.Sub(fee)
-		valueAtBuy = effectiveQuantity.Mul(req.PricePerUnit)
-	} else {
-		// Stock/ETF: (quantity * price_per_unit) - fee
-		valueAtBuy = req.Quantity.Mul(req.PricePerUnit).Sub(fee)
-	}
-
-	var currentPrice *decimal.Decimal
-	var lastPriceUpdate *time.Time
-
-	if s.priceFetchClient != nil {
-		var ticker, exchangeOrCurrency string
-		ut := strings.ToUpper(holding.Ticker)
-
-		switch holding.InvestmentType {
-		case models.InvestmentCrypto:
-			if parts := strings.Split(ut, "-"); len(parts) == 2 {
-				ticker = parts[0]
-				exchangeOrCurrency = parts[1]
-			} else {
-				ticker = ut
-			}
-		case models.InvestmentStock, models.InvestmentETF:
-			if parts := strings.Split(ut, "."); len(parts) == 2 {
-				ticker = parts[0]
-				exchangeOrCurrency = parts[1]
-			} else {
-				ticker = ut
-			}
-		}
-
-		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, ticker, holding.InvestmentType, exchangeOrCurrency)
-		if err != nil {
-			fmt.Printf("Warning: Failed to fetch current price for %s: %v", holding.Ticker, err)
-		} else {
-			price := decimal.NewFromFloat(priceData.Price)
-			now := time.Unix(priceData.LastUpdate, 0)
-			currentPrice = &price
-			lastPriceUpdate = &now
-		}
-	}
-
-	// Calculate transaction current value and profit/loss
-	var txnCurrentValue decimal.Decimal
-	var txnProfitLoss decimal.Decimal
-	var txnProfitLossPercent decimal.Decimal
-
-	if currentPrice != nil && !currentPrice.IsZero() {
-		// Current value of this specific transaction
-		txnCurrentValue = req.Quantity.Mul(*currentPrice)
-
-		// Profit/loss for this transaction
-		txnProfitLoss = txnCurrentValue.Sub(valueAtBuy)
-
-		// Profit/loss percentage
-		if !valueAtBuy.IsZero() {
-			txnProfitLossPercent = txnProfitLoss.Div(valueAtBuy).Mul(decimal.NewFromInt(100))
-		}
-	} else {
-		txnCurrentValue = decimal.Zero
-		txnProfitLoss = decimal.Zero
-		txnProfitLossPercent = decimal.Zero
-	}
-
-	txn := models.InvestmentTransaction{
-		UserID:            userID,
-		HoldingID:         req.HoldingID,
-		TxnDate:           req.TxnDate,
-		TransactionType:   req.TransactionType,
-		Quantity:          effectiveQuantity,
-		PricePerUnit:      req.PricePerUnit,
-		Fee:               fee,
-		ValueAtBuy:        valueAtBuy,
-		CurrentValue:      txnCurrentValue,
-		ProfitLoss:        txnProfitLoss,
-		ProfitLossPercent: txnProfitLossPercent,
-		Currency:          req.Currency,
-		ExchangeRateToUSD: exchangeRate,
-		Description:       req.Description,
-	}
-
-	txnID, err := s.repo.InsertInvestmentTransaction(ctx, tx, &txn)
-	if err != nil {
-		tx.Rollback()
-		return 0, err
-	}
-
-	// Update holding with new quantity, average buy price, and current price
-	err = s.repo.UpdateHoldingAfterTransaction(ctx, tx, holding.ID, effectiveQuantity, req.PricePerUnit, currentPrice, lastPriceUpdate, req.TransactionType, valueAtBuy)
-	if err != nil {
-		tx.Rollback()
-		return 0, err
-	}
-
-	// Update the investment account's balance with new P&L
-	if err := s.UpdateInvestmentAccountBalance(ctx, tx, holding.AccountID, userID, req.TxnDate, holding.Account.Currency); err != nil {
-		tx.Rollback()
-		return 0, err
-	}
-
-	// If transaction is in the past, we need to update all days from txn_date to today
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	txnDate := req.TxnDate.UTC().Truncate(24 * time.Hour)
-
-	if txnDate.Before(today) {
-		if err := s.UpdateInvestmentAccountBalanceRange(ctx, tx, holding.AccountID, userID, txnDate.AddDate(0, 0, 1), today, holding.Account.Currency); err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return 0, err
-	}
-
-	changes := utils.InitChanges()
-	quantityString := txn.Quantity.StringFixed(2)
-	pricePerUnitString := txn.PricePerUnit.StringFixed(2)
-	feeString := txn.Fee.StringFixed(2)
-	dateStr := txn.TxnDate.UTC().Format(time.RFC3339)
-	var desc string
-	if req.Description != nil {
-		desc = *req.Description
-	}
-
-	utils.CompareChanges("", holding.Ticker, changes, "holding")
-	utils.CompareChanges("", quantityString, changes, "quantity")
-	utils.CompareChanges("", pricePerUnitString, changes, "price_per_unit")
-	utils.CompareChanges("", feeString, changes, "price_per_unit")
-	utils.CompareChanges("", dateStr, changes, "date")
-	utils.CompareChanges("", string(txn.TransactionType), changes, "type")
-	utils.CompareChanges("", txn.Currency, changes, "currency")
-	utils.CompareChanges("", desc, changes, "description")
-
-	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
-		Event:       "create",
-		Category:    "investment_transaction",
-		Description: nil,
-		Payload:     changes,
-		Causer:      &userID,
-	})
-	if err != nil {
-		return 0, err
-	}
-
-	return txnID, nil
-}
-
 func (s *InvestmentService) UpdateInvestmentAccountBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64, asOf time.Time, currency string) error {
 
 	holdings, err := s.repo.FindHoldingsByAccountID(ctx, tx, accountID, userID)
@@ -604,4 +405,252 @@ func (s *InvestmentService) generateCheckpointDates(fromDate, toDate time.Time) 
 	}
 
 	return dates
+}
+
+func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, userID int64, req *models.InvestmentTransactionReq) (int64, error) {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	holding, err := s.repo.FindInvestmentHoldingByID(ctx, tx, req.HoldingID, userID)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("can't find holding with given id %w", err)
+	}
+
+	if req.TransactionType == models.InvestmentSell && req.Quantity.GreaterThan(holding.Quantity) {
+		tx.Rollback()
+		return 0, fmt.Errorf("cannot sell %s: insufficient quantity (have %s, trying to sell %s)",
+			holding.Ticker,
+			holding.Quantity.String(),
+			req.Quantity.String())
+	}
+
+	// Get exchange rate
+	exchangeRate := s.getExchangeRate(ctx, req.Currency)
+
+	// Calculate fee
+	fee := decimal.NewFromFloat(0.00)
+	if req.Fee != nil {
+		fee = *req.Fee
+	}
+
+	// Calculate effective quantity and value at buy
+	effectiveQuantity, valueAtBuy := s.calculateTransactionValue(req, holding.InvestmentType, fee)
+
+	// Fetch current price
+	currentPrice, lastPriceUpdate := s.fetchCurrentPrice(ctx, holding)
+
+	// Calculate transaction PnL
+	txnCurrentValue, txnProfitLoss, txnProfitLossPercent := s.calculateTransactionPnL(
+		req.Quantity,
+		currentPrice,
+		valueAtBuy,
+	)
+
+	txn := models.InvestmentTransaction{
+		UserID:            userID,
+		HoldingID:         req.HoldingID,
+		TxnDate:           req.TxnDate,
+		TransactionType:   req.TransactionType,
+		Quantity:          effectiveQuantity,
+		PricePerUnit:      req.PricePerUnit,
+		Fee:               fee,
+		ValueAtBuy:        valueAtBuy,
+		CurrentValue:      txnCurrentValue,
+		ProfitLoss:        txnProfitLoss,
+		ProfitLossPercent: txnProfitLossPercent,
+		Currency:          req.Currency,
+		ExchangeRateToUSD: exchangeRate,
+		Description:       req.Description,
+	}
+
+	txnID, err := s.repo.InsertInvestmentTransaction(ctx, tx, &txn)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	// Update holding with new quantity and price
+	err = s.repo.UpdateHoldingAfterTransaction(
+		ctx, tx, holding.ID, effectiveQuantity, req.PricePerUnit,
+		currentPrice, lastPriceUpdate, req.TransactionType, valueAtBuy,
+	)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	// Update unrealized P&L for remaining holdings
+	if err := s.updateUnrealizedPnL(ctx, tx, holding, req.TxnDate); err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges("", holding.Ticker, changes, "holding")
+	utils.CompareChanges("", txn.Quantity.StringFixed(2), changes, "quantity")
+	utils.CompareChanges("", txn.PricePerUnit.StringFixed(2), changes, "price_per_unit")
+	utils.CompareChanges("", txn.Fee.StringFixed(2), changes, "fee")
+	utils.CompareChanges("", txn.TxnDate.UTC().Format(time.RFC3339), changes, "date")
+	utils.CompareChanges("", string(txn.TransactionType), changes, "type")
+	utils.CompareChanges("", txn.Currency, changes, "currency")
+
+	if txn.Description != nil {
+		utils.CompareChanges("", *txn.Description, changes, "description")
+	}
+
+	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
+		Event:       "create",
+		Category:    "investment_transaction",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return txnID, nil
+}
+
+func (s *InvestmentService) handleSellTransaction(ctx context.Context, tx *gorm.DB, holding models.InvestmentHolding, quantitySold, salePrice decimal.Decimal, txnDate time.Time) error {
+
+	proceeds := quantitySold.Mul(salePrice)
+	costBasis := holding.AverageBuyPrice.Mul(quantitySold)
+	realizedPnL := proceeds.Sub(costBasis)
+
+	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, holding.AccountID, txnDate, holding.Account.Currency); err != nil {
+		return err
+	}
+
+	if realizedPnL.GreaterThanOrEqual(decimal.Zero) {
+		if err := s.accRepo.AddToDailyBalance(ctx, tx, holding.AccountID, txnDate, "cash_inflows", realizedPnL); err != nil {
+			return err
+		}
+	} else {
+		if err := s.accRepo.AddToDailyBalance(ctx, tx, holding.AccountID, txnDate, "cash_outflows", realizedPnL.Abs()); err != nil {
+			return err
+		}
+	}
+
+	if err := s.accRepo.FrontfillBalances(ctx, tx, holding.AccountID, holding.Account.Currency, txnDate); err != nil {
+		return err
+	}
+
+	return s.accRepo.UpsertSnapshotsFromBalances(
+		ctx, tx,
+		holding.UserID,
+		holding.AccountID,
+		holding.Account.Currency,
+		txnDate.UTC().Truncate(24*time.Hour),
+		time.Now().UTC().Truncate(24*time.Hour),
+	)
+}
+
+func (s *InvestmentService) updateUnrealizedPnL(ctx context.Context, tx *gorm.DB, holding models.InvestmentHolding, txnDate time.Time) error {
+	// Update the checkpoint for transaction date
+	if err := s.UpdateInvestmentAccountBalance(ctx, tx, holding.AccountID, holding.UserID, txnDate, holding.Account.Currency); err != nil {
+		return err
+	}
+
+	// If transaction is in the past, update all checkpoints from txn_date to today
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	txnDateNorm := txnDate.UTC().Truncate(24 * time.Hour)
+
+	if txnDateNorm.Before(today) {
+		return s.UpdateInvestmentAccountBalanceRange(ctx, tx, holding.AccountID, holding.UserID, txnDateNorm.AddDate(0, 0, 1), today, holding.Account.Currency)
+	}
+
+	return nil
+}
+
+func (s *InvestmentService) getExchangeRate(ctx context.Context, currency string) decimal.Decimal {
+	if s.priceFetchClient != nil {
+		rate, err := s.priceFetchClient.GetExchangeRate(ctx, currency)
+		if err == nil {
+			return decimal.NewFromFloat(rate)
+		}
+	}
+	return decimal.NewFromFloat(1.0)
+}
+
+func (s *InvestmentService) calculateTransactionValue(req *models.InvestmentTransactionReq, investmentType models.InvestmentType, fee decimal.Decimal) (decimal.Decimal, decimal.Decimal) {
+	effectiveQuantity := req.Quantity
+	var valueAtBuy decimal.Decimal
+
+	if investmentType == models.InvestmentCrypto {
+		// Crypto: (quantity - fee) * price_per_unit
+		effectiveQuantity = req.Quantity.Sub(fee)
+		valueAtBuy = effectiveQuantity.Mul(req.PricePerUnit)
+	} else {
+		// Stock/ETF: (quantity * price_per_unit) - fee
+		valueAtBuy = req.Quantity.Mul(req.PricePerUnit).Sub(fee)
+	}
+
+	return effectiveQuantity, valueAtBuy
+}
+
+func (s *InvestmentService) fetchCurrentPrice(ctx context.Context, holding models.InvestmentHolding) (*decimal.Decimal, *time.Time) {
+	if s.priceFetchClient == nil {
+		return nil, nil
+	}
+
+	var ticker, exchangeOrCurrency string
+	ut := strings.ToUpper(holding.Ticker)
+
+	switch holding.InvestmentType {
+	case models.InvestmentCrypto:
+		if parts := strings.Split(ut, "-"); len(parts) == 2 {
+			ticker = parts[0]
+			exchangeOrCurrency = parts[1]
+		} else {
+			ticker = ut
+		}
+	case models.InvestmentStock, models.InvestmentETF:
+		if parts := strings.Split(ut, "."); len(parts) == 2 {
+			ticker = parts[0]
+			exchangeOrCurrency = parts[1]
+		} else {
+			ticker = ut
+		}
+	}
+
+	priceData, err := s.priceFetchClient.GetAssetPrice(ctx, ticker, holding.InvestmentType, exchangeOrCurrency)
+	if err != nil {
+		return nil, nil
+	}
+
+	price := decimal.NewFromFloat(priceData.Price)
+	now := time.Unix(priceData.LastUpdate, 0)
+	return &price, &now
+}
+
+func (s *InvestmentService) calculateTransactionPnL(quantity decimal.Decimal, currentPrice *decimal.Decimal, valueAtBuy decimal.Decimal) (decimal.Decimal, decimal.Decimal, decimal.Decimal) {
+	if currentPrice != nil && !currentPrice.IsZero() {
+		currentValue := quantity.Mul(*currentPrice)
+		profitLoss := currentValue.Sub(valueAtBuy)
+
+		var profitLossPercent decimal.Decimal
+		if !valueAtBuy.IsZero() {
+			profitLossPercent = profitLoss.Div(valueAtBuy).Mul(decimal.NewFromInt(100))
+		}
+
+		return currentValue, profitLoss, profitLossPercent
+	}
+
+	return decimal.Zero, decimal.Zero, decimal.Zero
 }
