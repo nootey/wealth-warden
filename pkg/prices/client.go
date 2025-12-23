@@ -8,11 +8,12 @@ import (
 	"strings"
 	"time"
 	"wealth-warden/internal/models"
+	"wealth-warden/pkg/utils"
 )
 
 type PriceFetcher interface {
-	GetAssetPrice(ctx context.Context, ticker string, investmentType models.InvestmentType, opts ...string) (*PriceData, error)
-	GetAssetPriceOnDate(ctx context.Context, ticker string, investmentType models.InvestmentType, date time.Time, opts ...string) (*PriceData, error)
+	GetAssetPrice(ctx context.Context, ticker string, investmentType models.InvestmentType) (*PriceData, error)
+	GetAssetPriceOnDate(ctx context.Context, ticker string, investmentType models.InvestmentType, date time.Time) (*PriceData, error)
 	GetPricesForMultipleAssets(ctx context.Context, assets []AssetRequest) (map[string]*PriceData, error)
 	GetExchangeRate(ctx context.Context, currency string) (float64, error)
 }
@@ -72,40 +73,16 @@ func (c *PriceFetchClient) normalizeExchange(exchange string) string {
 	return normalized
 }
 
-func (c *PriceFetchClient) GetAssetPrice(ctx context.Context, ticker string, investmentType models.InvestmentType, opts ...string) (*PriceData, error) {
+func (c *PriceFetchClient) GetAssetPrice(ctx context.Context, ticker string, investmentType models.InvestmentType) (*PriceData, error) {
+
 	ticker = strings.ToUpper(strings.TrimSpace(ticker))
 
-	var exchange, currency string
-	if len(opts) > 0 {
-		exchange = c.normalizeExchange(opts[0])
-	}
-	if len(opts) > 1 {
-		currency = strings.ToUpper(strings.TrimSpace(opts[1]))
+	query := "interval=1d&range=1d"
+	if investmentType == models.InvestmentStock || investmentType == models.InvestmentETF {
+		query = "interval=1d&range=7d"
 	}
 
-	var symbol string
-
-	switch investmentType {
-	case models.InvestmentCrypto:
-		// Crypto: BTC-USD, ETH-USDT, etc.
-		// Default to USDC if no currency provided
-		if currency == "" {
-			currency = "USD"
-		}
-		symbol = fmt.Sprintf("%s-%s", ticker, currency)
-
-	case models.InvestmentStock, models.InvestmentETF:
-		// Stock/ETF: exchange is required
-		if exchange == "" {
-			return nil, fmt.Errorf("exchange is required for stocks and ETFs")
-		}
-		symbol = fmt.Sprintf("%s.%s", ticker, exchange)
-
-	default:
-		return nil, fmt.Errorf("invalid investment type: %s", investmentType)
-	}
-
-	url := fmt.Sprintf("%s/v8/finance/chart/%s?interval=1d&range=1d", c.baseURL, symbol)
+	url := fmt.Sprintf("%s/v8/finance/chart/%s?%s", c.baseURL, ticker, query)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -121,73 +98,80 @@ func (c *PriceFetchClient) GetAssetPrice(ctx context.Context, ticker string, inv
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ticker '%s' not found on Yahoo Finance (status %d)", symbol, resp.StatusCode)
+		return nil, fmt.Errorf("ticker '%s' not found on Yahoo Finance (status %d)", ticker, resp.StatusCode)
 	}
 
 	var data chartResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
-
 	if len(data.Chart.Result) == 0 {
-		return nil, fmt.Errorf("no price data found for ticker '%s'", symbol)
+		return nil, fmt.Errorf("no price data found for ticker '%s'", ticker)
 	}
 
-	meta := data.Chart.Result[0].Meta
+	result := data.Chart.Result[0]
+	meta := result.Meta
 
-	if meta.RegularMarketPrice == 0 {
-		return nil, fmt.Errorf("invalid price (0) for ticker '%s'", symbol)
+	// Try to pick the most recent valid close from the candles (most recent non-weekend day)
+	// Should also handle holidays
+	var (
+		bestPrice float64
+		bestTime  int64
+	)
+
+	if result.Timestamp != nil &&
+		result.Indicators.Quote != nil && len(result.Indicators.Quote) > 0 &&
+		result.Indicators.Quote[0].Close != nil {
+
+		closes := result.Indicators.Quote[0].Close
+		for i := len(result.Timestamp) - 1; i >= 0; i-- {
+			if i < len(closes) && closes[i] != nil {
+				p := *closes[i]
+				if p > 0 {
+					bestPrice = p
+					bestTime = result.Timestamp[i]
+					break
+				}
+			}
+		}
+	}
+
+	// Fallback: meta regular market price (might be 0 on weekends)
+	if bestPrice == 0 && meta.RegularMarketPrice > 0 {
+		bestPrice = meta.RegularMarketPrice
+		bestTime = meta.RegularMarketTime
+	}
+
+	if bestPrice == 0 {
+		return nil, fmt.Errorf("no valid recent price found for ticker '%s'", ticker)
 	}
 
 	return &PriceData{
 		Symbol:     meta.Symbol,
-		Price:      meta.RegularMarketPrice,
+		Price:      bestPrice,
 		Currency:   meta.Currency,
-		LastUpdate: meta.RegularMarketTime,
+		LastUpdate: bestTime,
 	}, nil
 }
 
-func (c *PriceFetchClient) GetAssetPriceOnDate(ctx context.Context, ticker string, investmentType models.InvestmentType, date time.Time, opts ...string) (*PriceData, error) {
+func (c *PriceFetchClient) GetAssetPriceOnDate(ctx context.Context, ticker string, investmentType models.InvestmentType, date time.Time) (*PriceData, error) {
 	ticker = strings.ToUpper(strings.TrimSpace(ticker))
 
-	var exchange, currency string
-	if len(opts) > 0 {
-		exchange = c.normalizeExchange(opts[0])
-	}
-	if len(opts) > 1 {
-		currency = strings.ToUpper(strings.TrimSpace(opts[1]))
-	}
-
-	var symbol string
-
-	switch investmentType {
-	case models.InvestmentCrypto:
-		if currency == "" {
-			currency = "USD"
-		}
-		symbol = fmt.Sprintf("%s-%s", ticker, currency)
-
-	case models.InvestmentStock, models.InvestmentETF:
-		if exchange == "" {
-			return nil, fmt.Errorf("exchange is required for stocks and ETFs")
-		}
-		symbol = fmt.Sprintf("%s.%s", ticker, exchange)
-
-	default:
-		return nil, fmt.Errorf("invalid investment type: %s", investmentType)
+	if investmentType == models.InvestmentStock || investmentType == models.InvestmentETF {
+		date = utils.AdjustToWeekday(date)
 	}
 
 	// Convert date to Unix timestamp
 	// Yahoo needs period1 (start) and period2 (end)
-	// For a specific date, we query that day + 1 day buffer
+	// For a specific date, query that day + 1 day buffer
 	startOfDay := date.UTC().Truncate(24 * time.Hour)
-	endOfDay := startOfDay.AddDate(0, 0, 2) // Add 2 days buffer to ensure we get data
+	endOfDay := startOfDay.AddDate(0, 0, 2) // Add 2 days buffer
 
 	period1 := startOfDay.Unix()
 	period2 := endOfDay.Unix()
 
 	url := fmt.Sprintf("%s/v8/finance/chart/%s?period1=%d&period2=%d&interval=1d",
-		c.baseURL, symbol, period1, period2)
+		c.baseURL, ticker, period1, period2)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -203,7 +187,7 @@ func (c *PriceFetchClient) GetAssetPriceOnDate(ctx context.Context, ticker strin
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ticker '%s' not found on Yahoo Finance (status %d)", symbol, resp.StatusCode)
+		return nil, fmt.Errorf("ticker '%s' not found on Yahoo Finance (status %d)", ticker, resp.StatusCode)
 	}
 
 	var data chartResponse
@@ -212,27 +196,24 @@ func (c *PriceFetchClient) GetAssetPriceOnDate(ctx context.Context, ticker strin
 	}
 
 	if len(data.Chart.Result) == 0 {
-		return nil, fmt.Errorf("no price data found for ticker '%s'", symbol)
+		return nil, fmt.Errorf("no price data found for ticker '%s'", ticker)
 	}
 
 	result := data.Chart.Result[0]
 
-	// Get the close price for the requested date
-	// Yahoo returns timestamps and close prices in arrays
 	if result.Timestamp == nil || len(result.Timestamp) == 0 {
-		return nil, fmt.Errorf("no historical data available for %s", symbol)
+		return nil, fmt.Errorf("no historical data available for %s", ticker)
 	}
 
 	if result.Indicators.Quote == nil || len(result.Indicators.Quote) == 0 {
-		return nil, fmt.Errorf("no quote data available for %s", symbol)
+		return nil, fmt.Errorf("no quote data available for %s", ticker)
 	}
 
 	quotes := result.Indicators.Quote[0]
 	if quotes.Close == nil || len(quotes.Close) == 0 {
-		return nil, fmt.Errorf("no close prices available for %s", symbol)
+		return nil, fmt.Errorf("no close prices available for %s", ticker)
 	}
 
-	// Find the closest date match (first available price)
 	var closestPrice float64
 	var closestTime int64
 
@@ -245,7 +226,7 @@ func (c *PriceFetchClient) GetAssetPriceOnDate(ctx context.Context, ticker strin
 	}
 
 	if closestPrice == 0 {
-		return nil, fmt.Errorf("no valid price found for %s on %s", symbol, date.Format("2006-01-02"))
+		return nil, fmt.Errorf("no valid price found for %s on %s", ticker, date.Format("2006-01-02"))
 	}
 
 	return &PriceData{

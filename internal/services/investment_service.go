@@ -172,36 +172,27 @@ func (s *InvestmentService) InsertHolding(ctx context.Context, userID int64, req
 	// Validate ticker and fetch price
 	var currentPrice *decimal.Decimal
 	var lastPriceUpdate *time.Time
-	var ut string
+	var formattedTicker string
 
 	if s.priceFetchClient != nil {
-		var ticker, exchangeOrCurrency string
-		ut = strings.ToUpper(req.Ticker)
 
-		switch req.InvestmentType {
-		case models.InvestmentCrypto:
-			// "BTC-USD"
-			if parts := strings.Split(ut, "-"); len(parts) == 2 {
-				ticker = parts[0]
-				exchangeOrCurrency = parts[1]
-			} else {
-				ticker = ut
+		formattedTicker = strings.ToUpper(req.Ticker)
+		if req.InvestmentType == models.InvestmentCrypto {
+			// Ensure format: BTC-USD
+			if !strings.Contains(formattedTicker, "-") {
+				formattedTicker = formattedTicker + "-USD"
 			}
-		case models.InvestmentStock, models.InvestmentETF:
-			// "IWDA.L"
-			if parts := strings.Split(ut, "."); len(parts) == 2 {
-				ticker = parts[0]
-				exchangeOrCurrency = parts[1]
-			} else {
-				ticker = ut
+		} else if req.InvestmentType == models.InvestmentStock || req.InvestmentType == models.InvestmentETF {
+			// Ensure format: IWDA.AS
+			if !strings.Contains(formattedTicker, ".") {
+				return 0, fmt.Errorf("stock/ETF ticker must include exchange (e.g., IWDA.AS)")
 			}
 		}
 
-		// Fetch price
-		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, ticker, req.InvestmentType, exchangeOrCurrency)
+		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, formattedTicker, req.InvestmentType)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("failed to fetch price for ticker '%s': %w", ticker, err)
+			return 0, fmt.Errorf("failed to fetch price for ticker '%s': %w", formattedTicker, err)
 		}
 
 		price := decimal.NewFromFloat(priceData.Price)
@@ -220,7 +211,7 @@ func (s *InvestmentService) InsertHolding(ctx context.Context, userID int64, req
 		AccountID:       account.ID,
 		InvestmentType:  req.InvestmentType,
 		Name:            req.Name,
-		Ticker:          ut,
+		Ticker:          formattedTicker,
 		Quantity:        req.Quantity,
 		AverageBuyPrice: decimal.Zero,
 		CurrentPrice:    currentPrice,
@@ -350,30 +341,7 @@ func (s *InvestmentService) fetchPriceForHolding(ctx context.Context, holding mo
 		return decimal.Zero, fmt.Errorf("price fetch client not initialized")
 	}
 
-	var ticker, exchangeOrCurrency string
-	ut := strings.ToUpper(holding.Ticker)
-
-	switch holding.InvestmentType {
-	case models.InvestmentCrypto:
-		if parts := strings.Split(ut, "-"); len(parts) == 2 {
-			ticker = parts[0]
-			exchangeOrCurrency = parts[1]
-		} else {
-			ticker = ut
-			exchangeOrCurrency = "USD"
-		}
-
-	case models.InvestmentStock, models.InvestmentETF:
-		if parts := strings.Split(ut, "."); len(parts) == 2 {
-			ticker = parts[0]
-			exchangeOrCurrency = parts[1]
-		} else {
-			ticker = ut
-			exchangeOrCurrency = "AS"
-		}
-	}
-
-	priceData, err := s.priceFetchClient.GetAssetPriceOnDate(ctx, ticker, holding.InvestmentType, asOf, exchangeOrCurrency)
+	priceData, err := s.priceFetchClient.GetAssetPriceOnDate(ctx, holding.Ticker, holding.InvestmentType, asOf)
 	if err != nil {
 		return decimal.Zero, err
 	}
@@ -617,27 +585,7 @@ func (s *InvestmentService) fetchCurrentPrice(ctx context.Context, holding model
 		return nil, nil
 	}
 
-	var ticker, exchangeOrCurrency string
-	ut := strings.ToUpper(holding.Ticker)
-
-	switch holding.InvestmentType {
-	case models.InvestmentCrypto:
-		if parts := strings.Split(ut, "-"); len(parts) == 2 {
-			ticker = parts[0]
-			exchangeOrCurrency = parts[1]
-		} else {
-			ticker = ut
-		}
-	case models.InvestmentStock, models.InvestmentETF:
-		if parts := strings.Split(ut, "."); len(parts) == 2 {
-			ticker = parts[0]
-			exchangeOrCurrency = parts[1]
-		} else {
-			ticker = ut
-		}
-	}
-
-	priceData, err := s.priceFetchClient.GetAssetPrice(ctx, ticker, holding.InvestmentType, exchangeOrCurrency)
+	priceData, err := s.priceFetchClient.GetAssetPrice(ctx, holding.Ticker, holding.InvestmentType)
 	if err != nil {
 		return nil, nil
 	}
