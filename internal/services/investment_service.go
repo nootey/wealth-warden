@@ -479,6 +479,14 @@ func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, use
 		return 0, err
 	}
 
+	// Handle selling - calculate and record realized P&L
+	if req.TransactionType == models.InvestmentSell {
+		if err := s.handleSellTransaction(ctx, tx, holding, effectiveQuantity, req.PricePerUnit, req.TxnDate); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+	}
+
 	// Update holding with new quantity and price
 	err = s.repo.UpdateHoldingAfterTransaction(
 		ctx, tx, holding.ID, effectiveQuantity, req.PricePerUnit,
