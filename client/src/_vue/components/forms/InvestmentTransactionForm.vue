@@ -264,14 +264,27 @@ async function manageRecord() {
             v-model="record.holding"
             size="small"
             :suggestions="filteredHoldings"
-            option-label="ticker"
-            option-value="id"
+            option-label="name"
             data-key="id"
             force-selection
             placeholder="Select holding"
             dropdown
             @complete="searchHolding"
-          />
+          >
+            <template #option="slotProps">
+              <div class="flex align-items-center gap-2">
+                <span class="font-semibold">{{ slotProps.option.name }}</span>
+                <span class="text-color-secondary">{{ slotProps.option.ticker }}</span>
+              </div>
+            </template>
+
+            <template #chip="slotProps">
+              <div class="flex align-items-center gap-2">
+                <span class="font-semibold">{{ slotProps.value.name }}</span>
+                <span class="text-color-secondary">{{ slotProps.value.ticker }}</span>
+              </div>
+            </template>
+          </AutoComplete>
         </div>
       </div>
 
