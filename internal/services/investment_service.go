@@ -12,6 +12,7 @@ import (
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 type InvestmentServiceInterface interface {
@@ -22,6 +23,8 @@ type InvestmentServiceInterface interface {
 	FetchInvestmentTransactionByID(ctx context.Context, userID int64, id int64) (*models.InvestmentTransaction, error)
 	InsertHolding(ctx context.Context, userID int64, req *models.InvestmentHoldingReq) (int64, error)
 	InsertInvestmentTransaction(ctx context.Context, userID int64, req *models.InvestmentTransactionReq) (int64, error)
+	UpdateInvestmentAccountBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64, asOf time.Time, currency string) error
+	UpdateInvestmentAccountBalanceRange(ctx context.Context, tx *gorm.DB, accountID, userID int64, fromDate, toDate time.Time, currency string) error
 }
 
 type InvestmentService struct {
@@ -169,10 +172,11 @@ func (s *InvestmentService) InsertHolding(ctx context.Context, userID int64, req
 	// Validate ticker and fetch price
 	var currentPrice *decimal.Decimal
 	var lastPriceUpdate *time.Time
+	var ut string
 
 	if s.priceFetchClient != nil {
 		var ticker, exchangeOrCurrency string
-		ut := strings.ToUpper(req.Ticker)
+		ut = strings.ToUpper(req.Ticker)
 
 		switch req.InvestmentType {
 		case models.InvestmentCrypto:
@@ -216,7 +220,7 @@ func (s *InvestmentService) InsertHolding(ctx context.Context, userID int64, req
 		AccountID:       account.ID,
 		InvestmentType:  req.InvestmentType,
 		Name:            req.Name,
-		Ticker:          req.Ticker,
+		Ticker:          ut,
 		Quantity:        req.Quantity,
 		AverageBuyPrice: decimal.Zero,
 		CurrentPrice:    currentPrice,
@@ -401,6 +405,23 @@ func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, use
 		return 0, err
 	}
 
+	// Update the investment account's balance with new P&L
+	if err := s.UpdateInvestmentAccountBalance(ctx, tx, holding.AccountID, userID, req.TxnDate, holding.Account.Currency); err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	// If transaction is in the past, we need to update all days from txn_date to today
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	txnDate := req.TxnDate.UTC().Truncate(24 * time.Hour)
+
+	if txnDate.Before(today) {
+		if err := s.UpdateInvestmentAccountBalanceRange(ctx, tx, holding.AccountID, userID, txnDate.AddDate(0, 0, 1), today, holding.Account.Currency); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return 0, err
 	}
@@ -437,4 +458,150 @@ func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, use
 	}
 
 	return txnID, nil
+}
+
+func (s *InvestmentService) UpdateInvestmentAccountBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64, asOf time.Time, currency string) error {
+
+	holdings, err := s.repo.FindHoldingsByAccountID(ctx, tx, accountID, userID)
+	if err != nil {
+		return err
+	}
+
+	if len(holdings) == 0 {
+		return nil
+	}
+
+	var totalPnLAsOf decimal.Decimal
+
+	for _, holding := range holdings {
+
+		// Fetch the price for this specific date
+		price, err := s.fetchPriceForHolding(ctx, holding, asOf)
+		if err != nil {
+			continue
+		}
+		// Calculate P&L for this holding at this date
+		currentValueAtDate := holding.Quantity.Mul(price)
+		pnlAtDate := currentValueAtDate.Sub(holding.ValueAtBuy)
+
+		totalPnLAsOf = totalPnLAsOf.Add(pnlAtDate)
+	}
+
+	var previousPnL decimal.Decimal
+	cumulativePnL, err := s.accRepo.GetCumulativeNonCashPnLBeforeDate(ctx, tx, accountID, asOf)
+
+	if err == nil {
+		previousPnL = cumulativePnL
+	}
+
+	// Calculate the delta (change in P&L since last checkpoint)
+	delta := totalPnLAsOf.Sub(previousPnL)
+
+	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, accountID, asOf, currency); err != nil {
+		return err
+	}
+
+	if delta.GreaterThan(decimal.Zero) {
+		if err := s.accRepo.AddToDailyBalance(ctx, tx, accountID, asOf, "non_cash_inflows", delta); err != nil {
+			return err
+		}
+	} else if delta.LessThan(decimal.Zero) {
+		if err := s.accRepo.AddToDailyBalance(ctx, tx, accountID, asOf, "non_cash_outflows", delta.Abs()); err != nil {
+			return err
+		}
+	}
+
+	if err := s.accRepo.FrontfillBalances(ctx, tx, accountID, currency, asOf); err != nil {
+		return err
+	}
+
+	if err := s.accRepo.UpsertSnapshotsFromBalances(
+		ctx,
+		tx,
+		userID,
+		accountID,
+		currency,
+		asOf.UTC().Truncate(24*time.Hour),
+		time.Now().UTC().Truncate(24*time.Hour),
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *InvestmentService) UpdateInvestmentAccountBalanceRange(ctx context.Context, tx *gorm.DB, accountID, userID int64, fromDate, toDate time.Time, currency string) error {
+	fromDate = fromDate.UTC().Truncate(24 * time.Hour)
+	toDate = toDate.UTC().Truncate(24 * time.Hour)
+
+	checkpoints := s.generateCheckpointDates(fromDate, toDate)
+	for _, d := range checkpoints {
+		if err := s.UpdateInvestmentAccountBalance(ctx, tx, accountID, userID, d, currency); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *InvestmentService) fetchPriceForHolding(ctx context.Context, holding models.InvestmentHolding, asOf time.Time) (decimal.Decimal, error) {
+	if s.priceFetchClient == nil {
+		return decimal.Zero, fmt.Errorf("price fetch client not initialized")
+	}
+
+	var ticker, exchangeOrCurrency string
+	ut := strings.ToUpper(holding.Ticker)
+
+	switch holding.InvestmentType {
+	case models.InvestmentCrypto:
+		if parts := strings.Split(ut, "-"); len(parts) == 2 {
+			ticker = parts[0]
+			exchangeOrCurrency = parts[1]
+		} else {
+			ticker = ut
+			exchangeOrCurrency = "USD"
+		}
+
+	case models.InvestmentStock, models.InvestmentETF:
+		if parts := strings.Split(ut, "."); len(parts) == 2 {
+			ticker = parts[0]
+			exchangeOrCurrency = parts[1]
+		} else {
+			ticker = ut
+			exchangeOrCurrency = "AS"
+		}
+	}
+
+	priceData, err := s.priceFetchClient.GetAssetPriceOnDate(ctx, ticker, holding.InvestmentType, asOf, exchangeOrCurrency)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	return decimal.NewFromFloat(priceData.Price), nil
+}
+
+func (s *InvestmentService) generateCheckpointDates(fromDate, toDate time.Time) []time.Time {
+	var dates []time.Time
+
+	// Always include the transaction date (adjusted to next weekday if needed)
+	dates = append(dates, utils.AdjustToWeekday(fromDate))
+
+	current := fromDate.AddDate(0, 1, 0)
+	current = time.Date(current.Year(), current.Month(), 1, 0, 0, 0, 0, time.UTC)
+
+	for current.Before(toDate) {
+		adjusted := utils.AdjustToWeekday(current)
+		if len(dates) == 0 || !adjusted.Equal(dates[len(dates)-1]) {
+			dates = append(dates, adjusted)
+		}
+		current = current.AddDate(0, 1, 0)
+	}
+
+	// Always include today (adjusted to weekday)
+	adjustedToDate := utils.AdjustToWeekday(toDate)
+	if len(dates) == 0 || !adjustedToDate.Equal(dates[len(dates)-1]) {
+		dates = append(dates, adjustedToDate)
+	}
+
+	return dates
 }

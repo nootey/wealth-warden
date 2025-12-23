@@ -12,6 +12,7 @@ import (
 
 type PriceFetcher interface {
 	GetAssetPrice(ctx context.Context, ticker string, investmentType models.InvestmentType, opts ...string) (*PriceData, error)
+	GetAssetPriceOnDate(ctx context.Context, ticker string, investmentType models.InvestmentType, date time.Time, opts ...string) (*PriceData, error)
 	GetPricesForMultipleAssets(ctx context.Context, assets []AssetRequest) (map[string]*PriceData, error)
 	GetExchangeRate(ctx context.Context, currency string) (float64, error)
 }
@@ -143,6 +144,115 @@ func (c *PriceFetchClient) GetAssetPrice(ctx context.Context, ticker string, inv
 		Price:      meta.RegularMarketPrice,
 		Currency:   meta.Currency,
 		LastUpdate: meta.RegularMarketTime,
+	}, nil
+}
+
+func (c *PriceFetchClient) GetAssetPriceOnDate(ctx context.Context, ticker string, investmentType models.InvestmentType, date time.Time, opts ...string) (*PriceData, error) {
+	ticker = strings.ToUpper(strings.TrimSpace(ticker))
+
+	var exchange, currency string
+	if len(opts) > 0 {
+		exchange = c.normalizeExchange(opts[0])
+	}
+	if len(opts) > 1 {
+		currency = strings.ToUpper(strings.TrimSpace(opts[1]))
+	}
+
+	var symbol string
+
+	switch investmentType {
+	case models.InvestmentCrypto:
+		if currency == "" {
+			currency = "USD"
+		}
+		symbol = fmt.Sprintf("%s-%s", ticker, currency)
+
+	case models.InvestmentStock, models.InvestmentETF:
+		if exchange == "" {
+			return nil, fmt.Errorf("exchange is required for stocks and ETFs")
+		}
+		symbol = fmt.Sprintf("%s.%s", ticker, exchange)
+
+	default:
+		return nil, fmt.Errorf("invalid investment type: %s", investmentType)
+	}
+
+	// Convert date to Unix timestamp
+	// Yahoo needs period1 (start) and period2 (end)
+	// For a specific date, we query that day + 1 day buffer
+	startOfDay := date.UTC().Truncate(24 * time.Hour)
+	endOfDay := startOfDay.AddDate(0, 0, 2) // Add 2 days buffer to ensure we get data
+
+	period1 := startOfDay.Unix()
+	period2 := endOfDay.Unix()
+
+	url := fmt.Sprintf("%s/v8/finance/chart/%s?period1=%d&period2=%d&interval=1d",
+		c.baseURL, symbol, period1, period2)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch price: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ticker '%s' not found on Yahoo Finance (status %d)", symbol, resp.StatusCode)
+	}
+
+	var data chartResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(data.Chart.Result) == 0 {
+		return nil, fmt.Errorf("no price data found for ticker '%s'", symbol)
+	}
+
+	result := data.Chart.Result[0]
+
+	// Get the close price for the requested date
+	// Yahoo returns timestamps and close prices in arrays
+	if result.Timestamp == nil || len(result.Timestamp) == 0 {
+		return nil, fmt.Errorf("no historical data available for %s", symbol)
+	}
+
+	if result.Indicators.Quote == nil || len(result.Indicators.Quote) == 0 {
+		return nil, fmt.Errorf("no quote data available for %s", symbol)
+	}
+
+	quotes := result.Indicators.Quote[0]
+	if quotes.Close == nil || len(quotes.Close) == 0 {
+		return nil, fmt.Errorf("no close prices available for %s", symbol)
+	}
+
+	// Find the closest date match (first available price)
+	var closestPrice float64
+	var closestTime int64
+
+	for i, ts := range result.Timestamp {
+		if i < len(quotes.Close) && quotes.Close[i] != nil {
+			closestPrice = *quotes.Close[i]
+			closestTime = ts
+			break
+		}
+	}
+
+	if closestPrice == 0 {
+		return nil, fmt.Errorf("no valid price found for %s on %s", symbol, date.Format("2006-01-02"))
+	}
+
+	return &PriceData{
+		Symbol:     result.Meta.Symbol,
+		Price:      closestPrice,
+		Currency:   result.Meta.Currency,
+		LastUpdate: closestTime,
 	}, nil
 }
 

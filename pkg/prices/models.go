@@ -21,23 +21,18 @@ type chartResponse struct {
 	Chart struct {
 		Result []struct {
 			Meta struct {
-				Currency           string  `json:"currency"`
 				Symbol             string  `json:"symbol"`
+				Currency           string  `json:"currency"`
 				RegularMarketPrice float64 `json:"regularMarketPrice"`
 				RegularMarketTime  int64   `json:"regularMarketTime"`
 			} `json:"meta"`
 			Timestamp  []int64 `json:"timestamp"`
 			Indicators struct {
 				Quote []struct {
-					Open   []float64 `json:"open"`
-					High   []float64 `json:"high"`
-					Low    []float64 `json:"low"`
-					Close  []float64 `json:"close"`
-					Volume []int64   `json:"volume"`
+					Close []*float64 `json:"close"`
 				} `json:"quote"`
 			} `json:"indicators"`
 		} `json:"result"`
-		Error interface{} `json:"error"`
 	} `json:"chart"`
 }
 

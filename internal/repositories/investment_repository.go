@@ -17,6 +17,7 @@ type InvestmentRepositoryInterface interface {
 	FindInvestmentHoldings(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentHolding, error)
 	FindAllInvestmentHoldings(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentHolding, error)
 	FindInvestmentHoldingByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentHolding, error)
+	FindHoldingsByAccountID(ctx context.Context, tx *gorm.DB, accID, userID int64) ([]models.InvestmentHolding, error)
 	FindInvestmentTransactions(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTransaction, error)
 	FindInvestmentTransactionByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTransaction, error)
 	InsertHolding(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentHolding) (int64, error)
@@ -169,6 +170,22 @@ func (r *InvestmentRepository) FindInvestmentHoldingByID(ctx context.Context, tx
 	q = q.First(&record)
 
 	return record, q.Error
+}
+
+func (r *InvestmentRepository) FindHoldingsByAccountID(ctx context.Context, tx *gorm.DB, accID, userID int64) ([]models.InvestmentHolding, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.InvestmentHolding
+	q := db.
+		Where("user_id = ? AND account_id = ?", userID, accID)
+
+	q = q.Find(&records)
+
+	return records, q.Error
 }
 
 func (r *InvestmentRepository) FindInvestmentTransactions(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTransaction, error) {
