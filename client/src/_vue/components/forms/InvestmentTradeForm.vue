@@ -178,9 +178,7 @@ async function isRecordValid() {
 async function loadRecord(id: number) {
   try {
     loading.value = true;
-    const data = await sharedStore.getRecordByID(apiPrefix, id, {
-      deleted: true,
-    });
+    const data = await sharedStore.getRecordByID(apiPrefix, id);
 
     record.value = {
       ...initData(),
