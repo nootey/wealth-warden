@@ -64,6 +64,7 @@ const activeColumns = computed<Column[]>(() => [
     hideOnMobile: true
   },
   { field: "quantity", header: "Quantity" },
+  { field: "transaction_type", header: "Type"},
   { field: "value_at_buy", header: "Value on buy", hideOnMobile: true },
   { field: "current_value", header: "Current value", hideOnMobile: true },
   { field: "profit_loss", header: "PNL" },
@@ -203,6 +204,13 @@ defineExpose({ refresh });
                 @click="col.optionLabel === 'name' ? $emit('updateTransaction', data.id) : null"
               >
                 {{ col.optionLabel === "name" ? data[col.field]?.["name"] : data[col.field]?.["ticker"] }}
+              </span>
+            </div>
+          </template>
+          <template v-else-if="col.field === 'transaction_type'">
+            <div class="flex flex-row gap-2 align-items-center">
+              <span :style="{ color: data[col.field] === 'buy' ? colors.pos : colors.neg }">
+                {{ data[col.field].charAt(0).toUpperCase() + data[col.field].slice(1) }}
               </span>
             </div>
           </template>

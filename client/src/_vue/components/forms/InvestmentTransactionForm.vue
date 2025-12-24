@@ -328,8 +328,10 @@ async function deleteRecord(id: number) {
         <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.value_at_buy!)}}</span>
       </div>
       <div class="flex flex-column gap-1 w-6">
-        <label>Current value</label>
-        <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.current_value!)}}</span>
+        <label>{{record.transaction_type === "buy" ? "Current value" : "Value at sell"}}</label>
+        <span style="color: var(--text-secondary)">
+          {{ vueHelper.displayAsCurrency(record.transaction_type === "buy" ? record.current_value! : record.realized_value!)
+          }}</span>
       </div>
     </div>
 
