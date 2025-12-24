@@ -23,6 +23,7 @@ type InvestmentRepositoryInterface interface {
 	InsertHolding(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentHolding) (int64, error)
 	InsertInvestmentTransaction(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTransaction) (int64, error)
 	UpdateHoldingAfterTransaction(ctx context.Context, tx *gorm.DB, holdingID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, transactionType models.TransactionType, transactionValueAtBuy decimal.Decimal) error
+	FindTotalInvestmentValue(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error)
 }
 
 type InvestmentRepository struct {
@@ -345,4 +346,29 @@ func (r *InvestmentRepository) UpdateHoldingAfterTransaction(ctx context.Context
 	return db.Model(&models.InvestmentHolding{}).
 		Where("id = ?", holdingID).
 		Updates(updates).Error
+}
+
+func (r *InvestmentRepository) FindTotalInvestmentValue(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var holdings []models.InvestmentHolding
+	err := db.WithContext(ctx).
+		Where("account_id = ? AND user_id = ? AND quantity > 0", accountID, userID).
+		Find(&holdings).Error
+
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	total := decimal.Zero
+	for _, h := range holdings {
+		total = total.Add(h.CurrentValue)
+	}
+
+	return total, nil
 }

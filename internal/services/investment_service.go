@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -268,7 +269,7 @@ func (s *InvestmentService) UpdateInvestmentAccountBalance(ctx context.Context, 
 	for _, holding := range holdings {
 
 		// Fetch the price for this specific date
-		price, err := s.fetchPriceForHolding(ctx, holding, asOf)
+		price, err := s.fetchPriceForDate(ctx, holding, asOf)
 		if err != nil {
 			continue
 		}
@@ -336,7 +337,7 @@ func (s *InvestmentService) UpdateInvestmentAccountBalanceRange(ctx context.Cont
 	return nil
 }
 
-func (s *InvestmentService) fetchPriceForHolding(ctx context.Context, holding models.InvestmentHolding, asOf time.Time) (decimal.Decimal, error) {
+func (s *InvestmentService) fetchPriceForDate(ctx context.Context, holding models.InvestmentHolding, asOf time.Time) (decimal.Decimal, error) {
 	if s.priceFetchClient == nil {
 		return decimal.Zero, fmt.Errorf("price fetch client not initialized")
 	}
@@ -347,6 +348,21 @@ func (s *InvestmentService) fetchPriceForHolding(ctx context.Context, holding mo
 	}
 
 	return decimal.NewFromFloat(priceData.Price), nil
+}
+
+func (s *InvestmentService) fetchCurrentPrice(ctx context.Context, holding models.InvestmentHolding) (*decimal.Decimal, *time.Time) {
+	if s.priceFetchClient == nil {
+		return nil, nil
+	}
+
+	priceData, err := s.priceFetchClient.GetAssetPrice(ctx, holding.Ticker, holding.InvestmentType)
+	if err != nil {
+		return nil, nil
+	}
+
+	price := decimal.NewFromFloat(priceData.Price)
+	now := time.Unix(priceData.LastUpdate, 0)
+	return &price, &now
 }
 
 func (s *InvestmentService) generateCheckpointDates(fromDate, toDate time.Time) []time.Time {
@@ -394,12 +410,53 @@ func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, use
 		return 0, fmt.Errorf("can't find holding with given id %w", err)
 	}
 
+	// Validate amounts
 	if req.TransactionType == models.InvestmentSell && req.Quantity.GreaterThan(holding.Quantity) {
 		tx.Rollback()
 		return 0, fmt.Errorf("cannot sell %s: insufficient quantity (have %s, trying to sell %s)",
 			holding.Ticker,
 			holding.Quantity.String(),
 			req.Quantity.String())
+	}
+
+	if req.TransactionType == models.InvestmentBuy {
+
+		availableBalance, err := s.accRepo.FindLatestBalance(ctx, tx, holding.AccountID, userID)
+		if err != nil {
+			tx.Rollback()
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return 0, fmt.Errorf("no balance record found for account")
+			}
+			return 0, fmt.Errorf("failed to get account balance: %w", err)
+		}
+
+		totalInvestmentValue, err := s.repo.FindTotalInvestmentValue(ctx, tx, holding.AccountID, userID)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
+		}
+
+		purchaseCost := req.Quantity.Mul(req.PricePerUnit)
+		if req.Fee != nil {
+			purchaseCost = purchaseCost.Add(*req.Fee)
+		}
+
+		remainingBalance := availableBalance.EndBalance.Sub(totalInvestmentValue)
+		if remainingBalance.LessThan(decimal.Zero) {
+			tx.Rollback()
+			return 0, fmt.Errorf("account balance inconsistency detected: total investments (%s) exceed account balance (%s)",
+				totalInvestmentValue.StringFixed(2),
+				availableBalance.EndBalance.StringFixed(2))
+		}
+
+		if purchaseCost.GreaterThan(remainingBalance) {
+			tx.Rollback()
+			return 0, fmt.Errorf("insufficient funds: need %s, but only %s available (balance: %s, invested: %s)",
+				purchaseCost.StringFixed(2),
+				remainingBalance.StringFixed(2),
+				availableBalance.EndBalance.StringFixed(2),
+				totalInvestmentValue.StringFixed(2))
+		}
 	}
 
 	// Get exchange rate
@@ -578,21 +635,6 @@ func (s *InvestmentService) calculateTransactionValue(req *models.InvestmentTran
 	}
 
 	return effectiveQuantity, valueAtBuy
-}
-
-func (s *InvestmentService) fetchCurrentPrice(ctx context.Context, holding models.InvestmentHolding) (*decimal.Decimal, *time.Time) {
-	if s.priceFetchClient == nil {
-		return nil, nil
-	}
-
-	priceData, err := s.priceFetchClient.GetAssetPrice(ctx, holding.Ticker, holding.InvestmentType)
-	if err != nil {
-		return nil, nil
-	}
-
-	price := decimal.NewFromFloat(priceData.Price)
-	now := time.Unix(priceData.LastUpdate, 0)
-	return &price, &now
 }
 
 func (s *InvestmentService) calculateTransactionPnL(quantity decimal.Decimal, currentPrice *decimal.Decimal, valueAtBuy decimal.Decimal) (decimal.Decimal, decimal.Decimal, decimal.Decimal) {
