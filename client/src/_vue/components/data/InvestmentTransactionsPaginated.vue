@@ -52,7 +52,7 @@ const sort = ref(filterHelper.initSort());
 const activeColumns = computed<Column[]>(() => [
   {
     field: "holding",
-    header: "Holding",
+    header: "Asset",
     type: "enum",
     optionLabel: "name",
   },

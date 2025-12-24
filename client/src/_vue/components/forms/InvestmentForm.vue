@@ -17,6 +17,8 @@ import {
 } from "../../../validators/currency.ts";
 import useVuelidate from "@vuelidate/core";
 import ValidationError from "../validation/ValidationError.vue";
+import vueHelper from "../../../utils/vue_helper.ts";
+import dateHelper from "../../../utils/date_helper.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -35,6 +37,9 @@ const toastStore = useToastStore();
 const accountStore = useAccountStore();
 
 const loading = ref(false);
+const isReadOnly = computed(
+  () => props.mode === "update",
+);
 
 const accounts = ref<Account[]>([]);
 const record = ref<InvestmentHolding>(initData());
@@ -311,7 +316,8 @@ function toggleInfoPopup(event: any) {
   </Popover>
 
   <div v-if="!loading" class="flex flex-column gap-3 p-1">
-    <div class="flex flex-row w-full justify-content-center">
+
+    <div v-if="!isReadOnly" class="flex flex-row w-full justify-content-center">
       <div class="flex flex-column w-50">
         <SelectButton
           v-model="selectedInvestmentType"
@@ -320,6 +326,49 @@ function toggleInfoPopup(event: any) {
           :options="investmentTypes"
           :allow-empty="false"
         />
+      </div>
+    </div>
+
+    <span v-if="isReadOnly" class="text-sm" style="color: var(--text-secondary)">
+      This is a read only view.
+      Due to the complexity of re-calculating the financial impact of this record, most fields can not be updated.
+    </span>
+
+    <span v-if="isReadOnly" class="text-sm" style="color: var(--text-secondary)">
+      If you wish to make changes, delete the holding and create a new one. That will also delete all related transactions,
+      and reverse their effects.
+    </span>
+
+    <div v-if="mode==='update'" class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
+        <label>Investment type</label>
+        <span style="color: var(--text-secondary)">{{record.investment_type}}</span>
+      </div>
+      <div class="flex flex-column gap-1 w-6">
+        <label>Average</label>
+        <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.average_buy_price!)}}</span>
+      </div>
+    </div>
+
+    <div v-if="mode==='update'" class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
+        <label>Value at buy</label>
+        <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.value_at_buy!)}}</span>
+      </div>
+      <div class="flex flex-column gap-1 w-6">
+        <label>Current value</label>
+        <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.current_value!)}}</span>
+      </div>
+    </div>
+
+    <div v-if="mode==='update'" class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
+        <label>Current price</label>
+        <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.current_price!)}}</span>
+      </div>
+      <div class="flex flex-column gap-1 w-6">
+        <label>Last price update</label>
+        <span style="color: var(--text-secondary)">{{dateHelper.formatDate(record.last_price_update!, true)}}</span>
       </div>
     </div>
 
@@ -343,6 +392,8 @@ function toggleInfoPopup(event: any) {
             placeholder="Select account"
             dropdown
             @complete="searchAccount"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
           />
         </div>
       </div>
@@ -363,7 +414,7 @@ function toggleInfoPopup(event: any) {
         </div>
       </div>
 
-      <div class="flex flex-row w-full align-items-center gap-2">
+      <div v-if="!isReadOnly" class="flex flex-row w-full align-items-center gap-2">
         <i
           class="pi pi-info-circle hover-icon text-sm"
           @click="toggleInfoPopup"
@@ -383,6 +434,8 @@ function toggleInfoPopup(event: any) {
             v-model="tickerData.name"
             size="small"
             placeholder="Input ticker"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
           />
         </div>
       </div>
@@ -401,6 +454,8 @@ function toggleInfoPopup(event: any) {
             v-model="tickerData.exchange"
             size="small"
             placeholder="Input exchange"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
           />
         </div>
         <div v-else
@@ -416,6 +471,8 @@ function toggleInfoPopup(event: any) {
             v-model="tickerData.currency"
             size="small"
             placeholder="Input currency"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
           />
         </div>
       </div>
@@ -435,6 +492,8 @@ function toggleInfoPopup(event: any) {
             :min-fraction-digits="2"
             :max-fraction-digits="6"
             placeholder="0,00"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
           />
         </div>
       </div>
@@ -443,13 +502,13 @@ function toggleInfoPopup(event: any) {
         <div class="flex flex-column w-full gap-2">
           <Button
             class="main-button"
-            :label="mode == 'create' ? 'Create' : 'Update'"
+            :label="(mode == 'create' ? 'Insert' : 'Update') + ' holding'"
             style="height: 42px"
             @click="manageRecord"
           />
           <Button
             v-if="mode == 'update'"
-            label="Delete transaction"
+            label="Delete holding"
             class="delete-button"
             style="height: 42px"
           />

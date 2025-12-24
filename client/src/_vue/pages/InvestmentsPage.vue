@@ -122,7 +122,7 @@ async function handleEmit(emitType: any) {
     :breakpoints="{ '501px': '90vw' }"
     :modal="true"
     :style="{ width: '500px' }"
-    header="Update asset"
+    header="Asset details"
   >
     <InvestmentForm
       mode="update" :record-id="updateHoldingID"
@@ -150,7 +150,7 @@ async function handleEmit(emitType: any) {
     :breakpoints="{ '501px': '90vw' }"
     :modal="true"
     :style="{ width: '500px' }"
-    header="Update transaction"
+    header="Transaction details"
   >
     <InvestmentTransactionForm
       mode="update" :record-id="updateTxnID"
@@ -177,8 +177,8 @@ async function handleEmit(emitType: any) {
         >
           <div class="flex flex-row gap-1 align-items-center">
             <i class="pi pi-plus" />
-            <span> New </span>
-            <span class="mobile-hide"> Holding </span>
+            <span class="mobile-hide"> Add </span>
+            <span> Holding </span>
           </div>
         </Button>
         <Button
@@ -187,8 +187,8 @@ async function handleEmit(emitType: any) {
         >
           <div class="flex flex-row gap-1 align-items-center">
             <i class="pi pi-plus" />
-            <span> Add </span>
-            <span class="mobile-hide"> Transaction </span>
+            <span class="mobile-hide"> Add </span>
+            <span> Transaction </span>
           </div>
         </Button>
       </div>

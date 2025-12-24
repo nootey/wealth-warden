@@ -461,7 +461,7 @@ async function manageRecord() {
         <div class="flex flex-column w-full gap-2">
           <Button
             class="main-button"
-            :label="mode == 'create' ? 'Create' : 'Update' + ' transaction'"
+            :label="(mode == 'create' ? 'Insert' : 'Update') + ' transaction'"
             style="height: 42px"
             @click="manageRecord"
           />
