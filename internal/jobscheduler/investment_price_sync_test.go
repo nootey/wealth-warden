@@ -4,8 +4,10 @@ import (
 	"testing"
 	"wealth-warden/internal/jobscheduler"
 	"wealth-warden/internal/tests"
+	"wealth-warden/pkg/prices"
 
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -20,8 +22,14 @@ func TestInvestmentPriceSyncJobSuite(t *testing.T) {
 // Test that job runs
 func (s *InvestmentPriceSyncJobTestSuite) TestInvestmentPriceSyncJob_Success() {
 	logger := zaptest.NewLogger(s.T())
-	job := jobscheduler.NewInvestmentPriceSyncJob(logger, s.TC.App)
 
-	err := job.Run(s.Ctx)
+	client, err := prices.NewPriceFetchClient(s.TC.App.Config.FinanceAPIBaseURL)
+	if err != nil {
+		logger.Warn("Failed to create price fetch client", zap.Error(err))
+	}
+
+	job := jobscheduler.NewInvestmentPriceSyncJob(logger, s.TC.App, client)
+
+	err = job.Run(s.Ctx)
 	s.NoError(err)
 }

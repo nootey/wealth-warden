@@ -201,16 +201,16 @@ func (c *PriceFetchClient) GetAssetPriceOnDate(ctx context.Context, ticker strin
 
 	result := data.Chart.Result[0]
 
-	if result.Timestamp == nil || len(result.Timestamp) == 0 {
+	if len(result.Timestamp) == 0 {
 		return nil, fmt.Errorf("no historical data available for %s", ticker)
 	}
 
-	if result.Indicators.Quote == nil || len(result.Indicators.Quote) == 0 {
+	if len(result.Indicators.Quote) == 0 {
 		return nil, fmt.Errorf("no quote data available for %s", ticker)
 	}
 
 	quotes := result.Indicators.Quote[0]
-	if quotes.Close == nil || len(quotes.Close) == 0 {
+	if len(quotes.Close) == 0 {
 		return nil, fmt.Errorf("no close prices available for %s", ticker)
 	}
 
