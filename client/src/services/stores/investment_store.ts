@@ -8,7 +8,7 @@ export const useInvestmentStore = defineStore("investment", {
   }),
   getters: {},
   actions: {
-    async getAllHoldings() {
+    async getAllAssets() {
       const response = await apiClient.get(`${this.apiPrefix}/all`);
       return response.data;
     },

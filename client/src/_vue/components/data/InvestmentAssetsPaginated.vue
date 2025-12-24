@@ -8,7 +8,7 @@ import { computed, onMounted, provide, ref, watch } from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
-import type { InvestmentHolding } from "../../../models/investment_models.ts";
+import type { InvestmentAsset } from "../../../models/investment_models.ts";
 import {useChartColors} from "../../../style/theme/chartColors.ts";
 
 const props = defineProps<{
@@ -16,14 +16,14 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
-  updateHolding: [id: number];
+  updateAsset: [id: number];
 }>();
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 
 const loading = ref(false);
-const records = ref<InvestmentHolding[]>([]);
+const records = ref<InvestmentAsset[]>([]);
 
 const apiPrefix = "investments";
 const includeDeleted = ref(false);
@@ -199,7 +199,7 @@ defineExpose({ refresh });
           </template>
           <template v-else-if="col.field === 'ticker'">
             <div class="flex flex-row gap-2 align-items-center account-row">
-              <span class="hover" @click="$emit('updateHolding', data.id)">
+              <span class="hover" @click="$emit('updateAsset', data.id)">
                 {{ data[col.field] }}
               </span>
             </div>

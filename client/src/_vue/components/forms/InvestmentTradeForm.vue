@@ -3,7 +3,7 @@ import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { computed, nextTick, onMounted, ref } from "vue";
 import type {
-  InvestmentHolding, InvestmentTransaction,
+  InvestmentAsset, InvestmentTrade,
 } from "../../../models/investment_models.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import { required } from "@vuelidate/validators";
@@ -32,7 +32,7 @@ const emit = defineEmits<{
   (event: "completeDelete"): void;
 }>();
 
-const apiPrefix = "investments/transactions";
+const apiPrefix = "investments/trades";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -46,14 +46,14 @@ const isReadOnly = computed(
 const confirm = useConfirm();
 const { hasPermission } = usePermissions();
 
-const holdings = ref<InvestmentHolding[]>([]);
-const record = ref<InvestmentTransaction>(initData());
-const filteredHoldings = ref<InvestmentHolding[]>([]);
+const assets = ref<InvestmentAsset[]>([]);
+const record = ref<InvestmentTrade>(initData());
+const filteredAssets = ref<InvestmentAsset[]>([]);
 
-const transactionTypes = ref<string[]>(["Buy", "Sell"]);
+const tradeTypes = ref<string[]>(["Buy", "Sell"]);
 
-const selectedTransactionType = ref<string>(
-  transactionTypes.value.find((i) => i === "Buy") ?? "Sell",
+const selectedTradeType = ref<string>(
+  tradeTypes.value.find((i) => i === "Buy") ?? "Sell",
 );
 
 const availableCurrencies = ref<string[]>(["USD", "EUR", "GBP"]);
@@ -78,7 +78,7 @@ const { number: pricePerUnitNumber } = currencyHelper.useMoneyField(pricePerUnit
 
 const rules = {
   record: {
-    holding: {
+    asset: {
       required,
       $autoDirty: true,
     },
@@ -86,7 +86,7 @@ const rules = {
       required,
       $autoDirty: true,
     },
-    transaction_type: {
+    trade_type: {
       required,
       $autoDirty: true,
     },
@@ -125,18 +125,18 @@ const v$ = useVuelidate(rules, { record });
 
 onMounted(async () => {
 
-  holdings.value = await investmentStore.getAllHoldings();
+  assets.value = await investmentStore.getAllAssets();
 
   if (props.mode === "update" && props.recordId) {
     await loadRecord(props.recordId);
   }
 });
 
-function initData(): InvestmentTransaction {
+function initData(): InvestmentTrade {
   return {
-    holding: null,
+    asset: null,
     txn_date: dayjs().toDate(),
-    transaction_type: "buy",
+    trade_type: "buy",
     quantity: "",
     fee: "0",
     price_per_unit: "",
@@ -146,7 +146,7 @@ function initData(): InvestmentTransaction {
 }
 
 function getCurrencyPlaceholder(currency: string) {
-  if(record.value.holding?.investment_type === 'crypto')
+  if(record.value.asset?.investment_type === 'crypto')
     return '0'
 
   const symbols: Record<string, string> = {
@@ -157,12 +157,12 @@ function getCurrencyPlaceholder(currency: string) {
   return `0,00 ${symbols[currency] || currency}`;
 }
 
-const searchHolding = (event: { query: string }) => {
+const searchAsset = (event: { query: string }) => {
   setTimeout(() => {
     if (!event.query.trim().length) {
-      filteredHoldings.value = [...holdings.value];
+      filteredAssets.value = [...assets.value];
     } else {
-      filteredHoldings.value = holdings.value.filter((record) => {
+      filteredAssets.value = assets.value.filter((record) => {
         return record.ticker.toLowerCase().startsWith(event.query.toLowerCase());
       });
     }
@@ -199,7 +199,7 @@ async function loadRecord(id: number) {
 
 async function manageRecord() {
   if (!(await isRecordValid())) return;
-  if (!record.value.holding) return;
+  if (!record.value.asset) return;
 
   loading.value = true;
 
@@ -208,8 +208,8 @@ async function manageRecord() {
   );
 
   const recordData = {
-    holding_id: record.value.holding.id,
-    transaction_type: selectedTransactionType.value.toLowerCase(),
+    asset_id: record.value.asset.id,
+    trade_type: selectedTradeType.value.toLowerCase(),
     txn_date: txn_date,
     quantity: record.value.quantity,
     price_per_unit: record.value.price_per_unit,
@@ -250,7 +250,7 @@ async function manageRecord() {
 async function deleteConfirmation(id: number) {
   confirm.require({
     header: "Delete record?",
-    message: `This will delete transaction: "${id}". This action is not reversible!`,
+    message: `This will delete trade: "${id}". This action is not reversible!`,
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Delete", severity: "danger" },
     accept: () =>  deleteRecord(id),
@@ -291,10 +291,10 @@ async function deleteRecord(id: number) {
     <div v-if="!isReadOnly" class="flex flex-row w-full justify-content-center">
       <div class="flex flex-column">
         <SelectButton
-          v-model="selectedTransactionType"
+          v-model="selectedTradeType"
           style="font-size: 0.875rem"
           size="small"
-          :options="transactionTypes"
+          :options="tradeTypes"
           :allow-empty="false"
           :readonly="isReadOnly"
           :disabled="isReadOnly"
@@ -304,17 +304,17 @@ async function deleteRecord(id: number) {
 
     <span v-if="isReadOnly" class="text-sm" style="color: var(--text-secondary)">
       This is a read only view.
-      Due to the complexity of re-calculating the financial impact of the transaction, most fields can not be updated.
+      Due to the complexity of re-calculating the financial impact of the trade, most fields can not be updated.
     </span>
 
     <span v-if="isReadOnly" class="text-sm" style="color: var(--text-secondary)">
-      If you wish to make changes, delete the transaction and create a new one.
+      If you wish to make changes, delete the trade and create a new one.
     </span>
 
     <div v-if="mode==='update'" class="flex flex-row w-full gap-3">
       <div class="flex flex-column gap-1 w-6">
-        <label>Transaction type</label>
-        <span style="color: var(--text-secondary)">{{record.transaction_type}}</span>
+        <label>Trade type</label>
+        <span style="color: var(--text-secondary)">{{record.trade_type}}</span>
       </div>
       <div class="flex flex-column gap-1 w-6">
         <label>USD exchange rate</label>
@@ -328,14 +328,14 @@ async function deleteRecord(id: number) {
         <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.value_at_buy!)}}</span>
       </div>
       <div class="flex flex-column gap-1 w-6">
-        <label>{{record.transaction_type === "buy" ? "Current value" : "Value at sell"}}</label>
+        <label>{{record.trade_type === "buy" ? "Current value" : "Value at sell"}}</label>
         <span style="color: var(--text-secondary)">
-          {{ vueHelper.displayAsCurrency(record.transaction_type === "buy" ? record.current_value! : record.realized_value!)
+          {{ vueHelper.displayAsCurrency(record.trade_type === "buy" ? record.current_value! : record.realized_value!)
           }}</span>
       </div>
     </div>
 
-    <div v-if="mode==='update' && record.transaction_type === 'sell'" class="flex flex-row w-full gap-3">
+    <div v-if="mode==='update' && record.trade_type === 'sell'" class="flex flex-row w-full gap-3">
       <div class="flex flex-column gap-1 w-6">
         <label>What if</label>
         <span style="color: var(--text-secondary)">You haven't sold</span>
@@ -361,20 +361,20 @@ async function deleteRecord(id: number) {
       <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
-          :message="v$.record.holding.$errors[0]?.$message"
+          :message="v$.record.asset.$errors[0]?.$message"
         >
-          <label>Holding</label>
+          <label>Asset</label>
         </ValidationError>
         <AutoComplete
-          v-model="record.holding"
+          v-model="record.asset"
           size="small"
-          :suggestions="filteredHoldings"
+          :suggestions="filteredAssets"
           option-label="name"
           data-key="id"
           force-selection
-          placeholder="Select holding"
+          placeholder="Select asset"
           dropdown
-          @complete="searchHolding"
+          @complete="searchAsset"
           :readonly="isReadOnly"
           :disabled="isReadOnly"
         >
@@ -489,7 +489,7 @@ async function deleteRecord(id: number) {
           :currency="record.currency"
           locale="de-DE"
           :min-fraction-digits="2"
-          :max-fraction-digits="record.holding?.investment_type === 'crypto' ? 6 : 2"
+          :max-fraction-digits="record.asset?.investment_type === 'crypto' ? 6 : 2"
           :placeholder="getCurrencyPlaceholder(record.currency)"
           :readonly="isReadOnly"
           :disabled="isReadOnly"
@@ -509,7 +509,7 @@ async function deleteRecord(id: number) {
         <InputText
           v-model="record.description"
           size="small"
-          placeholder="Describe transaction"
+          placeholder="Describe trade"
         />
       </div>
     </div>
@@ -519,14 +519,14 @@ async function deleteRecord(id: number) {
   <div class="flex flex-column w-full gap-3 mt-3">
     <Button
       class="main-button"
-      :label="(mode == 'create' ? 'Insert' : 'Update') + ' transaction'"
+      :label="(mode == 'create' ? 'Insert' : 'Update') + ' trade'"
       style="height: 42px"
       @click="manageRecord"
       :disabled="loading"
     />
     <Button
       v-if="mode == 'update'"
-      label="Delete transaction"
+      label="Delete trade"
       class="delete-button"
       style="height: 42px"
       @click="deleteConfirmation(record.id!)"

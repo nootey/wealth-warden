@@ -12,26 +12,26 @@ import (
 
 type InvestmentRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
-	CountInvestmentHoldings(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error)
-	CountInvestmentTransactions(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error)
-	FindInvestmentHoldings(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentHolding, error)
-	FindAllInvestmentHoldings(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentHolding, error)
-	FindInvestmentHoldingByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentHolding, error)
-	FindHoldingsByAccountID(ctx context.Context, tx *gorm.DB, accID, userID int64) ([]models.InvestmentHolding, error)
-	FindInvestmentTransactions(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTransaction, error)
-	FindInvestmentTransactionByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTransaction, error)
-	InsertHolding(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentHolding) (int64, error)
-	InsertInvestmentTransaction(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTransaction) (int64, error)
-	UpdateHoldingAfterTransaction(ctx context.Context, tx *gorm.DB, holdingID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, transactionType models.TransactionType, transactionValueAtBuy decimal.Decimal) error
+	CountInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error)
+	CountInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error)
+	FindInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentAsset, error)
+	FindAllInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentAsset, error)
+	FindInvestmentAssetByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentAsset, error)
+	FindAssetsByAccountID(ctx context.Context, tx *gorm.DB, accID, userID int64) ([]models.InvestmentAsset, error)
+	FindInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTrade, error)
+	FindInvestmentTradeByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTrade, error)
+	InsertAsset(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentAsset) (int64, error)
+	InsertInvestmentTrade(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTrade) (int64, error)
+	UpdateAssetAfterTrade(ctx context.Context, tx *gorm.DB, assetID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, TradeType models.TradeType, TradeValueAtBuy decimal.Decimal) error
 	FindTotalInvestmentValue(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error)
-	UpdateInvestmentHolding(ctx context.Context, tx *gorm.DB, record models.InvestmentHolding) (int64, error)
-	UpdateInvestmentTransaction(ctx context.Context, tx *gorm.DB, record models.InvestmentTransaction) (int64, error)
-	RecalculateHoldingFromTransactions(ctx context.Context, tx *gorm.DB, holdingID, userID int64) error
-	DeleteInvestmentTransaction(ctx context.Context, tx *gorm.DB, id int64) error
-	GetEarliestTransactionDate(ctx context.Context, tx *gorm.DB, holdingID, userID int64) (time.Time, error)
-	FindSellTransactionsByHoldingID(ctx context.Context, tx *gorm.DB, holdingID, userID int64) ([]models.InvestmentTransaction, error)
-	DeleteAllTransactionsForHolding(ctx context.Context, tx *gorm.DB, holdingID, userID int64) error
-	DeleteInvestmentHolding(ctx context.Context, tx *gorm.DB, id int64) error
+	UpdateInvestmentAsset(ctx context.Context, tx *gorm.DB, record models.InvestmentAsset) (int64, error)
+	UpdateInvestmentTrade(ctx context.Context, tx *gorm.DB, record models.InvestmentTrade) (int64, error)
+	RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error
+	DeleteInvestmentTrade(ctx context.Context, tx *gorm.DB, id int64) error
+	GetEarliestTradeDate(ctx context.Context, tx *gorm.DB, assetID, userID int64) (time.Time, error)
+	FindSellTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID, userID int64) ([]models.InvestmentTrade, error)
+	DeleteAllTradesForAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64) error
+	DeleteInvestmentAsset(ctx context.Context, tx *gorm.DB, id int64) error
 }
 
 type InvestmentRepository struct {
@@ -49,7 +49,7 @@ func (r *InvestmentRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 	return tx, tx.Error
 }
 
-func (r *InvestmentRepository) CountInvestmentHoldings(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error) {
+func (r *InvestmentRepository) CountInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -57,7 +57,7 @@ func (r *InvestmentRepository) CountInvestmentHoldings(ctx context.Context, tx *
 	db = db.WithContext(ctx)
 
 	var totalRecords int64
-	q := db.WithContext(ctx).Model(&models.InvestmentHolding{}).
+	q := db.WithContext(ctx).Model(&models.InvestmentAsset{}).
 		Where("user_id = ?", userID)
 
 	if accountID != nil {
@@ -78,7 +78,7 @@ func (r *InvestmentRepository) CountInvestmentHoldings(ctx context.Context, tx *
 	return totalRecords, nil
 }
 
-func (r *InvestmentRepository) CountInvestmentTransactions(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error) {
+func (r *InvestmentRepository) CountInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -86,7 +86,7 @@ func (r *InvestmentRepository) CountInvestmentTransactions(ctx context.Context, 
 	db = db.WithContext(ctx)
 
 	var totalRecords int64
-	q := db.WithContext(ctx).Model(&models.InvestmentTransaction{}).
+	q := db.WithContext(ctx).Model(&models.InvestmentTrade{}).
 		Where("user_id = ?", userID)
 
 	if accountID != nil {
@@ -107,25 +107,25 @@ func (r *InvestmentRepository) CountInvestmentTransactions(ctx context.Context, 
 	return totalRecords, nil
 }
 
-func (r *InvestmentRepository) FindInvestmentHoldings(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentHolding, error) {
+func (r *InvestmentRepository) FindInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentAsset, error) {
 
-	var records []models.InvestmentHolding
+	var records []models.InvestmentAsset
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	q := db.WithContext(ctx).Model(&models.InvestmentHolding{}).
-		Where("investment_holdings.user_id = ?", userID).
+	q := db.WithContext(ctx).Model(&models.InvestmentAsset{}).
+		Where("investment_assets.user_id = ?", userID).
 		Preload("Account")
 
 	if accountID != nil {
-		q = q.Where("investment_holdings.account_id = ?", *accountID)
+		q = q.Where("investment_assets.account_id = ?", *accountID)
 	}
 
 	joins := utils.GetRequiredJoins(filters)
-	orderBy := utils.ConstructOrderByClause(&joins, "investment_holdings", sortField, sortOrder)
+	orderBy := utils.ConstructOrderByClause(&joins, "investment_assets", sortField, sortOrder)
 
 	for _, join := range joins {
 		q = q.Joins(join)
@@ -145,14 +145,14 @@ func (r *InvestmentRepository) FindInvestmentHoldings(ctx context.Context, tx *g
 	return records, nil
 }
 
-func (r *InvestmentRepository) FindAllInvestmentHoldings(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentHolding, error) {
+func (r *InvestmentRepository) FindAllInvestmentAssets(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentAsset, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	var records []models.InvestmentHolding
+	var records []models.InvestmentAsset
 	query := db.Where("user_id = ?", userID)
 
 	if err := query.Find(&records).Error; err != nil {
@@ -162,14 +162,14 @@ func (r *InvestmentRepository) FindAllInvestmentHoldings(ctx context.Context, tx
 	return records, nil
 }
 
-func (r *InvestmentRepository) FindInvestmentHoldingByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentHolding, error) {
+func (r *InvestmentRepository) FindInvestmentAssetByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentAsset, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	var record models.InvestmentHolding
+	var record models.InvestmentAsset
 	q := db.
 		Preload("Account.Balance", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at DESC").Limit(1)
@@ -181,14 +181,14 @@ func (r *InvestmentRepository) FindInvestmentHoldingByID(ctx context.Context, tx
 	return record, q.Error
 }
 
-func (r *InvestmentRepository) FindHoldingsByAccountID(ctx context.Context, tx *gorm.DB, accID, userID int64) ([]models.InvestmentHolding, error) {
+func (r *InvestmentRepository) FindAssetsByAccountID(ctx context.Context, tx *gorm.DB, accID, userID int64) ([]models.InvestmentAsset, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	var records []models.InvestmentHolding
+	var records []models.InvestmentAsset
 	q := db.
 		Where("user_id = ? AND account_id = ?", userID, accID)
 
@@ -197,25 +197,25 @@ func (r *InvestmentRepository) FindHoldingsByAccountID(ctx context.Context, tx *
 	return records, q.Error
 }
 
-func (r *InvestmentRepository) FindInvestmentTransactions(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTransaction, error) {
+func (r *InvestmentRepository) FindInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTrade, error) {
 
-	var records []models.InvestmentTransaction
+	var records []models.InvestmentTrade
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	q := db.WithContext(ctx).Model(&models.InvestmentTransaction{}).
-		Where("investment_transactions.user_id = ?", userID).
-		Preload("Holding")
+	q := db.WithContext(ctx).Model(&models.InvestmentTrade{}).
+		Where("investment_trades.user_id = ?", userID).
+		Preload("Asset")
 
 	if accountID != nil {
-		q = q.Where("investment_transactions.holding_id = ?", *accountID)
+		q = q.Where("investment_trades.asset_id = ?", *accountID)
 	}
 
 	joins := utils.GetRequiredJoins(filters)
-	orderBy := utils.ConstructOrderByClause(&joins, "investment_transactions", sortField, sortOrder)
+	orderBy := utils.ConstructOrderByClause(&joins, "investment_trades", sortField, sortOrder)
 
 	for _, join := range joins {
 		q = q.Joins(join)
@@ -235,16 +235,16 @@ func (r *InvestmentRepository) FindInvestmentTransactions(ctx context.Context, t
 	return records, nil
 }
 
-func (r *InvestmentRepository) FindInvestmentTransactionByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTransaction, error) {
+func (r *InvestmentRepository) FindInvestmentTradeByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTrade, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	var record models.InvestmentTransaction
+	var record models.InvestmentTrade
 	q := db.
-		Preload("Holding").
+		Preload("Asset").
 		Where("id = ? AND user_id = ?", ID, userID)
 
 	q = q.First(&record)
@@ -252,7 +252,7 @@ func (r *InvestmentRepository) FindInvestmentTransactionByID(ctx context.Context
 	return record, q.Error
 }
 
-func (r *InvestmentRepository) InsertHolding(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentHolding) (int64, error) {
+func (r *InvestmentRepository) InsertAsset(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentAsset) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -265,7 +265,7 @@ func (r *InvestmentRepository) InsertHolding(ctx context.Context, tx *gorm.DB, n
 	return newRecord.ID, nil
 }
 
-func (r *InvestmentRepository) InsertInvestmentTransaction(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTransaction) (int64, error) {
+func (r *InvestmentRepository) InsertInvestmentTrade(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTrade) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -278,43 +278,43 @@ func (r *InvestmentRepository) InsertInvestmentTransaction(ctx context.Context, 
 	return newRecord.ID, nil
 }
 
-func (r *InvestmentRepository) UpdateHoldingAfterTransaction(ctx context.Context, tx *gorm.DB, holdingID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, transactionType models.TransactionType, transactionValueAtBuy decimal.Decimal) error {
+func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *gorm.DB, assetID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, tradeType models.TradeType, tradeValueAtBuy decimal.Decimal) error {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	var holding models.InvestmentHolding
-	if err := db.First(&holding, holdingID).Error; err != nil {
+	var asset models.InvestmentAsset
+	if err := db.First(&asset, assetID).Error; err != nil {
 		return err
 	}
 
-	// Update quantity based on transaction type
+	// Update quantity based on trade type
 	var newQuantity decimal.Decimal
 	var newAverageBuyPrice decimal.Decimal
 	var newTotalValueAtBuy decimal.Decimal
 
-	if transactionType == models.InvestmentBuy {
-		newQuantity = holding.Quantity.Add(quantity)
+	if tradeType == models.InvestmentBuy {
+		newQuantity = asset.Quantity.Add(quantity)
 
 		// Weighted average: (old_qty * old_avg + new_qty * new_price) / total_qty
-		oldValue := holding.Quantity.Mul(holding.AverageBuyPrice)
+		oldValue := asset.Quantity.Mul(asset.AverageBuyPrice)
 		newValue := quantity.Mul(pricePerUnit)
 		totalValue := oldValue.Add(newValue)
 		newAverageBuyPrice = totalValue.Div(newQuantity)
 
 		// Total value at buy
-		newTotalValueAtBuy = holding.ValueAtBuy.Add(transactionValueAtBuy)
+		newTotalValueAtBuy = asset.ValueAtBuy.Add(tradeValueAtBuy)
 	} else {
 		// Sell: decrease quantity and value at buy proportionally
-		newQuantity = holding.Quantity.Sub(quantity)
-		newAverageBuyPrice = holding.AverageBuyPrice
+		newQuantity = asset.Quantity.Sub(quantity)
+		newAverageBuyPrice = asset.AverageBuyPrice
 
 		// Reduce total value at buy proportionally
-		soldProportion := quantity.Div(holding.Quantity)
-		valueAtBuyReduction := holding.ValueAtBuy.Mul(soldProportion)
-		newTotalValueAtBuy = holding.ValueAtBuy.Sub(valueAtBuyReduction)
+		soldProportion := quantity.Div(asset.Quantity)
+		valueAtBuyReduction := asset.ValueAtBuy.Mul(soldProportion)
+		newTotalValueAtBuy = asset.ValueAtBuy.Sub(valueAtBuyReduction)
 	}
 
 	// Calculate current value
@@ -351,8 +351,8 @@ func (r *InvestmentRepository) UpdateHoldingAfterTransaction(ctx context.Context
 		updates["last_price_update"] = lastPriceUpdate
 	}
 
-	return db.Model(&models.InvestmentHolding{}).
-		Where("id = ?", holdingID).
+	return db.Model(&models.InvestmentAsset{}).
+		Where("id = ?", assetID).
 		Updates(updates).Error
 }
 
@@ -364,24 +364,24 @@ func (r *InvestmentRepository) FindTotalInvestmentValue(ctx context.Context, tx 
 	}
 	db = db.WithContext(ctx)
 
-	var holdings []models.InvestmentHolding
+	var assets []models.InvestmentAsset
 	err := db.WithContext(ctx).
 		Where("account_id = ? AND user_id = ? AND quantity > 0", accountID, userID).
-		Find(&holdings).Error
+		Find(&assets).Error
 
 	if err != nil {
 		return decimal.Zero, err
 	}
 
 	total := decimal.Zero
-	for _, h := range holdings {
-		total = total.Add(h.CurrentValue)
+	for _, a := range assets {
+		total = total.Add(a.CurrentValue)
 	}
 
 	return total, nil
 }
 
-func (r *InvestmentRepository) UpdateInvestmentHolding(ctx context.Context, tx *gorm.DB, record models.InvestmentHolding) (int64, error) {
+func (r *InvestmentRepository) UpdateInvestmentAsset(ctx context.Context, tx *gorm.DB, record models.InvestmentAsset) (int64, error) {
 
 	db := tx
 	if db == nil {
@@ -389,7 +389,7 @@ func (r *InvestmentRepository) UpdateInvestmentHolding(ctx context.Context, tx *
 	}
 	db = db.WithContext(ctx)
 
-	if err := db.Model(models.InvestmentHolding{}).
+	if err := db.Model(models.InvestmentAsset{}).
 		Where("id = ?", record.ID).
 		Updates(map[string]interface{}{
 			"name":       record.Name,
@@ -401,7 +401,7 @@ func (r *InvestmentRepository) UpdateInvestmentHolding(ctx context.Context, tx *
 	return record.ID, nil
 }
 
-func (r *InvestmentRepository) UpdateInvestmentTransaction(ctx context.Context, tx *gorm.DB, record models.InvestmentTransaction) (int64, error) {
+func (r *InvestmentRepository) UpdateInvestmentTrade(ctx context.Context, tx *gorm.DB, record models.InvestmentTrade) (int64, error) {
 
 	db := tx
 	if db == nil {
@@ -419,7 +419,7 @@ func (r *InvestmentRepository) UpdateInvestmentTransaction(ctx context.Context, 
 		updates["description"] = gorm.Expr("NULL")
 	}
 
-	if err := db.Model(models.InvestmentTransaction{}).
+	if err := db.Model(models.InvestmentTrade{}).
 		Where("id = ?", record.ID).
 		Updates(updates).Error; err != nil {
 		return 0, err
@@ -428,23 +428,23 @@ func (r *InvestmentRepository) UpdateInvestmentTransaction(ctx context.Context, 
 	return record.ID, nil
 }
 
-func (r *InvestmentRepository) RecalculateHoldingFromTransactions(ctx context.Context, tx *gorm.DB, holdingID, userID int64) error {
+func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	var holding models.InvestmentHolding
-	if err := db.Preload("Account").First(&holding, holdingID).Error; err != nil {
+	var asset models.InvestmentAsset
+	if err := db.Preload("Account").First(&asset, assetID).Error; err != nil {
 		return err
 	}
 
-	// Get all transactions for this holding
-	var transactions []models.InvestmentTransaction
-	if err := db.Where("holding_id = ? AND user_id = ?", holdingID, userID).
+	// Get all trades for this asset
+	var trades []models.InvestmentTrade
+	if err := db.Where("asset_id = ? AND user_id = ?", assetID, userID).
 		Order("txn_date ASC, id ASC").
-		Find(&transactions).Error; err != nil {
+		Find(&trades).Error; err != nil {
 		return err
 	}
 
@@ -453,8 +453,8 @@ func (r *InvestmentRepository) RecalculateHoldingFromTransactions(ctx context.Co
 	totalValueAtBuy := decimal.Zero
 	totalCostForAverage := decimal.Zero
 
-	for _, txn := range transactions {
-		if txn.TransactionType == models.InvestmentBuy {
+	for _, txn := range trades {
+		if txn.TradeType == models.InvestmentBuy {
 			totalQuantity = totalQuantity.Add(txn.Quantity)
 			totalValueAtBuy = totalValueAtBuy.Add(txn.ValueAtBuy)
 			// For average: use quantity * price_per_unit
@@ -483,17 +483,17 @@ func (r *InvestmentRepository) RecalculateHoldingFromTransactions(ctx context.Co
 
 	// Calculate current values
 	var currentValue, profitLoss, profitLossPercent decimal.Decimal
-	if holding.CurrentPrice != nil && !holding.CurrentPrice.IsZero() && totalQuantity.GreaterThan(decimal.Zero) {
-		currentValue = totalQuantity.Mul(*holding.CurrentPrice)
+	if asset.CurrentPrice != nil && !asset.CurrentPrice.IsZero() && totalQuantity.GreaterThan(decimal.Zero) {
+		currentValue = totalQuantity.Mul(*asset.CurrentPrice)
 		profitLoss = currentValue.Sub(totalValueAtBuy)
 		if !totalValueAtBuy.IsZero() {
 			profitLossPercent = profitLoss.Div(totalValueAtBuy)
 		}
 	}
 
-	// Update holding
-	return db.Model(&models.InvestmentHolding{}).
-		Where("id = ?", holdingID).
+	// Update asset
+	return db.Model(&models.InvestmentAsset{}).
+		Where("id = ?", assetID).
 		Updates(map[string]interface{}{
 			"quantity":            totalQuantity,
 			"average_buy_price":   avgBuyPrice,
@@ -505,25 +505,25 @@ func (r *InvestmentRepository) RecalculateHoldingFromTransactions(ctx context.Co
 		}).Error
 }
 
-func (r *InvestmentRepository) DeleteInvestmentTransaction(ctx context.Context, tx *gorm.DB, id int64) error {
+func (r *InvestmentRepository) DeleteInvestmentTrade(ctx context.Context, tx *gorm.DB, id int64) error {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	return db.Delete(&models.InvestmentTransaction{}, id).Error
+	return db.Delete(&models.InvestmentTrade{}, id).Error
 }
 
-func (r *InvestmentRepository) GetEarliestTransactionDate(ctx context.Context, tx *gorm.DB, holdingID, userID int64) (time.Time, error) {
+func (r *InvestmentRepository) GetEarliestTradeDate(ctx context.Context, tx *gorm.DB, assetID, userID int64) (time.Time, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	var txn models.InvestmentTransaction
-	err := db.Where("holding_id = ? AND user_id = ?", holdingID, userID).
+	var txn models.InvestmentTrade
+	err := db.Where("asset_id = ? AND user_id = ?", assetID, userID).
 		Order("txn_date ASC").
 		First(&txn).Error
 
@@ -534,38 +534,38 @@ func (r *InvestmentRepository) GetEarliestTransactionDate(ctx context.Context, t
 	return txn.TxnDate, nil
 }
 
-func (r *InvestmentRepository) FindSellTransactionsByHoldingID(ctx context.Context, tx *gorm.DB, holdingID, userID int64) ([]models.InvestmentTransaction, error) {
+func (r *InvestmentRepository) FindSellTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID, userID int64) ([]models.InvestmentTrade, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	var transactions []models.InvestmentTransaction
-	err := db.Where("holding_id = ? AND user_id = ? AND transaction_type = ?", holdingID, userID, models.InvestmentSell).
+	var trades []models.InvestmentTrade
+	err := db.Where("asset_id = ? AND user_id = ? AND trade_type = ?", assetID, userID, models.InvestmentSell).
 		Order("txn_date ASC").
-		Find(&transactions).Error
+		Find(&trades).Error
 
-	return transactions, err
+	return trades, err
 }
 
-func (r *InvestmentRepository) DeleteAllTransactionsForHolding(ctx context.Context, tx *gorm.DB, holdingID, userID int64) error {
+func (r *InvestmentRepository) DeleteAllTradesForAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64) error {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	return db.Where("holding_id = ? AND user_id = ?", holdingID, userID).
-		Delete(&models.InvestmentTransaction{}).Error
+	return db.Where("asset_id = ? AND user_id = ?", assetID, userID).
+		Delete(&models.InvestmentTrade{}).Error
 }
 
-func (r *InvestmentRepository) DeleteInvestmentHolding(ctx context.Context, tx *gorm.DB, id int64) error {
+func (r *InvestmentRepository) DeleteInvestmentAsset(ctx context.Context, tx *gorm.DB, id int64) error {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	return db.Delete(&models.InvestmentHolding{}, id).Error
+	return db.Delete(&models.InvestmentAsset{}, id).Error
 }

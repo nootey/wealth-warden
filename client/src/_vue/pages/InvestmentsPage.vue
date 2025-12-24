@@ -2,25 +2,25 @@
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { ref } from "vue";
 import { usePermissions } from "../../utils/use_permissions.ts";
-import InvestmentForm from "../components/forms/InvestmentForm.vue";
-import InvestmentHoldingsPaginated from "../components/data/InvestmentHoldingsPaginated.vue";
-import InvestmentTransactionForm from "../components/forms/InvestmentTransactionForm.vue";
-import InvestmentTransactionsPaginated from "../components/data/InvestmentTransactionsPaginated.vue";
+import InvestmentAssetForm from "../components/forms/InvestmentAssetForm.vue";
+import InvestmentAssetsPaginated from "../components/data/InvestmentAssetsPaginated.vue";
+import InvestmentTradeForm from "../components/forms/InvestmentTradeForm.vue";
+import InvestmentTradesPaginated from "../components/data/InvestmentTradesPaginated.vue";
 
 const toastStore = useToastStore();
 
 const { hasPermission } = usePermissions();
 
-const holdRef = ref<InstanceType<typeof InvestmentHoldingsPaginated> | null>(
+const holdRef = ref<InstanceType<typeof InvestmentAssetsPaginated> | null>(
   null,
 );
-const txnRef = ref<InstanceType<typeof InvestmentTransactionsPaginated> | null>(
+const txnRef = ref<InstanceType<typeof InvestmentTradesPaginated> | null>(
   null,
 );
 
-const createHoldingModal = ref(false);
-const updateHoldingModal = ref(false);
-const updateHoldingID = ref(null);
+const createAssetModal = ref(false);
+const updateAssetModal = ref(false);
+const updateAssetID = ref(null);
 
 const createTxnModal = ref(false);
 const updateTxnModal = ref(false);
@@ -28,7 +28,7 @@ const updateTxnID = ref(null);
 
 function manipulateDialog(modal: string, value: any) {
   switch (modal) {
-    case "addHolding": {
+    case "addAsset": {
       if (!hasPermission("manage_data")) {
         toastStore.createInfoToast(
           "Access denied",
@@ -36,10 +36,10 @@ function manipulateDialog(modal: string, value: any) {
         );
         return;
       }
-      createHoldingModal.value = value;
+      createAssetModal.value = value;
       break;
     }
-    case "updateHolding": {
+    case "updateAsset": {
       if (!hasPermission("manage_data")) {
         toastStore.createInfoToast(
           "Access denied",
@@ -47,11 +47,11 @@ function manipulateDialog(modal: string, value: any) {
         );
         return;
       }
-      updateHoldingModal.value = true;
-      updateHoldingID.value = value;
+      updateAssetModal.value = true;
+      updateAssetID.value = value;
       break;
     }
-    case "addTransaction": {
+    case "addTrade": {
       if (!hasPermission("manage_data")) {
         toastStore.createInfoToast(
           "Access denied",
@@ -62,7 +62,7 @@ function manipulateDialog(modal: string, value: any) {
       createTxnModal.value = value;
       break;
     }
-    case "updateTransaction": {
+    case "updateTrade": {
       if (!hasPermission("manage_data")) {
         toastStore.createInfoToast(
           "Access denied",
@@ -82,9 +82,9 @@ function manipulateDialog(modal: string, value: any) {
 
 async function handleEmit(emitType: any) {
   switch (emitType) {
-    case "completeHoldingOperation": {
-      createHoldingModal.value = false;
-      updateHoldingModal.value = false;
+    case "completeAssetOperation": {
+      createAssetModal.value = false;
+      updateAssetModal.value = false;
       holdRef.value?.refresh();
       break;
     }
@@ -101,8 +101,8 @@ async function handleEmit(emitType: any) {
       txnRef.value?.refresh();
       break;
     }
-    case "completeHoldingDelete": {
-      updateHoldingModal.value = false;
+    case "completeAssetDelete": {
+      updateAssetModal.value = false;
       holdRef.value?.refresh();
       txnRef.value?.refresh();
       break;
@@ -116,31 +116,31 @@ async function handleEmit(emitType: any) {
 
 <template>
   <Dialog
-    v-model:visible="createHoldingModal"
+    v-model:visible="createAssetModal"
     class="rounded-dialog"
     :breakpoints="{ '501px': '90vw' }"
     :modal="true"
     :style="{ width: '500px' }"
     header="Add asset"
   >
-    <InvestmentForm
+    <InvestmentAssetForm
       mode="create"
-      @complete-operation="handleEmit('completeHoldingOperation')"
+      @complete-operation="handleEmit('completeAssetOperation')"
     />
   </Dialog>
 
   <Dialog
-    v-model:visible="updateHoldingModal"
+    v-model:visible="updateAssetModal"
     class="rounded-dialog"
     :breakpoints="{ '501px': '90vw' }"
     :modal="true"
     :style="{ width: '500px' }"
     header="Asset details"
   >
-    <InvestmentForm
-      mode="update" :record-id="updateHoldingID"
-      @complete-operation="handleEmit('completeHoldingOperation')"
-      @complete-delete="handleEmit('completeHoldingDelete')"
+    <InvestmentAssetForm
+      mode="update" :record-id="updateAssetID"
+      @complete-operation="handleEmit('completeAssetOperation')"
+      @complete-delete="handleEmit('completeAssetDelete')"
     />
   </Dialog>
 
@@ -150,9 +150,9 @@ async function handleEmit(emitType: any) {
     :breakpoints="{ '501px': '90vw' }"
     :modal="true"
     :style="{ width: '500px' }"
-    header="Add transaction"
+    header="Add Trade"
   >
-    <InvestmentTransactionForm
+    <InvestmentTradeForm
       mode="create"
       @complete-operation="handleEmit('completeTxnOperation')"
     />
@@ -164,9 +164,9 @@ async function handleEmit(emitType: any) {
     :breakpoints="{ '501px': '90vw' }"
     :modal="true"
     :style="{ width: '500px' }"
-    header="Transaction details"
+    header="Trade details"
   >
-    <InvestmentTransactionForm
+    <InvestmentTradeForm
       mode="update" :record-id="updateTxnID"
       @complete-operation="handleEmit('completeTxnOperation')"
       @complete-delete="handleEmit('completeTxnDelete')"
@@ -188,36 +188,36 @@ async function handleEmit(emitType: any) {
         <div style="font-weight: bold" class="mr-auto">Investments</div>
         <Button
           class="main-button"
-          @click="manipulateDialog('addHolding', true)"
+          @click="manipulateDialog('addAsset', true)"
         >
           <div class="flex flex-row gap-1 align-items-center">
             <i class="pi pi-plus" />
             <span class="mobile-hide"> Add </span>
-            <span> Holding </span>
+            <span> Asset </span>
           </div>
         </Button>
         <Button
           class="main-button"
-          @click="manipulateDialog('addTransaction', true)"
+          @click="manipulateDialog('addTrade', true)"
         >
           <div class="flex flex-row gap-1 align-items-center">
             <i class="pi pi-plus" />
             <span class="mobile-hide"> Add </span>
-            <span> Transaction </span>
+            <span> Trade </span>
           </div>
         </Button>
       </div>
 
       <div id="mobile-row" class="flex flex-row w-full">
-        <InvestmentHoldingsPaginated ref="holdRef"
-          @update-holding="(id) => manipulateDialog('updateHolding', id)"
+        <InvestmentAssetsPaginated ref="holdRef"
+          @update-asset="(id) => manipulateDialog('updateAsset', id)"
         />
       </div>
 
-      <label>Transactions</label>
+      <label>Trades</label>
       <div id="mobile-row" class="flex flex-row w-full">
-        <InvestmentTransactionsPaginated ref="txnRef"
-          @update-transaction="(id) => manipulateDialog('updateTransaction', id)"
+        <InvestmentTradesPaginated ref="txnRef"
+          @update-trade="(id) => manipulateDialog('updateTrade', id)"
         />
       </div>
 

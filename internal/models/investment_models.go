@@ -14,13 +14,13 @@ const (
 	InvestmentCrypto InvestmentType = "crypto"
 )
 
-type InvestmentHolding struct {
+type InvestmentAsset struct {
 	ID                int64            `gorm:"primaryKey;autoIncrement" json:"id"`
-	AccountID         int64            `gorm:"not null;index:idx_holdings_account" json:"account_id"`
-	UserID            int64            `gorm:"not null;index:idx_holdings_user" json:"user_id"`
+	AccountID         int64            `gorm:"not null;index:idx_assets_account" json:"account_id"`
+	UserID            int64            `gorm:"not null;index:idx_assets_user" json:"user_id"`
 	InvestmentType    InvestmentType   `gorm:"type:investment_type;not null" json:"investment_type"`
 	Name              string           `gorm:"type:varchar(255);not null" json:"name"`
-	Ticker            string           `gorm:"type:varchar(20);not null;index:idx_holdings_ticker" json:"ticker"`
+	Ticker            string           `gorm:"type:varchar(20);not null;index:idx_assets_ticker" json:"ticker"`
 	Quantity          decimal.Decimal  `gorm:"type:decimal(19,8);not null" json:"quantity"`
 	AverageBuyPrice   decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"average_buy_price"`
 	ValueAtBuy        decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
@@ -34,36 +34,36 @@ type InvestmentHolding struct {
 	UpdatedAt         time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
-type TransactionType string
+type TradeType string
 
 const (
-	InvestmentBuy  TransactionType = "buy"
-	InvestmentSell TransactionType = "sell"
+	InvestmentBuy  TradeType = "buy"
+	InvestmentSell TradeType = "sell"
 )
 
-type InvestmentTransaction struct {
-	ID                int64             `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID            int64             `gorm:"not null" json:"user_id"`
-	HoldingID         int64             `gorm:"not null;index:idx_inv_trans_holding" json:"holding_id"`
-	TxnDate           time.Time         `gorm:"type:date;not null;index:idx_inv_trans_date" json:"txn_date"`
-	TransactionType   TransactionType   `gorm:"type:varchar(4);not null" json:"transaction_type"`
-	Quantity          decimal.Decimal   `gorm:"type:decimal(19,8);not null" json:"quantity"`
-	Fee               decimal.Decimal   `gorm:"type:decimal(19,4);not null;default:0" json:"fee"`
-	PricePerUnit      decimal.Decimal   `gorm:"type:decimal(19,4);not null" json:"price_per_unit"`
-	ValueAtBuy        decimal.Decimal   `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
-	CurrentValue      decimal.Decimal   `gorm:"type:decimal(19,4);not null" json:"current_value"`
-	RealizedValue     decimal.Decimal   `gorm:"type:decimal(19,4);not null" json:"realized_value"`
-	ProfitLoss        decimal.Decimal   `gorm:"type:decimal(19,4);not null;default:0" json:"profit_loss"`
-	ProfitLossPercent decimal.Decimal   `gorm:"type:decimal(10,2);not null;default:0" json:"profit_loss_percent"`
-	Currency          string            `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
-	ExchangeRateToUSD decimal.Decimal   `gorm:"type:decimal(19,6);not null;default:1.0" json:"exchange_rate_to_usd"`
-	Description       *string           `gorm:"type:varchar(255)" json:"description"`
-	Holding           InvestmentHolding `json:"holding"`
-	CreatedAt         time.Time         `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt         time.Time         `gorm:"autoUpdateTime" json:"updated_at"`
+type InvestmentTrade struct {
+	ID                int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID            int64           `gorm:"not null" json:"user_id"`
+	AssetID           int64           `gorm:"not null;index:idx_inv_trans_asset" json:"asset_id"`
+	TxnDate           time.Time       `gorm:"type:date;not null;index:idx_inv_trans_date" json:"txn_date"`
+	TradeType         TradeType       `gorm:"type:varchar(4);not null" json:"trade_type"`
+	Quantity          decimal.Decimal `gorm:"type:decimal(19,8);not null" json:"quantity"`
+	Fee               decimal.Decimal `gorm:"type:decimal(19,4);not null;default:0" json:"fee"`
+	PricePerUnit      decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"price_per_unit"`
+	ValueAtBuy        decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
+	CurrentValue      decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"current_value"`
+	RealizedValue     decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"realized_value"`
+	ProfitLoss        decimal.Decimal `gorm:"type:decimal(19,4);not null;default:0" json:"profit_loss"`
+	ProfitLossPercent decimal.Decimal `gorm:"type:decimal(10,2);not null;default:0" json:"profit_loss_percent"`
+	Currency          string          `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
+	ExchangeRateToUSD decimal.Decimal `gorm:"type:decimal(19,6);not null;default:1.0" json:"exchange_rate_to_usd"`
+	Description       *string         `gorm:"type:varchar(255)" json:"description"`
+	Asset             InvestmentAsset `json:"asset"`
+	CreatedAt         time.Time       `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt         time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
-type InvestmentHoldingReq struct {
+type InvestmentAssetReq struct {
 	AccountID      int64           `json:"account_id" validate:"required"`
 	InvestmentType InvestmentType  `json:"investment_type" validate:"required"`
 	Name           string          `json:"name" validate:"required"`
@@ -71,13 +71,13 @@ type InvestmentHoldingReq struct {
 	Quantity       decimal.Decimal `json:"quantity" validate:"required"`
 }
 
-type InvestmentTransactionReq struct {
-	HoldingID       int64            `json:"holding_id" validate:"required"`
-	TransactionType TransactionType  `json:"transaction_type" validate:"required"`
-	TxnDate         time.Time        `json:"txn_date" validate:"required"`
-	Quantity        decimal.Decimal  `json:"quantity" validate:"required"`
-	PricePerUnit    decimal.Decimal  `json:"price_per_unit" validate:"required"`
-	Currency        string           `json:"currency" validate:"required"`
-	Fee             *decimal.Decimal `json:"fee"`
-	Description     *string          `json:"description,omitempty"`
+type InvestmentTradeReq struct {
+	AssetID      int64            `json:"asset_id" validate:"required"`
+	TradeType    TradeType        `json:"trade_type" validate:"required"`
+	TxnDate      time.Time        `json:"txn_date" validate:"required"`
+	Quantity     decimal.Decimal  `json:"quantity" validate:"required"`
+	PricePerUnit decimal.Decimal  `json:"price_per_unit" validate:"required"`
+	Currency     string           `json:"currency" validate:"required"`
+	Fee          *decimal.Decimal `json:"fee"`
+	Description  *string          `json:"description,omitempty"`
 }

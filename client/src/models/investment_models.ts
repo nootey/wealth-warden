@@ -2,7 +2,7 @@ import type { Account } from "./account_models.ts";
 
 export type InvestmentType = "stock" | "etf" | "crypto";
 
-export type TransactionType = "buy" | "sell";
+export type TradeType = "buy" | "sell";
 
 export interface TickerData {
   name: string;
@@ -10,7 +10,7 @@ export interface TickerData {
   currency?: string;
 }
 
-export interface InvestmentHolding {
+export interface InvestmentAsset {
   id?: number | null;
   account?: Account | null;
   user_id?: number;
@@ -29,12 +29,12 @@ export interface InvestmentHolding {
   updated_at?: Date;
 }
 
-export interface InvestmentTransaction {
+export interface InvestmentTrade {
   id?: number | null;
   user_id?: number;
-  holding?: InvestmentHolding | null;
+  asset?: InvestmentAsset | null;
   txn_date: Date;
-  transaction_type: TransactionType;
+  trade_type: TradeType;
   quantity: string;
   fee: string;
   price_per_unit: string;

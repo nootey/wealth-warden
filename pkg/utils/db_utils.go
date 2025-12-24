@@ -58,19 +58,19 @@ var FieldMap = map[string]map[string]FieldMetadata{
 			OrEquals:     true,
 		},
 	},
-	"investment_holdings": {
+	"investment_assets": {
 		"account": {
 			Column:       "accounts.name",
 			FilterColumn: "accounts.id",
-			Join:         "LEFT JOIN accounts ON accounts.id = investment_holdings.account_id",
+			Join:         "LEFT JOIN accounts ON accounts.id = investment_assets.account_id",
 			OrEquals:     true,
 		},
 	},
-	"investment_transactions": {
-		"holding": {
-			Column:       "investment_holdings.name",
-			FilterColumn: "investment_holdings.id",
-			Join:         "LEFT JOIN investment_holdings ON investment_holdings.id = investment_transactions.holding_id",
+	"investment_trades": {
+		"asset": {
+			Column:       "investment_assets.name",
+			FilterColumn: "investment_assets.id",
+			Join:         "LEFT JOIN investment_assets ON investment_assets.id = investment_trades.asset_id",
 			OrEquals:     true,
 		},
 	},

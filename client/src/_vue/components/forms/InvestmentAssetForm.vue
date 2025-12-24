@@ -5,7 +5,7 @@ import { useAccountStore } from "../../../services/stores/account_store.ts";
 import { computed, nextTick, onMounted, ref } from "vue";
 import type { Account } from "../../../models/account_models.ts";
 import type {
-  InvestmentHolding,
+  InvestmentAsset,
   TickerData,
 } from "../../../models/investment_models.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
@@ -48,7 +48,7 @@ const isReadOnly = computed(
 );
 
 const accounts = ref<Account[]>([]);
-const record = ref<InvestmentHolding>(initData());
+const record = ref<InvestmentAsset>(initData());
 const filteredAccounts = ref<Account[]>([]);
 const infoTooltipRef = ref<any>(null);
 
@@ -139,7 +139,7 @@ onMounted(async () => {
   }
 });
 
-function initData(): InvestmentHolding {
+function initData(): InvestmentAsset {
   return {
     account: null,
     investment_type: "crypto",
@@ -265,7 +265,7 @@ function toggleInfoPopup(event: any) {
 async function deleteConfirmation(id: number) {
   confirm.require({
     header: "Delete record?",
-    message: `This will delete holding: "${id}". This action is not reversible!`,
+    message: `This will delete asset: "${id}". This action is not reversible!`,
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Delete", severity: "danger" },
     accept: () =>  deleteRecord(id),
@@ -380,7 +380,7 @@ async function deleteRecord(id: number) {
     </span>
 
     <span v-if="isReadOnly" class="text-sm" style="color: var(--text-secondary)">
-      If you wish to make changes, delete the holding and create a new one. That will also delete all related transactions,
+      If you wish to make changes, delete the asset and create a new one. That will also delete all related trades,
       and reverse their effects.
     </span>
 
@@ -548,14 +548,14 @@ async function deleteRecord(id: number) {
   <div class="flex flex-column mt-3 gap-3">
     <Button
       class="main-button"
-      :label="(mode == 'create' ? 'Insert' : 'Update') + ' holding'"
+      :label="(mode == 'create' ? 'Insert' : 'Update') + ' asset'"
       style="height: 42px"
       @click="manageRecord"
       :disabled="loading"
     />
     <Button
       v-if="mode == 'update'"
-      label="Delete holding"
+      label="Delete asset"
       class="delete-button"
       style="height: 42px"
       @click="deleteConfirmation(record.id!)"

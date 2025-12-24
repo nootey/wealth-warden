@@ -8,7 +8,7 @@ import { computed, onMounted, provide, ref, watch } from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
-import type { InvestmentTransaction } from "../../../models/investment_models.ts";
+import type { InvestmentTrade } from "../../../models/investment_models.ts";
 import {useChartColors} from "../../../style/theme/chartColors.ts";
 
 const props = defineProps<{
@@ -16,16 +16,16 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
-  updateTransaction: [id: number];
+  updateTrade: [id: number];
 }>();
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 
 const loading = ref(false);
-const records = ref<InvestmentTransaction[]>([]);
+const records = ref<InvestmentTrade[]>([]);
 
-const apiPrefix = "investments/transactions";
+const apiPrefix = "investments/trades";
 const includeDeleted = ref(false);
 const { colors } = useChartColors();
 
@@ -51,20 +51,20 @@ const sort = ref(filterHelper.initSort());
 
 const activeColumns = computed<Column[]>(() => [
   {
-    field: "holding",
+    field: "asset",
     header: "Asset",
     type: "enum",
     optionLabel: "name",
   },
   {
-    field: "holding",
+    field: "asset",
     header: "Ticker",
     type: "enum",
     optionLabel: "ticker",
     hideOnMobile: true
   },
   { field: "quantity", header: "Quantity" },
-  { field: "transaction_type", header: "Type"},
+  { field: "trade_type", header: "Type"},
   { field: "value_at_buy", header: "Value on buy", hideOnMobile: true },
   { field: "current_value", header: "Current value", hideOnMobile: true },
   { field: "profit_loss", header: "PNL" },
@@ -197,17 +197,17 @@ defineExpose({ refresh });
               </span>
             </div>
           </template>
-          <template v-else-if="col.field === 'holding'">
+          <template v-else-if="col.field === 'asset'">
             <div class="flex flex-row gap-2 align-items-center">
               <span
                 :class="{ 'hover': col.optionLabel === 'name' }"
-                @click="col.optionLabel === 'name' ? $emit('updateTransaction', data.id) : null"
+                @click="col.optionLabel === 'name' ? $emit('updateTrade', data.id) : null"
               >
                 {{ col.optionLabel === "name" ? data[col.field]?.["name"] : data[col.field]?.["ticker"] }}
               </span>
             </div>
           </template>
-          <template v-else-if="col.field === 'transaction_type'">
+          <template v-else-if="col.field === 'trade_type'">
             <div class="flex flex-row gap-2 align-items-center">
               <span :style="{ color: data[col.field] === 'buy' ? colors.pos : colors.neg }">
                 {{ data[col.field].charAt(0).toUpperCase() + data[col.field].slice(1) }}
