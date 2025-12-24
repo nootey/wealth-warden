@@ -4,6 +4,7 @@ import (
 	"testing"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/runtime"
+	"wealth-warden/pkg/config"
 
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
@@ -19,7 +20,11 @@ type SchedulerTestSuite struct {
 
 func (suite *SchedulerTestSuite) SetupTest() {
 	suite.logger = zaptest.NewLogger(suite.T())
-	suite.container = &bootstrap.Container{}
+	suite.container = &bootstrap.Container{
+		Config: &config.Config{
+			FinanceAPIBaseURL: "https://query1.finance.yahoo.com",
+		},
+	}
 
 	var err error
 	suite.scheduler, err = runtime.NewScheduler(suite.logger, suite.container, false)
