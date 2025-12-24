@@ -40,6 +40,7 @@ export interface InvestmentTransaction {
   price_per_unit: string;
   value_at_buy?: string;
   current_value?: string;
+  realized_value?: string;
   profit_loss?: string;
   profit_loss_percent?: string;
   currency: string;

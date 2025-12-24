@@ -479,13 +479,17 @@ func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, use
 	currentPrice, lastPriceUpdate := s.fetchCurrentPrice(ctx, holding)
 
 	// Calculate transaction PnL
-	var txnCurrentValue, txnProfitLoss, txnProfitLossPercent decimal.Decimal
+	var txnCurrentValue, txnProfitLoss, txnProfitLossPercent, txnRealizedValue decimal.Decimal
 
 	if req.TransactionType == models.InvestmentSell {
 		// For sells: calculate realized P&L using holding's average buy price
-		txnCurrentValue = req.Quantity.Mul(req.PricePerUnit)   // Sale proceeds
-		costBasis := holding.AverageBuyPrice.Mul(req.Quantity) // What you originally paid
-		txnProfitLoss = txnCurrentValue.Sub(costBasis)
+		txnRealizedValue = req.Quantity.Mul(req.PricePerUnit)
+		costBasis := holding.AverageBuyPrice.Mul(req.Quantity)
+		txnProfitLoss = txnRealizedValue.Sub(costBasis)
+
+		// Current value still shows what the asset would be worth at market price
+		txnCurrentValue, _, _ = s.calculateTransactionPnL(req.Quantity, currentPrice, costBasis)
+
 		if !costBasis.IsZero() {
 			txnProfitLossPercent = txnProfitLoss.Div(costBasis)
 		}
@@ -515,6 +519,7 @@ func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, use
 		Fee:               fee,
 		ValueAtBuy:        txnValueAtBuy,
 		CurrentValue:      txnCurrentValue,
+		RealizedValue:     txnRealizedValue,
 		ProfitLoss:        txnProfitLoss,
 		ProfitLossPercent: txnProfitLossPercent,
 		Currency:          req.Currency,
@@ -847,9 +852,12 @@ func (s *InvestmentService) DeleteInvestmentHolding(ctx context.Context, userID 
 
 	// Reverse realized P&L from all sells
 	for _, txn := range sellTxns {
-		proceeds := txn.Quantity.Mul(txn.PricePerUnit)
-		costBasis := holding.AverageBuyPrice.Mul(txn.Quantity)
-		realizedPnL := proceeds.Sub(costBasis)
+		if txn.RealizedValue == decimal.Zero {
+			continue
+		}
+
+		costBasis := txn.ValueAtBuy
+		realizedPnL := txn.RealizedValue.Sub(costBasis)
 
 		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, holding.AccountID, txn.TxnDate, holding.Account.Currency); err != nil {
 			tx.Rollback()
@@ -956,9 +964,8 @@ func (s *InvestmentService) DeleteInvestmentTransaction(ctx context.Context, use
 
 	// Reverse sell realized P&L if it was a sell
 	if exTxn.TransactionType == models.InvestmentSell {
-		proceeds := exTxn.Quantity.Mul(exTxn.PricePerUnit)
-		costBasis := holding.AverageBuyPrice.Mul(exTxn.Quantity)
-		realizedPnL := proceeds.Sub(costBasis)
+		costBasis := exTxn.ValueAtBuy
+		realizedPnL := exTxn.RealizedValue.Sub(costBasis)
 
 		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, holding.AccountID, exTxn.TxnDate, holding.Account.Currency); err != nil {
 			tx.Rollback()

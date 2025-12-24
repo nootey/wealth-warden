@@ -52,6 +52,7 @@ type InvestmentTransaction struct {
 	PricePerUnit      decimal.Decimal   `gorm:"type:decimal(19,4);not null" json:"price_per_unit"`
 	ValueAtBuy        decimal.Decimal   `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
 	CurrentValue      decimal.Decimal   `gorm:"type:decimal(19,4);not null" json:"current_value"`
+	RealizedValue     decimal.Decimal   `gorm:"type:decimal(19,4);not null" json:"realized_value"`
 	ProfitLoss        decimal.Decimal   `gorm:"type:decimal(19,4);not null;default:0" json:"profit_loss"`
 	ProfitLossPercent decimal.Decimal   `gorm:"type:decimal(10,2);not null;default:0" json:"profit_loss_percent"`
 	Currency          string            `gorm:"type:char(3);not null;default:'USD'" json:"currency"`

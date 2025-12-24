@@ -335,6 +335,17 @@ async function deleteRecord(id: number) {
       </div>
     </div>
 
+    <div v-if="mode==='update' && record.transaction_type === 'sell'" class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
+        <label>What if</label>
+        <span style="color: var(--text-secondary)">You haven't sold</span>
+      </div>
+      <div class="flex flex-column gap-1 w-6">
+        <label>Current market value</label>
+        <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.current_value!)}}</span>
+      </div>
+    </div>
+
     <div v-if="mode==='update'" class="flex flex-row w-full gap-3">
       <div class="flex flex-column gap-1 w-6">
         <label>P&L Raw</label>

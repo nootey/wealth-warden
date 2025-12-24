@@ -12,6 +12,7 @@ CREATE TABLE investment_transactions (
     price_per_unit NUMERIC(19,4) NOT NULL,
     value_at_buy NUMERIC(19,4) NOT NULL,
     current_value NUMERIC(19,4) NOT NULL,
+    realized_value NUMERIC(19,4) NOT NULL default 0,
     profit_loss NUMERIC(19,4) NOT NULL,
     profit_loss_percent NUMERIC(19,4) NOT NULL,
     currency CHAR(3) NOT NULL DEFAULT 'USD',
