@@ -386,7 +386,7 @@ func (r *InvestmentRepository) UpdateInvestmentHolding(ctx context.Context, tx *
 	if err := db.Model(models.InvestmentHolding{}).
 		Where("id = ?", record.ID).
 		Updates(map[string]interface{}{
-			"quantity":   record.Quantity,
+			"name":       record.Name,
 			"updated_at": time.Now().UTC(),
 		}).Error; err != nil {
 		return 0, err

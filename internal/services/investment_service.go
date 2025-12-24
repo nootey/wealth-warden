@@ -657,7 +657,60 @@ func (s *InvestmentService) calculateTransactionPnL(quantity decimal.Decimal, cu
 
 func (s *InvestmentService) UpdateInvestmentHolding(ctx context.Context, userID int64, id int64, req *models.InvestmentHoldingReq) (int64, error) {
 
-	return 0, nil
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Load existing holding
+	exHold, err := s.repo.FindInvestmentHoldingByID(ctx, tx, id, userID)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("can't find holding: %w", err)
+	}
+
+	hold := models.InvestmentHolding{
+		ID:     exHold.ID,
+		UserID: userID,
+		Name:   req.Name,
+	}
+
+	holdID, err := s.repo.UpdateInvestmentHolding(ctx, tx, hold)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges("", exHold.Ticker, changes, "holding")
+	utils.CompareChanges(exHold.Name, hold.Name, changes, "name")
+
+	if !changes.IsEmpty() {
+		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
+			Event:       "update",
+			Category:    "investment",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		})
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return holdID, nil
 }
 
 func (s *InvestmentService) UpdateInvestmentTransaction(ctx context.Context, userID int64, id int64, req *models.InvestmentTransactionReq) (int64, error) {
