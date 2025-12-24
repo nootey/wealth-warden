@@ -17,7 +17,7 @@ type AssetRequest struct {
 	Currency       string // For crypto
 }
 
-type chartResponse struct {
+type ChartResponse struct {
 	Chart struct {
 		Result []struct {
 			Meta struct {
@@ -36,7 +36,7 @@ type chartResponse struct {
 	} `json:"chart"`
 }
 
-type quoteResponse struct {
+type QuoteResponse struct {
 	QuoteResponse struct {
 		Result []struct {
 			Symbol             string  `json:"symbol"`

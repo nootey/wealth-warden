@@ -101,7 +101,7 @@ func (c *PriceFetchClient) GetAssetPrice(ctx context.Context, ticker string, inv
 		return nil, fmt.Errorf("ticker '%s' not found on Yahoo Finance (status %d)", ticker, resp.StatusCode)
 	}
 
-	var data chartResponse
+	var data ChartResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
@@ -190,7 +190,7 @@ func (c *PriceFetchClient) GetAssetPriceOnDate(ctx context.Context, ticker strin
 		return nil, fmt.Errorf("ticker '%s' not found on Yahoo Finance (status %d)", ticker, resp.StatusCode)
 	}
 
-	var data chartResponse
+	var data ChartResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
@@ -299,7 +299,7 @@ func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, asset
 		return nil, fmt.Errorf("yahoo finance returned status %d", resp.StatusCode)
 	}
 
-	var data quoteResponse
+	var data QuoteResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
@@ -355,7 +355,7 @@ func (c *PriceFetchClient) GetExchangeRate(ctx context.Context, currency string)
 		return 0, fmt.Errorf("failed to get exchange rate for %s (status %d)", currency, resp.StatusCode)
 	}
 
-	var data chartResponse
+	var data ChartResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return 0, fmt.Errorf("failed to decode response: %w", err)
 	}
