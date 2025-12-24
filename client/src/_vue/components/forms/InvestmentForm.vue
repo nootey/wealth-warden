@@ -20,6 +20,8 @@ import ValidationError from "../validation/ValidationError.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
+import {useConfirm} from "primevue/useconfirm";
+import {usePermissions} from "../../../utils/use_permissions.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -36,6 +38,9 @@ const apiPrefix = "investments";
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const accountStore = useAccountStore();
+
+const confirm = useConfirm();
+const { hasPermission } = usePermissions();
 
 const loading = ref(false);
 const isReadOnly = computed(
@@ -256,6 +261,42 @@ async function manageRecord() {
 function toggleInfoPopup(event: any) {
   infoTooltipRef.value.toggle(event);
 }
+
+async function deleteConfirmation(id: number) {
+  confirm.require({
+    header: "Delete record?",
+    message: `This will delete holding: "${id}". This action is not reversible!`,
+    rejectProps: { label: "Cancel" },
+    acceptProps: { label: "Delete", severity: "danger" },
+    accept: () =>  deleteRecord(id),
+  });
+}
+
+async function deleteRecord(id: number) {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
+
+  loading.value = true;
+
+  try {
+    let response = await sharedStore.deleteRecord(
+      apiPrefix,
+      id,
+    );
+    toastStore.successResponseToast(response);
+    emit("completeDelete");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  } finally {
+    loading.value = false;
+  }
+}
+
 </script>
 
 <template>
@@ -517,6 +558,7 @@ function toggleInfoPopup(event: any) {
       label="Delete holding"
       class="delete-button"
       style="height: 42px"
+      @click="deleteConfirmation(record.id!)"
       :disabled="loading"
     />
   </div>

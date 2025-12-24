@@ -101,6 +101,12 @@ async function handleEmit(emitType: any) {
       txnRef.value?.refresh();
       break;
     }
+    case "completeHoldingDelete": {
+      updateHoldingModal.value = false;
+      holdRef.value?.refresh();
+      txnRef.value?.refresh();
+      break;
+    }
     default: {
       break;
     }
@@ -134,6 +140,7 @@ async function handleEmit(emitType: any) {
     <InvestmentForm
       mode="update" :record-id="updateHoldingID"
       @complete-operation="handleEmit('completeHoldingOperation')"
+      @complete-delete="handleEmit('completeHoldingDelete')"
     />
   </Dialog>
 

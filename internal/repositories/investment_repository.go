@@ -28,6 +28,10 @@ type InvestmentRepositoryInterface interface {
 	UpdateInvestmentTransaction(ctx context.Context, tx *gorm.DB, record models.InvestmentTransaction) (int64, error)
 	RecalculateHoldingFromTransactions(ctx context.Context, tx *gorm.DB, holdingID, userID int64) error
 	DeleteInvestmentTransaction(ctx context.Context, tx *gorm.DB, id int64) error
+	GetEarliestTransactionDate(ctx context.Context, tx *gorm.DB, holdingID, userID int64) (time.Time, error)
+	FindSellTransactionsByHoldingID(ctx context.Context, tx *gorm.DB, holdingID, userID int64) ([]models.InvestmentTransaction, error)
+	DeleteAllTransactionsForHolding(ctx context.Context, tx *gorm.DB, holdingID, userID int64) error
+	DeleteInvestmentHolding(ctx context.Context, tx *gorm.DB, id int64) error
 }
 
 type InvestmentRepository struct {
@@ -509,4 +513,59 @@ func (r *InvestmentRepository) DeleteInvestmentTransaction(ctx context.Context, 
 	db = db.WithContext(ctx)
 
 	return db.Delete(&models.InvestmentTransaction{}, id).Error
+}
+
+func (r *InvestmentRepository) GetEarliestTransactionDate(ctx context.Context, tx *gorm.DB, holdingID, userID int64) (time.Time, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var txn models.InvestmentTransaction
+	err := db.Where("holding_id = ? AND user_id = ?", holdingID, userID).
+		Order("txn_date ASC").
+		First(&txn).Error
+
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return txn.TxnDate, nil
+}
+
+func (r *InvestmentRepository) FindSellTransactionsByHoldingID(ctx context.Context, tx *gorm.DB, holdingID, userID int64) ([]models.InvestmentTransaction, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var transactions []models.InvestmentTransaction
+	err := db.Where("holding_id = ? AND user_id = ? AND transaction_type = ?", holdingID, userID, models.InvestmentSell).
+		Order("txn_date ASC").
+		Find(&transactions).Error
+
+	return transactions, err
+}
+
+func (r *InvestmentRepository) DeleteAllTransactionsForHolding(ctx context.Context, tx *gorm.DB, holdingID, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	return db.Where("holding_id = ? AND user_id = ?", holdingID, userID).
+		Delete(&models.InvestmentTransaction{}).Error
+}
+
+func (r *InvestmentRepository) DeleteInvestmentHolding(ctx context.Context, tx *gorm.DB, id int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	return db.Delete(&models.InvestmentHolding{}, id).Error
 }

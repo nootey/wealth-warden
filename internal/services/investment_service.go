@@ -793,9 +793,121 @@ func (s *InvestmentService) UpdateInvestmentTransaction(ctx context.Context, use
 }
 
 func (s *InvestmentService) DeleteInvestmentHolding(ctx context.Context, userID int64, id int64) error {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	holding, err := s.repo.FindInvestmentHoldingByID(ctx, tx, id, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find holding: %w", err)
+	}
+
+	// Get earliest transaction date for this holding
+	earliestTxnDate, err := s.repo.GetEarliestTransactionDate(ctx, tx, id, userID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		tx.Rollback()
+		return err
+	}
+
+	// Find all sell transactions to reverse their realized P&L
+	sellTxns, err := s.repo.FindSellTransactionsByHoldingID(ctx, tx, id, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Reverse realized P&L from all sells
+	for _, txn := range sellTxns {
+		proceeds := txn.Quantity.Mul(txn.PricePerUnit)
+		costBasis := holding.AverageBuyPrice.Mul(txn.Quantity)
+		realizedPnL := proceeds.Sub(costBasis)
+
+		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, holding.AccountID, txn.TxnDate, holding.Account.Currency); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if realizedPnL.GreaterThanOrEqual(decimal.Zero) {
+			if err := s.accRepo.AddToDailyBalance(ctx, tx, holding.AccountID, txn.TxnDate, "cash_inflows", realizedPnL.Neg()); err != nil {
+				tx.Rollback()
+				return err
+			}
+		} else {
+			if err := s.accRepo.AddToDailyBalance(ctx, tx, holding.AccountID, txn.TxnDate, "cash_outflows", realizedPnL.Abs().Neg()); err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	}
+
+	// Bulk delete all transactions for this holding
+	if err := s.repo.DeleteAllTransactionsForHolding(ctx, tx, id, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete the holding
+	if err := s.repo.DeleteInvestmentHolding(ctx, tx, id); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Clear non-cash flows from earliest transaction date
+	if !earliestTxnDate.IsZero() {
+		if err := s.accRepo.ClearNonCashFlowsFromDate(ctx, tx, holding.AccountID, earliestTxnDate); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		// Recalculate unrealized P&L for remaining holdings in this account
+		today := time.Now().UTC().Truncate(24 * time.Hour)
+		if err := s.UpdateInvestmentAccountBalanceRange(ctx, tx, holding.AccountID, userID, earliestTxnDate, today, holding.Account.Currency); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if err := s.accRepo.FrontfillBalances(ctx, tx, holding.AccountID, holding.Account.Currency, earliestTxnDate); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, holding.AccountID, holding.Account.Currency, earliestTxnDate, today); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(holding.Ticker, "", changes, "ticker")
+	utils.CompareChanges(holding.Name, "", changes, "name")
+
+	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
+		Event:       "delete",
+		Category:    "investment",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
-
 func (s *InvestmentService) DeleteInvestmentTransaction(ctx context.Context, userID int64, id int64) error {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
