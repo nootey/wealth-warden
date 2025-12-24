@@ -222,12 +222,10 @@ onMounted(getData);
 </script>
 
 <template>
-
   <div
     v-if="payload && !isRefreshing"
     class="w-full flex flex-column justify-content-center p-3 gap-1"
   >
-
     <div class="flex flex-row gap-2 w-full justify-content-between">
       <div class="flex flex-column gap-2">
         <div class="flex flex-row">

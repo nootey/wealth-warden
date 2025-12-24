@@ -14,9 +14,7 @@ const { hasPermission } = usePermissions();
 const holdRef = ref<InstanceType<typeof InvestmentAssetsPaginated> | null>(
   null,
 );
-const txnRef = ref<InstanceType<typeof InvestmentTradesPaginated> | null>(
-  null,
-);
+const txnRef = ref<InstanceType<typeof InvestmentTradesPaginated> | null>(null);
 
 const createAssetModal = ref(false);
 const updateAssetModal = ref(false);
@@ -138,7 +136,8 @@ async function handleEmit(emitType: any) {
     header="Asset details"
   >
     <InvestmentAssetForm
-      mode="update" :record-id="updateAssetID"
+      mode="update"
+      :record-id="updateAssetID"
       @complete-operation="handleEmit('completeAssetOperation')"
       @complete-delete="handleEmit('completeAssetDelete')"
     />
@@ -167,13 +166,17 @@ async function handleEmit(emitType: any) {
     header="Trade details"
   >
     <InvestmentTradeForm
-      mode="update" :record-id="updateTxnID"
+      mode="update"
+      :record-id="updateTxnID"
       @complete-operation="handleEmit('completeTxnOperation')"
       @complete-delete="handleEmit('completeTxnDelete')"
     />
   </Dialog>
 
-  <main class="flex flex-column w-full p-2 align-items-center" style="height: 100%">
+  <main
+    class="flex flex-column w-full p-2 align-items-center"
+    style="height: 100%"
+  >
     <div
       id="mobile-container"
       class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
@@ -182,24 +185,16 @@ async function handleEmit(emitType: any) {
         background: var(--background-secondary);
       "
     >
-      <div
-        class="flex flex-row align-items-center text-center gap-2 w-full"
-      >
+      <div class="flex flex-row align-items-center text-center gap-2 w-full">
         <div style="font-weight: bold" class="mr-auto">Investments</div>
-        <Button
-          class="main-button"
-          @click="manipulateDialog('addAsset', true)"
-        >
+        <Button class="main-button" @click="manipulateDialog('addAsset', true)">
           <div class="flex flex-row gap-1 align-items-center">
             <i class="pi pi-plus" />
             <span class="mobile-hide"> Add </span>
             <span> Asset </span>
           </div>
         </Button>
-        <Button
-          class="main-button"
-          @click="manipulateDialog('addTrade', true)"
-        >
+        <Button class="main-button" @click="manipulateDialog('addTrade', true)">
           <div class="flex flex-row gap-1 align-items-center">
             <i class="pi pi-plus" />
             <span class="mobile-hide"> Add </span>
@@ -209,18 +204,19 @@ async function handleEmit(emitType: any) {
       </div>
 
       <div id="mobile-row" class="flex flex-row w-full">
-        <InvestmentAssetsPaginated ref="holdRef"
+        <InvestmentAssetsPaginated
+          ref="holdRef"
           @update-asset="(id) => manipulateDialog('updateAsset', id)"
         />
       </div>
 
       <label>Trades</label>
       <div id="mobile-row" class="flex flex-row w-full">
-        <InvestmentTradesPaginated ref="txnRef"
+        <InvestmentTradesPaginated
+          ref="txnRef"
           @update-trade="(id) => manipulateDialog('updateTrade', id)"
         />
       </div>
-
     </div>
   </main>
 </template>

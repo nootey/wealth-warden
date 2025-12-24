@@ -9,7 +9,7 @@ import filterHelper from "../../../utils/filter_helper.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import type { InvestmentAsset } from "../../../models/investment_models.ts";
-import {useChartColors} from "../../../style/theme/chartColors.ts";
+import { useChartColors } from "../../../style/theme/chartColors.ts";
 
 const props = defineProps<{
   accID?: number;
@@ -56,7 +56,7 @@ const activeColumns = computed<Column[]>(() => [
     header: "Account",
     type: "enum",
     optionLabel: "name",
-    hideOnMobile: true
+    hideOnMobile: true,
   },
   { field: "quantity", header: "Quantity" },
   { field: "current_price", header: "Price", hideOnMobile: true },
@@ -175,7 +175,13 @@ defineExpose({ refresh });
               }}</span>
             </div>
           </template>
-          <template v-else-if="['current_price', 'value_at_buy', 'current_value'].includes(col.field)">
+          <template
+            v-else-if="
+              ['current_price', 'value_at_buy', 'current_value'].includes(
+                col.field,
+              )
+            "
+          >
             <div class="flex flex-row gap-2 align-items-center">
               <span>{{ vueHelper.displayAsCurrency(data[col.field]) }}</span>
             </div>
@@ -184,8 +190,12 @@ defineExpose({ refresh });
             <div class="flex flex-row gap-2 align-items-center">
               <i
                 class="text-xs"
-                :class="data[col.field] >= 0 ? 'pi pi-angle-up' : 'pi pi-angle-down'"
-                :style="{ color: data[col.field] >= 0 ? colors.pos : colors.neg }"
+                :class="
+                  data[col.field] >= 0 ? 'pi pi-angle-up' : 'pi pi-angle-down'
+                "
+                :style="{
+                  color: data[col.field] >= 0 ? colors.pos : colors.neg,
+                }"
               />
               <span>
                 {{ vueHelper.displayAsCurrency(data[col.field]) }}

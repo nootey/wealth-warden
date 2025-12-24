@@ -53,14 +53,18 @@ async function backfillBalances() {
             icon="pi pi-refresh"
             style="height: 42px"
             class="main-button"
-            @click="backfillBalances"
             :disabled="backfilling"
+            @click="backfillBalances"
           />
         </div>
       </SlotSkeleton>
 
       <SlotSkeleton bg="secondary">
-        <NetworthWidget ref="nWidgetRef" :chart-height="400" :isRefreshing="backfilling" />
+        <NetworthWidget
+          ref="nWidgetRef"
+          :chart-height="400"
+          :is-refreshing="backfilling"
+        />
       </SlotSkeleton>
 
       <div class="w-full flex flex-row justify-content-between p-2 gap-2">

@@ -9,7 +9,7 @@ import filterHelper from "../../../utils/filter_helper.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import type { InvestmentTrade } from "../../../models/investment_models.ts";
-import {useChartColors} from "../../../style/theme/chartColors.ts";
+import { useChartColors } from "../../../style/theme/chartColors.ts";
 
 const props = defineProps<{
   accID?: number;
@@ -61,14 +61,13 @@ const activeColumns = computed<Column[]>(() => [
     header: "Ticker",
     type: "enum",
     optionLabel: "ticker",
-    hideOnMobile: true
+    hideOnMobile: true,
   },
   { field: "quantity", header: "Quantity" },
-  { field: "trade_type", header: "Type"},
+  { field: "trade_type", header: "Type" },
   { field: "value_at_buy", header: "Value on buy", hideOnMobile: true },
   { field: "current_value", header: "Current value", hideOnMobile: true },
   { field: "profit_loss", header: "PNL" },
-
 ]);
 
 onMounted(async () => {
@@ -180,7 +179,13 @@ defineExpose({ refresh });
               }}</span>
             </div>
           </template>
-          <template v-else-if="['current_price', 'value_at_buy', 'current_value'].includes(col.field)">
+          <template
+            v-else-if="
+              ['current_price', 'value_at_buy', 'current_value'].includes(
+                col.field,
+              )
+            "
+          >
             <div class="flex flex-row gap-2 align-items-center">
               <span>{{ vueHelper.displayAsCurrency(data[col.field]) }}</span>
             </div>
@@ -189,8 +194,12 @@ defineExpose({ refresh });
             <div class="flex flex-row gap-2 align-items-center">
               <i
                 class="text-xs"
-                :class="data[col.field] >= 0 ? 'pi pi-angle-up' : 'pi pi-angle-down'"
-                :style="{ color: data[col.field] >= 0 ? colors.pos : colors.neg }"
+                :class="
+                  data[col.field] >= 0 ? 'pi pi-angle-up' : 'pi pi-angle-down'
+                "
+                :style="{
+                  color: data[col.field] >= 0 ? colors.pos : colors.neg,
+                }"
               />
               <span>
                 {{ vueHelper.displayAsCurrency(data[col.field]) }}
@@ -200,17 +209,32 @@ defineExpose({ refresh });
           <template v-else-if="col.field === 'asset'">
             <div class="flex flex-row gap-2 align-items-center">
               <span
-                :class="{ 'hover': col.optionLabel === 'name' }"
-                @click="col.optionLabel === 'name' ? $emit('updateTrade', data.id) : null"
+                :class="{ hover: col.optionLabel === 'name' }"
+                @click="
+                  col.optionLabel === 'name'
+                    ? $emit('updateTrade', data.id)
+                    : null
+                "
               >
-                {{ col.optionLabel === "name" ? data[col.field]?.["name"] : data[col.field]?.["ticker"] }}
+                {{
+                  col.optionLabel === "name"
+                    ? data[col.field]?.["name"]
+                    : data[col.field]?.["ticker"]
+                }}
               </span>
             </div>
           </template>
           <template v-else-if="col.field === 'trade_type'">
             <div class="flex flex-row gap-2 align-items-center">
-              <span :style="{ color: data[col.field] === 'buy' ? colors.pos : colors.neg }">
-                {{ data[col.field].charAt(0).toUpperCase() + data[col.field].slice(1) }}
+              <span
+                :style="{
+                  color: data[col.field] === 'buy' ? colors.pos : colors.neg,
+                }"
+              >
+                {{
+                  data[col.field].charAt(0).toUpperCase() +
+                  data[col.field].slice(1)
+                }}
               </span>
             </div>
           </template>

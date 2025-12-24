@@ -4,7 +4,6 @@ import apiClient from "../api/axios.ts";
 export const useInvestmentStore = defineStore("investment", {
   state: () => ({
     apiPrefix: "investments",
-
   }),
   getters: {},
   actions: {

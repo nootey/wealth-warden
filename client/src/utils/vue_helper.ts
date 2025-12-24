@@ -78,10 +78,12 @@ const vueHelper = {
 
     const decimals = investmentType === "crypto" ? 4 : 2;
 
-    return num.toLocaleString("de-DE", {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    }) + "€";
+    return (
+      num.toLocaleString("de-DE", {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      }) + "€"
+    );
   },
   formatChanges(payload: unknown): Change[] | null {
     if (!payload) return null;

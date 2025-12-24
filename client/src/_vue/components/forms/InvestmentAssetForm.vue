@@ -20,8 +20,8 @@ import ValidationError from "../validation/ValidationError.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
-import {useConfirm} from "primevue/useconfirm";
-import {usePermissions} from "../../../utils/use_permissions.ts";
+import { useConfirm } from "primevue/useconfirm";
+import { usePermissions } from "../../../utils/use_permissions.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -43,9 +43,7 @@ const confirm = useConfirm();
 const { hasPermission } = usePermissions();
 
 const loading = ref(false);
-const isReadOnly = computed(
-  () => props.mode === "update",
-);
+const isReadOnly = computed(() => props.mode === "update");
 
 const accounts = ref<Account[]>([]);
 const record = ref<InvestmentAsset>(initData());
@@ -266,7 +264,7 @@ async function deleteConfirmation(id: number) {
     message: `This will delete asset: "${id}". This action is not reversible!`,
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Delete", severity: "danger" },
-    accept: () =>  deleteRecord(id),
+    accept: () => deleteRecord(id),
   });
 }
 
@@ -282,10 +280,7 @@ async function deleteRecord(id: number) {
   loading.value = true;
 
   try {
-    let response = await sharedStore.deleteRecord(
-      apiPrefix,
-      id,
-    );
+    let response = await sharedStore.deleteRecord(apiPrefix, id);
     toastStore.successResponseToast(response);
     emit("completeDelete");
   } catch (error) {
@@ -294,7 +289,6 @@ async function deleteRecord(id: number) {
     loading.value = false;
   }
 }
-
 </script>
 
 <template>
@@ -359,7 +353,6 @@ async function deleteRecord(id: number) {
   </Popover>
 
   <div v-if="!loading" class="flex flex-column gap-3 p-1">
-
     <div v-if="!isReadOnly" class="flex flex-row w-full justify-content-center">
       <div class="flex flex-column">
         <SelectButton
@@ -372,46 +365,66 @@ async function deleteRecord(id: number) {
       </div>
     </div>
 
-    <span v-if="isReadOnly" class="text-sm" style="color: var(--text-secondary)">
-      This is a read only view.
-      Due to the complexity of re-calculating the financial impact of this record, most fields can not be updated.
+    <span
+      v-if="isReadOnly"
+      class="text-sm"
+      style="color: var(--text-secondary)"
+    >
+      This is a read only view. Due to the complexity of re-calculating the
+      financial impact of this record, most fields can not be updated.
     </span>
 
-    <span v-if="isReadOnly" class="text-sm" style="color: var(--text-secondary)">
-      If you wish to make changes, delete the asset and create a new one. That will also delete all related trades,
-      and reverse their effects.
+    <span
+      v-if="isReadOnly"
+      class="text-sm"
+      style="color: var(--text-secondary)"
+    >
+      If you wish to make changes, delete the asset and create a new one. That
+      will also delete all related trades, and reverse their effects.
     </span>
 
-    <div v-if="mode==='update'" class="flex flex-row w-full gap-3">
+    <div v-if="mode === 'update'" class="flex flex-row w-full gap-3">
       <div class="flex flex-column gap-1 w-6">
         <label>Investment type</label>
-        <span style="color: var(--text-secondary)">{{record.investment_type}}</span>
+        <span style="color: var(--text-secondary)">{{
+          record.investment_type
+        }}</span>
       </div>
       <div class="flex flex-column gap-1 w-6">
         <label>Average</label>
-        <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.average_buy_price!)}}</span>
+        <span style="color: var(--text-secondary)">{{
+          vueHelper.displayAsCurrency(record.average_buy_price!)
+        }}</span>
       </div>
     </div>
 
-    <div v-if="mode==='update'" class="flex flex-row w-full gap-3">
+    <div v-if="mode === 'update'" class="flex flex-row w-full gap-3">
       <div class="flex flex-column gap-1 w-6">
         <label>Value at buy</label>
-        <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.value_at_buy!)}}</span>
+        <span style="color: var(--text-secondary)">{{
+          vueHelper.displayAsCurrency(record.value_at_buy!)
+        }}</span>
       </div>
       <div class="flex flex-column gap-1 w-6">
         <label>Current value</label>
-        <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.current_value!)}}</span>
+        <span style="color: var(--text-secondary)">{{
+          vueHelper.displayAsCurrency(record.current_value!)
+        }}</span>
       </div>
     </div>
 
-    <div v-if="mode==='update'" class="flex flex-row w-full gap-3">
+    <div v-if="mode === 'update'" class="flex flex-row w-full gap-3">
       <div class="flex flex-column gap-1 w-6">
         <label>Current price</label>
-        <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.current_price!)}}</span>
+        <span style="color: var(--text-secondary)">{{
+          vueHelper.displayAsCurrency(record.current_price!)
+        }}</span>
       </div>
       <div class="flex flex-column gap-1 w-6">
         <label>Last price update</label>
-        <span style="color: var(--text-secondary)">{{dateHelper.formatDate(record.last_price_update!, true)}}</span>
+        <span style="color: var(--text-secondary)">{{
+          dateHelper.formatDate(record.last_price_update!, true)
+        }}</span>
       </div>
     </div>
 
@@ -433,9 +446,9 @@ async function deleteRecord(id: number) {
           force-selection
           placeholder="Select account"
           dropdown
-          @complete="searchAccount"
           :readonly="isReadOnly"
           :disabled="isReadOnly"
+          @complete="searchAccount"
         />
       </div>
     </div>
@@ -456,7 +469,10 @@ async function deleteRecord(id: number) {
       </div>
     </div>
 
-    <div v-if="!isReadOnly" class="flex flex-row w-full align-items-center gap-2">
+    <div
+      v-if="!isReadOnly"
+      class="flex flex-row w-full align-items-center gap-2"
+    >
       <i
         class="pi pi-info-circle hover-icon text-sm"
         @click="toggleInfoPopup"
@@ -483,8 +499,9 @@ async function deleteRecord(id: number) {
     </div>
 
     <div class="flex flex-row w-full gap-2">
-      <div v-if="selectedInvestmentType.toLowerCase() !== 'crypto'"
-           class="flex flex-column gap-1 w-full"
+      <div
+        v-if="selectedInvestmentType.toLowerCase() !== 'crypto'"
+        class="flex flex-column gap-1 w-full"
       >
         <ValidationError
           :is-required="selectedInvestmentType.toLowerCase() !== 'crypto'"
@@ -500,9 +517,7 @@ async function deleteRecord(id: number) {
           :disabled="isReadOnly"
         />
       </div>
-      <div v-else
-           class="flex flex-column gap-1 w-full"
-      >
+      <div v-else class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="false"
           :message="v$.tickerData.currency.$errors[0]?.$message"
@@ -539,7 +554,6 @@ async function deleteRecord(id: number) {
         />
       </div>
     </div>
-
   </div>
   <ShowLoading v-else :num-fields="5" />
 
@@ -548,20 +562,18 @@ async function deleteRecord(id: number) {
       class="main-button"
       :label="(mode == 'create' ? 'Insert' : 'Update') + ' asset'"
       style="height: 42px"
-      @click="manageRecord"
       :disabled="loading"
+      @click="manageRecord"
     />
     <Button
       v-if="mode == 'update'"
       label="Delete asset"
       class="delete-button"
       style="height: 42px"
-      @click="deleteConfirmation(record.id!)"
       :disabled="loading"
+      @click="deleteConfirmation(record.id!)"
     />
   </div>
-
-
 </template>
 
 <style scoped></style>
