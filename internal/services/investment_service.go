@@ -26,6 +26,8 @@ type InvestmentServiceInterface interface {
 	InsertInvestmentTransaction(ctx context.Context, userID int64, req *models.InvestmentTransactionReq) (int64, error)
 	UpdateInvestmentAccountBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64, asOf time.Time, currency string) error
 	UpdateInvestmentAccountBalanceRange(ctx context.Context, tx *gorm.DB, accountID, userID int64, fromDate, toDate time.Time, currency string) error
+	UpdateInvestmentHolding(ctx context.Context, userID int64, id int64, req *models.InvestmentHoldingReq) (int64, error)
+	UpdateInvestmentTransaction(ctx context.Context, userID int64, id int64, req *models.InvestmentTransactionReq) (int64, error)
 }
 
 type InvestmentService struct {
@@ -644,11 +646,93 @@ func (s *InvestmentService) calculateTransactionPnL(quantity decimal.Decimal, cu
 
 		var profitLossPercent decimal.Decimal
 		if !valueAtBuy.IsZero() {
-			profitLossPercent = profitLoss.Div(valueAtBuy).Mul(decimal.NewFromInt(100))
+			profitLossPercent = profitLoss.Div(valueAtBuy)
 		}
 
 		return currentValue, profitLoss, profitLossPercent
 	}
 
 	return decimal.Zero, decimal.Zero, decimal.Zero
+}
+
+func (s *InvestmentService) UpdateInvestmentHolding(ctx context.Context, userID int64, id int64, req *models.InvestmentHoldingReq) (int64, error) {
+
+	return 0, nil
+}
+
+func (s *InvestmentService) UpdateInvestmentTransaction(ctx context.Context, userID int64, id int64, req *models.InvestmentTransactionReq) (int64, error) {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	// Load existing record
+	exTxn, err := s.repo.FindInvestmentTransactionByID(ctx, tx, id, userID)
+	if err != nil {
+		return 0, fmt.Errorf("can't find investment transaction with given id %w", err)
+	}
+
+	// Load existing relations
+	holding, err := s.repo.FindInvestmentHoldingByID(ctx, tx, exTxn.HoldingID, userID)
+	if err != nil {
+		return 0, fmt.Errorf("can't find existing holding: %w", err)
+	}
+
+	txn := models.InvestmentTransaction{
+		ID:          exTxn.ID,
+		UserID:      userID,
+		HoldingID:   holding.ID,
+		Description: req.Description,
+	}
+
+	txnID, err := s.repo.UpdateInvestmentTransaction(ctx, tx, txn)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+
+	changes := utils.InitChanges()
+
+	oldDesc := ""
+	if exTxn.Description != nil {
+		oldDesc = *exTxn.Description
+	}
+
+	newDesc := ""
+	if txn.Description != nil {
+		newDesc = *txn.Description
+	}
+
+	if oldDesc != newDesc {
+		utils.CompareChanges("", holding.Ticker, changes, "holding")
+		utils.CompareChanges(oldDesc, newDesc, changes, "description")
+	}
+
+	if !changes.IsEmpty() {
+		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
+			Event:       "update",
+			Category:    "investment_transaction",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		})
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return txnID, nil
 }

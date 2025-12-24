@@ -15,4 +15,6 @@ func InvestmentRoutes(ap *gin.RouterGroup, h *handlers.InvestmentHandler) {
 	ap.GET("transactions/:id", authz.RequireAllMW("view_data"), h.GetInvestmentTransactionByID)
 	ap.PUT("", authz.RequireAllMW("manage_data"), h.InsertInvestmentHolding)
 	ap.PUT("transactions", authz.RequireAllMW("manage_data"), h.InsertInvestmentTransaction)
+	ap.PUT(":id", authz.RequireAllMW("manage_data"), h.UpdateInvestmentHolding)
+	ap.PUT("transactions/:id", authz.RequireAllMW("manage_data"), h.UpdateInvestmentTransaction)
 }

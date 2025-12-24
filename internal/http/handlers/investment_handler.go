@@ -222,3 +222,83 @@ func (h *InvestmentHandler) InsertInvestmentTransaction(c *gin.Context) {
 
 	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
 }
+
+func (h *InvestmentHandler) UpdateInvestmentHolding(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	var record *models.InvestmentHoldingReq
+
+	if err := c.ShouldBindJSON(&record); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(record); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	_, err = h.Service.UpdateInvestmentHolding(ctx, userID, id, record)
+	if err != nil {
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
+}
+
+func (h *InvestmentHandler) UpdateInvestmentTransaction(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	var record *models.InvestmentTransactionReq
+
+	if err := c.ShouldBindJSON(&record); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(record); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	_, err = h.Service.UpdateInvestmentTransaction(ctx, userID, id, record)
+	if err != nil {
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
+}

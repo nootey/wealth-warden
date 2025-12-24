@@ -24,6 +24,8 @@ type InvestmentRepositoryInterface interface {
 	InsertInvestmentTransaction(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTransaction) (int64, error)
 	UpdateHoldingAfterTransaction(ctx context.Context, tx *gorm.DB, holdingID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, transactionType models.TransactionType, transactionValueAtBuy decimal.Decimal) error
 	FindTotalInvestmentValue(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error)
+	UpdateInvestmentHolding(ctx context.Context, tx *gorm.DB, record models.InvestmentHolding) (int64, error)
+	UpdateInvestmentTransaction(ctx context.Context, tx *gorm.DB, record models.InvestmentTransaction) (int64, error)
 }
 
 type InvestmentRepository struct {
@@ -319,7 +321,7 @@ func (r *InvestmentRepository) UpdateHoldingAfterTransaction(ctx context.Context
 		newProfitLoss = newCurrentValue.Sub(newTotalValueAtBuy)
 
 		if !newTotalValueAtBuy.IsZero() {
-			newProfitLossPercent = newProfitLoss.Div(newTotalValueAtBuy).Mul(decimal.NewFromInt(100))
+			newProfitLossPercent = newProfitLoss.Div(newTotalValueAtBuy)
 		}
 	} else {
 		newCurrentValue = decimal.Zero
@@ -371,4 +373,51 @@ func (r *InvestmentRepository) FindTotalInvestmentValue(ctx context.Context, tx 
 	}
 
 	return total, nil
+}
+
+func (r *InvestmentRepository) UpdateInvestmentHolding(ctx context.Context, tx *gorm.DB, record models.InvestmentHolding) (int64, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	if err := db.Model(models.InvestmentHolding{}).
+		Where("id = ?", record.ID).
+		Updates(map[string]interface{}{
+			"quantity":   record.Quantity,
+			"updated_at": time.Now().UTC(),
+		}).Error; err != nil {
+		return 0, err
+	}
+
+	return record.ID, nil
+}
+
+func (r *InvestmentRepository) UpdateInvestmentTransaction(ctx context.Context, tx *gorm.DB, record models.InvestmentTransaction) (int64, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	updates := map[string]interface{}{
+		"updated_at": time.Now().UTC(),
+	}
+
+	if record.Description != nil {
+		updates["description"] = *record.Description
+	} else {
+		updates["description"] = gorm.Expr("NULL")
+	}
+
+	if err := db.Model(models.InvestmentTransaction{}).
+		Where("id = ?", record.ID).
+		Updates(updates).Error; err != nil {
+		return 0, err
+	}
+
+	return record.ID, nil
 }

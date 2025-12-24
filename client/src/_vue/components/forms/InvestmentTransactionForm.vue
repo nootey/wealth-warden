@@ -17,6 +17,7 @@ import ValidationError from "../validation/ValidationError.vue";
 import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
 import {useInvestmentStore} from "../../../services/stores/investment_store.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -35,6 +36,9 @@ const toastStore = useToastStore();
 const investmentStore = useInvestmentStore();
 
 const loading = ref(false);
+const isReadOnly = computed(
+  () => props.mode === "update",
+);
 
 const holdings = ref<InvestmentHolding[]>([]);
 const record = ref<InvestmentTransaction>(initData());
@@ -238,15 +242,59 @@ async function manageRecord() {
 
   <div v-if="!loading" class="flex flex-column gap-3 p-1">
 
-    <div class="flex flex-row w-full justify-content-center">
-      <div class="flex flex-column w-50">
+    <div v-if="!isReadOnly" class="flex flex-row w-full justify-content-center">
+      <div class="flex flex-column">
         <SelectButton
           v-model="selectedTransactionType"
           style="font-size: 0.875rem"
           size="small"
           :options="transactionTypes"
           :allow-empty="false"
+          :readonly="isReadOnly"
+          :disabled="isReadOnly"
         />
+      </div>
+    </div>
+
+    <span v-if="isReadOnly" class="text-sm" style="color: var(--text-secondary)">
+      This is a read only view.
+      Due to the complexity of re-calculating the financial impact of the transaction, most fields can not be updated.
+    </span>
+
+    <span v-if="isReadOnly" class="text-sm" style="color: var(--text-secondary)">
+      If you wish to make changes, delete the transaction and create a new one.
+    </span>
+
+    <div v-if="mode==='update'" class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
+        <label>Transaction type</label>
+        <span style="color: var(--text-secondary)">{{record.transaction_type}}</span>
+      </div>
+      <div class="flex flex-column gap-1 w-6">
+        <label>USD exchange rate</label>
+        <span style="color: var(--text-secondary)">{{record.exchange_rate_to_usd}}</span>
+      </div>
+    </div>
+
+    <div v-if="mode==='update'" class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
+        <label>Value at buy</label>
+        <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.value_at_buy!)}}</span>
+      </div>
+      <div class="flex flex-column gap-1 w-6">
+        <label>Current value</label>
+        <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.current_value!)}}</span>
+      </div>
+    </div>
+
+    <div v-if="mode==='update'" class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
+        <label>P&L Raw</label>
+        <span style="color: var(--text-secondary)">{{vueHelper.displayAsCurrency(record.profit_loss!)}}</span>
+      </div>
+      <div class="flex flex-column gap-1 w-6">
+        <label>P&L Percentage</label>
+        <span style="color: var(--text-secondary)">{{vueHelper.displayAsPercentage(record.profit_loss_percent!)}}</span>
       </div>
     </div>
 
@@ -270,6 +318,8 @@ async function manageRecord() {
             placeholder="Select holding"
             dropdown
             @complete="searchHolding"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
           >
             <template #option="slotProps">
               <div class="flex align-items-center gap-2">
@@ -303,6 +353,8 @@ async function manageRecord() {
             fluid
             icon-display="input"
             size="small"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
           />
         </div>
       </div>
@@ -322,6 +374,9 @@ async function manageRecord() {
             :min-fraction-digits="2"
             :max-fraction-digits="6"
             placeholder="0,00"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
+            fluid
           />
         </div>
         <div class="flex flex-column gap-1 w-6">
@@ -336,6 +391,8 @@ async function manageRecord() {
             :options="availableCurrencies"
             size="small"
             placeholder="Select currency"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
           />
         </div>
       </div>
@@ -355,6 +412,9 @@ async function manageRecord() {
             :currency="record.currency"
             locale="de-DE"
             :placeholder="getCurrencyPlaceholder(record.currency)"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
+            fluid
           />
         </div>
 
@@ -374,6 +434,9 @@ async function manageRecord() {
             :min-fraction-digits="2"
             :max-fraction-digits="record.holding?.investment_type === 'crypto' ? 6 : 2"
             :placeholder="getCurrencyPlaceholder(record.currency)"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
+            fluid
           />
         </div>
       </div>
@@ -398,7 +461,7 @@ async function manageRecord() {
         <div class="flex flex-column w-full gap-2">
           <Button
             class="main-button"
-            :label="mode == 'create' ? 'Create' : 'Update'"
+            :label="mode == 'create' ? 'Create' : 'Update' + ' transaction'"
             style="height: 42px"
             @click="manageRecord"
           />
