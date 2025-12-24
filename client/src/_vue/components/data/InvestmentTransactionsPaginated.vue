@@ -8,7 +8,7 @@ import { computed, onMounted, provide, ref, watch } from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
-import type { InvestmentHolding } from "../../../models/investment_models.ts";
+import type { InvestmentTransaction } from "../../../models/investment_models.ts";
 import {useChartColors} from "../../../style/theme/chartColors.ts";
 
 const props = defineProps<{
@@ -16,16 +16,16 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
-  updateHolding: [id: number];
+  updateTransaction: [id: number];
 }>();
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 
 const loading = ref(false);
-const records = ref<InvestmentHolding[]>([]);
+const records = ref<InvestmentTransaction[]>([]);
 
-const apiPrefix = "investments";
+const apiPrefix = "investments/transactions";
 const includeDeleted = ref(false);
 const { colors } = useChartColors();
 
@@ -50,20 +50,24 @@ const page = ref(1);
 const sort = ref(filterHelper.initSort());
 
 const activeColumns = computed<Column[]>(() => [
-  { field: "ticker", header: "Ticker" },
   {
-    field: "account",
-    header: "Account",
+    field: "holding",
+    header: "Holding",
     type: "enum",
     optionLabel: "name",
+  },
+  {
+    field: "holding",
+    header: "Ticker",
+    type: "enum",
+    optionLabel: "ticker",
     hideOnMobile: true
   },
   { field: "quantity", header: "Quantity" },
-  { field: "current_price", header: "Price", hideOnMobile: true },
   { field: "value_at_buy", header: "Value on buy", hideOnMobile: true },
   { field: "current_value", header: "Current value", hideOnMobile: true },
-  { field: "average_buy_price", header: "Average", hideOnMobile: true },
   { field: "profit_loss", header: "PNL" },
+
 ]);
 
 onMounted(async () => {
@@ -192,15 +196,13 @@ defineExpose({ refresh });
               </span>
             </div>
           </template>
-          <template v-else-if="col.field === 'account'">
-            <div class="flex flex-row gap-2 align-items-center account-row">
-              {{ data[col.field]?.["name"] }}
-            </div>
-          </template>
-          <template v-else-if="col.field === 'ticker'">
-            <div class="flex flex-row gap-2 align-items-center account-row">
-              <span class="hover" @click="$emit('updateHolding', data.id)">
-                {{ data[col.field] }}
+          <template v-else-if="col.field === 'holding'">
+            <div class="flex flex-row gap-2 align-items-center">
+              <span
+                :class="{ 'hover': col.optionLabel === 'name' }"
+                @click="col.optionLabel === 'name' ? $emit('updateTransaction', data.id) : null"
+              >
+                {{ col.optionLabel === "name" ? data[col.field]?.["name"] : data[col.field]?.["ticker"] }}
               </span>
             </div>
           </template>
@@ -220,17 +222,5 @@ defineExpose({ refresh });
 .hover:hover {
   cursor: pointer;
   text-decoration: underline;
-}
-
-.account-row .popup-icon {
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-.account-row:hover .popup-icon {
-  opacity: 1;
-}
-
-.account-row.advanced .popup-icon {
-  opacity: 1;
 }
 </style>

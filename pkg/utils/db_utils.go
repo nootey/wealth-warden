@@ -58,6 +58,22 @@ var FieldMap = map[string]map[string]FieldMetadata{
 			OrEquals:     true,
 		},
 	},
+	"investment_holdings": {
+		"account": {
+			Column:       "accounts.name",
+			FilterColumn: "accounts.id",
+			Join:         "LEFT JOIN accounts ON accounts.id = investment_holdings.account_id",
+			OrEquals:     true,
+		},
+	},
+	"investment_transactions": {
+		"holding": {
+			Column:       "investment_holdings.name",
+			FilterColumn: "investment_holdings.id",
+			Join:         "LEFT JOIN investment_holdings ON investment_holdings.id = investment_transactions.holding_id",
+			OrEquals:     true,
+		},
+	},
 }
 
 var reDateOnly = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)

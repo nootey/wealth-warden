@@ -5,12 +5,16 @@ import { usePermissions } from "../../utils/use_permissions.ts";
 import InvestmentForm from "../components/forms/InvestmentForm.vue";
 import InvestmentHoldingsPaginated from "../components/data/InvestmentHoldingsPaginated.vue";
 import InvestmentTransactionForm from "../components/forms/InvestmentTransactionForm.vue";
+import InvestmentTransactionsPaginated from "../components/data/InvestmentTransactionsPaginated.vue";
 
 const toastStore = useToastStore();
 
 const { hasPermission } = usePermissions();
 
 const holdRef = ref<InstanceType<typeof InvestmentHoldingsPaginated> | null>(
+  null,
+);
+const txnRef = ref<InstanceType<typeof InvestmentTransactionsPaginated> | null>(
   null,
 );
 
@@ -121,7 +125,7 @@ async function handleEmit(emitType: any) {
     header="Update asset"
   >
     <InvestmentForm
-      mode="update"
+      mode="update" :record-id="updateHoldingID"
       @complete-operation="handleEmit('completeHoldingOperation')"
     />
   </Dialog>
@@ -140,7 +144,21 @@ async function handleEmit(emitType: any) {
     />
   </Dialog>
 
-  <main class="flex flex-column w-full p-2 align-items-center">
+  <Dialog
+    v-model:visible="updateTxnModal"
+    class="rounded-dialog"
+    :breakpoints="{ '501px': '90vw' }"
+    :modal="true"
+    :style="{ width: '500px' }"
+    header="Update transaction"
+  >
+    <InvestmentTransactionForm
+      mode="update" :record-id="updateTxnID"
+      @complete-operation="handleEmit('completeTxnOperation')"
+    />
+  </Dialog>
+
+  <main class="flex flex-column w-full p-2 align-items-center" style="height: 100%">
     <div
       id="mobile-container"
       class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
@@ -180,6 +198,13 @@ async function handleEmit(emitType: any) {
           @update-holding="(id) => manipulateDialog('updateHolding', id)"
         />
       </div>
+
+      <label>Transactions</label>
+      <div id="mobile-row" class="flex flex-row w-full">
+        <InvestmentTransactionsPaginated ref="txnRef"
+          @update-transaction="(id) => manipulateDialog('updateTransaction', id)"/>
+      </div>
+
     </div>
   </main>
 </template>

@@ -109,11 +109,11 @@ func (r *InvestmentRepository) FindInvestmentHoldings(ctx context.Context, tx *g
 	db = db.WithContext(ctx)
 
 	q := db.WithContext(ctx).Model(&models.InvestmentHolding{}).
-		Where("user_id = ?", userID).
+		Where("investment_holdings.user_id = ?", userID).
 		Preload("Account")
 
 	if accountID != nil {
-		q = q.Where("transactions.account_id = ?", *accountID)
+		q = q.Where("investment_holdings.account_id = ?", *accountID)
 	}
 
 	joins := utils.GetRequiredJoins(filters)
@@ -199,15 +199,15 @@ func (r *InvestmentRepository) FindInvestmentTransactions(ctx context.Context, t
 	db = db.WithContext(ctx)
 
 	q := db.WithContext(ctx).Model(&models.InvestmentTransaction{}).
-		Where("user_id = ?", userID).
-		Preload("Account")
+		Where("investment_transactions.user_id = ?", userID).
+		Preload("Holding")
 
 	if accountID != nil {
-		q = q.Where("transactions.account_id = ?", *accountID)
+		q = q.Where("investment_transactions.holding_id = ?", *accountID)
 	}
 
 	joins := utils.GetRequiredJoins(filters)
-	orderBy := utils.ConstructOrderByClause(&joins, "investment_holdings", sortField, sortOrder)
+	orderBy := utils.ConstructOrderByClause(&joins, "investment_transactions", sortField, sortOrder)
 
 	for _, join := range joins {
 		q = q.Joins(join)
