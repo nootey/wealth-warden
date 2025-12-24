@@ -28,6 +28,8 @@ type InvestmentServiceInterface interface {
 	UpdateInvestmentAccountBalanceRange(ctx context.Context, tx *gorm.DB, accountID, userID int64, fromDate, toDate time.Time, currency string) error
 	UpdateInvestmentHolding(ctx context.Context, userID int64, id int64, req *models.InvestmentHoldingReq) (int64, error)
 	UpdateInvestmentTransaction(ctx context.Context, userID int64, id int64, req *models.InvestmentTransactionReq) (int64, error)
+	DeleteInvestmentHolding(ctx context.Context, userID int64, id int64) error
+	DeleteInvestmentTransaction(ctx context.Context, userID int64, id int64) error
 }
 
 type InvestmentService struct {
@@ -788,4 +790,125 @@ func (s *InvestmentService) UpdateInvestmentTransaction(ctx context.Context, use
 	}
 
 	return txnID, nil
+}
+
+func (s *InvestmentService) DeleteInvestmentHolding(ctx context.Context, userID int64, id int64) error {
+	return nil
+}
+
+func (s *InvestmentService) DeleteInvestmentTransaction(ctx context.Context, userID int64, id int64) error {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	exTxn, err := s.repo.FindInvestmentTransactionByID(ctx, tx, id, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find investment transaction: %w", err)
+	}
+
+	holding, err := s.repo.FindInvestmentHoldingByID(ctx, tx, exTxn.HoldingID, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find holding: %w", err)
+	}
+
+	// Reverse sell realized P&L if it was a sell
+	if exTxn.TransactionType == models.InvestmentSell {
+		proceeds := exTxn.Quantity.Mul(exTxn.PricePerUnit)
+		costBasis := holding.AverageBuyPrice.Mul(exTxn.Quantity)
+		realizedPnL := proceeds.Sub(costBasis)
+
+		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, holding.AccountID, exTxn.TxnDate, holding.Account.Currency); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if realizedPnL.GreaterThanOrEqual(decimal.Zero) {
+			if err := s.accRepo.AddToDailyBalance(ctx, tx, holding.AccountID, exTxn.TxnDate, "cash_inflows", realizedPnL.Neg()); err != nil {
+				tx.Rollback()
+				return err
+			}
+		} else {
+			if err := s.accRepo.AddToDailyBalance(ctx, tx, holding.AccountID, exTxn.TxnDate, "cash_outflows", realizedPnL.Abs().Neg()); err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	}
+
+	if err := s.repo.DeleteInvestmentTransaction(ctx, tx, id); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Recalculate holding from remaining transactions
+	if err := s.repo.RecalculateHoldingFromTransactions(ctx, tx, holding.ID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Clear non-cash flows from txn date forward
+	if err := s.accRepo.ClearNonCashFlowsFromDate(ctx, tx, holding.AccountID, exTxn.TxnDate); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Recalculate unrealized P&L from txn date to today
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	txnDateNorm := exTxn.TxnDate.UTC().Truncate(24 * time.Hour)
+
+	if err := s.UpdateInvestmentAccountBalanceRange(ctx, tx, holding.AccountID, userID, txnDateNorm, today, holding.Account.Currency); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.accRepo.FrontfillBalances(ctx, tx, holding.AccountID, holding.Account.Currency, exTxn.TxnDate); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.accRepo.UpsertSnapshotsFromBalances(
+		ctx, tx,
+		userID,
+		holding.AccountID,
+		holding.Account.Currency,
+		exTxn.TxnDate.UTC().Truncate(24*time.Hour),
+		today,
+	); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(holding.Ticker, "", changes, "holding")
+	utils.CompareChanges(exTxn.Quantity.StringFixed(2), "", changes, "quantity")
+	utils.CompareChanges(exTxn.PricePerUnit.StringFixed(2), "", changes, "price_per_unit")
+	utils.CompareChanges(string(exTxn.TransactionType), "", changes, "type")
+
+	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
+		Event:       "delete",
+		Category:    "investment_transaction",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

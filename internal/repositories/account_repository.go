@@ -54,6 +54,7 @@ type AccountRepositoryInterface interface {
 	UpdateDefaultAccount(ctx context.Context, tx *gorm.DB, account models.Account, setAsDefault bool) error
 	HasDefaultForAccountType(ctx context.Context, tx *gorm.DB, userID, accountTypeID int64) (bool, error)
 	GetCumulativeNonCashPnLBeforeDate(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time) (decimal.Decimal, error)
+	ClearNonCashFlowsFromDate(ctx context.Context, tx *gorm.DB, accountID int64, fromDate time.Time) error
 }
 
 type AccountRepository struct {
@@ -1109,4 +1110,22 @@ func (r *AccountRepository) GetCumulativeNonCashPnLBeforeDate(ctx context.Contex
 	}
 
 	return result.TotalInflows.Sub(result.TotalOutflows), nil
+}
+
+func (r *AccountRepository) ClearNonCashFlowsFromDate(ctx context.Context, tx *gorm.DB, accountID int64, fromDate time.Time) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	fromDate = fromDate.UTC().Truncate(24 * time.Hour)
+
+	return db.Model(&models.Balance{}).
+		Where("account_id = ? AND as_of >= ?", accountID, fromDate).
+		Updates(map[string]interface{}{
+			"non_cash_inflows":  0,
+			"non_cash_outflows": 0,
+			"updated_at":        time.Now().UTC(),
+		}).Error
 }

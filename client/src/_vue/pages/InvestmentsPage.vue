@@ -92,6 +92,13 @@ async function handleEmit(emitType: any) {
       createTxnModal.value = false;
       updateTxnModal.value = false;
       holdRef.value?.refresh();
+      txnRef.value?.refresh();
+      break;
+    }
+    case "completeTxnDelete": {
+      updateTxnModal.value = false;
+      holdRef.value?.refresh();
+      txnRef.value?.refresh();
       break;
     }
     default: {
@@ -155,6 +162,7 @@ async function handleEmit(emitType: any) {
     <InvestmentTransactionForm
       mode="update" :record-id="updateTxnID"
       @complete-operation="handleEmit('completeTxnOperation')"
+      @complete-delete="handleEmit('completeTxnDelete')"
     />
   </Dialog>
 
@@ -202,7 +210,8 @@ async function handleEmit(emitType: any) {
       <label>Transactions</label>
       <div id="mobile-row" class="flex flex-row w-full">
         <InvestmentTransactionsPaginated ref="txnRef"
-          @update-transaction="(id) => manipulateDialog('updateTransaction', id)"/>
+          @update-transaction="(id) => manipulateDialog('updateTransaction', id)"
+        />
       </div>
 
     </div>

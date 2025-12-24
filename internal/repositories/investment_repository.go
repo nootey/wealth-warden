@@ -26,6 +26,8 @@ type InvestmentRepositoryInterface interface {
 	FindTotalInvestmentValue(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error)
 	UpdateInvestmentHolding(ctx context.Context, tx *gorm.DB, record models.InvestmentHolding) (int64, error)
 	UpdateInvestmentTransaction(ctx context.Context, tx *gorm.DB, record models.InvestmentTransaction) (int64, error)
+	RecalculateHoldingFromTransactions(ctx context.Context, tx *gorm.DB, holdingID, userID int64) error
+	DeleteInvestmentTransaction(ctx context.Context, tx *gorm.DB, id int64) error
 }
 
 type InvestmentRepository struct {
@@ -420,4 +422,91 @@ func (r *InvestmentRepository) UpdateInvestmentTransaction(ctx context.Context, 
 	}
 
 	return record.ID, nil
+}
+
+func (r *InvestmentRepository) RecalculateHoldingFromTransactions(ctx context.Context, tx *gorm.DB, holdingID, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var holding models.InvestmentHolding
+	if err := db.Preload("Account").First(&holding, holdingID).Error; err != nil {
+		return err
+	}
+
+	// Get all transactions for this holding
+	var transactions []models.InvestmentTransaction
+	if err := db.Where("holding_id = ? AND user_id = ?", holdingID, userID).
+		Order("txn_date ASC, id ASC").
+		Find(&transactions).Error; err != nil {
+		return err
+	}
+
+	// Start fresh
+	totalQuantity := decimal.Zero
+	totalValueAtBuy := decimal.Zero
+	totalCostForAverage := decimal.Zero
+
+	for _, txn := range transactions {
+		if txn.TransactionType == models.InvestmentBuy {
+			totalQuantity = totalQuantity.Add(txn.Quantity)
+			totalValueAtBuy = totalValueAtBuy.Add(txn.ValueAtBuy)
+			// For average: use quantity * price_per_unit
+			totalCostForAverage = totalCostForAverage.Add(txn.Quantity.Mul(txn.PricePerUnit))
+		} else {
+			// Sell: reduce proportionally
+			totalQuantity = totalQuantity.Sub(txn.Quantity)
+			if totalQuantity.GreaterThan(decimal.Zero) {
+				soldProportion := txn.Quantity.Div(totalQuantity.Add(txn.Quantity))
+				totalValueAtBuy = totalValueAtBuy.Mul(decimal.NewFromInt(1).Sub(soldProportion))
+				totalCostForAverage = totalCostForAverage.Mul(decimal.NewFromInt(1).Sub(soldProportion))
+			} else {
+				totalValueAtBuy = decimal.Zero
+				totalCostForAverage = decimal.Zero
+			}
+		}
+	}
+
+	// Calculate average buy price
+	var avgBuyPrice decimal.Decimal
+	if totalQuantity.GreaterThan(decimal.Zero) {
+		avgBuyPrice = totalCostForAverage.Div(totalQuantity)
+	} else {
+		avgBuyPrice = decimal.Zero
+	}
+
+	// Calculate current values
+	var currentValue, profitLoss, profitLossPercent decimal.Decimal
+	if holding.CurrentPrice != nil && !holding.CurrentPrice.IsZero() && totalQuantity.GreaterThan(decimal.Zero) {
+		currentValue = totalQuantity.Mul(*holding.CurrentPrice)
+		profitLoss = currentValue.Sub(totalValueAtBuy)
+		if !totalValueAtBuy.IsZero() {
+			profitLossPercent = profitLoss.Div(totalValueAtBuy)
+		}
+	}
+
+	// Update holding
+	return db.Model(&models.InvestmentHolding{}).
+		Where("id = ?", holdingID).
+		Updates(map[string]interface{}{
+			"quantity":            totalQuantity,
+			"average_buy_price":   avgBuyPrice,
+			"value_at_buy":        totalValueAtBuy,
+			"current_value":       currentValue,
+			"profit_loss":         profitLoss,
+			"profit_loss_percent": profitLossPercent,
+			"updated_at":          time.Now().UTC(),
+		}).Error
+}
+
+func (r *InvestmentRepository) DeleteInvestmentTransaction(ctx context.Context, tx *gorm.DB, id int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	return db.Delete(&models.InvestmentTransaction{}, id).Error
 }
