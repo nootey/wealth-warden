@@ -18,6 +18,7 @@ import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
 import {useInvestmentStore} from "../../../services/stores/investment_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
+import ShowLoading from "../base/ShowLoading.vue";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -195,6 +196,8 @@ async function manageRecord() {
   if (!(await isRecordValid())) return;
   if (!record.value.holding) return;
 
+  loading.value = true;
+
   const txn_date = dateHelper.mergeDateWithCurrentTime(
     dayjs(record.value.txn_date).format("YYYY-MM-DD"),
   );
@@ -234,6 +237,8 @@ async function manageRecord() {
     emit("completeOperation");
   } catch (error) {
     toastStore.errorResponseToast(error);
+  } finally {
+    loading.value = false;
   }
 }
 </script>
@@ -298,182 +303,180 @@ async function manageRecord() {
       </div>
     </div>
 
-    <div class="flex flex-column gap-3">
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.record.holding.$errors[0]?.$message"
+        >
+          <label>Holding</label>
+        </ValidationError>
+        <AutoComplete
+          v-model="record.holding"
+          size="small"
+          :suggestions="filteredHoldings"
+          option-label="name"
+          data-key="id"
+          force-selection
+          placeholder="Select holding"
+          dropdown
+          @complete="searchHolding"
+          :readonly="isReadOnly"
+          :disabled="isReadOnly"
+        >
+          <template #option="slotProps">
+            <div class="flex align-items-center gap-2">
+              <span class="font-semibold">{{ slotProps.option.name }}</span>
+              <span class="text-color-secondary">{{ slotProps.option.ticker }}</span>
+            </div>
+          </template>
 
-      <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
-          <ValidationError
-            :is-required="true"
-            :message="v$.record.holding.$errors[0]?.$message"
-          >
-            <label>Holding</label>
-          </ValidationError>
-          <AutoComplete
-            v-model="record.holding"
-            size="small"
-            :suggestions="filteredHoldings"
-            option-label="name"
-            data-key="id"
-            force-selection
-            placeholder="Select holding"
-            dropdown
-            @complete="searchHolding"
-            :readonly="isReadOnly"
-            :disabled="isReadOnly"
-          >
-            <template #option="slotProps">
-              <div class="flex align-items-center gap-2">
-                <span class="font-semibold">{{ slotProps.option.name }}</span>
-                <span class="text-color-secondary">{{ slotProps.option.ticker }}</span>
-              </div>
-            </template>
-
-            <template #chip="slotProps">
-              <div class="flex align-items-center gap-2">
-                <span class="font-semibold">{{ slotProps.value.name }}</span>
-                <span class="text-color-secondary">{{ slotProps.value.ticker }}</span>
-              </div>
-            </template>
-          </AutoComplete>
-        </div>
-      </div>
-
-      <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
-          <ValidationError
-            :is-required="true"
-            :message="v$.record.txn_date.$errors[0]?.$message"
-          >
-            <label>Date</label>
-          </ValidationError>
-          <DatePicker
-            v-model="record.txn_date"
-            date-format="dd/mm/yy"
-            show-icon
-            fluid
-            icon-display="input"
-            size="small"
-            :readonly="isReadOnly"
-            :disabled="isReadOnly"
-          />
-        </div>
-      </div>
-
-      <div class="flex flex-row w-full gap-3">
-        <div class="flex flex-column gap-1 w-6">
-          <ValidationError
-            :is-required="true"
-            :message="v$.record.quantity.$errors[0]?.$message"
-          >
-            <label>Quantity</label>
-          </ValidationError>
-          <InputNumber
-            v-model="quantityNumber"
-            size="small"
-            locale="de-DE"
-            :min-fraction-digits="2"
-            :max-fraction-digits="6"
-            placeholder="0,00"
-            :readonly="isReadOnly"
-            :disabled="isReadOnly"
-            fluid
-          />
-        </div>
-        <div class="flex flex-column gap-1 w-6">
-          <ValidationError
-            :is-required="true"
-            :message="v$.record.currency.$errors[0]?.$message"
-          >
-            <label>Currency</label>
-          </ValidationError>
-          <Select
-            v-model="record.currency"
-            :options="availableCurrencies"
-            size="small"
-            placeholder="Select currency"
-            :readonly="isReadOnly"
-            :disabled="isReadOnly"
-          />
-        </div>
-      </div>
-
-      <div class="flex flex-row w-full gap-3">
-        <div class="flex flex-column gap-1 w-6">
-          <ValidationError
-            :is-required="true"
-            :message="v$.record.price_per_unit.$errors[0]?.$message"
-          >
-            <label>Price per unit</label>
-          </ValidationError>
-          <InputNumber
-            v-model="pricePerUnitNumber"
-            size="small"
-            mode="currency"
-            :currency="record.currency"
-            locale="de-DE"
-            :placeholder="getCurrencyPlaceholder(record.currency)"
-            :readonly="isReadOnly"
-            :disabled="isReadOnly"
-            fluid
-          />
-        </div>
-
-        <div class="flex flex-column gap-1 w-6">
-          <ValidationError
-            :is-required="false"
-            :message="v$.record.fee.$errors[0]?.$message"
-          >
-            <label>Fee</label>
-          </ValidationError>
-          <InputNumber
-            v-model="feeNumber"
-            size="small"
-            mode="currency"
-            :currency="record.currency"
-            locale="de-DE"
-            :min-fraction-digits="2"
-            :max-fraction-digits="record.holding?.investment_type === 'crypto' ? 6 : 2"
-            :placeholder="getCurrencyPlaceholder(record.currency)"
-            :readonly="isReadOnly"
-            :disabled="isReadOnly"
-            fluid
-          />
-        </div>
-      </div>
-
-      <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
-          <ValidationError
-            :is-required="false"
-            :message="v$.record.description.$errors[0]?.$message"
-          >
-            <label>Description</label>
-          </ValidationError>
-          <InputText
-            v-model="record.description"
-            size="small"
-            placeholder="Describe transaction"
-          />
-        </div>
-      </div>
-
-      <div class="flex flex-row gap-2 w-full">
-        <div class="flex flex-column w-full gap-2">
-          <Button
-            class="main-button"
-            :label="(mode == 'create' ? 'Insert' : 'Update') + ' transaction'"
-            style="height: 42px"
-            @click="manageRecord"
-          />
-          <Button
-            v-if="mode == 'update'"
-            label="Delete transaction"
-            class="delete-button"
-            style="height: 42px"
-          />
-        </div>
+          <template #chip="slotProps">
+            <div class="flex align-items-center gap-2">
+              <span class="font-semibold">{{ slotProps.value.name }}</span>
+              <span class="text-color-secondary">{{ slotProps.value.ticker }}</span>
+            </div>
+          </template>
+        </AutoComplete>
       </div>
     </div>
+
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.record.txn_date.$errors[0]?.$message"
+        >
+          <label>Date</label>
+        </ValidationError>
+        <DatePicker
+          v-model="record.txn_date"
+          date-format="dd/mm/yy"
+          show-icon
+          fluid
+          icon-display="input"
+          size="small"
+          :readonly="isReadOnly"
+          :disabled="isReadOnly"
+        />
+      </div>
+    </div>
+
+    <div class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
+        <ValidationError
+          :is-required="true"
+          :message="v$.record.quantity.$errors[0]?.$message"
+        >
+          <label>Quantity</label>
+        </ValidationError>
+        <InputNumber
+          v-model="quantityNumber"
+          size="small"
+          locale="de-DE"
+          :min-fraction-digits="2"
+          :max-fraction-digits="6"
+          placeholder="0,00"
+          :readonly="isReadOnly"
+          :disabled="isReadOnly"
+          fluid
+        />
+      </div>
+      <div class="flex flex-column gap-1 w-6">
+        <ValidationError
+          :is-required="true"
+          :message="v$.record.currency.$errors[0]?.$message"
+        >
+          <label>Currency</label>
+        </ValidationError>
+        <Select
+          v-model="record.currency"
+          :options="availableCurrencies"
+          size="small"
+          placeholder="Select currency"
+          :readonly="isReadOnly"
+          :disabled="isReadOnly"
+        />
+      </div>
+    </div>
+
+    <div class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
+        <ValidationError
+          :is-required="true"
+          :message="v$.record.price_per_unit.$errors[0]?.$message"
+        >
+          <label>Price per unit</label>
+        </ValidationError>
+        <InputNumber
+          v-model="pricePerUnitNumber"
+          size="small"
+          mode="currency"
+          :currency="record.currency"
+          locale="de-DE"
+          :placeholder="getCurrencyPlaceholder(record.currency)"
+          :readonly="isReadOnly"
+          :disabled="isReadOnly"
+          fluid
+        />
+      </div>
+
+      <div class="flex flex-column gap-1 w-6">
+        <ValidationError
+          :is-required="false"
+          :message="v$.record.fee.$errors[0]?.$message"
+        >
+          <label>Fee</label>
+        </ValidationError>
+        <InputNumber
+          v-model="feeNumber"
+          size="small"
+          mode="currency"
+          :currency="record.currency"
+          locale="de-DE"
+          :min-fraction-digits="2"
+          :max-fraction-digits="record.holding?.investment_type === 'crypto' ? 6 : 2"
+          :placeholder="getCurrencyPlaceholder(record.currency)"
+          :readonly="isReadOnly"
+          :disabled="isReadOnly"
+          fluid
+        />
+      </div>
+    </div>
+
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="false"
+          :message="v$.record.description.$errors[0]?.$message"
+        >
+          <label>Description</label>
+        </ValidationError>
+        <InputText
+          v-model="record.description"
+          size="small"
+          placeholder="Describe transaction"
+        />
+      </div>
+    </div>
+  </div>
+  <ShowLoading v-else :num-fields="5" />
+
+  <div class="flex flex-column w-full gap-3 mt-3">
+    <Button
+      class="main-button"
+      :label="(mode == 'create' ? 'Insert' : 'Update') + ' transaction'"
+      style="height: 42px"
+      @click="manageRecord"
+      :disabled="loading"
+    />
+    <Button
+      v-if="mode == 'update'"
+      label="Delete transaction"
+      class="delete-button"
+      style="height: 42px"
+      :disabled="loading"
+    />
   </div>
 </template>
 

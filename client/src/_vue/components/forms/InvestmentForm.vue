@@ -19,6 +19,7 @@ import useVuelidate from "@vuelidate/core";
 import ValidationError from "../validation/ValidationError.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import dateHelper from "../../../utils/date_helper.ts";
+import ShowLoading from "../base/ShowLoading.vue";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -199,6 +200,7 @@ async function manageRecord() {
   if (!(await isRecordValid())) return;
   if (!record.value.account) return;
 
+  loading.value = true;
   let ticker = tickerData.value.name;
 
   if (selectedInvestmentType.value.toLowerCase() === "crypto") {
@@ -246,6 +248,8 @@ async function manageRecord() {
     emit("completeOperation");
   } catch (error) {
     toastStore.errorResponseToast(error);
+  } finally {
+    loading.value = false;
   }
 }
 
@@ -318,7 +322,7 @@ function toggleInfoPopup(event: any) {
   <div v-if="!loading" class="flex flex-column gap-3 p-1">
 
     <div v-if="!isReadOnly" class="flex flex-row w-full justify-content-center">
-      <div class="flex flex-column w-50">
+      <div class="flex flex-column">
         <SelectButton
           v-model="selectedInvestmentType"
           style="font-size: 0.875rem"
@@ -372,150 +376,152 @@ function toggleInfoPopup(event: any) {
       </div>
     </div>
 
-    <div class="flex flex-column gap-3">
-      <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
-          <ValidationError
-            :is-required="true"
-            :message="v$.record.account.$errors[0]?.$message"
-          >
-            <label>Account</label>
-          </ValidationError>
-          <AutoComplete
-            v-model="record.account"
-            size="small"
-            :suggestions="filteredAccounts"
-            option-label="name"
-            option-value="id"
-            data-key="id"
-            force-selection
-            placeholder="Select account"
-            dropdown
-            @complete="searchAccount"
-            :readonly="isReadOnly"
-            :disabled="isReadOnly"
-          />
-        </div>
-      </div>
-
-      <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
-          <ValidationError
-            :is-required="true"
-            :message="v$.record.name.$errors[0]?.$message"
-          >
-            <label>Name</label>
-          </ValidationError>
-          <InputText
-            v-model="record.name"
-            size="small"
-            placeholder="Input asset name"
-          />
-        </div>
-      </div>
-
-      <div v-if="!isReadOnly" class="flex flex-row w-full align-items-center gap-2">
-        <i
-          class="pi pi-info-circle hover-icon text-sm"
-          @click="toggleInfoPopup"
-        ></i>
-        <span style="color: var(--text-secondary)">Formatting guide</span>
-      </div>
-
-      <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
-          <ValidationError
-            :is-required="true"
-            :message="v$.tickerData.name.$errors[0]?.$message"
-          >
-            <label>Ticker</label>
-          </ValidationError>
-          <InputText
-            v-model="tickerData.name"
-            size="small"
-            placeholder="Input ticker"
-            :readonly="isReadOnly"
-            :disabled="isReadOnly"
-          />
-        </div>
-      </div>
-
-      <div class="flex flex-row w-full gap-2">
-        <div v-if="selectedInvestmentType.toLowerCase() !== 'crypto'"
-          class="flex flex-column gap-1 w-full"
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.record.account.$errors[0]?.$message"
         >
-          <ValidationError
-            :is-required="selectedInvestmentType.toLowerCase() !== 'crypto'"
-            :message="v$.tickerData.exchange.$errors[0]?.$message"
-          >
-            <label>Exchange</label>
-          </ValidationError>
-          <InputText
-            v-model="tickerData.exchange"
-            size="small"
-            placeholder="Input exchange"
-            :readonly="isReadOnly"
-            :disabled="isReadOnly"
-          />
-        </div>
-        <div v-else
-          class="flex flex-column gap-1 w-full"
-        >
-          <ValidationError
-            :is-required="false"
-            :message="v$.tickerData.currency.$errors[0]?.$message"
-          >
-            <label>Currency</label>
-          </ValidationError>
-          <InputText
-            v-model="tickerData.currency"
-            size="small"
-            placeholder="Input currency"
-            :readonly="isReadOnly"
-            :disabled="isReadOnly"
-          />
-        </div>
-      </div>
-
-      <div v-if="mode === 'update'" class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
-          <ValidationError
-            :is-required="true"
-            :message="v$.record.quantity.$errors[0]?.$message"
-          >
-            <label>Quantity</label>
-          </ValidationError>
-          <InputNumber
-            v-model="quantityNumber"
-            size="small"
-            locale="de-DE"
-            :min-fraction-digits="2"
-            :max-fraction-digits="6"
-            placeholder="0,00"
-            :readonly="isReadOnly"
-            :disabled="isReadOnly"
-          />
-        </div>
-      </div>
-
-      <div class="flex flex-row gap-2 w-full">
-        <div class="flex flex-column w-full gap-2">
-          <Button
-            class="main-button"
-            :label="(mode == 'create' ? 'Insert' : 'Update') + ' holding'"
-            style="height: 42px"
-            @click="manageRecord"
-          />
-          <Button
-            v-if="mode == 'update'"
-            label="Delete holding"
-            class="delete-button"
-            style="height: 42px"
-          />
-        </div>
+          <label>Account</label>
+        </ValidationError>
+        <AutoComplete
+          v-model="record.account"
+          size="small"
+          :suggestions="filteredAccounts"
+          option-label="name"
+          option-value="id"
+          data-key="id"
+          force-selection
+          placeholder="Select account"
+          dropdown
+          @complete="searchAccount"
+          :readonly="isReadOnly"
+          :disabled="isReadOnly"
+        />
       </div>
     </div>
+
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.record.name.$errors[0]?.$message"
+        >
+          <label>Name</label>
+        </ValidationError>
+        <InputText
+          v-model="record.name"
+          size="small"
+          placeholder="Input asset name"
+        />
+      </div>
+    </div>
+
+    <div v-if="!isReadOnly" class="flex flex-row w-full align-items-center gap-2">
+      <i
+        class="pi pi-info-circle hover-icon text-sm"
+        @click="toggleInfoPopup"
+      ></i>
+      <span style="color: var(--text-secondary)">Formatting guide</span>
+    </div>
+
+    <div class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.tickerData.name.$errors[0]?.$message"
+        >
+          <label>Ticker</label>
+        </ValidationError>
+        <InputText
+          v-model="tickerData.name"
+          size="small"
+          placeholder="Input ticker"
+          :readonly="isReadOnly"
+          :disabled="isReadOnly"
+        />
+      </div>
+    </div>
+
+    <div class="flex flex-row w-full gap-2">
+      <div v-if="selectedInvestmentType.toLowerCase() !== 'crypto'"
+           class="flex flex-column gap-1 w-full"
+      >
+        <ValidationError
+          :is-required="selectedInvestmentType.toLowerCase() !== 'crypto'"
+          :message="v$.tickerData.exchange.$errors[0]?.$message"
+        >
+          <label>Exchange</label>
+        </ValidationError>
+        <InputText
+          v-model="tickerData.exchange"
+          size="small"
+          placeholder="Input exchange"
+          :readonly="isReadOnly"
+          :disabled="isReadOnly"
+        />
+      </div>
+      <div v-else
+           class="flex flex-column gap-1 w-full"
+      >
+        <ValidationError
+          :is-required="false"
+          :message="v$.tickerData.currency.$errors[0]?.$message"
+        >
+          <label>Currency</label>
+        </ValidationError>
+        <InputText
+          v-model="tickerData.currency"
+          size="small"
+          placeholder="Input currency"
+          :readonly="isReadOnly"
+          :disabled="isReadOnly"
+        />
+      </div>
+    </div>
+
+    <div v-if="mode === 'update'" class="flex flex-row w-full">
+      <div class="flex flex-column gap-1 w-full">
+        <ValidationError
+          :is-required="true"
+          :message="v$.record.quantity.$errors[0]?.$message"
+        >
+          <label>Quantity</label>
+        </ValidationError>
+        <InputNumber
+          v-model="quantityNumber"
+          size="small"
+          locale="de-DE"
+          :min-fraction-digits="2"
+          :max-fraction-digits="6"
+          placeholder="0,00"
+          :readonly="isReadOnly"
+          :disabled="isReadOnly"
+        />
+      </div>
+    </div>
+
   </div>
+  <ShowLoading v-else :num-fields="5" />
+
+  <div class="flex flex-column mt-3 gap-3">
+    <Button
+      class="main-button"
+      :label="(mode == 'create' ? 'Insert' : 'Update') + ' holding'"
+      style="height: 42px"
+      @click="manageRecord"
+      :disabled="loading"
+    />
+    <Button
+      v-if="mode == 'update'"
+      label="Delete holding"
+      class="delete-button"
+      style="height: 42px"
+      :disabled="loading"
+    />
+  </div>
+
+
 </template>
 
 <style scoped></style>

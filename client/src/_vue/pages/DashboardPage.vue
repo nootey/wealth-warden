@@ -13,14 +13,18 @@ const accountStore = useAccountStore();
 const toastStore = useToastStore();
 
 const nWidgetRef = ref<InstanceType<typeof NetworthWidget> | null>(null);
+const backfilling = ref(false);
 
 async function backfillBalances() {
+  backfilling.value = true;
   try {
     const response = await accountStore.backfillBalances();
     toastStore.successResponseToast(response.data);
     nWidgetRef.value?.refresh();
   } catch (err) {
     toastStore.errorResponseToast(err);
+  } finally {
+    backfilling.value = false;
   }
 }
 </script>
@@ -50,12 +54,13 @@ async function backfillBalances() {
             style="height: 42px"
             class="main-button"
             @click="backfillBalances"
+            :disabled="backfilling"
           />
         </div>
       </SlotSkeleton>
 
       <SlotSkeleton bg="secondary">
-        <NetworthWidget ref="nWidgetRef" :chart-height="400" />
+        <NetworthWidget ref="nWidgetRef" :chart-height="400" :isRefreshing="backfilling" />
       </SlotSkeleton>
 
       <div class="w-full flex flex-row justify-content-between p-2 gap-2">

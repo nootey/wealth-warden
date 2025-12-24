@@ -17,12 +17,14 @@ const props = withDefaults(
     title?: string;
     storageKeyPrefix?: string;
     chartHeight?: number;
+    isRefreshing?: boolean;
   }>(),
   {
     accountId: null,
     title: "Net worth",
     storageKeyPrefix: "networth_range_key",
     chartHeight: 300,
+    isRefreshing: false,
   },
 );
 
@@ -220,10 +222,12 @@ onMounted(getData);
 </script>
 
 <template>
+
   <div
-    v-if="payload"
+    v-if="payload && !isRefreshing"
     class="w-full flex flex-column justify-content-center p-3 gap-1"
   >
+
     <div class="flex flex-row gap-2 w-full justify-content-between">
       <div class="flex flex-column gap-2">
         <div class="flex flex-row">
@@ -303,5 +307,5 @@ onMounted(getData);
       </div>
     </div>
   </div>
-  <ShowLoading v-else :num-fields="6" />
+  <ShowLoading v-else :num-fields="6" class="mb-4" />
 </template>
