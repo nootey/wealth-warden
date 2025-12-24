@@ -479,11 +479,31 @@ func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, use
 	currentPrice, lastPriceUpdate := s.fetchCurrentPrice(ctx, holding)
 
 	// Calculate transaction PnL
-	txnCurrentValue, txnProfitLoss, txnProfitLossPercent := s.calculateTransactionPnL(
-		req.Quantity,
-		currentPrice,
-		valueAtBuy,
-	)
+	var txnCurrentValue, txnProfitLoss, txnProfitLossPercent decimal.Decimal
+
+	if req.TransactionType == models.InvestmentSell {
+		// For sells: calculate realized P&L using holding's average buy price
+		txnCurrentValue = req.Quantity.Mul(req.PricePerUnit)   // Sale proceeds
+		costBasis := holding.AverageBuyPrice.Mul(req.Quantity) // What you originally paid
+		txnProfitLoss = txnCurrentValue.Sub(costBasis)
+		if !costBasis.IsZero() {
+			txnProfitLossPercent = txnProfitLoss.Div(costBasis)
+		}
+	} else {
+		// For buys: use current market price for unrealized P&L
+		txnCurrentValue, txnProfitLoss, txnProfitLossPercent = s.calculateTransactionPnL(
+			req.Quantity,
+			currentPrice,
+			valueAtBuy,
+		)
+	}
+
+	var txnValueAtBuy decimal.Decimal
+	if req.TransactionType == models.InvestmentSell {
+		txnValueAtBuy = holding.AverageBuyPrice.Mul(req.Quantity)
+	} else {
+		txnValueAtBuy = valueAtBuy
+	}
 
 	txn := models.InvestmentTransaction{
 		UserID:            userID,
@@ -493,7 +513,7 @@ func (s *InvestmentService) InsertInvestmentTransaction(ctx context.Context, use
 		Quantity:          effectiveQuantity,
 		PricePerUnit:      req.PricePerUnit,
 		Fee:               fee,
-		ValueAtBuy:        valueAtBuy,
+		ValueAtBuy:        txnValueAtBuy,
 		CurrentValue:      txnCurrentValue,
 		ProfitLoss:        txnProfitLoss,
 		ProfitLossPercent: txnProfitLossPercent,
@@ -908,6 +928,7 @@ func (s *InvestmentService) DeleteInvestmentHolding(ctx context.Context, userID 
 
 	return nil
 }
+
 func (s *InvestmentService) DeleteInvestmentTransaction(ctx context.Context, userID int64, id int64) error {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
