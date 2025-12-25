@@ -67,11 +67,17 @@ var FieldMap = map[string]map[string]FieldMetadata{
 		},
 	},
 	"investment_trades": {
-		"asset": {
+		"asset.name": {
 			Column:       "investment_assets.name",
-			FilterColumn: "investment_assets.id",
+			FilterColumn: "investment_assets.name",
 			Join:         "LEFT JOIN investment_assets ON investment_assets.id = investment_trades.asset_id",
-			OrEquals:     true,
+			OrEquals:     false,
+		},
+		"asset.ticker": {
+			Column:       "investment_assets.ticker",
+			FilterColumn: "investment_assets.ticker",
+			Join:         "LEFT JOIN investment_assets ON investment_assets.id = investment_trades.asset_id",
+			OrEquals:     false,
 		},
 	},
 }
@@ -153,7 +159,7 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 			column = meta.Column
 		}
 
-		// Special case: amount filters on transactions
+		// Special case 1: amount filters on transactions
 		if f.Source == "transactions" && f.Field == "amount" {
 			signedAmount := "CASE WHEN transaction_type = 'expense' THEN -amount ELSE amount END"
 
@@ -170,6 +176,26 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 				query = query.Where(fmt.Sprintf("%s >= ?", signedAmount), f.Value)
 			case "<=":
 				query = query.Where(fmt.Sprintf("%s <= ?", signedAmount), f.Value)
+			}
+			continue
+		}
+
+		// Special case 2: quantity filters on investment trades
+		if f.Source == "investment_trades" && f.Field == "quantity" {
+
+			switch f.Operator {
+			case "equals", "=":
+				query = query.Where(fmt.Sprintf("%s = ?", f.Value), f.Value)
+			case "not equals", "<>", "!=":
+				query = query.Where(fmt.Sprintf("%s <> ?", f.Value), f.Value)
+			case "more than", ">":
+				query = query.Where(fmt.Sprintf("%s > ?", f.Value), f.Value)
+			case "less than", "<":
+				query = query.Where(fmt.Sprintf("%s < ?", f.Value), f.Value)
+			case ">=":
+				query = query.Where(fmt.Sprintf("%s >= ?", f.Value), f.Value)
+			case "<=":
+				query = query.Where(fmt.Sprintf("%s <= ?", f.Value), f.Value)
 			}
 			continue
 		}

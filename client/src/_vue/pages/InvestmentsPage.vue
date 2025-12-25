@@ -210,7 +210,7 @@ async function handleEmit(emitType: any) {
         />
       </div>
 
-      <label>Trades</label>
+      <div style="font-weight: bold">Trades</div>
       <div id="mobile-row" class="flex flex-row w-full">
         <InvestmentTradesPaginated
           ref="txnRef"

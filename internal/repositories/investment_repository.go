@@ -79,7 +79,7 @@ func (r *InvestmentRepository) CountInvestmentAssets(ctx context.Context, tx *go
 	return totalRecords, nil
 }
 
-func (r *InvestmentRepository) CountInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, accountID *int64) (int64, error) {
+func (r *InvestmentRepository) CountInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, filters []utils.Filter, assetID *int64) (int64, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -88,10 +88,10 @@ func (r *InvestmentRepository) CountInvestmentTrades(ctx context.Context, tx *go
 
 	var totalRecords int64
 	q := db.WithContext(ctx).Model(&models.InvestmentTrade{}).
-		Where("user_id = ?", userID)
+		Where("investment_trades.user_id = ?", userID)
 
-	if accountID != nil {
-		q = q.Where("account_id = ?", *accountID)
+	if assetID != nil {
+		q = q.Where("investment_trades.asset_id = ?", *assetID)
 	}
 
 	joins := utils.GetRequiredJoins(filters)

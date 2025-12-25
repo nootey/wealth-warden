@@ -114,18 +114,18 @@ func (h *InvestmentHandler) GetInvestmentTradesPaginated(c *gin.Context) {
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
 
-	accountIDStr := qp.Get("account")
-	var accountID *int64
-	if accountIDStr != "" {
-		id, err := strconv.ParseInt(accountIDStr, 10, 64)
+	assetIDStr := qp.Get("asset_id")
+	var assetID *int64
+	if assetIDStr != "" {
+		id, err := strconv.ParseInt(assetIDStr, 10, 64)
 		if err != nil {
-			utils.ErrorMessage(c, "Error occurred", "account id must be a valid integer", http.StatusBadRequest, err)
+			utils.ErrorMessage(c, "Error occurred", "asset id must be a valid integer", http.StatusBadRequest, err)
 			return
 		}
-		accountID = &id
+		assetID = &id
 	}
 
-	records, paginator, err := h.Service.FetchInvestmentTradesPaginated(ctx, userID, p, accountID)
+	records, paginator, err := h.Service.FetchInvestmentTradesPaginated(ctx, userID, p, assetID)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

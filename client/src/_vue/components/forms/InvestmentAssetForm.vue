@@ -9,7 +9,7 @@ import type {
   TickerData,
 } from "../../../models/investment_models.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
-import { required, requiredIf } from "@vuelidate/validators";
+import { required } from "@vuelidate/validators";
 import {
   decimalMax,
   decimalMin,
