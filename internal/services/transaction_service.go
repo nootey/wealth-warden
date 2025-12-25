@@ -52,26 +52,29 @@ type TransactionServiceInterface interface {
 }
 
 type TransactionService struct {
-	repo          repositories.TransactionRepositoryInterface
-	accRepo       repositories.AccountRepositoryInterface
-	settingsRepo  repositories.SettingsRepositoryInterface
-	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher jobqueue.JobDispatcher
+	repo           repositories.TransactionRepositoryInterface
+	accRepo        repositories.AccountRepositoryInterface
+	settingsRepo   repositories.SettingsRepositoryInterface
+	investmentRepo repositories.InvestmentRepositoryInterface
+	loggingRepo    repositories.LoggingRepositoryInterface
+	jobDispatcher  jobqueue.JobDispatcher
 }
 
 func NewTransactionService(
 	repo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
 	settingsRepo *repositories.SettingsRepository,
+	investmentRepo *repositories.InvestmentRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobqueue.JobDispatcher,
 ) *TransactionService {
 	return &TransactionService{
-		repo:          repo,
-		accRepo:       accRepo,
-		settingsRepo:  settingsRepo,
-		jobDispatcher: jobDispatcher,
-		loggingRepo:   loggingRepo,
+		repo:           repo,
+		accRepo:        accRepo,
+		settingsRepo:   settingsRepo,
+		investmentRepo: investmentRepo,
+		jobDispatcher:  jobDispatcher,
+		loggingRepo:    loggingRepo,
 	}
 }
 
@@ -206,6 +209,21 @@ func (s *TransactionService) FetchCategoryByID(ctx context.Context, userID int64
 	return &record, nil
 }
 
+func (s *TransactionService) validateInvestmentBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64, resultingBalance decimal.Decimal) error {
+	totalInvestmentValue, err := s.investmentRepo.FindTotalInvestmentValue(ctx, tx, accountID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to calculate total investment value: %w", err)
+	}
+
+	if totalInvestmentValue.GreaterThan(decimal.Zero) && resultingBalance.LessThan(totalInvestmentValue) {
+		return fmt.Errorf("insufficient funds: resulting balance (%s) would be below total investments (%s)",
+			resultingBalance.StringFixed(2),
+			totalInvestmentValue.StringFixed(2))
+	}
+
+	return nil
+}
+
 func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq) (int64, error) {
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -224,6 +242,21 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	if req.TransactionType == "expense" {
+		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, account.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+
+		resultingBalance := latestBalance.EndBalance.Sub(req.Amount)
+
+		if err := s.validateInvestmentBalance(ctx, tx, account.ID, userID, resultingBalance); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
 	}
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
@@ -382,6 +415,23 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 			fromAcc.Balance.EndBalance.StringFixed(2),
 			req.Amount.StringFixed(2),
 		)
+	}
+
+	// Also check investments
+	totalInvestmentValue, err := s.investmentRepo.FindTotalInvestmentValue(ctx, tx, fromAcc.ID, userID)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
+	}
+
+	resultingBalance := fromAcc.Balance.EndBalance.Sub(req.Amount)
+
+	if totalInvestmentValue.GreaterThan(decimal.Zero) && resultingBalance.LessThan(totalInvestmentValue) {
+		tx.Rollback()
+		return 0, fmt.Errorf("insufficient funds: resulting balance (%s) would be below total investments (%s) in %s",
+			resultingBalance.StringFixed(2),
+			totalInvestmentValue.StringFixed(2),
+			fromAcc.Name)
 	}
 
 	toAcc, err := s.accRepo.FindAccountByID(ctx, tx, req.DestinationID, userID, false)
@@ -626,6 +676,38 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		}
 	}
 
+	var oldEffect, newEffect decimal.Decimal
+
+	if exTr.TransactionType == "expense" {
+		oldEffect = exTr.Amount.Neg()
+	} else {
+		oldEffect = exTr.Amount
+	}
+
+	if req.TransactionType == "expense" {
+		newEffect = req.Amount.Neg()
+	} else {
+		newEffect = req.Amount
+	}
+
+	netChange := newEffect.Sub(oldEffect)
+
+	// If net change is negative (balance going down), validate
+	if netChange.IsNegative() {
+		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, newAccount.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+
+		resultingBalance := latestBalance.EndBalance.Add(netChange)
+
+		if err := s.validateInvestmentBalance(ctx, tx, newAccount.ID, userID, resultingBalance); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+	}
+
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
 		return 0, fmt.Errorf("can't fetch user settings %w", err)
@@ -864,6 +946,22 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
+	// If deleting an income, balance will go down
+	if tr.TransactionType == "income" {
+		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, account.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
+
+		if err := s.validateInvestmentBalance(ctx, tx, account.ID, userID, resultingBalance); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
 	// Delete transaction
 	if err := s.repo.DeleteTransaction(ctx, tx, tr.ID, userID); err != nil {
 		tx.Rollback()
@@ -978,6 +1076,20 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 		return err
 	}
 	if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
+		return err
+	}
+
+	// Check if removing from destination would violate investment constraint
+	latestToBalance, err := s.accRepo.FindLatestBalance(ctx, tx, toAcc.ID, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	resultingToBalance := latestToBalance.EndBalance.Sub(inflow.Amount)
+
+	if err := s.validateInvestmentBalance(ctx, tx, toAcc.ID, userID, resultingToBalance); err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -1175,6 +1287,22 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find account for transaction %w", err)
+	}
+
+	// If restoring an expense, balance will go down
+	if tr.TransactionType == "expense" {
+		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, acc.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
+
+		if err := s.validateInvestmentBalance(ctx, tx, acc.ID, userID, resultingBalance); err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	// Re-apply og cash effect
