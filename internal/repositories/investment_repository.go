@@ -32,6 +32,7 @@ type InvestmentRepositoryInterface interface {
 	FindSellTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID, userID int64) ([]models.InvestmentTrade, error)
 	DeleteAllTradesForAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64) error
 	DeleteInvestmentAsset(ctx context.Context, tx *gorm.DB, id int64) error
+	GetInvestmentTotalsUpToDate(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time) (decimal.Decimal, decimal.Decimal, error)
 }
 
 type InvestmentRepository struct {
@@ -568,4 +569,26 @@ func (r *InvestmentRepository) DeleteInvestmentAsset(ctx context.Context, tx *go
 	db = db.WithContext(ctx)
 
 	return db.Delete(&models.InvestmentAsset{}, id).Error
+}
+
+func (r *InvestmentRepository) GetInvestmentTotalsUpToDate(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time) (decimal.Decimal, decimal.Decimal, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	var result struct {
+		Quantity decimal.Decimal
+		Spent    decimal.Decimal
+	}
+
+	err := db.Raw(`
+        SELECT 
+            COALESCE(SUM(CASE WHEN trade_type = 'buy' THEN quantity ELSE -quantity END), 0) as quantity,
+            COALESCE(SUM(CASE WHEN trade_type = 'buy' THEN value_at_buy ELSE 0 END), 0) as spent
+        FROM investment_trades
+        WHERE asset_id = ? AND txn_date <= ?
+    `, assetID, asOf).Scan(&result).Error
+
+	return result.Quantity, result.Spent, err
 }

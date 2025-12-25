@@ -279,15 +279,23 @@ func (s *InvestmentService) UpdateInvestmentAccountBalance(ctx context.Context, 
 
 	for _, asset := range assets {
 
+		// Get historical quantity and spent for this asset as of this date
+		qty, spent, err := s.repo.GetInvestmentTotalsUpToDate(ctx, tx, asset.ID, asOf)
+		if err != nil || qty.IsZero() {
+			continue
+		}
+
 		// Fetch the price for this specific date
 		price, err := s.fetchPriceForDate(ctx, asset, asOf)
 		if err != nil {
+			fmt.Println(err)
 			continue
 		}
-		// Calculate P&L for this asset at this date
-		currentValueAtDate := asset.Quantity.Mul(price)
-		pnlAtDate := currentValueAtDate.Sub(asset.ValueAtBuy)
 
+		// Calculate P&L using historical quantity and spent
+		currentValueAtDate := qty.Mul(price)
+		pnlAtDate := currentValueAtDate.Sub(spent)
+		
 		totalPnLAsOf = totalPnLAsOf.Add(pnlAtDate)
 	}
 
@@ -302,6 +310,14 @@ func (s *InvestmentService) UpdateInvestmentAccountBalance(ctx context.Context, 
 	delta := totalPnLAsOf.Sub(previousPnL)
 
 	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, accountID, asOf, currency); err != nil {
+		return err
+	}
+
+	// Clear existing non-cash flows for this date
+	if err := s.accRepo.SetDailyBalance(ctx, tx, accountID, asOf, "non_cash_inflows", decimal.Zero); err != nil {
+		return err
+	}
+	if err := s.accRepo.SetDailyBalance(ctx, tx, accountID, asOf, "non_cash_outflows", decimal.Zero); err != nil {
 		return err
 	}
 

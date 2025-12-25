@@ -55,6 +55,7 @@ type AccountRepositoryInterface interface {
 	HasDefaultForAccountType(ctx context.Context, tx *gorm.DB, userID, accountTypeID int64) (bool, error)
 	GetCumulativeNonCashPnLBeforeDate(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time) (decimal.Decimal, error)
 	ClearNonCashFlowsFromDate(ctx context.Context, tx *gorm.DB, accountID int64, fromDate time.Time) error
+	SetDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, value decimal.Decimal) error
 }
 
 type AccountRepository struct {
@@ -1128,4 +1129,26 @@ func (r *AccountRepository) ClearNonCashFlowsFromDate(ctx context.Context, tx *g
 			"non_cash_outflows": 0,
 			"updated_at":        time.Now().UTC(),
 		}).Error
+}
+
+func (r *AccountRepository) SetDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, value decimal.Decimal) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	asOf = asOf.UTC().Truncate(24 * time.Hour)
+
+	switch field {
+	case "cash_inflows", "cash_outflows", "non_cash_inflows", "non_cash_outflows", "net_market_flows", "adjustments":
+	default:
+		return fmt.Errorf("invalid balance field %q", field)
+	}
+
+	return db.Exec(fmt.Sprintf(`
+        UPDATE balances
+        SET %s = ?, updated_at = NOW()
+        WHERE account_id = ? AND as_of = ?
+    `, field), value, accountID, asOf).Error
 }
