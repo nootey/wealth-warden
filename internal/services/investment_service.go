@@ -465,7 +465,10 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 
 		purchaseCost := req.Quantity.Mul(req.PricePerUnit)
 		if req.Fee != nil {
-			purchaseCost = purchaseCost.Add(*req.Fee)
+			// For crypto, fee is in tokens and doesn't affect purchase cost
+			if asset.InvestmentType == models.InvestmentStock || asset.InvestmentType == models.InvestmentETF {
+				purchaseCost = purchaseCost.Add(*req.Fee)
+			}
 		}
 
 		remainingBalance := availableBalance.EndBalance.Sub(totalInvestmentValue)
@@ -506,7 +509,13 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 
 	if req.TradeType == models.InvestmentSell {
 		// For sells: calculate realized P&L using asset's average buy price
-		txnRealizedValue = req.Quantity.Mul(req.PricePerUnit)
+		if asset.InvestmentType == models.InvestmentCrypto {
+			// Crypto: use effective quantity
+			txnRealizedValue = effectiveQuantity.Mul(req.PricePerUnit)
+		} else {
+			// Stock/ETF: use requested quantity, subtract fee from proceeds
+			txnRealizedValue = req.Quantity.Mul(req.PricePerUnit).Sub(fee)
+		}
 		costBasis := asset.AverageBuyPrice.Mul(req.Quantity)
 		txnProfitLoss = txnRealizedValue.Sub(costBasis)
 
@@ -558,7 +567,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 
 	// Handle selling - calculate and record realized P&L
 	if req.TradeType == models.InvestmentSell {
-		if err := s.handleSellTrade(ctx, tx, asset, effectiveQuantity, req.PricePerUnit, req.TxnDate); err != nil {
+		if err := s.handleSellTrade(ctx, tx, asset, effectiveQuantity, req.PricePerUnit, fee, asset.InvestmentType, req.TxnDate); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
@@ -612,9 +621,16 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	return txnID, nil
 }
 
-func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, asset models.InvestmentAsset, quantitySold, salePrice decimal.Decimal, txnDate time.Time) error {
+func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, asset models.InvestmentAsset, quantitySold, salePrice, fee decimal.Decimal, investmentType models.InvestmentType, txnDate time.Time) error {
 
-	proceeds := quantitySold.Mul(salePrice)
+	var proceeds decimal.Decimal
+	if investmentType == models.InvestmentCrypto {
+		// Crypto: fee is in tokens, doesn't affect cash proceeds
+		proceeds = quantitySold.Mul(salePrice)
+	} else {
+		// Stock/ETF: fee deducted from cash proceeds
+		proceeds = quantitySold.Mul(salePrice).Sub(fee)
+	}
 	costBasis := asset.AverageBuyPrice.Mul(quantitySold)
 	realizedPnL := proceeds.Sub(costBasis)
 
