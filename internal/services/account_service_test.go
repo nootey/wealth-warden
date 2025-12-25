@@ -1,6 +1,8 @@
 package services_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 	"wealth-warden/internal/models"
@@ -664,4 +666,98 @@ func (s *AccountServiceTestSuite) TestInsertTransaction_OnClosedAccount() {
 	s.Require().NoError(err)
 	s.Assert().True(decimal.Zero.Equal(todayBalance.CashInflows),
 		"cash_inflows should remain 0, got %s", todayBalance.CashInflows.String())
+}
+
+// Tests that manual balance adjustment is blocked if it would set balance below total investment value
+func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByInvestmentValue() {
+	accSvc := s.TC.App.AccountService
+	invSvc := s.TC.App.InvestmentService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+
+	// Create investment account
+	accReq := &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	}
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, accReq)
+	s.Require().NoError(err)
+
+	// Create BTC asset
+	assetReq := &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentCrypto,
+		Name:           "Bitcoin",
+		Ticker:         "BTC-USD",
+		Quantity:       decimal.NewFromInt(0),
+	}
+
+	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
+	defer cancel()
+
+	assetID, err := invSvc.InsertAsset(ctx, userID, assetReq)
+	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			s.T().Skip("Skipping test: price fetch timed out")
+		}
+		s.Require().NoError(err)
+	}
+
+	// Buy 1 BTC at 50k (invests 50k)
+	ctx2, cancel2 := context.WithTimeout(s.Ctx, 5*time.Second)
+	defer cancel2()
+
+	_, err = invSvc.InsertInvestmentTrade(ctx2, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      today,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(1),
+		PricePerUnit: decimal.NewFromInt(50000),
+		Currency:     "USD",
+	})
+	if err != nil {
+		if errors.Is(context.DeadlineExceeded, ctx2.Err()) {
+			s.T().Skip("Skipping test: price fetch timed out")
+		}
+		s.Require().NoError(err)
+	}
+
+	// Verify investment exists
+	var asset models.InvestmentAsset
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
+	s.Require().NoError(err)
+	s.T().Logf("Asset current value: %s", asset.CurrentValue.String())
+
+	// Try to adjust balance to 40k (below the 50k+ invested)
+	newBalance := decimal.NewFromInt(40000)
+	updateReq := &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &newBalance,
+	}
+
+	_, err = accSvc.UpdateAccount(s.Ctx, userID, accID, updateReq)
+	s.Require().Error(err, "should not allow balance adjustment below investment value")
+
+	// Verify account balance unchanged
+	var account models.Account
+	err = s.TC.DB.WithContext(s.Ctx).
+		Preload("Balance").
+		Where("id = ?", accID).
+		First(&account).Error
+	s.Require().NoError(err)
+
+	var latestBalance models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ?", accID).
+		Order("as_of DESC").
+		First(&latestBalance).Error
+	s.Require().NoError(err)
+
+	s.Assert().True(latestBalance.EndBalance.GreaterThan(newBalance),
+		"balance should remain above %s, got %s", newBalance.String(), latestBalance.EndBalance.String())
 }
