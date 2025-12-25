@@ -299,14 +299,12 @@ func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *go
 	if tradeType == models.InvestmentBuy {
 		newQuantity = asset.Quantity.Add(quantity)
 
-		// Weighted average: (old_qty * old_avg + new_qty * new_price) / total_qty
-		oldValue := asset.Quantity.Mul(asset.AverageBuyPrice)
-		newValue := quantity.Mul(pricePerUnit)
-		totalValue := oldValue.Add(newValue)
-		newAverageBuyPrice = totalValue.Div(newQuantity)
+		// Use total value at buy
+		oldTotalValue := asset.ValueAtBuy
+		newTotalValue := oldTotalValue.Add(tradeValueAtBuy)
+		newAverageBuyPrice = newTotalValue.Div(newQuantity)
 
-		// Total value at buy
-		newTotalValueAtBuy = asset.ValueAtBuy.Add(tradeValueAtBuy)
+		newTotalValueAtBuy = newTotalValue
 	} else {
 		// Sell: decrease quantity and value at buy proportionally
 		newQuantity = asset.Quantity.Sub(quantity)
