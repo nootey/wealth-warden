@@ -45,9 +45,15 @@ func handleTestRequest(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	if mockQuoteResponse != nil {
-		json.NewEncoder(w).Encode(mockQuoteResponse)
+		err := json.NewEncoder(w).Encode(mockQuoteResponse)
+		if err != nil {
+			return
+		}
 	} else {
-		json.NewEncoder(w).Encode(mockResponse)
+		err := json.NewEncoder(w).Encode(mockResponse)
+		if err != nil {
+			return
+		}
 	}
 }
 

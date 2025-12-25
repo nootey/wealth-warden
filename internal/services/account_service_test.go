@@ -720,7 +720,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByInvestmentValue() {
 		Currency:     "USD",
 	})
 	if err != nil {
-		if errors.Is(context.DeadlineExceeded, ctx2.Err()) {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out")
 		}
 		s.Require().NoError(err)

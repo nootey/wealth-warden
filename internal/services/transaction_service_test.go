@@ -2560,7 +2560,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 
 	assetID, err := invSvc.InsertAsset(ctx, userID, assetReq)
 	if err != nil {
-		if errors.Is(context.DeadlineExceeded, ctx.Err()) {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out")
 		}
 		s.Require().NoError(err)
@@ -2942,7 +2942,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_BlockedByInvestments() 
 
 	assetID, err := invSvc.InsertAsset(ctx, userID, assetReq)
 	if err != nil {
-		if errors.Is(context.DeadlineExceeded, ctx.Err()) {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out")
 		}
 		s.Require().NoError(err)
@@ -3029,7 +3029,7 @@ func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedByInvestment
 
 	assetID, err := invSvc.InsertAsset(ctx, userID, assetReq)
 	if err != nil {
-		if errors.Is(context.DeadlineExceeded, ctx.Err()) {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out")
 		}
 		s.Require().NoError(err)
