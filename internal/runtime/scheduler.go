@@ -148,7 +148,7 @@ func (s *Scheduler) registerInvestmentPriceSyncJob() error {
 	opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 
 	_, err = s.scheduler.NewJob(
-		gocron.DurationJob(1*time.Hour),
+		gocron.DurationJob(12*time.Hour),
 		gocron.NewTask(func() {
 			s.logger.Info("Starting investment price sync ...")
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
