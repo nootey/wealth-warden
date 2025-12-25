@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -95,7 +96,12 @@ func (c *PriceFetchClient) GetAssetPrice(ctx context.Context, ticker string, inv
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch price: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		closeErr := Body.Close()
+		if closeErr != nil {
+			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ticker '%s' not found on Yahoo Finance (status %d)", ticker, resp.StatusCode)
@@ -184,7 +190,12 @@ func (c *PriceFetchClient) GetAssetPriceOnDate(ctx context.Context, ticker strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch price: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		closeErr := Body.Close()
+		if closeErr != nil {
+			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ticker '%s' not found on Yahoo Finance (status %d)", ticker, resp.StatusCode)
@@ -293,7 +304,12 @@ func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, asset
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch prices: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		closeErr := Body.Close()
+		if closeErr != nil {
+			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("yahoo finance returned status %d", resp.StatusCode)
@@ -349,7 +365,12 @@ func (c *PriceFetchClient) GetExchangeRate(ctx context.Context, currency string)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch exchange rate: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		closeErr := Body.Close()
+		if closeErr != nil {
+			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("failed to get exchange rate for %s (status %d)", currency, resp.StatusCode)
