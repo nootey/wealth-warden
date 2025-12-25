@@ -52,7 +52,11 @@ func (rt *ServerRuntime) Run(context context.Context) error {
 	}
 
 	// Start scheduler
-	scheduler, err := NewScheduler(rt.Logger.Named("scheduler"), container, false)
+	scheduler, err := NewScheduler(rt.Logger.Named("scheduler"), container, SchedulerConfig{
+		StartBackfillImmediately:  false,
+		StartTemplateImmediately:  false,
+		StartPriceSyncImmediately: true,
+	})
 	if err != nil {
 		rt.Logger.Error("Failed to create scheduler", zap.Error(err))
 		return fmt.Errorf("failed to create scheduler: %w", err)

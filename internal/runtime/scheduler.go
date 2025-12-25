@@ -13,13 +13,19 @@ import (
 )
 
 type Scheduler struct {
-	logger           *zap.Logger
-	container        *bootstrap.Container
-	scheduler        gocron.Scheduler
-	startImmediately bool
+	logger    *zap.Logger
+	container *bootstrap.Container
+	scheduler gocron.Scheduler
+	config    SchedulerConfig
 }
 
-func NewScheduler(logger *zap.Logger, container *bootstrap.Container, startImmediately bool) (*Scheduler, error) {
+type SchedulerConfig struct {
+	StartBackfillImmediately  bool
+	StartTemplateImmediately  bool
+	StartPriceSyncImmediately bool
+}
+
+func NewScheduler(logger *zap.Logger, container *bootstrap.Container, config SchedulerConfig) (*Scheduler, error) {
 
 	if logger == nil {
 		return nil, fmt.Errorf("logger cannot be nil")
@@ -35,10 +41,10 @@ func NewScheduler(logger *zap.Logger, container *bootstrap.Container, startImmed
 	}
 
 	return &Scheduler{
-		logger:           logger,
-		container:        container,
-		scheduler:        s,
-		startImmediately: startImmediately,
+		logger:    logger,
+		container: container,
+		scheduler: s,
+		config:    config,
 	}, nil
 }
 
@@ -85,7 +91,7 @@ func (s *Scheduler) registerBackfillJob() error {
 	job := jobscheduler.NewBackfillJob(s.logger, s.container)
 
 	var opts []gocron.JobOption
-	if s.startImmediately {
+	if s.config.StartBackfillImmediately {
 		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 	}
 
@@ -112,7 +118,7 @@ func (s *Scheduler) registerTemplateJob() error {
 	job := jobscheduler.NewAutomateTemplateJob(s.logger, s.container)
 
 	var opts []gocron.JobOption
-	if s.startImmediately {
+	if s.config.StartTemplateImmediately {
 		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 	}
 
@@ -145,7 +151,9 @@ func (s *Scheduler) registerInvestmentPriceSyncJob() error {
 	job := jobscheduler.NewInvestmentPriceSyncJob(s.logger, s.container, client)
 
 	var opts []gocron.JobOption
-	opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
+	if s.config.StartPriceSyncImmediately {
+		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
+	}
 
 	_, err = s.scheduler.NewJob(
 		gocron.DurationJob(12*time.Hour),
