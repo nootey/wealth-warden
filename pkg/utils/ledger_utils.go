@@ -65,3 +65,16 @@ func CategorizeTransferDestination(accountType *models.AccountType) (isSavings, 
 
 	return false, false, false
 }
+
+func AdjustToWeekday(date time.Time) time.Time {
+	weekday := date.Weekday()
+
+	switch weekday {
+	case time.Saturday:
+		return date.AddDate(0, 0, 2)
+	case time.Sunday:
+		return date.AddDate(0, 0, 1)
+	default:
+		return date
+	}
+}

@@ -22,7 +22,8 @@ const menuItems: MenuItem[] = [
   { to: "/", icon: "pi-home", text: "Home" },
   { to: "/accounts", icon: "pi-hashtag", text: "Acc" },
   { to: "/transactions", icon: "pi-credit-card", text: "Txn" },
-  { to: "/charts", icon: "pi-chart-bar", text: "Charts" },
+  { to: "/charts", icon: "pi-chart-pie", text: "Charts" },
+  { to: "/investments", icon: "pi-chart-line", text: "Invest" },
   {
     to: "/users",
     icon: "pi-users",

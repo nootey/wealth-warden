@@ -6,6 +6,7 @@ import (
 	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/jobscheduler"
+	"wealth-warden/pkg/prices"
 
 	"github.com/go-co-op/gocron/v2"
 	"go.uber.org/zap"
@@ -71,6 +72,11 @@ func (s *Scheduler) registerJobs() error {
 		return err
 	}
 
+	err = s.registerInvestmentPriceSyncJob()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -121,6 +127,37 @@ func (s *Scheduler) registerTemplateJob() error {
 				s.logger.Error("Template processing failed", zap.Error(err))
 			} else {
 				s.logger.Info("Template processing completed successfully")
+			}
+		}),
+		opts...,
+	)
+	return err
+}
+
+func (s *Scheduler) registerInvestmentPriceSyncJob() error {
+
+	// Create price fetch client
+	client, err := prices.NewPriceFetchClient(s.container.Config.FinanceAPIBaseURL)
+	if err != nil {
+		s.logger.Warn("Failed to create price fetch client", zap.Error(err))
+	}
+
+	job := jobscheduler.NewInvestmentPriceSyncJob(s.logger, s.container, client)
+
+	var opts []gocron.JobOption
+	opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
+
+	_, err = s.scheduler.NewJob(
+		gocron.DurationJob(12*time.Hour),
+		gocron.NewTask(func() {
+			s.logger.Info("Starting investment price sync ...")
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+
+			if err := job.Run(ctx); err != nil {
+				s.logger.Error("Price sync failed", zap.Error(err))
+			} else {
+				s.logger.Info("Price sync completed")
 			}
 		}),
 		opts...,

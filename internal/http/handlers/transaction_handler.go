@@ -37,7 +37,7 @@ func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
 	p := utils.GetPaginationParams(qp)
 	includeDeleted := strings.EqualFold(qp.Get("include_deleted"), "true")
 
-	accountIDStr := qp.Get("account")
+	accountIDStr := qp.Get("account_id")
 	var accountID *int64
 	if accountIDStr != "" {
 		id, err := strconv.ParseInt(accountIDStr, 10, 64)

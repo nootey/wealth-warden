@@ -43,26 +43,29 @@ type AccountServiceInterface interface {
 }
 
 type AccountService struct {
-	repo          repositories.AccountRepositoryInterface
-	txnRepo       repositories.TransactionRepositoryInterface
-	settingsRepo  repositories.SettingsRepositoryInterface
-	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher jobqueue.JobDispatcher
+	repo           repositories.AccountRepositoryInterface
+	txnRepo        repositories.TransactionRepositoryInterface
+	settingsRepo   repositories.SettingsRepositoryInterface
+	investmentRepo repositories.InvestmentRepositoryInterface
+	loggingRepo    repositories.LoggingRepositoryInterface
+	jobDispatcher  jobqueue.JobDispatcher
 }
 
 func NewAccountService(
 	repo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
+	investmentRepo *repositories.InvestmentRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobqueue.JobDispatcher,
 ) *AccountService {
 	return &AccountService{
-		repo:          repo,
-		txnRepo:       txnRepo,
-		settingsRepo:  settingsRepo,
-		jobDispatcher: jobDispatcher,
-		loggingRepo:   loggingRepo,
+		repo:           repo,
+		txnRepo:        txnRepo,
+		settingsRepo:   settingsRepo,
+		investmentRepo: investmentRepo,
+		jobDispatcher:  jobDispatcher,
+		loggingRepo:    loggingRepo,
 	}
 }
 
@@ -476,6 +479,19 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		if err != nil {
 			tx.Rollback()
 			return 0, err
+		}
+
+		totalInvestmentValue, err := s.investmentRepo.FindTotalInvestmentValue(ctx, tx, exAcc.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
+		}
+
+		if totalInvestmentValue.GreaterThan(decimal.Zero) && desired.LessThan(totalInvestmentValue) {
+			tx.Rollback()
+			return 0, fmt.Errorf("cannot set balance to %s: account has %s in investments",
+				desired.StringFixed(2),
+				totalInvestmentValue.StringFixed(2))
 		}
 
 		// Match sign conventions
