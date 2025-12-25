@@ -295,7 +295,7 @@ func (s *InvestmentService) UpdateInvestmentAccountBalance(ctx context.Context, 
 		// Calculate P&L using historical quantity and spent
 		currentValueAtDate := qty.Mul(price)
 		pnlAtDate := currentValueAtDate.Sub(spent)
-		
+
 		totalPnLAsOf = totalPnLAsOf.Add(pnlAtDate)
 	}
 
@@ -575,7 +575,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	}
 
 	// Update unrealized P&L for remaining assets
-	if err := s.updateUnrealizedPnL(ctx, tx, asset, req.TxnDate); err != nil {
+	if err := s.updateUnrealizedPnL(ctx, tx, asset, req.TxnDate, req.TradeType); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -646,18 +646,25 @@ func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, as
 	)
 }
 
-func (s *InvestmentService) updateUnrealizedPnL(ctx context.Context, tx *gorm.DB, asset models.InvestmentAsset, txnDate time.Time) error {
-	// Update the checkpoint for trade date
-	if err := s.UpdateInvestmentAccountBalance(ctx, tx, asset.AccountID, asset.UserID, txnDate, asset.Account.Currency); err != nil {
-		return err
-	}
+func (s *InvestmentService) updateUnrealizedPnL(ctx context.Context, tx *gorm.DB, asset models.InvestmentAsset, txnDate time.Time, tradeType models.TradeType) error {
 
-	// If trade is in the past, update all checkpoints from txn_date to today
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	txnDateNorm := txnDate.UTC().Truncate(24 * time.Hour)
 
-	if txnDateNorm.Before(today) {
-		return s.UpdateInvestmentAccountBalanceRange(ctx, tx, asset.AccountID, asset.UserID, txnDateNorm.AddDate(0, 0, 1), today, asset.Account.Currency)
+	// For sells, start updating from the day after the sale because the sale day already has realized P&L recorded
+	startDate := txnDateNorm
+	if tradeType == models.InvestmentSell {
+		startDate = txnDateNorm.AddDate(0, 0, 1)
+	} else {
+		// For buys, update the trade date itself
+		if err := s.UpdateInvestmentAccountBalance(ctx, tx, asset.AccountID, asset.UserID, txnDateNorm, asset.Account.Currency); err != nil {
+			return err
+		}
+	}
+
+	// Update all checkpoints from startDate to today
+	if startDate.Before(today) || startDate.Equal(today) {
+		return s.UpdateInvestmentAccountBalanceRange(ctx, tx, asset.AccountID, asset.UserID, startDate, today, asset.Account.Currency)
 	}
 
 	return nil
