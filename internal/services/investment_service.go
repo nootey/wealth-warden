@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 	"wealth-warden/internal/jobqueue"
@@ -60,6 +61,8 @@ func NewInvestmentService(
 }
 
 var _ InvestmentServiceInterface = (*InvestmentService)(nil)
+
+var stockTickerRegex = regexp.MustCompile(`^[A-Z]{1,6}(\.[A-Z]{1,5})?$`)
 
 func (s *InvestmentService) FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error) {
 
@@ -182,15 +185,19 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	if s.priceFetchClient != nil {
 
 		formattedTicker = strings.ToUpper(req.Ticker)
-		if req.InvestmentType == models.InvestmentCrypto {
+		switch req.InvestmentType {
+		case models.InvestmentCrypto:
 			// Ensure format: BTC-USD
 			if !strings.Contains(formattedTicker, "-") {
 				formattedTicker = formattedTicker + "-USD"
 			}
-		} else if req.InvestmentType == models.InvestmentStock || req.InvestmentType == models.InvestmentETF {
-			// Ensure format: IWDA.AS
-			if !strings.Contains(formattedTicker, ".") {
-				return 0, fmt.Errorf("stock/ETF ticker must include exchange (e.g., IWDA.AS)")
+
+		case models.InvestmentStock, models.InvestmentETF:
+			// Allow either:
+			//   - pure ticker: AAPL
+			//   - ticker + exchange: IWDA.AS
+			if !stockTickerRegex.MatchString(formattedTicker) {
+				return 0, fmt.Errorf("invalid stock/ETF ticker: must look like AAPL or IWDA.AS")
 			}
 		}
 

@@ -114,11 +114,6 @@ const rules = {
       $autoDirty: true,
     },
     exchange: {
-      required: requiredIf(
-        () =>
-          selectedInvestmentType.value.toLowerCase() === "stock" ||
-          selectedInvestmentType.value.toLowerCase() === "etf",
-      ),
       $autoDirty: true,
     },
     currency: {
@@ -504,7 +499,7 @@ async function deleteRecord(id: number) {
         class="flex flex-column gap-1 w-full"
       >
         <ValidationError
-          :is-required="selectedInvestmentType.toLowerCase() !== 'crypto'"
+          :is-required="false"
           :message="v$.tickerData.exchange.$errors[0]?.$message"
         >
           <label>Exchange</label>
