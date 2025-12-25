@@ -1008,6 +1008,18 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 		return fmt.Errorf("can't find asset: %w", err)
 	}
 
+	// Validate deletion: check if removing this trade would cause quantity issues
+	if exTxn.TradeType == models.InvestmentBuy {
+
+		newQuantity := asset.Quantity.Sub(exTxn.Quantity)
+		if newQuantity.LessThan(decimal.Zero) {
+			tx.Rollback()
+			return fmt.Errorf("cannot delete buy trade: would result in negative quantity (current: %s, removing: %s)",
+				asset.Quantity.String(),
+				exTxn.Quantity.String())
+		}
+	}
+
 	// Reverse sell realized P&L if it was a sell
 	if exTxn.TradeType == models.InvestmentSell {
 		costBasis := exTxn.ValueAtBuy
