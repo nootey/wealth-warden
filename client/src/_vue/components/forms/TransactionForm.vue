@@ -27,8 +27,8 @@ import { useConfirm } from "primevue/useconfirm";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
-import {useSettingsStore} from "../../../services/stores/settings_store.ts";
-import type {UserSettings} from "../../../models/settings_models.ts";
+import { useSettingsStore } from "../../../services/stores/settings_store.ts";
+import type { UserSettings } from "../../../models/settings_models.ts";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -210,7 +210,7 @@ async function getSettings() {
     const res = await settingsStore.getUserSettings();
     userSettings.value = res.data;
   } catch (e) {
-    toastStore.errorResponseToast(e)
+    toastStore.errorResponseToast(e);
   }
 }
 
@@ -261,13 +261,16 @@ const todayInUserTimezone = computed(() => {
     const tz = userSettings.value?.timezone;
     if (!tz) {
       // Fallback to browser's local timezone if settings not loaded
-      return dayjs().startOf('day').toDate();
+      return dayjs().startOf("day").toDate();
     }
-    return dayjs().tz(tz).startOf('day').toDate();
+    return dayjs().tz(tz).startOf("day").toDate();
   } catch (error) {
     // If timezone is invalid or dayjs fails, fallback to browser local time
-    console.warn('Failed to calculate date in user timezone, using local:', error);
-    return dayjs().startOf('day').toDate();
+    console.warn(
+      "Failed to calculate date in user timezone, using local:",
+      error,
+    );
+    return dayjs().startOf("day").toDate();
   }
 });
 

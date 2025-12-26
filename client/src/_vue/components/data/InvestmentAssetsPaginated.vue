@@ -183,7 +183,9 @@ defineExpose({ refresh });
             "
           >
             <div class="flex flex-row gap-2 align-items-center">
-              <span>{{ vueHelper.displayAsCurrency(data[col.field]) }}</span>
+              <span>{{
+                vueHelper.displayAsCurrency(data[col.field], data["currency"])
+              }}</span>
             </div>
           </template>
           <template v-else-if="col.field == 'profit_loss'">
@@ -198,7 +200,9 @@ defineExpose({ refresh });
                 }"
               />
               <span>
-                {{ vueHelper.displayAsCurrency(data[col.field]) }}
+                {{
+                  vueHelper.displayAsCurrency(data[col.field], data["currency"])
+                }}
               </span>
             </div>
           </template>
