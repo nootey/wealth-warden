@@ -16,7 +16,7 @@ type PriceFetcher interface {
 	GetAssetPrice(ctx context.Context, ticker string, investmentType models.InvestmentType) (*PriceData, error)
 	GetAssetPriceOnDate(ctx context.Context, ticker string, investmentType models.InvestmentType, date time.Time) (*PriceData, error)
 	GetPricesForMultipleAssets(ctx context.Context, assets []AssetRequest) (map[string]*PriceData, error)
-	GetExchangeRate(ctx context.Context, currency string) (float64, error)
+	GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string) (float64, error)
 }
 
 type PriceFetchClient struct {
@@ -344,14 +344,48 @@ func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, asset
 	return result, nil
 }
 
-func (c *PriceFetchClient) GetExchangeRate(ctx context.Context, currency string) (float64, error) {
-	if strings.ToUpper(currency) == "USD" {
+func (c *PriceFetchClient) GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string) (float64, error) {
+	fromCurrency = strings.ToUpper(fromCurrency)
+	toCurrency = strings.ToUpper(toCurrency)
+
+	// Same currency, no conversion needed
+	if fromCurrency == toCurrency {
 		return 1.0, nil
 	}
 
-	// Yahoo format: EUR=X for EUR/USD rate
-	symbol := fmt.Sprintf("%s=X", strings.ToUpper(currency))
+	// If converting TO USD, we need the inverse
+	if toCurrency == "USD" {
+		symbol := fmt.Sprintf("%s=X", fromCurrency)
+		rate, err := c.fetchYahooRate(ctx, symbol)
+		if err != nil {
+			return 0, err
+		}
+		return rate, nil
+	}
 
+	// If converting from USD, we need the rate directly
+	if fromCurrency == "USD" {
+		symbol := fmt.Sprintf("%s=X", toCurrency)
+		rate, err := c.fetchYahooRate(ctx, symbol)
+		if err != nil {
+			return 0, err
+		}
+		return rate, nil
+	}
+
+	// For other currency pairs, convert through USD
+	fromToUsd, err := c.GetExchangeRate(ctx, fromCurrency, "USD")
+	if err != nil {
+		return 0, err
+	}
+	toToUsd, err := c.GetExchangeRate(ctx, toCurrency, "USD")
+	if err != nil {
+		return 0, err
+	}
+	return fromToUsd / toToUsd, nil
+}
+
+func (c *PriceFetchClient) fetchYahooRate(ctx context.Context, symbol string) (float64, error) {
 	url := fmt.Sprintf("%s/v8/finance/chart/%s?interval=1d&range=1d", c.baseURL, symbol)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -366,14 +400,11 @@ func (c *PriceFetchClient) GetExchangeRate(ctx context.Context, currency string)
 		return 0, fmt.Errorf("failed to fetch exchange rate: %w", err)
 	}
 	defer func(Body io.ReadCloser) {
-		closeErr := Body.Close()
-		if closeErr != nil {
-			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
-		}
+		_ = Body.Close()
 	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("failed to get exchange rate for %s (status %d)", currency, resp.StatusCode)
+		return 0, fmt.Errorf("failed to get exchange rate for %s (status %d)", symbol, resp.StatusCode)
 	}
 
 	var data ChartResponse
@@ -382,12 +413,12 @@ func (c *PriceFetchClient) GetExchangeRate(ctx context.Context, currency string)
 	}
 
 	if len(data.Chart.Result) == 0 {
-		return 0, fmt.Errorf("no exchange rate data for %s", currency)
+		return 0, fmt.Errorf("no exchange rate data for %s", symbol)
 	}
 
 	rate := data.Chart.Result[0].Meta.RegularMarketPrice
 	if rate == 0 {
-		return 0, fmt.Errorf("invalid exchange rate (0) for %s", currency)
+		return 0, fmt.Errorf("invalid exchange rate (0) for %s", symbol)
 	}
 
 	return rate, nil

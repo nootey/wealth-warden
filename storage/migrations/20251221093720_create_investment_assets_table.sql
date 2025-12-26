@@ -20,6 +20,7 @@ CREATE TABLE investment_assets (
     profit_loss_percent NUMERIC(19,4) NOT NULL,
     current_price NUMERIC(19,4),
     last_price_update TIMESTAMPTZ,
+    currency CHAR(3) NOT NULL DEFAULT 'USD',
 
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

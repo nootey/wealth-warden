@@ -55,7 +55,7 @@ const selectedTradeType = ref<string>(
   tradeTypes.value.find((i) => i === "Buy") ?? "Sell",
 );
 
-const availableCurrencies = ref<string[]>(["USD", "EUR", "GBP"]);
+const availableCurrencies = ref<string[]>(["USD", "EUR"]);
 
 const quantityRef = computed({
   get: () => record.value.quantity,
@@ -214,7 +214,7 @@ async function manageRecord() {
     quantity: record.value.quantity,
     price_per_unit: record.value.price_per_unit,
     fee: record.value.fee,
-    currency: record.value.currency,
+    currency: record.value.currency.toUpperCase(),
     description: record.value.description,
   };
 

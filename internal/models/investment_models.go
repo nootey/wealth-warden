@@ -29,6 +29,7 @@ type InvestmentAsset struct {
 	ProfitLoss        decimal.Decimal  `gorm:"type:decimal(19,4);not null;default:0" json:"profit_loss"`
 	ProfitLossPercent decimal.Decimal  `gorm:"type:decimal(10,2);not null;default:0" json:"profit_loss_percent"`
 	LastPriceUpdate   *time.Time       `json:"last_price_update"`
+	Currency          string           `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
 	Account           Account          `json:"account"`
 	CreatedAt         time.Time        `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
@@ -69,6 +70,7 @@ type InvestmentAssetReq struct {
 	Name           string          `json:"name" validate:"required"`
 	Ticker         string          `json:"ticker" validate:"required"`
 	Quantity       decimal.Decimal `json:"quantity" validate:"required"`
+	Currency       string          `json:"currency" validate:"required"`
 }
 
 type InvestmentTradeReq struct {

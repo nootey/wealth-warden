@@ -65,6 +65,8 @@ const selectedInvestmentType = ref<string>(
   investmentTypes.value.find((i) => i === "Crypto") ?? "ETF",
 );
 
+const availableCurrencies = ref<string[]>(["USD", "EUR"]);
+
 const availableAccounts = computed(() => {
   const typeMap: Record<string, string[]> = {
     crypto: ["wallet", "exchange"],
@@ -107,6 +109,10 @@ const rules = {
       decimalMax: decimalMax(1_000_000_000),
       $autoDirty: true,
     },
+    currency: {
+      required,
+      $autoDirty: true,
+    },
   },
   tickerData: {
     name: {
@@ -114,9 +120,6 @@ const rules = {
       $autoDirty: true,
     },
     exchange: {
-      $autoDirty: true,
-    },
-    currency: {
       $autoDirty: true,
     },
   },
@@ -139,6 +142,7 @@ function initData(): InvestmentAsset {
     name: "",
     ticker: "",
     quantity: "0",
+    currency: "USD",
   };
 }
 
@@ -169,8 +173,8 @@ async function loadRecord(id: number) {
     if (data.ticker) {
       if (data.ticker.includes("-")) {
         // Crypto: "BTC-USD"
-        const [name, currency] = data.ticker.split("-");
-        tickerData.value = { name, exchange: "", currency };
+        const [name] = data.ticker.split("-");
+        tickerData.value = { name, exchange: "", currency: data.currency };
       } else if (data.ticker.includes(".")) {
         // Stock/ETF: "IWDA.L"
         const [name, exchange] = data.ticker.split(".");
@@ -201,10 +205,7 @@ async function manageRecord() {
 
   if (selectedInvestmentType.value.toLowerCase() === "crypto") {
     // Crypto: "BTC-USD"
-    const currency = tickerData.value.currency
-      ? tickerData.value.currency.toUpperCase()
-      : "USD";
-    ticker = `${ticker}-${currency}`;
+    ticker = `${ticker}-${record.value.currency}`;
   } else {
     // Stock/ETF: "IWDA.L"
     if (tickerData.value.exchange) {
@@ -218,6 +219,7 @@ async function manageRecord() {
     quantity: record.value.quantity,
     name: record.value.name,
     ticker: ticker,
+    currency: record.value.currency.toUpperCase(),
   };
 
   try {
@@ -475,8 +477,8 @@ async function deleteRecord(id: number) {
       <span style="color: var(--text-secondary)">Formatting guide</span>
     </div>
 
-    <div class="flex flex-row w-full">
-      <div class="flex flex-column gap-1 w-full">
+    <div class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
         <ValidationError
           :is-required="true"
           :message="v$.tickerData.name.$errors[0]?.$message"
@@ -487,6 +489,22 @@ async function deleteRecord(id: number) {
           v-model="tickerData.name"
           size="small"
           placeholder="Input ticker"
+          :readonly="isReadOnly"
+          :disabled="isReadOnly"
+        />
+      </div>
+      <div class="flex flex-column gap-1 w-6">
+        <ValidationError
+          :is-required="true"
+          :message="v$.record.currency.$errors[0]?.$message"
+        >
+          <label>Currency</label>
+        </ValidationError>
+        <Select
+          v-model="record.currency"
+          :options="availableCurrencies"
+          size="small"
+          placeholder="Select currency"
           :readonly="isReadOnly"
           :disabled="isReadOnly"
         />
@@ -508,21 +526,6 @@ async function deleteRecord(id: number) {
           v-model="tickerData.exchange"
           size="small"
           placeholder="Input exchange"
-          :readonly="isReadOnly"
-          :disabled="isReadOnly"
-        />
-      </div>
-      <div v-else class="flex flex-column gap-1 w-full">
-        <ValidationError
-          :is-required="false"
-          :message="v$.tickerData.currency.$errors[0]?.$message"
-        >
-          <label>Currency</label>
-        </ValidationError>
-        <InputText
-          v-model="tickerData.currency"
-          size="small"
-          placeholder="Input currency"
           :readonly="isReadOnly"
           :disabled="isReadOnly"
         />

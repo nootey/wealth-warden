@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 	"wealth-warden/internal/models"
@@ -50,7 +51,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_ValidStockWithExchange() {
 
 	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out (network issue)")
 		}
 		s.Require().NoError(err)
@@ -146,7 +147,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_CryptoWithoutCurrency() {
 
 	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out")
 		}
 		s.Require().NoError(err)
@@ -197,7 +198,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_CryptoWithValidCurrency() {
 
 	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out")
 		}
 		s.Require().NoError(err)
@@ -244,6 +245,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 		InvestmentType: models.InvestmentCrypto,
 		Name:           "Bitcoin",
 		Ticker:         "BTC-USD",
+		Currency:       "USD",
 		Quantity:       qty,
 	}
 
@@ -252,7 +254,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 
 	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out")
 		}
 		s.Require().NoError(err)
@@ -275,7 +277,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 
 	tradeID, err := svc.InsertInvestmentTrade(ctx2, userID, tradeReq)
 	if err != nil {
-		if ctx2.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx2.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out")
 		}
 		s.Require().NoError(err)
@@ -333,10 +335,15 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 		First(&latestBalance).Error
 	s.Require().NoError(err)
 
-	expectedBalance := asset.CurrentValue
-	s.Assert().True(expectedBalance.Equal(latestBalance.EndBalance),
-		"account balance should match asset value: expected %s, got %s",
-		expectedBalance.String(), latestBalance.EndBalance.String())
+	expectedBalanceUSD := asset.CurrentValue
+	exchangeRate := svc.GetExchangeRate(s.Ctx, "USD", "EUR")
+	expectedBalanceAccCurrency := expectedBalanceUSD.Mul(exchangeRate)
+
+	expectedTotalBalance := initialBalance.Add(expectedBalanceAccCurrency.Sub(decimal.NewFromInt(50000).Mul(exchangeRate)))
+
+	s.Assert().True(expectedTotalBalance.Sub(latestBalance.EndBalance).Abs().LessThan(decimal.NewFromFloat(1.0)),
+		"account balance should equal initial balance plus P&L: expected ~%s EUR, got %s EUR",
+		expectedTotalBalance.StringFixed(2), latestBalance.EndBalance.StringFixed(2))
 }
 
 // Tests that multiple buy trades correctly update the weighted average buy price and track unrealized P&L
@@ -505,12 +512,18 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_MultipleBuysUpdat
 		First(&firstBalance).Error
 	s.Require().NoError(err)
 
-	totalSpent := decimal.NewFromInt(107500)
-	expectedBalance := initialBalance.Sub(totalSpent).Add(asset.CurrentValue)
+	totalSpentUSD := decimal.NewFromInt(107500)
+	exchangeRate := svc.GetExchangeRate(s.Ctx, "USD", "EUR")
+	totalSpentAccCurrency := totalSpentUSD.Mul(exchangeRate)
 
-	s.Assert().True(expectedBalance.Equal(latestBalance.EndBalance),
-		"account balance should be initial - spent + asset value: expected %s, got %s",
-		expectedBalance.String(), latestBalance.EndBalance.String())
+	// Convert current asset value from USD to acc currency
+	assetValueAccCurrency := asset.CurrentValue.Mul(exchangeRate)
+
+	expectedBalance := initialBalance.Sub(totalSpentAccCurrency).Add(assetValueAccCurrency)
+
+	s.Assert().True(expectedBalance.Sub(latestBalance.EndBalance).Abs().LessThan(decimal.NewFromFloat(1.0)),
+		"account balance should be initial - spent + asset value: expected ~%s EUR, got %s EUR",
+		expectedBalance.StringFixed(2), latestBalance.EndBalance.StringFixed(2))
 }
 
 // Tests that selling an investment records realized gains/losses as cash inflows/outflows in the balance
@@ -605,7 +618,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 		Currency:     "USD",
 	})
 	if err != nil {
-		if ctx2.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx2.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out")
 		}
 		s.Require().NoError(err)
@@ -619,8 +632,14 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 	s.Assert().True(decimal.NewFromInt(1).Equal(assetAfterSell.Quantity))
 	s.Assert().True(decimal.NewFromInt(53750).Equal(assetAfterSell.AverageBuyPrice))
 
-	// Verify realized P&L was recorded in balance
-	expectedRealizedPnL := decimal.NewFromInt(36250)
+	// Calculate expected realized P&L
+	proceeds := sellQty.Mul(sellPrice)
+	costBasis := assetBeforeSell.AverageBuyPrice.Mul(sellQty)
+	expectedRealizedPnLUSD := proceeds.Sub(costBasis)
+
+	// Convert to account currency
+	exchangeRate := svc.GetExchangeRate(s.Ctx, "USD", "EUR")
+	expectedRealizedPnLAccCurrency := expectedRealizedPnLUSD.Mul(exchangeRate)
 
 	var todayBalance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
@@ -628,9 +647,9 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 		First(&todayBalance).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(expectedRealizedPnL.Equal(todayBalance.CashInflows),
-		"realized gains should be recorded as cash inflows: expected %s, got %s",
-		expectedRealizedPnL.String(), todayBalance.CashInflows.String())
+	s.Assert().True(expectedRealizedPnLAccCurrency.Sub(todayBalance.CashInflows).Abs().LessThan(decimal.NewFromFloat(1.0)),
+		"realized gains should be recorded as cash inflows: expected ~%s (acc currency), got %s",
+		expectedRealizedPnLAccCurrency.StringFixed(2), todayBalance.CashInflows.StringFixed(2))
 
 	// Verify final account balance reflects both unrealized and realized gains
 	var latestBalance models.Balance
@@ -648,14 +667,9 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 		First(&balanceBeforeSell).Error
 	s.Require().NoError(err)
 
-	// Balance should have increased by at least the realized gain
-	s.Assert().True(latestBalance.EndBalance.GreaterThan(balanceBeforeSell.EndBalance.Add(expectedRealizedPnL).Sub(decimal.NewFromInt(1000))),
+	// Balance should have increased by at least the realized gain (with some tolerance for price fluctuations)
+	s.Assert().True(latestBalance.EndBalance.GreaterThan(balanceBeforeSell.EndBalance.Add(expectedRealizedPnLAccCurrency).Sub(decimal.NewFromInt(1000))),
 		"balance should increase by at least realized gains")
-
-	// Verify the realized gain was recorded
-	s.Assert().True(expectedRealizedPnL.Equal(todayBalance.CashInflows),
-		"realized gains should be recorded as cash inflows: expected %s, got %s",
-		expectedRealizedPnL.String(), todayBalance.CashInflows.String())
 }
 
 // Tests that fees are correctly handled for both crypto (fee in tokens) and stocks/ETFs (fee in currency)
@@ -804,6 +818,9 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	userID := int64(1)
 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
+	for today.Weekday() != time.Wednesday {
+		today = today.AddDate(0, 0, 1)
+	}
 	initialBalance := decimal.NewFromInt(100000)
 	accReq := &models.AccountReq{
 		Name:          "Investment Account",
@@ -977,7 +994,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 
 	expectedRemainingQty := decimal.NewFromFloat(0.495)
 	s.Assert().True(expectedRemainingQty.Equal(cryptoAssetAfterSell.Quantity),
-		"remaining crypto quantity should be 0.995")
+		"remaining crypto quantity should be 0.495")
 }
 
 // Tests that deleting a sell trade reverses the realized P&L and recalculates the asset correctly

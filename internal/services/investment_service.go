@@ -225,6 +225,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 		Name:            req.Name,
 		Ticker:          formattedTicker,
 		Quantity:        req.Quantity,
+		Currency:        req.Currency,
 		AverageBuyPrice: decimal.Zero,
 		CurrentPrice:    currentPrice,
 		LastPriceUpdate: lastPriceUpdate,
@@ -296,7 +297,14 @@ func (s *InvestmentService) UpdateInvestmentAccountBalance(ctx context.Context, 
 		currentValueAtDate := qty.Mul(price)
 		pnlAtDate := currentValueAtDate.Sub(spent)
 
-		totalPnLAsOf = totalPnLAsOf.Add(pnlAtDate)
+		// Convert P&L to account currency if needed
+		pnlInAccountCurrency := pnlAtDate
+		if asset.Currency != currency {
+			exchangeRate := s.GetExchangeRate(ctx, asset.Currency, currency)
+			pnlInAccountCurrency = pnlAtDate.Mul(exchangeRate)
+		}
+
+		totalPnLAsOf = totalPnLAsOf.Add(pnlInAccountCurrency)
 	}
 
 	var previousPnL decimal.Decimal
@@ -418,6 +426,28 @@ func (s *InvestmentService) generateCheckpointDates(fromDate, toDate time.Time) 
 	return dates
 }
 
+func (s *InvestmentService) getTotalInvestmentValueInAccountCurrency(ctx context.Context, tx *gorm.DB, accountID, userID int64, accountCurrency string, exchangeRate decimal.Decimal) (decimal.Decimal, error) {
+	assets, err := s.repo.FindAssetsByAccountID(ctx, tx, accountID, userID)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	totalInvestmentValue := decimal.Zero
+	for _, a := range assets {
+		if a.Quantity.IsZero() {
+			continue
+		}
+
+		valueInAccountCurrency := a.CurrentValue
+		if a.Currency != accountCurrency {
+			valueInAccountCurrency = a.CurrentValue.Mul(exchangeRate)
+		}
+		totalInvestmentValue = totalInvestmentValue.Add(valueInAccountCurrency)
+	}
+
+	return totalInvestmentValue, nil
+}
+
 func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID int64, req *models.InvestmentTradeReq) (int64, error) {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
@@ -437,6 +467,8 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, fmt.Errorf("can't find asset with given id %w", err)
 	}
 
+	exchangeRate := s.GetExchangeRate(ctx, req.Currency, asset.Account.Currency)
+
 	// Validate amounts
 	if req.TradeType == models.InvestmentSell && req.Quantity.GreaterThan(asset.Quantity) {
 		tx.Rollback()
@@ -447,7 +479,6 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	}
 
 	if req.TradeType == models.InvestmentBuy {
-
 		availableBalance, err := s.accRepo.FindLatestBalance(ctx, tx, asset.AccountID, userID)
 		if err != nil {
 			tx.Rollback()
@@ -457,7 +488,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 			return 0, fmt.Errorf("failed to get account balance: %w", err)
 		}
 
-		totalInvestmentValue, err := s.repo.FindTotalInvestmentValue(ctx, tx, asset.AccountID, userID)
+		totalInvestmentValue, err := s.getTotalInvestmentValueInAccountCurrency(ctx, tx, asset.AccountID, userID, asset.Account.Currency, exchangeRate)
 		if err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
@@ -465,32 +496,37 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 
 		purchaseCost := req.Quantity.Mul(req.PricePerUnit)
 		if req.Fee != nil {
-			// For crypto, fee is in tokens and doesn't affect purchase cost
 			if asset.InvestmentType == models.InvestmentStock || asset.InvestmentType == models.InvestmentETF {
 				purchaseCost = purchaseCost.Add(*req.Fee)
 			}
 		}
 
+		purchaseCostInAccountCurrency := purchaseCost
+		if req.Currency != asset.Account.Currency {
+			purchaseCostInAccountCurrency = purchaseCost.Mul(exchangeRate)
+		}
+
 		remainingBalance := availableBalance.EndBalance.Sub(totalInvestmentValue)
 		if remainingBalance.LessThan(decimal.Zero) {
 			tx.Rollback()
-			return 0, fmt.Errorf("account balance inconsistency detected: total investments (%s) exceed account balance (%s)",
+			return 0, fmt.Errorf("account balance inconsistency detected: total investments (%s %s) exceed account balance (%s %s)",
 				totalInvestmentValue.StringFixed(2),
-				availableBalance.EndBalance.StringFixed(2))
+				asset.Account.Currency,
+				availableBalance.EndBalance.StringFixed(2),
+				asset.Account.Currency)
 		}
 
-		if purchaseCost.GreaterThan(remainingBalance) {
+		if purchaseCostInAccountCurrency.GreaterThan(remainingBalance) {
 			tx.Rollback()
-			return 0, fmt.Errorf("insufficient funds: need %s, but only %s available (balance: %s, invested: %s)",
-				purchaseCost.StringFixed(2),
+			return 0, fmt.Errorf("insufficient funds: need %s %s, but only %s %s available (balance: %s, invested: %s)",
+				purchaseCostInAccountCurrency.StringFixed(2),
+				asset.Account.Currency,
 				remainingBalance.StringFixed(2),
+				asset.Account.Currency,
 				availableBalance.EndBalance.StringFixed(2),
 				totalInvestmentValue.StringFixed(2))
 		}
 	}
-
-	// Get exchange rate
-	exchangeRate := s.getExchangeRate(ctx, req.Currency)
 
 	// Calculate fee
 	fee := decimal.NewFromFloat(0.00)
@@ -567,12 +603,11 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 
 	// Handle selling - calculate and record realized P&L
 	if req.TradeType == models.InvestmentSell {
-		if err := s.handleSellTrade(ctx, tx, asset, effectiveQuantity, req.PricePerUnit, fee, asset.InvestmentType, req.TxnDate); err != nil {
+		if err := s.handleSellTrade(ctx, tx, asset, effectiveQuantity, req.PricePerUnit, fee, asset.InvestmentType, req.TxnDate, req.Currency); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
 	}
-
 	// Update asset with new quantity and price
 	err = s.repo.UpdateAssetAfterTrade(
 		ctx, tx, asset.ID, effectiveQuantity, req.PricePerUnit,
@@ -621,7 +656,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	return txnID, nil
 }
 
-func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, asset models.InvestmentAsset, quantitySold, salePrice, fee decimal.Decimal, investmentType models.InvestmentType, txnDate time.Time) error {
+func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, asset models.InvestmentAsset, quantitySold, salePrice, fee decimal.Decimal, investmentType models.InvestmentType, txnDate time.Time, tradeCurrency string) error {
 
 	var proceeds decimal.Decimal
 	if investmentType == models.InvestmentCrypto {
@@ -634,16 +669,22 @@ func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, as
 	costBasis := asset.AverageBuyPrice.Mul(quantitySold)
 	realizedPnL := proceeds.Sub(costBasis)
 
+	realizedPnLInAccountCurrency := realizedPnL
+	if tradeCurrency != asset.Account.Currency {
+		exchangeRate := s.GetExchangeRate(ctx, tradeCurrency, asset.Account.Currency)
+		realizedPnLInAccountCurrency = realizedPnL.Mul(exchangeRate)
+	}
+
 	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency); err != nil {
 		return err
 	}
 
-	if realizedPnL.GreaterThanOrEqual(decimal.Zero) {
-		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_inflows", realizedPnL); err != nil {
+	if realizedPnLInAccountCurrency.GreaterThanOrEqual(decimal.Zero) {
+		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_inflows", realizedPnLInAccountCurrency); err != nil {
 			return err
 		}
 	} else {
-		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", realizedPnL.Abs()); err != nil {
+		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", realizedPnLInAccountCurrency.Abs()); err != nil {
 			return err
 		}
 	}
@@ -651,7 +692,6 @@ func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, as
 	if err := s.accRepo.FrontfillBalances(ctx, tx, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
 		return err
 	}
-
 	return s.accRepo.UpsertSnapshotsFromBalances(
 		ctx, tx,
 		asset.UserID,
@@ -686,9 +726,9 @@ func (s *InvestmentService) updateUnrealizedPnL(ctx context.Context, tx *gorm.DB
 	return nil
 }
 
-func (s *InvestmentService) getExchangeRate(ctx context.Context, currency string) decimal.Decimal {
+func (s *InvestmentService) GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string) decimal.Decimal {
 	if s.priceFetchClient != nil {
-		rate, err := s.priceFetchClient.GetExchangeRate(ctx, currency)
+		rate, err := s.priceFetchClient.GetExchangeRate(ctx, fromCurrency, toCurrency)
 		if err == nil {
 			return decimal.NewFromFloat(rate)
 		}
@@ -905,18 +945,25 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 		costBasis := txn.ValueAtBuy
 		realizedPnL := txn.RealizedValue.Sub(costBasis)
 
+		// Convert realized P&L to account currency if needed
+		realizedPnLInAccountCurrency := realizedPnL
+		if txn.Currency != asset.Account.Currency {
+			exchangeRate := s.GetExchangeRate(ctx, txn.Currency, asset.Account.Currency)
+			realizedPnLInAccountCurrency = realizedPnL.Mul(exchangeRate)
+		}
+
 		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txn.TxnDate, asset.Account.Currency); err != nil {
 			tx.Rollback()
 			return err
 		}
 
-		if realizedPnL.GreaterThanOrEqual(decimal.Zero) {
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txn.TxnDate, "cash_inflows", realizedPnL.Neg()); err != nil {
+		if realizedPnLInAccountCurrency.GreaterThanOrEqual(decimal.Zero) {
+			if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txn.TxnDate, "cash_inflows", realizedPnLInAccountCurrency.Neg()); err != nil {
 				tx.Rollback()
 				return err
 			}
 		} else {
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txn.TxnDate, "cash_outflows", realizedPnL.Abs().Neg()); err != nil {
+			if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txn.TxnDate, "cash_outflows", realizedPnLInAccountCurrency.Abs().Neg()); err != nil {
 				tx.Rollback()
 				return err
 			}
@@ -1025,18 +1072,25 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 		costBasis := exTxn.ValueAtBuy
 		realizedPnL := exTxn.RealizedValue.Sub(costBasis)
 
+		// Convert realized P&L to account currency if needed
+		realizedPnLInAccountCurrency := realizedPnL
+		if exTxn.Currency != asset.Account.Currency {
+			exchangeRate := s.GetExchangeRate(ctx, exTxn.Currency, asset.Account.Currency)
+			realizedPnLInAccountCurrency = realizedPnL.Mul(exchangeRate)
+		}
+
 		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, exTxn.TxnDate, asset.Account.Currency); err != nil {
 			tx.Rollback()
 			return err
 		}
 
-		if realizedPnL.GreaterThanOrEqual(decimal.Zero) {
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, exTxn.TxnDate, "cash_inflows", realizedPnL.Neg()); err != nil {
+		if realizedPnLInAccountCurrency.GreaterThanOrEqual(decimal.Zero) {
+			if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, exTxn.TxnDate, "cash_inflows", realizedPnLInAccountCurrency.Neg()); err != nil {
 				tx.Rollback()
 				return err
 			}
 		} else {
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, exTxn.TxnDate, "cash_outflows", realizedPnL.Abs().Neg()); err != nil {
+			if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, exTxn.TxnDate, "cash_outflows", realizedPnLInAccountCurrency.Abs().Neg()); err != nil {
 				tx.Rollback()
 				return err
 			}

@@ -531,7 +531,7 @@ func TestGetExchangeRate_USD(t *testing.T) {
 	resetMocks()
 
 	ctx := context.Background()
-	rate, err := fetcher.GetExchangeRate(ctx, "USD")
+	rate, err := fetcher.GetExchangeRate(ctx, "USD", "USD")
 
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
@@ -550,7 +550,7 @@ func TestGetExchangeRate_ValidCurrency(t *testing.T) {
 	mockQuoteResponse = nil
 
 	ctx := context.Background()
-	rate, err := fetcher.GetExchangeRate(ctx, "EUR")
+	rate, err := fetcher.GetExchangeRate(ctx, "EUR", "USD")
 
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
@@ -568,7 +568,7 @@ func TestGetExchangeRate_InvalidCurrency(t *testing.T) {
 	mockResponse = nil
 
 	ctx := context.Background()
-	rate, err := fetcher.GetExchangeRate(ctx, "INVALID")
+	rate, err := fetcher.GetExchangeRate(ctx, "INVALID", "USD")
 
 	if err == nil {
 		t.Fatal("Expected error for invalid currency, got nil")
