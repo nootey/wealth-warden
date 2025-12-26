@@ -297,6 +297,7 @@ async function handleEmit(type: string) {
         <div class="flex flex-row gap-2">
           <TransactionsPaginated
             ref="txRef"
+            :acc-i-d="accID"
             :read-only="true"
             :columns="transactionColumns"
           />

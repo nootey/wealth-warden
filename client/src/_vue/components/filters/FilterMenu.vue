@@ -10,10 +10,12 @@ const props = defineProps<{
 }>();
 
 const items = computed(() =>
-  props.columns.map((c) => {
-    const { def, icon } = resolveFor(c);
-    return { col: c, def, icon, label: c.header, key: c.field };
-  }),
+  props.columns
+    .filter((c) => !c.hideFromFilter)
+    .map((c) => {
+      const { def, icon } = resolveFor(c);
+      return { col: c, def, icon, label: c.header, key: c.field };
+    }),
 );
 
 const selectedKey = ref<string | null>(null);
@@ -128,7 +130,7 @@ function onCommit() {
     class="flex flex-row w-full gap-1 p-2"
     style="height: 250px"
   >
-    <div class="flex flex-column w-4 gap-2 p-1">
+    <div class="flex flex-column w-4 gap-2 p-1" style="overflow-y: auto">
       <button
         v-for="i in items"
         :key="i.key"

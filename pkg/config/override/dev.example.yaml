@@ -1,5 +1,6 @@
 host: "127.0.0.1"
 release: false
+finance_api_base_url: "https://query1.finance.yahoo.com"
 
 http_server:
   port: 2000

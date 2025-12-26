@@ -6,19 +6,26 @@ import (
 	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/jobscheduler"
+	"wealth-warden/pkg/finance"
 
 	"github.com/go-co-op/gocron/v2"
 	"go.uber.org/zap"
 )
 
 type Scheduler struct {
-	logger           *zap.Logger
-	container        *bootstrap.Container
-	scheduler        gocron.Scheduler
-	startImmediately bool
+	logger    *zap.Logger
+	container *bootstrap.Container
+	scheduler gocron.Scheduler
+	config    SchedulerConfig
 }
 
-func NewScheduler(logger *zap.Logger, container *bootstrap.Container, startImmediately bool) (*Scheduler, error) {
+type SchedulerConfig struct {
+	StartBackfillImmediately  bool
+	StartTemplateImmediately  bool
+	StartPriceSyncImmediately bool
+}
+
+func NewScheduler(logger *zap.Logger, container *bootstrap.Container, config SchedulerConfig) (*Scheduler, error) {
 
 	if logger == nil {
 		return nil, fmt.Errorf("logger cannot be nil")
@@ -34,10 +41,10 @@ func NewScheduler(logger *zap.Logger, container *bootstrap.Container, startImmed
 	}
 
 	return &Scheduler{
-		logger:           logger,
-		container:        container,
-		scheduler:        s,
-		startImmediately: startImmediately,
+		logger:    logger,
+		container: container,
+		scheduler: s,
+		config:    config,
 	}, nil
 }
 
@@ -71,6 +78,11 @@ func (s *Scheduler) registerJobs() error {
 		return err
 	}
 
+	err = s.registerInvestmentPriceSyncJob()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -79,7 +91,7 @@ func (s *Scheduler) registerBackfillJob() error {
 	job := jobscheduler.NewBackfillJob(s.logger, s.container)
 
 	var opts []gocron.JobOption
-	if s.startImmediately {
+	if s.config.StartBackfillImmediately {
 		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 	}
 
@@ -106,7 +118,7 @@ func (s *Scheduler) registerTemplateJob() error {
 	job := jobscheduler.NewAutomateTemplateJob(s.logger, s.container)
 
 	var opts []gocron.JobOption
-	if s.startImmediately {
+	if s.config.StartTemplateImmediately {
 		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 	}
 
@@ -121,6 +133,39 @@ func (s *Scheduler) registerTemplateJob() error {
 				s.logger.Error("Template processing failed", zap.Error(err))
 			} else {
 				s.logger.Info("Template processing completed successfully")
+			}
+		}),
+		opts...,
+	)
+	return err
+}
+
+func (s *Scheduler) registerInvestmentPriceSyncJob() error {
+
+	// Create price fetch client
+	client, err := finance.NewPriceFetchClient(s.container.Config.FinanceAPIBaseURL)
+	if err != nil {
+		s.logger.Warn("Failed to create price fetch client", zap.Error(err))
+	}
+
+	job := jobscheduler.NewInvestmentPriceSyncJob(s.logger, s.container, client)
+
+	var opts []gocron.JobOption
+	if s.config.StartPriceSyncImmediately {
+		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
+	}
+
+	_, err = s.scheduler.NewJob(
+		gocron.DurationJob(12*time.Hour),
+		gocron.NewTask(func() {
+			s.logger.Info("Starting investment price sync ...")
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+
+			if err := job.Run(ctx); err != nil {
+				s.logger.Error("Price sync failed", zap.Error(err))
+			} else {
+				s.logger.Info("Price sync completed")
 			}
 		}),
 		opts...,

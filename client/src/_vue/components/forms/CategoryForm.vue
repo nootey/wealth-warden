@@ -10,6 +10,7 @@ import ShowLoading from "../base/ShowLoading.vue";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
+import AuditTrail from "../base/AuditTrail.vue";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -249,6 +250,14 @@ async function restoreCategoryName() {
       <span class="text-sm" style="color: var(--text-secondary)"
         >This category is a default. Some parts are not editable.</span
       >
+    </div>
+
+    <div v-if="mode == 'update'" class="flex flex-row gap-2 w-full">
+      <AuditTrail
+        :record-id="props.recordId!"
+        :events="['create', 'update', 'delete', 'restore']"
+        category="category"
+      />
     </div>
 
     <div class="flex flex-row gap-2 w-full">

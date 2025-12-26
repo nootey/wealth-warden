@@ -10,6 +10,7 @@ import ShowLoading from "../base/ShowLoading.vue";
 import ValidationError from "../validation/ValidationError.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
+import AuditTrail from "../base/AuditTrail.vue";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -258,6 +259,14 @@ async function deleteRecord(id: number) {
             @complete="searchRole"
           />
         </div>
+      </div>
+
+      <div v-if="mode == 'update'" class="flex flex-row gap-2 w-full">
+        <AuditTrail
+          :record-id="props.recordId!"
+          :events="['create', 'update', 'delete', 'restore']"
+          category="user"
+        />
       </div>
 
       <div class="flex flex-row gap-2 w-full">

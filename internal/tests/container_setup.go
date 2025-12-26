@@ -75,6 +75,7 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 		panic(err)
 	}
 	cfg.Postgres.Database = "wealth_warden_test"
+	cfg.FinanceAPIBaseURL = "https://query1.finance.yahoo.com"
 	s.Require().NoError(err, "failed to load test configuration")
 
 	l := zap.NewNop() // Silent logger for tests
