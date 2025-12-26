@@ -1,4 +1,4 @@
-package prices_test
+package finance_test
 
 import (
 	"context"
@@ -9,21 +9,21 @@ import (
 	"testing"
 	"time"
 	"wealth-warden/internal/models"
-	"wealth-warden/pkg/prices"
+	"wealth-warden/pkg/finance"
 )
 
 var (
 	testServer        *httptest.Server
-	fetcher           prices.PriceFetcher
-	mockResponse      *prices.ChartResponse
-	mockQuoteResponse *prices.QuoteResponse
+	fetcher           finance.PriceFetcher
+	mockResponse      *finance.ChartResponse
+	mockQuoteResponse *finance.QuoteResponse
 	mockStatusCode    int
 )
 
 func setupTestServer() {
 	testServer = httptest.NewServer(http.HandlerFunc(handleTestRequest))
 	var err error
-	fetcher, err = prices.NewPriceFetchClient(testServer.URL)
+	fetcher, err = finance.NewPriceFetchClient(testServer.URL)
 	if err != nil {
 		panic("Failed to create price fetcher: " + err.Error())
 	}
@@ -59,7 +59,7 @@ func handleTestRequest(w http.ResponseWriter, r *http.Request) {
 
 func setupChartResponse(symbol, currency string, price float64, timestamp int64) {
 	mockStatusCode = 0
-	response := prices.ChartResponse{}
+	response := finance.ChartResponse{}
 	response.Chart.Result = make([]struct {
 		Meta struct {
 			Symbol             string  `json:"symbol"`
@@ -94,7 +94,7 @@ func setupQuoteResponse(quotes map[string]struct {
 	Timestamp int64
 }) {
 	mockStatusCode = 0
-	response := prices.QuoteResponse{}
+	response := finance.QuoteResponse{}
 	response.QuoteResponse.Result = make([]struct {
 		Symbol             string  `json:"symbol"`
 		RegularMarketPrice float64 `json:"regularMarketPrice"`
@@ -227,7 +227,7 @@ func TestGetAssetPrice_WeekendHandling(t *testing.T) {
 	fridayTimestamp := time.Date(2024, 1, 5, 16, 0, 0, 0, time.UTC).Unix() // Friday close
 	fridayPrice := 150.25
 
-	response := prices.ChartResponse{}
+	response := finance.ChartResponse{}
 	response.Chart.Result = make([]struct {
 		Meta struct {
 			Symbol             string  `json:"symbol"`
@@ -333,7 +333,7 @@ func TestGetAssetPriceOnDate_NoDataAvailable(t *testing.T) {
 
 	historicalDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 
-	response := prices.ChartResponse{}
+	response := finance.ChartResponse{}
 	response.Chart.Result = make([]struct {
 		Meta struct {
 			Symbol             string  `json:"symbol"`
@@ -403,7 +403,7 @@ func TestGetPricesForMultipleAssets_ValidTickers(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	assets := []prices.AssetRequest{
+	assets := []finance.AssetRequest{
 		{Ticker: "AAPL", InvestmentType: models.InvestmentStock, Exchange: "LSE"},
 		{Ticker: "MSFT", InvestmentType: models.InvestmentStock, Exchange: "LSE"},
 	}
@@ -440,7 +440,7 @@ func TestGetPricesForMultipleAssets_MixedValidInvalid(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	assets := []prices.AssetRequest{
+	assets := []finance.AssetRequest{
 		{Ticker: "AAPL", InvestmentType: models.InvestmentStock, Exchange: "LSE"},
 		{Ticker: "INVALID", InvestmentType: models.InvestmentStock, Exchange: "LSE"},
 	}
@@ -468,7 +468,7 @@ func TestGetPricesForMultipleAssets_EmptyList(t *testing.T) {
 	resetMocks()
 
 	ctx := context.Background()
-	var assets []prices.AssetRequest
+	var assets []finance.AssetRequest
 
 	results, err := fetcher.GetPricesForMultipleAssets(ctx, assets)
 
@@ -495,7 +495,7 @@ func TestGetPricesForMultipleAssets_DifferentTypes(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	assets := []prices.AssetRequest{
+	assets := []finance.AssetRequest{
 		{Ticker: "AAPL", InvestmentType: models.InvestmentStock, Exchange: "LSE"},
 		{Ticker: "BTC", InvestmentType: models.InvestmentCrypto, Currency: "USD"},
 	}
@@ -608,7 +608,7 @@ func TestGetPricesForMultipleAssets_ExchangeNormalization(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	assets := []prices.AssetRequest{
+	assets := []finance.AssetRequest{
 		{Ticker: "AAPL", InvestmentType: models.InvestmentStock, Exchange: "LSE"},
 		{Ticker: "MSFT", InvestmentType: models.InvestmentStock, Exchange: "LONDON"},
 	}
@@ -635,7 +635,7 @@ func TestGetPricesForMultipleAssets_ExchangeNormalization(t *testing.T) {
 func TestNewPriceFetchClient_EmptyBaseURL(t *testing.T) {
 	resetMocks()
 
-	_, err := prices.NewPriceFetchClient("")
+	_, err := finance.NewPriceFetchClient("")
 
 	if err == nil {
 		t.Fatal("Expected error for empty base URL, got nil")

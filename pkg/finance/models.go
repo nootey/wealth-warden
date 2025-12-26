@@ -1,4 +1,4 @@
-package prices
+package finance
 
 import "wealth-warden/internal/models"
 

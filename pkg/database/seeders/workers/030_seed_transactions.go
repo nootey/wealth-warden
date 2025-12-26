@@ -11,6 +11,7 @@ import (
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/config"
+	"wealth-warden/pkg/finance"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -27,13 +28,13 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 
 	accRepo := repositories.NewAccountRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
-	investmentRepo := repositories.NewInvestmentRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
 	loggingRepo := repositories.NewLoggingRepository(db)
 	jobQueue := jobqueue.NewJobQueue(1, 25)
 	jobDispatcher := &jobqueue.InMemoryDispatcher{Queue: jobQueue}
+	mockConverter := &finance.CurrencyConverter{}
 
-	accService := services.NewAccountService(accRepo, txnRepo, settingsRepo, investmentRepo, loggingRepo, jobDispatcher)
+	accService := services.NewAccountService(accRepo, txnRepo, settingsRepo, loggingRepo, jobDispatcher, mockConverter)
 
 	var incCats, expCats []models.Category
 	_ = db.WithContext(ctx).Where("classification = ?", "income").Find(&incCats).Error

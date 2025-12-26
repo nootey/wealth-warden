@@ -6,7 +6,7 @@ import (
 	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/jobscheduler"
-	"wealth-warden/pkg/prices"
+	"wealth-warden/pkg/finance"
 
 	"github.com/go-co-op/gocron/v2"
 	"go.uber.org/zap"
@@ -143,7 +143,7 @@ func (s *Scheduler) registerTemplateJob() error {
 func (s *Scheduler) registerInvestmentPriceSyncJob() error {
 
 	// Create price fetch client
-	client, err := prices.NewPriceFetchClient(s.container.Config.FinanceAPIBaseURL)
+	client, err := finance.NewPriceFetchClient(s.container.Config.FinanceAPIBaseURL)
 	if err != nil {
 		s.logger.Warn("Failed to create price fetch client", zap.Error(err))
 	}

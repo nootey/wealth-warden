@@ -8,7 +8,7 @@ import (
 	"wealth-warden/internal/jobscheduler"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/tests"
-	"wealth-warden/pkg/prices"
+	"wealth-warden/pkg/finance"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/suite"
@@ -28,7 +28,7 @@ func TestInvestmentPriceSyncJobSuite(t *testing.T) {
 func (s *InvestmentPriceSyncJobTestSuite) TestInvestmentPriceSyncJob_Success() {
 	logger := zaptest.NewLogger(s.T())
 
-	client, err := prices.NewPriceFetchClient(s.TC.App.Config.FinanceAPIBaseURL)
+	client, err := finance.NewPriceFetchClient(s.TC.App.Config.FinanceAPIBaseURL)
 	if err != nil {
 		logger.Warn("Failed to create price fetch client", zap.Error(err))
 	}
@@ -118,7 +118,7 @@ func (s *InvestmentPriceSyncJobTestSuite) TestInvestmentPriceSyncJob_UpdatesPric
 
 	// Run price sync job
 	logger := zaptest.NewLogger(s.T())
-	client, err := prices.NewPriceFetchClient(s.TC.App.Config.FinanceAPIBaseURL)
+	client, err := finance.NewPriceFetchClient(s.TC.App.Config.FinanceAPIBaseURL)
 	s.Require().NoError(err)
 
 	job := jobscheduler.NewInvestmentPriceSyncJob(logger, s.TC.App, client)

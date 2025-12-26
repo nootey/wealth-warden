@@ -6,7 +6,7 @@ import (
 	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/models"
-	"wealth-warden/pkg/prices"
+	"wealth-warden/pkg/finance"
 
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
@@ -16,10 +16,10 @@ import (
 type InvestmentPriceSyncJob struct {
 	logger           *zap.Logger
 	container        *bootstrap.Container
-	priceFetchClient prices.PriceFetcher
+	priceFetchClient finance.PriceFetcher
 }
 
-func NewInvestmentPriceSyncJob(logger *zap.Logger, container *bootstrap.Container, priceFetchClient prices.PriceFetcher) *InvestmentPriceSyncJob {
+func NewInvestmentPriceSyncJob(logger *zap.Logger, container *bootstrap.Container, priceFetchClient finance.PriceFetcher) *InvestmentPriceSyncJob {
 	return &InvestmentPriceSyncJob{
 		logger:           logger,
 		container:        container,
@@ -90,9 +90,9 @@ func (j *InvestmentPriceSyncJob) getAssetsToUpdate(ctx context.Context) ([]struc
 func (j *InvestmentPriceSyncJob) fetchPrices(ctx context.Context, assets []struct {
 	Ticker         string
 	InvestmentType models.InvestmentType
-}) (map[string]*prices.PriceData, error) {
+}) (map[string]*finance.PriceData, error) {
 
-	priceData := make(map[string]*prices.PriceData)
+	priceData := make(map[string]*finance.PriceData)
 
 	for i, asset := range assets {
 		// Add delay between requests to avoid rate limiting
@@ -119,7 +119,7 @@ func (j *InvestmentPriceSyncJob) fetchPrices(ctx context.Context, assets []struc
 	return priceData, nil
 }
 
-func (j *InvestmentPriceSyncJob) updateAssetsAndTrades(ctx context.Context, priceData map[string]*prices.PriceData) (int, error) {
+func (j *InvestmentPriceSyncJob) updateAssetsAndTrades(ctx context.Context, priceData map[string]*finance.PriceData) (int, error) {
 	tx := j.container.DB.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -165,7 +165,7 @@ func (j *InvestmentPriceSyncJob) updateAssetsAndTrades(ctx context.Context, pric
 	return updatedCount, nil
 }
 
-func (j *InvestmentPriceSyncJob) updateAssetsByTicker(ctx context.Context, tx *gorm.DB, ticker string, price *prices.PriceData, now time.Time) (int, map[int64]string, error) {
+func (j *InvestmentPriceSyncJob) updateAssetsByTicker(ctx context.Context, tx *gorm.DB, ticker string, price *finance.PriceData, now time.Time) (int, map[int64]string, error) {
 	var assets []models.InvestmentAsset
 	err := tx.WithContext(ctx).
 		Preload("Account").

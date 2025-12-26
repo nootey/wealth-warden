@@ -10,6 +10,7 @@ import (
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -43,29 +44,29 @@ type AccountServiceInterface interface {
 }
 
 type AccountService struct {
-	repo           repositories.AccountRepositoryInterface
-	txnRepo        repositories.TransactionRepositoryInterface
-	settingsRepo   repositories.SettingsRepositoryInterface
-	investmentRepo repositories.InvestmentRepositoryInterface
-	loggingRepo    repositories.LoggingRepositoryInterface
-	jobDispatcher  jobqueue.JobDispatcher
+	repo              repositories.AccountRepositoryInterface
+	txnRepo           repositories.TransactionRepositoryInterface
+	settingsRepo      repositories.SettingsRepositoryInterface
+	loggingRepo       repositories.LoggingRepositoryInterface
+	jobDispatcher     jobqueue.JobDispatcher
+	currencyConverter finance.CurrencyManager
 }
 
 func NewAccountService(
 	repo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
-	investmentRepo *repositories.InvestmentRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobqueue.JobDispatcher,
+	currencyConverter finance.CurrencyManager,
 ) *AccountService {
 	return &AccountService{
-		repo:           repo,
-		txnRepo:        txnRepo,
-		settingsRepo:   settingsRepo,
-		investmentRepo: investmentRepo,
-		jobDispatcher:  jobDispatcher,
-		loggingRepo:    loggingRepo,
+		repo:              repo,
+		txnRepo:           txnRepo,
+		settingsRepo:      settingsRepo,
+		jobDispatcher:     jobDispatcher,
+		loggingRepo:       loggingRepo,
+		currencyConverter: currencyConverter,
 	}
 }
 
@@ -481,7 +482,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			return 0, err
 		}
 
-		totalInvestmentValue, err := s.investmentRepo.FindTotalInvestmentValue(ctx, tx, exAcc.ID, userID)
+		totalInvestmentValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, exAcc.ID, userID, exAcc.Currency)
 		if err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to calculate total investment value: %w", err)

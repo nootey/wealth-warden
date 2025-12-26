@@ -11,6 +11,7 @@ import (
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -52,29 +53,29 @@ type TransactionServiceInterface interface {
 }
 
 type TransactionService struct {
-	repo           repositories.TransactionRepositoryInterface
-	accRepo        repositories.AccountRepositoryInterface
-	settingsRepo   repositories.SettingsRepositoryInterface
-	investmentRepo repositories.InvestmentRepositoryInterface
-	loggingRepo    repositories.LoggingRepositoryInterface
-	jobDispatcher  jobqueue.JobDispatcher
+	repo              repositories.TransactionRepositoryInterface
+	accRepo           repositories.AccountRepositoryInterface
+	settingsRepo      repositories.SettingsRepositoryInterface
+	loggingRepo       repositories.LoggingRepositoryInterface
+	jobDispatcher     jobqueue.JobDispatcher
+	currencyConverter finance.CurrencyManager
 }
 
 func NewTransactionService(
 	repo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
 	settingsRepo *repositories.SettingsRepository,
-	investmentRepo *repositories.InvestmentRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobqueue.JobDispatcher,
+	currencyConverter finance.CurrencyManager,
 ) *TransactionService {
 	return &TransactionService{
-		repo:           repo,
-		accRepo:        accRepo,
-		settingsRepo:   settingsRepo,
-		investmentRepo: investmentRepo,
-		jobDispatcher:  jobDispatcher,
-		loggingRepo:    loggingRepo,
+		repo:              repo,
+		accRepo:           accRepo,
+		settingsRepo:      settingsRepo,
+		jobDispatcher:     jobDispatcher,
+		loggingRepo:       loggingRepo,
+		currencyConverter: currencyConverter,
 	}
 }
 
@@ -209,8 +210,8 @@ func (s *TransactionService) FetchCategoryByID(ctx context.Context, userID int64
 	return &record, nil
 }
 
-func (s *TransactionService) validateInvestmentBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64, resultingBalance decimal.Decimal) error {
-	totalInvestmentValue, err := s.investmentRepo.FindTotalInvestmentValue(ctx, tx, accountID, userID)
+func (s *TransactionService) validateInvestmentBalance(ctx context.Context, tx *gorm.DB, account *models.Account, userID int64, resultingBalance decimal.Decimal) error {
+	totalInvestmentValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, account.ID, userID, account.Currency)
 	if err != nil {
 		return fmt.Errorf("failed to calculate total investment value: %w", err)
 	}
@@ -253,7 +254,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 
 		resultingBalance := latestBalance.EndBalance.Sub(req.Amount)
 
-		if err := s.validateInvestmentBalance(ctx, tx, account.ID, userID, resultingBalance); err != nil {
+		if err := s.validateInvestmentBalance(ctx, tx, account, userID, resultingBalance); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
@@ -418,7 +419,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	}
 
 	// Also check investments
-	totalInvestmentValue, err := s.investmentRepo.FindTotalInvestmentValue(ctx, tx, fromAcc.ID, userID)
+	totalInvestmentValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, fromAcc.ID, userID, fromAcc.Currency)
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
@@ -702,7 +703,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 		resultingBalance := latestBalance.EndBalance.Add(netChange)
 
-		if err := s.validateInvestmentBalance(ctx, tx, newAccount.ID, userID, resultingBalance); err != nil {
+		if err := s.validateInvestmentBalance(ctx, tx, newAccount, userID, resultingBalance); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
@@ -956,7 +957,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 
 		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
 
-		if err := s.validateInvestmentBalance(ctx, tx, account.ID, userID, resultingBalance); err != nil {
+		if err := s.validateInvestmentBalance(ctx, tx, account, userID, resultingBalance); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1088,7 +1089,7 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 
 	resultingToBalance := latestToBalance.EndBalance.Sub(inflow.Amount)
 
-	if err := s.validateInvestmentBalance(ctx, tx, toAcc.ID, userID, resultingToBalance); err != nil {
+	if err := s.validateInvestmentBalance(ctx, tx, toAcc, userID, resultingToBalance); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1299,7 +1300,7 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 
 		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
 
-		if err := s.validateInvestmentBalance(ctx, tx, acc.ID, userID, resultingBalance); err != nil {
+		if err := s.validateInvestmentBalance(ctx, tx, acc, userID, resultingBalance); err != nil {
 			tx.Rollback()
 			return err
 		}

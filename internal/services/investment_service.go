@@ -10,7 +10,7 @@ import (
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/prices"
+	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -34,12 +34,13 @@ type InvestmentServiceInterface interface {
 }
 
 type InvestmentService struct {
-	repo             repositories.InvestmentRepositoryInterface
-	accRepo          repositories.AccountRepositoryInterface
-	settingsRepo     *repositories.SettingsRepository
-	loggingRepo      repositories.LoggingRepositoryInterface
-	jobDispatcher    jobqueue.JobDispatcher
-	priceFetchClient prices.PriceFetcher
+	repo              repositories.InvestmentRepositoryInterface
+	accRepo           repositories.AccountRepositoryInterface
+	settingsRepo      *repositories.SettingsRepository
+	loggingRepo       repositories.LoggingRepositoryInterface
+	jobDispatcher     jobqueue.JobDispatcher
+	priceFetchClient  finance.PriceFetcher
+	currencyConverter finance.CurrencyManager
 }
 
 func NewInvestmentService(
@@ -48,15 +49,17 @@ func NewInvestmentService(
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobqueue.JobDispatcher,
-	priceFetchClient prices.PriceFetcher,
+	priceFetchClient finance.PriceFetcher,
+	currencyConverter finance.CurrencyManager,
 ) *InvestmentService {
 	return &InvestmentService{
-		repo:             repo,
-		accRepo:          accRepo,
-		settingsRepo:     settingsRepo,
-		jobDispatcher:    jobDispatcher,
-		loggingRepo:      loggingRepo,
-		priceFetchClient: priceFetchClient,
+		repo:              repo,
+		accRepo:           accRepo,
+		settingsRepo:      settingsRepo,
+		jobDispatcher:     jobDispatcher,
+		loggingRepo:       loggingRepo,
+		priceFetchClient:  priceFetchClient,
+		currencyConverter: currencyConverter,
 	}
 }
 
@@ -426,28 +429,6 @@ func (s *InvestmentService) generateCheckpointDates(fromDate, toDate time.Time) 
 	return dates
 }
 
-func (s *InvestmentService) getTotalInvestmentValueInAccountCurrency(ctx context.Context, tx *gorm.DB, accountID, userID int64, accountCurrency string, exchangeRate decimal.Decimal) (decimal.Decimal, error) {
-	assets, err := s.repo.FindAssetsByAccountID(ctx, tx, accountID, userID)
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	totalInvestmentValue := decimal.Zero
-	for _, a := range assets {
-		if a.Quantity.IsZero() {
-			continue
-		}
-
-		valueInAccountCurrency := a.CurrentValue
-		if a.Currency != accountCurrency {
-			valueInAccountCurrency = a.CurrentValue.Mul(exchangeRate)
-		}
-		totalInvestmentValue = totalInvestmentValue.Add(valueInAccountCurrency)
-	}
-
-	return totalInvestmentValue, nil
-}
-
 func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID int64, req *models.InvestmentTradeReq) (int64, error) {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
@@ -488,7 +469,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 			return 0, fmt.Errorf("failed to get account balance: %w", err)
 		}
 
-		totalInvestmentValue, err := s.getTotalInvestmentValueInAccountCurrency(ctx, tx, asset.AccountID, userID, asset.Account.Currency, exchangeRate)
+		totalInvestmentValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, asset.AccountID, userID, asset.Account.Currency)
 		if err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
