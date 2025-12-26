@@ -22,6 +22,7 @@ import vueHelper from "../../../utils/vue_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import { useConfirm } from "primevue/useconfirm";
 import { usePermissions } from "../../../utils/use_permissions.ts";
+import AuditTrail from "../base/AuditTrail.vue";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -545,6 +546,14 @@ async function deleteRecord(id: number) {
           placeholder="Describe trade"
         />
       </div>
+    </div>
+
+    <div v-if="mode == 'update'" class="flex flex-row gap-2 w-full">
+      <AuditTrail
+        :record-id="props.recordId!"
+        :events="['create', 'update']"
+        category="investment_trade"
+      />
     </div>
   </div>
   <ShowLoading v-else :num-fields="5" />

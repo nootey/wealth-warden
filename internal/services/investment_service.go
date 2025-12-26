@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"wealth-warden/internal/jobqueue"
@@ -247,6 +248,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	changes := utils.InitChanges()
 	quantityString := hold.Quantity.StringFixed(2)
 
+	utils.CompareChanges("", strconv.FormatInt(holdID, 10), changes, "id")
 	utils.CompareChanges("", account.Name, changes, "account")
 	utils.CompareChanges("", hold.Name, changes, "name")
 	utils.CompareChanges("", hold.Ticker, changes, "ticker")
@@ -610,6 +612,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
 	utils.CompareChanges("", asset.Ticker, changes, "asset")
 	utils.CompareChanges("", txn.Quantity.StringFixed(2), changes, "quantity")
 	utils.CompareChanges("", txn.PricePerUnit.StringFixed(2), changes, "price_per_unit")
@@ -787,6 +790,7 @@ func (s *InvestmentService) UpdateInvestmentAsset(ctx context.Context, userID in
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(holdID, 10), changes, "id")
 	utils.CompareChanges("", exHold.Ticker, changes, "asset")
 	utils.CompareChanges(exHold.Name, hold.Name, changes, "name")
 
@@ -863,6 +867,7 @@ func (s *InvestmentService) UpdateInvestmentTrade(ctx context.Context, userID in
 	}
 
 	if oldDesc != newDesc {
+		utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
 		utils.CompareChanges("", asset.Ticker, changes, "asset")
 		utils.CompareChanges(oldDesc, newDesc, changes, "description")
 	}

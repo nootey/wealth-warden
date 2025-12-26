@@ -19,6 +19,7 @@ import Decimal from "decimal.js";
 import ShowLoading from "../base/ShowLoading.vue";
 import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
+import AuditTrail from "../base/AuditTrail.vue";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -540,6 +541,14 @@ async function manageRecord() {
           @update:model-value="asOfAdjusted = true"
         />
       </div>
+    </div>
+
+    <div v-if="mode == 'update'" class="flex flex-row gap-2 w-full">
+      <AuditTrail
+        :record-id="props.recordId!"
+        :events="['create', 'update', 'close', 'restore']"
+        category="account"
+      />
     </div>
 
     <div class="flex flex-row gap-2 w-full">

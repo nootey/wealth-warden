@@ -365,6 +365,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	amountString := tr.Amount.StringFixed(2)
 	dateStr := tr.TxnDate.UTC().Format(time.RFC3339)
 
+	utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
 	utils.CompareChanges("", account.Name, changes, "account")
 	utils.CompareChanges("", tr.TransactionType, changes, "type")
 	utils.CompareChanges("", dateStr, changes, "date")
@@ -547,6 +548,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 
 	// Log transfer (one event)
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(trID, 10), changes, "id")
 	utils.CompareChanges("", fromAcc.Name, changes, "from")
 	utils.CompareChanges("", toAcc.Name, changes, "to")
 	utils.CompareChanges("", req.Amount.StringFixed(2), changes, "amount")
@@ -607,6 +609,7 @@ func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, r
 
 	// Log transfer (one event)
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(catID, 10), changes, "id")
 	utils.CompareChanges("", rec.DisplayName, changes, "name")
 	utils.CompareChanges("", rec.Classification, changes, "classification")
 
@@ -832,6 +835,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 	// Dispatch transaction activity log
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
 	utils.CompareChanges(oldAccount.Name, newAccount.Name, changes, "account")
 	utils.CompareChanges(exTr.TransactionType, tr.TransactionType, changes, "type")
 	utils.CompareDateChange(&exTr.TxnDate, &tr.TxnDate, changes, "date")
@@ -899,6 +903,7 @@ func (s *TransactionService) UpdateCategory(ctx context.Context, userID int64, i
 
 	changes := utils.InitChanges()
 
+	utils.CompareChanges("", strconv.FormatInt(catID, 10), changes, "id")
 	utils.CompareChanges(exCat.DisplayName, cat.DisplayName, changes, "name")
 	utils.CompareChanges(exCat.Classification, cat.Classification, changes, "classification")
 
@@ -1003,6 +1008,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	// Dispatch transaction activity log
 	changes := utils.InitChanges()
 
+	utils.CompareChanges("", strconv.FormatInt(tr.ID, 10), changes, "id")
 	utils.CompareChanges(account.Name, "", changes, "account")
 	utils.CompareChanges(tr.TransactionType, "", changes, "type")
 	utils.CompareDateChange(&tr.TxnDate, nil, changes, "date")
@@ -1148,6 +1154,7 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 
 	// Log synthetic transfer deletion
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(transfer.ID, 10), changes, "id")
 	utils.CompareChanges(fromAcc.Name, "", changes, "from")
 	utils.CompareChanges(toAcc.Name, "", changes, "to")
 	utils.CompareChanges(transfer.Amount.StringFixed(2), "", changes, "amount")
@@ -1237,6 +1244,7 @@ func (s *TransactionService) DeleteCategory(ctx context.Context, userID int64, i
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(cat.ID, 10), changes, "id")
 	utils.CompareChanges(deleteType, "", changes, "delete_type")
 	utils.CompareChanges(cat.DisplayName, "", changes, "name")
 	utils.CompareChanges(cat.Classification, "", changes, "classification")
@@ -1339,6 +1347,7 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 
 	// Log
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(tr.ID, 10), changes, "id")
 	utils.CompareChanges("", acc.Name, changes, "account")
 	utils.CompareChanges("", tr.Amount.StringFixed(2), changes, "amount")
 	utils.CompareChanges("", tr.Currency, changes, "currency")
@@ -1394,6 +1403,7 @@ func (s *TransactionService) RestoreCategory(ctx context.Context, userID int64, 
 
 	// Log
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(cat.ID, 10), changes, "id")
 	utils.CompareChanges("", cat.DisplayName, changes, "name")
 	utils.CompareChanges("", cat.Classification, changes, "classification")
 
@@ -1433,6 +1443,7 @@ func (s *TransactionService) RestoreCategoryName(ctx context.Context, userID int
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(cat.ID, 10), changes, "id")
 	utils.CompareChanges(utils.NormalizeName(cat.DisplayName), cat.Name, changes, "name")
 
 	if err := s.repo.RestoreCategoryName(ctx, tx, cat.ID, &userID, cat.Name); err != nil {
@@ -1591,6 +1602,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 	amountString := tp.Amount.StringFixed(2)
 	firstRunStr := tp.NextRunAt.UTC().Format(time.RFC3339)
 
+	utils.CompareChanges("", strconv.FormatInt(tpID, 10), changes, "id")
 	utils.CompareChanges("", tp.Name, changes, "name")
 	utils.CompareChanges("", account.Name, changes, "account")
 	utils.CompareChanges("", category.Name, changes, "category")
@@ -1798,6 +1810,7 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Co
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(tp.ID, 10), changes, "id")
 	utils.CompareChanges(strconv.FormatBool(exTp.IsActive), strconv.FormatBool(tp.IsActive), changes, "is_active")
 
 	_, err = s.repo.UpdateTransactionTemplate(ctx, tx, tp, true)
@@ -2118,6 +2131,7 @@ func (s *TransactionService) InsertCategoryGroup(ctx context.Context, userID int
 
 	// Log transfer (one event)
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(groupingID, 10), changes, "id")
 	utils.CompareChanges("", rec.Name, changes, "name")
 	utils.CompareChanges("", rec.Classification, changes, "classification")
 	utils.CompareChanges("", fmt.Sprintf("%d categories", len(categoryIDs)), changes, "categories_count")
@@ -2206,6 +2220,7 @@ func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(groupID, 10), changes, "id")
 	utils.CompareChanges(exGroup.Name, rec.Name, changes, "name")
 	utils.CompareChanges(exGroup.Classification, rec.Classification, changes, "classification")
 

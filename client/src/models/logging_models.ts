@@ -8,4 +8,5 @@ export interface ActivityLog {
   category: string | null;
   causer: object | null;
   metadata: object | null;
+  created_at: Date;
 }

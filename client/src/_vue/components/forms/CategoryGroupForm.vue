@@ -11,6 +11,7 @@ import useVuelidate from "@vuelidate/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
+import AuditTrail from "../base/AuditTrail.vue";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -234,6 +235,14 @@ const searchClassifications = (event: { query: string }) => {
           />
         </div>
       </div>
+    </div>
+
+    <div v-if="mode == 'update'" class="flex flex-row gap-2 w-full">
+      <AuditTrail
+        :record-id="props.recordId!"
+        :events="['create', 'update']"
+        category="category_group"
+      />
     </div>
 
     <div class="flex flex-row gap-2 w-full">

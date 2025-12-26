@@ -18,6 +18,7 @@ type LoggingRepositoryInterface interface {
 	FindLogs(ctx context.Context, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error)
 	FindActivityLogFilterData(ctx context.Context, activityIndex string) (map[string]interface{}, error)
 	FindActivityLogByID(ctx context.Context, tx *gorm.DB, ID int64) (models.ActivityLog, error)
+	FindAuditTrailByRecordID(ctx context.Context, recordID, category string, events []string) ([]models.ActivityLog, error)
 	DeleteActivityLog(ctx context.Context, tx *gorm.DB, id int64) error
 }
 
@@ -176,6 +177,47 @@ func (r *LoggingRepository) FindActivityLogByID(ctx context.Context, tx *gorm.DB
 	var record models.ActivityLog
 	result := db.Where("id = ?", ID).First(&record)
 	return record, result.Error
+}
+
+func (r *LoggingRepository) FindAuditTrailByRecordID(ctx context.Context, recordID, category string, events []string) ([]models.ActivityLog, error) {
+	var allLogs []models.ActivityLog
+	err := r.db.WithContext(ctx).
+		Where("event IN ? AND category = ?", events, category).
+		Order("created_at DESC").
+		Find(&allLogs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter by ID in metadata
+	var records []models.ActivityLog
+	for _, log := range allLogs {
+		if log.Metadata == nil {
+			continue
+		}
+
+		var metadata map[string]map[string]interface{}
+		if err := json.Unmarshal(log.Metadata, &metadata); err != nil {
+			continue
+		}
+
+		newData, ok := metadata["new"]
+		if !ok {
+			continue
+		}
+
+		idVal, ok := newData["id"]
+		if !ok {
+			continue
+		}
+
+		idStr := fmt.Sprintf("%v", idVal)
+		if idStr == recordID {
+			records = append(records, log)
+		}
+	}
+
+	return records, nil
 }
 
 func (r *LoggingRepository) InsertActivityLog(

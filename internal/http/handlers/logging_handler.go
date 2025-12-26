@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
+	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
 
@@ -67,6 +69,7 @@ func (h *LoggingHandler) GetActivityLogFilterData(c *gin.Context) {
 func (h *LoggingHandler) DeleteActivityLog(c *gin.Context) {
 
 	idStr := c.Param("id")
+	ctx := c.Request.Context()
 
 	if idStr == "" {
 		err := errors.New("invalid id provided")
@@ -80,10 +83,44 @@ func (h *LoggingHandler) DeleteActivityLog(c *gin.Context) {
 		return
 	}
 
-	if err := h.Service.DeleteActivityLog(c, id); err != nil {
+	if err := h.Service.DeleteActivityLog(ctx, id); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
 	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
+}
+
+func (h *LoggingHandler) GetAuditTrail(c *gin.Context) {
+	qp := c.Request.URL.Query()
+	ctx := c.Request.Context()
+
+	id := qp.Get("id")
+	if id == "" {
+		err := errors.New("id is required")
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	category := qp.Get("category")
+	if category == "" {
+		err := errors.New("category is required")
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	eventStr := qp.Get("event")
+	if eventStr == "" {
+		c.JSON(http.StatusOK, gin.H{"data": []models.ActivityLog{}})
+		return
+	}
+	events := strings.Split(eventStr, ",")
+
+	trail, err := h.Service.FetchAuditTrail(ctx, id, category, events)
+	if err != nil {
+		utils.ErrorMessage(c, "Audit trail error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, trail)
 }

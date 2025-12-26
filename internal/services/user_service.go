@@ -213,6 +213,7 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 		return 0, fmt.Errorf("can't find role wit given id: %w", err)
 	}
 
+	utils.CompareChanges("", strconv.FormatInt(invID, 10), changes, "id")
 	utils.CompareChanges("", role.Name, changes, "role")
 	utils.CompareChanges("", invitation.Email, changes, "email")
 
@@ -315,6 +316,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(uID, 10), changes, "id")
 	utils.CompareChanges("", strconv.FormatInt(id, 10), changes, "id")
 	utils.CompareChanges(oldRole.Name, newRole.Name, changes, "role")
 	utils.CompareChanges(exUsr.DisplayName, usr.DisplayName, changes, "display_name")

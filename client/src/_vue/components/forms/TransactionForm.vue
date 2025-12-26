@@ -29,6 +29,7 @@ import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 import type { UserSettings } from "../../../models/settings_models.ts";
+import AuditTrail from "../base/AuditTrail.vue";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -108,6 +109,7 @@ const transfer = ref<Transfer>({
 const transferFormRef = ref<InstanceType<typeof TransferForm> | null>(null);
 
 const record = ref<Transaction>(initData());
+
 const amountRef = computed({
   get: () => record.value.amount,
   set: (v) => (record.value.amount = v),
@@ -657,6 +659,14 @@ async function deleteRecord(id: number, tx_type: string) {
           Transaction can not be restored!
         </h5>
       </div>
+    </div>
+
+    <div v-if="mode == 'update'" class="flex flex-row gap-2 w-full">
+      <AuditTrail
+        :record-id="props.recordId!"
+        :events="['create', 'update', 'delete', 'restore']"
+        category="transaction"
+      />
     </div>
   </div>
   <ShowLoading v-else :num-fields="7" />

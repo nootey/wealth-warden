@@ -261,6 +261,13 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 	balanceAmountString := req.Balance.StringFixed(2)
 	dateStr := account.OpenedAt.UTC().Format(time.RFC3339)
 
+	accountID, err := s.repo.InsertAccount(ctx, tx, account)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	utils.CompareChanges("", strconv.FormatInt(accountID, 10), changes, "id")
 	utils.CompareChanges("", account.Name, changes, "name")
 	utils.CompareChanges("", accType.Type, changes, "account_type")
 	utils.CompareChanges("", accType.Subtype, changes, "account_subtype")
@@ -268,12 +275,6 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 	utils.CompareChanges("", balanceAmountString, changes, "current_balance")
 	utils.CompareChanges("", balanceAmountString, changes, "current_balance")
 	utils.CompareChanges("", dateStr, changes, "opened_at")
-
-	accountID, err := s.repo.InsertAccount(ctx, tx, account)
-	if err != nil {
-		tx.Rollback()
-		return 0, err
-	}
 
 	amount := req.Balance.Round(4)
 
@@ -456,6 +457,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 
 	changes := utils.InitChanges()
 
+	utils.CompareChanges("", strconv.FormatInt(acc.ID, 10), changes, "id")
 	utils.CompareChanges(exAcc.Name, acc.Name, changes, "name")
 	utils.CompareChanges(exAccType.Type, newAccType.Type, changes, "account_type")
 	utils.CompareChanges(exAccType.Subtype, newAccType.Subtype, changes, "account_subtype")
@@ -625,6 +627,7 @@ func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID in
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(acc.ID, 10), changes, "id")
 	utils.CompareChanges(strconv.FormatBool(exAcc.IsActive), strconv.FormatBool(acc.IsActive), changes, "is_active")
 
 	_, err = s.repo.UpdateAccount(ctx, tx, acc)
@@ -713,6 +716,7 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 
 	changes := utils.InitChanges()
 
+	utils.CompareChanges("", strconv.FormatInt(acc.ID, 10), changes, "id")
 	utils.CompareChanges(acc.Name, "", changes, "account")
 	utils.CompareChanges(acc.AccountType.Type, "", changes, "type")
 	utils.CompareChanges(acc.AccountType.Subtype, "", changes, "sub_type")
@@ -942,6 +946,7 @@ func (s *AccountService) SaveAccountProjection(ctx context.Context, id, userID i
 
 	changes := utils.InitChanges()
 
+	utils.CompareChanges("", strconv.FormatInt(acc.ID, 10), changes, "id")
 	utils.CompareChanges(exAcc.Name, acc.Name, changes, "name")
 	utils.CompareChanges(exAcc.BalanceProjection, acc.BalanceProjection, changes, "balance_projection")
 	utils.CompareChanges("", "save", changes, "action")
@@ -1003,6 +1008,7 @@ func (s *AccountService) RevertAccountProjection(ctx context.Context, id, userID
 
 	changes := utils.InitChanges()
 
+	utils.CompareChanges("", strconv.FormatInt(acc.ID, 10), changes, "id")
 	utils.CompareChanges(exAcc.Name, acc.Name, changes, "name")
 	utils.CompareChanges(exAcc.BalanceProjection, acc.BalanceProjection, changes, "balance_projection")
 	utils.CompareChanges("", "revert", changes, "action")
@@ -1082,12 +1088,27 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 		}
 	}
 
+	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(account.ID, 10), changes, "id")
+	utils.CompareChanges(strconv.FormatBool(account.IsDefault), strconv.FormatBool(setAsDefault), changes, "default")
+
 	err = s.repo.UpdateDefaultAccount(ctx, tx, *account, setAsDefault)
 	if err != nil {
 		return err
 	}
 
 	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
+		Event:       "update",
+		Category:    "account",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
 		return err
 	}
 
