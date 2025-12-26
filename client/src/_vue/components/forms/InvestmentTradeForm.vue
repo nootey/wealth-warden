@@ -514,7 +514,7 @@ async function deleteRecord(id: number) {
         <InputNumber
           v-model="feeNumber"
           size="small"
-          mode="currency"
+          :mode="record.asset?.investment_type === 'crypto' ? 'decimal' : 'currency'"
           :currency="record.currency"
           locale="de-DE"
           :min-fraction-digits="2"
