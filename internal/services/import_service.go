@@ -30,6 +30,7 @@ type ImportServiceInterface interface {
 	TransferInvestmentsFromImport(ctx context.Context, userID int64, payload models.InvestmentTransferPayload) error
 	TransferSavingsFromImport(ctx context.Context, userID int64, payload models.SavingTransferPayload) error
 	TransferRepaymentsFromImport(ctx context.Context, userID int64, payload models.RepaymentTransferPayload) error
+	TransferInvestmentsTrades(ctx context.Context, userID int64, txnBytes []byte, payload models.InvestmentTradesPayload) error
 	DeleteImport(ctx context.Context, userID, id int64) error
 	DeleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error
 	DeleteAccImport(ctx context.Context, userID int64, imp *models.Import) error
@@ -146,6 +147,8 @@ func (s *ImportService) ValidateCustomImport(ctx context.Context, payload *model
 		set = payload.SavingsTransfers
 	case "repayment", "repayments":
 		set = payload.RepaymentTransfers
+	case "investment_trades":
+		set = payload.TradeTransfers
 	default: // "cash"
 		set = payload.Txns
 	}
@@ -165,6 +168,9 @@ func (s *ImportService) ValidateCustomImport(ctx context.Context, payload *model
 		allowed["savings"] = true
 	case "repayment", "repayments":
 		allowed["repayments"] = true
+	case "investment_trades":
+		allowed["buy"] = true
+		allowed["sell"] = true
 	default:
 		allowed["income"] = true
 		allowed["expense"] = true
@@ -1674,6 +1680,166 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 	}); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID int64, txnBytes []byte, payload models.InvestmentTradesPayload) error {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	var txnPayload models.TxnImportPayload
+	if err := json.Unmarshal(txnBytes, &txnPayload); err != nil {
+		return err
+	}
+
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	tradeToAccID := make(map[string]int64, len(payload.TradeMappings))
+	distinctAccIDs := make(map[int64]struct{})
+	for _, m := range payload.TradeMappings {
+		var id int64
+		switch {
+		case m.AccountID == 0:
+			continue
+		case m.AccountID != 0:
+			id = m.AccountID
+		}
+		if id == 0 {
+			continue
+		}
+		tradeToAccID[m.Name] = id
+		distinctAccIDs[id] = struct{}{}
+	}
+
+	accCache := make(map[int64]*models.Account, len(distinctAccIDs))
+	for id := range distinctAccIDs {
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, id, userID, true)
+		if err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("destination account %d not found: %w", id, err)
+		}
+		accCache[id] = acc
+	}
+
+	// track earliest touched date per account
+	earliest := make(map[int64]time.Time)
+	touch := func(accID int64, d time.Time) {
+		if t, ok := earliest[accID]; !ok || d.Before(t) {
+			earliest[accID] = d
+		}
+	}
+
+	for _, txn := range txnPayload.TradeTransfers {
+
+		// find mapped destination by category
+		cAccID, ok := tradeToAccID[txn.Category]
+		if !ok {
+			continue
+		}
+
+		toAccount, ok := accCache[cAccID]
+		if !ok {
+			_ = tx.Rollback()
+			return fmt.Errorf("account %d not cached (internal error)", cAccID)
+		}
+
+		amt, err := decimal.NewFromString(txn.Amount)
+		if err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("invalid amount '%s': %w", txn.Amount, err)
+		}
+
+		fee, err := decimal.NewFromString(*txn.Fee)
+		if err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("invalid fee '%s': %w", txn.Amount, err)
+		}
+
+		// normalize date
+		txDay := utils.LocalMidnightUTC(txn.TxnDate, loc)
+
+		fmt.Println(toAccount.Name)
+		fmt.Println(txn.Category)
+		fmt.Println(amt)
+		fmt.Println(fee)
+		fmt.Println(txn.Currency)
+
+		var fromAccID, toAccID int64
+
+		// record earliest touched date
+		touch(fromAccID, txDay)
+		touch(toAccID, txDay)
+	}
+
+	//// frontfill balances
+	//frontfillFrom := utils.LocalMidnightUTC(txnPayload.Txns[0].TxnDate, loc)
+	//if err := s.frontfillBalances(
+	//	ctx,
+	//	tx,
+	//	userID,
+	//	checkingAcc.ID,
+	//	models.DefaultCurrency,
+	//	frontfillFrom,
+	//); err != nil {
+	//	tx.Rollback()
+	//	s.markImportFailed(ctx, payload.ImportID, err)
+	//	return err
+	//}
+	//
+	//// Frontfill & refresh snapshots for each affected account from its earliest date
+	//today := time.Now().UTC().Truncate(24 * time.Hour)
+	//for accID, from := range earliest {
+	//	if err := s.frontfillBalances(ctx, tx, userID, accID, models.DefaultCurrency, from); err != nil {
+	//		_ = tx.Rollback()
+	//		s.markImportFailed(ctx, payload.ImportID, err)
+	//		return err
+	//	}
+	//	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, models.DefaultCurrency, from, today); err != nil {
+	//		_ = tx.Rollback()
+	//		s.markImportFailed(ctx, payload.ImportID, err)
+	//		return err
+	//	}
+	//}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	//changes := utils.InitChanges()
+	//utils.CompareChanges("", imp.Name, changes, "import_name")
+	//utils.CompareChanges("", checkingAcc.Name, changes, "source_account")
+	//utils.CompareChanges("", strconv.Itoa(len(payload.RepaymentMappings)), changes, "repayments_mappings_count")
+	//
+	//
+	//if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	//	LoggingRepo: s.loggingRepo,
+	//	Event:       "transfer_repayments",
+	//	Category:    "import",
+	//	Description: nil,
+	//	Payload:     changes,
+	//	Causer:      &userID,
+	//}); err != nil {
+	//	return err
+	//}
 
 	return nil
 }
