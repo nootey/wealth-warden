@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -100,6 +101,7 @@ func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, re
 		desc = *role.Description
 	}
 
+	utils.CompareChanges("", strconv.FormatInt(roleID, 10), changes, "id")
 	utils.CompareChanges("", role.Name, changes, "name")
 	utils.CompareChanges("", desc, changes, "description")
 
@@ -183,6 +185,7 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(roleID, 10), changes, "id")
 	utils.CompareChanges(exRole.Name, role.Name, changes, "name")
 	utils.CompareChanges(utils.SafeString(exRole.Description), utils.SafeString(role.Description), changes, "description")
 

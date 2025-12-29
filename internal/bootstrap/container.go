@@ -7,6 +7,7 @@ import (
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/config"
+	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/mailer"
 
 	"go.uber.org/zap"
@@ -28,6 +29,7 @@ type Container struct {
 	StatsService       *services.StatisticsService
 	ImportService      *services.ImportService
 	ExportService      *services.ExportService
+	InvestmentService  *services.InvestmentService
 }
 
 func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Container, error) {
@@ -52,19 +54,30 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	statsRepo := repositories.NewStatisticsRepository(db)
 	importRepo := repositories.NewImportRepository(db)
 	exportRepo := repositories.NewExportRepository(db)
+	investmentRepo := repositories.NewInvestmentRepository(db)
+
+	// Initialize price fetch client
+	client, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
+	if err != nil {
+		logger.Warn("Failed to create price fetch client", zap.Error(err))
+	}
+
+	// Initialize currency converter
+	currencyConverter := finance.NewCurrencyManager(client, investmentRepo)
 
 	// Initialize services
 	loggingService := services.NewLoggingService(loggingRepo)
 	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, loggingRepo, jobDispatcher, mail)
 	roleService := services.NewRolePermissionService(roleRepo, loggingRepo, jobDispatcher)
 	userService := services.NewUserService(userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
-	accountService := services.NewAccountService(accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher)
-	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
+	accountService := services.NewAccountService(accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher, currencyConverter)
+	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, currencyConverter)
 	settingsService := services.NewSettingsService(settingsRepo, userRepo, loggingRepo, jobDispatcher)
 	chartingService := services.NewChartingService(chartingRepo, accountRepo, transactionRepo, statsRepo)
 	statsService := services.NewStatisticsService(statsRepo, accountRepo, transactionRepo, settingsRepo)
-	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
+	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, investmentRepo, settingsRepo, loggingRepo, jobDispatcher)
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
+	investmentService := services.NewInvestmentService(investmentRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, client, currencyConverter)
 
 	return &Container{
 		Config:             cfg,
@@ -81,5 +94,6 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 		StatsService:       statsService,
 		ImportService:      importService,
 		ExportService:      exportService,
+		InvestmentService:  investmentService,
 	}, nil
 }

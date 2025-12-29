@@ -58,6 +58,28 @@ var FieldMap = map[string]map[string]FieldMetadata{
 			OrEquals:     true,
 		},
 	},
+	"investment_assets": {
+		"account": {
+			Column:       "accounts.name",
+			FilterColumn: "accounts.id",
+			Join:         "LEFT JOIN accounts ON accounts.id = investment_assets.account_id",
+			OrEquals:     true,
+		},
+	},
+	"investment_trades": {
+		"asset.name": {
+			Column:       "investment_assets.name",
+			FilterColumn: "investment_assets.name",
+			Join:         "LEFT JOIN investment_assets ON investment_assets.id = investment_trades.asset_id",
+			OrEquals:     false,
+		},
+		"asset.ticker": {
+			Column:       "investment_assets.ticker",
+			FilterColumn: "investment_assets.ticker",
+			Join:         "LEFT JOIN investment_assets ON investment_assets.id = investment_trades.asset_id",
+			OrEquals:     false,
+		},
+	},
 }
 
 var reDateOnly = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
@@ -137,7 +159,7 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 			column = meta.Column
 		}
 
-		// Special case: amount filters on transactions
+		// Special case 1: amount filters on transactions
 		if f.Source == "transactions" && f.Field == "amount" {
 			signedAmount := "CASE WHEN transaction_type = 'expense' THEN -amount ELSE amount END"
 
@@ -154,6 +176,26 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 				query = query.Where(fmt.Sprintf("%s >= ?", signedAmount), f.Value)
 			case "<=":
 				query = query.Where(fmt.Sprintf("%s <= ?", signedAmount), f.Value)
+			}
+			continue
+		}
+
+		// Special case 2: quantity filters on investment trades
+		if f.Source == "investment_trades" && f.Field == "quantity" {
+
+			switch f.Operator {
+			case "equals", "=":
+				query = query.Where(fmt.Sprintf("%s = ?", f.Value), f.Value)
+			case "not equals", "<>", "!=":
+				query = query.Where(fmt.Sprintf("%s <> ?", f.Value), f.Value)
+			case "more than", ">":
+				query = query.Where(fmt.Sprintf("%s > ?", f.Value), f.Value)
+			case "less than", "<":
+				query = query.Where(fmt.Sprintf("%s < ?", f.Value), f.Value)
+			case ">=":
+				query = query.Where(fmt.Sprintf("%s >= ?", f.Value), f.Value)
+			case "<=":
+				query = query.Where(fmt.Sprintf("%s <= ?", f.Value), f.Value)
 			}
 			continue
 		}

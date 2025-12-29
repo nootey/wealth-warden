@@ -4,6 +4,7 @@ import (
 	"testing"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/runtime"
+	"wealth-warden/pkg/config"
 
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/zap"
@@ -19,10 +20,18 @@ type SchedulerTestSuite struct {
 
 func (suite *SchedulerTestSuite) SetupTest() {
 	suite.logger = zaptest.NewLogger(suite.T())
-	suite.container = &bootstrap.Container{}
+	suite.container = &bootstrap.Container{
+		Config: &config.Config{
+			FinanceAPIBaseURL: "https://query1.finance.yahoo.com",
+		},
+	}
 
 	var err error
-	suite.scheduler, err = runtime.NewScheduler(suite.logger, suite.container, false)
+	suite.scheduler, err = runtime.NewScheduler(suite.logger, suite.container, runtime.SchedulerConfig{
+		StartBackfillImmediately:  false,
+		StartTemplateImmediately:  false,
+		StartPriceSyncImmediately: false,
+	})
 	suite.NoError(err)
 	suite.NotNil(suite.scheduler)
 }
@@ -49,14 +58,22 @@ func (suite *SchedulerTestSuite) TestScheduler_StartAndShutdown() {
 
 // Test creating scheduler with nil logger returns error
 func (suite *SchedulerTestSuite) TestScheduler_NewWithNilLogger() {
-	scheduler, err := runtime.NewScheduler(nil, suite.container, false)
+	scheduler, err := runtime.NewScheduler(nil, suite.container, runtime.SchedulerConfig{
+		StartBackfillImmediately:  false,
+		StartTemplateImmediately:  false,
+		StartPriceSyncImmediately: false,
+	})
 	suite.Error(err)
 	suite.Nil(scheduler)
 }
 
 // Test creating scheduler with nil container returns error
 func (suite *SchedulerTestSuite) TestScheduler_NewWithNilContainer() {
-	scheduler, err := runtime.NewScheduler(suite.logger, nil, false)
+	scheduler, err := runtime.NewScheduler(suite.logger, nil, runtime.SchedulerConfig{
+		StartBackfillImmediately:  false,
+		StartTemplateImmediately:  false,
+		StartPriceSyncImmediately: false,
+	})
 	suite.Error(err)
 	suite.Nil(scheduler)
 	suite.Contains(err.Error(), "container cannot be nil")

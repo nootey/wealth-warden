@@ -1,0 +1,49 @@
+-- +goose Up
+-- +goose StatementBegin
+CREATE TYPE investment_type AS ENUM ('stock', 'etf', 'crypto');
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+CREATE TABLE investment_assets (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    account_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    import_id BIGINT,
+
+    investment_type investment_type NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    ticker VARCHAR(20) NOT NULL,
+    quantity NUMERIC(19,8) NOT NULL,
+    value_at_buy NUMERIC(19,4) NOT NULL,
+    current_value NUMERIC(19,4) NOT NULL,
+    average_buy_price NUMERIC(19,4) NOT NULL,
+    profit_loss NUMERIC(19,4) NOT NULL,
+    profit_loss_percent NUMERIC(19,4) NOT NULL,
+    current_price NUMERIC(19,4),
+    last_price_update TIMESTAMPTZ,
+    currency CHAR(3) NOT NULL DEFAULT 'USD',
+
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_assets_account FOREIGN KEY (account_id)
+        REFERENCES accounts(id),
+    CONSTRAINT uq_account_ticker UNIQUE (account_id, ticker)
+);
+
+CREATE INDEX idx_assets_account ON investment_assets(account_id);
+CREATE INDEX idx_assets_user ON investment_assets(user_id);
+CREATE INDEX idx_assets_ticker ON investment_assets(ticker);
+
+CREATE TRIGGER set_investment_assets_updated_at
+    BEFORE UPDATE ON investment_assets
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+DROP TRIGGER IF EXISTS set_investment_assets_updated_at ON investment_assets;
+DROP TABLE IF EXISTS investment_assets;
+DROP TYPE IF EXISTS investment_type;
+-- +goose StatementEnd

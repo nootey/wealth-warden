@@ -39,6 +39,7 @@ type TxnImportPayload struct {
 	InvestmentTransfers []JSONTxn         `json:"investments"`
 	SavingsTransfers    []JSONTxn         `json:"savings"`
 	RepaymentTransfers  []JSONTxn         `json:"repayments"`
+	TradeTransfers      []JSONTxn         `json:"trades"`
 	Categories          []string          `json:"categories,omitempty"`
 	CategoryMappings    []CategoryMapping `json:"category_mappings" validate:"required"`
 }
@@ -47,6 +48,10 @@ type InvestmentTransferPayload struct {
 	ImportID           int64             `json:"import_id" validate:"required"`
 	CheckingAccID      int64             `json:"checking_acc_id" validate:"required"`
 	InvestmentMappings []TransferMapping `json:"investment_mappings" validate:"required"`
+}
+
+type InvestmentTradesPayload struct {
+	TradeMappings []TransferMapping `json:"trade_mappings" validate:"required"`
 }
 
 type SavingTransferPayload struct {
@@ -68,6 +73,7 @@ type JSONTxn struct {
 	TxnDate         time.Time `json:"txn_date"`
 	Category        string    `json:"category"`
 	Description     string    `json:"description"`
+	Fee             *string   `json:"fee,omitempty"`
 }
 
 type CategoryMapping struct {

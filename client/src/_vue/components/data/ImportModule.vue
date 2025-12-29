@@ -6,6 +6,7 @@ import ImportAccounts from "../../features/imports/ImportAccounts.vue";
 import ImportCategories from "../../features/imports/ImportCategories.vue";
 import ImportSavings from "../../features/imports/ImportSavings.vue";
 import ImportRepayments from "../../features/imports/ImportRepayments.vue";
+import ImportInvestmentTrades from "../../features/imports/ImportInvestmentTrades.vue";
 
 const emit = defineEmits<{
   (e: "refreshData", value: string): void;
@@ -19,6 +20,7 @@ const txnRef = ref<InstanceType<typeof ImportTransactions> | null>(null);
 const invRef = ref<InstanceType<typeof ImportInvestments> | null>(null);
 const savRef = ref<InstanceType<typeof ImportSavings> | null>(null);
 const repRef = ref<InstanceType<typeof ImportRepayments> | null>(null);
+const tradeRef = ref<InstanceType<typeof ImportInvestmentTrades> | null>(null);
 
 async function completeAction(val: string) {
   emit("refreshData", val);
@@ -45,6 +47,9 @@ async function startOperation() {
     case "categories":
       catRef.value?.importCategories();
       break;
+    case "trades":
+      tradeRef.value?.transferInvestmentTrades();
+      break;
     default:
       break;
   }
@@ -64,6 +69,8 @@ const isDisabled = computed(() => {
       return accRef.value?.isDisabled ?? true;
     case "categories":
       return catRef.value?.isDisabled ?? true;
+    case "trades":
+      return tradeRef.value?.isDisabled ?? true;
     default:
       return true;
   }
@@ -111,7 +118,7 @@ defineExpose({ isDisabled, startOperation });
               class="flex flex-row gap-2 p-2 align-items-center hover-icon"
               @click="selectedRef = 'categories'"
             >
-              <i class="pi pi-gift" style="color: #e39119" />
+              <i class="pi pi-gift" style="color: #fa8c73" />
               <span>Import categories</span>
               <i
                 class="pi pi-chevron-right"
@@ -166,6 +173,18 @@ defineExpose({ isDisabled, startOperation });
                 style="margin-left: auto; color: var(--text-secondary)"
               />
             </div>
+            <div style="border-bottom: 2px solid var(--border-color)" />
+            <div
+              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              @click="selectedRef = 'trades'"
+            >
+              <i class="pi pi-bitcoin" style="color: #ffc30d" />
+              <span>Transfer trades</span>
+              <i
+                class="pi pi-chevron-right"
+                style="margin-left: auto; color: var(--text-secondary)"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -200,6 +219,11 @@ defineExpose({ isDisabled, startOperation });
       <ImportRepayments
         v-else-if="selectedRef === 'repayments'"
         ref="repRef"
+        @complete-transfer="completeAction('import')"
+      />
+      <ImportInvestmentTrades
+        v-else-if="selectedRef === 'trades'"
+        ref="tradeRef"
         @complete-transfer="completeAction('import')"
       />
     </Transition>

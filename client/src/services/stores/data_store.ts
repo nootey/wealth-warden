@@ -94,6 +94,17 @@ export const useDataStore = defineStore("data", {
       return res.data;
     },
 
+    async transferInvestmentTradesFromImport(formData: FormData) {
+      const res = await apiClient.post(
+        `${this.importPrefix}/custom/trades`,
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
+      return res.data;
+    },
+
     async getExports() {
       const res = await apiClient.get(`${this.exportPrefix}`);
       return res.data;

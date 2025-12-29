@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -167,6 +168,8 @@ func (h *ImportHandler) ValidateCustomImport(c *gin.Context) {
 		set = payload.SavingsTransfers
 	case "repayment", "repayments":
 		set = payload.RepaymentTransfers
+	case "investment_trades":
+		set = payload.TradeTransfers
 	default: // "cash"
 		set = payload.Txns
 	}
@@ -481,4 +484,50 @@ func (h *ImportHandler) DeleteImport(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
+}
+
+func (h *ImportHandler) TransferInvestmentTrades(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 2<<20)
+
+	file, _, err := c.Request.FormFile("file")
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid Request", "Missing file", http.StatusBadRequest, err)
+		return
+	}
+	defer func(file multipart.File) {
+		err := file.Close()
+		if err != nil {
+			utils.ErrorMessage(c, "Error occurred", "Failed to close file stream", http.StatusInternalServerError, err)
+			return
+		}
+	}(file)
+
+	txnBytes, err := io.ReadAll(file)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "Failed to read file", http.StatusInternalServerError, err)
+		return
+	}
+
+	mappingsJSON := c.Request.FormValue("trade_mappings")
+	var payload models.InvestmentTradesPayload
+	if err := json.Unmarshal([]byte(mappingsJSON), &payload.TradeMappings); err != nil {
+		utils.ErrorMessage(c, "Invalid Request", "Invalid trade_mappings JSON", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(payload); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.Service.TransferInvestmentsTrades(ctx, userID, txnBytes, payload); err != nil {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Investments transferred successfully", "Success", http.StatusOK)
 }

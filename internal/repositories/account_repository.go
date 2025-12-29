@@ -53,6 +53,9 @@ type AccountRepositoryInterface interface {
 	FindAccountTypesWithoutDefaults(ctx context.Context, tx *gorm.DB, userID int64) ([]models.AccountType, error)
 	UpdateDefaultAccount(ctx context.Context, tx *gorm.DB, account models.Account, setAsDefault bool) error
 	HasDefaultForAccountType(ctx context.Context, tx *gorm.DB, userID, accountTypeID int64) (bool, error)
+	GetCumulativeNonCashPnLBeforeDate(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time) (decimal.Decimal, error)
+	ClearNonCashFlowsFromDate(ctx context.Context, tx *gorm.DB, accountID int64, fromDate time.Time) error
+	SetDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, value decimal.Decimal) error
 }
 
 type AccountRepository struct {
@@ -1082,4 +1085,70 @@ func (r *AccountRepository) HasDefaultForAccountType(ctx context.Context, tx *go
 		Count(&count).Error
 
 	return count > 0, err
+}
+
+func (r *AccountRepository) GetCumulativeNonCashPnLBeforeDate(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time) (decimal.Decimal, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	asOf = asOf.UTC().Truncate(24 * time.Hour)
+
+	var result struct {
+		TotalInflows  decimal.Decimal
+		TotalOutflows decimal.Decimal
+	}
+
+	err := db.Model(&models.Balance{}).
+		Select("COALESCE(SUM(non_cash_inflows), 0) as total_inflows, COALESCE(SUM(non_cash_outflows), 0) as total_outflows").
+		Where("account_id = ? AND as_of < ?", accountID, asOf).
+		Scan(&result).Error
+
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	return result.TotalInflows.Sub(result.TotalOutflows), nil
+}
+
+func (r *AccountRepository) ClearNonCashFlowsFromDate(ctx context.Context, tx *gorm.DB, accountID int64, fromDate time.Time) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	fromDate = fromDate.UTC().Truncate(24 * time.Hour)
+
+	return db.Model(&models.Balance{}).
+		Where("account_id = ? AND as_of >= ?", accountID, fromDate).
+		Updates(map[string]interface{}{
+			"non_cash_inflows":  0,
+			"non_cash_outflows": 0,
+			"updated_at":        time.Now().UTC(),
+		}).Error
+}
+
+func (r *AccountRepository) SetDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, value decimal.Decimal) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	asOf = asOf.UTC().Truncate(24 * time.Hour)
+
+	switch field {
+	case "cash_inflows", "cash_outflows", "non_cash_inflows", "non_cash_outflows", "net_market_flows", "adjustments":
+	default:
+		return fmt.Errorf("invalid balance field %q", field)
+	}
+
+	return db.Exec(fmt.Sprintf(`
+        UPDATE balances
+        SET %s = ?, updated_at = NOW()
+        WHERE account_id = ? AND as_of = ?
+    `, field), value, accountID, asOf).Error
 }

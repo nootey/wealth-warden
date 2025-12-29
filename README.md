@@ -10,9 +10,37 @@ while adding the power of automation and visualization.
 
 It's written in Go and Vue, and can be deployed with Docker easily.
 
+### Dashboard page
 ![Dashboard](docs/images/dash.png)
 
-![Dashboard](docs/images/chart.png)
+### Charts view
+![Charts](docs/images/chart.png)
+
+### Investment management
+![Investments](docs/images/investments.png)
+
+## Notes
+- This project is still a work in progress, there are things I want to implement that are currently on hold
+- There are also some features that are implemented half way, those being:
+  - Currency support: For now, EUR is the default and can not be changed
+    - USD is supported for investments
+  - Timezone support: Not supported everywhere
+  - Permissions: Implemented in a basic way
+
+## Features:
+- Ledger based transactions tracking across multiple accounts with automatic balance calculations
+- Daily, monthly, and yearly statistics to monitor your financial health
+  - Compare performance across different time periods
+- Interactive Charts & Visualizations
+- Per-record audit trails on individual records, showing the complete history of changes with timestamps and events
+- Investment portfolio management
+  - Track stocks, ETFs, and cryptocurrencies with real-time price updates from Yahoo Finance API
+  - Monitor individual trades with P&L calculations
+  - Linked investment accounts integrated with the main ledger system
+- Automation & Scheduled Jobs
+  - Automatic asset price updates for real-time investment tracking
+  - Balance backfill job to maintain accurate historical data
+  - Execute recurring transactions based on your configured parameters via transaction templates
 
 ## Deployment
 

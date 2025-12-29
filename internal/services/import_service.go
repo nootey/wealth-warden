@@ -14,6 +14,8 @@ import (
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/config"
+	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -30,36 +32,41 @@ type ImportServiceInterface interface {
 	TransferInvestmentsFromImport(ctx context.Context, userID int64, payload models.InvestmentTransferPayload) error
 	TransferSavingsFromImport(ctx context.Context, userID int64, payload models.SavingTransferPayload) error
 	TransferRepaymentsFromImport(ctx context.Context, userID int64, payload models.RepaymentTransferPayload) error
+	TransferInvestmentsTrades(ctx context.Context, userID int64, txnBytes []byte, payload models.InvestmentTradesPayload) error
 	DeleteImport(ctx context.Context, userID, id int64) error
-	DeleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error
-	DeleteAccImport(ctx context.Context, userID int64, imp *models.Import) error
-	DeleteCatImport(ctx context.Context, userID int64, imp *models.Import) error
+	deleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error
+	deleteAccImport(ctx context.Context, userID int64, imp *models.Import) error
+	deleteCatImport(ctx context.Context, userID int64, imp *models.Import) error
+	deleteTradesImport(ctx context.Context, userID int64, imp *models.Import) error
 }
 
 type ImportService struct {
-	repo          repositories.ImportRepositoryInterface
-	txnRepo       repositories.TransactionRepositoryInterface
-	accRepo       repositories.AccountRepositoryInterface
-	settingsRepo  repositories.SettingsRepositoryInterface
-	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher jobqueue.JobDispatcher
+	repo           repositories.ImportRepositoryInterface
+	txnRepo        repositories.TransactionRepositoryInterface
+	accRepo        repositories.AccountRepositoryInterface
+	investmentRepo repositories.InvestmentRepositoryInterface
+	settingsRepo   repositories.SettingsRepositoryInterface
+	loggingRepo    repositories.LoggingRepositoryInterface
+	jobDispatcher  jobqueue.JobDispatcher
 }
 
 func NewImportService(
 	repo *repositories.ImportRepository,
 	txnRepo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
+	investmentRepo *repositories.InvestmentRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobqueue.JobDispatcher,
 ) *ImportService {
 	return &ImportService{
-		repo:          repo,
-		txnRepo:       txnRepo,
-		accRepo:       accRepo,
-		settingsRepo:  settingsRepo,
-		loggingRepo:   loggingRepo,
-		jobDispatcher: jobDispatcher,
+		repo:           repo,
+		txnRepo:        txnRepo,
+		accRepo:        accRepo,
+		investmentRepo: investmentRepo,
+		settingsRepo:   settingsRepo,
+		loggingRepo:    loggingRepo,
+		jobDispatcher:  jobDispatcher,
 	}
 }
 
@@ -146,6 +153,8 @@ func (s *ImportService) ValidateCustomImport(ctx context.Context, payload *model
 		set = payload.SavingsTransfers
 	case "repayment", "repayments":
 		set = payload.RepaymentTransfers
+	case "investment_trades":
+		set = payload.TradeTransfers
 	default: // "cash"
 		set = payload.Txns
 	}
@@ -165,6 +174,9 @@ func (s *ImportService) ValidateCustomImport(ctx context.Context, payload *model
 		allowed["savings"] = true
 	case "repayment", "repayments":
 		allowed["repayments"] = true
+	case "investment_trades":
+		allowed["buy"] = true
+		allowed["sell"] = true
 	default:
 		allowed["income"] = true
 		allowed["expense"] = true
@@ -1678,6 +1690,540 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 	return nil
 }
 
+func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID int64, txnBytes []byte, payload models.InvestmentTradesPayload) error {
+
+	var txnPayload models.TxnImportPayload
+	if err := json.Unmarshal(txnBytes, &txnPayload); err != nil {
+		return err
+	}
+
+	todayStr := time.Now().UTC().Format("2006-01-02")
+	importName := fmt.Sprintf("trades_%s_generated_%s", txnPayload.Identifier, todayStr)
+
+	dir := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID))
+	finalPath := filepath.Join(dir, importName+".json")
+	tmpPath := filepath.Join(dir, importName+".json.tmp")
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(finalPath); err == nil {
+		return errors.New("import file already exists")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	// Reserve the name with an exclusive temp file (prevents races)
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return errors.New("import file already exists")
+		}
+		return err
+	}
+	reserved := true
+	defer func() {
+		if reserved {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	started := time.Now().UTC()
+
+	importID, err := s.repo.InsertImport(ctx, nil, models.Import{
+		Name:      importName,
+		UserID:    userID,
+		Type:      "custom",
+		SubType:   "trades",
+		Status:    "pending",
+		Step:      "investments",
+		Currency:  models.DefaultCurrency,
+		StartedAt: &started,
+	})
+	if err != nil {
+		return err
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
+	if err != nil {
+		tx.Rollback()
+		s.markImportFailed(ctx, importID, err)
+		return err
+	}
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	tradeToAccID := make(map[string]int64, len(payload.TradeMappings))
+	distinctAccIDs := make(map[int64]struct{})
+	for _, m := range payload.TradeMappings {
+		var id int64
+		switch {
+		case m.AccountID == 0:
+			continue
+		case m.AccountID != 0:
+			id = m.AccountID
+		}
+		if id == 0 {
+			continue
+		}
+		tradeToAccID[m.Name] = id
+		distinctAccIDs[id] = struct{}{}
+	}
+
+	accCache := make(map[int64]*models.Account, len(distinctAccIDs))
+	for id := range distinctAccIDs {
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, id, userID, true)
+		if err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return fmt.Errorf("destination account %d not found: %w", id, err)
+		}
+		accCache[id] = acc
+	}
+
+	// track earliest touched date per account
+	earliest := make(map[int64]time.Time)
+	touch := func(accID int64, d time.Time) {
+		if t, ok := earliest[accID]; !ok || d.Before(t) {
+			earliest[accID] = d
+		}
+	}
+
+	cfg, err := config.LoadConfig(nil)
+	if err != nil {
+		s.markImportFailed(ctx, importID, err)
+		_ = tx.Rollback()
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+	client, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
+	if err != nil {
+		s.markImportFailed(ctx, importID, err)
+		_ = tx.Rollback()
+		return fmt.Errorf("couldn't fetch price client: %w", err)
+	}
+
+	for _, txn := range txnPayload.TradeTransfers {
+
+		cAccID, ok := tradeToAccID[txn.Category]
+		if !ok {
+			continue
+		}
+
+		toAccount, ok := accCache[cAccID]
+		if !ok {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return fmt.Errorf("account %d not cached (internal error)", cAccID)
+		}
+
+		amt, err := decimal.NewFromString(txn.Amount)
+		if err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return fmt.Errorf("invalid amount '%s': %w", txn.Amount, err)
+		}
+
+		fee, err := decimal.NewFromString(*txn.Fee)
+		if err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return fmt.Errorf("invalid fee '%s': %w", txn.Amount, err)
+		}
+
+		// normalize date
+		txDay := utils.LocalMidnightUTC(txn.TxnDate, loc)
+		txDayAdjusted := utils.AdjustToWeekday(txDay)
+
+		var asset models.InvestmentAsset
+		var formattedTicker string
+
+		// Determine investment type and format ticker
+		var investmentType models.InvestmentType
+		if toAccount.AccountType.Type == "crypto" {
+			investmentType = models.InvestmentCrypto
+			formattedTicker = txn.Category
+			// Ensure format: BTC-USD for crypto
+			if !strings.Contains(formattedTicker, "-") {
+				formattedTicker = formattedTicker + "-USD"
+			}
+		} else {
+			investmentType = models.InvestmentETF
+			formattedTicker = txn.Category
+			// For European ETFs like IWDA, append .AS for Amsterdam
+			if !strings.Contains(formattedTicker, ".") {
+				formattedTicker = formattedTicker + ".AS"
+			}
+		}
+
+		// Check if asset exists by ticker and account
+		asset, err = s.investmentRepo.FindAssetByTicker(ctx, tx, formattedTicker, cAccID, userID)
+		if err != nil {
+			// Asset doesn't exist, create it
+			newAsset := models.InvestmentAsset{
+				UserID:          userID,
+				AccountID:       cAccID,
+				ImportID:        &importID,
+				InvestmentType:  investmentType,
+				Name:            "Asset " + txn.Category,
+				Ticker:          formattedTicker,
+				Quantity:        decimal.Zero,
+				Currency:        txn.Currency,
+				AverageBuyPrice: decimal.Zero,
+				CurrentPrice:    nil,
+				LastPriceUpdate: nil,
+			}
+
+			assetID, err := s.investmentRepo.InsertAsset(ctx, tx, &newAsset)
+			if err != nil {
+				s.markImportFailed(ctx, importID, err)
+				_ = tx.Rollback()
+				return fmt.Errorf("failed to create asset: %w", err)
+			}
+			newAsset.ID = assetID
+			asset = newAsset
+		}
+
+		effectiveQuantity := amt
+		var valueAtBuy decimal.Decimal
+		var pricePerUnit decimal.Decimal
+
+		priceData, err := client.GetAssetPriceOnDate(ctx, asset.Ticker, asset.InvestmentType, txDayAdjusted)
+		if err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return fmt.Errorf("failed to fetch price for %s on %s: %w", asset.Ticker, txDayAdjusted.Format("2006-01-02"), err)
+		}
+
+		pricePerUnit = decimal.NewFromFloat(priceData.Price)
+
+		if asset.InvestmentType == models.InvestmentCrypto {
+			effectiveQuantity = amt.Sub(fee)
+			valueAtBuy = effectiveQuantity.Mul(pricePerUnit)
+		} else {
+			valueAtBuy = amt.Mul(pricePerUnit).Sub(fee)
+		}
+
+		// Fetch current price for the asset
+		currentPriceData, err := client.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
+		if err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return fmt.Errorf("failed to fetch current price for %s: %w", asset.Ticker, err)
+		}
+
+		currentPrice := decimal.NewFromFloat(currentPriceData.Price)
+		lastPriceUpdate := time.Unix(currentPriceData.LastUpdate, 0)
+
+		exchangeRate := decimal.NewFromFloat(1.0)
+		rate, err := client.GetExchangeRate(ctx, txn.Currency, "USD")
+		if err == nil {
+			exchangeRate = decimal.NewFromFloat(rate)
+		}
+
+		txnCurrentValue := effectiveQuantity.Mul(currentPrice)
+		txnProfitLoss := txnCurrentValue.Sub(valueAtBuy)
+		var txnProfitLossPercent decimal.Decimal
+		if !valueAtBuy.IsZero() {
+			txnProfitLossPercent = txnProfitLoss.Div(valueAtBuy)
+		}
+
+		trade := models.InvestmentTrade{
+			UserID:            userID,
+			AssetID:           asset.ID,
+			ImportID:          &importID,
+			TxnDate:           txDayAdjusted,
+			TradeType:         models.TradeType(txn.TransactionType),
+			Quantity:          effectiveQuantity,
+			PricePerUnit:      pricePerUnit,
+			Fee:               fee,
+			ValueAtBuy:        valueAtBuy,
+			CurrentValue:      txnCurrentValue,
+			RealizedValue:     decimal.Zero,
+			ProfitLoss:        txnProfitLoss,
+			ProfitLossPercent: txnProfitLossPercent,
+			Currency:          txn.Currency,
+			ExchangeRateToUSD: exchangeRate,
+			Description:       nil,
+		}
+
+		_, err = s.investmentRepo.InsertInvestmentTrade(ctx, tx, &trade)
+		if err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return fmt.Errorf("failed to insert trade: %w", err)
+		}
+
+		// Update asset after trade
+		err = s.investmentRepo.UpdateAssetAfterTrade(
+			ctx, tx, asset.ID, effectiveQuantity, pricePerUnit,
+			&currentPrice, &lastPriceUpdate, models.TradeType(txn.TransactionType), valueAtBuy,
+		)
+		if err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return fmt.Errorf("failed to update asset: %w", err)
+		}
+
+		// Handle sell trades - realize P&L
+		if models.TradeType(txn.TransactionType) == models.InvestmentSell {
+			currentAsset, err := s.investmentRepo.FindInvestmentAssetByID(ctx, tx, asset.ID, userID)
+			if err != nil {
+				s.markImportFailed(ctx, importID, err)
+				_ = tx.Rollback()
+				return fmt.Errorf("failed to fetch asset for sell trade: %w", err)
+			}
+
+			var proceeds decimal.Decimal
+			if asset.InvestmentType == models.InvestmentCrypto {
+				proceeds = effectiveQuantity.Mul(pricePerUnit)
+			} else {
+				proceeds = effectiveQuantity.Mul(pricePerUnit).Sub(fee)
+			}
+			costBasis := currentAsset.AverageBuyPrice.Mul(effectiveQuantity)
+			realizedPnL := proceeds.Sub(costBasis)
+
+			realizedPnLInAccountCurrency := realizedPnL
+			if txn.Currency != toAccount.Currency {
+				rate, err := client.GetExchangeRate(ctx, txn.Currency, toAccount.Currency)
+				if err == nil {
+					realizedPnLInAccountCurrency = realizedPnL.Mul(decimal.NewFromFloat(rate))
+				}
+			}
+
+			if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, cAccID, txDayAdjusted, toAccount.Currency); err != nil {
+				s.markImportFailed(ctx, importID, err)
+				_ = tx.Rollback()
+				return err
+			}
+
+			if realizedPnLInAccountCurrency.GreaterThanOrEqual(decimal.Zero) {
+				if err := s.accRepo.AddToDailyBalance(ctx, tx, cAccID, txDayAdjusted, "cash_inflows", realizedPnLInAccountCurrency); err != nil {
+					s.markImportFailed(ctx, importID, err)
+					_ = tx.Rollback()
+					return err
+				}
+			} else {
+				if err := s.accRepo.AddToDailyBalance(ctx, tx, cAccID, txDayAdjusted, "cash_outflows", realizedPnLInAccountCurrency.Abs()); err != nil {
+					s.markImportFailed(ctx, importID, err)
+					_ = tx.Rollback()
+					return err
+				}
+			}
+		}
+
+		// record earliest touched date
+		touch(cAccID, txDayAdjusted)
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	for accID, from := range earliest {
+		acc := accCache[accID]
+
+		// Update unrealized P&L for all investment accounts
+		assets, err := s.investmentRepo.FindAssetsByAccountID(ctx, tx, accID, userID)
+		if err == nil && len(assets) > 0 {
+			checkpoints := s.generateCheckpointDates(from, today)
+			for _, checkpointDate := range checkpoints {
+				if err := s.updateInvestmentAccountBalance(ctx, tx, client, accID, userID, checkpointDate, acc.Currency); err != nil {
+					s.markImportFailed(ctx, importID, err)
+					_ = tx.Rollback()
+					return err
+				}
+			}
+		}
+
+		if err := s.accRepo.FrontfillBalances(ctx, tx, accID, acc.Currency, from); err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return err
+		}
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, acc.Currency, from, today); err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return err
+		}
+	}
+
+	// Write payload to temp file:
+	data, err := json.MarshalIndent(txnPayload, "", "  ")
+	if err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, importID, err)
+		return err
+	}
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, importID, err)
+		return err
+	}
+	if err := tmpFile.Sync(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, importID, err)
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, importID, err)
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		s.markImportFailed(ctx, importID, err)
+		return err
+	}
+
+	// Promote the temp file to final
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		s.markImportFailed(ctx, importID, err)
+		return err
+	}
+	reserved = false
+
+	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
+		"status":       "success",
+		"step":         "completed",
+		"completed_at": time.Now().UTC(),
+		"error":        "",
+	}); err != nil {
+		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges("", "custom", changes, "type")
+	utils.CompareChanges("", "trades", changes, "sub_type")
+	utils.CompareChanges("", importName, changes, "name")
+	utils.CompareChanges("", strconv.Itoa(len(payload.TradeMappings)), changes, "trade_mappings_count")
+	utils.CompareChanges("", strconv.Itoa(len(txnPayload.TradeTransfers)), changes, "trades_imported_count")
+
+	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
+		Event:       "create",
+		Category:    "import",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *ImportService) generateCheckpointDates(fromDate, toDate time.Time) []time.Time {
+	var dates []time.Time
+
+	dates = append(dates, utils.AdjustToWeekday(fromDate))
+
+	current := fromDate.AddDate(0, 1, 0)
+	current = time.Date(current.Year(), current.Month(), 1, 0, 0, 0, 0, time.UTC)
+
+	for current.Before(toDate) {
+		adjusted := utils.AdjustToWeekday(current)
+		if len(dates) == 0 || !adjusted.Equal(dates[len(dates)-1]) {
+			dates = append(dates, adjusted)
+		}
+		current = current.AddDate(0, 1, 0)
+	}
+
+	adjustedToDate := utils.AdjustToWeekday(toDate)
+	if len(dates) == 0 || !adjustedToDate.Equal(dates[len(dates)-1]) {
+		dates = append(dates, adjustedToDate)
+	}
+
+	return dates
+}
+
+func (s *ImportService) updateInvestmentAccountBalance(ctx context.Context, tx *gorm.DB, client finance.PriceFetcher, accountID, userID int64, asOf time.Time, currency string) error {
+
+	assets, err := s.investmentRepo.FindAssetsByAccountID(ctx, tx, accountID, userID)
+	if err != nil {
+		return err
+	}
+
+	if len(assets) == 0 {
+		return nil
+	}
+
+	var totalPnLAsOf decimal.Decimal
+
+	for _, asset := range assets {
+
+		qty, spent, err := s.investmentRepo.GetInvestmentTotalsUpToDate(ctx, tx, asset.ID, asOf)
+		if err != nil || qty.IsZero() {
+			continue
+		}
+
+		priceData, err := client.GetAssetPriceOnDate(ctx, asset.Ticker, asset.InvestmentType, asOf)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		price := decimal.NewFromFloat(priceData.Price)
+
+		currentValueAtDate := qty.Mul(price)
+		pnlAtDate := currentValueAtDate.Sub(spent)
+
+		pnlInAccountCurrency := pnlAtDate
+		if asset.Currency != currency {
+			rate, err := client.GetExchangeRate(ctx, asset.Currency, currency)
+			if err == nil {
+				exchangeRate := decimal.NewFromFloat(rate)
+				pnlInAccountCurrency = pnlAtDate.Mul(exchangeRate)
+			}
+		}
+
+		totalPnLAsOf = totalPnLAsOf.Add(pnlInAccountCurrency)
+	}
+
+	var previousPnL decimal.Decimal
+	cumulativePnL, err := s.accRepo.GetCumulativeNonCashPnLBeforeDate(ctx, tx, accountID, asOf)
+
+	if err == nil {
+		previousPnL = cumulativePnL
+	}
+
+	delta := totalPnLAsOf.Sub(previousPnL)
+
+	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, accountID, asOf, currency); err != nil {
+		return err
+	}
+
+	// Clear existing non-cash flows for this date
+	if err := s.accRepo.SetDailyBalance(ctx, tx, accountID, asOf, "non_cash_inflows", decimal.Zero); err != nil {
+		return err
+	}
+	if err := s.accRepo.SetDailyBalance(ctx, tx, accountID, asOf, "non_cash_outflows", decimal.Zero); err != nil {
+		return err
+	}
+
+	if delta.GreaterThan(decimal.Zero) {
+		if err := s.accRepo.AddToDailyBalance(ctx, tx, accountID, asOf, "non_cash_inflows", delta); err != nil {
+			return err
+		}
+	} else if delta.LessThan(decimal.Zero) {
+		if err := s.accRepo.AddToDailyBalance(ctx, tx, accountID, asOf, "non_cash_outflows", delta.Abs()); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) error {
 
 	imp, err := s.FetchImportByID(ctx, id, userID, "custom")
@@ -1687,17 +2233,22 @@ func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) erro
 
 	switch imp.SubType {
 	case "transactions":
-		err = s.DeleteTxnImport(ctx, userID, imp)
+		err = s.deleteTxnImport(ctx, userID, imp)
 		if err != nil {
 			return err
 		}
 	case "accounts":
-		err = s.DeleteAccImport(ctx, userID, imp)
+		err = s.deleteAccImport(ctx, userID, imp)
 		if err != nil {
 			return err
 		}
 	case "categories":
-		err = s.DeleteCatImport(ctx, userID, imp)
+		err = s.deleteCatImport(ctx, userID, imp)
+		if err != nil {
+			return err
+		}
+	case "trades":
+		err = s.deleteTradesImport(ctx, userID, imp)
 		if err != nil {
 			return err
 		}
@@ -1724,7 +2275,7 @@ func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) erro
 	return nil
 }
 
-func (s *ImportService) DeleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error {
+func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error {
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
@@ -1884,7 +2435,7 @@ func (s *ImportService) DeleteTxnImport(ctx context.Context, userID int64, imp *
 	return nil
 }
 
-func (s *ImportService) DeleteAccImport(ctx context.Context, userID int64, imp *models.Import) error {
+func (s *ImportService) deleteAccImport(ctx context.Context, userID int64, imp *models.Import) error {
 
 	// Check if any transactions exist for accounts linked to this import
 	txnCount, err := s.repo.CountTransactionsForImport(ctx, userID, imp.ID)
@@ -1936,7 +2487,7 @@ func (s *ImportService) DeleteAccImport(ctx context.Context, userID int64, imp *
 	return nil
 }
 
-func (s *ImportService) DeleteCatImport(ctx context.Context, userID int64, imp *models.Import) error {
+func (s *ImportService) deleteCatImport(ctx context.Context, userID int64, imp *models.Import) error {
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
@@ -1976,6 +2527,245 @@ func (s *ImportService) DeleteCatImport(ctx context.Context, userID int64, imp *
 	}
 
 	// Delete import files
+	finalPath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
+	tmpPath := finalPath + ".tmp"
+	for _, p := range []string{tmpPath, finalPath} {
+		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+			tx.Rollback()
+			return fmt.Errorf("failed to remove file %s: %w", p, err)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, imp *models.Import) error {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	cfg, err := config.LoadConfig(nil)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+	client, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("couldn't fetch price client: %w", err)
+	}
+
+	// Track which accounts need balance recomputation
+	type accountTouch struct {
+		acc   *models.Account
+		minAs time.Time
+	}
+	touched := make(map[int64]*accountTouch)
+	touch := func(acc *models.Account, asOf time.Time) {
+		at, ok := touched[acc.ID]
+		if !ok {
+			at = &accountTouch{acc: acc, minAs: asOf}
+			touched[acc.ID] = at
+		}
+		if asOf.Before(at.minAs) {
+			at.minAs = asOf
+		}
+	}
+
+	assets, err := s.investmentRepo.FindInvestmentAssetsByImportID(ctx, tx, imp.ID, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to find assets: %w", err)
+	}
+
+	// Delete each asset (this will also delete all its trades)
+	for _, asset := range assets {
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, asset.AccountID, userID, false)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("can't find account: %w", err)
+		}
+
+		earliestTxnDate, err := s.investmentRepo.GetEarliestTradeDate(ctx, tx, asset.ID, userID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			tx.Rollback()
+			return err
+		}
+
+		if !earliestTxnDate.IsZero() {
+			touch(acc, earliestTxnDate)
+		}
+
+		sellTxns, err := s.investmentRepo.FindSellTradesByAssetID(ctx, tx, asset.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		// Reverse realized P&L from all sells
+		for _, txn := range sellTxns {
+			if txn.RealizedValue == decimal.Zero {
+				continue
+			}
+
+			costBasis := txn.ValueAtBuy
+			realizedPnL := txn.RealizedValue.Sub(costBasis)
+
+			realizedPnLInAccountCurrency := realizedPnL
+			if txn.Currency != acc.Currency {
+				rate, err := client.GetExchangeRate(ctx, txn.Currency, acc.Currency)
+				if err == nil {
+					realizedPnLInAccountCurrency = realizedPnL.Mul(decimal.NewFromFloat(rate))
+				}
+			}
+
+			if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txn.TxnDate, acc.Currency); err != nil {
+				tx.Rollback()
+				return err
+			}
+
+			if realizedPnLInAccountCurrency.GreaterThanOrEqual(decimal.Zero) {
+				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txn.TxnDate, "cash_inflows", realizedPnLInAccountCurrency.Neg()); err != nil {
+					tx.Rollback()
+					return err
+				}
+			} else {
+				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txn.TxnDate, "cash_outflows", realizedPnLInAccountCurrency.Abs().Neg()); err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+
+		if err := s.investmentRepo.DeleteAllTradesForAsset(ctx, tx, asset.ID, userID); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if err := s.investmentRepo.DeleteInvestmentAsset(ctx, tx, asset.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// Get trades that were added to existing assets (not imported assets)
+	trades, err := s.investmentRepo.FindInvestmentTradesByImportID(ctx, tx, imp.ID, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to find trades: %w", err)
+	}
+
+	for _, trade := range trades {
+		asset, err := s.investmentRepo.FindInvestmentAssetByID(ctx, tx, trade.AssetID, userID)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("can't find asset: %w", err)
+		}
+
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, asset.AccountID, userID, false)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("can't find account: %w", err)
+		}
+
+		touch(acc, trade.TxnDate)
+
+		// Reverse sell realized P&L if it was a sell
+		if trade.TradeType == models.InvestmentSell {
+			costBasis := trade.ValueAtBuy
+			realizedPnL := trade.RealizedValue.Sub(costBasis)
+
+			realizedPnLInAccountCurrency := realizedPnL
+			if trade.Currency != acc.Currency {
+				rate, err := client.GetExchangeRate(ctx, trade.Currency, acc.Currency)
+				if err == nil {
+					realizedPnLInAccountCurrency = realizedPnL.Mul(decimal.NewFromFloat(rate))
+				}
+			}
+
+			if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, trade.TxnDate, acc.Currency); err != nil {
+				tx.Rollback()
+				return err
+			}
+
+			if realizedPnLInAccountCurrency.GreaterThanOrEqual(decimal.Zero) {
+				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, trade.TxnDate, "cash_inflows", realizedPnLInAccountCurrency.Neg()); err != nil {
+					tx.Rollback()
+					return err
+				}
+			} else {
+				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, trade.TxnDate, "cash_outflows", realizedPnLInAccountCurrency.Abs().Neg()); err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+
+		if err := s.investmentRepo.DeleteInvestmentTrade(ctx, tx, trade.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		// Recalculate asset from remaining trades
+		if err := s.investmentRepo.RecalculateAssetFromTrades(ctx, tx, asset.ID, userID); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// Recompute balances for all touched accounts
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	for _, at := range touched {
+		if at == nil || at.acc == nil || at.minAs.IsZero() {
+			continue
+		}
+
+		// Clear non-cash flows from earliest date
+		if err := s.accRepo.ClearNonCashFlowsFromDate(ctx, tx, at.acc.ID, at.minAs); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		// Recalculate unrealized P&L for remaining assets
+		assets, err := s.investmentRepo.FindAssetsByAccountID(ctx, tx, at.acc.ID, userID)
+		if err == nil && len(assets) > 0 {
+			checkpoints := s.generateCheckpointDates(at.minAs, today)
+			for _, checkpointDate := range checkpoints {
+				if err := s.updateInvestmentAccountBalance(ctx, tx, client, at.acc.ID, userID, checkpointDate, at.acc.Currency); err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+
+		if err := s.accRepo.FrontfillBalances(ctx, tx, at.acc.ID, at.acc.Currency, at.minAs); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, at.acc.ID, at.acc.Currency, at.minAs, today); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	if err := s.repo.DeleteImport(ctx, tx, imp.ID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	finalPath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
 	tmpPath := finalPath + ".tmp"
 	for _, p := range []string{tmpPath, finalPath} {

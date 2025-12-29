@@ -47,17 +47,38 @@ const vueHelper = {
       [errorClass]: !!state?.$error,
     };
   },
-  displayAsCurrency: (amount: Decimal | number | string | null) => {
-    // Hardcode for EU region for now
+  displayAsCurrency: (
+    amount: Decimal | number | string | null,
+    currency: string = "EUR",
+  ) => {
     if (amount === null || amount === undefined) return null;
     const num = Number(amount);
     if (isNaN(num)) return "Invalid Amount";
+
+    const symbols: Record<string, string> = {
+      USD: "$",
+      EUR: "€",
+    };
+
+    const symbol = symbols[currency.toUpperCase()] || currency.toUpperCase();
+
+    if (currency.toUpperCase() === "USD") {
+      return (
+        symbol +
+        num.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      );
+    }
 
     return (
       num.toLocaleString("de-DE", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-      }) + "€"
+      }) +
+      " " +
+      symbol
     );
   },
   displayAsPercentage: (value: number | string | null, decimals = 1) => {
@@ -67,6 +88,43 @@ const vueHelper = {
 
     const pct = num * 100;
     return pct.toFixed(decimals) + " %";
+  },
+  displayAssetPrice: (
+    amount: Decimal | number | string | null,
+    investmentType?: string,
+    currency: string = "EUR",
+  ) => {
+    if (amount === null || amount === undefined) return null;
+    const num = Number(amount);
+    if (isNaN(num)) return "Invalid Amount";
+
+    const decimals = investmentType === "crypto" ? 4 : 2;
+
+    const symbols: Record<string, string> = {
+      USD: "$",
+      EUR: "€",
+    };
+
+    const symbol = symbols[currency.toUpperCase()] || currency.toUpperCase();
+
+    if (currency.toUpperCase() === "USD") {
+      return (
+        symbol +
+        num.toLocaleString("en-US", {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals,
+        })
+      );
+    }
+
+    return (
+      num.toLocaleString("de-DE", {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      }) +
+      " " +
+      symbol
+    );
   },
   formatChanges(payload: unknown): Change[] | null {
     if (!payload) return null;

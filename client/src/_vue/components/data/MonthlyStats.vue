@@ -50,7 +50,10 @@ async function loadStats() {
           <span>Inflows:</span>
           <span
             ><b>{{
-              vueHelper.displayAsCurrency(monthlyStats?.inflow!)
+              vueHelper.displayAsCurrency(
+                monthlyStats?.inflow!,
+                monthlyStats.currency,
+              )
             }}</b></span
           >
         </div>
@@ -58,7 +61,10 @@ async function loadStats() {
           <span>Outflows:</span>
           <span
             ><b>{{
-              vueHelper.displayAsCurrency(monthlyStats?.outflow!)
+              vueHelper.displayAsCurrency(
+                monthlyStats?.outflow!,
+                monthlyStats.currency,
+              )
             }}</b></span
           >
         </div>
@@ -66,7 +72,10 @@ async function loadStats() {
           <span>Take home:</span>
           <span
             ><b>{{
-              vueHelper.displayAsCurrency(monthlyStats?.take_home!)
+              vueHelper.displayAsCurrency(
+                monthlyStats?.take_home!,
+                monthlyStats.currency,
+              )
             }}</b></span
           >
         </div>
@@ -74,7 +83,10 @@ async function loadStats() {
           <span>Overflow:</span>
           <span
             ><b>{{
-              vueHelper.displayAsCurrency(monthlyStats?.overflow!)
+              vueHelper.displayAsCurrency(
+                monthlyStats?.overflow!,
+                monthlyStats.currency,
+              )
             }}</b></span
           >
         </div>
@@ -87,7 +99,10 @@ async function loadStats() {
           <span>Savings:</span>
           <span
             ><b>{{
-              vueHelper.displayAsCurrency(monthlyStats.savings)
+              vueHelper.displayAsCurrency(
+                monthlyStats.savings,
+                monthlyStats.currency,
+              )
             }}</b></span
           >
           <span>Rate:</span>
@@ -102,7 +117,10 @@ async function loadStats() {
           <span>Investments</span>
           <span
             ><b>{{
-              vueHelper.displayAsCurrency(monthlyStats.investments)
+              vueHelper.displayAsCurrency(
+                monthlyStats.investments,
+                monthlyStats.currency,
+              )
             }}</b></span
           >
           <span>Rate</span>
@@ -117,7 +135,10 @@ async function loadStats() {
           <span>Debt repayments</span>
           <span
             ><b>{{
-              vueHelper.displayAsCurrency(monthlyStats.debt_repayments)
+              vueHelper.displayAsCurrency(
+                monthlyStats.debt_repayments,
+                monthlyStats.currency,
+              )
             }}</b></span
           >
           <span>Rate</span>

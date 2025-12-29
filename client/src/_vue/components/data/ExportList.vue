@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import vueHelper from "../../../utils/vue_helper.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
 import type { Column } from "../../../services/filter_registry.ts";
@@ -135,19 +134,8 @@ async function deleteRecord(id: number) {
         :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
       >
         <template #body="{ data }">
-          <template v-if="col.field === 'amount'">
-            {{
-              vueHelper.displayAsCurrency(
-                data.transaction_type == "expense"
-                  ? data.amount * -1
-                  : data.amount,
-              )
-            }}
-          </template>
           <template
-            v-else-if="
-              col.field === 'started_at' || col.field === 'completed_at'
-            "
+            v-if="col.field === 'started_at' || col.field === 'completed_at'"
           >
             {{ dateHelper.formatDate(data[col.field], true) }}
           </template>

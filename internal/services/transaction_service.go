@@ -11,6 +11,7 @@ import (
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -52,11 +53,12 @@ type TransactionServiceInterface interface {
 }
 
 type TransactionService struct {
-	repo          repositories.TransactionRepositoryInterface
-	accRepo       repositories.AccountRepositoryInterface
-	settingsRepo  repositories.SettingsRepositoryInterface
-	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher jobqueue.JobDispatcher
+	repo              repositories.TransactionRepositoryInterface
+	accRepo           repositories.AccountRepositoryInterface
+	settingsRepo      repositories.SettingsRepositoryInterface
+	loggingRepo       repositories.LoggingRepositoryInterface
+	jobDispatcher     jobqueue.JobDispatcher
+	currencyConverter finance.CurrencyManager
 }
 
 func NewTransactionService(
@@ -65,13 +67,15 @@ func NewTransactionService(
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobqueue.JobDispatcher,
+	currencyConverter finance.CurrencyManager,
 ) *TransactionService {
 	return &TransactionService{
-		repo:          repo,
-		accRepo:       accRepo,
-		settingsRepo:  settingsRepo,
-		jobDispatcher: jobDispatcher,
-		loggingRepo:   loggingRepo,
+		repo:              repo,
+		accRepo:           accRepo,
+		settingsRepo:      settingsRepo,
+		jobDispatcher:     jobDispatcher,
+		loggingRepo:       loggingRepo,
+		currencyConverter: currencyConverter,
 	}
 }
 
@@ -206,6 +210,21 @@ func (s *TransactionService) FetchCategoryByID(ctx context.Context, userID int64
 	return &record, nil
 }
 
+func (s *TransactionService) validateInvestmentBalance(ctx context.Context, tx *gorm.DB, account *models.Account, userID int64, resultingBalance decimal.Decimal) error {
+	totalInvestmentValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, account.ID, userID, account.Currency)
+	if err != nil {
+		return fmt.Errorf("failed to calculate total investment value: %w", err)
+	}
+
+	if totalInvestmentValue.GreaterThan(decimal.Zero) && resultingBalance.LessThan(totalInvestmentValue) {
+		return fmt.Errorf("insufficient funds: resulting balance (%s) would be below total investments (%s)",
+			resultingBalance.StringFixed(2),
+			totalInvestmentValue.StringFixed(2))
+	}
+
+	return nil
+}
+
 func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq) (int64, error) {
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -224,6 +243,21 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	if req.TransactionType == "expense" {
+		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, account.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+
+		resultingBalance := latestBalance.EndBalance.Sub(req.Amount)
+
+		if err := s.validateInvestmentBalance(ctx, tx, account, userID, resultingBalance); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
 	}
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
@@ -331,6 +365,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	amountString := tr.Amount.StringFixed(2)
 	dateStr := tr.TxnDate.UTC().Format(time.RFC3339)
 
+	utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
 	utils.CompareChanges("", account.Name, changes, "account")
 	utils.CompareChanges("", tr.TransactionType, changes, "type")
 	utils.CompareChanges("", dateStr, changes, "date")
@@ -382,6 +417,23 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 			fromAcc.Balance.EndBalance.StringFixed(2),
 			req.Amount.StringFixed(2),
 		)
+	}
+
+	// Also check investments
+	totalInvestmentValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, fromAcc.ID, userID, fromAcc.Currency)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
+	}
+
+	resultingBalance := fromAcc.Balance.EndBalance.Sub(req.Amount)
+
+	if totalInvestmentValue.GreaterThan(decimal.Zero) && resultingBalance.LessThan(totalInvestmentValue) {
+		tx.Rollback()
+		return 0, fmt.Errorf("insufficient funds: resulting balance (%s) would be below total investments (%s) in %s",
+			resultingBalance.StringFixed(2),
+			totalInvestmentValue.StringFixed(2),
+			fromAcc.Name)
 	}
 
 	toAcc, err := s.accRepo.FindAccountByID(ctx, tx, req.DestinationID, userID, false)
@@ -496,6 +548,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 
 	// Log transfer (one event)
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(trID, 10), changes, "id")
 	utils.CompareChanges("", fromAcc.Name, changes, "from")
 	utils.CompareChanges("", toAcc.Name, changes, "to")
 	utils.CompareChanges("", req.Amount.StringFixed(2), changes, "amount")
@@ -556,6 +609,7 @@ func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, r
 
 	// Log transfer (one event)
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(catID, 10), changes, "id")
 	utils.CompareChanges("", rec.DisplayName, changes, "name")
 	utils.CompareChanges("", rec.Classification, changes, "classification")
 
@@ -623,6 +677,38 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		newCategory, err = s.repo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
 		if err != nil {
 			return 0, fmt.Errorf("can't find default category %w", err)
+		}
+	}
+
+	var oldEffect, newEffect decimal.Decimal
+
+	if exTr.TransactionType == "expense" {
+		oldEffect = exTr.Amount.Neg()
+	} else {
+		oldEffect = exTr.Amount
+	}
+
+	if req.TransactionType == "expense" {
+		newEffect = req.Amount.Neg()
+	} else {
+		newEffect = req.Amount
+	}
+
+	netChange := newEffect.Sub(oldEffect)
+
+	// If net change is negative (balance going down), validate
+	if netChange.IsNegative() {
+		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, newAccount.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+
+		resultingBalance := latestBalance.EndBalance.Add(netChange)
+
+		if err := s.validateInvestmentBalance(ctx, tx, newAccount, userID, resultingBalance); err != nil {
+			tx.Rollback()
+			return 0, err
 		}
 	}
 
@@ -749,6 +835,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 	// Dispatch transaction activity log
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
 	utils.CompareChanges(oldAccount.Name, newAccount.Name, changes, "account")
 	utils.CompareChanges(exTr.TransactionType, tr.TransactionType, changes, "type")
 	utils.CompareDateChange(&exTr.TxnDate, &tr.TxnDate, changes, "date")
@@ -816,6 +903,7 @@ func (s *TransactionService) UpdateCategory(ctx context.Context, userID int64, i
 
 	changes := utils.InitChanges()
 
+	utils.CompareChanges("", strconv.FormatInt(catID, 10), changes, "id")
 	utils.CompareChanges(exCat.DisplayName, cat.DisplayName, changes, "name")
 	utils.CompareChanges(exCat.Classification, cat.Classification, changes, "classification")
 
@@ -864,6 +952,22 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 		return fmt.Errorf("can't find account with given id %w", err)
 	}
 
+	// If deleting an income, balance will go down
+	if tr.TransactionType == "income" {
+		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, account.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
+
+		if err := s.validateInvestmentBalance(ctx, tx, account, userID, resultingBalance); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
 	// Delete transaction
 	if err := s.repo.DeleteTransaction(ctx, tx, tr.ID, userID); err != nil {
 		tx.Rollback()
@@ -904,6 +1008,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	// Dispatch transaction activity log
 	changes := utils.InitChanges()
 
+	utils.CompareChanges("", strconv.FormatInt(tr.ID, 10), changes, "id")
 	utils.CompareChanges(account.Name, "", changes, "account")
 	utils.CompareChanges(tr.TransactionType, "", changes, "type")
 	utils.CompareDateChange(&tr.TxnDate, nil, changes, "date")
@@ -981,6 +1086,20 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 		return err
 	}
 
+	// Check if removing from destination would violate investment constraint
+	latestToBalance, err := s.accRepo.FindLatestBalance(ctx, tx, toAcc.ID, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	resultingToBalance := latestToBalance.EndBalance.Sub(inflow.Amount)
+
+	if err := s.validateInvestmentBalance(ctx, tx, toAcc, userID, resultingToBalance); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
 		tx.Rollback()
 		return err
@@ -1035,6 +1154,7 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 
 	// Log synthetic transfer deletion
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(transfer.ID, 10), changes, "id")
 	utils.CompareChanges(fromAcc.Name, "", changes, "from")
 	utils.CompareChanges(toAcc.Name, "", changes, "to")
 	utils.CompareChanges(transfer.Amount.StringFixed(2), "", changes, "amount")
@@ -1124,6 +1244,7 @@ func (s *TransactionService) DeleteCategory(ctx context.Context, userID int64, i
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(cat.ID, 10), changes, "id")
 	utils.CompareChanges(deleteType, "", changes, "delete_type")
 	utils.CompareChanges(cat.DisplayName, "", changes, "name")
 	utils.CompareChanges(cat.Classification, "", changes, "classification")
@@ -1177,6 +1298,22 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 		return fmt.Errorf("can't find account for transaction %w", err)
 	}
 
+	// If restoring an expense, balance will go down
+	if tr.TransactionType == "expense" {
+		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, acc.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
+
+		if err := s.validateInvestmentBalance(ctx, tx, acc, userID, resultingBalance); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
 	// Re-apply og cash effect
 	signed := func(tt string, amt decimal.Decimal) decimal.Decimal {
 		switch strings.ToLower(tt) {
@@ -1210,6 +1347,7 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 
 	// Log
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(tr.ID, 10), changes, "id")
 	utils.CompareChanges("", acc.Name, changes, "account")
 	utils.CompareChanges("", tr.Amount.StringFixed(2), changes, "amount")
 	utils.CompareChanges("", tr.Currency, changes, "currency")
@@ -1265,6 +1403,7 @@ func (s *TransactionService) RestoreCategory(ctx context.Context, userID int64, 
 
 	// Log
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(cat.ID, 10), changes, "id")
 	utils.CompareChanges("", cat.DisplayName, changes, "name")
 	utils.CompareChanges("", cat.Classification, changes, "classification")
 
@@ -1304,6 +1443,7 @@ func (s *TransactionService) RestoreCategoryName(ctx context.Context, userID int
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(cat.ID, 10), changes, "id")
 	utils.CompareChanges(utils.NormalizeName(cat.DisplayName), cat.Name, changes, "name")
 
 	if err := s.repo.RestoreCategoryName(ctx, tx, cat.ID, &userID, cat.Name); err != nil {
@@ -1462,6 +1602,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 	amountString := tp.Amount.StringFixed(2)
 	firstRunStr := tp.NextRunAt.UTC().Format(time.RFC3339)
 
+	utils.CompareChanges("", strconv.FormatInt(tpID, 10), changes, "id")
 	utils.CompareChanges("", tp.Name, changes, "name")
 	utils.CompareChanges("", account.Name, changes, "account")
 	utils.CompareChanges("", category.Name, changes, "category")
@@ -1669,6 +1810,7 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Co
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(tp.ID, 10), changes, "id")
 	utils.CompareChanges(strconv.FormatBool(exTp.IsActive), strconv.FormatBool(tp.IsActive), changes, "is_active")
 
 	_, err = s.repo.UpdateTransactionTemplate(ctx, tx, tp, true)
@@ -1989,6 +2131,7 @@ func (s *TransactionService) InsertCategoryGroup(ctx context.Context, userID int
 
 	// Log transfer (one event)
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(groupingID, 10), changes, "id")
 	utils.CompareChanges("", rec.Name, changes, "name")
 	utils.CompareChanges("", rec.Classification, changes, "classification")
 	utils.CompareChanges("", fmt.Sprintf("%d categories", len(categoryIDs)), changes, "categories_count")
@@ -2077,6 +2220,7 @@ func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(groupID, 10), changes, "id")
 	utils.CompareChanges(exGroup.Name, rec.Name, changes, "name")
 	utils.CompareChanges(exGroup.Classification, rec.Classification, changes, "classification")
 
