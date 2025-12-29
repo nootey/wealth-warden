@@ -4,6 +4,7 @@ CREATE TABLE investment_trades (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id BIGINT NOT NULL,
     asset_id BIGINT NOT NULL,
+    import_id BIGINT,
 
     txn_date DATE NOT NULL,
     trade_type VARCHAR(4) NOT NULL CHECK (trade_type IN ('buy', 'sell')),

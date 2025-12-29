@@ -8,6 +8,7 @@ CREATE TABLE investment_assets (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     account_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
+    import_id BIGINT,
 
     investment_type investment_type NOT NULL,
     name VARCHAR(255) NOT NULL,

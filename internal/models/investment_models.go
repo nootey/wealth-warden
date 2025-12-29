@@ -31,6 +31,7 @@ type InvestmentAsset struct {
 	LastPriceUpdate   *time.Time       `json:"last_price_update"`
 	Currency          string           `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
 	Account           Account          `json:"account"`
+	ImportID          *int64           `json:"import_id,omitempty"`
 	CreatedAt         time.Time        `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -60,6 +61,7 @@ type InvestmentTrade struct {
 	ExchangeRateToUSD decimal.Decimal `gorm:"type:decimal(19,6);not null;default:1.0" json:"exchange_rate_to_usd"`
 	Description       *string         `gorm:"type:varchar(255)" json:"description"`
 	Asset             InvestmentAsset `json:"asset"`
+	ImportID          *int64          `json:"import_id,omitempty"`
 	CreatedAt         time.Time       `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }

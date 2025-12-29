@@ -1691,6 +1691,59 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 
 func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID int64, txnBytes []byte, payload models.InvestmentTradesPayload) error {
 
+	var txnPayload models.TxnImportPayload
+	if err := json.Unmarshal(txnBytes, &txnPayload); err != nil {
+		return err
+	}
+
+	todayStr := time.Now().UTC().Format("2006-01-02")
+	importName := fmt.Sprintf("trades_%s_generated_%s", txnPayload.Identifier, todayStr)
+
+	dir := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID))
+	finalPath := filepath.Join(dir, importName+".json")
+	tmpPath := filepath.Join(dir, importName+".json.tmp")
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(finalPath); err == nil {
+		return errors.New("import file already exists")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	// Reserve the name with an exclusive temp file (prevents races)
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return errors.New("import file already exists")
+		}
+		return err
+	}
+	reserved := true
+	defer func() {
+		if reserved {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	started := time.Now().UTC()
+
+	importID, err := s.repo.InsertImport(ctx, nil, models.Import{
+		Name:      importName,
+		UserID:    userID,
+		Type:      "custom",
+		SubType:   "trades",
+		Status:    "pending",
+		Step:      "investments",
+		Currency:  models.DefaultCurrency,
+		StartedAt: &started,
+	})
+	if err != nil {
+		return err
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -1703,14 +1756,10 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		}
 	}()
 
-	var txnPayload models.TxnImportPayload
-	if err := json.Unmarshal(txnBytes, &txnPayload); err != nil {
-		return err
-	}
-
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 	loc, _ := time.LoadLocation(settings.Timezone)
@@ -1739,6 +1788,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 	for id := range distinctAccIDs {
 		acc, err := s.accRepo.FindAccountByID(ctx, tx, id, userID, true)
 		if err != nil {
+			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return fmt.Errorf("destination account %d not found: %w", id, err)
 		}
@@ -1755,11 +1805,13 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 
 	cfg, err := config.LoadConfig(nil)
 	if err != nil {
+		s.markImportFailed(ctx, importID, err)
 		_ = tx.Rollback()
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 	client, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
 	if err != nil {
+		s.markImportFailed(ctx, importID, err)
 		_ = tx.Rollback()
 		return fmt.Errorf("couldn't fetch price client: %w", err)
 	}
@@ -1773,18 +1825,21 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 
 		toAccount, ok := accCache[cAccID]
 		if !ok {
+			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return fmt.Errorf("account %d not cached (internal error)", cAccID)
 		}
 
 		amt, err := decimal.NewFromString(txn.Amount)
 		if err != nil {
+			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return fmt.Errorf("invalid amount '%s': %w", txn.Amount, err)
 		}
 
 		fee, err := decimal.NewFromString(*txn.Fee)
 		if err != nil {
+			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return fmt.Errorf("invalid fee '%s': %w", txn.Amount, err)
 		}
@@ -1821,6 +1876,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			newAsset := models.InvestmentAsset{
 				UserID:          userID,
 				AccountID:       cAccID,
+				ImportID:        &importID,
 				InvestmentType:  investmentType,
 				Name:            "Asset " + txn.Category,
 				Ticker:          formattedTicker,
@@ -1833,6 +1889,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 
 			assetID, err := s.investmentRepo.InsertAsset(ctx, tx, &newAsset)
 			if err != nil {
+				s.markImportFailed(ctx, importID, err)
 				_ = tx.Rollback()
 				return fmt.Errorf("failed to create asset: %w", err)
 			}
@@ -1846,6 +1903,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 
 		priceData, err := client.GetAssetPriceOnDate(ctx, asset.Ticker, asset.InvestmentType, txDayAdjusted)
 		if err != nil {
+			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return fmt.Errorf("failed to fetch price for %s on %s: %w", asset.Ticker, txDayAdjusted.Format("2006-01-02"), err)
 		}
@@ -1862,6 +1920,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		// Fetch current price for the asset
 		currentPriceData, err := client.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
 		if err != nil {
+			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return fmt.Errorf("failed to fetch current price for %s: %w", asset.Ticker, err)
 		}
@@ -1885,6 +1944,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		trade := models.InvestmentTrade{
 			UserID:            userID,
 			AssetID:           asset.ID,
+			ImportID:          &importID,
 			TxnDate:           txDayAdjusted,
 			TradeType:         models.TradeType(txn.TransactionType),
 			Quantity:          effectiveQuantity,
@@ -1902,6 +1962,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 
 		_, err = s.investmentRepo.InsertInvestmentTrade(ctx, tx, &trade)
 		if err != nil {
+			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return fmt.Errorf("failed to insert trade: %w", err)
 		}
@@ -1912,6 +1973,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			&currentPrice, &lastPriceUpdate, models.TradeType(txn.TransactionType), valueAtBuy,
 		)
 		if err != nil {
+			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return fmt.Errorf("failed to update asset: %w", err)
 		}
@@ -1920,6 +1982,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		if models.TradeType(txn.TransactionType) == models.InvestmentSell {
 			currentAsset, err := s.investmentRepo.FindInvestmentAssetByID(ctx, tx, asset.ID, userID)
 			if err != nil {
+				s.markImportFailed(ctx, importID, err)
 				_ = tx.Rollback()
 				return fmt.Errorf("failed to fetch asset for sell trade: %w", err)
 			}
@@ -1942,17 +2005,20 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			}
 
 			if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, cAccID, txDayAdjusted, toAccount.Currency); err != nil {
+				s.markImportFailed(ctx, importID, err)
 				_ = tx.Rollback()
 				return err
 			}
 
 			if realizedPnLInAccountCurrency.GreaterThanOrEqual(decimal.Zero) {
 				if err := s.accRepo.AddToDailyBalance(ctx, tx, cAccID, txDayAdjusted, "cash_inflows", realizedPnLInAccountCurrency); err != nil {
+					s.markImportFailed(ctx, importID, err)
 					_ = tx.Rollback()
 					return err
 				}
 			} else {
 				if err := s.accRepo.AddToDailyBalance(ctx, tx, cAccID, txDayAdjusted, "cash_outflows", realizedPnLInAccountCurrency.Abs()); err != nil {
+					s.markImportFailed(ctx, importID, err)
 					_ = tx.Rollback()
 					return err
 				}
@@ -1973,6 +2039,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			checkpoints := s.generateCheckpointDates(from, today)
 			for _, checkpointDate := range checkpoints {
 				if err := s.updateInvestmentAccountBalance(ctx, tx, client, accID, userID, checkpointDate, acc.Currency); err != nil {
+					s.markImportFailed(ctx, importID, err)
 					_ = tx.Rollback()
 					return err
 				}
@@ -1980,26 +2047,71 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		}
 
 		if err := s.accRepo.FrontfillBalances(ctx, tx, accID, acc.Currency, from); err != nil {
+			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return err
 		}
 		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, acc.Currency, from, today); err != nil {
+			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return err
 		}
 	}
 
-	if err := tx.Commit().Error; err != nil {
+	// Write payload to temp file:
+	data, err := json.MarshalIndent(txnPayload, "", "  ")
+	if err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, importID, err)
+		return err
+	}
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, importID, err)
+		return err
+	}
+	if err := tmpFile.Sync(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, importID, err)
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = tx.Rollback()
+		s.markImportFailed(ctx, importID, err)
 		return err
 	}
 
+	if err := tx.Commit().Error; err != nil {
+		s.markImportFailed(ctx, importID, err)
+		return err
+	}
+
+	// Promote the temp file to final
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		s.markImportFailed(ctx, importID, err)
+		return err
+	}
+	reserved = false
+
+	if err := s.repo.UpdateImport(ctx, nil, importID, map[string]interface{}{
+		"status":       "success",
+		"step":         "completed",
+		"completed_at": time.Now().UTC(),
+		"error":        "",
+	}); err != nil {
+		return fmt.Errorf("marking import %d successful failed: %w", importID, err)
+	}
+
 	changes := utils.InitChanges()
+	utils.CompareChanges("", "custom", changes, "type")
+	utils.CompareChanges("", "trades", changes, "sub_type")
+	utils.CompareChanges("", importName, changes, "name")
 	utils.CompareChanges("", strconv.Itoa(len(payload.TradeMappings)), changes, "trade_mappings_count")
 	utils.CompareChanges("", strconv.Itoa(len(txnPayload.TradeTransfers)), changes, "trades_imported_count")
 
 	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
-		Event:       "transfer_trades",
+		Event:       "create",
 		Category:    "import",
 		Description: nil,
 		Payload:     changes,
