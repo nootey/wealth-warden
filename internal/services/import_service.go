@@ -34,9 +34,10 @@ type ImportServiceInterface interface {
 	TransferRepaymentsFromImport(ctx context.Context, userID int64, payload models.RepaymentTransferPayload) error
 	TransferInvestmentsTrades(ctx context.Context, userID int64, txnBytes []byte, payload models.InvestmentTradesPayload) error
 	DeleteImport(ctx context.Context, userID, id int64) error
-	DeleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error
-	DeleteAccImport(ctx context.Context, userID int64, imp *models.Import) error
-	DeleteCatImport(ctx context.Context, userID int64, imp *models.Import) error
+	deleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error
+	deleteAccImport(ctx context.Context, userID int64, imp *models.Import) error
+	deleteCatImport(ctx context.Context, userID int64, imp *models.Import) error
+	deleteTradesImport(ctx context.Context, userID int64, imp *models.Import) error
 }
 
 type ImportService struct {
@@ -2232,17 +2233,22 @@ func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) erro
 
 	switch imp.SubType {
 	case "transactions":
-		err = s.DeleteTxnImport(ctx, userID, imp)
+		err = s.deleteTxnImport(ctx, userID, imp)
 		if err != nil {
 			return err
 		}
 	case "accounts":
-		err = s.DeleteAccImport(ctx, userID, imp)
+		err = s.deleteAccImport(ctx, userID, imp)
 		if err != nil {
 			return err
 		}
 	case "categories":
-		err = s.DeleteCatImport(ctx, userID, imp)
+		err = s.deleteCatImport(ctx, userID, imp)
+		if err != nil {
+			return err
+		}
+	case "trades":
+		err = s.deleteTradesImport(ctx, userID, imp)
 		if err != nil {
 			return err
 		}
@@ -2269,7 +2275,7 @@ func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) erro
 	return nil
 }
 
-func (s *ImportService) DeleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error {
+func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *models.Import) error {
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
@@ -2429,7 +2435,7 @@ func (s *ImportService) DeleteTxnImport(ctx context.Context, userID int64, imp *
 	return nil
 }
 
-func (s *ImportService) DeleteAccImport(ctx context.Context, userID int64, imp *models.Import) error {
+func (s *ImportService) deleteAccImport(ctx context.Context, userID int64, imp *models.Import) error {
 
 	// Check if any transactions exist for accounts linked to this import
 	txnCount, err := s.repo.CountTransactionsForImport(ctx, userID, imp.ID)
@@ -2481,7 +2487,7 @@ func (s *ImportService) DeleteAccImport(ctx context.Context, userID int64, imp *
 	return nil
 }
 
-func (s *ImportService) DeleteCatImport(ctx context.Context, userID int64, imp *models.Import) error {
+func (s *ImportService) deleteCatImport(ctx context.Context, userID int64, imp *models.Import) error {
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
@@ -2521,6 +2527,245 @@ func (s *ImportService) DeleteCatImport(ctx context.Context, userID int64, imp *
 	}
 
 	// Delete import files
+	finalPath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
+	tmpPath := finalPath + ".tmp"
+	for _, p := range []string{tmpPath, finalPath} {
+		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+			tx.Rollback()
+			return fmt.Errorf("failed to remove file %s: %w", p, err)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, imp *models.Import) error {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	cfg, err := config.LoadConfig(nil)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+	client, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("couldn't fetch price client: %w", err)
+	}
+
+	// Track which accounts need balance recomputation
+	type accountTouch struct {
+		acc   *models.Account
+		minAs time.Time
+	}
+	touched := make(map[int64]*accountTouch)
+	touch := func(acc *models.Account, asOf time.Time) {
+		at, ok := touched[acc.ID]
+		if !ok {
+			at = &accountTouch{acc: acc, minAs: asOf}
+			touched[acc.ID] = at
+		}
+		if asOf.Before(at.minAs) {
+			at.minAs = asOf
+		}
+	}
+
+	assets, err := s.investmentRepo.FindInvestmentAssetsByImportID(ctx, tx, imp.ID, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to find assets: %w", err)
+	}
+
+	// Delete each asset (this will also delete all its trades)
+	for _, asset := range assets {
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, asset.AccountID, userID, false)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("can't find account: %w", err)
+		}
+
+		earliestTxnDate, err := s.investmentRepo.GetEarliestTradeDate(ctx, tx, asset.ID, userID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			tx.Rollback()
+			return err
+		}
+
+		if !earliestTxnDate.IsZero() {
+			touch(acc, earliestTxnDate)
+		}
+
+		sellTxns, err := s.investmentRepo.FindSellTradesByAssetID(ctx, tx, asset.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		// Reverse realized P&L from all sells
+		for _, txn := range sellTxns {
+			if txn.RealizedValue == decimal.Zero {
+				continue
+			}
+
+			costBasis := txn.ValueAtBuy
+			realizedPnL := txn.RealizedValue.Sub(costBasis)
+
+			realizedPnLInAccountCurrency := realizedPnL
+			if txn.Currency != acc.Currency {
+				rate, err := client.GetExchangeRate(ctx, txn.Currency, acc.Currency)
+				if err == nil {
+					realizedPnLInAccountCurrency = realizedPnL.Mul(decimal.NewFromFloat(rate))
+				}
+			}
+
+			if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txn.TxnDate, acc.Currency); err != nil {
+				tx.Rollback()
+				return err
+			}
+
+			if realizedPnLInAccountCurrency.GreaterThanOrEqual(decimal.Zero) {
+				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txn.TxnDate, "cash_inflows", realizedPnLInAccountCurrency.Neg()); err != nil {
+					tx.Rollback()
+					return err
+				}
+			} else {
+				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txn.TxnDate, "cash_outflows", realizedPnLInAccountCurrency.Abs().Neg()); err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+
+		if err := s.investmentRepo.DeleteAllTradesForAsset(ctx, tx, asset.ID, userID); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if err := s.investmentRepo.DeleteInvestmentAsset(ctx, tx, asset.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// Get trades that were added to existing assets (not imported assets)
+	trades, err := s.investmentRepo.FindInvestmentTradesByImportID(ctx, tx, imp.ID, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to find trades: %w", err)
+	}
+
+	for _, trade := range trades {
+		asset, err := s.investmentRepo.FindInvestmentAssetByID(ctx, tx, trade.AssetID, userID)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("can't find asset: %w", err)
+		}
+
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, asset.AccountID, userID, false)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("can't find account: %w", err)
+		}
+
+		touch(acc, trade.TxnDate)
+
+		// Reverse sell realized P&L if it was a sell
+		if trade.TradeType == models.InvestmentSell {
+			costBasis := trade.ValueAtBuy
+			realizedPnL := trade.RealizedValue.Sub(costBasis)
+
+			realizedPnLInAccountCurrency := realizedPnL
+			if trade.Currency != acc.Currency {
+				rate, err := client.GetExchangeRate(ctx, trade.Currency, acc.Currency)
+				if err == nil {
+					realizedPnLInAccountCurrency = realizedPnL.Mul(decimal.NewFromFloat(rate))
+				}
+			}
+
+			if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, trade.TxnDate, acc.Currency); err != nil {
+				tx.Rollback()
+				return err
+			}
+
+			if realizedPnLInAccountCurrency.GreaterThanOrEqual(decimal.Zero) {
+				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, trade.TxnDate, "cash_inflows", realizedPnLInAccountCurrency.Neg()); err != nil {
+					tx.Rollback()
+					return err
+				}
+			} else {
+				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, trade.TxnDate, "cash_outflows", realizedPnLInAccountCurrency.Abs().Neg()); err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+
+		if err := s.investmentRepo.DeleteInvestmentTrade(ctx, tx, trade.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		// Recalculate asset from remaining trades
+		if err := s.investmentRepo.RecalculateAssetFromTrades(ctx, tx, asset.ID, userID); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// Recompute balances for all touched accounts
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	for _, at := range touched {
+		if at == nil || at.acc == nil || at.minAs.IsZero() {
+			continue
+		}
+
+		// Clear non-cash flows from earliest date
+		if err := s.accRepo.ClearNonCashFlowsFromDate(ctx, tx, at.acc.ID, at.minAs); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		// Recalculate unrealized P&L for remaining assets
+		assets, err := s.investmentRepo.FindAssetsByAccountID(ctx, tx, at.acc.ID, userID)
+		if err == nil && len(assets) > 0 {
+			checkpoints := s.generateCheckpointDates(at.minAs, today)
+			for _, checkpointDate := range checkpoints {
+				if err := s.updateInvestmentAccountBalance(ctx, tx, client, at.acc.ID, userID, checkpointDate, at.acc.Currency); err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+
+		if err := s.accRepo.FrontfillBalances(ctx, tx, at.acc.ID, at.acc.Currency, at.minAs); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, at.acc.ID, at.acc.Currency, at.minAs, today); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	if err := s.repo.DeleteImport(ctx, tx, imp.ID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	finalPath := filepath.Join("storage", "imports", fmt.Sprintf("%d", userID), imp.Name+".json")
 	tmpPath := finalPath + ".tmp"
 	for _, p := range []string{tmpPath, finalPath} {

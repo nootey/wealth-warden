@@ -498,7 +498,13 @@ func (h *ImportHandler) TransferInvestmentTrades(c *gin.Context) {
 		utils.ErrorMessage(c, "Invalid Request", "Missing file", http.StatusBadRequest, err)
 		return
 	}
-	defer file.Close()
+	defer func(file multipart.File) {
+		err := file.Close()
+		if err != nil {
+			utils.ErrorMessage(c, "Error occurred", "Failed to close file stream", http.StatusInternalServerError, err)
+			return
+		}
+	}(file)
 
 	txnBytes, err := io.ReadAll(file)
 	if err != nil {
