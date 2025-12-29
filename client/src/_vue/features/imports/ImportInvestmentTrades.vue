@@ -267,7 +267,8 @@ defineExpose({ isDisabled, transferInvestmentTrades });
     </div>
 
     <div v-if="validatedResponse">
-      <div v-if="!transfering"
+      <div
+        v-if="!transfering"
         class="flex flex-column w-full gap-3 justify-content-center align-items-center"
       >
         <span>---</span>
@@ -300,7 +301,6 @@ defineExpose({ isDisabled, transferInvestmentTrades });
       </div>
       <ShowLoading v-else :num-fields="5" />
     </div>
-
   </div>
 </template>
 
