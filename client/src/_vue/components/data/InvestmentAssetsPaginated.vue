@@ -171,6 +171,7 @@ defineExpose({ refresh });
                 vueHelper.displayAssetPrice(
                   data.average_buy_price,
                   data.investment_type,
+                  data.currency
                 )
               }}</span>
             </div>

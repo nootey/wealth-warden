@@ -62,13 +62,13 @@ const quantityRef = computed({
   get: () => record.value.quantity,
   set: (v) => (record.value.quantity = v),
 });
-const { number: quantityNumber } = currencyHelper.useMoneyField(quantityRef, 2);
+const { number: quantityNumber } = currencyHelper.useMoneyField(quantityRef, 6);
 
 const feeRef = computed({
   get: () => record.value.fee,
   set: (v) => (record.value.fee = v),
 });
-const { number: feeNumber } = currencyHelper.useMoneyField(feeRef, 2);
+const { number: feeNumber } = currencyHelper.useMoneyField(feeRef, 6);
 
 const pricePerUnitRef = computed({
   get: () => record.value.price_per_unit,
@@ -76,7 +76,7 @@ const pricePerUnitRef = computed({
 });
 const { number: pricePerUnitNumber } = currencyHelper.useMoneyField(
   pricePerUnitRef,
-  2,
+  6,
 );
 
 const rules = {
@@ -498,6 +498,10 @@ async function deleteRecord(id: number) {
           mode="currency"
           :currency="record.currency"
           locale="de-DE"
+          :min-fraction-digits="2"
+          :max-fraction-digits="
+            record.asset?.investment_type === 'crypto' ? 6 : 2
+          "
           :placeholder="getCurrencyPlaceholder(record.currency)"
           :readonly="isReadOnly"
           :disabled="isReadOnly"
