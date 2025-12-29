@@ -471,7 +471,12 @@ func (c *PriceFetchClient) GetExchangeRateOnDate(ctx context.Context, fromCurren
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch exchange rate: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		closeErr := Body.Close()
+		if closeErr != nil {
+			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
+		}
+	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("failed to get exchange rate for %s (status %d)", symbol, resp.StatusCode)
