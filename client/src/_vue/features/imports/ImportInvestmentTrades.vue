@@ -208,9 +208,9 @@ defineExpose({ isDisabled, transferInvestmentTrades });
       @clear="onClear"
     >
       <template #header="{ chooseCallback }">
-        <div class="w-full flex flex-row justify-content-center">
+        <div class="flex flex-row w-full justify-content-center">
           <Button
-            class="outline-button w-3"
+            class="outline-button"
             :disabled="transfering"
             label="Upload"
             @click="chooseCallback()"
@@ -267,7 +267,7 @@ defineExpose({ isDisabled, transferInvestmentTrades });
     </div>
 
     <div v-if="validatedResponse">
-      <div
+      <div v-if="!transfering"
         class="flex flex-column w-full gap-3 justify-content-center align-items-center"
       >
         <span>---</span>
@@ -298,8 +298,14 @@ defineExpose({ isDisabled, transferInvestmentTrades });
           />
         </div>
       </div>
+      <ShowLoading v-else :num-fields="5" />
     </div>
+
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.p-fileupload {
+  width: 80% !important;
+}
+</style>
