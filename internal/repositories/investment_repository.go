@@ -33,6 +33,7 @@ type InvestmentRepositoryInterface interface {
 	DeleteAllTradesForAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64) error
 	DeleteInvestmentAsset(ctx context.Context, tx *gorm.DB, id int64) error
 	GetInvestmentTotalsUpToDate(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time) (decimal.Decimal, decimal.Decimal, error)
+	FindAssetByTicker(ctx context.Context, tx *gorm.DB, ticker string, accID, userID int64) (models.InvestmentAsset, error)
 }
 
 type InvestmentRepository struct {
@@ -176,6 +177,25 @@ func (r *InvestmentRepository) FindInvestmentAssetByID(ctx context.Context, tx *
 			return db.Order("created_at DESC").Limit(1)
 		}).
 		Where("id = ? AND user_id = ?", ID, userID)
+
+	q = q.First(&record)
+
+	return record, q.Error
+}
+
+func (r *InvestmentRepository) FindAssetByTicker(ctx context.Context, tx *gorm.DB, ticker string, accID, userID int64) (models.InvestmentAsset, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var record models.InvestmentAsset
+	q := db.
+		Preload("Account.Balance", func(db *gorm.DB) *gorm.DB {
+			return db.Order("created_at DESC").Limit(1)
+		}).
+		Where("ticker = ? AND account_id = ? AND user_id = ?", ticker, accID, userID)
 
 	q = q.First(&record)
 
