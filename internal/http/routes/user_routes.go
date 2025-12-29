@@ -13,8 +13,8 @@ func UserRoutes(apiGroup *gin.RouterGroup, handler *handlers.UserHandler, roleHa
 	apiGroup.PUT(":id", authz.RequireAllMW("manage_users"), handler.UpdateUser)
 	apiGroup.DELETE(":id", authz.RequireAllMW("delete_users"), handler.DeleteUser)
 
-	apiGroup.GET("invitations", handler.GetInvitationsPaginated)
-	apiGroup.PUT("invitations", handler.InsertInvitation)
+	apiGroup.GET("invitations", authz.RequireAllMW("view_data"), handler.GetInvitationsPaginated)
+	apiGroup.PUT("invitations", authz.RequireAllMW("view_data"), handler.InsertInvitation)
 	apiGroup.POST("invitations/resend/:id", handler.ResendInvitation)
 	apiGroup.DELETE("invitations/:id", authz.RequireAllMW("delete_users"), handler.DeleteInvitation)
 
