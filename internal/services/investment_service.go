@@ -32,6 +32,7 @@ type InvestmentServiceInterface interface {
 	UpdateInvestmentTrade(ctx context.Context, userID int64, id int64, req *models.InvestmentTradeReq) (int64, error)
 	DeleteInvestmentAsset(ctx context.Context, userID int64, id int64) error
 	DeleteInvestmentTrade(ctx context.Context, userID int64, id int64) error
+	GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string, date *time.Time) decimal.Decimal
 }
 
 type InvestmentService struct {
@@ -305,7 +306,7 @@ func (s *InvestmentService) UpdateInvestmentAccountBalance(ctx context.Context, 
 		// Convert P&L to account currency if needed
 		pnlInAccountCurrency := pnlAtDate
 		if asset.Currency != currency {
-			exchangeRate := s.GetExchangeRate(ctx, asset.Currency, currency)
+			exchangeRate := s.GetExchangeRate(ctx, asset.Currency, currency, &asOf)
 			pnlInAccountCurrency = pnlAtDate.Mul(exchangeRate)
 		}
 
@@ -450,7 +451,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, fmt.Errorf("can't find asset with given id %w", err)
 	}
 
-	exchangeRate := s.GetExchangeRate(ctx, req.Currency, asset.Account.Currency)
+	exchangeRate := s.GetExchangeRate(ctx, req.Currency, asset.Account.Currency, &req.TxnDate)
 
 	// Validate amounts
 	if req.TradeType == models.InvestmentSell && req.Quantity.GreaterThan(asset.Quantity) {
@@ -510,6 +511,8 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 				totalInvestmentValue.StringFixed(2))
 		}
 	}
+
+	exchangeRateToUSD := s.GetExchangeRate(ctx, req.Currency, "USD", &req.TxnDate)
 
 	// Calculate fee
 	fee := decimal.NewFromFloat(0.00)
@@ -574,7 +577,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		ProfitLoss:        txnProfitLoss,
 		ProfitLossPercent: txnProfitLossPercent,
 		Currency:          req.Currency,
-		ExchangeRateToUSD: exchangeRate,
+		ExchangeRateToUSD: exchangeRateToUSD,
 		Description:       req.Description,
 	}
 
@@ -655,7 +658,7 @@ func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, as
 
 	realizedPnLInAccountCurrency := realizedPnL
 	if tradeCurrency != asset.Account.Currency {
-		exchangeRate := s.GetExchangeRate(ctx, tradeCurrency, asset.Account.Currency)
+		exchangeRate := s.GetExchangeRate(ctx, tradeCurrency, asset.Account.Currency, &txnDate)
 		realizedPnLInAccountCurrency = realizedPnL.Mul(exchangeRate)
 	}
 
@@ -710,9 +713,17 @@ func (s *InvestmentService) updateUnrealizedPnL(ctx context.Context, tx *gorm.DB
 	return nil
 }
 
-func (s *InvestmentService) GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string) decimal.Decimal {
+func (s *InvestmentService) GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string, date *time.Time) decimal.Decimal {
 	if s.priceFetchClient != nil {
-		rate, err := s.priceFetchClient.GetExchangeRate(ctx, fromCurrency, toCurrency)
+		var rate float64
+		var err error
+
+		if date != nil {
+			rate, err = s.priceFetchClient.GetExchangeRateOnDate(ctx, fromCurrency, toCurrency, *date)
+		} else {
+			rate, err = s.priceFetchClient.GetExchangeRate(ctx, fromCurrency, toCurrency)
+		}
+
 		if err == nil {
 			return decimal.NewFromFloat(rate)
 		}
@@ -934,7 +945,7 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 		// Convert realized P&L to account currency if needed
 		realizedPnLInAccountCurrency := realizedPnL
 		if txn.Currency != asset.Account.Currency {
-			exchangeRate := s.GetExchangeRate(ctx, txn.Currency, asset.Account.Currency)
+			exchangeRate := s.GetExchangeRate(ctx, txn.Currency, asset.Account.Currency, &txn.TxnDate)
 			realizedPnLInAccountCurrency = realizedPnL.Mul(exchangeRate)
 		}
 
@@ -1061,7 +1072,7 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 		// Convert realized P&L to account currency if needed
 		realizedPnLInAccountCurrency := realizedPnL
 		if exTxn.Currency != asset.Account.Currency {
-			exchangeRate := s.GetExchangeRate(ctx, exTxn.Currency, asset.Account.Currency)
+			exchangeRate := s.GetExchangeRate(ctx, exTxn.Currency, asset.Account.Currency, &exTxn.TxnDate)
 			realizedPnLInAccountCurrency = realizedPnL.Mul(exchangeRate)
 		}
 

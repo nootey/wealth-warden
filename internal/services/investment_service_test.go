@@ -336,7 +336,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 	s.Require().NoError(err)
 
 	expectedBalanceUSD := asset.CurrentValue
-	exchangeRate := svc.GetExchangeRate(s.Ctx, "USD", "EUR")
+	exchangeRate := svc.GetExchangeRate(s.Ctx, "USD", "EUR", nil)
 	expectedBalanceAccCurrency := expectedBalanceUSD.Mul(exchangeRate)
 
 	expectedTotalBalance := initialBalance.Add(expectedBalanceAccCurrency.Sub(decimal.NewFromInt(50000).Mul(exchangeRate)))
@@ -513,7 +513,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_MultipleBuysUpdat
 	s.Require().NoError(err)
 
 	totalSpentUSD := decimal.NewFromInt(107500)
-	exchangeRate := svc.GetExchangeRate(s.Ctx, "USD", "EUR")
+	exchangeRate := svc.GetExchangeRate(s.Ctx, "USD", "EUR", nil)
 	totalSpentAccCurrency := totalSpentUSD.Mul(exchangeRate)
 
 	// Convert current asset value from USD to acc currency
@@ -638,7 +638,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 	expectedRealizedPnLUSD := proceeds.Sub(costBasis)
 
 	// Convert to account currency
-	exchangeRate := svc.GetExchangeRate(s.Ctx, "USD", "EUR")
+	exchangeRate := svc.GetExchangeRate(s.Ctx, "USD", "EUR", nil)
 	expectedRealizedPnLAccCurrency := expectedRealizedPnLUSD.Mul(exchangeRate)
 
 	var todayBalance models.Balance

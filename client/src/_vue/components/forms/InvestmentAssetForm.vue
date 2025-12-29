@@ -391,7 +391,10 @@ async function deleteRecord(id: number) {
       <div class="flex flex-column gap-1 w-6">
         <label>Average</label>
         <span style="color: var(--text-secondary)">{{
-          vueHelper.displayAsCurrency(record.average_buy_price!)
+          vueHelper.displayAsCurrency(
+            record.average_buy_price!,
+            record.currency,
+          )
         }}</span>
       </div>
     </div>
@@ -400,13 +403,13 @@ async function deleteRecord(id: number) {
       <div class="flex flex-column gap-1 w-6">
         <label>Value at buy</label>
         <span style="color: var(--text-secondary)">{{
-          vueHelper.displayAsCurrency(record.value_at_buy!)
+          vueHelper.displayAsCurrency(record.value_at_buy!, record.currency)
         }}</span>
       </div>
       <div class="flex flex-column gap-1 w-6">
         <label>Current value</label>
         <span style="color: var(--text-secondary)">{{
-          vueHelper.displayAsCurrency(record.current_value!)
+          vueHelper.displayAsCurrency(record.current_value!, record.currency)
         }}</span>
       </div>
     </div>
@@ -415,7 +418,7 @@ async function deleteRecord(id: number) {
       <div class="flex flex-column gap-1 w-6">
         <label>Current price</label>
         <span style="color: var(--text-secondary)">{{
-          vueHelper.displayAsCurrency(record.current_price!)
+          vueHelper.displayAsCurrency(record.current_price!, record.currency)
         }}</span>
       </div>
       <div class="flex flex-column gap-1 w-6">
