@@ -17,6 +17,7 @@ type PriceFetcher interface {
 	GetAssetPriceOnDate(ctx context.Context, ticker string, investmentType models.InvestmentType, date time.Time) (*PriceData, error)
 	GetPricesForMultipleAssets(ctx context.Context, assets []AssetRequest) (map[string]*PriceData, error)
 	GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string) (float64, error)
+	GetExchangeRateOnDate(ctx context.Context, fromCurrency, toCurrency string, date time.Time) (float64, error)
 }
 
 type PriceFetchClient struct {
@@ -419,6 +420,90 @@ func (c *PriceFetchClient) fetchYahooRate(ctx context.Context, symbol string) (f
 	rate := data.Chart.Result[0].Meta.RegularMarketPrice
 	if rate == 0 {
 		return 0, fmt.Errorf("invalid exchange rate (0) for %s", symbol)
+	}
+
+	return rate, nil
+}
+
+func (c *PriceFetchClient) GetExchangeRateOnDate(ctx context.Context, fromCurrency, toCurrency string, date time.Time) (float64, error) {
+	fromCurrency = strings.ToUpper(fromCurrency)
+	toCurrency = strings.ToUpper(toCurrency)
+
+	if fromCurrency == toCurrency {
+		return 1.0, nil
+	}
+
+	startOfDay := date.UTC().Truncate(24 * time.Hour)
+	endOfDay := startOfDay.AddDate(0, 0, 2)
+
+	period1 := startOfDay.Unix()
+	period2 := endOfDay.Unix()
+
+	var symbol string
+	if toCurrency == "USD" {
+		symbol = fmt.Sprintf("%s=X", fromCurrency)
+	} else if fromCurrency == "USD" {
+		symbol = fmt.Sprintf("%s=X", toCurrency)
+	} else {
+		// Convert through USD
+		fromToUsd, err := c.GetExchangeRateOnDate(ctx, fromCurrency, "USD", date)
+		if err != nil {
+			return 0, err
+		}
+		toToUsd, err := c.GetExchangeRateOnDate(ctx, toCurrency, "USD", date)
+		if err != nil {
+			return 0, err
+		}
+		return fromToUsd / toToUsd, nil
+	}
+
+	url := fmt.Sprintf("%s/v8/finance/chart/%s?period1=%d&period2=%d&interval=1d",
+		c.baseURL, symbol, period1, period2)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch exchange rate: %w", err)
+	}
+	defer func(Body io.ReadCloser) {
+		closeErr := Body.Close()
+		if closeErr != nil {
+			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("failed to get exchange rate for %s (status %d)", symbol, resp.StatusCode)
+	}
+
+	var data ChartResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return 0, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(data.Chart.Result) == 0 || len(data.Chart.Result[0].Timestamp) == 0 {
+		return 0, fmt.Errorf("no exchange rate data for %s on %s", symbol, date.Format("2006-01-02"))
+	}
+
+	result := data.Chart.Result[0]
+	quotes := result.Indicators.Quote[0]
+
+	var rate float64
+	for i := range result.Timestamp {
+		if i < len(quotes.Close) && quotes.Close[i] != nil {
+			rate = *quotes.Close[i]
+			break
+		}
+	}
+
+	if rate == 0 {
+		return 0, fmt.Errorf("invalid exchange rate (0) for %s on %s", symbol, date.Format("2006-01-02"))
 	}
 
 	return rate, nil

@@ -1930,7 +1930,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		lastPriceUpdate := time.Unix(currentPriceData.LastUpdate, 0)
 
 		exchangeRate := decimal.NewFromFloat(1.0)
-		rate, err := client.GetExchangeRate(ctx, txn.Currency, "USD")
+		rate, err := client.GetExchangeRateOnDate(ctx, txn.Currency, "USD", txDayAdjusted)
 		if err == nil {
 			exchangeRate = decimal.NewFromFloat(rate)
 		}
@@ -2180,7 +2180,7 @@ func (s *ImportService) updateInvestmentAccountBalance(ctx context.Context, tx *
 
 		pnlInAccountCurrency := pnlAtDate
 		if asset.Currency != currency {
-			rate, err := client.GetExchangeRate(ctx, asset.Currency, currency)
+			rate, err := client.GetExchangeRateOnDate(ctx, asset.Currency, currency, asOf)
 			if err == nil {
 				exchangeRate := decimal.NewFromFloat(rate)
 				pnlInAccountCurrency = pnlAtDate.Mul(exchangeRate)
