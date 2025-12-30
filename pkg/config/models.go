@@ -2,7 +2,6 @@ package config
 
 type Config struct {
 	Release           bool             `mapstructure:"release"`
-	TraefikEmail      string           `mapstructure:"traefik_email"`
 	FinanceAPIBaseURL string           `mapstructure:"finance_api_base_url"`
 	WebClient         WebClientConfig  `mapstructure:"web_client"`
 	HttpServer        HttpServerConfig `mapstructure:"http_server"`
