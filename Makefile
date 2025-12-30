@@ -18,3 +18,6 @@ bootstrap:
 	@echo "Tidying Go modules and installing tools..."
 	go mod tidy
 	@echo "Bootstrap complete."
+
+test:
+	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
