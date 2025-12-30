@@ -15,6 +15,8 @@ import type { FilterObj } from "../../../models/shared_models.ts";
 import FilterMenu from "../filters/FilterMenu.vue";
 import ActiveFilters from "../filters/ActiveFilters.vue";
 import ActionRow from "../layout/ActionRow.vue";
+import type { UserSettings } from "../../../models/settings_models.ts";
+import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 
 const props = defineProps<{
   columns: Column[];
@@ -28,6 +30,7 @@ defineEmits<{
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
+const settingsStore = useSettingsStore();
 const { colors } = useChartColors();
 
 const loading = ref(false);
@@ -61,14 +64,25 @@ const filters = ref(
   JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "[]"),
 );
 const filterOverlayRef = ref<any>(null);
+const userSettings = ref<UserSettings>();
 
 onMounted(async () => {
+  await getSettings();
   await getData();
 });
 
 watch(includeDeleted, async () => {
   await getData(1); // Reset to page 1 when toggling
 });
+
+async function getSettings() {
+  try {
+    const res = await settingsStore.getUserSettings();
+    userSettings.value = res.data;
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+  }
+}
 
 async function getData(new_page: number | null = null) {
   loading.value = true;
@@ -285,7 +299,11 @@ defineExpose({ refresh });
           </template>
           <template v-else-if="col.field === 'txn_date'">
             {{
-              dateHelper.combineDateAndTime(data?.txn_date, data?.created_at)
+              dateHelper.combineDateAndTime(
+                data?.txn_date,
+                data?.created_at,
+                userSettings?.timezone,
+              )
             }}
           </template>
           <template v-else-if="col.field === 'account'">

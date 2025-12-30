@@ -20,6 +20,8 @@ import ShowLoading from "../base/ShowLoading.vue";
 import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
 import AuditTrail from "../base/AuditTrail.vue";
+import type { UserSettings } from "../../../models/settings_models.ts";
+import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -33,8 +35,10 @@ const emit = defineEmits<{
 const sharedStore = useSharedStore();
 const accountStore = useAccountStore();
 const toastStore = useToastStore();
+const settingsStore = useSettingsStore();
 
 onMounted(async () => {
+  await getSettings();
   if (props.mode === "update" && props.recordId) {
     await loadRecord(props.recordId);
   }
@@ -44,6 +48,7 @@ const readOnly = ref(false);
 
 const confirm = useConfirm();
 const initializing = ref(false);
+const userSettings = ref<UserSettings>();
 
 const record = ref<Account>(initData());
 const balanceFieldRef = computed({
@@ -250,6 +255,15 @@ function initData(): Account {
   };
 }
 
+async function getSettings() {
+  try {
+    const res = await settingsStore.getUserSettings();
+    userSettings.value = res.data;
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+  }
+}
+
 async function loadRecord(id: number) {
   try {
     initializing.value = true;
@@ -363,6 +377,7 @@ async function manageRecord() {
 
   const opened_at = dateHelper.mergeDateWithCurrentTime(
     dayjs(record.value.opened_at).format("YYYY-MM-DD"),
+    userSettings.value?.timezone || "UTC",
   );
 
   const recordData: any = {

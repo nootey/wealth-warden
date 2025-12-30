@@ -23,6 +23,8 @@ import ShowLoading from "../base/ShowLoading.vue";
 import { useConfirm } from "primevue/useconfirm";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import AuditTrail from "../base/AuditTrail.vue";
+import type { UserSettings } from "../../../models/settings_models.ts";
+import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -39,6 +41,7 @@ const apiPrefix = "investments/trades";
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const investmentStore = useInvestmentStore();
+const settingsStore = useSettingsStore();
 
 const loading = ref(false);
 const isReadOnly = computed(() => props.mode === "update");
@@ -49,6 +52,7 @@ const { hasPermission } = usePermissions();
 const assets = ref<InvestmentAsset[]>([]);
 const record = ref<InvestmentTrade>(initData());
 const filteredAssets = ref<InvestmentAsset[]>([]);
+const userSettings = ref<UserSettings>();
 
 const tradeTypes = ref<string[]>(["Buy", "Sell"]);
 
@@ -127,6 +131,7 @@ const rules = {
 const v$ = useVuelidate(rules, { record });
 
 onMounted(async () => {
+  await getSettings();
   assets.value = await investmentStore.getAllAssets();
 
   if (props.mode === "update" && props.recordId) {
@@ -145,6 +150,15 @@ function initData(): InvestmentTrade {
     currency: "USD",
     description: "",
   };
+}
+
+async function getSettings() {
+  try {
+    const res = await settingsStore.getUserSettings();
+    userSettings.value = res.data;
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+  }
 }
 
 function getCurrencyPlaceholder(currency: string) {
@@ -206,6 +220,7 @@ async function manageRecord() {
 
   const txn_date = dateHelper.mergeDateWithCurrentTime(
     dayjs(record.value.txn_date).format("YYYY-MM-DD"),
+    userSettings.value?.timezone || "UTC",
   );
 
   const recordData = {

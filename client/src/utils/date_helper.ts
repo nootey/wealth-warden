@@ -55,23 +55,15 @@ const dateHelper = {
       throw new Error(`Invalid date format: ${dateString}`);
     }
 
-    // Convert to timezone properly
-    const dateWithTimezone = dayjs.tz(datePart.format("YYYY-MM-DD"), tz);
-    if (!dateWithTimezone.isValid()) {
-      throw new Error(`Invalid timezone parsing: ${dateWithTimezone}`);
-    }
-
-    // Get current time in specified timezone
     const currentTime = dayjs.tz(new Date(), tz);
 
-    // Merge date with current time
-    const mergedDateTime = dateWithTimezone
+    const mergedDateTime = dayjs
+      .tz(datePart.format("YYYY-MM-DD"), tz)
       .hour(currentTime.hour())
       .minute(currentTime.minute())
-      .second(0);
+      .second(currentTime.second());
 
-    // Convert to UTC before returning
-    return mergedDateTime.utc().toISOString();
+    return mergedDateTime.toISOString();
   },
 
   formatMonth(monthNumber: number): string {
@@ -95,13 +87,15 @@ const dateHelper = {
   combineDateAndTime(
     dateSource: string | number | Date,
     timeSource: string | number | Date,
+    timezone?: string,
     format: string = "YYYY-MM-DD HH:mm",
-    utc: boolean = false,
   ): string {
     if (!dateSource || !timeSource) return "";
 
-    const dateObj = utc ? dayjs.utc(dateSource) : dayjs.utc(dateSource).local();
-    const timeObj = utc ? dayjs.utc(timeSource) : dayjs.utc(timeSource).local();
+    const tz = timezone || dayjs.tz.guess();
+
+    const dateObj = dayjs.utc(dateSource).tz(tz);
+    const timeObj = dayjs.utc(timeSource).tz(tz);
 
     const combined = dateObj
       .hour(timeObj.hour())

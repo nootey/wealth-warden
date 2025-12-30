@@ -371,7 +371,9 @@ async function manageRecord() {
 async function startTransactionOperation() {
   const txn_date = dateHelper.mergeDateWithCurrentTime(
     dayjs(record.value.txn_date).format("YYYY-MM-DD"),
+    userSettings.value?.timezone || "UTC",
   );
+
   const recordData = {
     account_id: record.value.account.id,
     category_id: record.value.category?.id,
@@ -417,8 +419,10 @@ async function startTransferOperation() {
   if (!isValid) return;
 
   const created_at = dateHelper.mergeDateWithCurrentTime(
-    dayjs(transfer.value.created_at).format("YYYY-MM-DD"),
+    dayjs(record.value.created_at).format("YYYY-MM-DD"),
+    userSettings.value?.timezone || "UTC",
   );
+
   const recordData = {
     source_id: transfer.value.source_id,
     destination_id: transfer.value.destination_id,
