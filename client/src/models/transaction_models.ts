@@ -12,6 +12,7 @@ export interface Transaction {
   account: Account;
   deleted_at: Date | null;
   created_at?: Date;
+  updated_at?: Date;
   is_adjustment: boolean;
 }
 

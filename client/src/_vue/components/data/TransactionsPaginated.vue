@@ -298,13 +298,7 @@ defineExpose({ refresh });
             </div>
           </template>
           <template v-else-if="col.field === 'txn_date'">
-            {{
-              dateHelper.combineDateAndTime(
-                data?.txn_date,
-                data?.created_at,
-                userSettings?.timezone,
-              )
-            }}
+            {{ dateHelper.formatDate(data.txn_date, false) }}
           </template>
           <template v-else-if="col.field === 'account'">
             <div class="flex flex-row gap-2 align-items-center account-row">

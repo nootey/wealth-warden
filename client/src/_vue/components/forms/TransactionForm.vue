@@ -630,6 +630,17 @@ async function deleteRecord(id: number, tx_type: string) {
           />
         </div>
       </div>
+
+      <div v-if="mode === 'update'" class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-6">
+          <label>Created at</label>
+          {{ dateHelper.formatDate(record.created_at!, true) }}
+        </div>
+        <div class="flex flex-column gap-1 w-6">
+          <label>Updated at</label>
+          {{ dateHelper.formatDate(record.updated_at!, true) }}
+        </div>
+      </div>
     </div>
 
     <div v-if="!record.is_adjustment" class="flex flex-row gap-2 w-full">
