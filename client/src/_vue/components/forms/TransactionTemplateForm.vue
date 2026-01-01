@@ -22,6 +22,9 @@ import currencyHelper from "../../../utils/currency_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import AuditTrail from "../base/AuditTrail.vue";
+import dateHelper from "../../../utils/date_helper.ts";
+import type { UserSettings } from "../../../models/settings_models.ts";
+import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -36,8 +39,10 @@ const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
+const settingsStore = useSettingsStore();
 
 onMounted(async () => {
+  await getSettings();
   // Fetch accounts first
   accounts.value = accountStore.accounts;
 
@@ -48,6 +53,7 @@ onMounted(async () => {
 
 const isReadOnly = ref(false);
 const isImmutable = ref(false);
+const userSettings = ref<UserSettings>();
 
 const isAccountRestricted = computed<boolean>(() => {
   const acc = record.value.account as Account | null | undefined;
@@ -152,6 +158,15 @@ const rules = {
 };
 
 const v$ = useVuelidate(rules, { record });
+
+async function getSettings() {
+  try {
+    const res = await settingsStore.getUserSettings();
+    userSettings.value = res.data;
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+  }
+}
 
 function initData(): TransactionTemplate {
   return {
@@ -286,6 +301,8 @@ async function loadRecord(id: number) {
       ...initData(),
       ...data,
       frequency: vueHelper.capitalize(data.frequency),
+      next_run_at: data.next_run_at ? dayjs(data.next_run_at).toDate() : null,
+      end_date: data.end_date ? dayjs(data.end_date).toDate() : null,
     };
 
     if (!record.value.is_active) isReadOnly.value = true;
@@ -324,6 +341,18 @@ async function manageRecord() {
 }
 
 async function startOperation() {
+  const next_run_at = dateHelper.mergeDateWithCurrentTime(
+    dayjs(record.value.next_run_at).format("YYYY-MM-DD"),
+    userSettings.value?.timezone || "UTC",
+  );
+
+  const end_date = record.value.end_date
+    ? dateHelper.mergeDateWithCurrentTime(
+        dayjs(record.value.end_date).format("YYYY-MM-DD"),
+        userSettings.value?.timezone || "UTC",
+      )
+    : null;
+
   const recordData = {
     name: record.value.name,
     is_active: record.value.is_active,
@@ -332,8 +361,8 @@ async function startOperation() {
     transaction_type: selectedParentCategory.value?.classification,
     amount: record.value.amount,
     frequency: record.value.frequency,
-    next_run_at: record.value.next_run_at,
-    end_date: record.value.end_date,
+    next_run_at: next_run_at,
+    end_date: end_date,
     max_runs: record.value.max_runs,
   };
 
