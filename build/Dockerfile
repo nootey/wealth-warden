@@ -42,6 +42,9 @@ RUN apk add --no-cache curl
 # Copy only what's needed at runtime
 COPY --from=builder /app/server /usr/local/bin/server
 
+# Copy migration files
+COPY storage/migrations /app/migrations
+
 RUN chmod +x /usr/local/bin/server
 ENV PATH="/usr/local/bin/server:${PATH}"
 

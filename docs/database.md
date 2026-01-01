@@ -31,7 +31,7 @@ This will generate a new .sql file where you define both Up and Down migration s
 Use the following command to apply or rollback migrations:
 
 ```go 
-go run ./cmd migrate $(type)
+go run ./cmd migrate $(type) -d "/app/migrations"
 ```
 
 Options include:
@@ -42,6 +42,9 @@ Options include:
 - `fresh-seed-basic` -> runs fresh migrations and basic seeders
 - `fresh-seed-full` -> runs fresh migrations and all defined seeders
     - you can include/exclude seeders in `./databse/seeders/main.go`
+
+Available flags:
+- `-d or --dir` -> specify the directory containing migration files (default is `./storage/migrations`)
 
 ## Seeding
 

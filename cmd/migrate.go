@@ -24,13 +24,21 @@ var migrateCmd = &cobra.Command{
 			migrationType = args[0]
 		}
 
-		return runMigrations(migrationType, cfg, logger)
+		migrationDir, err := cmd.Flags().GetString("dir")
+		if err != nil {
+			return fmt.Errorf("failed to get migration directory flag: %v", err)
+		}
+
+		return runMigrations(migrationType, migrationDir, cfg, logger)
 	},
 }
 
-func runMigrations(migrationType string, cfg *config.Config, logger *zap.Logger) error {
+func init() {
+	migrateCmd.Flags().StringP("dir", "d", "./storage/migrations", "Migration directory path")
+}
 
-	logger.Info("Starting database migrations")
+func runMigrations(migrationType string, migrationsDir string, cfg *config.Config, logger *zap.Logger) error {
+	logger.Info("Starting database migrations", zap.String("migration_dir", migrationsDir))
 
 	// Ensure the database exists before migrating
 	if err := database.EnsureDatabaseExists(cfg); err != nil {
@@ -47,7 +55,6 @@ func runMigrations(migrationType string, cfg *config.Config, logger *zap.Logger)
 		return fmt.Errorf("failed to get raw SQL DB: %v", err)
 	}
 
-	migrationsDir := "./storage/migrations"
 	err = goose.SetDialect("postgres")
 	if err != nil {
 		return err
