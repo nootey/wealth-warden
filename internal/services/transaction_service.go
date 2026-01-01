@@ -1539,11 +1539,19 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		return 0, fmt.Errorf("can't find category with given id %w", err)
 	}
 
-	firstRun := time.Date(
-		req.NextRunAt.Year(), req.NextRunAt.Month(), req.NextRunAt.Day(),
-		0, 0, 0, 0,
-		time.UTC,
-	)
+	// pick the user's timezone from settings; fall back to UTC
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("can't fetch user settings %w", err)
+	}
+
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	firstRun := utils.LocalMidnightUTC(req.NextRunAt, loc)
 
 	firstValidDay := time.Now().UTC().Truncate(24 * time.Hour)
 
@@ -1564,11 +1572,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 
 	var endDate *time.Time
 	if req.EndDate != nil {
-		e := time.Date(
-			req.EndDate.Year(), req.EndDate.Month(), req.EndDate.Day(),
-			0, 0, 0, 0,
-			time.UTC,
-		)
+		e := utils.LocalMidnightUTC(*req.EndDate, loc)
 		endDate = &e
 	}
 
@@ -1668,10 +1672,20 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 		return 0, fmt.Errorf("cannot update expired template (end date passed)")
 	}
 
-	nextRun := time.Date(
-		req.NextRunAt.Year(), req.NextRunAt.Month(), req.NextRunAt.Day(),
-		0, 0, 0, 0, time.UTC,
-	)
+	// pick the user's timezone from settings; fall back to UTC
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("can't fetch user settings %w", err)
+	}
+
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	nextRun := utils.LocalMidnightUTC(req.NextRunAt, loc)
+
 	firstValidDay := time.Now().UTC().Truncate(24 * time.Hour)
 	if nextRun.Before(firstValidDay) {
 		tx.Rollback()
@@ -1687,11 +1701,7 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 
 	var endDate *time.Time
 	if req.EndDate != nil {
-		e := time.Date(
-			req.EndDate.Year(), req.EndDate.Month(), req.EndDate.Day(),
-			0, 0, 0, 0,
-			time.UTC,
-		)
+		e := utils.LocalMidnightUTC(*req.EndDate, loc)
 		endDate = &e
 	}
 
