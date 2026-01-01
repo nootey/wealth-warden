@@ -7,11 +7,9 @@ import (
 )
 
 func setDefaults() *Config {
-
 	return &Config{
 		Host:              "0.0.0.0",
 		Release:           false,
-		TraefikEmail:      "",
 		FinanceAPIBaseURL: "",
 		HttpServer: HttpServerConfig{
 			Port:       "2000",
