@@ -123,6 +123,14 @@ func (j *InvestmentPriceSyncJob) fetchPrices(ctx context.Context, assets []struc
 	}
 
 	j.logger.Info("Prices fetched", zap.Int("successful", len(priceData)))
+
+	failedCount := len(assets) - len(priceData)
+	if failedCount > 0 {
+		j.logger.Warn("Some prices failed to fetch",
+			zap.Int("failed_count", failedCount),
+			zap.Int("total_assets", len(assets)))
+	}
+
 	return priceData, nil
 }
 
@@ -144,6 +152,9 @@ func (j *InvestmentPriceSyncJob) updateAssetsAndTrades(ctx context.Context, pric
 	for ticker, price := range priceData {
 		count, accountUpdates, err := j.updateAssetsByTicker(ctx, tx, ticker, price, now)
 		if err != nil {
+			j.logger.Error("Failed to update assets for ticker",
+				zap.String("ticker", ticker),
+				zap.Error(err))
 			tx.Rollback()
 			return 0, err
 		}

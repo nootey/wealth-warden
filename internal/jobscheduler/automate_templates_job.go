@@ -44,9 +44,6 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 				zap.Error(err))
 			failCount++
 		} else {
-			j.logger.Debug("Processed template",
-				zap.Int64("templateID", template.ID),
-				zap.String("templateName", template.Name))
 			successCount++
 		}
 	}
