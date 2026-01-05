@@ -2,11 +2,11 @@ package logging
 
 import (
 	"fmt"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"os"
 	"path/filepath"
-	"time"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func InitLogger(release bool) *zap.Logger {
@@ -49,6 +49,5 @@ func getLogFilePath() string {
 		panic(fmt.Sprintf("failed to create log directory: %v", err))
 	}
 
-	filename := time.Now().Format("2006-01-02") + ".log"
-	return filepath.Join(logDir, filename)
+	return filepath.Join(logDir, "app.log")
 }
