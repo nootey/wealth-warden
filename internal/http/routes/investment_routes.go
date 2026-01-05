@@ -19,4 +19,6 @@ func InvestmentRoutes(ap *gin.RouterGroup, h *handlers.InvestmentHandler) {
 	ap.PUT("trades/:id", authz.RequireAllMW("manage_data"), h.UpdateInvestmentTrade)
 	ap.DELETE(":id", authz.RequireAllMW("manage_data"), h.DeleteInvestmentAsset)
 	ap.DELETE("trades/:id", authz.RequireAllMW("manage_data"), h.DeleteInvestmentTrade)
+	ap.GET("sync/:id", authz.RequireAllMW("view_data"), h.SyncAssetPNL)
+	ap.GET("sync/account/:acc_id", authz.RequireAllMW("view_data"), h.SyncAssetAccountBalance)
 }

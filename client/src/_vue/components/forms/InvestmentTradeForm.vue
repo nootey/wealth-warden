@@ -312,92 +312,93 @@ async function deleteRecord(id: number) {
       </div>
     </div>
 
-    <span
-      v-if="isReadOnly"
-      class="text-sm"
-      style="color: var(--text-secondary)"
-    >
-      This is a read only view. Due to the complexity of re-calculating the
-      financial impact of the trade, most fields can not be updated.
-    </span>
+    <div v-if="isReadOnly" class="flex flex-column gap-2">
+      <h4>Info</h4>
+      <span class="text-sm" style="color: var(--text-secondary)">
+        This is a read only view. Due to the complexity of re-calculating the
+        financial impact of the trade, most fields can not be updated.
+      </span>
+      <span class="text-sm" style="color: var(--text-secondary)">
+        If you wish to make changes, delete the trade and create a new one.
+      </span>
+    </div>
 
-    <span
-      v-if="isReadOnly"
-      class="text-sm"
-      style="color: var(--text-secondary)"
-    >
-      If you wish to make changes, delete the trade and create a new one.
-    </span>
-
-    <div v-if="mode === 'update'" class="flex flex-row w-full gap-3">
-      <div class="flex flex-column gap-1 w-6">
-        <label>Trade type</label>
-        <span style="color: var(--text-secondary)">{{
-          record.trade_type
-        }}</span>
+    <div v-if="isReadOnly" class="flex flex-column gap-2">
+      <h4>Financial details</h4>
+      <div class="flex flex-row w-full gap-3">
+        <div class="flex flex-column gap-1 w-6">
+          <label>Trade type</label>
+          <span style="color: var(--text-secondary)">{{
+            record.trade_type
+          }}</span>
+        </div>
+        <div class="flex flex-column gap-1 w-6">
+          <label>USD exchange rate</label>
+          <span style="color: var(--text-secondary)">{{
+            record.exchange_rate_to_usd
+          }}</span>
+        </div>
       </div>
-      <div class="flex flex-column gap-1 w-6">
-        <label>USD exchange rate</label>
-        <span style="color: var(--text-secondary)">{{
-          record.exchange_rate_to_usd
-        }}</span>
+
+      <div class="flex flex-row w-full gap-3">
+        <div class="flex flex-column gap-1 w-6">
+          <label class="text-sm">Value at buy</label>
+          <span class="text-sm" style="color: var(--text-secondary)">{{
+            vueHelper.displayAsCurrency(record.value_at_buy!, record.currency)
+          }}</span>
+        </div>
+        <div class="flex flex-column gap-1 w-6">
+          <label class="text-sm">{{
+            record.trade_type === "buy" ? "Current value" : "Value at sell"
+          }}</label>
+          <span class="text-sm" style="color: var(--text-secondary)">
+            {{
+              vueHelper.displayAsCurrency(
+                record.trade_type === "buy"
+                  ? record.current_value!
+                  : record.realized_value!,
+                record.currency,
+              )
+            }}</span
+          >
+        </div>
+      </div>
+
+      <div
+        v-if="record.trade_type === 'sell'"
+        class="flex flex-row w-full gap-3"
+      >
+        <div class="flex flex-column gap-1 w-6">
+          <label class="text-sm">What if</label>
+          <span class="text-sm" style="color: var(--text-secondary)"
+            >You haven't sold</span
+          >
+        </div>
+        <div class="flex flex-column gap-1 w-6">
+          <label class="text-sm">Current market value</label>
+          <span class="text-sm" style="color: var(--text-secondary)">{{
+            vueHelper.displayAsCurrency(record.current_value!, record.currency)
+          }}</span>
+        </div>
+      </div>
+
+      <div class="flex flex-row w-full gap-3">
+        <div class="flex flex-column gap-1 w-6">
+          <label class="text-sm">P&L Raw</label>
+          <span class="text-sm" style="color: var(--text-secondary)">{{
+            vueHelper.displayAsCurrency(record.profit_loss!, record.currency)
+          }}</span>
+        </div>
+        <div class="flex flex-column gap-1 w-6">
+          <label class="text-sm">P&L Percentage</label>
+          <span class="text-sm" style="color: var(--text-secondary)">{{
+            vueHelper.displayAsPercentage(record.profit_loss_percent!)
+          }}</span>
+        </div>
       </div>
     </div>
 
-    <div v-if="mode === 'update'" class="flex flex-row w-full gap-3">
-      <div class="flex flex-column gap-1 w-6">
-        <label>Value at buy</label>
-        <span style="color: var(--text-secondary)">{{
-          vueHelper.displayAsCurrency(record.value_at_buy!, record.currency)
-        }}</span>
-      </div>
-      <div class="flex flex-column gap-1 w-6">
-        <label>{{
-          record.trade_type === "buy" ? "Current value" : "Value at sell"
-        }}</label>
-        <span style="color: var(--text-secondary)">
-          {{
-            vueHelper.displayAsCurrency(
-              record.trade_type === "buy"
-                ? record.current_value!
-                : record.realized_value!,
-              record.currency,
-            )
-          }}</span
-        >
-      </div>
-    </div>
-
-    <div
-      v-if="mode === 'update' && record.trade_type === 'sell'"
-      class="flex flex-row w-full gap-3"
-    >
-      <div class="flex flex-column gap-1 w-6">
-        <label>What if</label>
-        <span style="color: var(--text-secondary)">You haven't sold</span>
-      </div>
-      <div class="flex flex-column gap-1 w-6">
-        <label>Current market value</label>
-        <span style="color: var(--text-secondary)">{{
-          vueHelper.displayAsCurrency(record.current_value!, record.currency)
-        }}</span>
-      </div>
-    </div>
-
-    <div v-if="mode === 'update'" class="flex flex-row w-full gap-3">
-      <div class="flex flex-column gap-1 w-6">
-        <label>P&L Raw</label>
-        <span style="color: var(--text-secondary)">{{
-          vueHelper.displayAsCurrency(record.profit_loss!, record.currency)
-        }}</span>
-      </div>
-      <div class="flex flex-column gap-1 w-6">
-        <label>P&L Percentage</label>
-        <span style="color: var(--text-secondary)">{{
-          vueHelper.displayAsPercentage(record.profit_loss_percent!)
-        }}</span>
-      </div>
-    </div>
+    <h4 v-if="isReadOnly">Trade details</h4>
 
     <div class="flex flex-row w-full">
       <div class="flex flex-column gap-1 w-full">
@@ -568,7 +569,8 @@ async function deleteRecord(id: number) {
       </div>
     </div>
 
-    <div v-if="mode == 'update'" class="flex flex-row gap-2 w-full">
+    <h4 v-if="isReadOnly">Auditing</h4>
+    <div v-if="isReadOnly" class="flex flex-row gap-2 w-full">
       <AuditTrail
         :record-id="props.recordId!"
         :events="['create', 'update']"

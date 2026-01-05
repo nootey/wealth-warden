@@ -20,6 +20,7 @@ type InvestmentRepositoryInterface interface {
 	FindAssetsByAccountID(ctx context.Context, tx *gorm.DB, accID, userID int64) ([]models.InvestmentAsset, error)
 	FindInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTrade, error)
 	FindInvestmentTradeByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTrade, error)
+	FindInvestmentTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.InvestmentTrade, error)
 	FindInvestmentAssetsByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentAsset, error)
 	InsertAsset(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentAsset) (int64, error)
 	InsertInvestmentTrade(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTrade) (int64, error)
@@ -36,6 +37,7 @@ type InvestmentRepositoryInterface interface {
 	GetInvestmentTotalsUpToDate(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time) (decimal.Decimal, decimal.Decimal, error)
 	FindAssetByTicker(ctx context.Context, tx *gorm.DB, ticker string, accID, userID int64) (models.InvestmentAsset, error)
 	FindInvestmentTradesByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentTrade, error)
+	GetInvestmentTradesDateRange(ctx context.Context, tx *gorm.DB, accountID int64) (time.Time, time.Time, error)
 }
 
 type InvestmentRepository struct {
@@ -273,6 +275,20 @@ func (r *InvestmentRepository) FindInvestmentTradeByID(ctx context.Context, tx *
 	q = q.First(&record)
 
 	return record, q.Error
+}
+
+func (r *InvestmentRepository) FindInvestmentTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.InvestmentTrade, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	var trades []models.InvestmentTrade
+	err := db.WithContext(ctx).
+		Where("asset_id = ?", assetID).
+		Order("txn_date ASC, id ASC").
+		Find(&trades).Error
+	return trades, err
 }
 
 func (r *InvestmentRepository) FindInvestmentAssetsByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentAsset, error) {
@@ -649,4 +665,29 @@ func (r *InvestmentRepository) GetInvestmentTotalsUpToDate(ctx context.Context, 
     `, assetID, asOf).Scan(&result).Error
 
 	return result.Quantity, result.Spent, err
+}
+
+func (r *InvestmentRepository) GetInvestmentTradesDateRange(ctx context.Context, tx *gorm.DB, accountID int64) (time.Time, time.Time, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	var result struct {
+		MinDate time.Time
+		MaxDate time.Time
+	}
+
+	err := db.WithContext(ctx).
+		Model(&models.InvestmentTrade{}).
+		Joins("JOIN investment_assets ON investment_assets.id = investment_trades.asset_id").
+		Where("investment_assets.account_id = ?", accountID).
+		Select("MIN(txn_date) as min_date, MAX(txn_date) as max_date").
+		Scan(&result).Error
+
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+
+	return result.MinDate, result.MaxDate, nil
 }

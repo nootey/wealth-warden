@@ -356,3 +356,59 @@ func (h *InvestmentHandler) DeleteInvestmentTrade(c *gin.Context) {
 
 	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
 }
+
+func (h *InvestmentHandler) SyncAssetPNL(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid asset id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	err = h.Service.RecalculateAssetPnL(ctx, id, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Asset PNL sync error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Asset sync started in the background.", "Pending", http.StatusOK)
+}
+
+func (h *InvestmentHandler) SyncAssetAccountBalance(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	idStr := c.Param("acc_id")
+
+	if idStr == "" {
+		err := errors.New("invalid asset account id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	accID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	err = h.Service.RecalculateAccountBalances(ctx, accID, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Asset PNL sync error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Asset sync started in the background.", "Pending", http.StatusOK)
+}
