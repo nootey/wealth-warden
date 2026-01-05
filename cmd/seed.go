@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
@@ -20,13 +19,14 @@ var seedCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		seedType := "help"
-		logger.Info("Loaded the configuration", zap.Any("config", cfg))
+		seedLogger := logger.Named("seeder")
+		seedLogger.Info("Loaded the configuration", zap.Any("config", cfg))
 
 		if len(args) > 0 {
 			seedType = args[0]
 		}
 
-		return runSeeders(seedType, cfg, logger)
+		return runSeeders(seedType, cfg, seedLogger)
 	},
 }
 
@@ -48,9 +48,10 @@ func runSeeders(seedType string, cfg *config.Config, logger *zap.Logger) error {
 
 	logger.Info("Starting database seeding")
 
-	gormDB, err := database.ConnectToPostgres(cfg)
+	dbLogger := logger.Named("database")
+	gormDB, err := database.ConnectToPostgres(cfg, dbLogger)
 	if err != nil {
-		log.Fatalf("Failed to connect to Postgres: %v", err)
+		return fmt.Errorf("failed to connect to Postgres: %v", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)

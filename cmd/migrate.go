@@ -29,7 +29,8 @@ var migrateCmd = &cobra.Command{
 			return fmt.Errorf("failed to get migration directory flag: %v", err)
 		}
 
-		return runMigrations(migrationType, migrationDir, cfg, logger)
+		mgLogger := logger.Named("migrate")
+		return runMigrations(migrationType, migrationDir, cfg, mgLogger)
 	},
 }
 
@@ -39,13 +40,13 @@ func init() {
 
 func runMigrations(migrationType string, migrationsDir string, cfg *config.Config, logger *zap.Logger) error {
 	logger.Info("Starting database migrations", zap.String("migration_dir", migrationsDir))
-
+	dbLogger := logger.Named("database")
 	// Ensure the database exists before migrating
-	if err := database.EnsureDatabaseExists(cfg); err != nil {
+	if err := database.EnsureDatabaseExists(cfg, dbLogger); err != nil {
 		return fmt.Errorf("database check failed: %v", err)
 	}
 
-	gormDB, err := database.ConnectToPostgres(cfg)
+	gormDB, err := database.ConnectToPostgres(cfg, dbLogger)
 	if err != nil {
 		return fmt.Errorf("failed to connect to Postgres: %v", err)
 	}
@@ -82,7 +83,7 @@ func runMigrations(migrationType string, migrationsDir string, cfg *config.Confi
 		}
 
 		// Connect to a maintenance database (like "postgres").
-		mDB, err := database.ConnectToMaintenance(cfg)
+		mDB, err := database.ConnectToMaintenance(cfg, dbLogger)
 		if err != nil {
 			return fmt.Errorf("failed to connect to maintenance database: %v", err)
 		}
@@ -101,7 +102,7 @@ func runMigrations(migrationType string, migrationsDir string, cfg *config.Confi
 		} // Close the maintenance connection.
 
 		// Reconnect to the newly created target database.
-		gormDB, err = database.ConnectToPostgres(cfg)
+		gormDB, err = database.ConnectToPostgres(cfg, dbLogger)
 		if err != nil {
 			return fmt.Errorf("failed to reconnect to Postgres: %v", err)
 		}

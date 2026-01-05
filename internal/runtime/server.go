@@ -30,40 +30,43 @@ func (rt *ServerRuntime) Run(context context.Context) error {
 	defer stop()
 
 	// Connect to DB
-	dbClient, err := database.ConnectToPostgres(rt.Config)
+	dbLogger := rt.Logger.Named("database")
+	dbClient, err := database.ConnectToPostgres(rt.Config, dbLogger)
 	if err != nil {
-		rt.Logger.Error("Database connection failed", zap.Error(err))
+		dbLogger.Error("Database connection failed", zap.Error(err))
 		return fmt.Errorf("database connection failed: %w", err)
 	}
 	defer func() {
 		err := database.DisconnectPostgres()
 		if err != nil {
-			fmt.Println("failed to disconnect postgres cleanly")
+			dbLogger.Error("Failed to disconnect postgres cleanly", zap.Error(err))
 		}
 	}()
-	rt.Logger.Info("Successfully connected to the database")
+	dbLogger.Info("Successfully connected to the database")
 
 	// Initialize container
-	httpLogger := rt.Logger.Named("http").With(zap.String("component", "HTTP"))
-	container, err := bootstrap.NewContainer(rt.Config, dbClient, httpLogger)
+	containerLogger := rt.Logger.Named("container")
+	httpLogger := rt.Logger.Named("http")
+	container, err := bootstrap.NewContainer(rt.Config, dbClient, containerLogger)
 	if err != nil {
-		rt.Logger.Error("Container initialization failed", zap.Error(err))
+		containerLogger.Error("Container initialization failed", zap.Error(err))
 		return fmt.Errorf("cntainer initialization failed: %w", err)
 	}
 
 	// Start scheduler
-	scheduler, err := NewScheduler(rt.Logger.Named("scheduler"), container, SchedulerConfig{
+	schedulerLogger := rt.Logger.Named("scheduler")
+	scheduler, err := NewScheduler(schedulerLogger, container, SchedulerConfig{
 		StartBackfillImmediately:  false,
 		StartTemplateImmediately:  false,
 		StartPriceSyncImmediately: true,
 	})
 	if err != nil {
-		rt.Logger.Error("Failed to create scheduler", zap.Error(err))
+		schedulerLogger.Error("Failed to create scheduler", zap.Error(err))
 		return fmt.Errorf("failed to create scheduler: %w", err)
 	}
 
 	if err := scheduler.Start(); err != nil {
-		rt.Logger.Error("Failed to start scheduler", zap.Error(err))
+		schedulerLogger.Error("Failed to start scheduler", zap.Error(err))
 		return fmt.Errorf("failed to start scheduler: %w", err)
 	}
 	defer func(scheduler *Scheduler) {
@@ -79,11 +82,11 @@ func (rt *ServerRuntime) Run(context context.Context) error {
 
 	<-ctx.Done()
 
-	rt.Logger.Info("Interrupt signal received, shutting down HTTP server...")
+	httpLogger.Info("Interrupt signal received, shutting down HTTP server...")
 	if err := httpServer.Shutdown(); err != nil {
-		rt.Logger.Error("HTTP server shutdown failed", zap.Error(err))
+		httpLogger.Error("HTTP server shutdown failed", zap.Error(err))
 		return fmt.Errorf("http server shutdown failed: %w", err)
 	}
-	rt.Logger.Info("HTTP server exiting")
+	httpLogger.Info("HTTP server exiting")
 	return nil
 }
