@@ -67,10 +67,11 @@ func (j *RecalculateAssetPnLJob) Process(ctx context.Context) error {
 	var totalCost decimal.Decimal
 
 	for _, trade := range trades {
-		if trade.TradeType == models.InvestmentBuy {
+		switch trade.TradeType {
+		case models.InvestmentBuy:
 			totalQuantity = totalQuantity.Add(trade.Quantity)
 			totalCost = totalCost.Add(trade.ValueAtBuy)
-		} else if trade.TradeType == models.InvestmentSell {
+		case models.InvestmentSell:
 			totalQuantity = totalQuantity.Sub(trade.Quantity)
 			if !totalQuantity.IsZero() {
 				avgPrice := totalCost.Div(totalQuantity.Add(trade.Quantity))
