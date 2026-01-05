@@ -56,6 +56,7 @@ type AccountRepositoryInterface interface {
 	GetCumulativeNonCashPnLBeforeDate(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time) (decimal.Decimal, error)
 	ClearNonCashFlowsFromDate(ctx context.Context, tx *gorm.DB, accountID int64, fromDate time.Time) error
 	SetDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, value decimal.Decimal) error
+	GetBalancesInRange(ctx context.Context, tx *gorm.DB, accountID int64, fromDate, toDate time.Time) ([]models.Balance, error)
 }
 
 type AccountRepository struct {
@@ -1151,4 +1152,18 @@ func (r *AccountRepository) SetDailyBalance(ctx context.Context, tx *gorm.DB, ac
         SET %s = ?, updated_at = NOW()
         WHERE account_id = ? AND as_of = ?
     `, field), value, accountID, asOf).Error
+}
+
+func (r *AccountRepository) GetBalancesInRange(ctx context.Context, tx *gorm.DB, accountID int64, fromDate, toDate time.Time) ([]models.Balance, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	var balances []models.Balance
+	err := db.WithContext(ctx).
+		Where("account_id = ? AND as_of >= ? AND as_of <= ?", accountID, fromDate, toDate).
+		Order("as_of ASC").
+		Find(&balances).Error
+	return balances, err
 }

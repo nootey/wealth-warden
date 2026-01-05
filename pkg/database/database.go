@@ -8,6 +8,7 @@ import (
 	"time"
 	"wealth-warden/pkg/config"
 
+	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -17,15 +18,15 @@ var (
 	postgresDB *gorm.DB
 )
 
-func ConnectToPostgres(cfg *config.Config) (*gorm.DB, error) {
-	return ConnectToDatabase(cfg, cfg.Postgres.Database)
+func ConnectToPostgres(cfg *config.Config, zapLogger *zap.Logger) (*gorm.DB, error) {
+	return ConnectToDatabase(cfg, cfg.Postgres.Database, zapLogger)
 }
 
-func ConnectToMaintenance(cfg *config.Config) (*gorm.DB, error) {
-	return ConnectToDatabase(cfg, "postgres")
+func ConnectToMaintenance(cfg *config.Config, zapLogger *zap.Logger) (*gorm.DB, error) {
+	return ConnectToDatabase(cfg, "postgres", zapLogger)
 }
 
-func ConnectToDatabase(cfg *config.Config, targetDB string) (*gorm.DB, error) {
+func ConnectToDatabase(cfg *config.Config, targetDB string, zapLogger *zap.Logger) (*gorm.DB, error) {
 
 	host := cfg.Postgres.Host
 
@@ -44,13 +45,16 @@ func ConnectToDatabase(cfg *config.Config, targetDB string) (*gorm.DB, error) {
 		),
 	})
 	if err != nil {
-		log.Printf("Failed to connect to database at %s: %v", host, err)
+		zapLogger.Error("Failed to connect to database",
+			zap.String("host", host),
+			zap.String("database", targetDB),
+			zap.Error(err))
 		return nil, err
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		log.Printf("Failed to get raw DB instance: %v", err)
+		zapLogger.Error("Failed to get raw DB instance", zap.Error(err))
 		return nil, err
 	}
 
@@ -60,11 +64,15 @@ func ConnectToDatabase(cfg *config.Config, targetDB string) (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(100)
 
 	if err := sqlDB.Ping(); err != nil {
-		log.Printf("Could not ping database at %s: %v", host, err)
+		zapLogger.Error("Could not ping database",
+			zap.String("host", host),
+			zap.Error(err))
 		return nil, err
 	}
 
-	log.Printf("Connected to database at %s", host)
+	zapLogger.Info("Connected to database",
+		zap.String("host", host),
+		zap.String("database", targetDB))
 	return db, nil
 }
 
@@ -102,7 +110,7 @@ func ConnectWithoutDB(cfg *config.Config) (*gorm.DB, error) {
 	return db, nil
 }
 
-func EnsureDatabaseExists(cfg *config.Config) error {
+func EnsureDatabaseExists(cfg *config.Config, zapLogger *zap.Logger) error {
 	// Connect without specifying the target database.
 	db, err := ConnectWithoutDB(cfg)
 	if err != nil {
@@ -113,7 +121,7 @@ func EnsureDatabaseExists(cfg *config.Config) error {
 	defer func(sqlDB *sql.DB) {
 		err = sqlDB.Close()
 		if err != nil {
-			fmt.Println(err.Error())
+			zapLogger.Error("Failed to close DB connection", zap.Error(err))
 		}
 	}(sqlDB)
 
@@ -127,14 +135,14 @@ func EnsureDatabaseExists(cfg *config.Config) error {
 
 	// If the database doesn't exist, create it.
 	if exists == 0 {
-		log.Printf("Database '%s' does not exist, creating it...", cfg.Postgres.Database)
+		zapLogger.Info("Database does not exist, creating it", zap.String("database", cfg.Postgres.Database))
 		createQuery := fmt.Sprintf("CREATE DATABASE %s WITH ENCODING 'UTF8'", cfg.Postgres.Database)
 		if err := db.Exec(createQuery).Error; err != nil {
 			return fmt.Errorf("failed to create database: %w", err)
 		}
-		log.Printf("Database '%s' created successfully", cfg.Postgres.Database)
+		zapLogger.Info("Database created successfully", zap.String("database", cfg.Postgres.Database))
 	} else {
-		log.Printf("Database '%s' already exists", cfg.Postgres.Database)
+		zapLogger.Info("Database already exists", zap.String("database", cfg.Postgres.Database))
 	}
 
 	return nil

@@ -112,10 +112,25 @@ func (j *InvestmentPriceSyncJob) fetchPrices(ctx context.Context, assets []struc
 			continue
 		}
 
+		if price == nil || price.Price <= 0 {
+			j.logger.Error("Invalid price received",
+				zap.String("ticker", asset.Ticker),
+				zap.Float64("price", price.Price))
+			continue
+		}
+
 		priceData[asset.Ticker] = price
 	}
 
 	j.logger.Info("Prices fetched", zap.Int("successful", len(priceData)))
+
+	failedCount := len(assets) - len(priceData)
+	if failedCount > 0 {
+		j.logger.Warn("Some prices failed to fetch",
+			zap.Int("failed_count", failedCount),
+			zap.Int("total_assets", len(assets)))
+	}
+
 	return priceData, nil
 }
 
@@ -137,6 +152,9 @@ func (j *InvestmentPriceSyncJob) updateAssetsAndTrades(ctx context.Context, pric
 	for ticker, price := range priceData {
 		count, accountUpdates, err := j.updateAssetsByTicker(ctx, tx, ticker, price, now)
 		if err != nil {
+			j.logger.Error("Failed to update assets for ticker",
+				zap.String("ticker", ticker),
+				zap.Error(err))
 			tx.Rollback()
 			return 0, err
 		}
@@ -233,6 +251,29 @@ func (j *InvestmentPriceSyncJob) updateAccountBalance(ctx context.Context, tx *g
 }
 
 func (j *InvestmentPriceSyncJob) updateAsset(tx *gorm.DB, asset models.InvestmentAsset, price decimal.Decimal, now time.Time) error {
+
+	if price.IsZero() || price.IsNegative() {
+		j.logger.Error("Refusing to update asset with invalid price",
+			zap.Int64("asset_id", asset.ID),
+			zap.String("ticker", asset.Ticker),
+			zap.String("price", price.String()))
+		return fmt.Errorf("invalid price for asset %d: %s", asset.ID, price.String())
+	}
+
+	if asset.CurrentPrice != nil && !asset.CurrentPrice.IsZero() {
+		changePercent := price.Sub(*asset.CurrentPrice).Div(*asset.CurrentPrice).Abs()
+		// If price dropped more than 90%, flag it
+		if changePercent.GreaterThan(decimal.NewFromFloat(0.90)) && price.LessThan(*asset.CurrentPrice) {
+			j.logger.Warn("Extreme price change detected",
+				zap.Int64("asset_id", asset.ID),
+				zap.String("ticker", asset.Ticker),
+				zap.String("old_price", asset.CurrentPrice.String()),
+				zap.String("new_price", price.String()),
+				zap.String("change_percent", changePercent.Mul(decimal.NewFromInt(100)).String()))
+			// For now do nothing but a log
+		}
+	}
+
 	newCurrentValue := asset.Quantity.Mul(price)
 	newProfitLoss := newCurrentValue.Sub(asset.ValueAtBuy)
 	var newProfitLossPercent decimal.Decimal

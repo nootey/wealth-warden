@@ -22,7 +22,7 @@ func NewBackfillJob(logger *zap.Logger, container *bootstrap.Container) *Backfil
 }
 
 func (j *BackfillJob) Run(ctx context.Context) error {
-	// Get all active user IDs
+
 	userIDs, err := j.container.UserService.GetAllActiveUserIDs(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get user IDs: %w", err)
@@ -48,7 +48,6 @@ func (j *BackfillJob) Run(ctx context.Context) error {
 				zap.Error(err))
 			failCount++
 		} else {
-			j.logger.Debug("Backfill completed for user", zap.Int64("userID", userID))
 			successCount++
 		}
 	}

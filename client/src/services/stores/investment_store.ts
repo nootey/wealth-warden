@@ -11,5 +11,15 @@ export const useInvestmentStore = defineStore("investment", {
       const response = await apiClient.get(`${this.apiPrefix}/all`);
       return response.data;
     },
+    async syncAssetPrice(id: number) {
+      const response = await apiClient.get(`${this.apiPrefix}/sync/${id}`);
+      return response.data;
+    },
+    async syncAssetAccountBalance(acc_id: number) {
+      const response = await apiClient.get(
+        `${this.apiPrefix}/sync/account/${acc_id}`,
+      );
+      return response.data;
+    },
   },
 });

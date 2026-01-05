@@ -33,6 +33,9 @@ type InvestmentServiceInterface interface {
 	DeleteInvestmentAsset(ctx context.Context, userID int64, id int64) error
 	DeleteInvestmentTrade(ctx context.Context, userID int64, id int64) error
 	GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string, date *time.Time) decimal.Decimal
+	RecalculateAssetPnL(ctx context.Context, assetID, userID int64) error
+	RecalculateAllAssetsPnL(ctx context.Context, userID int64) error
+	RecalculateAccountBalances(ctx context.Context, accountID, userID int64) error
 }
 
 type InvestmentService struct {
@@ -1160,4 +1163,65 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 	}
 
 	return nil
+}
+
+func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, assetID, userID int64) error {
+	job := &jobqueue.RecalculateAssetPnLJob{
+		Repo:             s.repo,
+		AccRepo:          s.accRepo,
+		PriceFetchClient: s.priceFetchClient,
+		AssetID:          assetID,
+		UserID:           userID,
+	}
+
+	return s.jobDispatcher.Dispatch(job)
+}
+
+func (s *InvestmentService) RecalculateAllAssetsPnL(ctx context.Context, userID int64) error {
+	assets, err := s.repo.FindAllInvestmentAssets(ctx, nil, userID)
+	if err != nil {
+		return err
+	}
+
+	for _, asset := range assets {
+		if err := s.RecalculateAssetPnL(ctx, asset.ID, userID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *InvestmentService) RecalculateAccountBalances(ctx context.Context, accountID, userID int64) error {
+	account, err := s.accRepo.FindAccountByID(ctx, nil, accountID, userID, false)
+	if err != nil {
+		return err
+	}
+
+	fromDate, toDate, err := s.repo.GetInvestmentTradesDateRange(ctx, nil, accountID)
+	if err != nil {
+		return err
+	}
+
+	if fromDate.IsZero() {
+		return fmt.Errorf("no trades found for account")
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	if toDate.Before(today) {
+		toDate = today
+	}
+
+	job := &jobqueue.RecalculateAccountBalancesJob{
+		Repo:             s.repo,
+		AccRepo:          s.accRepo,
+		PriceFetchClient: s.priceFetchClient,
+		AccountID:        accountID,
+		UserID:           userID,
+		Currency:         account.Currency,
+		FromDate:         fromDate,
+		ToDate:           toDate,
+	}
+
+	return s.jobDispatcher.Dispatch(job)
 }
