@@ -130,9 +130,9 @@ async function handleEmit(emitType: any) {
   <Dialog
     v-model:visible="updateAssetModal"
     class="rounded-dialog"
-    :breakpoints="{ '501px': '90vw' }"
+    :breakpoints="{ '651px': '90vw' }"
     :modal="true"
-    :style="{ width: '500px' }"
+    :style="{ width: '650px' }"
     header="Asset details"
   >
     <InvestmentAssetForm
