@@ -8,6 +8,7 @@ import { useRoute } from "vue-router";
 import AppSideBar from "./AppSideBar.vue";
 import vueHelper from "./utils/vue_helper.ts";
 import router from "./services/router/main.ts";
+import AppFooter from "./AppFooter.vue";
 
 const authStore = useAuthStore();
 const themeStore = useThemeStore();
@@ -161,6 +162,8 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
       </div>
     </div>
 
+    <AppFooter />
+
     <AppSideBar
       v-if="isAuthenticated && isInitialized && !hideNavigation"
       ref="sidebarRef"
@@ -175,10 +178,16 @@ main {
   }
 }
 
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
 @media (max-width: 768px) {
   .app-content {
     margin-left: 0 !important;
-    padding-bottom: 72px;
+    padding-bottom: 0;
   }
   .mobile-only {
     display: inline-block;
