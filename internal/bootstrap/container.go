@@ -57,27 +57,27 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	investmentRepo := repositories.NewInvestmentRepository(db)
 
 	// Initialize price fetch client
-	client, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
+	priceFetchClient, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
 	if err != nil {
 		logger.Warn("Failed to create price fetch client", zap.Error(err))
 	}
 
 	// Initialize currency converter
-	currencyConverter := finance.NewCurrencyManager(client, investmentRepo)
+	currencyConverter := finance.NewCurrencyManager(priceFetchClient, investmentRepo)
 
 	// Initialize services
 	loggingService := services.NewLoggingService(loggingRepo)
 	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, loggingRepo, jobDispatcher, mail)
 	roleService := services.NewRolePermissionService(roleRepo, loggingRepo, jobDispatcher)
 	userService := services.NewUserService(userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
-	accountService := services.NewAccountService(accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher, currencyConverter)
-	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, currencyConverter)
+	accountService := services.NewAccountService(accountRepo, transactionRepo, investmentRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetchClient)
+	transactionService := services.NewTransactionService(transactionRepo, accountRepo, investmentRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetchClient)
 	settingsService := services.NewSettingsService(settingsRepo, userRepo, loggingRepo, jobDispatcher)
 	chartingService := services.NewChartingService(chartingRepo, accountRepo, transactionRepo, statsRepo)
 	statsService := services.NewStatisticsService(statsRepo, accountRepo, transactionRepo, settingsRepo)
 	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, investmentRepo, settingsRepo, loggingRepo, jobDispatcher)
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
-	investmentService := services.NewInvestmentService(investmentRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, client, currencyConverter)
+	investmentService := services.NewInvestmentService(investmentRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetchClient, currencyConverter)
 
 	return &Container{
 		Config:             cfg,
