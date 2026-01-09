@@ -478,16 +478,25 @@ func (c *PriceFetchClient) GetExchangeRateOnDate(ctx context.Context, fromCurren
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
+			err := resp.Body.Close()
+			if err != nil {
+				return 0, err
+			}
 			continue
 		}
 
 		var data ChartResponse
 		if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-			resp.Body.Close()
+			err := resp.Body.Close()
+			if err != nil {
+				return 0, err
+			}
 			continue
 		}
-		resp.Body.Close()
+		err = resp.Body.Close()
+		if err != nil {
+			return 0, err
+		}
 
 		if len(data.Chart.Result) == 0 || len(data.Chart.Result[0].Timestamp) == 0 {
 			continue
