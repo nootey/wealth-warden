@@ -433,12 +433,6 @@ func (c *PriceFetchClient) GetExchangeRateOnDate(ctx context.Context, fromCurren
 		return 1.0, nil
 	}
 
-	startOfDay := date.UTC().Truncate(24 * time.Hour)
-	endOfDay := startOfDay.AddDate(0, 0, 2)
-
-	period1 := startOfDay.Unix()
-	period2 := endOfDay.Unix()
-
 	var symbol string
 	if toCurrency == "USD" {
 		symbol = fmt.Sprintf("%s=X", fromCurrency)
@@ -457,54 +451,63 @@ func (c *PriceFetchClient) GetExchangeRateOnDate(ctx context.Context, fromCurren
 		return fromToUsd / toToUsd, nil
 	}
 
-	url := fmt.Sprintf("%s/v8/finance/chart/%s?period1=%d&period2=%d&interval=1d",
-		c.baseURL, symbol, period1, period2)
+	// Try up to 7 days back to find a valid rate
+	maxAttempts := 7
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		tryDate := date.AddDate(0, 0, -attempt)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return 0, fmt.Errorf("failed to create request: %w", err)
-	}
+		startOfDay := tryDate.UTC().Truncate(24 * time.Hour)
+		endOfDay := startOfDay.AddDate(0, 0, 2)
 
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+		period1 := startOfDay.Unix()
+		period2 := endOfDay.Unix()
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return 0, fmt.Errorf("failed to fetch exchange rate: %w", err)
-	}
-	defer func(Body io.ReadCloser) {
-		closeErr := Body.Close()
-		if closeErr != nil {
-			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
+		url := fmt.Sprintf("%s/v8/finance/chart/%s?period1=%d&period2=%d&interval=1d",
+			c.baseURL, symbol, period1, period2)
+
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			continue
 		}
-	}(resp.Body)
 
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("failed to get exchange rate for %s (status %d)", symbol, resp.StatusCode)
-	}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
-	var data ChartResponse
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return 0, fmt.Errorf("failed to decode response: %w", err)
-	}
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			continue
+		}
 
-	if len(data.Chart.Result) == 0 || len(data.Chart.Result[0].Timestamp) == 0 {
-		return 0, fmt.Errorf("no exchange rate data for %s on %s", symbol, date.Format("2006-01-02"))
-	}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			continue
+		}
 
-	result := data.Chart.Result[0]
-	quotes := result.Indicators.Quote[0]
+		var data ChartResponse
+		if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+			resp.Body.Close()
+			continue
+		}
+		resp.Body.Close()
 
-	var rate float64
-	for i := range result.Timestamp {
-		if i < len(quotes.Close) && quotes.Close[i] != nil {
-			rate = *quotes.Close[i]
-			break
+		if len(data.Chart.Result) == 0 || len(data.Chart.Result[0].Timestamp) == 0 {
+			continue
+		}
+
+		result := data.Chart.Result[0]
+		quotes := result.Indicators.Quote[0]
+
+		var rate float64
+		for i := range result.Timestamp {
+			if i < len(quotes.Close) && quotes.Close[i] != nil {
+				rate = *quotes.Close[i]
+				break
+			}
+		}
+
+		if rate > 0 {
+			return rate, nil
 		}
 	}
 
-	if rate == 0 {
-		return 0, fmt.Errorf("invalid exchange rate (0) for %s on %s", symbol, date.Format("2006-01-02"))
-	}
-
-	return rate, nil
+	return 0, fmt.Errorf("no valid exchange rate found for %s within 7 days of %s", symbol, date.Format("2006-01-02"))
 }
