@@ -475,11 +475,14 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 			return 0, fmt.Errorf("failed to get account balance: %w", err)
 		}
 
-		totalInvestmentValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, asset.AccountID, userID, asset.Account.Currency)
+		totalCashInvestedUSD, err := s.repo.GetTotalCashInvestedInAccount(ctx, tx, asset.AccountID, userID)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
+			return 0, fmt.Errorf("failed to calculate total cash invested: %w", err)
 		}
+
+		exchangeRateUSDToAccount := s.GetExchangeRate(ctx, "USD", asset.Account.Currency, &req.TxnDate)
+		totalCashInvested := totalCashInvestedUSD.Mul(exchangeRateUSDToAccount)
 
 		purchaseCost := req.Quantity.Mul(req.PricePerUnit)
 		if req.Fee != nil {
@@ -493,25 +496,30 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 			purchaseCostInAccountCurrency = purchaseCost.Mul(exchangeRate)
 		}
 
-		remainingBalance := availableBalance.EndBalance.Sub(totalInvestmentValue)
-		if remainingBalance.LessThan(decimal.Zero) {
+		cashOnlyBalance := availableBalance.StartBalance.
+			Add(availableBalance.CashInflows).
+			Sub(availableBalance.CashOutflows).
+			Add(availableBalance.Adjustments)
+
+		remainingCash := cashOnlyBalance.Sub(totalCashInvested)
+		if remainingCash.LessThan(decimal.Zero) {
 			tx.Rollback()
-			return 0, fmt.Errorf("account balance inconsistency detected: total investments (%s %s) exceed account balance (%s %s)",
-				totalInvestmentValue.StringFixed(2),
+			return 0, fmt.Errorf("account balance inconsistency detected: total cash invested (%s %s) exceeds cash balance (%s %s)",
+				totalCashInvested.StringFixed(2),
 				asset.Account.Currency,
-				availableBalance.EndBalance.StringFixed(2),
+				cashOnlyBalance.StringFixed(2),
 				asset.Account.Currency)
 		}
 
-		if purchaseCostInAccountCurrency.GreaterThan(remainingBalance) {
+		if purchaseCostInAccountCurrency.GreaterThan(decimal.Zero) && purchaseCostInAccountCurrency.GreaterThan(remainingCash) {
 			tx.Rollback()
-			return 0, fmt.Errorf("insufficient funds: need %s %s, but only %s %s available (balance: %s, invested: %s)",
+			return 0, fmt.Errorf("insufficient funds: need %s %s, but only %s %s available (cash balance: %s, invested: %s)",
 				purchaseCostInAccountCurrency.StringFixed(2),
 				asset.Account.Currency,
-				remainingBalance.StringFixed(2),
+				remainingCash.StringFixed(2),
 				asset.Account.Currency,
-				availableBalance.EndBalance.StringFixed(2),
-				totalInvestmentValue.StringFixed(2))
+				cashOnlyBalance.StringFixed(2),
+				totalCashInvested.StringFixed(2))
 		}
 	}
 

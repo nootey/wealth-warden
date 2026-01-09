@@ -44,29 +44,32 @@ type AccountServiceInterface interface {
 }
 
 type AccountService struct {
-	repo              repositories.AccountRepositoryInterface
-	txnRepo           repositories.TransactionRepositoryInterface
-	settingsRepo      repositories.SettingsRepositoryInterface
-	loggingRepo       repositories.LoggingRepositoryInterface
-	jobDispatcher     jobqueue.JobDispatcher
-	currencyConverter finance.CurrencyManager
+	repo             repositories.AccountRepositoryInterface
+	txnRepo          repositories.TransactionRepositoryInterface
+	investmentRepo   repositories.InvestmentRepositoryInterface
+	settingsRepo     repositories.SettingsRepositoryInterface
+	loggingRepo      repositories.LoggingRepositoryInterface
+	jobDispatcher    jobqueue.JobDispatcher
+	priceFetchClient finance.PriceFetcher
 }
 
 func NewAccountService(
 	repo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
+	investmentRepo *repositories.InvestmentRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobqueue.JobDispatcher,
-	currencyConverter finance.CurrencyManager,
+	priceFetchClient finance.PriceFetcher,
 ) *AccountService {
 	return &AccountService{
-		repo:              repo,
-		txnRepo:           txnRepo,
-		settingsRepo:      settingsRepo,
-		jobDispatcher:     jobDispatcher,
-		loggingRepo:       loggingRepo,
-		currencyConverter: currencyConverter,
+		repo:             repo,
+		txnRepo:          txnRepo,
+		settingsRepo:     settingsRepo,
+		investmentRepo:   investmentRepo,
+		jobDispatcher:    jobDispatcher,
+		priceFetchClient: priceFetchClient,
+		loggingRepo:      loggingRepo,
 	}
 }
 
@@ -484,19 +487,33 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			return 0, err
 		}
 
-		totalInvestmentValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, exAcc.ID, userID, exAcc.Currency)
+		totalCashInvestedUSD, err := s.investmentRepo.GetTotalCashInvestedInAccount(ctx, tx, exAcc.ID, userID)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
+			return 0, fmt.Errorf("failed to calculate total cash invested: %w", err)
 		}
 
-		if totalInvestmentValue.GreaterThan(decimal.Zero) && desired.LessThan(totalInvestmentValue) {
+		rate, err := s.priceFetchClient.GetExchangeRateOnDate(ctx, "USD", exAcc.Currency, latestBalance.AsOf)
+		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("cannot set balance to %s: account has %s in investments",
-				desired.StringFixed(2),
-				totalInvestmentValue.StringFixed(2))
+			return 0, fmt.Errorf("failed to get exchange rate: %w", err)
 		}
 
+		exchangeRateUSDToAccount := decimal.NewFromFloat(rate)
+		totalCashInvested := totalCashInvestedUSD.Mul(exchangeRateUSDToAccount)
+
+		cashOnlyBalance := latestBalance.StartBalance.
+			Add(latestBalance.CashInflows).
+			Sub(latestBalance.CashOutflows).
+			Add(latestBalance.Adjustments)
+
+		if totalCashInvested.GreaterThan(decimal.Zero) && desired.LessThan(totalCashInvested) {
+			tx.Rollback()
+			return 0, fmt.Errorf("cannot set balance to %s: %s has been invested (cash balance: %s)",
+				desired.StringFixed(2),
+				totalCashInvested.StringFixed(2),
+				cashOnlyBalance.StringFixed(2))
+		}
 		// Match sign conventions
 		isLiability := strings.EqualFold(newAccType.Classification, "liability")
 

@@ -53,29 +53,32 @@ type TransactionServiceInterface interface {
 }
 
 type TransactionService struct {
-	repo              repositories.TransactionRepositoryInterface
-	accRepo           repositories.AccountRepositoryInterface
-	settingsRepo      repositories.SettingsRepositoryInterface
-	loggingRepo       repositories.LoggingRepositoryInterface
-	jobDispatcher     jobqueue.JobDispatcher
-	currencyConverter finance.CurrencyManager
+	repo             repositories.TransactionRepositoryInterface
+	accRepo          repositories.AccountRepositoryInterface
+	investmentRepo   repositories.InvestmentRepositoryInterface
+	settingsRepo     repositories.SettingsRepositoryInterface
+	loggingRepo      repositories.LoggingRepositoryInterface
+	jobDispatcher    jobqueue.JobDispatcher
+	priceFetchClient finance.PriceFetcher
 }
 
 func NewTransactionService(
 	repo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
+	investmentRepo *repositories.InvestmentRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobqueue.JobDispatcher,
-	currencyConverter finance.CurrencyManager,
+	priceFetchClient finance.PriceFetcher,
 ) *TransactionService {
 	return &TransactionService{
-		repo:              repo,
-		accRepo:           accRepo,
-		settingsRepo:      settingsRepo,
-		jobDispatcher:     jobDispatcher,
-		loggingRepo:       loggingRepo,
-		currencyConverter: currencyConverter,
+		repo:             repo,
+		accRepo:          accRepo,
+		settingsRepo:     settingsRepo,
+		investmentRepo:   investmentRepo,
+		loggingRepo:      loggingRepo,
+		jobDispatcher:    jobDispatcher,
+		priceFetchClient: priceFetchClient,
 	}
 }
 
@@ -210,18 +213,32 @@ func (s *TransactionService) FetchCategoryByID(ctx context.Context, userID int64
 	return &record, nil
 }
 
-func (s *TransactionService) validateInvestmentBalance(ctx context.Context, tx *gorm.DB, account *models.Account, userID int64, resultingBalance decimal.Decimal) error {
-	totalInvestmentValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, account.ID, userID, account.Currency)
+func (s *TransactionService) validateInvestmentBalance(ctx context.Context, tx *gorm.DB, account *models.Account, userID int64, latestBalance *models.Balance, cashDelta decimal.Decimal) error {
+	totalCashInvestedUSD, err := s.investmentRepo.GetTotalCashInvestedInAccount(ctx, tx, account.ID, userID)
 	if err != nil {
-		return fmt.Errorf("failed to calculate total investment value: %w", err)
+		return fmt.Errorf("failed to calculate total cash invested: %w", err)
 	}
 
-	if totalInvestmentValue.GreaterThan(decimal.Zero) && resultingBalance.LessThan(totalInvestmentValue) {
-		return fmt.Errorf("insufficient funds: resulting balance (%s) would be below total investments (%s)",
-			resultingBalance.StringFixed(2),
-			totalInvestmentValue.StringFixed(2))
+	rate, err := s.priceFetchClient.GetExchangeRateOnDate(ctx, "USD", account.Currency, latestBalance.AsOf)
+	if err != nil {
+		return fmt.Errorf("failed to get exchange rate: %w", err)
 	}
 
+	exchangeRateUSDToAccount := decimal.NewFromFloat(rate)
+	totalCashInvested := totalCashInvestedUSD.Mul(exchangeRateUSDToAccount)
+
+	cashOnlyBalance := latestBalance.StartBalance.
+		Add(latestBalance.CashInflows).
+		Sub(latestBalance.CashOutflows).
+		Add(latestBalance.Adjustments)
+
+	resultingCashBalance := cashOnlyBalance.Add(cashDelta)
+
+	if totalCashInvested.GreaterThan(decimal.Zero) && resultingCashBalance.LessThan(totalCashInvested) {
+		return fmt.Errorf("insufficient funds: resulting cash balance (%s) would be below total cash invested (%s)",
+			resultingCashBalance.StringFixed(2),
+			totalCashInvested.StringFixed(2))
+	}
 	return nil
 }
 
@@ -252,9 +269,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 			return 0, err
 		}
 
-		resultingBalance := latestBalance.EndBalance.Sub(req.Amount)
-
-		if err := s.validateInvestmentBalance(ctx, tx, account, userID, resultingBalance); err != nil {
+		if err := s.validateInvestmentBalance(ctx, tx, account, userID, latestBalance, req.Amount.Neg()); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
@@ -419,20 +434,34 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		)
 	}
 
-	// Also check investments
-	totalInvestmentValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, fromAcc.ID, userID, fromAcc.Currency)
+	// Check against total cash invested
+	totalCashInvestedUSD, err := s.investmentRepo.GetTotalCashInvestedInAccount(ctx, tx, fromAcc.ID, userID)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
+		return 0, fmt.Errorf("failed to calculate total cash invested: %w", err)
 	}
 
-	resultingBalance := fromAcc.Balance.EndBalance.Sub(req.Amount)
-
-	if totalInvestmentValue.GreaterThan(decimal.Zero) && resultingBalance.LessThan(totalInvestmentValue) {
+	rate, err := s.priceFetchClient.GetExchangeRateOnDate(ctx, "USD", fromAcc.Currency, fromAcc.Balance.AsOf)
+	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("insufficient funds: resulting balance (%s) would be below total investments (%s) in %s",
-			resultingBalance.StringFixed(2),
-			totalInvestmentValue.StringFixed(2),
+		return 0, fmt.Errorf("failed to get exchange rate: %w", err)
+	}
+
+	exchangeRateUSDToAccount := decimal.NewFromFloat(rate)
+	totalCashInvested := totalCashInvestedUSD.Mul(exchangeRateUSDToAccount)
+
+	cashOnlyBalance := fromAcc.Balance.StartBalance.
+		Add(fromAcc.Balance.CashInflows).
+		Sub(fromAcc.Balance.CashOutflows).
+		Add(fromAcc.Balance.Adjustments)
+
+	resultingCashBalance := cashOnlyBalance.Sub(req.Amount)
+
+	if totalCashInvested.GreaterThan(decimal.Zero) && resultingCashBalance.LessThan(totalCashInvested) {
+		tx.Rollback()
+		return 0, fmt.Errorf("insufficient funds: resulting cash balance (%s) would be below total cash invested (%s) in %s",
+			resultingCashBalance.StringFixed(2),
+			totalCashInvested.StringFixed(2),
 			fromAcc.Name)
 	}
 
@@ -704,9 +733,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 			return 0, err
 		}
 
-		resultingBalance := latestBalance.EndBalance.Add(netChange)
-
-		if err := s.validateInvestmentBalance(ctx, tx, newAccount, userID, resultingBalance); err != nil {
+		if err := s.validateInvestmentBalance(ctx, tx, newAccount, userID, latestBalance, netChange); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
@@ -960,9 +987,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 			return err
 		}
 
-		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
-
-		if err := s.validateInvestmentBalance(ctx, tx, account, userID, resultingBalance); err != nil {
+		if err := s.validateInvestmentBalance(ctx, tx, account, userID, latestBalance, tr.Amount.Neg()); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1093,13 +1118,10 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 		return err
 	}
 
-	resultingToBalance := latestToBalance.EndBalance.Sub(inflow.Amount)
-
-	if err := s.validateInvestmentBalance(ctx, tx, toAcc, userID, resultingToBalance); err != nil {
+	if err := s.validateInvestmentBalance(ctx, tx, toAcc, userID, latestToBalance, inflow.Amount.Neg()); err != nil {
 		tx.Rollback()
 		return err
 	}
-
 	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
 		tx.Rollback()
 		return err
@@ -1306,9 +1328,7 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 			return err
 		}
 
-		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
-
-		if err := s.validateInvestmentBalance(ctx, tx, acc, userID, resultingBalance); err != nil {
+		if err := s.validateInvestmentBalance(ctx, tx, acc, userID, latestBalance, tr.Amount.Neg()); err != nil {
 			tx.Rollback()
 			return err
 		}

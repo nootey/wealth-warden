@@ -2546,7 +2546,6 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 	accID, err := accSvc.InsertAccount(s.Ctx, userID, accReq)
 	s.Require().NoError(err)
 
-	// Create and buy BTC asset worth 60k
 	assetReq := &models.InvestmentAssetReq{
 		AccountID:      accID,
 		InvestmentType: models.InvestmentCrypto,
@@ -2575,7 +2574,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 		TradeType:    models.InvestmentBuy,
 		Quantity:     decimal.NewFromInt(1),
 		PricePerUnit: decimal.NewFromInt(60000),
-		Currency:     "USD",
+		Currency:     "EUR",
 	})
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -2584,16 +2583,24 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 		s.Require().NoError(err)
 	}
 
-	// Get current balance (should be ~100k + unrealized gains)
+	var trade models.InvestmentTrade
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("asset_id = ?", assetID).
+		First(&trade).Error
+	s.Require().NoError(err)
+	s.T().Logf("Trade: quantity=%s, price=%s, currency=%s, exchange_rate_to_usd=%s",
+		trade.Quantity.String(),
+		trade.PricePerUnit.String(),
+		trade.Currency,
+		trade.ExchangeRateToUSD.String())
+
 	var latestBalance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ?", accID).
 		Order("as_of DESC").
 		First(&latestBalance).Error
 	s.Require().NoError(err)
-
-	// Try to create an expense that would drop balance below 60k
-	// Even if current balance is 110k, we can't spend more than 50k
+	
 	expenseAmount := decimal.NewFromInt(55000)
 
 	txnReq := &models.TransactionReq{
@@ -2604,9 +2611,9 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 	}
 
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, txnReq)
-	s.Require().Error(err, "should block expense that would drop balance below investments")
+	s.Require().Error(err, "should block expense that would drop cash balance below cash invested")
+	s.Assert().Contains(err.Error(), "cash invested", "error should mention cash invested")
 
-	// Verify no transaction was created
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
 		Model(&models.Transaction{}).
@@ -2615,7 +2622,6 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
 
-	// Verify balance unchanged
 	var balanceAfter models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ?", accID).
@@ -2735,7 +2741,6 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByInvestments
 	accID, err := accSvc.InsertAccount(s.Ctx, userID, accReq)
 	s.Require().NoError(err)
 
-	// Add 50k income (brings total to 100k)
 	incomeReq := &models.TransactionReq{
 		AccountID:       accID,
 		TransactionType: "income",
@@ -2746,7 +2751,6 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByInvestments
 	incomeID, err := txnSvc.InsertTransaction(s.Ctx, userID, incomeReq)
 	s.Require().NoError(err)
 
-	// Buy BTC worth 60k
 	assetReq := &models.InvestmentAssetReq{
 		AccountID:      accID,
 		InvestmentType: models.InvestmentCrypto,
@@ -2775,7 +2779,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByInvestments
 		TradeType:    models.InvestmentBuy,
 		Quantity:     decimal.NewFromInt(1),
 		PricePerUnit: decimal.NewFromInt(60000),
-		Currency:     "USD",
+		Currency:     "EUR",
 	})
 	if err != nil {
 		if errors.Is(ctx2.Err(), context.DeadlineExceeded) {
@@ -2784,12 +2788,22 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByInvestments
 		s.Require().NoError(err)
 	}
 
-	// Try to delete the 50k income
-	// This would drop balance from ~100k to ~50k, below the 60k+ investment
-	err = txnSvc.DeleteTransaction(s.Ctx, userID, incomeID)
-	s.Require().Error(err, "should block deleting income that would drop balance below investments")
+	var trade models.InvestmentTrade
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("asset_id = ?", assetID).
+		First(&trade).Error
+	s.Require().NoError(err)
 
-	// Verify transaction still exists
+	var account models.Account
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("id = ?", accID).
+		First(&account).Error
+	s.Require().NoError(err)
+
+	err = txnSvc.DeleteTransaction(s.Ctx, userID, incomeID)
+	s.Require().Error(err, "should block deleting income that would drop balance below cash invested")
+	s.Assert().Contains(err.Error(), "cash invested", "error should mention cash invested")
+
 	var txn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("id = ?", incomeID).
