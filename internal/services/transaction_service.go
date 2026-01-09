@@ -214,18 +214,27 @@ func (s *TransactionService) FetchCategoryByID(ctx context.Context, userID int64
 }
 
 func (s *TransactionService) validateInvestmentBalance(ctx context.Context, tx *gorm.DB, account *models.Account, userID int64, latestBalance *models.Balance, cashDelta decimal.Decimal) error {
-	totalCashInvestedUSD, err := s.investmentRepo.GetTotalCashInvestedInAccount(ctx, tx, account.ID, userID)
+	trades, err := s.investmentRepo.GetTotalCashInvestedInAccount(ctx, tx, account.ID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to calculate total cash invested: %w", err)
 	}
 
-	rate, err := s.priceFetchClient.GetExchangeRateOnDate(ctx, "USD", account.Currency, latestBalance.AsOf)
-	if err != nil {
-		return fmt.Errorf("failed to get exchange rate: %w", err)
+	totalCashInvested := decimal.Zero
+	for _, trade := range trades {
+		var amountInAccountCurrency decimal.Decimal
+		if trade.Currency == account.Currency {
+			amountInAccountCurrency = trade.Amount
+		} else {
+			// Convert using historical rate from the trade date
+			rate, err := s.priceFetchClient.GetExchangeRateOnDate(ctx, trade.Currency, account.Currency, trade.TxnDate)
+			if err != nil {
+				return fmt.Errorf("failed to get exchange rate: %w", err)
+			}
+			exchangeRate := decimal.NewFromFloat(rate)
+			amountInAccountCurrency = trade.Amount.Mul(exchangeRate)
+		}
+		totalCashInvested = totalCashInvested.Add(amountInAccountCurrency)
 	}
-
-	exchangeRateUSDToAccount := decimal.NewFromFloat(rate)
-	totalCashInvested := totalCashInvestedUSD.Mul(exchangeRateUSDToAccount)
 
 	cashOnlyBalance := latestBalance.StartBalance.
 		Add(latestBalance.CashInflows).
@@ -435,20 +444,29 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	}
 
 	// Check against total cash invested
-	totalCashInvestedUSD, err := s.investmentRepo.GetTotalCashInvestedInAccount(ctx, tx, fromAcc.ID, userID)
+	trades, err := s.investmentRepo.GetTotalCashInvestedInAccount(ctx, tx, fromAcc.ID, userID)
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("failed to calculate total cash invested: %w", err)
 	}
 
-	rate, err := s.priceFetchClient.GetExchangeRateOnDate(ctx, "USD", fromAcc.Currency, fromAcc.Balance.AsOf)
-	if err != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("failed to get exchange rate: %w", err)
+	totalCashInvested := decimal.Zero
+	for _, trade := range trades {
+		var amountInAccountCurrency decimal.Decimal
+		if trade.Currency == fromAcc.Currency {
+			amountInAccountCurrency = trade.Amount
+		} else {
+			// Convert using historical rate from the trade date
+			rate, err := s.priceFetchClient.GetExchangeRateOnDate(ctx, trade.Currency, fromAcc.Currency, trade.TxnDate)
+			if err != nil {
+				tx.Rollback()
+				return 0, fmt.Errorf("failed to get exchange rate: %w", err)
+			}
+			exchangeRate := decimal.NewFromFloat(rate)
+			amountInAccountCurrency = trade.Amount.Mul(exchangeRate)
+		}
+		totalCashInvested = totalCashInvested.Add(amountInAccountCurrency)
 	}
-
-	exchangeRateUSDToAccount := decimal.NewFromFloat(rate)
-	totalCashInvested := totalCashInvestedUSD.Mul(exchangeRateUSDToAccount)
 
 	cashOnlyBalance := fromAcc.Balance.StartBalance.
 		Add(fromAcc.Balance.CashInflows).

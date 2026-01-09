@@ -487,20 +487,29 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			return 0, err
 		}
 
-		totalCashInvestedUSD, err := s.investmentRepo.GetTotalCashInvestedInAccount(ctx, tx, exAcc.ID, userID)
+		trades, err := s.investmentRepo.GetTotalCashInvestedInAccount(ctx, tx, exAcc.ID, userID)
 		if err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to calculate total cash invested: %w", err)
 		}
 
-		rate, err := s.priceFetchClient.GetExchangeRateOnDate(ctx, "USD", exAcc.Currency, latestBalance.AsOf)
-		if err != nil {
-			tx.Rollback()
-			return 0, fmt.Errorf("failed to get exchange rate: %w", err)
+		totalCashInvested := decimal.Zero
+		for _, trade := range trades {
+			var amountInAccountCurrency decimal.Decimal
+			if trade.Currency == exAcc.Currency {
+				amountInAccountCurrency = trade.Amount
+			} else {
+				// Convert using historical rate from the trade date
+				rate, err := s.priceFetchClient.GetExchangeRateOnDate(ctx, trade.Currency, exAcc.Currency, trade.TxnDate)
+				if err != nil {
+					tx.Rollback()
+					return 0, fmt.Errorf("failed to get exchange rate: %w", err)
+				}
+				exchangeRate := decimal.NewFromFloat(rate)
+				amountInAccountCurrency = trade.Amount.Mul(exchangeRate)
+			}
+			totalCashInvested = totalCashInvested.Add(amountInAccountCurrency)
 		}
-
-		exchangeRateUSDToAccount := decimal.NewFromFloat(rate)
-		totalCashInvested := totalCashInvestedUSD.Mul(exchangeRateUSDToAccount)
 
 		cashOnlyBalance := latestBalance.StartBalance.
 			Add(latestBalance.CashInflows).
@@ -514,6 +523,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 				totalCashInvested.StringFixed(2),
 				cashOnlyBalance.StringFixed(2))
 		}
+
 		// Match sign conventions
 		isLiability := strings.EqualFold(newAccType.Classification, "liability")
 

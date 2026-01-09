@@ -475,14 +475,24 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 			return 0, fmt.Errorf("failed to get account balance: %w", err)
 		}
 
-		totalCashInvestedUSD, err := s.repo.GetTotalCashInvestedInAccount(ctx, tx, asset.AccountID, userID)
+		trades, err := s.repo.GetTotalCashInvestedInAccount(ctx, tx, asset.AccountID, userID)
 		if err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to calculate total cash invested: %w", err)
 		}
 
-		exchangeRateUSDToAccount := s.GetExchangeRate(ctx, "USD", asset.Account.Currency, &req.TxnDate)
-		totalCashInvested := totalCashInvestedUSD.Mul(exchangeRateUSDToAccount)
+		totalCashInvested := decimal.Zero
+		for _, trade := range trades {
+			var amountInAccountCurrency decimal.Decimal
+			if trade.Currency == asset.Account.Currency {
+				amountInAccountCurrency = trade.Amount
+			} else {
+				// Convert using historical rate from the trade date
+				exchangeRate := s.GetExchangeRate(ctx, trade.Currency, asset.Account.Currency, &trade.TxnDate)
+				amountInAccountCurrency = trade.Amount.Mul(exchangeRate)
+			}
+			totalCashInvested = totalCashInvested.Add(amountInAccountCurrency)
+		}
 
 		purchaseCost := req.Quantity.Mul(req.PricePerUnit)
 		if req.Fee != nil {
