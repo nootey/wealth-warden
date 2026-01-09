@@ -38,12 +38,6 @@ type InvestmentRepositoryInterface interface {
 	FindAssetByTicker(ctx context.Context, tx *gorm.DB, ticker string, accID, userID int64) (models.InvestmentAsset, error)
 	FindInvestmentTradesByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentTrade, error)
 	GetInvestmentTradesDateRange(ctx context.Context, tx *gorm.DB, accountID int64) (time.Time, time.Time, error)
-	GetTotalCashInvestedInAccount(ctx context.Context, tx *gorm.DB, accountID, userID int64) ([]struct {
-		Amount            decimal.Decimal
-		Currency          string
-		ExchangeRateToUSD decimal.Decimal
-		TxnDate           time.Time
-	}, error)
 }
 
 type InvestmentRepository struct {
@@ -696,32 +690,4 @@ func (r *InvestmentRepository) GetInvestmentTradesDateRange(ctx context.Context,
 	}
 
 	return result.MinDate, result.MaxDate, nil
-}
-
-func (r *InvestmentRepository) GetTotalCashInvestedInAccount(ctx context.Context, tx *gorm.DB, accountID, userID int64) ([]struct {
-	Amount            decimal.Decimal
-	Currency          string
-	ExchangeRateToUSD decimal.Decimal
-	TxnDate           time.Time
-}, error) {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	var trades []struct {
-		Amount            decimal.Decimal
-		Currency          string
-		ExchangeRateToUSD decimal.Decimal
-		TxnDate           time.Time
-	}
-
-	err := db.Table("investment_trades").
-		Select("(investment_trades.quantity * investment_trades.price_per_unit + COALESCE(investment_trades.fee, 0)) as amount, investment_trades.currency, investment_trades.exchange_rate_to_usd, investment_trades.txn_date").
-		Joins("JOIN investment_assets ON investment_trades.asset_id = investment_assets.id").
-		Where("investment_assets.account_id = ? AND investment_trades.trade_type = ?", accountID, models.InvestmentBuy).
-		Scan(&trades).Error
-
-	return trades, err
 }
