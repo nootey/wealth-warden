@@ -32,7 +32,7 @@ type InvestmentServiceInterface interface {
 	UpdateInvestmentTrade(ctx context.Context, userID int64, id int64, req *models.InvestmentTradeReq) (int64, error)
 	DeleteInvestmentAsset(ctx context.Context, userID int64, id int64) error
 	DeleteInvestmentTrade(ctx context.Context, userID int64, id int64) error
-	GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string, date *time.Time) decimal.Decimal
+	GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string, date *time.Time) (decimal.Decimal, error)
 	RecalculateAssetPnL(ctx context.Context, assetID, userID int64) error
 	RecalculateAllAssetsPnL(ctx context.Context, userID int64) error
 	RecalculateAccountBalances(ctx context.Context, accountID, userID int64) error
@@ -309,7 +309,10 @@ func (s *InvestmentService) UpdateInvestmentAccountBalance(ctx context.Context, 
 		// Convert P&L to account currency if needed
 		pnlInAccountCurrency := pnlAtDate
 		if asset.Currency != currency {
-			exchangeRate := s.GetExchangeRate(ctx, asset.Currency, currency, &asOf)
+			exchangeRate, err := s.GetExchangeRate(ctx, asset.Currency, currency, &asOf)
+			if err != nil {
+				return err
+			}
 			pnlInAccountCurrency = pnlAtDate.Mul(exchangeRate)
 		}
 
@@ -454,7 +457,10 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, fmt.Errorf("can't find asset with given id %w", err)
 	}
 
-	exchangeRate := s.GetExchangeRate(ctx, req.Currency, asset.Account.Currency, &req.TxnDate)
+	exchangeRate, err := s.GetExchangeRate(ctx, req.Currency, asset.Account.Currency, &req.TxnDate)
+	if err != nil {
+		return 0, err
+	}
 
 	// Validate amounts
 	if req.TradeType == models.InvestmentSell && req.Quantity.GreaterThan(asset.Quantity) {
@@ -488,7 +494,10 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 				amountInAccountCurrency = trade.Amount
 			} else {
 				// Convert using historical rate from the trade date
-				exchangeRate := s.GetExchangeRate(ctx, trade.Currency, asset.Account.Currency, &trade.TxnDate)
+				exchangeRate, err := s.GetExchangeRate(ctx, trade.Currency, asset.Account.Currency, &trade.TxnDate)
+				if err != nil {
+					return 0, err
+				}
 				amountInAccountCurrency = trade.Amount.Mul(exchangeRate)
 			}
 			totalCashInvested = totalCashInvested.Add(amountInAccountCurrency)
@@ -533,7 +542,10 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		}
 	}
 
-	exchangeRateToUSD := s.GetExchangeRate(ctx, req.Currency, "USD", &req.TxnDate)
+	exchangeRateToUSD, err := s.GetExchangeRate(ctx, req.Currency, "USD", &req.TxnDate)
+	if err != nil {
+		return 0, err
+	}
 
 	// Calculate fee
 	fee := decimal.NewFromFloat(0.00)
@@ -679,7 +691,10 @@ func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, as
 
 	realizedPnLInAccountCurrency := realizedPnL
 	if tradeCurrency != asset.Account.Currency {
-		exchangeRate := s.GetExchangeRate(ctx, tradeCurrency, asset.Account.Currency, &txnDate)
+		exchangeRate, err := s.GetExchangeRate(ctx, tradeCurrency, asset.Account.Currency, &txnDate)
+		if err != nil {
+			return err
+		}
 		realizedPnLInAccountCurrency = realizedPnL.Mul(exchangeRate)
 	}
 
@@ -734,22 +749,29 @@ func (s *InvestmentService) updateUnrealizedPnL(ctx context.Context, tx *gorm.DB
 	return nil
 }
 
-func (s *InvestmentService) GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string, date *time.Time) decimal.Decimal {
-	if s.priceFetchClient != nil {
-		var rate float64
-		var err error
-
-		if date != nil {
-			rate, err = s.priceFetchClient.GetExchangeRateOnDate(ctx, fromCurrency, toCurrency, *date)
-		} else {
-			rate, err = s.priceFetchClient.GetExchangeRate(ctx, fromCurrency, toCurrency)
-		}
-
-		if err == nil {
-			return decimal.NewFromFloat(rate)
-		}
+func (s *InvestmentService) GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string, date *time.Time) (decimal.Decimal, error) {
+	if fromCurrency == toCurrency {
+		return decimal.NewFromFloat(1.0), nil
 	}
-	return decimal.NewFromFloat(1.0)
+
+	if s.priceFetchClient == nil {
+		return decimal.Zero, fmt.Errorf("price fetch client not initialized")
+	}
+
+	var rate float64
+	var err error
+
+	if date != nil {
+		rate, err = s.priceFetchClient.GetExchangeRateOnDate(ctx, fromCurrency, toCurrency, *date)
+	} else {
+		rate, err = s.priceFetchClient.GetExchangeRate(ctx, fromCurrency, toCurrency)
+	}
+
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	return decimal.NewFromFloat(rate), nil
 }
 
 func (s *InvestmentService) calculateTradeValue(req *models.InvestmentTradeReq, investmentType models.InvestmentType, fee decimal.Decimal) (decimal.Decimal, decimal.Decimal) {
@@ -966,7 +988,10 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 		// Convert realized P&L to account currency if needed
 		realizedPnLInAccountCurrency := realizedPnL
 		if txn.Currency != asset.Account.Currency {
-			exchangeRate := s.GetExchangeRate(ctx, txn.Currency, asset.Account.Currency, &txn.TxnDate)
+			exchangeRate, err := s.GetExchangeRate(ctx, txn.Currency, asset.Account.Currency, &txn.TxnDate)
+			if err != nil {
+				return err
+			}
 			realizedPnLInAccountCurrency = realizedPnL.Mul(exchangeRate)
 		}
 
@@ -1093,7 +1118,10 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 		// Convert realized P&L to account currency if needed
 		realizedPnLInAccountCurrency := realizedPnL
 		if exTxn.Currency != asset.Account.Currency {
-			exchangeRate := s.GetExchangeRate(ctx, exTxn.Currency, asset.Account.Currency, &exTxn.TxnDate)
+			exchangeRate, err := s.GetExchangeRate(ctx, exTxn.Currency, asset.Account.Currency, &exTxn.TxnDate)
+			if err != nil {
+				return err
+			}
 			realizedPnLInAccountCurrency = realizedPnL.Mul(exchangeRate)
 		}
 
