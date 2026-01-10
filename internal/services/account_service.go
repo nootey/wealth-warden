@@ -484,28 +484,6 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			return 0, err
 		}
 
-		totalInvestmentValue, negativeValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, exAcc.ID, userID, exAcc.Currency)
-		if err != nil {
-			tx.Rollback()
-			return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
-		}
-
-		// Adjust balance by adding back unrealized losses
-		adjustedBalance := latestBalance.EndBalance.Add(negativeValue.Abs())
-
-		// Calculate available cash (what's not locked in investments)
-		availableCash := adjustedBalance.Sub(totalInvestmentValue)
-
-		// The desired balance must be at least equal to current investment value
-		if desired.LessThan(totalInvestmentValue) {
-			tx.Rollback()
-			return 0, fmt.Errorf("cannot set balance to %s: %s is currently invested (adjusted balance: %s, available cash: %s)",
-				desired.StringFixed(2),
-				totalInvestmentValue.StringFixed(2),
-				adjustedBalance.StringFixed(2),
-				availableCash.StringFixed(2))
-		}
-
 		// Match sign conventions
 		isLiability := strings.EqualFold(newAccType.Classification, "liability")
 
@@ -513,6 +491,31 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		if !isLiability && desired.IsNegative() {
 			tx.Rollback()
 			return 0, fmt.Errorf("asset account balance cannot be negative")
+		}
+
+		// Only check investment constraints for asset accounts, not liabilities
+		if !isLiability {
+			totalInvestmentValue, negativeValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, exAcc.ID, userID, exAcc.Currency)
+			if err != nil {
+				tx.Rollback()
+				return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
+			}
+
+			// Adjust balance by adding back unrealized losses
+			adjustedBalance := latestBalance.EndBalance.Add(negativeValue.Abs())
+
+			// Calculate available cash (what's not locked in investments)
+			availableCash := adjustedBalance.Sub(totalInvestmentValue)
+
+			// The desired balance must be at least equal to current investment value
+			if desired.LessThan(totalInvestmentValue) {
+				tx.Rollback()
+				return 0, fmt.Errorf("cannot set balance to %s: %s is currently invested (adjusted balance: %s, available cash: %s)",
+					desired.StringFixed(2),
+					totalInvestmentValue.StringFixed(2),
+					adjustedBalance.StringFixed(2),
+					availableCash.StringFixed(2))
+			}
 		}
 
 		delta = desired.Sub(latestBalance.EndBalance)
