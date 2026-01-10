@@ -298,8 +298,20 @@ func (s *InvestmentService) UpdateInvestmentAccountBalance(ctx context.Context, 
 		// Fetch the price for this specific date
 		price, err := s.fetchPriceForDate(ctx, asset, asOf)
 		if err != nil {
-			fmt.Println(err)
-			continue
+			if asset.CurrentPrice != nil && asset.LastPriceUpdate != nil {
+				daysSinceUpdate := time.Since(*asset.LastPriceUpdate).Hours() / 24
+
+				// If asking for recent data and price is < 7 days old, use it
+				if time.Since(asOf).Hours()/24 < 7 && daysSinceUpdate < 7 {
+					price = *asset.CurrentPrice
+				} else {
+					// Price too stale or date too historical
+					fmt.Printf("No valid price for %s on %s\n", asset.Ticker, asOf.Format("2006-01-02"))
+					continue
+				}
+			} else {
+				continue
+			}
 		}
 
 		// Calculate P&L using historical quantity and spent
@@ -481,26 +493,10 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 			return 0, fmt.Errorf("failed to get account balance: %w", err)
 		}
 
-		trades, err := s.repo.GetTotalCashInvestedInAccount(ctx, tx, asset.AccountID, userID)
+		totalInvestmentValue, negativeValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, asset.AccountID, userID, asset.Account.Currency)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("failed to calculate total cash invested: %w", err)
-		}
-
-		totalCashInvested := decimal.Zero
-		for _, trade := range trades {
-			var amountInAccountCurrency decimal.Decimal
-			if trade.Currency == asset.Account.Currency {
-				amountInAccountCurrency = trade.Amount
-			} else {
-				// Convert using historical rate from the trade date
-				exchangeRate, err := s.GetExchangeRate(ctx, trade.Currency, asset.Account.Currency, &trade.TxnDate)
-				if err != nil {
-					return 0, err
-				}
-				amountInAccountCurrency = trade.Amount.Mul(exchangeRate)
-			}
-			totalCashInvested = totalCashInvested.Add(amountInAccountCurrency)
+			return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
 		}
 
 		purchaseCost := req.Quantity.Mul(req.PricePerUnit)
@@ -515,30 +511,27 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 			purchaseCostInAccountCurrency = purchaseCost.Mul(exchangeRate)
 		}
 
-		cashOnlyBalance := availableBalance.StartBalance.
-			Add(availableBalance.CashInflows).
-			Sub(availableBalance.CashOutflows).
-			Add(availableBalance.Adjustments)
+		adjustedBalance := availableBalance.EndBalance.Add(negativeValue.Abs())
 
-		remainingCash := cashOnlyBalance.Sub(totalCashInvested)
-		if remainingCash.LessThan(decimal.Zero) {
+		remainingBalance := adjustedBalance.Sub(totalInvestmentValue)
+		if remainingBalance.LessThan(decimal.Zero) {
 			tx.Rollback()
-			return 0, fmt.Errorf("account balance inconsistency detected: total cash invested (%s %s) exceeds cash balance (%s %s)",
-				totalCashInvested.StringFixed(2),
+			return 0, fmt.Errorf("account balance inconsistency detected: total investments (%s %s) exceed account balance (%s %s)",
+				totalInvestmentValue.StringFixed(2),
 				asset.Account.Currency,
-				cashOnlyBalance.StringFixed(2),
+				availableBalance.EndBalance.StringFixed(2),
 				asset.Account.Currency)
 		}
 
-		if purchaseCostInAccountCurrency.GreaterThan(decimal.Zero) && purchaseCostInAccountCurrency.GreaterThan(remainingCash) {
+		if purchaseCostInAccountCurrency.GreaterThan(remainingBalance) {
 			tx.Rollback()
-			return 0, fmt.Errorf("insufficient funds: need %s %s, but only %s %s available (cash balance: %s, invested: %s)",
+			return 0, fmt.Errorf("insufficient funds: need %s %s, but only %s %s available (balance: %s, invested: %s)",
 				purchaseCostInAccountCurrency.StringFixed(2),
 				asset.Account.Currency,
-				remainingCash.StringFixed(2),
+				remainingBalance.StringFixed(2),
 				asset.Account.Currency,
-				cashOnlyBalance.StringFixed(2),
-				totalCashInvested.StringFixed(2))
+				availableBalance.EndBalance.StringFixed(2),
+				totalInvestmentValue.StringFixed(2))
 		}
 	}
 

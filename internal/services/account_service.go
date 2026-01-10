@@ -44,32 +44,29 @@ type AccountServiceInterface interface {
 }
 
 type AccountService struct {
-	repo             repositories.AccountRepositoryInterface
-	txnRepo          repositories.TransactionRepositoryInterface
-	investmentRepo   repositories.InvestmentRepositoryInterface
-	settingsRepo     repositories.SettingsRepositoryInterface
-	loggingRepo      repositories.LoggingRepositoryInterface
-	jobDispatcher    jobqueue.JobDispatcher
-	priceFetchClient finance.PriceFetcher
+	repo              repositories.AccountRepositoryInterface
+	txnRepo           repositories.TransactionRepositoryInterface
+	settingsRepo      repositories.SettingsRepositoryInterface
+	loggingRepo       repositories.LoggingRepositoryInterface
+	jobDispatcher     jobqueue.JobDispatcher
+	currencyConverter finance.CurrencyManager
 }
 
 func NewAccountService(
 	repo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
-	investmentRepo *repositories.InvestmentRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobqueue.JobDispatcher,
-	priceFetchClient finance.PriceFetcher,
+	currencyConverter finance.CurrencyManager,
 ) *AccountService {
 	return &AccountService{
-		repo:             repo,
-		txnRepo:          txnRepo,
-		settingsRepo:     settingsRepo,
-		investmentRepo:   investmentRepo,
-		jobDispatcher:    jobDispatcher,
-		priceFetchClient: priceFetchClient,
-		loggingRepo:      loggingRepo,
+		repo:              repo,
+		txnRepo:           txnRepo,
+		settingsRepo:      settingsRepo,
+		loggingRepo:       loggingRepo,
+		jobDispatcher:     jobDispatcher,
+		currencyConverter: currencyConverter,
 	}
 }
 
@@ -487,43 +484,6 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			return 0, err
 		}
 
-		trades, err := s.investmentRepo.GetTotalCashInvestedInAccount(ctx, tx, exAcc.ID, userID)
-		if err != nil {
-			tx.Rollback()
-			return 0, fmt.Errorf("failed to calculate total cash invested: %w", err)
-		}
-
-		totalCashInvested := decimal.Zero
-		for _, trade := range trades {
-			var amountInAccountCurrency decimal.Decimal
-			if trade.Currency == exAcc.Currency {
-				amountInAccountCurrency = trade.Amount
-			} else {
-				// Convert using historical rate from the trade date
-				rate, err := s.priceFetchClient.GetExchangeRateOnDate(ctx, trade.Currency, exAcc.Currency, trade.TxnDate)
-				if err != nil {
-					tx.Rollback()
-					return 0, fmt.Errorf("failed to get exchange rate: %w", err)
-				}
-				exchangeRate := decimal.NewFromFloat(rate)
-				amountInAccountCurrency = trade.Amount.Mul(exchangeRate)
-			}
-			totalCashInvested = totalCashInvested.Add(amountInAccountCurrency)
-		}
-
-		cashOnlyBalance := latestBalance.StartBalance.
-			Add(latestBalance.CashInflows).
-			Sub(latestBalance.CashOutflows).
-			Add(latestBalance.Adjustments)
-
-		if totalCashInvested.GreaterThan(decimal.Zero) && desired.LessThan(totalCashInvested) {
-			tx.Rollback()
-			return 0, fmt.Errorf("cannot set balance to %s: %s has been invested (cash balance: %s)",
-				desired.StringFixed(2),
-				totalCashInvested.StringFixed(2),
-				cashOnlyBalance.StringFixed(2))
-		}
-
 		// Match sign conventions
 		isLiability := strings.EqualFold(newAccType.Classification, "liability")
 
@@ -531,6 +491,31 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		if !isLiability && desired.IsNegative() {
 			tx.Rollback()
 			return 0, fmt.Errorf("asset account balance cannot be negative")
+		}
+
+		// Only check investment constraints for asset accounts, not liabilities
+		if !isLiability {
+			totalInvestmentValue, negativeValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, exAcc.ID, userID, exAcc.Currency)
+			if err != nil {
+				tx.Rollback()
+				return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
+			}
+
+			// Adjust balance by adding back unrealized losses
+			adjustedBalance := latestBalance.EndBalance.Add(negativeValue.Abs())
+
+			// Calculate available cash (what's not locked in investments)
+			availableCash := adjustedBalance.Sub(totalInvestmentValue)
+
+			// The desired balance must be at least equal to current investment value
+			if desired.LessThan(totalInvestmentValue) {
+				tx.Rollback()
+				return 0, fmt.Errorf("cannot set balance to %s: %s is currently invested (adjusted balance: %s, available cash: %s)",
+					desired.StringFixed(2),
+					totalInvestmentValue.StringFixed(2),
+					adjustedBalance.StringFixed(2),
+					availableCash.StringFixed(2))
+			}
 		}
 
 		delta = desired.Sub(latestBalance.EndBalance)

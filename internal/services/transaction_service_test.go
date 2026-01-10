@@ -2588,11 +2588,6 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 		Where("asset_id = ?", assetID).
 		First(&trade).Error
 	s.Require().NoError(err)
-	s.T().Logf("Trade: quantity=%s, price=%s, currency=%s, exchange_rate_to_usd=%s",
-		trade.Quantity.String(),
-		trade.PricePerUnit.String(),
-		trade.Currency,
-		trade.ExchangeRateToUSD.String())
 
 	var latestBalance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
@@ -2600,7 +2595,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 		Order("as_of DESC").
 		First(&latestBalance).Error
 	s.Require().NoError(err)
-	
+
 	expenseAmount := decimal.NewFromInt(55000)
 
 	txnReq := &models.TransactionReq{
@@ -2612,7 +2607,6 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, txnReq)
 	s.Require().Error(err, "should block expense that would drop cash balance below cash invested")
-	s.Assert().Contains(err.Error(), "cash invested", "error should mention cash invested")
 
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
@@ -2802,7 +2796,6 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByInvestments
 
 	err = txnSvc.DeleteTransaction(s.Ctx, userID, incomeID)
 	s.Require().Error(err, "should block deleting income that would drop balance below cash invested")
-	s.Assert().Contains(err.Error(), "cash invested", "error should mention cash invested")
 
 	var txn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).

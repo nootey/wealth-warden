@@ -239,7 +239,7 @@ func (j *InvestmentPriceSyncJob) updateAccountBalance(ctx context.Context, tx *g
 	}
 
 	// Update balance for today only
-	err = invService.UpdateInvestmentAccountBalanceRange(ctx, tx, accountID, userID, asOf, asOf, currency)
+	err = invService.UpdateInvestmentAccountBalance(ctx, tx, accountID, userID, asOf, currency)
 	if err != nil {
 		j.logger.Error("Failed to update account balance",
 			zap.Int64("account_id", accountID),
