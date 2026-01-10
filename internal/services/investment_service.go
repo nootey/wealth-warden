@@ -298,8 +298,20 @@ func (s *InvestmentService) UpdateInvestmentAccountBalance(ctx context.Context, 
 		// Fetch the price for this specific date
 		price, err := s.fetchPriceForDate(ctx, asset, asOf)
 		if err != nil {
-			fmt.Println(err)
-			continue
+			if asset.CurrentPrice != nil && asset.LastPriceUpdate != nil {
+				daysSinceUpdate := time.Since(*asset.LastPriceUpdate).Hours() / 24
+
+				// If asking for recent data and price is < 7 days old, use it
+				if time.Since(asOf).Hours()/24 < 7 && daysSinceUpdate < 7 {
+					price = *asset.CurrentPrice
+				} else {
+					// Price too stale or date too historical
+					fmt.Printf("No valid price for %s on %s\n", asset.Ticker, asOf.Format("2006-01-02"))
+					continue
+				}
+			} else {
+				continue
+			}
 		}
 
 		// Calculate P&L using historical quantity and spent
