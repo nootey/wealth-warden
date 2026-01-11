@@ -224,8 +224,8 @@ func (s *TransactionService) validateInvestmentBalance(ctx context.Context, tx *
 
 	// Calculate available cash after accounting for investments
 	availableCashAfterTransaction := resultingBalance.Sub(totalInvestmentValue)
-	
-	if availableCashAfterTransaction.LessThan(decimal.Zero) {
+
+	if availableCashAfterTransaction.LessThan(decimal.Zero) && account.AccountType.Classification != "liability" {
 		return fmt.Errorf("insufficient funds: resulting available cash (%s) would be negative (balance: %s, invested: %s)",
 			availableCashAfterTransaction.StringFixed(2),
 			resultingBalance.StringFixed(2),
@@ -443,7 +443,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	// Calculate available cash after accounting for investments
 	availableCashAfterTransfer := resultingBalance.Sub(totalInvestmentValue)
 
-	if availableCashAfterTransfer.LessThan(decimal.Zero) {
+	if availableCashAfterTransfer.LessThan(decimal.Zero) && fromAcc.AccountType.Classification != "liability" {
 		tx.Rollback()
 		return 0, fmt.Errorf("insufficient funds: resulting available cash (%s) would be negative in %s (balance: %s, invested: %s)",
 			availableCashAfterTransfer.StringFixed(2),
