@@ -59,6 +59,9 @@ func LoadConfig(configPath *string, configName ...string) (*Config, error) {
 	// Try to load override config (optional)
 	v := viper.New()
 
+	// Load env variables
+	v.AutomaticEnv()
+
 	cfgName := "dev"
 	if len(configName) > 0 && configName[0] != "" {
 		cfgName = configName[0]
