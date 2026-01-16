@@ -17,7 +17,6 @@ var migrateCmd = &cobra.Command{
 	Short: "Run database migrations",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-
 		migrationType := "help"
 
 		if len(args) > 0 {
@@ -83,7 +82,7 @@ func runMigrations(migrationType string, migrationsDir string, cfg *config.Confi
 		}
 
 		// Connect to a maintenance database (like "postgres").
-		mDB, err := database.ConnectToMaintenance(cfg, dbLogger)
+		mDB, err := database.ConnectToPostgres(cfg, dbLogger)
 		if err != nil {
 			return fmt.Errorf("failed to connect to maintenance database: %v", err)
 		}
