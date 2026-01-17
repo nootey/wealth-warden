@@ -24,7 +24,13 @@ var rootCmd = &cobra.Command{
 		// Load config for every child command before they are executed
 		var err error
 		cfg, err = config.LoadConfig(&configPath)
-		return fmt.Errorf("failed to load configuration: %s", err.Error())
+		if err != nil {
+			return fmt.Errorf("failed to load configuration: %s", err.Error())
+		}
+
+		logger = logging.InitLogger(cfg.Release)
+
+		return nil
 	},
 }
 
@@ -37,13 +43,13 @@ func init() {
 }
 
 func Execute() {
-	// Define logger and pass it into cobra commands
-	logger = logging.InitLogger(cfg.Release)
 	defer func() {
-		_ = logger.Sync() // Ignore sync errors
+		if logger != nil {
+			_ = logger.Sync()
+		}
 	}()
 
 	if err := rootCmd.Execute(); err != nil {
-		logger.Fatal("Failed to execute root command", zap.Error(err))
+		logger.Fatal("failed to execute root command", zap.Error(err))
 	}
 }
