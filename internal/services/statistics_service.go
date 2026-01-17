@@ -110,19 +110,31 @@ func (s *StatisticsService) GetAccountBasicStatistics(ctx context.Context, accID
 		}
 	}
 
+	// Fetch all transfers for the year at once
+	var allTransfers []models.Transfer
+	if shouldSubtractTransfers {
+		allTransfers, err = s.txnRepo.GetYearlyTransfersFromChecking(ctx, tx, userID, transferAccountIDs, year)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	// Group transfers by month
+	transfersByMonth := make(map[int][]models.Transfer)
+	for _, tr := range allTransfers {
+		month := int(tr.TransactionOutflow.TxnDate.Month())
+		transfersByMonth[month] = append(transfersByMonth[month], tr)
+	}
+
+	// Process each month using pre-grouped transfers
 	for _, mr := range mrows {
 		inm, _ := decimal.NewFromString(mr.InflowText)
 		outm, _ := decimal.NewFromString(mr.OutflowText)
 		netm := inm.Add(outm)
 
 		if shouldSubtractTransfers {
-			transfers, err := s.txnRepo.GetMonthlyTransfersFromChecking(ctx, tx, userID, transferAccountIDs, year, mr.Month)
-			if err != nil {
-				tx.Rollback()
-				return nil, err
-			}
-
-			for _, tr := range transfers {
+			for _, tr := range transfersByMonth[mr.Month] {
 				isSavings, isInvestment, isDebt := utils.CategorizeTransferDestination(&tr.TransactionInflow.Account.AccountType)
 
 				if isSavings {
@@ -149,14 +161,6 @@ func (s *StatisticsService) GetAccountBasicStatistics(ctx context.Context, accID
 	takeHome := takeHomeYear
 	overflow := overflowYear
 
-	//avgTakeHome := decimal.Zero
-	//avgOverflow := decimal.Zero
-	//if takeHomeMonthCount > 0 {
-	//	avgTakeHome = takeHome.Div(decimal.NewFromInt(int64(takeHomeMonthCount)))
-	//}
-	//if overflowMonthCount > 0 {
-	//	avgOverflow = overflow.Div(decimal.NewFromInt(int64(overflowMonthCount)))
-	//}
 	avgTakeHome := takeHome.Div(decimal.NewFromInt(12))
 	avgOverflow := overflow.Div(decimal.NewFromInt(12))
 
