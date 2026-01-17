@@ -24,7 +24,7 @@ var rootCmd = &cobra.Command{
 		// Load config for every child command before they are executed
 		var err error
 		cfg, err = config.LoadConfig(&configPath)
-		return fmt.Errorf("Failed to load configuration: %s", err.Error())
+		return fmt.Errorf("failed to load configuration: %s", err.Error())
 	},
 }
 
