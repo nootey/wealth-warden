@@ -309,7 +309,23 @@ func (s *ChartingService) GetYearlyCashFlowBreakdown(ctx context.Context, userID
 		}
 	}
 
-	// Build monthly breakdown
+	// Fetch all transfers for the year at once
+	var allTransfers []models.Transfer
+	if shouldSubtractTransfers {
+		allTransfers, err = s.txnRepo.GetYearlyTransfersFromChecking(ctx, tx, userID, transferAccountIDs, year)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	// Group by month
+	transfersByMonth := make(map[int][]models.Transfer)
+	for _, tr := range allTransfers {
+		month := int(tr.CreatedAt.Month())
+		transfersByMonth[month] = append(transfersByMonth[month], tr)
+	}
+
 	months := make([]models.MonthBreakdown, 0, 12)
 
 	for month := 1; month <= 12; month++ {
@@ -327,13 +343,8 @@ func (s *ChartingService) GetYearlyCashFlowBreakdown(ctx context.Context, userID
 
 		// Get transfers and calculate categories
 		if shouldSubtractTransfers {
-			transfers, err := s.txnRepo.GetMonthlyTransfersFromChecking(ctx, tx, userID, transferAccountIDs, year, month)
-			if err != nil {
-				tx.Rollback()
-				return nil, err
-			}
 
-			for _, tr := range transfers {
+			for _, tr := range transfersByMonth[month] {
 
 				isSavings, isInvestment, isDebt := utils.CategorizeTransferDestination(&tr.TransactionInflow.Account.AccountType)
 
@@ -439,20 +450,38 @@ func (s *ChartingService) GetCategoryUsageForYear(ctx context.Context, userID in
 
 func (s *ChartingService) GetCategoryUsageForYears(ctx context.Context, userID int64, years []int, class string, accID, catID *int64, asPercent bool) (*models.MultiYearCategoryUsageResponse, error) {
 
+	type yearResult struct {
+		year int
+		data *models.CategoryUsageResponse
+		err  error
+	}
+
+	resultsChan := make(chan yearResult, len(years))
+
+	// Fetch all years concurrently
+	for _, y := range years {
+		go func(year int) {
+			data, err := s.GetCategoryUsageForYear(ctx, userID, year, class, accID, catID, asPercent)
+			resultsChan <- yearResult{year: year, data: data, err: err}
+		}(y)
+	}
+
+	// Collect results
 	byYear := make(map[int]models.CategoryUsageResponse, len(years))
 	yearStats := make(map[int]models.YearStat, len(years))
 
-	for _, y := range years {
-		one, err := s.GetCategoryUsageForYear(ctx, userID, y, class, accID, catID, asPercent)
-		if err != nil {
-			return nil, err
+	for range years {
+		result := <-resultsChan
+		if result.err != nil {
+			return nil, result.err
 		}
-		byYear[y] = *one
+
+		byYear[result.year] = *result.data
 
 		var yearTotal = decimal.NewFromInt(0)
 		monthsWithData := make(map[int]bool)
 
-		for _, entry := range one.Series {
+		for _, entry := range result.data.Series {
 			if entry.Amount.GreaterThan(decimal.NewFromInt(0)) {
 				yearTotal = yearTotal.Add(entry.Amount)
 				monthsWithData[entry.Month] = true
@@ -464,7 +493,7 @@ func (s *ChartingService) GetCategoryUsageForYears(ctx context.Context, userID i
 			monthlyAvg = yearTotal.Div(decimal.NewFromInt(int64(len(monthsWithData))))
 		}
 
-		yearStats[y] = models.YearStat{
+		yearStats[result.year] = models.YearStat{
 			Total:          yearTotal,
 			MonthlyAvg:     monthlyAvg,
 			MonthsWithData: len(monthsWithData),
@@ -540,23 +569,21 @@ func (s *ChartingService) GetYearlySankeyData(ctx context.Context, userID int64,
 	investments := decimal.Zero
 	debtRepayments := decimal.Zero
 
-	for month := 1; month <= 12; month++ {
-		transfers, err := s.txnRepo.GetMonthlyTransfersFromChecking(ctx, tx, userID, accountIDs, year, month)
-		if err != nil {
-			return nil, err
-		}
+	transfers, err := s.txnRepo.GetYearlyTransfersFromChecking(ctx, tx, userID, accountIDs, year)
+	if err != nil {
+		return nil, err
+	}
 
-		for _, tr := range transfers {
-			isSavings, isInvestment, isDebt := utils.CategorizeTransferDestination(&tr.TransactionInflow.Account.AccountType)
-			if isSavings {
-				savings = savings.Add(tr.Amount)
-			}
-			if isInvestment {
-				investments = investments.Add(tr.Amount)
-			}
-			if isDebt {
-				debtRepayments = debtRepayments.Add(tr.Amount)
-			}
+	for _, tr := range transfers {
+		isSavings, isInvestment, isDebt := utils.CategorizeTransferDestination(&tr.TransactionInflow.Account.AccountType)
+		if isSavings {
+			savings = savings.Add(tr.Amount)
+		}
+		if isInvestment {
+			investments = investments.Add(tr.Amount)
+		}
+		if isDebt {
+			debtRepayments = debtRepayments.Add(tr.Amount)
 		}
 	}
 
