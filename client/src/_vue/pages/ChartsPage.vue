@@ -42,58 +42,56 @@ onUnmounted(() => {
         </div>
       </SlotSkeleton>
 
-      <div class="w-full flex flex-row justify-content-between p-1">
-        <h4>Cash-flow breakdown</h4>
-      </div>
 
-      <div class="w-full flex flex-row justify-content-between p-1">
-        <span style="color: var(--text-secondary)" class="text-sm">
-          View a breakdown of where your cash flows over the year. This chart
-          shows the flow of money for each month in the selected year, for your
-          selected account. It displays how much money came in (inflows) and
-          where it went—whether to expenses (outflows), investments, savings, or
-          debt repayment. The remaining balance is shown as either take-home
-          (positive) or overflow (negative) in the tooltip.
-        </span>
-      </div>
+      <Panel :collapsed="false" header="Cash-flow breakdown" toggleable>
 
-      <SlotSkeleton bg="secondary">
-        <YearlyCashFlowWidget :is-mobile="isMobile" />
-      </SlotSkeleton>
+        <div class="w-full flex flex-row justify-content-between p-1">
+          <span style="color: var(--text-secondary)" class="text-sm">
+            View a breakdown of where your cash flows over the year. This chart
+            shows the flow of money for each month in the selected year, for your
+            selected account. It displays how much money came in (inflows) and
+            where it went—whether to expenses (outflows), investments, savings, or
+            debt repayment. The remaining balance is shown as either take-home
+            (positive) or overflow (negative) in the tooltip.
+          </span>
+        </div>
 
-      <div class="w-full flex flex-row justify-content-between p-1">
-        <h4>Cash-flow pattern</h4>
-      </div>
+        <SlotSkeleton bg="transparent">
+            <YearlyCashFlowWidget :is-mobile="isMobile" />
+        </SlotSkeleton>
 
-      <div class="w-full flex flex-row justify-content-between p-1">
-        <span style="color: var(--text-secondary)" class="text-sm">
-          Track your monthly income and expenses throughout the year. This chart
-          is the most basic representation of cash-flow. It shows the flow of
-          money in (green) and out (red) of your selected account, helping you
-          identify spending patterns and seasonal trends.
-        </span>
-      </div>
+      </Panel>
 
-      <SlotSkeleton bg="secondary">
-        <MonthlyCashFlowWidget :is-mobile="isMobile" />
-      </SlotSkeleton>
-
-      <div class="w-full flex flex-row justify-content-between p-1">
-        <h4>Comparative breakdown by category</h4>
-      </div>
-
-      <div class="w-full flex flex-row justify-content-between p-1">
+      <Panel :collapsed="false" header="Comparative breakdown by category" toggleable>
+        <div class="w-full flex flex-row justify-content-between p-1">
         <span style="color: var(--text-secondary)" class="text-sm">
           View and compare how your money moves through out different years and
           categories. You can compare up to 5 years at a time, with the option
           to filter by any income or expense category. Totals and average over
           time include ALL of your data.
         </span>
-      </div>
+        </div>
 
-      <SlotSkeleton bg="secondary">
-        <MonthlyCategoryBreakdownWidget :is-mobile="isMobile" />
-      </SlotSkeleton>
+        <SlotSkeleton bg="transparent">
+          <MonthlyCategoryBreakdownWidget :is-mobile="isMobile" />
+        </SlotSkeleton>
+      </Panel>
+
+      <Panel :collapsed="true" header="Cash-flow pattern" toggleable>
+        <div class="w-full flex flex-row justify-content-between p-1">
+        <span style="color: var(--text-secondary)" class="text-sm">
+          Track your monthly income and expenses throughout the year. This chart
+          is the most basic representation of cash-flow. It shows the flow of
+          money in (green) and out (red) of your selected account, helping you
+          identify spending patterns and seasonal trends.
+        </span>
+        </div>
+
+        <SlotSkeleton bg="transparent">
+          <MonthlyCashFlowWidget :is-mobile="isMobile" />
+        </SlotSkeleton>
+      </Panel>
+
     </div>
   </main>
 </template>
