@@ -85,5 +85,15 @@ export const useChartStore = defineStore("chart", {
       );
       return response.data;
     },
+
+    async getYearlySankeyData(params: {
+      year: number;
+      account?: number | null;
+    }) {
+      const response = await apiClient.get(`${this.apiPrefix}/sankey`, {
+        params,
+      });
+      return response.data;
+    },
   },
 });

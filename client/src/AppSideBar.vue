@@ -6,24 +6,24 @@
     style="width: 100%; max-width: 420px"
   >
     <template #container="{ closeCallback }">
-      <div class="flex flex-column w-full h-4 p-2">
+      <div class="flex flex-column w-full p-2">
         <div class="flex flex-row justify-content-between p-2">
-          <h3>Monthly stats</h3>
+          <h3>Daily stats</h3>
           <i class="pi pi-times hover-icon" @click="closeCallback" />
         </div>
 
         <div class="flex flex-column w-full p-2">
-          <MonthlyStats />
+          <DailyStats />
         </div>
       </div>
 
-      <div class="flex flex-column w-full h-4 p-2">
+      <div class="flex flex-column w-full p-2 gap-1">
         <div class="flex flex-row justify-content-between p-2">
-          <h3>Daily stats</h3>
+          <h3>Monthly stats</h3>
         </div>
 
         <div class="flex flex-column w-full p-2">
-          <DailyStats />
+          <MonthlyStats />
         </div>
       </div>
     </template>

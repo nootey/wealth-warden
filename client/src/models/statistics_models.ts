@@ -44,6 +44,7 @@ export interface MonthlyStats {
   investments_rate: string;
   debt_repayment_rate: string;
   generated_at: Date;
+  categories?: CategoryStat[];
 }
 
 export interface DailyStats {

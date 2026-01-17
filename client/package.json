@@ -19,6 +19,7 @@
     "axios": "^1.12.2",
     "chart.js": "^3.9.1",
     "chartjs-adapter-date-fns": "^3.0.0",
+    "chartjs-chart-sankey": "^0.14.0",
     "dayjs": "^1.11.13",
     "decimal.js": "^10.6.0",
     "dotenv": "^16.4.7",

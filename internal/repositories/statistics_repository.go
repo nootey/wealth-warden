@@ -14,6 +14,8 @@ type StatisticsRepositoryInterface interface {
 	FetchDailyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, date time.Time) (*models.MonthlyTotalsRow, error)
 	FetchDailyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, date time.Time) (*models.MonthlyTotalsRow, error)
 	FetchYearlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) (models.YearlyTotalsRow, error)
+	FetchYearlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.YearlyCategoryRow, error)
+	FetchMonthlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int, month int) ([]models.YearlyCategoryRow, error)
 	FetchMonthlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.MonthlyTotalsRow, error)
 	FetchMonthlyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.MonthlyTotalsRow, error)
 	GetAvailableStatsYears(ctx context.Context, tx *gorm.DB, accID *int64, userID int64) ([]int64, error)
@@ -162,6 +164,75 @@ func (r *StatisticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx
 	return rows, nil
 }
 
+func (r *StatisticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year, month int) ([]models.YearlyCategoryRow, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var rows []models.YearlyCategoryRow
+
+	if accountID != nil {
+		sql := `
+         SELECT
+           $3::int AS year,
+           t.category_id,
+           c.display_name,
+           COALESCE(SUM(CASE WHEN t.transaction_type='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
+           COALESCE(SUM(CASE WHEN t.transaction_type='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
+          COALESCE(SUM(
+            CASE
+             WHEN t.transaction_type='income'  THEN t.amount
+             WHEN t.transaction_type='expense' THEN -t.amount
+             ELSE 0
+            END
+          ),0)::text AS net_text
+         FROM transactions t
+         LEFT JOIN categories c ON c.id = t.category_id
+         WHERE t.user_id = $1
+           AND t.account_id = $2
+           AND t.is_adjustment = false
+           AND t.is_transfer = false
+           AND t.txn_date >= make_date($3, $4, 1) 
+           AND t.txn_date < make_date($3, $4, 1) + interval '1 month'
+         GROUP BY t.category_id, c.display_name
+         ORDER BY t.category_id NULLS LAST
+       `
+		if err := db.Raw(sql, userID, *accountID, year, month).Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+	} else {
+		sql := `
+         SELECT
+           $2::int AS year,
+           t.category_id,
+           c.display_name,
+           COALESCE(SUM(CASE WHEN t.transaction_type='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
+           COALESCE(SUM(CASE WHEN t.transaction_type='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
+          COALESCE(SUM(
+            CASE
+             WHEN t.transaction_type='income'  THEN t.amount
+             WHEN t.transaction_type='expense' THEN -t.amount
+             ELSE 0
+            END
+          ),0)::text AS net_text
+         FROM transactions t
+         LEFT JOIN categories c ON c.id = t.category_id
+         WHERE t.user_id = $1
+           AND t.is_adjustment = false
+           AND t.is_transfer = false
+           AND t.txn_date >= make_date($2, $3, 1) 
+           AND t.txn_date < make_date($2, $3, 1) + interval '1 month'
+         GROUP BY t.category_id, c.display_name
+         ORDER BY t.category_id NULLS LAST
+       `
+		if err := db.Raw(sql, userID, year, month).Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+	}
+	return rows, nil
+}
 func (r *StatisticsRepository) FetchMonthlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.MonthlyTotalsRow, error) {
 
 	db := tx

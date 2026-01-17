@@ -20,6 +20,7 @@ type ChartingServiceInterface interface {
 	GetCategoryUsageForYear(ctx context.Context, userID int64, year int, class string, accID, catID *int64, asPercent bool) (*models.CategoryUsageResponse, error)
 	GetCategoryUsageForYears(ctx context.Context, userID int64, years []int, class string, accID, catID *int64, asPercent bool) (*models.MultiYearCategoryUsageResponse, error)
 	GetYearlyCashFlowBreakdown(ctx context.Context, userID int64, year int, accountID *int64) (*models.YearlyCashflowBreakdown, error)
+	GetYearlySankeyData(ctx context.Context, userID int64, accountID *int64, year int) (*models.YearlySankeyData, error)
 }
 type ChartingService struct {
 	repo      repositories.ChartingRepositoryInterface
@@ -308,7 +309,23 @@ func (s *ChartingService) GetYearlyCashFlowBreakdown(ctx context.Context, userID
 		}
 	}
 
-	// Build monthly breakdown
+	// Fetch all transfers for the year at once
+	var allTransfers []models.Transfer
+	if shouldSubtractTransfers {
+		allTransfers, err = s.txnRepo.GetYearlyTransfersFromChecking(ctx, tx, userID, transferAccountIDs, year)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	// Group by month
+	transfersByMonth := make(map[int][]models.Transfer)
+	for _, tr := range allTransfers {
+		month := int(tr.CreatedAt.Month())
+		transfersByMonth[month] = append(transfersByMonth[month], tr)
+	}
+
 	months := make([]models.MonthBreakdown, 0, 12)
 
 	for month := 1; month <= 12; month++ {
@@ -326,13 +343,8 @@ func (s *ChartingService) GetYearlyCashFlowBreakdown(ctx context.Context, userID
 
 		// Get transfers and calculate categories
 		if shouldSubtractTransfers {
-			transfers, err := s.txnRepo.GetMonthlyTransfersFromChecking(ctx, tx, userID, transferAccountIDs, year, month)
-			if err != nil {
-				tx.Rollback()
-				return nil, err
-			}
 
-			for _, tr := range transfers {
+			for _, tr := range transfersByMonth[month] {
 
 				isSavings, isInvestment, isDebt := utils.CategorizeTransferDestination(&tr.TransactionInflow.Account.AccountType)
 
@@ -438,20 +450,38 @@ func (s *ChartingService) GetCategoryUsageForYear(ctx context.Context, userID in
 
 func (s *ChartingService) GetCategoryUsageForYears(ctx context.Context, userID int64, years []int, class string, accID, catID *int64, asPercent bool) (*models.MultiYearCategoryUsageResponse, error) {
 
+	type yearResult struct {
+		year int
+		data *models.CategoryUsageResponse
+		err  error
+	}
+
+	resultsChan := make(chan yearResult, len(years))
+
+	// Fetch all years concurrently
+	for _, y := range years {
+		go func(year int) {
+			data, err := s.GetCategoryUsageForYear(ctx, userID, year, class, accID, catID, asPercent)
+			resultsChan <- yearResult{year: year, data: data, err: err}
+		}(y)
+	}
+
+	// Collect results
 	byYear := make(map[int]models.CategoryUsageResponse, len(years))
 	yearStats := make(map[int]models.YearStat, len(years))
 
-	for _, y := range years {
-		one, err := s.GetCategoryUsageForYear(ctx, userID, y, class, accID, catID, asPercent)
-		if err != nil {
-			return nil, err
+	for range years {
+		result := <-resultsChan
+		if result.err != nil {
+			return nil, result.err
 		}
-		byYear[y] = *one
+
+		byYear[result.year] = *result.data
 
 		var yearTotal = decimal.NewFromInt(0)
 		monthsWithData := make(map[int]bool)
 
-		for _, entry := range one.Series {
+		for _, entry := range result.data.Series {
 			if entry.Amount.GreaterThan(decimal.NewFromInt(0)) {
 				yearTotal = yearTotal.Add(entry.Amount)
 				monthsWithData[entry.Month] = true
@@ -463,7 +493,7 @@ func (s *ChartingService) GetCategoryUsageForYears(ctx context.Context, userID i
 			monthlyAvg = yearTotal.Div(decimal.NewFromInt(int64(len(monthsWithData))))
 		}
 
-		yearStats[y] = models.YearStat{
+		yearStats[result.year] = models.YearStat{
 			Total:          yearTotal,
 			MonthlyAvg:     monthlyAvg,
 			MonthsWithData: len(monthsWithData),
@@ -491,5 +521,117 @@ func (s *ChartingService) GetCategoryUsageForYears(ctx context.Context, userID i
 			AllTimeAvg:    allTimeAvg,
 			AllTimeMonths: allTimeMonths,
 		},
+	}, nil
+}
+
+func (s *ChartingService) GetYearlySankeyData(ctx context.Context, userID int64, accountID *int64, year int) (*models.YearlySankeyData, error) {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	var checkingAccounts []models.Account
+	var accountIDs []int64
+
+	if accountID != nil {
+		// Validate account belongs to user
+		if _, err := s.accRepo.FindAccountByID(ctx, tx, *accountID, userID, false); err != nil {
+			return nil, err
+		}
+
+		accountIDs = []int64{*accountID}
+	} else {
+		checkingAccounts, err = s.accRepo.FindAccountsBySubtype(ctx, tx, userID, "checking", true)
+		if err != nil {
+			return nil, err
+		}
+		if len(checkingAccounts) == 0 {
+			tx.Commit()
+			return nil, nil
+		}
+
+		accountIDs = make([]int64, len(checkingAccounts))
+		for i, a := range checkingAccounts {
+			accountIDs[i] = a.ID
+		}
+	}
+
+	yearlyTotals, err := s.statsRepo.FetchYearlyTotals(ctx, tx, userID, accountID, year)
+	if err != nil {
+		return nil, err
+	}
+	totalIncome, _ := decimal.NewFromString(yearlyTotals.InflowText)
+
+	// Get all transfers for the year
+	savings := decimal.Zero
+	investments := decimal.Zero
+	debtRepayments := decimal.Zero
+
+	transfers, err := s.txnRepo.GetYearlyTransfersFromChecking(ctx, tx, userID, accountIDs, year)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, tr := range transfers {
+		isSavings, isInvestment, isDebt := utils.CategorizeTransferDestination(&tr.TransactionInflow.Account.AccountType)
+		if isSavings {
+			savings = savings.Add(tr.Amount)
+		}
+		if isInvestment {
+			investments = investments.Add(tr.Amount)
+		}
+		if isDebt {
+			debtRepayments = debtRepayments.Add(tr.Amount)
+		}
+	}
+
+	// Get expense categories
+	categoryRows, err := s.statsRepo.FetchYearlyCategoryTotals(ctx, tx, userID, accountID, year)
+	if err != nil {
+		return nil, err
+	}
+
+	expenseCategories := []models.CategoryFlow{}
+	totalExpenses := decimal.Zero
+
+	for _, cat := range categoryRows {
+		outflow, _ := decimal.NewFromString(cat.OutflowText)
+		totalExpenses = totalExpenses.Add(outflow)
+
+		categoryName := "Uncategorized"
+		if cat.DisplayName != nil {
+			categoryName = *cat.DisplayName
+		}
+
+		expenseCategories = append(expenseCategories, models.CategoryFlow{
+			CategoryID:   cat.CategoryID,
+			CategoryName: categoryName,
+			Amount:       outflow,
+			Percentage:   decimal.Zero,
+		})
+	}
+
+	// Calculate percentages
+	for i := range expenseCategories {
+		if !totalExpenses.IsZero() {
+			expenseCategories[i].Percentage = expenseCategories[i].Amount.Div(totalExpenses).Mul(decimal.NewFromInt(100))
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return &models.YearlySankeyData{
+		Year:              year,
+		Currency:          models.DefaultCurrency,
+		TotalIncome:       totalIncome,
+		Savings:           savings,
+		Investments:       investments,
+		DebtRepayments:    debtRepayments,
+		Expenses:          totalExpenses,
+		ExpenseCategories: expenseCategories,
 	}, nil
 }

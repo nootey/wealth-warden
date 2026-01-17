@@ -74,6 +74,7 @@ type TransactionRepositoryInterface interface {
 	GetYearlyAverageForCategory(ctx context.Context, tx *gorm.DB, userID int64, accountID int64, categoryID int64, year int) (float64, error)
 	GetYearlyAverageForCategoryGroup(ctx context.Context, tx *gorm.DB, userID int64, accountID int64, groupID int64, year int) (float64, error)
 	GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error)
+	GetYearlyTransfersFromChecking(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.Transfer, error)
 }
 
 type TransactionRepository struct {
@@ -268,6 +269,27 @@ func (r *TransactionRepository) GetMonthlyTransfersFromChecking(ctx context.Cont
 
 	start := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
 	end := start.AddDate(0, 1, 0)
+
+	q := r.baseTransferQuery(ctx, tx, userID, false, nil).
+		Preload("TransactionOutflow.Account.AccountType").
+		Preload("TransactionInflow.Account.AccountType")
+
+	q = q.Joins("JOIN transactions AS tx_out ON tx_out.id = transfers.transaction_outflow_id")
+
+	err := q.
+		Where("tx_out.account_id IN ?", checkingAccountIDs).
+		Where("tx_out.txn_date >= ? AND tx_out.txn_date < ?", start, end).
+		Where("transfers.deleted_at IS NULL").
+		Find(&transfers).Error
+
+	return transfers, err
+}
+
+func (r *TransactionRepository) GetYearlyTransfersFromChecking(ctx context.Context, tx *gorm.DB, userID int64, checkingAccountIDs []int64, year int) ([]models.Transfer, error) {
+	var transfers []models.Transfer
+
+	start := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.AddDate(1, 0, 0)
 
 	q := r.baseTransferQuery(ctx, tx, userID, false, nil).
 		Preload("TransactionOutflow.Account.AccountType").

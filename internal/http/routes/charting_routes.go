@@ -12,4 +12,5 @@ func ChartingRoutes(apiGroup *gin.RouterGroup, handler *handlers.ChartingHandler
 	apiGroup.GET("/monthly-cash-flow", authz.RequireAllMW("view_basic_statistics"), handler.GetMonthlyCashFlowForYear)
 	apiGroup.GET("/monthly-category-breakdown", authz.RequireAllMW("view_basic_statistics"), handler.GetMonthlyCategoryBreakdown)
 	apiGroup.GET("/yearly-cash-flow-breakdown", authz.RequireAllMW("view_basic_statistics"), handler.GetYearlyCashFlowBreakdown)
+	apiGroup.GET("/sankey", authz.RequireAllMW("view_basic_statistics"), handler.GetYearlySankeyData)
 }
