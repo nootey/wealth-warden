@@ -236,3 +236,38 @@ func (h *ChartingHandler) GetMonthlyCategoryBreakdown(c *gin.Context) {
 
 	c.JSON(http.StatusOK, series)
 }
+
+func (h *ChartingHandler) GetYearlySankeyData(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	y := c.Query("year")
+	if y == "" {
+		utils.ErrorMessage(c, "param error", "year is required", http.StatusBadRequest, nil)
+		return
+	}
+	year, err := strconv.Atoi(y)
+	if err != nil || year < 1900 || year > 3000 {
+		utils.ErrorMessage(c, "param error", "invalid year", http.StatusBadRequest, nil)
+		return
+	}
+
+	accStr := c.Query("account")
+	var accID *int64
+	if strings.TrimSpace(accStr) != "" {
+		v, err := strconv.ParseInt(accStr, 10, 64)
+		if err != nil {
+			utils.ErrorMessage(c, "param error", "account must be a valid integer", http.StatusBadRequest, err)
+			return
+		}
+		accID = &v
+	}
+
+	sankeyData, err := h.Service.GetYearlySankeyData(ctx, userID, accID, year)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", "Error getting sankey data", http.StatusBadRequest, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, sankeyData)
+}

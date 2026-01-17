@@ -62,3 +62,21 @@ export interface YearlyCategoryStats {
   all_time_avg: string;
   all_time_months: number;
 }
+
+export interface CategoryFlow {
+  category_id: number;
+  category_name: string;
+  amount: string;
+  percentage: string;
+}
+
+export interface YearlySankeyData {
+  year: number;
+  currency: string;
+  total_income: string;
+  savings: string;
+  investments: string;
+  debt_repayments: string;
+  expenses: string;
+  expense_categories: CategoryFlow[];
+}

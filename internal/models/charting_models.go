@@ -93,3 +93,27 @@ type MonthCategories struct {
 	TakeHome       decimal.Decimal `json:"take_home"`
 	Overflow       decimal.Decimal `json:"overflow"`
 }
+
+type YearlySankeyData struct {
+	Year     int    `json:"year"`
+	Currency string `json:"currency"`
+
+	// Starting point
+	TotalIncome decimal.Decimal `json:"total_income"`
+
+	// Primary allocations (first level flows)
+	Savings        decimal.Decimal `json:"savings"`
+	Investments    decimal.Decimal `json:"investments"`
+	DebtRepayments decimal.Decimal `json:"debt_repayments"`
+	Expenses       decimal.Decimal `json:"expenses"`
+
+	// Second level flows - expense breakdown by category
+	ExpenseCategories []CategoryFlow `json:"expense_categories,omitempty"`
+}
+
+type CategoryFlow struct {
+	CategoryID   int64           `json:"category_id"`
+	CategoryName string          `json:"category_name"`
+	Amount       decimal.Decimal `json:"amount"`
+	Percentage   decimal.Decimal `json:"percentage"`
+}
