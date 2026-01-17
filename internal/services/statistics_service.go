@@ -352,7 +352,12 @@ func (s *StatisticsService) GetCurrentMonthStats(ctx context.Context, userID int
 	}
 
 	// Get expense categories for current month
-	categoryRows, err := s.repo.FetchMonthlyCategoryTotals(ctx, tx, userID, accountID, year, month)
+	var categoryRows []models.YearlyCategoryRow
+	if accountID != nil {
+		categoryRows, err = s.repo.FetchMonthlyCategoryTotals(ctx, tx, userID, accountID, year, month)
+	} else {
+		categoryRows, err = s.repo.FetchMonthlyCategoryTotalsCheckingOnly(ctx, tx, userID, accountIDs, year, month)
+	}
 	if err != nil {
 		tx.Rollback()
 		return nil, err
