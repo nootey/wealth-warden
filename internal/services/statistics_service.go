@@ -351,6 +351,27 @@ func (s *StatisticsService) GetCurrentMonthStats(ctx context.Context, userID int
 		takeHome = decimal.Zero
 	}
 
+	// Get expense categories for current month
+	categoryRows, err := s.repo.FetchMonthlyCategoryTotals(ctx, tx, userID, accountID, year, month)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	var cats []models.CategoryStat
+	for _, cat := range categoryRows {
+		outflow, _ := decimal.NewFromString(cat.OutflowText)
+
+		// Only include expenses
+		if outflow.LessThan(decimal.Zero) {
+			cats = append(cats, models.CategoryStat{
+				CategoryID:   cat.CategoryID,
+				CategoryName: cat.DisplayName,
+				Outflow:      outflow.Abs(),
+			})
+		}
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
@@ -373,6 +394,7 @@ func (s *StatisticsService) GetCurrentMonthStats(ctx context.Context, userID int
 		InvestRate:        investRate,
 		DebtRepaymentRate: repaymentRate,
 		GeneratedAt:       time.Now().UTC(),
+		Categories:        cats,
 	}, nil
 }
 

@@ -77,6 +77,7 @@ type CurrentMonthStats struct {
 	InvestRate        decimal.Decimal `json:"investments_rate"`
 	DebtRepaymentRate decimal.Decimal `json:"debt_repayment_rate"`
 	GeneratedAt       time.Time       `json:"generated_at"`
+	Categories        []CategoryStat  `json:"categories,omitempty"`
 }
 
 type TodayStats struct {
