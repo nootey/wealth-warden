@@ -29,6 +29,10 @@ const chartData = computed(() => {
   const debtRepayments = toNum(props.data.debt_repayments);
   const expenses = Math.abs(toNum(props.data.expenses));
 
+  // Calculate allocated amount
+  const allocated = savings + investments + debtRepayments + expenses;
+  const unallocated = Math.max(0, totalIncome.value - allocated);
+
   // Income -> Primary allocations
   if (savings > 0) {
     data.push({ from: "Total Income", to: "Savings", flow: savings });
@@ -45,6 +49,10 @@ const chartData = computed(() => {
   }
   if (expenses > 0) {
     data.push({ from: "Total Income", to: "Expenses", flow: expenses });
+  }
+
+  if (unallocated > 0) {
+    data.push({ from: "Total Income", to: "Unallocated", flow: unallocated });
   }
 
   props.data.expense_categories.forEach((cat) => {
@@ -70,6 +78,7 @@ const chartData = computed(() => {
           if (c.raw.to === "Investments") return "#8b5cf6";
           if (c.raw.to === "Debt Repayments") return "#f97316";
           if (c.raw.to === "Expenses") return colors.value.neg;
+          if (c.raw.to === "Unallocated") return "#6b7280";
           return colors.value.neg;
         },
         borderWidth: 0,
