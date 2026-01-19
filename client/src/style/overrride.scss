@@ -90,3 +90,7 @@ button.p-button.auth-accent-button:hover {
   border-radius: 20px;
   padding: 0.33rem;
 }
+
+body:has(.p-drawer-mask) {
+  overflow: hidden !important;
+}
