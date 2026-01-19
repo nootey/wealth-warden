@@ -41,15 +41,11 @@ const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
 const settingsStore = useSettingsStore();
 
-onMounted(async () => {
-  await getSettings();
-  // Fetch accounts first
-  accounts.value = accountStore.accounts;
-
-  if (props.mode === "update" && props.recordId) {
-    await loadRecord(props.recordId);
-  }
-});
+const presetOptions = [
+  { label: "Recurring", value: "recurring" },
+  { label: "Once", value: "once" },
+];
+const selectedPreset = ref<string>("recurring");
 
 const isReadOnly = ref(false);
 const isImmutable = ref(false);
@@ -158,6 +154,27 @@ const rules = {
 };
 
 const v$ = useVuelidate(rules, { record });
+
+onMounted(async () => {
+  await getSettings();
+  // Fetch accounts first
+  accounts.value = accountStore.accounts;
+
+  if (props.mode === "update" && props.recordId) {
+    await loadRecord(props.recordId);
+  }
+});
+
+watch(selectedPreset, (newPreset) => {
+  if (newPreset === "once") {
+    record.value.max_runs = 1;
+    record.value.end_date = null;
+    record.value.frequency = "Monthly";
+  } else {
+    record.value.max_runs = null;
+    record.value.frequency = "";
+  }
+});
 
 async function getSettings() {
   try {
@@ -543,7 +560,29 @@ async function startOperation() {
         </div>
       </div>
 
-      <div class="flex flex-row w-full gap-2 align-items-center">
+      <div
+        v-if="!isImmutable"
+        class="flex flex-row w-full justify-content-center"
+      >
+        <div class="flex flex-column gap-1 w-50">
+          <SelectButton
+            v-model="selectedPreset"
+            style="font-size: 0.875rem"
+            size="small"
+            :options="presetOptions"
+            option-label="label"
+            option-value="value"
+            :allow-empty="false"
+            :readonly="isReadOnly || isImmutable"
+            :disabled="isReadOnly || isImmutable"
+          />
+        </div>
+      </div>
+
+      <div
+        v-if="selectedPreset === 'recurring'"
+        class="flex flex-row w-full gap-2 align-items-center"
+      >
         <div class="flex flex-column gap-1 w-12">
           <ValidationError
             :is-required="true"
@@ -586,7 +625,10 @@ async function startOperation() {
         </div>
       </div>
 
-      <div class="flex flex-row w-full gap-2 w-full">
+      <div
+        v-if="selectedPreset === 'recurring'"
+        class="flex flex-row w-full gap-2 w-full"
+      >
         <div class="flex flex-column gap-1 w-full">
           <ValidationError
             :is-required="false"
@@ -609,7 +651,10 @@ async function startOperation() {
         </div>
       </div>
 
-      <div class="flex flex-row w-full gap-2 w-full">
+      <div
+        v-if="selectedPreset === 'recurring'"
+        class="flex flex-row w-full gap-2 w-full"
+      >
         <div class="flex flex-column gap-1 w-full">
           <ValidationError
             :is-required="false"
