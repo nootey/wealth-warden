@@ -134,19 +134,18 @@ func (s *StatisticsService) GetAccountBasicStatistics(ctx context.Context, accID
 		netm := inm.Add(outm)
 
 		if shouldSubtractTransfers {
+
+			categorizedTransfersTotal := decimal.Zero
+
 			for _, tr := range transfersByMonth[mr.Month] {
 				isSavings, isInvestment, isDebt := utils.CategorizeTransferDestination(&tr.TransactionInflow.Account.AccountType)
 
-				if isSavings {
-					netm = netm.Sub(tr.Amount)
-				}
-				if isInvestment {
-					netm = netm.Sub(tr.Amount)
-				}
-				if isDebt {
-					netm = netm.Sub(tr.Amount)
+				if isSavings || isInvestment || isDebt {
+					categorizedTransfersTotal = categorizedTransfersTotal.Add(tr.Amount)
 				}
 			}
+
+			netm = netm.Sub(categorizedTransfersTotal)
 		}
 
 		if netm.GreaterThan(decimal.Zero) {
@@ -334,7 +333,6 @@ func (s *StatisticsService) GetCurrentMonthStats(ctx context.Context, userID int
 			debtRepaymentTotal = debtRepaymentTotal.Add(tr.Amount)
 		}
 
-		takeHome = takeHome.Sub(tr.Amount)
 	}
 
 	savingsRate := decimal.Zero
@@ -345,6 +343,11 @@ func (s *StatisticsService) GetCurrentMonthStats(ctx context.Context, userID int
 		investRate = investmentsTotal.Div(inflow)
 		repaymentRate = debtRepaymentTotal.Div(inflow)
 	}
+
+	// Calculate total categorized transfers
+	categorizedTransfersTotal := savingsTotal.Add(investmentsTotal).Add(debtRepaymentTotal)
+
+	takeHome = net.Sub(categorizedTransfersTotal)
 
 	if takeHome.LessThan(decimal.Zero) {
 		overflow = takeHome
