@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import {computed, nextTick, onMounted, ref, watch} from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import type {
   InvestmentAsset,
   InvestmentTrade,
@@ -139,11 +139,14 @@ onMounted(async () => {
   }
 });
 
-watch(() => record.value.asset, (newAsset) => {
-  if (newAsset && newAsset.currency) {
-    record.value.currency = newAsset.currency;
-  }
-});
+watch(
+  () => record.value.asset,
+  (newAsset) => {
+    if (newAsset && newAsset.currency) {
+      record.value.currency = newAsset.currency;
+    }
+  },
+);
 
 function initData(): InvestmentTrade {
   return {
