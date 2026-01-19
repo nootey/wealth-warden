@@ -2,15 +2,23 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"time"
 	_ "time/tzdata"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/version"
+
+	"go.uber.org/zap"
 )
 
 type SettingsServiceInterface interface {
@@ -22,6 +30,8 @@ type SettingsServiceInterface interface {
 }
 
 type SettingsService struct {
+	cfg           *config.Config
+	logger        *zap.Logger
 	repo          repositories.SettingsRepositoryInterface
 	userRepo      repositories.UserRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
@@ -29,12 +39,16 @@ type SettingsService struct {
 }
 
 func NewSettingsService(
+	cfg *config.Config,
+	logger *zap.Logger,
 	repo *repositories.SettingsRepository,
 	userRepo *repositories.UserRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobqueue.JobDispatcher,
 ) *SettingsService {
 	return &SettingsService{
+		cfg:           cfg,
+		logger:        logger,
 		repo:          repo,
 		userRepo:      userRepo,
 		loggingRepo:   loggingRepo,
@@ -227,19 +241,87 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 }
 
 func (s *SettingsService) CreateDatabaseBackup(ctx context.Context, userID int64) error {
+
+	// Get versions
 	appVersion := version.Version
 	commitSHA := version.CommitSHA
 	buildTime := version.BuildTime
 
-	// Get database version
 	dbVersion, err := s.repo.FetchGooseVersion(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch database version: %w", err)
 	}
 
-	// Print versions
-	fmt.Printf("App Version: %s (commit: %s, built: %s)\n", appVersion, commitSHA, buildTime)
-	fmt.Printf("Database Version: %d\n", dbVersion)
+	// Create backup directory structure
+	timestamp := time.Now().Format("2006-01-02_150405")
+	shortCommit := commitSHA
+	if len(shortCommit) > 7 {
+		shortCommit = shortCommit[:7]
+	}
+	backupDirName := fmt.Sprintf("backup_%s_%s", timestamp, shortCommit)
+	backupPath := filepath.Join("storage", "backups", backupDirName)
+
+	if err := os.MkdirAll(backupPath, 0755); err != nil {
+		return fmt.Errorf("failed to create backup directory: %w", err)
+	}
+
+	dumpPath := filepath.Join(backupPath, "dump.sql")
+	metadataPath := filepath.Join(backupPath, "metadata.json")
+
+	dbHost := s.cfg.Postgres.Host
+	dbPort := s.cfg.Postgres.Port
+	dbName := s.cfg.Postgres.Database
+	dbUser := s.cfg.Postgres.User
+
+	cmd := exec.CommandContext(ctx, "pg_dump",
+		"-h", dbHost,
+		"-p", strconv.Itoa(dbPort),
+		"-U", dbUser,
+		"-d", dbName,
+		"-f", dumpPath,
+		"--clean",
+		"--if-exists",
+	)
+
+	// Set PGPASSWORD environment variable
+	cmd.Env = append(os.Environ(), fmt.Sprintf("PGPASSWORD=%s", s.cfg.Postgres.Password))
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to create database dump: %w, output: %s", err, string(output))
+	}
+
+	fileInfo, err := os.Stat(dumpPath)
+	if err != nil {
+		return fmt.Errorf("failed to stat dump file: %w", err)
+	}
+
+	metadata := models.BackupMetadata{
+		AppVersion: appVersion,
+		CommitSHA:  commitSHA,
+		BuildTime:  buildTime,
+		DBVersion:  dbVersion,
+		CreatedAt:  time.Now(),
+		BackupSize: fileInfo.Size(),
+	}
+
+	// Write metadata to JSON
+	metadataJSON, err := json.MarshalIndent(metadata, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+
+	if err := os.WriteFile(metadataPath, metadataJSON, 0644); err != nil {
+		return fmt.Errorf("failed to write metadata file: %w", err)
+	}
+
+	s.logger.Info("Backup created successfully",
+		zap.String("backup_path", backupPath),
+		zap.String("app_version", appVersion),
+		zap.String("commit_sha", commitSHA),
+		zap.String("build_time", buildTime),
+		zap.Int64("db_version", dbVersion),
+		zap.Int64("backup_size_bytes", fileInfo.Size()),
+	)
 
 	return nil
 }

@@ -24,5 +24,10 @@ export const useSettingsStore = defineStore("settings", {
     async updateProfileSettings(settings: object) {
       return await apiClient.put(`${this.apiPrefix}/users/profile`, settings);
     },
+
+    async createDatabaseDump() {
+      const res = await apiClient.post(`${this.apiPrefix}/backups/create`);
+      return res.data;
+    },
   },
 });

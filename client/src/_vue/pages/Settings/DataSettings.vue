@@ -7,6 +7,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import ExportModule from "../../features/imports/ExportModule.vue";
 import ExportList from "../../components/data/ExportList.vue";
 import ImportModule from "../../components/data/ImportModule.vue";
+import {useSettingsStore} from "../../../services/stores/settings_store.ts";
 
 const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
@@ -18,6 +19,8 @@ const importModuleRef = ref<InstanceType<typeof ImportModule> | null>(null);
 const addImportModal = ref(false);
 const addExportModal = ref(false);
 const transferModal = ref(false);
+
+const settingsStore = useSettingsStore();
 
 function refreshData(module: string) {
   switch (module) {
@@ -38,7 +41,7 @@ function refreshData(module: string) {
   }
 }
 
-function manipulateDialog(modal: string, value: any) {
+async function manipulateDialog(modal: string, value: any) {
   switch (modal) {
     case "addImport": {
       if (!hasPermission("manage_data")) {
@@ -60,6 +63,14 @@ function manipulateDialog(modal: string, value: any) {
         return;
       }
       addExportModal.value = value;
+      break;
+    }
+    case "createDatabaseDump": {
+      try {
+        await settingsStore.createDatabaseDump();
+      } catch (e) {
+        console.error(e);
+      }
       break;
     }
     default: {
@@ -148,6 +159,32 @@ function manipulateDialog(modal: string, value: any) {
 
         <h3>Exports</h3>
         <ExportList ref="exportListRef" />
+      </div>
+    </SettingsSkeleton>
+
+    <SettingsSkeleton class="w-full">
+      <div class="w-full flex flex-column gap-3 p-2">
+        <div class="flex flex-row align-items-center gap-2 w-full">
+          <div class="w-full flex flex-column gap-2">
+            <h3>Database backups</h3>
+            <h5 style="color: var(--text-secondary)">
+              Manage database backups and restores.
+            </h5>
+          </div>
+          <Button
+            class="main-button"
+            @click="manipulateDialog('createDatabaseDump')"
+          >
+            <div class="flex flex-row gap-1 align-items-center">
+              <i class="pi pi-plus" />
+              <span> New </span>
+              <span class="mobile-hide"> Backup </span>
+            </div>
+          </Button>
+        </div>
+
+        <h3>Backups</h3>
+        <span>TBD ...</span>
       </div>
     </SettingsSkeleton>
   </div>

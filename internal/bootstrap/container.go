@@ -72,7 +72,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	userService := services.NewUserService(userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
 	accountService := services.NewAccountService(accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher, currencyConverter)
 	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, currencyConverter)
-	settingsService := services.NewSettingsService(settingsRepo, userRepo, loggingRepo, jobDispatcher)
+	settingsService := services.NewSettingsService(cfg, logger.Named("settings_serv"), settingsRepo, userRepo, loggingRepo, jobDispatcher)
 	chartingService := services.NewChartingService(chartingRepo, accountRepo, transactionRepo, statsRepo)
 	statsService := services.NewStatisticsService(statsRepo, accountRepo, transactionRepo, settingsRepo)
 	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, investmentRepo, settingsRepo, loggingRepo, jobDispatcher)
