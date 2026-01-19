@@ -1,9 +1,10 @@
 <template>
   <Drawer
+    id="drawer"
     v-model:visible="open"
     header="Monthly stats"
     position="right"
-    style="width: 100%; max-width: 420px"
+    style="width: 100%; max-width: 468px"
   >
     <template #container="{ closeCallback }">
       <div class="flex flex-column w-full p-2">
@@ -42,4 +43,10 @@ const toggle = () => (open.value = !open.value);
 defineExpose({ open, toggle });
 </script>
 
-<style scoped lang="scss"></style>
+<style scoped lang="scss">
+@media (max-width: 768px) {
+  #drawer {
+    max-width: 100% !important;
+  }
+}
+</style>
