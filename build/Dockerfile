@@ -29,7 +29,7 @@ COPY pkg/ ./pkg
 # Build main binary
 RUN --mount=type=cache,target="/root/.cache/go-build" \
     go build \
-    -ldflags="-X 'main.Version=${VERSION}' -X 'main.CommitSHA=${COMMIT_SHA}' -X 'main.BuildTime=${BUILD_TIME}'" \
+    -ldflags="-X 'wealth-warden/pkg/version.Version=${VERSION}' -X 'wealth-warden/pkg/version.CommitSHA=${COMMIT_SHA}' -X 'wealth-warden/pkg/version.BuildTime=${BUILD_TIME}'" \
     -o ./server ./cmd
 
 # Stage 2: Runtime

@@ -13,4 +13,5 @@ func SettingsRoutes(apiGroup *gin.RouterGroup, handler *handlers.SettingsHandler
 	apiGroup.GET("/timezones", authz.RequireAllMW("view_data"), handler.GetAvailableTimezones)
 	apiGroup.PUT("/users/preferences", authz.RequireAllMW("manage_data"), handler.UpdatePreferenceSettings)
 	apiGroup.PUT("/users/profile", authz.RequireAllMW("manage_data"), handler.UpdateProfileSettings)
+	apiGroup.POST("/backups/create", authz.RequireAllMW("manage_data"), handler.CreateDatabaseBackup)
 }

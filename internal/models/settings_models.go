@@ -50,3 +50,12 @@ type ProfileSettingsReq struct {
 	Email        string `json:"email" validate:"required"`
 	EmailUpdated bool   `json:"email_updated"`
 }
+
+type BackupMetadata struct {
+	AppVersion string    `json:"app_version"`
+	CommitSHA  string    `json:"commit_sha"`
+	BuildTime  string    `json:"build_time"`
+	DBVersion  int64     `json:"db_version"`
+	CreatedAt  time.Time `json:"created_at"`
+	BackupSize int64     `json:"backup_size"` // in bytes
+}

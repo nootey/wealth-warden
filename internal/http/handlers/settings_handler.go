@@ -112,3 +112,17 @@ func (h *SettingsHandler) UpdateProfileSettings(c *gin.Context) {
 	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
 
 }
+
+func (h *SettingsHandler) CreateDatabaseBackup(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	if err := h.Service.CreateDatabaseBackup(ctx, userID); err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Backup dump created", "Success", http.StatusOK)
+
+}

@@ -10,6 +10,7 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
+	"wealth-warden/pkg/version"
 )
 
 type SettingsServiceInterface interface {
@@ -221,6 +222,24 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (s *SettingsService) CreateDatabaseBackup(ctx context.Context, userID int64) error {
+	appVersion := version.Version
+	commitSHA := version.CommitSHA
+	buildTime := version.BuildTime
+
+	// Get database version
+	dbVersion, err := s.repo.FetchGooseVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch database version: %w", err)
+	}
+
+	// Print versions
+	fmt.Printf("App Version: %s (commit: %s, built: %s)\n", appVersion, commitSHA, buildTime)
+	fmt.Printf("Database Version: %d\n", dbVersion)
 
 	return nil
 }
