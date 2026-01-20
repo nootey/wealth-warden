@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
@@ -162,4 +164,35 @@ func (h *SettingsHandler) RestoreDatabaseBackup(c *gin.Context) {
 
 	utils.SuccessMessage(c, "Backup dump created", "Success", http.StatusOK)
 
+}
+
+func (h *SettingsHandler) DownloadDatabaseBackup(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var req struct {
+		BackupName string `json:"backup_name"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Error occurred", "invalid request body", http.StatusBadRequest, err)
+		return
+	}
+
+	if req.BackupName == "" {
+		err := errors.New("backup_name is required")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	filename := fmt.Sprintf("%s.zip", req.BackupName)
+	data, err := h.Service.DownloadBackup(ctx, req.BackupName, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.Header("Content-Type", "application/zip")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	c.Data(http.StatusOK, "application/zip", data)
 }

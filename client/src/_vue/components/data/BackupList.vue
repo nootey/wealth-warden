@@ -108,13 +108,18 @@ async function downloadBackup(backupName: string) {
     return;
   }
 
-  // TODO: Implement download functionality
-  toastStore.createInfoToast(
-    "Not implemented",
-    "Download functionality will be implemented soon.",
-  );
-
-  console.log("Download backup:", backupName);
+  try {
+    loading.value = true;
+    await settingsStore.downloadBackup(backupName);
+    toastStore.createInfoToast(
+      "Success",
+      "Backup downloaded successfully.",
+    );
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  } finally {
+    loading.value = false;
+  }
 }
 </script>
 

@@ -16,4 +16,5 @@ func SettingsRoutes(apiGroup *gin.RouterGroup, handler *handlers.SettingsHandler
 	apiGroup.GET("/backups", authz.RequireAllMW("view_data"), handler.GetDatabaseBackups)
 	apiGroup.POST("/backups/create", authz.RequireAllMW("manage_data"), handler.CreateDatabaseBackup)
 	apiGroup.POST("/backups/restore", authz.RequireAllMW("manage_data"), handler.RestoreDatabaseBackup)
+	apiGroup.POST("/backups/download", authz.RequireAllMW("manage_data"), handler.DownloadDatabaseBackup)
 }

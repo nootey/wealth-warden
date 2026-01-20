@@ -1,6 +1,7 @@
 package services
 
 import (
+	"archive/zip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -28,6 +29,7 @@ type SettingsServiceInterface interface {
 	UpdatePreferenceSettings(ctx context.Context, userID int64, req models.PreferenceSettingsReq) error
 	UpdateProfileSettings(ctx context.Context, userID int64, req models.ProfileSettingsReq) error
 	RestoreDatabaseBackup(ctx context.Context, userID int64, backupName string) error
+	DownloadBackup(ctx context.Context, backupName string, userID int64) ([]byte, error)
 }
 
 type SettingsService struct {
@@ -456,4 +458,76 @@ func (s *SettingsService) RestoreDatabaseBackup(ctx context.Context, userID int6
 	}()
 
 	return nil
+}
+
+func (s *SettingsService) DownloadBackup(ctx context.Context, backupName string, userID int64) ([]byte, error) {
+	// Construct backup path
+	backupPath := filepath.Join("storage", "backups", backupName)
+
+	// Verify backup exists
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("backup directory does not exist: %s", backupName)
+	}
+
+	// Create a temporary zip file
+	tempZipPath := filepath.Join(os.TempDir(), fmt.Sprintf("%s.zip", backupName))
+	defer func(name string) {
+		_ = os.Remove(name)
+	}(tempZipPath) // Clean up temp file
+
+	// Create zip file
+	zipFile, err := os.Create(tempZipPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create zip file: %w", err)
+	}
+	defer func(zipFile *os.File) {
+		_ = zipFile.Close()
+	}(zipFile)
+
+	zipWriter := zip.NewWriter(zipFile)
+	defer func(zipWriter *zip.Writer) {
+		_ = zipWriter.Close()
+	}(zipWriter)
+
+	err = filepath.Walk(backupPath, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(backupPath, filePath)
+		if err != nil {
+			return err
+		}
+
+		zipEntry, err := zipWriter.Create(relPath)
+		if err != nil {
+			return err
+		}
+
+		fileContent, err := os.ReadFile(filePath)
+		if err != nil {
+			return err
+		}
+
+		_, err = zipEntry.Write(fileContent)
+		return err
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create zip archive: %w", err)
+	}
+
+	_ = zipWriter.Close()
+	_ = zipFile.Close()
+
+	zipData, err := os.ReadFile(tempZipPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read zip file: %w", err)
+	}
+
+	return zipData, nil
 }
