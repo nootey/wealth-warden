@@ -47,6 +47,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	importHandler := httpHandlers.NewImportHandler(r.Container.ImportService, validator)
 	exportHandler := httpHandlers.NewExportHandler(r.Container.ExportService, validator)
 	investmentHandler := httpHandlers.NewInvestmentHandler(r.Container.InvestmentService, validator)
+	notesHandler := httpHandlers.NewNotesHandler(r.Container.NotesService, validator)
 
 	//authRL := middleware.NewRateLimiter(5.0/60.0, 5) // 5 per minute, burst 3
 
@@ -91,6 +92,9 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 
 	investmentRoutes := protected.Group("/investments")
 	routes.InvestmentRoutes(investmentRoutes, investmentHandler)
+
+	noteRoutes := protected.Group("/notes")
+	routes.NoteRoutes(noteRoutes, notesHandler)
 
 	// Public routes
 	public := _v1.Group("")
