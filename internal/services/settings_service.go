@@ -27,6 +27,7 @@ type SettingsServiceInterface interface {
 	FetchAvailableTimezones(ctx context.Context) ([]models.TimezoneInfo, error)
 	UpdatePreferenceSettings(ctx context.Context, userID int64, req models.PreferenceSettingsReq) error
 	UpdateProfileSettings(ctx context.Context, userID int64, req models.ProfileSettingsReq) error
+	RestoreDatabaseBackup(ctx context.Context, userID int64, backupName string) error
 }
 
 type SettingsService struct {
@@ -240,6 +241,63 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 	return nil
 }
 
+func (s *SettingsService) GetDatabaseBackups(ctx context.Context) ([]models.BackupInfo, error) {
+	backupsPath := filepath.Join("storage", "backups")
+
+	// Check if backups directory exists
+	if _, err := os.Stat(backupsPath); os.IsNotExist(err) {
+		// Return empty list if directory doesn't exist yet
+		return []models.BackupInfo{}, nil
+	}
+
+	// Read all entries in backups directory
+	entries, err := os.ReadDir(backupsPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read backups directory: %w", err)
+	}
+
+	backups := []models.BackupInfo{}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue // Skip files, only process directories
+		}
+
+		backupName := entry.Name()
+		metadataPath := filepath.Join(backupsPath, backupName, "metadata.json")
+
+		// Read metadata file
+		metadataBytes, err := os.ReadFile(metadataPath)
+		if err != nil {
+			s.logger.Warn("Failed to read metadata for backup",
+				zap.String("backup_name", backupName),
+				zap.Error(err),
+			)
+			continue // Skip this backup if metadata can't be read
+		}
+
+		var metadata models.BackupMetadata
+		if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
+			s.logger.Warn("Failed to parse metadata for backup",
+				zap.String("backup_name", backupName),
+				zap.Error(err),
+			)
+			continue // Skip this backup if metadata can't be parsed
+		}
+
+		backups = append(backups, models.BackupInfo{
+			Name:     backupName,
+			Metadata: metadata,
+		})
+	}
+
+	sort.Slice(backups, func(i, j int) bool {
+		return backups[i].Metadata.CreatedAt.After(backups[j].Metadata.CreatedAt)
+	})
+
+	return backups, nil
+}
+
 func (s *SettingsService) CreateDatabaseBackup(ctx context.Context, userID int64) error {
 
 	// Get versions
@@ -258,8 +316,8 @@ func (s *SettingsService) CreateDatabaseBackup(ctx context.Context, userID int64
 	if len(shortCommit) > 7 {
 		shortCommit = shortCommit[:7]
 	}
-	backupDirName := fmt.Sprintf("backup_%s_%s", timestamp, shortCommit)
-	backupPath := filepath.Join("storage", "backups", backupDirName)
+	backupName := fmt.Sprintf("backup_%s_%s", timestamp, shortCommit)
+	backupPath := filepath.Join("storage", "backups", backupName)
 
 	if err := os.MkdirAll(backupPath, 0755); err != nil {
 		return fmt.Errorf("failed to create backup directory: %w", err)
@@ -322,6 +380,80 @@ func (s *SettingsService) CreateDatabaseBackup(ctx context.Context, userID int64
 		zap.Int64("db_version", dbVersion),
 		zap.Int64("backup_size_bytes", fileInfo.Size()),
 	)
+
+	return nil
+}
+
+func (s *SettingsService) RestoreDatabaseBackup(ctx context.Context, userID int64, backupName string) error {
+	// Construct backup paths
+	backupPath := filepath.Join("storage", "backups", backupName)
+	dumpPath := filepath.Join(backupPath, "dump.sql")
+	metadataPath := filepath.Join(backupPath, "metadata.json")
+
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		return fmt.Errorf("backup directory does not exist: %s", backupName)
+	}
+
+	if _, err := os.Stat(dumpPath); os.IsNotExist(err) {
+		return fmt.Errorf("dump file does not exist in backup: %s", backupName)
+	}
+
+	metadataBytes, err := os.ReadFile(metadataPath)
+	if err != nil {
+		return fmt.Errorf("failed to read metadata file: %w", err)
+	}
+
+	var metadata models.BackupMetadata
+	if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
+		return fmt.Errorf("failed to parse metadata: %w", err)
+	}
+
+	currentDBVersion, err := s.repo.FetchGooseVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch current database version: %w", err)
+	}
+
+	// Verify database version matches
+	if metadata.DBVersion != currentDBVersion {
+		return fmt.Errorf("database version mismatch: backup version %d, current version %d",
+			metadata.DBVersion, currentDBVersion)
+	}
+
+	// Perform the restore
+	dbHost := s.cfg.Postgres.Host
+	dbPort := s.cfg.Postgres.Port
+	dbName := s.cfg.Postgres.Database
+	dbUser := s.cfg.Postgres.User
+
+	cmd := exec.CommandContext(ctx, "psql",
+		"-h", dbHost,
+		"-p", strconv.Itoa(dbPort),
+		"-U", dbUser,
+		"-d", dbName,
+		"-f", dumpPath,
+	)
+
+	// Set PGPASSWORD environment variable
+	cmd.Env = append(os.Environ(), fmt.Sprintf("PGPASSWORD=%s", s.cfg.Postgres.Password))
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to restore database: %w, output: %s", err, string(output))
+	}
+
+	s.logger.Info("Database restored successfully",
+		zap.String("backup_dir", backupName),
+		zap.String("backup_app_version", metadata.AppVersion),
+		zap.String("backup_commit_sha", metadata.CommitSHA),
+		zap.Int64("db_version", metadata.DBVersion),
+		zap.Time("backup_created_at", metadata.CreatedAt),
+	)
+
+	// Schedule application restart after database restore
+	go func() {
+		time.Sleep(3 * time.Second)
+		s.logger.Warn("Initiating application restart after database restore")
+		os.Exit(0)
+	}()
 
 	return nil
 }

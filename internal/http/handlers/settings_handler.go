@@ -113,12 +113,49 @@ func (h *SettingsHandler) UpdateProfileSettings(c *gin.Context) {
 
 }
 
+func (h *SettingsHandler) GetDatabaseBackups(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	backups, err := h.Service.GetDatabaseBackups(ctx)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"backups": backups,
+	})
+}
+
 func (h *SettingsHandler) CreateDatabaseBackup(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
 	if err := h.Service.CreateDatabaseBackup(ctx, userID); err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Backup dump created", "Success", http.StatusOK)
+
+}
+
+func (h *SettingsHandler) RestoreDatabaseBackup(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var req struct {
+		BackupName string `json:"backup_name" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.RestoreDatabaseBackup(ctx, userID, req.BackupName); err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

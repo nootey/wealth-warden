@@ -25,8 +25,19 @@ export const useSettingsStore = defineStore("settings", {
       return await apiClient.put(`${this.apiPrefix}/users/profile`, settings);
     },
 
+    async getBackups() {
+      return await apiClient.get(`${this.apiPrefix}/backups`);
+    },
+
     async createDatabaseDump() {
       const res = await apiClient.post(`${this.apiPrefix}/backups/create`);
+      return res.data;
+    },
+
+    async restoreFromDatabaseDump(backup_name: string) {
+      const res = await apiClient.post(`${this.apiPrefix}/backups/restore`, {
+        backup_name: backup_name,
+      });
       return res.data;
     },
   },

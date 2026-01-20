@@ -51,6 +51,11 @@ type ProfileSettingsReq struct {
 	EmailUpdated bool   `json:"email_updated"`
 }
 
+type BackupInfo struct {
+	Name     string         `json:"name"`
+	Metadata BackupMetadata `json:"metadata"`
+}
+
 type BackupMetadata struct {
 	AppVersion string    `json:"app_version"`
 	CommitSHA  string    `json:"commit_sha"`
