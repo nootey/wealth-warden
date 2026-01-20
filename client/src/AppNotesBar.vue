@@ -169,11 +169,6 @@ const createNote = async () => {
   }
 };
 
-const onPage = async (event: any) => {
-  paginator.value.rowsPerPage = event.rows;
-  await loadNotes(event.page + 1);
-};
-
 const toggleResolve = async (id: number) => {
   try {
     await notesStore.toggleResolveState(id);
