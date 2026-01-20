@@ -9,6 +9,7 @@ import AppSideBar from "./AppSideBar.vue";
 import vueHelper from "./utils/vue_helper.ts";
 import router from "./services/router/main.ts";
 import AppFooter from "./AppFooter.vue";
+import AppNotesBar from "./AppNotesBar.vue";
 
 const authStore = useAuthStore();
 const themeStore = useThemeStore();
@@ -26,6 +27,7 @@ const hideNavigation = computed<boolean>(() =>
 );
 
 const sidebarRef = ref<InstanceType<typeof AppSideBar> | null>(null);
+const notesRef = ref<InstanceType<typeof AppNotesBar> | null>(null);
 
 onMounted(async () => {
   if (isAuthenticated.value) {
@@ -129,7 +131,7 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
           class="flex flex-row gap-2 mb-2 align-items-center justify-content-between"
           style="max-width: 1000px; margin: 0 auto; padding: 1rem 0.5rem 0 0"
         >
-          <div class="flex gap-1 text-center align-items-center">
+          <div id="crumbs" class="flex gap-1 text-center align-items-center">
             <i class="pi pi-ellipsis-v mobile-only text-xs hover-icon" />
             <template v-for="(part, index) in pageTitle" :key="index">
               <span
@@ -152,11 +154,19 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
             </template>
           </div>
 
-          <i
-            class="pi pi-book hover-icon"
-            style="margin-left: 0"
-            @click="sidebarRef?.toggle && sidebarRef.toggle()"
-          />
+          <div id="sidebar-icon" class="flex flex-row gap-3">
+            <i
+              class="pi pi-mobile hover-icon"
+              style="margin-left: 0"
+              @click="notesRef?.toggle && notesRef.toggle()"
+            />
+
+            <i
+              class="pi pi-book hover-icon"
+              style="margin-left: 0"
+              @click="sidebarRef?.toggle && sidebarRef.toggle()"
+            />
+          </div>
         </div>
         <router-view />
       </div>
@@ -167,6 +177,11 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
     <AppSideBar
       v-if="isAuthenticated && isInitialized && !hideNavigation"
       ref="sidebarRef"
+    />
+
+    <AppNotesBar
+      v-if="isAuthenticated && isInitialized && !hideNavigation"
+      ref="notesRef"
     />
   </div>
 </template>
@@ -200,6 +215,12 @@ main {
   }
   #breadcrumb {
     padding: 1rem 0.7rem 0 0.7rem !important;
+  }
+  #crumbs {
+    margin-left: 0.5rem;
+  }
+  #sidebar-icon {
+    margin-right: 0.5rem;
   }
 }
 @media (max-width: 1111px) {

@@ -10,3 +10,7 @@ type Note struct {
 	CreatedAt  time.Time  `gorm:"autoCreateTime;not null;index:idx_notes_created_at" json:"created_at"`
 	UpdatedAt  time.Time  `gorm:"autoUpdateTime;not null" json:"updated_at"`
 }
+
+type NoteReq struct {
+	Content string `json:"content" validate:"required,min=1,max=5000"`
+}
