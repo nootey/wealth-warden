@@ -156,8 +156,8 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
 
           <div id="sidebar-icon" class="flex flex-row gap-3">
             <i
-              class="pi pi-mobile hover-icon"
-              style="margin-left: 0"
+              class="pi pi-bookmark hover-icon"
+              style="margin-left: 0; color: var(--text-secondary);"
               @click="notesRef?.toggle && notesRef.toggle()"
             />
 
