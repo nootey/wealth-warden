@@ -489,6 +489,21 @@ async function syncAssetAccountBalance(acc_id: number | null) {
           }}</span>
         </div>
       </div>
+
+      <div class="flex flex-row w-full gap-3">
+        <div class="flex flex-column gap-1 w-6">
+          <label class="text-sm">P&L Raw</label>
+          <span class="text-sm" style="color: var(--text-secondary)">{{
+            vueHelper.displayAsCurrency(record.profit_loss!, record.currency)
+          }}</span>
+        </div>
+        <div class="flex flex-column gap-1 w-6">
+          <label class="text-sm">P&L Percentage</label>
+          <span class="text-sm" style="color: var(--text-secondary)">{{
+            vueHelper.displayAsPercentage(record.profit_loss_percent!)
+          }}</span>
+        </div>
+      </div>
     </div>
 
     <h4 v-if="isReadOnly && record.account">Chart</h4>
