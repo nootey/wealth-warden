@@ -40,3 +40,17 @@ export type Export = {
   started_at: Date;
   completed_at: Date | null;
 };
+
+export interface BackupInfo {
+  name: string;
+  metadata: BackupMetadata;
+}
+
+export interface BackupMetadata {
+  app_version: string;
+  commit_sha: string;
+  build_time: string;
+  db_version: number;
+  created_at: string;
+  backup_size: number;
+}

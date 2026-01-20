@@ -24,5 +24,40 @@ export const useSettingsStore = defineStore("settings", {
     async updateProfileSettings(settings: object) {
       return await apiClient.put(`${this.apiPrefix}/users/profile`, settings);
     },
+
+    async getBackups() {
+      return await apiClient.get(`${this.apiPrefix}/backups`);
+    },
+
+    async createDatabaseDump() {
+      const res = await apiClient.post(`${this.apiPrefix}/backups/create`);
+      return res.data;
+    },
+
+    async restoreFromDatabaseDump(backup_name: string) {
+      const res = await apiClient.post(`${this.apiPrefix}/backups/restore`, {
+        backup_name: backup_name,
+      });
+      return res.data;
+    },
+
+    async downloadBackup(backup_name: string) {
+      const res = await apiClient.post(
+          `${this.apiPrefix}/backups/download`,
+          { backup_name: backup_name },
+          {
+            responseType: "blob",
+          },
+      );
+
+      const blob = new Blob([res.data], { type: "application/zip" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${backup_name}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
   },
 });

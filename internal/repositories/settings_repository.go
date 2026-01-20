@@ -14,6 +14,7 @@ type SettingsRepositoryInterface interface {
 	FetchGeneralSettings(ctx context.Context, tx *gorm.DB) (*models.SettingsGeneral, error)
 	FetchUserSettings(ctx context.Context, tx *gorm.DB, userID int64) (*models.SettingsUser, error)
 	UpdateUserSettings(ctx context.Context, tx *gorm.DB, userID int64, record models.SettingsUser) error
+	FetchGooseVersion(ctx context.Context) (int64, error)
 }
 
 type SettingsRepository struct {
@@ -29,6 +30,21 @@ var _ SettingsRepositoryInterface = (*SettingsRepository)(nil)
 func (r *SettingsRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 	tx := r.db.WithContext(ctx).Begin()
 	return tx, tx.Error
+}
+
+func (r *SettingsRepository) FetchGooseVersion(ctx context.Context) (int64, error) {
+	var version int64
+	err := r.db.WithContext(ctx).
+		Table("goose_db_version").
+		Select("version_id").
+		Order("id DESC").
+		Limit(1).
+		Scan(&version).Error
+
+	if err != nil {
+		return 0, err
+	}
+	return version, nil
 }
 
 func (r *SettingsRepository) FetchMaxAccountsForUser(ctx context.Context, tx *gorm.DB) (int64, error) {
