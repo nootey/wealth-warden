@@ -4,24 +4,20 @@ import (
 	"fmt"
 	"wealth-warden/pkg/config"
 	logging "wealth-warden/pkg/logger"
+	"wealth-warden/pkg/version"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 
 var (
-	// Version info (injected at build time via ldflags)
-	Version   = "dev"
-	CommitSHA = "unknown"
-	BuildTime = "unknown"
-
 	cfg    *config.Config
 	logger *zap.Logger
 )
 var rootCmd = &cobra.Command{
 	Use:     "wealth-warden",
 	Short:   "WealthWarden server",
-	Version: fmt.Sprintf("%s (commit: %s, built: %s)", Version, CommitSHA, BuildTime),
+	Version: fmt.Sprintf("%s (commit: %s, built: %s)", version.Version, version.CommitSHA, version.BuildTime),
 }
 
 func init() {

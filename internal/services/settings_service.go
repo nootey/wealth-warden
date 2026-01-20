@@ -1,15 +1,25 @@
 package services
 
 import (
+	"archive/zip"
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"time"
 	_ "time/tzdata"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
+	"wealth-warden/pkg/version"
+
+	"go.uber.org/zap"
 )
 
 type SettingsServiceInterface interface {
@@ -18,9 +28,13 @@ type SettingsServiceInterface interface {
 	FetchAvailableTimezones(ctx context.Context) ([]models.TimezoneInfo, error)
 	UpdatePreferenceSettings(ctx context.Context, userID int64, req models.PreferenceSettingsReq) error
 	UpdateProfileSettings(ctx context.Context, userID int64, req models.ProfileSettingsReq) error
+	RestoreDatabaseBackup(ctx context.Context, userID int64, backupName string) error
+	DownloadBackup(ctx context.Context, backupName string, userID int64) ([]byte, error)
 }
 
 type SettingsService struct {
+	cfg           *config.Config
+	logger        *zap.Logger
 	repo          repositories.SettingsRepositoryInterface
 	userRepo      repositories.UserRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
@@ -28,12 +42,16 @@ type SettingsService struct {
 }
 
 func NewSettingsService(
+	cfg *config.Config,
+	logger *zap.Logger,
 	repo *repositories.SettingsRepository,
 	userRepo *repositories.UserRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher jobqueue.JobDispatcher,
 ) *SettingsService {
 	return &SettingsService{
+		cfg:           cfg,
+		logger:        logger,
 		repo:          repo,
 		userRepo:      userRepo,
 		loggingRepo:   loggingRepo,
@@ -223,4 +241,293 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 	}
 
 	return nil
+}
+
+func (s *SettingsService) GetDatabaseBackups(ctx context.Context) ([]models.BackupInfo, error) {
+	backupsPath := filepath.Join("storage", "backups")
+
+	// Check if backups directory exists
+	if _, err := os.Stat(backupsPath); os.IsNotExist(err) {
+		// Return empty list if directory doesn't exist yet
+		return []models.BackupInfo{}, nil
+	}
+
+	// Read all entries in backups directory
+	entries, err := os.ReadDir(backupsPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read backups directory: %w", err)
+	}
+
+	backups := []models.BackupInfo{}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue // Skip files, only process directories
+		}
+
+		backupName := entry.Name()
+		metadataPath := filepath.Join(backupsPath, backupName, "metadata.json")
+
+		// Read metadata file
+		metadataBytes, err := os.ReadFile(metadataPath)
+		if err != nil {
+			s.logger.Warn("Failed to read metadata for backup",
+				zap.String("backup_name", backupName),
+				zap.Error(err),
+			)
+			continue // Skip this backup if metadata can't be read
+		}
+
+		var metadata models.BackupMetadata
+		if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
+			s.logger.Warn("Failed to parse metadata for backup",
+				zap.String("backup_name", backupName),
+				zap.Error(err),
+			)
+			continue // Skip this backup if metadata can't be parsed
+		}
+
+		backups = append(backups, models.BackupInfo{
+			Name:     backupName,
+			Metadata: metadata,
+		})
+	}
+
+	sort.Slice(backups, func(i, j int) bool {
+		return backups[i].Metadata.CreatedAt.After(backups[j].Metadata.CreatedAt)
+	})
+
+	return backups, nil
+}
+
+func (s *SettingsService) CreateDatabaseBackup(ctx context.Context, userID int64) error {
+
+	// Get versions
+	appVersion := version.Version
+	commitSHA := version.CommitSHA
+	buildTime := version.BuildTime
+
+	dbVersion, err := s.repo.FetchGooseVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch database version: %w", err)
+	}
+
+	// Create backup directory structure
+	timestamp := time.Now().Format("2006-01-02_150405")
+	shortCommit := commitSHA
+	if len(shortCommit) > 7 {
+		shortCommit = shortCommit[:7]
+	}
+	backupName := fmt.Sprintf("backup_%s_%s", timestamp, shortCommit)
+	backupPath := filepath.Join("storage", "backups", backupName)
+
+	if err := os.MkdirAll(backupPath, 0755); err != nil {
+		return fmt.Errorf("failed to create backup directory: %w", err)
+	}
+
+	dumpPath := filepath.Join(backupPath, "dump.sql")
+	metadataPath := filepath.Join(backupPath, "metadata.json")
+
+	dbHost := s.cfg.Postgres.Host
+	dbPort := s.cfg.Postgres.Port
+	dbName := s.cfg.Postgres.Database
+	dbUser := s.cfg.Postgres.User
+
+	cmd := exec.CommandContext(ctx, "pg_dump",
+		"-h", dbHost,
+		"-p", strconv.Itoa(dbPort),
+		"-U", dbUser,
+		"-d", dbName,
+		"-f", dumpPath,
+		"--clean",
+		"--if-exists",
+	)
+
+	// Set PGPASSWORD environment variable
+	cmd.Env = append(os.Environ(), fmt.Sprintf("PGPASSWORD=%s", s.cfg.Postgres.Password))
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to create database dump: %w, output: %s", err, string(output))
+	}
+
+	fileInfo, err := os.Stat(dumpPath)
+	if err != nil {
+		return fmt.Errorf("failed to stat dump file: %w", err)
+	}
+
+	metadata := models.BackupMetadata{
+		AppVersion: appVersion,
+		CommitSHA:  commitSHA,
+		BuildTime:  buildTime,
+		DBVersion:  dbVersion,
+		CreatedAt:  time.Now(),
+		BackupSize: fileInfo.Size(),
+	}
+
+	// Write metadata to JSON
+	metadataJSON, err := json.MarshalIndent(metadata, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+
+	if err := os.WriteFile(metadataPath, metadataJSON, 0644); err != nil {
+		return fmt.Errorf("failed to write metadata file: %w", err)
+	}
+
+	s.logger.Info("Backup created successfully",
+		zap.String("backup_path", backupPath),
+		zap.String("app_version", appVersion),
+		zap.String("commit_sha", commitSHA),
+		zap.String("build_time", buildTime),
+		zap.Int64("db_version", dbVersion),
+		zap.Int64("backup_size_bytes", fileInfo.Size()),
+	)
+
+	return nil
+}
+
+func (s *SettingsService) RestoreDatabaseBackup(ctx context.Context, userID int64, backupName string) error {
+	// Construct backup paths
+	backupPath := filepath.Join("storage", "backups", backupName)
+	dumpPath := filepath.Join(backupPath, "dump.sql")
+	metadataPath := filepath.Join(backupPath, "metadata.json")
+
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		return fmt.Errorf("backup directory does not exist: %s", backupName)
+	}
+
+	if _, err := os.Stat(dumpPath); os.IsNotExist(err) {
+		return fmt.Errorf("dump file does not exist in backup: %s", backupName)
+	}
+
+	metadataBytes, err := os.ReadFile(metadataPath)
+	if err != nil {
+		return fmt.Errorf("failed to read metadata file: %w", err)
+	}
+
+	var metadata models.BackupMetadata
+	if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
+		return fmt.Errorf("failed to parse metadata: %w", err)
+	}
+
+	currentDBVersion, err := s.repo.FetchGooseVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch current database version: %w", err)
+	}
+
+	// Verify database version matches
+	if metadata.DBVersion != currentDBVersion {
+		return fmt.Errorf("database version mismatch: backup version %d, current version %d",
+			metadata.DBVersion, currentDBVersion)
+	}
+
+	// Perform the restore
+	dbHost := s.cfg.Postgres.Host
+	dbPort := s.cfg.Postgres.Port
+	dbName := s.cfg.Postgres.Database
+	dbUser := s.cfg.Postgres.User
+
+	cmd := exec.CommandContext(ctx, "psql",
+		"-h", dbHost,
+		"-p", strconv.Itoa(dbPort),
+		"-U", dbUser,
+		"-d", dbName,
+		"-f", dumpPath,
+	)
+
+	// Set PGPASSWORD environment variable
+	cmd.Env = append(os.Environ(), fmt.Sprintf("PGPASSWORD=%s", s.cfg.Postgres.Password))
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to restore database: %w, output: %s", err, string(output))
+	}
+
+	s.logger.Info("Database restored successfully",
+		zap.String("backup_dir", backupName),
+		zap.String("backup_app_version", metadata.AppVersion),
+		zap.String("backup_commit_sha", metadata.CommitSHA),
+		zap.Int64("db_version", metadata.DBVersion),
+		zap.Time("backup_created_at", metadata.CreatedAt),
+	)
+
+	// Schedule application restart after database restore
+	go func() {
+		time.Sleep(3 * time.Second)
+		s.logger.Warn("Initiating application restart after database restore")
+		os.Exit(0)
+	}()
+
+	return nil
+}
+
+func (s *SettingsService) DownloadBackup(ctx context.Context, backupName string, userID int64) ([]byte, error) {
+	// Construct backup path
+	backupPath := filepath.Join("storage", "backups", backupName)
+
+	// Verify backup exists
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("backup directory does not exist: %s", backupName)
+	}
+
+	// Create a temporary zip file
+	tempZipPath := filepath.Join(os.TempDir(), fmt.Sprintf("%s.zip", backupName))
+	defer func(name string) {
+		_ = os.Remove(name)
+	}(tempZipPath) // Clean up temp file
+
+	// Create zip file
+	zipFile, err := os.Create(tempZipPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create zip file: %w", err)
+	}
+	defer func(zipFile *os.File) {
+		_ = zipFile.Close()
+	}(zipFile)
+
+	zipWriter := zip.NewWriter(zipFile)
+	defer func(zipWriter *zip.Writer) {
+		_ = zipWriter.Close()
+	}(zipWriter)
+
+	err = filepath.Walk(backupPath, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(backupPath, filePath)
+		if err != nil {
+			return err
+		}
+
+		zipEntry, err := zipWriter.Create(relPath)
+		if err != nil {
+			return err
+		}
+
+		fileContent, err := os.ReadFile(filePath)
+		if err != nil {
+			return err
+		}
+
+		_, err = zipEntry.Write(fileContent)
+		return err
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create zip archive: %w", err)
+	}
+
+	_ = zipWriter.Close()
+	_ = zipFile.Close()
+
+	zipData, err := os.ReadFile(tempZipPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read zip file: %w", err)
+	}
+
+	return zipData, nil
 }
