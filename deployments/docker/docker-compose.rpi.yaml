@@ -37,7 +37,7 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-wealth_warden}
       - POSTGRES_PORT=5432
     entrypoint: ["server"]
-    command: ["migrate", "fresh-seed-basic" ]
+    command: ["migrate", "up"]
     volumes:
       - ../../logs:/app/logs
       - ../../pkg/config/override:/app/pkg/config/override:ro
