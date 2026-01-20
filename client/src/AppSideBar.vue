@@ -13,13 +13,13 @@
           <i class="pi pi-times hover-icon" @click="closeCallback" />
         </div>
 
-        <div class="flex flex-column w-full p-2">
+        <div class="flex flex-column w-full ml-2">
           <DailyStats />
         </div>
       </div>
 
-      <div class="flex flex-column w-full p-2 gap-1">
-        <div class="flex flex-row justify-content-between p-2">
+      <div class="flex flex-column w-full ml-2 gap-1">
+        <div class="flex flex-row justify-content-between ml-2">
           <h3>Monthly stats</h3>
         </div>
 
