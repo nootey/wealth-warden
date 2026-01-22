@@ -28,21 +28,6 @@ jobs:
     name: Run tests
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -62,6 +47,13 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+
+      - name: Start test services
+        run: docker compose -f deployments/docker/docker-compose.test.yaml up -d
+
+      - name: Wait for PostgreSQL
+        run: |
+          timeout 30 bash -c 'until docker compose -f deployments/docker/docker-compose.test.yaml exec -T postgres-test pg_isready; do sleep 1; done'
 
       - name: Install dependencies
         run: go mod download
