@@ -362,11 +362,9 @@ func (s *ChartingService) GetYearlyCashFlowBreakdown(ctx context.Context, userID
 		categorizedTransfersTotal := savings.Add(investments).Add(debtRepayments)
 		takeHomeCalc := net.Sub(categorizedTransfersTotal)
 
-		takeHome := decimal.Zero
-		overflow := decimal.Zero
+		var takeHome, overflow decimal.Decimal
 		if takeHomeCalc.LessThan(decimal.Zero) {
 			overflow = takeHomeCalc
-			takeHome = decimal.Zero
 		} else {
 			takeHome = takeHomeCalc
 		}
