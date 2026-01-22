@@ -339,7 +339,7 @@ func (s *ChartingService) GetYearlyCashFlowBreakdown(ctx context.Context, userID
 			}
 		}
 
-		netMonth := inflow.Add(outflow)
+		net := inflow.Add(outflow)
 
 		// Get transfers and calculate categories
 		if shouldSubtractTransfers {
@@ -356,16 +356,19 @@ func (s *ChartingService) GetYearlyCashFlowBreakdown(ctx context.Context, userID
 					debtRepayments = debtRepayments.Add(tr.Amount)
 				}
 
-				netMonth = netMonth.Sub(tr.Amount)
 			}
 		}
 
+		categorizedTransfersTotal := savings.Add(investments).Add(debtRepayments)
+		takeHomeCalc := net.Sub(categorizedTransfersTotal)
+
 		takeHome := decimal.Zero
 		overflow := decimal.Zero
-		if netMonth.GreaterThan(decimal.Zero) {
-			takeHome = netMonth
-		} else if netMonth.LessThan(decimal.Zero) {
-			overflow = netMonth
+		if takeHomeCalc.LessThan(decimal.Zero) {
+			overflow = takeHomeCalc
+			takeHome = decimal.Zero
+		} else {
+			takeHome = takeHomeCalc
 		}
 
 		months = append(months, models.MonthBreakdown{
