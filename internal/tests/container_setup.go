@@ -85,7 +85,7 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 	s.Require().NoError(err, "seeding failed")
 
 	// Build application container
-	appContainer, err := bootstrap.NewContainer(cfg, db, l)
+	appContainer, err := bootstrap.NewServiceContainer(cfg, db, l)
 	s.Require().NoError(err, "failed to bootstrap app container")
 
 	s.TC = &TestContainer{
