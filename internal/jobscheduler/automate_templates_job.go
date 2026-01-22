@@ -10,10 +10,10 @@ import (
 
 type AutomateTemplateJob struct {
 	logger    *zap.Logger
-	container *bootstrap.Container
+	container *bootstrap.ServiceContainer
 }
 
-func NewAutomateTemplateJob(logger *zap.Logger, container *bootstrap.Container) *AutomateTemplateJob {
+func NewAutomateTemplateJob(logger *zap.Logger, container *bootstrap.ServiceContainer) *AutomateTemplateJob {
 	return &AutomateTemplateJob{
 		logger:    logger,
 		container: container,

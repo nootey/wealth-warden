@@ -22,7 +22,7 @@ import (
 type TestContainer struct {
 	container *postgres.PostgresContainer
 	DB        *gorm.DB
-	App       *bootstrap.Container
+	App       *bootstrap.ServiceContainer
 }
 
 type ServiceIntegrationSuite struct {

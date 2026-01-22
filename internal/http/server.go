@@ -29,7 +29,7 @@ type Server struct {
 	logger *zap.Logger
 }
 
-func NewServer(container *bootstrap.Container, logger *zap.Logger) *Server {
+func NewServer(container *bootstrap.ServiceContainer, logger *zap.Logger) *Server {
 
 	router := NewRouter(container, logger)
 
@@ -72,7 +72,7 @@ func (s *Server) Shutdown() error {
 	return nil
 }
 
-func NewRouter(container *bootstrap.Container, logger *zap.Logger) *gin.Engine {
+func NewRouter(container *bootstrap.ServiceContainer, logger *zap.Logger) *gin.Engine {
 
 	var r *gin.Engine
 	if container.Config.Release {

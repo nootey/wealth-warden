@@ -11,10 +11,10 @@ import (
 
 type BackfillJob struct {
 	logger    *zap.Logger
-	container *bootstrap.Container
+	container *bootstrap.ServiceContainer
 }
 
-func NewBackfillJob(logger *zap.Logger, container *bootstrap.Container) *BackfillJob {
+func NewBackfillJob(logger *zap.Logger, container *bootstrap.ServiceContainer) *BackfillJob {
 	return &BackfillJob{
 		logger:    logger,
 		container: container,

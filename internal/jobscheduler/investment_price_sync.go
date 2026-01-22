@@ -15,11 +15,11 @@ import (
 
 type InvestmentPriceSyncJob struct {
 	logger           *zap.Logger
-	container        *bootstrap.Container
+	container        *bootstrap.ServiceContainer
 	priceFetchClient finance.PriceFetcher
 }
 
-func NewInvestmentPriceSyncJob(logger *zap.Logger, container *bootstrap.Container, priceFetchClient finance.PriceFetcher) *InvestmentPriceSyncJob {
+func NewInvestmentPriceSyncJob(logger *zap.Logger, container *bootstrap.ServiceContainer, priceFetchClient finance.PriceFetcher) *InvestmentPriceSyncJob {
 	return &InvestmentPriceSyncJob{
 		logger:           logger,
 		container:        container,

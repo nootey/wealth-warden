@@ -13,19 +13,19 @@ import (
 	"go.uber.org/zap"
 )
 
-type ServerRuntime struct {
+type HttpServerRuntime struct {
 	Logger *zap.Logger
 	Config *config.Config
 }
 
-func NewServerRuntime(cfg *config.Config, logger *zap.Logger) *ServerRuntime {
-	return &ServerRuntime{
+func NewHttpServerRuntime(cfg *config.Config, logger *zap.Logger) *HttpServerRuntime {
+	return &HttpServerRuntime{
 		Config: cfg,
 		Logger: logger,
 	}
 }
 
-func (rt *ServerRuntime) Run(context context.Context) error {
+func (rt *HttpServerRuntime) Run(context context.Context) error {
 	ctx, stop := signal.NotifyContext(context, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
@@ -47,7 +47,7 @@ func (rt *ServerRuntime) Run(context context.Context) error {
 	// Initialize container
 	containerLogger := rt.Logger.Named("container")
 	httpLogger := rt.Logger.Named("http")
-	container, err := bootstrap.NewContainer(rt.Config, dbClient, containerLogger)
+	container, err := bootstrap.NewServiceContainer(rt.Config, dbClient, containerLogger)
 	if err != nil {
 		containerLogger.Error("Container initialization failed", zap.Error(err))
 		return fmt.Errorf("cntainer initialization failed: %w", err)

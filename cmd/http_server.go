@@ -18,7 +18,7 @@ var httpServerCmd = &cobra.Command{
 			zap.Bool("release", cfg.Release),
 		)
 
-		app := runtime.NewServerRuntime(cfg, logger)
+		app := runtime.NewHttpServerRuntime(cfg, logger)
 		return app.Run(cmd.Context())
 	},
 }

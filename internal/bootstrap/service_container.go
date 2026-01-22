@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type Container struct {
+type ServiceContainer struct {
 	Config             *config.Config
 	DB                 *gorm.DB
 	AuthzService       *authz.Service
@@ -33,7 +33,7 @@ type Container struct {
 	NotesService       *services.NotesService
 }
 
-func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Container, error) {
+func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*ServiceContainer, error) {
 
 	// Initialize mailer
 	mail := mailer.NewMailer(cfg, &mailer.MailConfig{From: cfg.Mailer.Username, FromName: "Wealth Warden Support"})
@@ -82,7 +82,7 @@ func NewContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*Contain
 	investmentService := services.NewInvestmentService(investmentRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetchClient, currencyConverter)
 	notesService := services.NewNotesService(notesRepo, loggingRepo, jobDispatcher)
 
-	return &Container{
+	return &ServiceContainer{
 		Config:             cfg,
 		DB:                 db,
 		AuthzService:       authzSvc,

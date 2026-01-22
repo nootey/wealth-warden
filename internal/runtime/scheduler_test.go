@@ -14,13 +14,13 @@ import (
 type SchedulerTestSuite struct {
 	suite.Suite
 	logger    *zap.Logger
-	container *bootstrap.Container
+	container *bootstrap.ServiceContainer
 	scheduler *runtime.Scheduler
 }
 
 func (suite *SchedulerTestSuite) SetupTest() {
 	suite.logger = zaptest.NewLogger(suite.T())
-	suite.container = &bootstrap.Container{
+	suite.container = &bootstrap.ServiceContainer{
 		Config: &config.Config{
 			FinanceAPIBaseURL: "https://query1.finance.yahoo.com",
 		},

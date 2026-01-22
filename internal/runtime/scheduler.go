@@ -14,7 +14,7 @@ import (
 
 type Scheduler struct {
 	logger    *zap.Logger
-	container *bootstrap.Container
+	container *bootstrap.ServiceContainer
 	scheduler gocron.Scheduler
 	config    SchedulerConfig
 }
@@ -25,7 +25,7 @@ type SchedulerConfig struct {
 	StartPriceSyncImmediately bool
 }
 
-func NewScheduler(logger *zap.Logger, container *bootstrap.Container, config SchedulerConfig) (*Scheduler, error) {
+func NewScheduler(logger *zap.Logger, container *bootstrap.ServiceContainer, config SchedulerConfig) (*Scheduler, error) {
 
 	if logger == nil {
 		return nil, fmt.Errorf("logger cannot be nil")

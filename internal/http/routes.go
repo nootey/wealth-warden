@@ -13,10 +13,10 @@ import (
 
 type RouteInitializerHTTP struct {
 	Router    *gin.Engine
-	Container *bootstrap.Container
+	Container *bootstrap.ServiceContainer
 }
 
-func NewRouteInitializerHTTP(r *gin.Engine, container *bootstrap.Container) *RouteInitializerHTTP {
+func NewRouteInitializerHTTP(r *gin.Engine, container *bootstrap.ServiceContainer) *RouteInitializerHTTP {
 
 	return &RouteInitializerHTTP{
 		Router:    r,
