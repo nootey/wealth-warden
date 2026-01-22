@@ -1843,7 +1843,6 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Co
 	if !changes.IsEmpty() {
 		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
-
 			Event:       "update",
 			Category:    "txn_template",
 			Description: nil,
