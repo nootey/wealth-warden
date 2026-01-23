@@ -3,4 +3,5 @@ export interface Note {
   content: string;
   resolved_at: Date | null;
   created_at: Date;
+  updated_at?: Date;
 }
