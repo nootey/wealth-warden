@@ -111,10 +111,7 @@ async function downloadBackup(backupName: string) {
   try {
     loading.value = true;
     await settingsStore.downloadBackup(backupName);
-    toastStore.createInfoToast(
-      "Success",
-      "Backup downloaded successfully.",
-    );
+    toastStore.createInfoToast("Success", "Backup downloaded successfully.");
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {

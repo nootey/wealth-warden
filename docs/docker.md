@@ -35,7 +35,7 @@ docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden up d
 For the first time setup, you must run migrations!
 
 ```sh
-# Run migrations (append arguments like 'server migrate fresh-seed-basic' to run them)
+# Run migrations (append arguments like 'migrate fresh-seed-basic' to run them)
 docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden run --rm --build migrate
 ```
 

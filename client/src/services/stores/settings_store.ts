@@ -43,11 +43,11 @@ export const useSettingsStore = defineStore("settings", {
 
     async downloadBackup(backup_name: string) {
       const res = await apiClient.post(
-          `${this.apiPrefix}/backups/download`,
-          { backup_name: backup_name },
-          {
-            responseType: "blob",
-          },
+        `${this.apiPrefix}/backups/download`,
+        { backup_name: backup_name },
+        {
+          responseType: "blob",
+        },
       );
 
       const blob = new Blob([res.data], { type: "application/zip" });
@@ -58,6 +58,6 @@ export const useSettingsStore = defineStore("settings", {
       document.body.appendChild(a);
       a.click();
       a.remove();
-    }
+    },
   },
 });
