@@ -1745,6 +1745,7 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 	exIsActiveStr := strconv.FormatBool(exTp.IsActive)
 	isActiveStr := strconv.FormatBool(tp.IsActive)
 
+	utils.CompareChanges("", strconv.FormatInt(tpID, 10), changes, "id")
 	utils.CompareChanges(exTp.Name, tp.Name, changes, "name")
 	utils.CompareChanges(exAmountString, amountString, changes, "amount")
 	utils.CompareChanges(exNextRunStr, nextRunStr, changes, "next_run")
@@ -1891,6 +1892,7 @@ func (s *TransactionService) DeleteTransactionTemplate(ctx context.Context, user
 	amountString := tp.Amount.StringFixed(2)
 	firstRunStr := tp.NextRunAt.UTC().Format(time.RFC3339)
 
+	utils.CompareChanges("", strconv.FormatInt(tp.ID, 10), changes, "id")
 	utils.CompareChanges(tp.Name, "", changes, "name")
 	utils.CompareChanges(tp.Account.Name, "", changes, "account")
 	utils.CompareChanges(tp.Category.Name, "", changes, "category")
