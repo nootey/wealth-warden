@@ -21,14 +21,12 @@
             placeholder="Add a new note ..."
             rows="1"
             class="w-full border-round-xl"
-            style="border-color: var(--border-color)"
+            :style="{
+              borderColor: 'var(--border-color)',
+              resize: 'none',
+            }"
             @keydown.enter.exact.prevent="createNote"
           />
-          <Button
-            class="main-button"
-            icon="pi pi-bookmark"
-            @click="createNote"
-          ></Button>
         </div>
 
         <SimplePaginator
@@ -42,7 +40,7 @@
         <div
           v-for="note in notes"
           :key="note.id"
-          class="p-3 border-round-xl cursor-pointer"
+          class="p-3 border-round-xl"
           :style="{
             backgroundColor: note.resolved_at
               ? 'var(--background-secondary)'
@@ -51,25 +49,40 @@
           }"
         >
           <div class="flex flex-column gap-2">
-            <div class="flex flex-row">
-              <div
-                class="text-sm"
-                style="
-                  white-space: pre-wrap;
-                  word-break: break-all;
-                  max-height: 55px;
-                  overflow-y: auto;
-                "
-              >
-                {{ note.content }}
-              </div>
-            </div>
+            <Textarea
+              v-model="note.content"
+              :disabled="!!note.resolved_at"
+              rows="2"
+              class="w-full border-round-xl"
+              :style="{
+                borderColor: 'var(--border-color)',
+                backgroundColor: note.resolved_at
+                  ? 'transparent'
+                  : 'var(--surface-ground)',
+                cursor: note.resolved_at ? 'default' : 'text',
+                resize: 'none',
+              }"
+              @focus="storeOriginalContent(note)"
+              @blur="updateNoteIfChanged(note)"
+            />
 
             <div
               class="flex flex-row gap-2 text-xs justify-content-between"
               style="color: var(--text-secondary)"
             >
-              <span>Created: {{ dateHelper.formatDate(note.created_at) }}</span>
+              <div class="flex flex-row align-items-center gap-1">
+                <span
+                  >Created: {{ dateHelper.formatDate(note.created_at) }}</span
+                >
+                <i
+                  v-if="note.updated_at && note.updated_at !== note.created_at"
+                  v-tooltip="
+                    'Updated: ' + dateHelper.formatDate(note.updated_at)
+                  "
+                  class="pi pi-info-circle ml-1"
+                  style="font-size: 0.7rem"
+                ></i>
+              </div>
               <span>
                 {{
                   note.resolved_at
@@ -79,14 +92,21 @@
                 <i
                   v-if="!note.resolved_at"
                   class="pi pi-check-square ml-2 text-sm"
+                  style="cursor: pointer"
                   @click="toggleResolve(note.id!)"
                 ></i>
-                <i
-                  v-else
-                  class="pi pi-trash ml-2 text-sm"
-                  style="color: var(--p-red-300)"
-                  @click="deleteNote(note.id!)"
-                ></i>
+                <template v-else>
+                  <i
+                    class="pi pi-replay ml-2 text-sm"
+                    style="cursor: pointer"
+                    @click="toggleResolve(note.id!)"
+                  ></i>
+                  <i
+                    class="pi pi-trash ml-2 text-sm"
+                    style="color: var(--p-red-300); cursor: pointer"
+                    @click="deleteNote(note.id!)"
+                  ></i>
+                </template>
               </span>
             </div>
           </div>
@@ -129,6 +149,7 @@ const paginator = ref({
   rowsPerPage: rows.value[0],
 });
 const page = ref(1);
+const originalContent = ref<string>("");
 
 const toggle = async () => {
   open.value = !open.value;
@@ -169,10 +190,31 @@ const createNote = async () => {
   }
 };
 
+const storeOriginalContent = (note: Note) => {
+  originalContent.value = note.content;
+};
+
+const updateNoteIfChanged = async (note: Note) => {
+  if (!note.content.trim() || note.content === originalContent.value) return;
+
+  try {
+    await sharedStore.updateRecord(notesStore.apiPrefix, note.id!, {
+      content: note.content.trim(),
+    });
+    await loadNotes(page.value);
+    toastStore.successResponseToast({
+      title: "Success",
+      message: "Note updated successfully.",
+    });
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+};
+
 const toggleResolve = async (id: number) => {
   try {
     await notesStore.toggleResolveState(id);
-    await loadNotes();
+    await loadNotes(page.value);
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -181,7 +223,7 @@ const toggleResolve = async (id: number) => {
 const deleteNote = async (id: number) => {
   try {
     await sharedStore.deleteRecord("notes", id);
-    await loadNotes();
+    await loadNotes(page.value);
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
