@@ -7,8 +7,6 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import ExportModule from "../../features/imports/ExportModule.vue";
 import ExportList from "../../components/data/ExportList.vue";
 import ImportModule from "../../components/data/ImportModule.vue";
-import { useSettingsStore } from "../../../services/stores/settings_store.ts";
-import BackupList from "../../components/data/BackupList.vue";
 
 const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
@@ -16,13 +14,10 @@ const { hasPermission } = usePermissions();
 const importListRef = ref<InstanceType<typeof ImportList> | null>(null);
 const exportListRef = ref<InstanceType<typeof ExportList> | null>(null);
 const importModuleRef = ref<InstanceType<typeof ImportModule> | null>(null);
-const backupListRef = ref<InstanceType<typeof BackupList> | null>(null);
 
 const addImportModal = ref(false);
 const addExportModal = ref(false);
 const transferModal = ref(false);
-
-const settingsStore = useSettingsStore();
 
 function refreshData(module: string) {
   switch (module) {
@@ -35,10 +30,6 @@ function refreshData(module: string) {
     case "export": {
       addExportModal.value = false;
       exportListRef.value?.refresh();
-      break;
-    }
-    case "backup": {
-      backupListRef.value?.refresh();
       break;
     }
     default: {
@@ -69,19 +60,6 @@ async function manipulateDialog(modal: string, value: any) {
         return;
       }
       addExportModal.value = value;
-      break;
-    }
-    case "createDatabaseDump": {
-      try {
-        await settingsStore.createDatabaseDump();
-        toastStore.successResponseToast({
-          title: "Success",
-          message: "Database backup created successfully",
-        });
-        refreshData("backup");
-      } catch (e) {
-        toastStore.errorResponseToast(e);
-      }
       break;
     }
     default: {
@@ -170,32 +148,6 @@ async function manipulateDialog(modal: string, value: any) {
 
         <h3>Exports</h3>
         <ExportList ref="exportListRef" />
-      </div>
-    </SettingsSkeleton>
-
-    <SettingsSkeleton class="w-full">
-      <div class="w-full flex flex-column gap-3 p-2">
-        <div class="flex flex-row align-items-center gap-2 w-full">
-          <div class="w-full flex flex-column gap-2">
-            <h3>Database backups</h3>
-            <h5 style="color: var(--text-secondary)">
-              Manage database backups and restores.
-            </h5>
-          </div>
-          <Button
-            class="main-button"
-            @click="manipulateDialog('createDatabaseDump', null)"
-          >
-            <div class="flex flex-row gap-1 align-items-center">
-              <i class="pi pi-plus" />
-              <span> New </span>
-              <span class="mobile-hide"> Backup </span>
-            </div>
-          </Button>
-        </div>
-
-        <h3>Backups</h3>
-        <BackupList ref="backupListRef" />
       </div>
     </SettingsSkeleton>
   </div>
