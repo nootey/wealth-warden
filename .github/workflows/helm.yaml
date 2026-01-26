@@ -1,0 +1,130 @@
+name: "Test Helm Chart"
+
+on:
+  push:
+    paths:
+      - 'deployments/helm/**'
+    branches:
+      - main
+      - development
+
+  pull_request:
+    paths:
+      - 'deployments/helm/**'
+
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint Helm Chart
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Add Bitnami repository
+        run: helm repo add bitnami https://charts.bitnami.com/bitnami
+
+      - name: Update Helm dependencies
+        run: helm dependency update deployments/helm/wealth-warden
+
+      - name: Lint Helm chart
+        run: helm lint deployments/helm/wealth-warden
+
+  deploy:
+    name: Deploy to k3d
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Create k3d cluster
+        uses: AbsaOSS/k3d-action@v2
+        with:
+          cluster-name: wealth-warden-test
+          args: >-
+            --agents 1
+            --no-lb
+            --wait
+
+      - name: Verify cluster is ready
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+          kubectl wait --for=condition=Ready nodes --all --timeout=120s
+
+      - name: Add Bitnami repository
+        run: helm repo add bitnami https://charts.bitnami.com/bitnami
+
+      - name: Update Helm dependencies
+        run: helm dependency update deployments/helm/wealth-warden
+
+      - name: Create namespace
+        run: kubectl create namespace wealth-warden
+
+      - name: Deploy Helm chart
+        run: |
+          helm install wealth-warden deployments/helm/wealth-warden \
+            --namespace wealth-warden \
+            --set api.image.pullPolicy=IfNotPresent \
+            --set webui.image.pullPolicy=IfNotPresent \
+            --set api.ingress.enabled=false \
+            --set webui.ingress.enabled=false \
+            --set secrets.create=true \
+            --set secrets.postgresPassword=testpassword123 \
+            --set secrets.jwtWebClientAccess=test-jwt-access-secret \
+            --set secrets.jwtWebClientRefresh=test-jwt-refresh-secret \
+            --set secrets.jwtWebClientEncodeId=test-jwt-encode-secret \
+            --set secrets.superAdminPassword=testadminpass123 \
+            --set config.postgres.password=testpassword123 \
+            --set postgresql.auth.postgresPassword=testpassword123 \
+            --timeout 5m \
+            --wait
+
+      - name: Verify deployment
+        run: |
+          echo "Checking pods..."
+          kubectl get pods -n wealth-warden
+
+          echo "Checking services..."
+          kubectl get svc -n wealth-warden
+
+          echo "Waiting for PostgreSQL to be ready..."
+          kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=postgresql -n wealth-warden --timeout=300s || true
+
+          echo "Checking pod status..."
+          kubectl get pods -n wealth-warden -o wide
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== Pod descriptions ==="
+          kubectl describe pods -n wealth-warden
+
+          echo "=== API logs ==="
+          kubectl logs -l app.kubernetes.io/component=api -n wealth-warden --tail=100 || true
+
+          echo "=== WebUI logs ==="
+          kubectl logs -l app.kubernetes.io/component=webui -n wealth-warden --tail=100 || true
+
+          echo "=== PostgreSQL logs ==="
+          kubectl logs -l app.kubernetes.io/name=postgresql -n wealth-warden --tail=100 || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          helm uninstall wealth-warden -n wealth-warden || true
+          kubectl delete namespace wealth-warden || true
