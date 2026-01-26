@@ -23,13 +23,8 @@ const menuItems: MenuItem[] = [
   { to: "/accounts", icon: "pi-hashtag", text: "Acc" },
   { to: "/transactions", icon: "pi-credit-card", text: "Txn" },
   { to: "/charts", icon: "pi-chart-pie", text: "Charts" },
-  { to: "/investments", icon: "pi-chart-line", text: "Invest" },
-  {
-    to: "/users",
-    icon: "pi-users",
-    text: "Users",
-    block: !hasPermission("manage_users"),
-  },
+  { to: "/stats", icon: "pi-chart-bar", text: "Stats" },
+  { to: "/investments", icon: "pi-ticket", text: "Invest" },
 ];
 
 const visibleMenuItems = computed(() =>
@@ -51,6 +46,11 @@ function checkAccess(route: string) {
         router.push("/logs");
       }
       break;
+    case "users":
+      if (hasPermission("manage_users")) {
+        router.push("/Users");
+      }
+      break;
   }
 }
 
@@ -58,6 +58,10 @@ function handleMenuClick(source: string) {
   switch (source) {
     case "logs": {
       checkAccess("logs");
+      break;
+    }
+    case "users": {
+      checkAccess("users");
       break;
     }
     case "settings": {
@@ -208,6 +212,21 @@ function handleMenuClick(source: string) {
           >
             <i class="pi pi-address-book" />
             <span class="text-sm">Activity logs</span>
+          </div>
+
+          <div
+            v-if="hasPermission('manage_users')"
+            id="profileMenuItem"
+            class="flex align-items-center gap-2 p-1 border-round-md"
+            style="
+              cursor: pointer;
+              transition: all 0.2s ease;
+              color: var(--text-primary);
+            "
+            @click="handleMenuClick('users')"
+          >
+            <i class="pi pi-users" />
+            <span class="text-sm">Users</span>
           </div>
 
           <div
