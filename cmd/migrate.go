@@ -17,7 +17,7 @@ var migrateCmd = &cobra.Command{
 	Short: "Run database migrations",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		migrationType := "help"
+		migrationType := ""
 
 		if len(args) > 0 {
 			migrationType = args[0]
@@ -130,8 +130,6 @@ func runMigrations(migrationType string, migrationsDir string, cfg *config.Confi
 				return fmt.Errorf("failed to seed database: %v", err)
 			}
 		}
-	case "help":
-		return fmt.Errorf("\n Provide an additional argument to the migration function. Valid arguments are: up, down, status, fresh")
 	default:
 		return fmt.Errorf("invalid migration type: %s", migrationType)
 	}
