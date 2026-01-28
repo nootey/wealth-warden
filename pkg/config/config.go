@@ -67,11 +67,11 @@ func LoadConfig(configPath *string, configName ...string) (*Config, error) {
 	// Load env variables
 	v.AutomaticEnv()
 	// Bind environment variables for nested postgres config
-	v.BindEnv("postgres.host", "POSTGRES_HOST")
-	v.BindEnv("postgres.user", "POSTGRES_USER")
-	v.BindEnv("postgres.db", "POSTGRES_DB")
-	v.BindEnv("postgres.port", "POSTGRES_PORT")
-	v.BindEnv("postgres.password", "POSTGRES_PASSWORD")
+	_ = v.BindEnv("postgres.host", "POSTGRES_HOST")
+	_ = v.BindEnv("postgres.user", "POSTGRES_USER")
+	_ = v.BindEnv("postgres.db", "POSTGRES_DB")
+	_ = v.BindEnv("postgres.port", "POSTGRES_PORT")
+	_ = v.BindEnv("postgres.password", "POSTGRES_PASSWORD")
 
 	cfgName := "dev"
 	if len(configName) > 0 && configName[0] != "" {
