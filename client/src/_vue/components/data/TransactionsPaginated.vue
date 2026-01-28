@@ -48,7 +48,7 @@ const params = computed(() => {
     include_deleted: includeDeleted.value,
   };
 });
-const rows = ref([25, 50, 100]);
+const rows = ref([10, 25, 50, 100]);
 const default_rows = ref(rows.value[0]);
 const paginator = ref({
   total: 0,
@@ -232,7 +232,6 @@ defineExpose({ refresh });
       :loading="loading"
       :value="records"
       scrollable
-      scroll-height="50vh"
       :row-class="vueHelper.deletedRowClass"
       column-resize-mode="fit"
       scroll-direction="both"
