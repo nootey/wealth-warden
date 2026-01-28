@@ -22,12 +22,7 @@ func ConnectToPostgres(cfg *config.Config, zapLogger *zap.Logger) (*gorm.DB, err
 	return ConnectToDatabase(cfg, cfg.Postgres.Database, zapLogger)
 }
 
-func ConnectToMaintenance(cfg *config.Config, zapLogger *zap.Logger) (*gorm.DB, error) {
-	return ConnectToDatabase(cfg, "postgres", zapLogger)
-}
-
 func ConnectToDatabase(cfg *config.Config, targetDB string, zapLogger *zap.Logger) (*gorm.DB, error) {
-
 	host := cfg.Postgres.Host
 
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=UTC",
@@ -100,19 +95,8 @@ func PingPostgresDatabase() error {
 	return sqlDB.Ping()
 }
 
-func ConnectWithoutDB(cfg *config.Config) (*gorm.DB, error) {
-	dsn := fmt.Sprintf("host=%s user=%s password=%s port=%d sslmode=disable TimeZone=UTC dbname=postgres",
-		cfg.Postgres.Host, cfg.Postgres.User, cfg.Postgres.Password, cfg.Postgres.Port)
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
-}
-
 func EnsureDatabaseExists(cfg *config.Config, zapLogger *zap.Logger) error {
-	// Connect without specifying the target database.
-	db, err := ConnectWithoutDB(cfg)
+	db, err := ConnectToPostgres(cfg, zapLogger)
 	if err != nil {
 		return fmt.Errorf("failed to connect to PostgresDB server: %w", err)
 	}

@@ -17,8 +17,7 @@ var migrateCmd = &cobra.Command{
 	Short: "Run database migrations",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-
-		migrationType := "help"
+		migrationType := ""
 
 		if len(args) > 0 {
 			migrationType = args[0]
@@ -75,15 +74,17 @@ func runMigrations(migrationType string, migrationsDir string, cfg *config.Confi
 			return fmt.Errorf("failed to get migration status: %v", err)
 		}
 	case "fresh", "fresh-seed-full", "fresh-seed-basic":
-
-		// Close the current connection because it connects to the target database.
+		// Close the current connection to the db
 		err := sqlDB.Close()
 		if err != nil {
 			return err
 		}
 
-		// Connect to a maintenance database (like "postgres").
-		mDB, err := database.ConnectToMaintenance(cfg, dbLogger)
+		// Connect to the 'postgres' maintenance database to drop/recreate the target db
+		maintenanceCfg := *cfg
+		maintenanceCfg.Postgres.Database = "postgres"
+
+		mDB, err := database.ConnectToPostgres(&maintenanceCfg, dbLogger)
 		if err != nil {
 			return fmt.Errorf("failed to connect to maintenance database: %v", err)
 		}
@@ -92,16 +93,18 @@ func runMigrations(migrationType string, migrationsDir string, cfg *config.Confi
 			return fmt.Errorf("failed to get raw SQL DB for maintenance: %v", err)
 		}
 
-		// Drop all tables explicitly.
+		// Drop and recreate the target db
 		if err := database.DropAndRecreateDatabase(mSqlDB, cfg); err != nil {
 			return fmt.Errorf("failed to recreate database: %v", err)
 		}
+
+		// Close maintenance connection
 		err = mSqlDB.Close()
 		if err != nil {
 			return err
-		} // Close the maintenance connection.
+		}
 
-		// Reconnect to the newly created target database.
+		// Reconnect to the freshly created target db
 		gormDB, err = database.ConnectToPostgres(cfg, dbLogger)
 		if err != nil {
 			return fmt.Errorf("failed to reconnect to Postgres: %v", err)
@@ -111,11 +114,12 @@ func runMigrations(migrationType string, migrationsDir string, cfg *config.Confi
 			return fmt.Errorf("failed to get raw SQL DB after reconnection: %v", err)
 		}
 
-		// Then, run migrations.
+		// Run migrations
 		if err := goose.Up(sqlDB, migrationsDir); err != nil {
 			return fmt.Errorf("failed to apply fresh migrations: %v", err)
 		}
-		// If seeding is required, run the seeder.
+
+		// Seed if needed
 		if migrationType == "fresh-seed-full" || migrationType == "fresh-seed-basic" {
 			seedType := "full"
 			if migrationType == "fresh-seed-basic" {
@@ -126,8 +130,6 @@ func runMigrations(migrationType string, migrationsDir string, cfg *config.Confi
 				return fmt.Errorf("failed to seed database: %v", err)
 			}
 		}
-	case "help":
-		return fmt.Errorf("\n Provide an additional argument to the migration function. Valid arguments are: up, down, status, fresh")
 	default:
 		return fmt.Errorf("invalid migration type: %s", migrationType)
 	}
