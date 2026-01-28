@@ -20,4 +20,15 @@ bootstrap:
 	@echo "Bootstrap complete."
 
 test:
-	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+	go test -v ./...
+
+test-coverage:
+	go test -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report: coverage.html"
+
+lint:
+	golangci-lint run
+
+lint-fix:
+	golangci-lint run --fix
