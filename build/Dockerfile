@@ -37,7 +37,7 @@ FROM alpine AS runtime
 
 WORKDIR /app
 
-RUN apk add --no-cache curl postgresql-client
+RUN apk add --no-cache curl
 
 # Copy only what's needed at runtime
 COPY --from=builder /app/server /usr/local/bin/server
