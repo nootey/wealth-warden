@@ -57,3 +57,27 @@ export interface DailyStats {
   net: string;
   generated_at: Date;
 }
+
+export interface YearStatsWithAllocations {
+  year: number;
+  inflow: string;
+  outflow: string;
+  avg_monthly_inflow: string;
+  avg_monthly_outflow: string;
+  take_home: string;
+  overflow: string;
+  avg_monthly_take_home: string;
+  avg_monthly_overflow: string;
+  savings_allocated: string;
+  investment_allocated: string;
+  debt_allocated: string;
+  total_allocated: string;
+  savings_pct: number;
+  investment_pct: number;
+  debt_pct: number;
+}
+
+export interface YearlyBreakdownStats {
+  current_year: YearStatsWithAllocations;
+  comparison_year?: YearStatsWithAllocations | null;
+}

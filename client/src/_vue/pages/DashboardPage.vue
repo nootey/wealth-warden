@@ -77,7 +77,6 @@ async function backfillBalances() {
       <SlotSkeleton bg="secondary">
         <AccountAllocations title="Liabilities" classification="liability" />
       </SlotSkeleton>
-
     </div>
   </main>
 </template>

@@ -4,6 +4,7 @@ import type {
   BasicAccountStats,
   DailyStats,
   MonthlyStats,
+  YearlyBreakdownStats,
 } from "../../models/statistics_models.ts";
 
 export const useStatisticsStore = defineStore("statistics", {
@@ -65,6 +66,21 @@ export const useStatisticsStore = defineStore("statistics", {
         },
       );
       return response.data.average;
+    },
+
+    async getYearlyBreakdownStats(
+      accID: number | null,
+      year: number,
+      comparisonYear: number | null = null,
+    ) {
+      const params: any = { year };
+      if (accID) params.acc_id = accID;
+      if (comparisonYear) params.comparison_year = comparisonYear;
+
+      return await apiClient.get<YearlyBreakdownStats>(
+        `${this.apiPrefix}/breakdown/yearly`,
+        { params },
+      );
     },
   },
 });
