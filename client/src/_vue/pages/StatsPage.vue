@@ -24,9 +24,16 @@ import YearlyBreakdownStats from "../features/YearlyBreakdownStats.vue";
         </div>
       </SlotSkeleton>
 
-      <SlotSkeleton bg="secondary">
-        <AccountBasicStats :pie-chart-size="200" />
-      </SlotSkeleton>
+      <Panel :collapsed="false" header="Basic stats" toggleable>
+        <div class="w-full flex flex-row justify-content-between p-1">
+          <span style="color: var(--text-secondary)" class="text-sm">
+            Simple yearly breakdown of your cash flow, per account.
+          </span>
+        </div>
+        <SlotSkeleton bg="transparent">
+          <AccountBasicStats :pie-chart-size="200" />
+        </SlotSkeleton>
+      </Panel>
 
       <Panel :collapsed="false" header="Cash-flow breakdown" toggleable>
         <div class="w-full flex flex-row justify-content-between p-1">

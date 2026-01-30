@@ -155,9 +155,6 @@ const getDiffColor = (diff: number, invertColors: boolean = false) => {
 
 <template>
   <div v-if="breakdownStats" class="w-full flex flex-column gap-3 p-3">
-    <h3 style="color: var(--text-primary)">Yearly Breakdown</h3>
-
-    <!-- Year Selection -->
     <div
       class="flex flex-row gap-3 w-full justify-content-between align-items-center"
     >
@@ -200,14 +197,15 @@ const getDiffColor = (diff: number, invertColors: boolean = false) => {
       v-if="!accID"
       class="flex flex-row gap-2 w-full justify-content-between align-items-center"
     >
-      <div class="mobile-hide flex flex-column gap-2">
+      <div class="mobile-hide flex flex-column gap-2 w-full">
         <span class="text-sm" style="color: var(--text-secondary)">
           Select checking account for cash flow analysis
         </span>
       </div>
 
-      <div class="flex flex-column gap-2">
+      <div id="wide" class="flex flex-column gap-2">
         <Select
+          id="wide"
           v-model="selectedAccountID"
           size="small"
           style="width: 150px"
@@ -238,7 +236,6 @@ const getDiffColor = (diff: number, invertColors: boolean = false) => {
       </div>
     </div>
 
-    <ShowLoading v-if="isLoading" :num-fields="5" />
     <ShowLoading v-if="isLoading" :num-fields="5" />
     <div v-else id="stats-container" class="flex flex-row gap-4 w-full">
       <div class="flex flex-column gap-3 flex-1">
@@ -990,6 +987,10 @@ const getDiffColor = (diff: number, invertColors: boolean = false) => {
 
   #stats-container {
     flex-direction: column;
+  }
+
+  #wide {
+    width: 100% !important;
   }
 }
 </style>

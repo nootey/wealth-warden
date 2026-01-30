@@ -173,8 +173,7 @@ const pieOptions = computed(() => ({
 </script>
 
 <template>
-  <div v-if="accBasicStats" class="w-full flex flex-column gap-3 p-3">
-    <h3 style="color: var(--text-primary)">Basic stats</h3>
+  <div v-if="accBasicStats" class="w-full flex flex-column gap-2 p-2">
     <div
       v-if="years.length > 0"
       class="flex flex-row gap-2 w-full justify-content-between align-items-center"
