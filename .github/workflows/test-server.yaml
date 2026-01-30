@@ -60,7 +60,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          make test
+          make test-coverage
 
       - name: Archive code coverage results
         uses: actions/upload-artifact@v6
