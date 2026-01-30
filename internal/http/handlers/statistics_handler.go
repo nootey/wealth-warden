@@ -155,3 +155,50 @@ func (h *StatisticsHandler) GetYearlyAverageForCategory(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"average": average})
 }
+
+func (h *StatisticsHandler) GetYearlyBreakdownStats(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	// year (required)
+	y := c.Query("year")
+	if y == "" {
+		utils.ErrorMessage(c, "param error", "year is required", http.StatusBadRequest, nil)
+		return
+	}
+	year, err := strconv.Atoi(y)
+	if err != nil || year < 1900 || year > 3000 {
+		utils.ErrorMessage(c, "param error", "invalid year", http.StatusBadRequest, nil)
+		return
+	}
+
+	// accId (optional)
+	var accID *int64
+	if s := c.Query("acc_id"); s != "" && s != "null" && s != "undefined" {
+		v, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			utils.ErrorMessage(c, "param error", "accId must be a valid integer", http.StatusBadRequest, err)
+			return
+		}
+		accID = &v
+	}
+
+	var comparisonYear *int
+	if cy := c.Query("comparison_year"); cy != "" && cy != "null" && cy != "undefined" {
+		compYear, err := strconv.Atoi(cy)
+		if err != nil || compYear < 1900 || compYear > 3000 {
+			utils.ErrorMessage(c, "param error", "invalid comparison_year", http.StatusBadRequest, err)
+			return
+		}
+		comparisonYear = &compYear
+	}
+
+	stats, err := h.Service.GetYearlyBreakdownStats(ctx, accID, userID, year, comparisonYear)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", "Error getting breakdown", http.StatusBadRequest, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
+}

@@ -36,3 +36,6 @@ go.work.sum
 /storage/*
 !storage/mailer-templates
 !storage/migrations
+
+coverage.html
+coverage.out

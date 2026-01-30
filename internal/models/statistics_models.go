@@ -90,3 +90,31 @@ type TodayStats struct {
 	Net         decimal.Decimal `json:"net"`
 	GeneratedAt time.Time       `json:"generated_at"`
 }
+
+type YearlyBreakdownStats struct {
+	CurrentYear    *YearStatsWithAllocations `json:"current_year"`
+	ComparisonYear *YearStatsWithAllocations `json:"comparison_year,omitempty"`
+}
+
+type YearStatsWithAllocations struct {
+	Year int `json:"year"`
+
+	Inflow            decimal.Decimal `json:"inflow"`
+	Outflow           decimal.Decimal `json:"outflow"`
+	AvgMonthlyInflow  decimal.Decimal `json:"avg_monthly_inflow"`
+	AvgMonthlyOutflow decimal.Decimal `json:"avg_monthly_outflow"`
+
+	TakeHome           decimal.Decimal `json:"take_home"`
+	Overflow           decimal.Decimal `json:"overflow"`
+	AvgMonthlyTakeHome decimal.Decimal `json:"avg_monthly_take_home"`
+	AvgMonthlyOverflow decimal.Decimal `json:"avg_monthly_overflow"`
+
+	SavingsAllocated    decimal.Decimal `json:"savings_allocated"`
+	InvestmentAllocated decimal.Decimal `json:"investment_allocated"`
+	DebtAllocated       decimal.Decimal `json:"debt_allocated"`
+	TotalAllocated      decimal.Decimal `json:"total_allocated"`
+
+	SavingsPct    float64 `json:"savings_pct"`
+	InvestmentPct float64 `json:"investment_pct"`
+	DebtPct       float64 `json:"debt_pct"`
+}
