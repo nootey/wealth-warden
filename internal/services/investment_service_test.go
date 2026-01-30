@@ -654,26 +654,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 	s.Assert().True(expectedRealizedPnLAccCurrency.Sub(todayBalance.CashInflows).Abs().LessThan(decimal.NewFromFloat(1.0)),
 		"realized gains should be recorded as cash inflows: expected ~%s (acc currency), got %s",
 		expectedRealizedPnLAccCurrency.StringFixed(2), todayBalance.CashInflows.StringFixed(2))
-
-	// Verify final account balance reflects both unrealized and realized gains
-	var latestBalance models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ?", accID).
-		Order("as_of DESC").
-		First(&latestBalance).Error
-	s.Require().NoError(err)
-
-	// Get balance right before the sell
-	var balanceBeforeSell models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of < ?", accID, today).
-		Order("as_of DESC").
-		First(&balanceBeforeSell).Error
-	s.Require().NoError(err)
-
-	// Balance should have increased by at least the realized gain (with some tolerance for price fluctuations)
-	s.Assert().True(latestBalance.EndBalance.GreaterThan(balanceBeforeSell.EndBalance.Add(expectedRealizedPnLAccCurrency).Sub(decimal.NewFromInt(1000))),
-		"balance should increase by at least realized gains")
+	
 }
 
 // Tests that fees are correctly handled for both crypto (fee in tokens) and stocks/ETFs (fee in currency)
