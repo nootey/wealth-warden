@@ -20,6 +20,7 @@ import RolesSettings from "../../_vue/pages/Settings/RolesSettings.vue";
 import ChartsPage from "../../_vue/pages/ChartsPage.vue";
 import DataSettings from "../../_vue/pages/Settings/DataSettings.vue";
 import InvestmentsPage from "../../_vue/pages/InvestmentsPage.vue";
+import StatsPage from "../../_vue/pages/StatsPage.vue";
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -106,6 +107,12 @@ const routes: RouteRecordRaw[] = [
     name: "charts",
     meta: { title: "Charts", requiresAuth: true },
     component: ChartsPage,
+  },
+  {
+    path: "/stats",
+    name: "stats",
+    meta: { title: "Stats", requiresAuth: true },
+    component: StatsPage,
   },
   {
     path: "/investments",
