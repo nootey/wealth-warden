@@ -9,8 +9,7 @@ on:
       - 'client/**'
     branches:
       - main
-      - development
-      - testing/**
+
   workflow_dispatch:
 
   pull_request:
@@ -21,7 +20,8 @@ on:
       - 'client/**'
     branches:
       - main
-    types: [ opened, synchronize ]
+      - development
+    types: [ opened, synchronize, reopened ]
 
 jobs:
   test:
