@@ -32,3 +32,15 @@ lint:
 
 lint-fix:
 	golangci-lint run --fix
+
+docker-up:
+	docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden up -d --build
+
+docker-down:
+	docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden down
+
+docker-rpi-up:
+	docker compose -f ./deployments/docker/docker-compose.rpi.yaml -p wealth-warden up -d --build
+
+docker-rpi-down:
+	docker compose -f ./deployments/docker/docker-compose.rpi.yaml -p wealth-warden down
