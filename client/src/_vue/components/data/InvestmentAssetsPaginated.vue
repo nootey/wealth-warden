@@ -10,6 +10,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import type { InvestmentAsset } from "../../../models/investment_models.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
+import type {PaginatorState} from "../../../models/shared_models.ts";
 
 const props = defineProps<{
   accID?: number;
@@ -40,11 +41,11 @@ const params = computed(() => {
 });
 const rows = ref([25, 50, 100]);
 const default_rows = ref(rows.value[0]);
-const paginator = ref({
+const paginator = ref<PaginatorState>({
   total: 0,
   from: 0,
   to: 0,
-  rowsPerPage: default_rows.value,
+  rowsPerPage: default_rows.value!,
 });
 const page = ref(1);
 const sort = ref(filterHelper.initSort());

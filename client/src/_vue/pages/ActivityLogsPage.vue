@@ -13,7 +13,7 @@ import filterHelper from "../../utils/filter_helper.ts";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import { useConfirm } from "primevue/useconfirm";
 import type { Column } from "../../services/filter_registry.ts";
-import type { FilterObj } from "../../models/shared_models.ts";
+import type {FilterObj, PaginatorState} from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
 import { useSharedStore } from "../../services/stores/shared_store.ts";
 import CustomPaginator from "../components/base/CustomPaginator.vue";
@@ -41,11 +41,11 @@ const params = computed(() => {
 
 const rows = ref([10, 25, 50, 100]);
 const default_rows = ref(rows.value[0]);
-const paginator = ref({
+const paginator = ref<PaginatorState>({
   total: 0,
   from: 0,
   to: 0,
-  rowsPerPage: default_rows.value,
+  rowsPerPage: default_rows.value!,
 });
 const page = ref(1);
 const sort = ref(filterHelper.initSort());

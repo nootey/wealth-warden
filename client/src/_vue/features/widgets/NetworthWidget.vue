@@ -57,7 +57,7 @@ const chartStore = useChartStore();
 
 const hydrating = ref(true);
 const payload = ref<NetworthResponse | null>(null);
-const selectedDTO = ref<(typeof dateRanges)[number] | null>(dateRanges[4]); // default YTD
+const selectedDTO = ref<(typeof dateRanges)[number] | null>(dateRanges[4] ?? null);
 const selectedKey = computed<RangeKey>(
   () => (selectedDTO.value?.key ?? "ytd") as RangeKey,
 );
@@ -122,6 +122,8 @@ const displayPoints = computed<ChartPoint[]>(() => {
   const pts = orderedPoints.value;
   if (pts.length === 1) {
     const first = pts[0];
+    if (!first) return pts;
+
     const start = startOfRange.value;
     const firstDay = new Date(first.date);
     // if first point isn't already at start, prepend a phantom point at start with same value

@@ -12,6 +12,7 @@ import { useConfirm } from "primevue/useconfirm";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import ColumnHeader from "../base/ColumnHeader.vue";
+import type {PaginatorState} from "../../../models/shared_models.ts";
 
 const props = defineProps<{
   accID?: number;
@@ -38,11 +39,11 @@ const params = computed(() => {
 });
 const rows = ref([5, 10, 25]);
 const default_rows = ref(rows.value[0]);
-const paginator = ref({
+const paginator = ref<PaginatorState>({
   total: 0,
   from: 0,
   to: 0,
-  rowsPerPage: default_rows.value,
+  rowsPerPage: default_rows.value!,
 });
 const page = ref(1);
 const sort = ref(filterHelper.initSort());

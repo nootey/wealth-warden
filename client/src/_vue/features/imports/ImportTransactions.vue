@@ -92,12 +92,15 @@ function onClear() {
 }
 
 async function validateFile(type: string) {
-  if (!selectedFiles.value.length) return;
+  if (selectedFiles.value.length < 1) return;
+
+  const file = selectedFiles.value[0];
+  if (!file) return;
 
   try {
     const res = await dataStore.validateImport(
       "custom",
-      selectedFiles.value[0],
+      file,
       type,
     );
     fileValidated.value = true;
@@ -112,10 +115,15 @@ async function validateFile(type: string) {
 }
 
 function searchAccount(event: { query: string }, accType: string) {
-  const all = lists[accType].value ?? [];
+  const listRef = lists[accType];
+  const filteredListRef = filteredLists[accType];
+
+  if (!listRef || !filteredListRef) return;
+
+  const all = listRef.value ?? [];
   const q = event.query.trim().toLowerCase();
 
-  filteredLists[accType].value = q
+  filteredListRef.value = q
     ? all.filter((a) => a.name.toLowerCase().includes(q))
     : [...all];
 }
@@ -153,12 +161,16 @@ const isDisabled = computed(() => {
 });
 
 const importTransactions = async () => {
-  if (!selectedFiles.value.length) return;
+  if (selectedFiles.value.length < 1) return;
+
+  const file = selectedFiles.value[0];
+  if (!file) return;
+
   importing.value = true;
 
   try {
     const form = new FormData();
-    form.append("file", selectedFiles.value[0], "transactions.json");
+    form.append("file", file, "transactions.json");
 
     const categoryMappingsArray = Object.entries(categoryMappings.value).map(
       ([name, id]) => ({

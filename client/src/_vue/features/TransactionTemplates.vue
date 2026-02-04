@@ -13,6 +13,7 @@ import LoadingSpinner from "../components/base/LoadingSpinner.vue";
 import TransactionTemplateForm from "../components/forms/TransactionTemplateForm.vue";
 import vueHelper from "../../utils/vue_helper.ts";
 import { useTransactionStore } from "../../services/stores/transaction_store.ts";
+import type {PaginatorState} from "../../models/shared_models.ts";
 
 const emit = defineEmits<{
   (event: "refreshTemplateCount"): void;
@@ -46,11 +47,11 @@ const params = computed(() => {
 });
 const rows = ref([5, 10, 25]);
 const default_rows = ref(rows.value[0]);
-const paginator = ref({
+const paginator = ref<PaginatorState>({
   total: 0,
   from: 0,
   to: 0,
-  rowsPerPage: default_rows.value,
+  rowsPerPage: default_rows.value!,
 });
 const page = ref(1);
 const sort = ref(filterHelper.initSort());

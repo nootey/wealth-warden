@@ -50,7 +50,7 @@ function onSingleInput(v: number | null) {
   model.value.min = null;
   model.value.max = null;
   model.value.single = v;
-  model.value.singleOp = selectedOperator.value.value;
+  model.value.singleOp = selectedOperator.value?.value ?? "=";
 }
 
 function onOpSelect(e: { value: { name: string; value: OpVal } }) {

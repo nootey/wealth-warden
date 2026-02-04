@@ -50,12 +50,16 @@ const isDisabled = computed(() => {
 });
 
 async function importCategories() {
-  if (!selectedFiles.value.length) return;
+  if (selectedFiles.value.length < 1) return;
+
+  const file = selectedFiles.value[0];
+  if (!file) return;
+
   importing.value = true;
 
   try {
     const form = new FormData();
-    form.append("file", selectedFiles.value[0], "categories.json");
+    form.append("file", file, "categories.json");
 
     const res = await dataStore.importCategories(form);
     toastStore.successResponseToast(res);

@@ -521,7 +521,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_MultipleBuysUpdat
 	assetValueAccCurrency := asset.CurrentValue.Mul(exchangeRate)
 
 	expectedBalance := initialBalance.Sub(totalSpentAccCurrency).Add(assetValueAccCurrency)
-	
+
 	s.Assert().True(expectedBalance.Sub(latestBalance.EndBalance).Abs().LessThan(decimal.NewFromFloat(5000.0)),
 		"account balance should be roughly initial - spent + asset value: expected ~%s EUR, got %s EUR",
 		expectedBalance.StringFixed(2), latestBalance.EndBalance.StringFixed(2))

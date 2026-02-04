@@ -12,9 +12,9 @@ const baseColors: Record<string, string> = {
   other_liability: "#eab308",
 };
 
-function baseColorFor(type?: string) {
+function baseColorFor(type?: string): string {
   const t = (type || "other_asset").toLowerCase();
-  return baseColors[t];
+  return baseColors[t] ?? baseColors.other_asset!;
 }
 
 export type AccountTypeColor = {

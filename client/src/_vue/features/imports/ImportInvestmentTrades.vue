@@ -83,12 +83,15 @@ function onSaveMapping(map: Record<string, number | null>) {
 }
 
 async function validateFile(type: string) {
-  if (!selectedFiles.value.length) return;
+  if (selectedFiles.value.length < 1) return;
+
+  const file = selectedFiles.value[0];
+  if (!file) return;
 
   try {
     const res = await dataStore.validateImport(
       "custom",
-      selectedFiles.value[0],
+      file,
       type,
     );
     fileValidated.value = true;
@@ -143,11 +146,14 @@ async function transferInvestmentTrades() {
     return;
   }
 
+  const file = selectedFiles.value[0];
+  if (!file) return;
+
   transfering.value = true;
 
   try {
     const formData = new FormData();
-    formData.append("file", selectedFiles.value[0]);
+    formData.append("file", file);
     formData.append(
       "trade_mappings",
       JSON.stringify(
