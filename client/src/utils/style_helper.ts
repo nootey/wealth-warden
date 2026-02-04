@@ -78,28 +78,17 @@ const styleHelper = {
     return Math.min(max, Math.max(min, n));
   },
   luminance(hex: string) {
-    const { r, g, b } = this.hexToRgb(hex);
+    const rgb = this.hexToRgb(hex);
+    if (!rgb) return 0;
+
+    const { r, g, b } = rgb;
     const srgb = [r, g, b].map((v) => {
       const c = v / 255;
       return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
     });
-    return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
-  },
-  readableTextOn(bg: string, light = "#ffffff", dark = "#111111") {
-    return this.luminance(bg) > 0.5 ? dark : light;
-  },
-  shade(hex: string, amount: number) {
-    const { r, g, b } = this.hexToRgb(hex);
-    const mix = (c: number) => {
-      const t = amount < 0 ? 0 : 255;
-      return Math.round(c + (t - c) * Math.abs(amount));
-    };
-    const rr = mix(r),
-      gg = mix(g),
-      bb = mix(b);
-    return (
-      "#" + [rr, gg, bb].map((v) => v.toString(16).padStart(2, "0")).join("")
-    );
+
+    const [sr, sg, sb] = srgb;
+    return 0.2126 * (sr ?? 0) + 0.7152 * (sg ?? 0) + 0.0722 * (sb ?? 0);
   },
 };
 

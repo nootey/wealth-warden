@@ -52,12 +52,17 @@ const isDisabled = computed(() => {
 });
 
 async function importAccounts() {
-  if (!selectedFiles.value.length) return;
+
+  if (selectedFiles.value.length < 1) return;
+
+  const file = selectedFiles.value[0];
+  if (!file) return;
+
   importing.value = true;
 
   try {
     const form = new FormData();
-    form.append("file", selectedFiles.value[0], "accounts.json");
+    form.append("file", file, "accounts.json");
 
     const res = await dataStore.importAccounts(form, useBalances.value);
     toastStore.successResponseToast(res);

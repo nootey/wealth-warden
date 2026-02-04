@@ -1,10 +1,7 @@
 <script setup lang="ts">
-type PaginatorState = {
-  total: number;
-  from: number;
-  to: number;
-  rowsPerPage: number;
-};
+
+
+import type {PaginatorState} from "../../../models/shared_models.ts";
 
 defineProps<{
   paginator: PaginatorState;

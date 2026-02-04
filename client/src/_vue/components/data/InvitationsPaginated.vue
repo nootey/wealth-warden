@@ -11,6 +11,7 @@ import CustomPaginator from "../base/CustomPaginator.vue";
 import type { Invitation } from "../../../models/user_models.ts";
 import { useUserStore } from "../../../services/stores/user_store.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
+import type {PaginatorState} from "../../../models/shared_models.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -37,11 +38,11 @@ const params = computed(() => {
 });
 const rows = ref([5, 10, 25]);
 const default_rows = ref(rows.value[0]);
-const paginator = ref({
+const paginator = ref<PaginatorState>({
   total: 0,
   from: 0,
   to: 0,
-  rowsPerPage: default_rows.value,
+  rowsPerPage: default_rows.value!,
 });
 const page = ref(1);
 const sort = ref(filterHelper.initSort());

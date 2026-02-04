@@ -3,20 +3,27 @@ import { computed, ref } from "vue";
 
 const loading = ref(false);
 
-const dateRange = ref([setMinTime(new Date()), setMaxTime(new Date())]);
-const timeRange = ref([setMinTime(new Date()), setMaxTime(new Date())]);
+const dateRange = ref<[Date, Date]>([setMinTime(new Date()), setMaxTime(new Date())]);
+const timeRange = ref<[Date, Date]>([setMinTime(new Date()), setMaxTime(new Date())]);
 
 const datetimeRange = computed(() => {
-  let start = new Date(dateRange.value[0].getTime());
-  start.setHours(timeRange.value[0].getHours());
-  start.setMinutes(timeRange.value[0].getMinutes());
 
-  let end =
-    dateRange.value[1] !== null
-      ? new Date(dateRange.value[1].getTime())
-      : new Date(dateRange.value[0].getTime());
-  end.setHours(timeRange.value[1].getHours());
-  end.setMinutes(timeRange.value[1].getMinutes());
+  const startDate = dateRange.value[0];
+  const endDate = dateRange.value[1];
+  const startTime = timeRange.value[0];
+  const endTime = timeRange.value[1];
+
+  if (!startDate || !startTime || !endTime) return;
+
+  let start = new Date(startDate.getTime());
+  start.setHours(startTime.getHours());
+  start.setMinutes(startTime.getMinutes());
+
+  let end = endDate !== null
+    ? new Date(endDate.getTime())
+    : new Date(startDate.getTime());
+  end.setHours(endTime.getHours());
+  end.setMinutes(endTime.getMinutes());
 
   return [start, end];
 });

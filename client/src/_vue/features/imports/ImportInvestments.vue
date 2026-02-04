@@ -118,10 +118,15 @@ function onSaveMapping(map: Record<string, number | null>) {
 }
 
 function searchAccount(event: { query: string }, accType: string) {
-  const all = lists[accType].value ?? [];
+  const listRef = lists[accType];
+  const filteredListRef = filteredLists[accType];
+
+  if (!listRef || !filteredListRef) return;
+
+  const all = listRef.value ?? [];
   const q = event.query.trim().toLowerCase();
 
-  filteredLists[accType].value = q
+  filteredListRef.value = q
     ? all.filter((a) => a.name.toLowerCase().includes(q))
     : [...all];
 }

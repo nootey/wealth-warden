@@ -6,7 +6,7 @@ import { useUserStore } from "../../services/stores/user_store.ts";
 import type { Role, User } from "../../models/user_models.ts";
 import filterHelper from "../../utils/filter_helper.ts";
 import type { Column } from "../../services/filter_registry.ts";
-import type { FilterObj } from "../../models/shared_models.ts";
+import type {FilterObj, PaginatorState} from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import ActionRow from "../components/layout/ActionRow.vue";
@@ -49,11 +49,11 @@ const params = computed(() => {
 
 const rows = ref([10, 25, 50, 100]);
 const default_rows = ref(rows.value[0]);
-const paginator = ref({
+const paginator = ref<PaginatorState>({
   total: 0,
   from: 0,
   to: 0,
-  rowsPerPage: default_rows.value,
+  rowsPerPage: default_rows.value!,
 });
 const page = ref(1);
 const sort = ref(filterHelper.initSort());

@@ -11,4 +11,9 @@ export interface SortObj {
   field: string;
 }
 
-export type Operator = { name: string; value: string };
+export type PaginatorState = {
+  total: number;
+  from: number;
+  to: number;
+  rowsPerPage: number;
+};

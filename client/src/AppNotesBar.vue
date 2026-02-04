@@ -33,7 +33,7 @@
           v-if="paginator.total > paginator.rowsPerPage"
           :current-page="page"
           :total-records="paginator.total"
-          :rows-per-page="paginator.rowsPerPage"
+          :rows-per-page="paginator.rowsPerPage!"
           @page-change="loadNotes"
         />
 
@@ -132,6 +132,7 @@ import type { Note } from "./models/notes_models.ts";
 import dateHelper from "./utils/date_helper.ts";
 import { useToastStore } from "./services/stores/toast_store.ts";
 import SimplePaginator from "./_vue/components/base/SimplePaginator.vue";
+import type {PaginatorState} from "./models/shared_models.ts";
 
 const notesStore = useNotesStore();
 const sharedStore = useSharedStore();
@@ -142,11 +143,12 @@ const notes = ref<Note[]>([]);
 const newNoteContent = ref("");
 
 const rows = ref([5]);
-const paginator = ref({
+const default_rows = ref(rows.value[0]);
+const paginator = ref<PaginatorState>({
   total: 0,
   from: 0,
   to: 0,
-  rowsPerPage: rows.value[0],
+  rowsPerPage: default_rows.value!,
 });
 const page = ref(1);
 const originalContent = ref<string>("");
