@@ -66,6 +66,7 @@ func (r *StatisticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.D
 		    AND is_adjustment = false
 		    AND is_transfer = false
 		    AND txn_date >= make_date($3,1,1) AND txn_date < make_date($3+1,1,1)
+		    AND deleted_at IS NULL
 		`
 		if err := db.Raw(sql, userID, *accountID, year).Scan(&row).Error; err != nil {
 			return row, err
@@ -89,6 +90,7 @@ func (r *StatisticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.D
 		    AND is_adjustment = false
 		    AND is_transfer = false
 		    AND txn_date >= make_date($2,1,1) AND txn_date < make_date($2+1,1,1)
+		    AND deleted_at IS NULL
 		`
 		if err := db.Raw(sql, userID, year).Scan(&row).Error; err != nil {
 			return row, err
@@ -128,6 +130,7 @@ func (r *StatisticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx
 		    AND t.is_adjustment = false
 		    AND t.is_transfer = false
 		    AND t.txn_date >= make_date($3,1,1) AND t.txn_date < make_date($3+1,1,1)
+		    AND t.deleted_at IS NULL
 		  GROUP BY t.category_id, c.display_name
 		  ORDER BY t.category_id NULLS LAST
 		`
@@ -155,6 +158,7 @@ func (r *StatisticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx
 		    AND t.is_adjustment = false
 		    AND t.is_transfer = false
 		    AND t.txn_date >= make_date($2,1,1) AND t.txn_date < make_date($2+1,1,1)
+		    AND t.deleted_at IS NULL
 		  GROUP BY t.category_id, c.display_name
 		  ORDER BY t.category_id NULLS LAST
 		`
@@ -197,6 +201,7 @@ func (r *StatisticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, t
            AND t.is_transfer = false
            AND t.txn_date >= make_date($3, $4, 1) 
            AND t.txn_date < make_date($3, $4, 1) + interval '1 month'
+           AND t.deleted_at IS NULL
          GROUP BY t.category_id, c.display_name
          ORDER BY t.category_id NULLS LAST
        `
@@ -225,6 +230,7 @@ func (r *StatisticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, t
            AND t.is_transfer = false
            AND t.txn_date >= make_date($2, $3, 1) 
            AND t.txn_date < make_date($2, $3, 1) + interval '1 month'
+           AND t.deleted_at IS NULL
          GROUP BY t.category_id, c.display_name
          ORDER BY t.category_id NULLS LAST
        `
@@ -270,6 +276,7 @@ func (r *StatisticsRepository) FetchMonthlyCategoryTotalsCheckingOnly(ctx contex
         AND t.is_transfer = false
         AND t.txn_date >= make_date(?, ?, 1) 
         AND t.txn_date < make_date(?, ?, 1) + interval '1 month'
+        AND t.deleted_at IS NULL
       GROUP BY t.category_id, c.display_name
       ORDER BY t.category_id NULLS LAST
     `
@@ -280,6 +287,7 @@ func (r *StatisticsRepository) FetchMonthlyCategoryTotalsCheckingOnly(ctx contex
 
 	return rows, nil
 }
+
 func (r *StatisticsRepository) FetchMonthlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.MonthlyTotalsRow, error) {
 
 	db := tx
@@ -434,6 +442,7 @@ func (r *StatisticsRepository) FetchDailyTotals(ctx context.Context, tx *gorm.DB
             AND is_adjustment = false
             AND is_transfer = false
             AND txn_date = ?
+        	AND deleted_at IS NULL
     `
 
 	if accountID != nil {
@@ -480,6 +489,7 @@ func (r *StatisticsRepository) FetchDailyTotalsCheckingOnly(ctx context.Context,
             AND is_transfer = false
             AND txn_date = ?
             AND account_id IN ?
+        	AND deleted_at IS NULL
     `
 
 	err := db.Raw(query, userID, date, accountIDs).Scan(&row).Error
