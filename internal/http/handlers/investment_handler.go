@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
 
@@ -25,6 +26,22 @@ func NewInvestmentHandler(
 		Service: service,
 		v:       v,
 	}
+}
+
+func (h *InvestmentHandler) Routes(ap *gin.RouterGroup) {
+	ap.GET("", authz.RequireAllMW("view_data"), h.GetInvestmentAssetsPaginated)
+	ap.GET("all", authz.RequireAllMW("view_data"), h.GetAllInvestmentAssets)
+	ap.GET(":id", authz.RequireAllMW("view_data"), h.GetInvestmentAssetByID)
+	ap.GET("trades", authz.RequireAllMW("view_data"), h.GetInvestmentTradesPaginated)
+	ap.GET("trades/:id", authz.RequireAllMW("view_data"), h.GetInvestmentTradeByID)
+	ap.PUT("", authz.RequireAllMW("manage_data"), h.InsertInvestmentAsset)
+	ap.PUT("trades", authz.RequireAllMW("manage_data"), h.InsertInvestmentTrade)
+	ap.PUT(":id", authz.RequireAllMW("manage_data"), h.UpdateInvestmentAsset)
+	ap.PUT("trades/:id", authz.RequireAllMW("manage_data"), h.UpdateInvestmentTrade)
+	ap.DELETE(":id", authz.RequireAllMW("manage_data"), h.DeleteInvestmentAsset)
+	ap.DELETE("trades/:id", authz.RequireAllMW("manage_data"), h.DeleteInvestmentTrade)
+	ap.GET("sync/:id", authz.RequireAllMW("view_data"), h.SyncAssetPNL)
+	ap.GET("sync/account/:acc_id", authz.RequireAllMW("view_data"), h.SyncAssetAccountBalance)
 }
 
 func (h *InvestmentHandler) GetInvestmentAssetsPaginated(c *gin.Context) {

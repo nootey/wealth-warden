@@ -17,7 +17,7 @@ export const useUserStore = defineStore("user", {
       this.roles = response.data;
     },
     async getPermissions() {
-      const response = await apiClient.get(`${this.apiPrefix}/permissions`);
+      const response = await apiClient.get(`${this.apiPrefix}/roles/permissions`);
       this.permissions = response.data;
     },
     async getUserByToken(tokenType: string, tokenValue: string) {

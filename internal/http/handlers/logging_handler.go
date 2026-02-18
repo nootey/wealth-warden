@@ -7,6 +7,7 @@ import (
 	"strings"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
 
 	"github.com/gin-gonic/gin"
@@ -22,6 +23,13 @@ func NewLoggingHandler(
 	return &LoggingHandler{
 		Service: service,
 	}
+}
+
+func (h *LoggingHandler) Routes(apiGroup *gin.RouterGroup) {
+	apiGroup.GET("", authz.RequireAllMW("view_activity_logs"), h.GetActivityLogs)
+	apiGroup.GET("/filter-data", authz.RequireAllMW("view_activity_logs"), h.GetActivityLogFilterData)
+	apiGroup.GET("/audit-trail", authz.RequireAllMW("view_data"), h.GetAuditTrail)
+	apiGroup.DELETE("/:id", authz.RequireAllMW("delete_activity_logs"), h.DeleteActivityLog)
 }
 
 func (h *LoggingHandler) GetActivityLogs(c *gin.Context) {

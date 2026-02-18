@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
 
@@ -25,6 +26,15 @@ func NewNotesHandler(
 		service: service,
 		v:       v,
 	}
+}
+
+func (h *NotesHandler) Routes(apiGroup *gin.RouterGroup) {
+	apiGroup.GET("", authz.RequireAllMW("view_data"), h.GetNotesPaginated)
+	apiGroup.GET("/:id", authz.RequireAllMW("view_data"), h.GetNoteByID)
+	apiGroup.PUT("", authz.RequireAllMW("manage_data"), h.InsertNote)
+	apiGroup.PUT(":id", authz.RequireAllMW("manage_data"), h.UpdateNote)
+	apiGroup.POST(":id/resolve", authz.RequireAllMW("manage_data"), h.ToggleResolveState)
+	apiGroup.DELETE(":id", authz.RequireAllMW("manage_data"), h.DeleteNote)
 }
 
 func (h *NotesHandler) GetNotesPaginated(c *gin.Context) {

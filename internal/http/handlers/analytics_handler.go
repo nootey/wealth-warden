@@ -3,6 +3,8 @@ package handlers
 import (
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/validators"
+
+	"github.com/gin-gonic/gin"
 )
 
 type AnalyticsHandler struct {
@@ -18,4 +20,8 @@ func NewAnalyticsHandler(
 		Service: service,
 		v:       v,
 	}
+}
+
+func (h *AnalyticsHandler) Routes(apiGroup *gin.RouterGroup) {
+
 }

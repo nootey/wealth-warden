@@ -13,6 +13,7 @@ import (
 	"strings"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
 
@@ -32,6 +33,20 @@ func NewImportHandler(
 		Service: service,
 		v:       v,
 	}
+}
+
+func (h *ImportHandler) Routes(apiGroup *gin.RouterGroup) {
+	apiGroup.GET("/:import_type", authz.RequireAllMW("view_data"), h.GetImportsByImportType)
+	apiGroup.GET("/:import_type/:id", authz.RequireAllMW("view_data"), h.GetStoredCustomImport)
+	apiGroup.POST("custom/validate", authz.RequireAllMW("manage_data"), h.ValidateCustomImport)
+	apiGroup.POST("custom/accounts", authz.RequireAllMW("manage_data"), h.ImportAccounts)
+	apiGroup.POST("custom/categories", authz.RequireAllMW("manage_data"), h.ImportCategories)
+	apiGroup.POST("custom/transactions", authz.RequireAllMW("manage_data"), h.ImportTransactions)
+	apiGroup.POST("custom/investments", authz.RequireAllMW("manage_data"), h.TransferInvestmentsFromImport)
+	apiGroup.POST("custom/savings", authz.RequireAllMW("manage_data"), h.TransferSavingsFromImport)
+	apiGroup.POST("custom/repayments", authz.RequireAllMW("manage_data"), h.TransferRepaymentsFromImport)
+	apiGroup.POST("custom/trades", authz.RequireAllMW("manage_data"), h.TransferInvestmentTrades)
+	apiGroup.DELETE("/:id", authz.RequireAllMW("manage_data"), h.DeleteImport)
 }
 
 func (h *ImportHandler) GetImportsByImportType(c *gin.Context) {
