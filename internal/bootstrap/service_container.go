@@ -31,6 +31,7 @@ type ServiceContainer struct {
 	ExportService      *services.ExportService
 	InvestmentService  *services.InvestmentService
 	NotesService       *services.NotesService
+	AnalyticsService   *services.AnalyticsService
 }
 
 func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*ServiceContainer, error) {
@@ -57,6 +58,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*
 	exportRepo := repositories.NewExportRepository(db)
 	investmentRepo := repositories.NewInvestmentRepository(db)
 	notesRepo := repositories.NewNotesRepository(db)
+	analyticsRepo := repositories.NewAnalyticsRepository(db)
 
 	// Initialize price fetch client
 	priceFetchClient, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
@@ -81,6 +83,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
 	investmentService := services.NewInvestmentService(investmentRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetchClient, currencyConverter)
 	notesService := services.NewNotesService(notesRepo, loggingRepo, jobDispatcher)
+	analyticsService := services.NewAnalyticsService(analyticsRepo, accountRepo, transactionRepo, settingsRepo)
 
 	return &ServiceContainer{
 		Config:             cfg,
@@ -99,5 +102,6 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*
 		ExportService:      exportService,
 		InvestmentService:  investmentService,
 		NotesService:       notesService,
+		AnalyticsService:   analyticsService,
 	}, nil
 }
