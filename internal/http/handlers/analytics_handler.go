@@ -30,7 +30,6 @@ func NewAnalyticsHandler(
 
 func (h *AnalyticsHandler) Routes(ap *gin.RouterGroup) {
 	ap.GET("/networth", authz.RequireAllMW("view_basic_statistics"), h.NetWorthChart)
-	ap.GET("/monthly-cash-flow", authz.RequireAllMW("view_basic_statistics"), h.GetMonthlyCashFlowForYear)
 	ap.GET("/monthly-category-breakdown", authz.RequireAllMW("view_basic_statistics"), h.GetMonthlyCategoryBreakdown)
 	ap.GET("/yearly-cash-flow-breakdown", authz.RequireAllMW("view_basic_statistics"), h.GetYearlyCashFlowBreakdown)
 	ap.GET("/sankey", authz.RequireAllMW("view_basic_statistics"), h.GetYearlySankeyData)
@@ -88,39 +87,6 @@ func (h *AnalyticsHandler) NetWorthChart(c *gin.Context) {
 	}
 
 	series, err := h.Service.GetNetWorthSeries(ctx, userID, currency, r, from, to, accID)
-	if err != nil {
-		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-	c.JSON(http.StatusOK, series)
-}
-
-func (h *AnalyticsHandler) GetMonthlyCashFlowForYear(c *gin.Context) {
-
-	ctx := c.Request.Context()
-	userID := c.GetInt64("user_id")
-
-	p := c.QueryMap("params")
-
-	yearStr := c.Query("year")
-	year, _ := strconv.Atoi(yearStr)
-
-	accStr := c.Query("account")
-	if accStr == "" {
-		accStr = p["account"]
-	}
-
-	var accID *int64
-	if strings.TrimSpace(accStr) != "" {
-		v, err := strconv.ParseInt(accStr, 10, 64)
-		if err != nil {
-			utils.ErrorMessage(c, "param error", "account must be a valid integer", http.StatusBadRequest, err)
-			return
-		}
-		accID = &v
-	}
-
-	series, err := h.Service.GetMonthlyCashFlowForYear(ctx, userID, year, accID)
 	if err != nil {
 		utils.ErrorMessage(c, "Failed to load chart", err.Error(), http.StatusInternalServerError, err)
 		return

@@ -16,7 +16,6 @@ import (
 
 type AnalyticsServiceInterface interface {
 	GetNetWorthSeries(ctx context.Context, userID int64, currency, rangeKey, from, to string, accountID *int64) (*models.NetWorthResponse, error)
-	GetMonthlyCashFlowForYear(ctx context.Context, userID int64, year int, accountID *int64) (*models.MonthlyCashflowResponse, error)
 	GetCategoryUsageForYear(ctx context.Context, userID int64, year int, class string, accID, catID *int64, asPercent bool) (*models.CategoryUsageResponse, error)
 	GetCategoryUsageForYears(ctx context.Context, userID int64, years []int, class string, accID, catID *int64, asPercent bool) (*models.MultiYearCategoryUsageResponse, error)
 	GetYearlyCashFlowBreakdown(ctx context.Context, userID int64, year int, accountID *int64) (*models.YearlyCashflowBreakdown, error)
@@ -218,45 +217,6 @@ func (s *AnalyticsService) GetNetWorthSeries(ctx context.Context, userID int64, 
 	}
 
 	return nwRes, nil
-}
-
-func (s *AnalyticsService) GetMonthlyCashFlowForYear(ctx context.Context, userID int64, year int, accountID *int64) (*models.MonthlyCashflowResponse, error) {
-
-	txs, err := s.txnRepo.GetTransactionsForYear(ctx, nil, userID, year, accountID)
-	if err != nil {
-		return nil, err
-	}
-
-	months := make(map[int]*models.MonthlyCashflow)
-	for m := 1; m <= 12; m++ {
-		months[m] = &models.MonthlyCashflow{
-			Month:    m,
-			Inflows:  decimal.NewFromInt(0),
-			Outflows: decimal.NewFromInt(0),
-			Net:      decimal.NewFromInt(0),
-		}
-	}
-
-	for _, tx := range txs {
-		month := int(tx.TxnDate.Month())
-		switch tx.TransactionType {
-		case "income":
-			months[month].Inflows = months[month].Inflows.Add(tx.Amount)
-		case "expense":
-			months[month].Outflows = months[month].Outflows.Add(tx.Amount)
-		}
-	}
-
-	series := make([]models.MonthlyCashflow, 0, 12)
-	for m := 1; m <= 12; m++ {
-		months[m].Net = months[m].Inflows.Sub(months[m].Outflows)
-		series = append(series, *months[m])
-	}
-
-	return &models.MonthlyCashflowResponse{
-		Year:   year,
-		Series: series,
-	}, nil
 }
 
 func (s *AnalyticsService) GetYearlyCashFlowBreakdown(ctx context.Context, userID int64, year int, accountID *int64) (*models.YearlyCashflowBreakdown, error) {

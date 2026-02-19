@@ -28,18 +28,6 @@ type NetWorthResponse struct {
 	AssetType *string      `json:"asset_type"`
 }
 
-type MonthlyCashflow struct {
-	Month    int             `json:"month"`
-	Inflows  decimal.Decimal `json:"inflows"`
-	Outflows decimal.Decimal `json:"outflows"`
-	Net      decimal.Decimal `json:"net"`
-}
-
-type MonthlyCashflowResponse struct {
-	Year   int               `json:"year"`
-	Series []MonthlyCashflow `json:"series"`
-}
-
 type MonthlyCategoryUsage struct {
 	Month      int              `json:"month"`
 	CategoryID int64            `json:"category_id"`

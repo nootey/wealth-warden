@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
 import { onMounted, onUnmounted, ref } from "vue";
-import MonthlyCashFlowWidget from "../features/widgets/MonthlyCashFlowWidget.vue";
 import MonthlyCategoryBreakdownWidget from "../features/widgets/MonthlyCategoryBreakdownWidget.vue";
 import { useTransactionStore } from "../../services/stores/transaction_store.ts";
 import YearlyCashFlowWidget from "../features/widgets/YearlyCashFlowWidget.vue";
@@ -92,21 +91,6 @@ onUnmounted(() => {
 
         <SlotSkeleton bg="transparent">
           <YearlySankeyWidget :is-mobile="isMobile" />
-        </SlotSkeleton>
-      </Panel>
-
-      <Panel :collapsed="true" header="Cash-flow pattern" toggleable>
-        <div class="w-full flex flex-row justify-content-between p-1">
-          <span style="color: var(--text-secondary)" class="text-sm">
-            Track your monthly income and expenses throughout the year. This
-            chart is the most basic representation of cash-flow. It shows the
-            flow of money in (green) and out (red) of your selected account,
-            helping you identify spending patterns and seasonal trends.
-          </span>
-        </div>
-
-        <SlotSkeleton bg="transparent">
-          <MonthlyCashFlowWidget :is-mobile="isMobile" />
         </SlotSkeleton>
       </Panel>
     </div>
