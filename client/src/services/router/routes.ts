@@ -17,10 +17,9 @@ import PreferencesSettings from "../../_vue/pages/Settings/PreferencesSettings.v
 import AccountsSettings from "../../_vue/pages/Settings/AccountsSettings.vue";
 import CategoriesSettings from "../../_vue/pages/Settings/CategoriesSettings.vue";
 import RolesSettings from "../../_vue/pages/Settings/RolesSettings.vue";
-import ChartsPage from "../../_vue/pages/ChartsPage.vue";
 import DataSettings from "../../_vue/pages/Settings/DataSettings.vue";
 import InvestmentsPage from "../../_vue/pages/InvestmentsPage.vue";
-import StatsPage from "../../_vue/pages/StatsPage.vue";
+import AnalyticsPage from "../../_vue/pages/AnalyticsPage.vue";
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -103,16 +102,10 @@ const routes: RouteRecordRaw[] = [
     component: ActivityLogsPage,
   },
   {
-    path: "/charts",
-    name: "charts",
-    meta: { title: "Charts", requiresAuth: true },
-    component: ChartsPage,
-  },
-  {
-    path: "/stats",
-    name: "stats",
-    meta: { title: "Stats", requiresAuth: true },
-    component: StatsPage,
+    path: "/analytics",
+    name: "analytics",
+    meta: { title: "Analytics", requiresAuth: true },
+    component: AnalyticsPage,
   },
   {
     path: "/investments",

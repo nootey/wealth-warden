@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, markRaw, onMounted, onUnmounted, ref } from "vue";
 import Chart from "primevue/chart";
-import type { ChartPoint } from "../../../models/chart_models.ts";
 
 import {
   Chart as ChartJS,
@@ -20,6 +19,7 @@ import dateHelper from "../../../utils/date_helper.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { useThemeStore } from "../../../services/stores/theme_store.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
+import type {ChartPoint} from "../../../models/analytics_models.ts";
 
 ChartJS.register(
   LineController,

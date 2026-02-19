@@ -232,11 +232,7 @@ onMounted(getData);
   >
     <div class="flex flex-row gap-2 w-full justify-content-between">
       <div class="flex flex-column gap-2">
-        <div class="flex flex-row">
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            title
-          }}</span>
-        </div>
+        <div class="flex flex-row"></div>
         <div class="flex flex-row">
           <strong>{{
             vueHelper.displayAsCurrency(payload.current.value)

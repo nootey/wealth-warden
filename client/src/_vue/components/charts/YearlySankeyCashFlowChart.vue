@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, onUnmounted } from "vue";
 import Chart from "primevue/chart";
-import type { YearlySankeyData } from "../../../models/chart_models";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
 import { Chart as ChartJS } from "chart.js";
 import { SankeyController, Flow } from "chartjs-chart-sankey";
+import type {YearlySankeyData} from "../../../models/analytics_models.ts";
 
 ChartJS.register(SankeyController, Flow);
 
