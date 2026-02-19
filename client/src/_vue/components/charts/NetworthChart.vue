@@ -19,7 +19,7 @@ import dateHelper from "../../../utils/date_helper.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { useThemeStore } from "../../../services/stores/theme_store.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
-import type {ChartPoint} from "../../../models/analytics_models.ts";
+import type { ChartPoint } from "../../../models/analytics_models.ts";
 
 ChartJS.register(
   LineController,

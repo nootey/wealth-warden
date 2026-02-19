@@ -64,7 +64,7 @@ async function backfillBalances() {
             <div style="font-weight: bold">
               Welcome back {{ authStore?.user?.display_name }}
             </div>
-            <div>{{ "Here's what's happening with your finances." }}</div>
+            <div> Here's what's happening with your finances. </div>
           </div>
           <Button
             label="Refresh"

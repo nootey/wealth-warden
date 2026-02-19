@@ -12,7 +12,7 @@ import {
 } from "chart.js";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
-import type {YearlyCashFlowResponse} from "../../../models/analytics_models.ts";
+import type { YearlyCashFlowResponse } from "../../../models/analytics_models.ts";
 
 ChartJS.register(
   BarController,

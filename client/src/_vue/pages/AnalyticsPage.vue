@@ -2,6 +2,9 @@
 import AccountBasicStats from "../features/AccountBasicStats.vue";
 import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
 import YearlyBreakdownStats from "../features/YearlyBreakdownStats.vue";
+import { ref } from "vue";
+
+const activeTab = ref("overview");
 </script>
 
 <template>
@@ -13,43 +16,78 @@ import YearlyBreakdownStats from "../features/YearlyBreakdownStats.vue";
       id="mobile-container"
       class="flex flex-column justify-content-center w-full gap-3 border-round-md"
     >
-      <SlotSkeleton bg="transparent">
+      <div
+        class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
+      >
+        <div class="w-full flex flex-column gap-2">
+          <div style="font-weight: bold">Analytics</div>
+          <div>Comprehensive insights into your financial health.</div>
+        </div>
+      </div>
+
+      <div class="flex flex-row gap-3 p-2">
         <div
-          class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
+          class="cursor-pointer pb-1"
+          style="color: var(--text-secondary)"
+          :style="
+            activeTab === 'overview'
+              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
+              : ''
+          "
+          @click="activeTab = 'overview'"
         >
-          <div class="w-full flex flex-column gap-2">
-            <h3 style="font-weight: bold">Statistics view</h3>
-            <div>Useful insignts about your finances.</div>
-          </div>
+          Overview
         </div>
-      </SlotSkeleton>
-
-      <Panel :collapsed="false" header="Basic stats" toggleable>
-        <div class="w-full flex flex-row justify-content-between p-1">
-          <span style="color: var(--text-secondary)" class="text-sm">
-            Simple yearly breakdown of your cash flow, per account.
-          </span>
+        <div
+          class="cursor-pointer pb-1"
+          style="color: var(--text-secondary)"
+          :style="
+            activeTab === 'reports'
+              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
+              : ''
+          "
+          @click="activeTab = 'reports'"
+        >
+          Reports
         </div>
-        <SlotSkeleton bg="transparent">
-          <AccountBasicStats :pie-chart-size="200" />
-        </SlotSkeleton>
-      </Panel>
+      </div>
 
-      <Panel :collapsed="false" header="Cash-flow breakdown" toggleable>
-        <div class="w-full flex flex-row justify-content-between p-1">
-          <span style="color: var(--text-secondary)" class="text-sm">
-            Yearly breakdown of your cash. Compare your current spending or
-            investing habits, to any previous year. By default, last year will
-            be used, if you've inputted your finances.
-          </span>
+      <Transition name="fade" mode="out-in">
+        <div
+          v-if="activeTab === 'overview'"
+          key="overview"
+          class="flex flex-column justify-content-center w-full gap-3"
+        >
+          <Panel :collapsed="false" header="Basic" toggleable>
+            <SlotSkeleton bg="transparent">
+              <AccountBasicStats :pie-chart-size="200" />
+            </SlotSkeleton>
+          </Panel>
+          <Panel :collapsed="false" header="Compare" toggleable>
+            <SlotSkeleton bg="transparent">
+              <YearlyBreakdownStats />
+            </SlotSkeleton>
+          </Panel>
         </div>
-
-        <SlotSkeleton bg="transparent">
-          <YearlyBreakdownStats />
-        </SlotSkeleton>
-      </Panel>
+        <div v-else key="reports" class="w-full">
+          <Panel :collapsed="false" header="Reports" toggleable>
+            <SlotSkeleton bg="transparent">
+              <span>Coming soon ...</span>
+            </SlotSkeleton>
+          </Panel>
+        </div>
+      </Transition>
     </div>
   </main>
 </template>
 
-<style scoped></style>
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
