@@ -10,8 +10,8 @@ import Select from "primevue/select";
 import vueHelper from "../../../utils/vue_helper.ts";
 import type { Account } from "../../../models/account_models.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
-import {useAnalyticsStore} from "../../../services/stores/analytics_store.ts";
-import type {YearlyCategoryStats} from "../../../models/analytics_models.ts";
+import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
+import type { YearlyCategoryStats } from "../../../models/analytics_models.ts";
 
 withDefaults(
   defineProps<{

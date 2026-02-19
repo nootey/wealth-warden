@@ -11,7 +11,10 @@ import filterHelper from "../../../utils/filter_helper.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
-import type {FilterObj, PaginatorState} from "../../../models/shared_models.ts";
+import type {
+  FilterObj,
+  PaginatorState,
+} from "../../../models/shared_models.ts";
 import FilterMenu from "../filters/FilterMenu.vue";
 import ActiveFilters from "../filters/ActiveFilters.vue";
 import ActionRow from "../layout/ActionRow.vue";

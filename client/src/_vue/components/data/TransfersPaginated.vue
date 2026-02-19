@@ -12,7 +12,7 @@ import { useConfirm } from "primevue/useconfirm";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import ColumnHeader from "../base/ColumnHeader.vue";
-import type {PaginatorState} from "../../../models/shared_models.ts";
+import type { PaginatorState } from "../../../models/shared_models.ts";
 
 const props = defineProps<{
   accID?: number;

@@ -13,7 +13,10 @@ import { useChartColors } from "../../../style/theme/chartColors.ts";
 import FilterMenu from "../filters/FilterMenu.vue";
 import ActionRow from "../layout/ActionRow.vue";
 import ActiveFilters from "../filters/ActiveFilters.vue";
-import type {FilterObj, PaginatorState} from "../../../models/shared_models.ts";
+import type {
+  FilterObj,
+  PaginatorState,
+} from "../../../models/shared_models.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 
 const props = defineProps<{

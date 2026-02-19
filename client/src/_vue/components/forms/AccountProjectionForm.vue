@@ -18,7 +18,7 @@ import Decimal from "decimal.js";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import {useAnalyticsStore} from "../../../services/stores/analytics_store.ts";
+import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
 
 const props = defineProps<{
   accID: number;

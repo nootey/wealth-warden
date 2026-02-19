@@ -3,11 +3,16 @@ import { computed, ref } from "vue";
 
 const loading = ref(false);
 
-const dateRange = ref<[Date, Date]>([setMinTime(new Date()), setMaxTime(new Date())]);
-const timeRange = ref<[Date, Date]>([setMinTime(new Date()), setMaxTime(new Date())]);
+const dateRange = ref<[Date, Date]>([
+  setMinTime(new Date()),
+  setMaxTime(new Date()),
+]);
+const timeRange = ref<[Date, Date]>([
+  setMinTime(new Date()),
+  setMaxTime(new Date()),
+]);
 
 const datetimeRange = computed(() => {
-
   const startDate = dateRange.value[0];
   const endDate = dateRange.value[1];
   const startTime = timeRange.value[0];
@@ -19,9 +24,10 @@ const datetimeRange = computed(() => {
   start.setHours(startTime.getHours());
   start.setMinutes(startTime.getMinutes());
 
-  let end = endDate !== null
-    ? new Date(endDate.getTime())
-    : new Date(startDate.getTime());
+  let end =
+    endDate !== null
+      ? new Date(endDate.getTime())
+      : new Date(startDate.getTime());
   end.setHours(endTime.getHours());
   end.setMinutes(endTime.getMinutes());
 

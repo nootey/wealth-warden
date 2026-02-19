@@ -6,8 +6,8 @@ import type { Account } from "../../../models/account_models.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import ShowLoading from "../../components/base/ShowLoading.vue";
 import YearlyCashFlowBreakdownChart from "../../components/charts/YearlyCashFlowBreakdownChart.vue";
-import {useAnalyticsStore} from "../../../services/stores/analytics_store.ts";
-import type {YearlyCashFlowResponse} from "../../../models/analytics_models.ts";
+import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
+import type { YearlyCashFlowResponse } from "../../../models/analytics_models.ts";
 
 withDefaults(
   defineProps<{
@@ -45,7 +45,8 @@ async function getData(year: number | null, account: number | null = null) {
       params.account = account;
     }
 
-    cashFlow.value = await analyticsStore.getYearlyCashFlowOverviewForYear(params);
+    cashFlow.value =
+      await analyticsStore.getYearlyCashFlowOverviewForYear(params);
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {

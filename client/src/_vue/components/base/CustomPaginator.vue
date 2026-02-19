@@ -1,7 +1,5 @@
 <script setup lang="ts">
-
-
-import type {PaginatorState} from "../../../models/shared_models.ts";
+import type { PaginatorState } from "../../../models/shared_models.ts";
 
 defineProps<{
   paginator: PaginatorState;

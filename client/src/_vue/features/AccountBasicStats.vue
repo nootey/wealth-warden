@@ -10,7 +10,7 @@ import vueHelper from "../../utils/vue_helper.ts";
 import ComparativePieChart from "../components/charts/ComparativePieChart.vue";
 import type { Account } from "../../models/account_models.ts";
 import { useAccountStore } from "../../services/stores/account_store.ts";
-import {useAnalyticsStore} from "../../services/stores/analytics_store.ts";
+import { useAnalyticsStore } from "../../services/stores/analytics_store.ts";
 
 const props = defineProps<{
   accID?: number | null;

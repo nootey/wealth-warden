@@ -5,8 +5,11 @@ import vueHelper from "../../../utils/vue_helper.ts";
 import NetworthChart from "../../components/charts/NetworthChart.vue";
 import ShowLoading from "../../components/base/ShowLoading.vue";
 import { useRouter } from "vue-router";
-import {useAnalyticsStore} from "../../../services/stores/analytics_store.ts";
-import type {ChartPoint, NetworthResponse} from "../../../models/analytics_models.ts";
+import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
+import type {
+  ChartPoint,
+  NetworthResponse,
+} from "../../../models/analytics_models.ts";
 
 const props = withDefaults(
   defineProps<{
@@ -54,7 +57,9 @@ const analyticsStore = useAnalyticsStore();
 
 const hydrating = ref(true);
 const payload = ref<NetworthResponse | null>(null);
-const selectedDTO = ref<(typeof dateRanges)[number] | null>(dateRanges[4] ?? null);
+const selectedDTO = ref<(typeof dateRanges)[number] | null>(
+  dateRanges[4] ?? null,
+);
 const selectedKey = computed<RangeKey>(
   () => (selectedDTO.value?.key ?? "ytd") as RangeKey,
 );

@@ -11,7 +11,7 @@ import CustomPaginator from "../base/CustomPaginator.vue";
 import type { Invitation } from "../../../models/user_models.ts";
 import { useUserStore } from "../../../services/stores/user_store.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
-import type {PaginatorState} from "../../../models/shared_models.ts";
+import type { PaginatorState } from "../../../models/shared_models.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();

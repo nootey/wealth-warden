@@ -6,9 +6,8 @@ import YearlySankeyCashFlowChart from "../../components/charts/YearlySankeyCashF
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import type { Account } from "../../../models/account_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
-import {useAnalyticsStore} from "../../../services/stores/analytics_store.ts";
-import type {YearlySankeyData} from "../../../models/analytics_models.ts";
-
+import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
+import type { YearlySankeyData } from "../../../models/analytics_models.ts";
 
 withDefaults(
   defineProps<{

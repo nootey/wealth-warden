@@ -5,7 +5,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import ComparativePieChart from "../charts/ComparativePieChart.vue";
-import {useAnalyticsStore} from "../../../services/stores/analytics_store.ts";
+import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
 
 const analyticsStore = useAnalyticsStore();
 const toastStore = useToastStore();

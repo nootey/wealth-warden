@@ -10,7 +10,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import type { InvestmentAsset } from "../../../models/investment_models.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
-import type {PaginatorState} from "../../../models/shared_models.ts";
+import type { PaginatorState } from "../../../models/shared_models.ts";
 
 const props = defineProps<{
   accID?: number;

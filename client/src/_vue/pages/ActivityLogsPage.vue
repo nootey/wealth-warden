@@ -13,7 +13,7 @@ import filterHelper from "../../utils/filter_helper.ts";
 import ActiveFilters from "../components/filters/ActiveFilters.vue";
 import { useConfirm } from "primevue/useconfirm";
 import type { Column } from "../../services/filter_registry.ts";
-import type {FilterObj, PaginatorState} from "../../models/shared_models.ts";
+import type { FilterObj, PaginatorState } from "../../models/shared_models.ts";
 import FilterMenu from "../components/filters/FilterMenu.vue";
 import { useSharedStore } from "../../services/stores/shared_store.ts";
 import CustomPaginator from "../components/base/CustomPaginator.vue";
