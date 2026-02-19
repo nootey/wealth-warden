@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import { useChartStore } from "../../../services/stores/chart_store.ts";
-import type {
-  NetworthResponse,
-  ChartPoint,
-} from "../../../models/chart_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import NetworthChart from "../../components/charts/NetworthChart.vue";
 import ShowLoading from "../../components/base/ShowLoading.vue";
 import { useRouter } from "vue-router";
+import {useAnalyticsStore} from "../../../services/stores/analytics_store.ts";
+import type {ChartPoint, NetworthResponse} from "../../../models/analytics_models.ts";
 
 const props = withDefaults(
   defineProps<{
@@ -53,7 +50,7 @@ const periodLabels: Record<RangeKey, string> = {
 };
 
 const toastStore = useToastStore();
-const chartStore = useChartStore();
+const analyticsStore = useAnalyticsStore();
 
 const hydrating = ref(true);
 const payload = ref<NetworthResponse | null>(null);
@@ -192,7 +189,7 @@ async function getNetworthData(opts?: {
     }
     if (props.accountId) params.account = props.accountId;
 
-    const res = await chartStore.getNetWorth(params);
+    const res = await analyticsStore.getNetWorth(params);
 
     res.points = res.points.map((p: any) => ({ ...p, value: Number(p.value) }));
     res.current.value = Number(res.current.value);

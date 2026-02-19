@@ -13,12 +13,12 @@ import {
 import useVuelidate from "@vuelidate/core";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import type { CategoryOrGroup } from "../../../models/transaction_models.ts";
-import { useStatisticsStore } from "../../../services/stores/statistics_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import Decimal from "decimal.js";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
+import {useAnalyticsStore} from "../../../services/stores/analytics_store.ts";
 
 const props = defineProps<{
   accID: number;
@@ -29,7 +29,7 @@ const emit = defineEmits<{
 }>();
 
 const transactionStore = useTransactionStore();
-const statStore = useStatisticsStore();
+const analyticsStore = useAnalyticsStore();
 const sharedStore = useSharedStore();
 const accountStore = useAccountStore();
 const toastStore = useToastStore();
@@ -246,7 +246,7 @@ watch(
         );
         const isGroup = selectedCategory?.is_group || false;
         const accountIDToUse = effectiveAccountID.value || props.accID;
-        const avg = await statStore.getCategoryAverage(
+        const avg = await analyticsStore.getCategoryAverage(
           newCategoryId,
           accountIDToUse,
           isGroup,

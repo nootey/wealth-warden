@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"wealth-warden/internal/bootstrap"
 	httpHandlers "wealth-warden/internal/http/handlers"
-	"wealth-warden/internal/http/routes"
 	"wealth-warden/internal/middleware"
 	"wealth-warden/pkg/validators"
 
@@ -42,9 +41,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	accountHandler := httpHandlers.NewAccountHandler(r.Container.AccountService, validator)
 	transactionHandler := httpHandlers.NewTransactionHandler(r.Container.TransactionService, validator)
 	settingsHandler := httpHandlers.NewSettingsHandler(r.Container.SettingsService, validator)
-	chartingHandler := httpHandlers.NewChartingHandler(r.Container.ChartingService, validator)
 	roleHandler := httpHandlers.NewRolePermissionHandler(r.Container.RoleService, validator)
-	statsHandler := httpHandlers.NewStatisticsHandler(r.Container.StatsService, validator)
 	importHandler := httpHandlers.NewImportHandler(r.Container.ImportService, validator)
 	exportHandler := httpHandlers.NewExportHandler(r.Container.ExportService, validator)
 	investmentHandler := httpHandlers.NewInvestmentHandler(r.Container.InvestmentService, validator)
@@ -82,12 +79,6 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	settingsHandler.Routes(protected.Group("/settings"))
 	transactionHandler.Routes(protected.Group("/transactions"))
 	userHandler.Routes(protected.Group("/users"))
-
-	chartingRoutes := protected.Group("/charts")
-	routes.ChartingRoutes(chartingRoutes, chartingHandler)
-
-	statsRoutes := protected.Group("/statistics")
-	routes.StatsRoutes(statsRoutes, statsHandler)
 
 }
 

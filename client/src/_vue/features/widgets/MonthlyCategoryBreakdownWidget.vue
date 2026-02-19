@@ -4,14 +4,14 @@ import MultiSelect from "primevue/multiselect";
 import CategoryBreakdownChart from "../../components/charts/CategoryBreakdownChart.vue";
 
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import { useChartStore } from "../../../services/stores/chart_store.ts";
 import type { Category } from "../../../models/transaction_models.ts";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import Select from "primevue/select";
-import type { YearlyCategoryStats } from "../../../models/chart_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import type { Account } from "../../../models/account_models.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
+import {useAnalyticsStore} from "../../../services/stores/analytics_store.ts";
+import type {YearlyCategoryStats} from "../../../models/analytics_models.ts";
 
 withDefaults(
   defineProps<{
@@ -22,7 +22,7 @@ withDefaults(
   },
 );
 
-const chartStore = useChartStore();
+const analyticsStore = useAnalyticsStore();
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 const accStore = useAccountStore();
@@ -110,7 +110,7 @@ const fetchData = async () => {
   try {
     if (!selectedYears.value.length) return;
 
-    const res = await chartStore.getMultiYearMonthlyCategoryBreakdown({
+    const res = await analyticsStore.getMultiYearMonthlyCategoryBreakdown({
       years: selectedYears.value.slice(0, maxYears),
       class: selectedClassification.value,
       percent: false,

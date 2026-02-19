@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { useStatisticsStore } from "../../../services/stores/statistics_store.ts";
 import { computed, onMounted, ref } from "vue";
-import type { MonthlyStats } from "../../../models/statistics_models.ts";
+import type { MonthlyStats } from "../../../models/analytics_models.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import ComparativePieChart from "../charts/ComparativePieChart.vue";
+import {useAnalyticsStore} from "../../../services/stores/analytics_store.ts";
 
-const statsStore = useStatisticsStore();
+const analyticsStore = useAnalyticsStore();
 const toastStore = useToastStore();
 
 const loading = ref(false);
@@ -21,7 +21,7 @@ onMounted(async () => {
 async function loadStats() {
   try {
     loading.value = true;
-    const result = await statsStore.getCurrentMonthsStats(null);
+    const result = await analyticsStore.getCurrentMonthsStats(null);
 
     if (!result) {
       monthlyStats.value = null;
