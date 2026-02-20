@@ -49,33 +49,29 @@ async function handleCreate() {
       id="mobile-container"
       class="flex flex-column justify-content-center w-full gap-3 border-round-xl"
     >
-      <SlotSkeleton bg="transparent">
-        <div
-          class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
-        >
-          <div class="w-full flex flex-column gap-2">
-            <div
-              style="font-weight: bold"
-              class="flex flex-row gap-2 align-items-center"
-            >
-              <div class="font-bold">Accounts</div>
-              <i
-                v-if="hasPermission('manage_data')"
-                v-tooltip="'Go to accounts settings.'"
-                class="pi pi-external-link hover-icon mr-auto text-sm"
-                @click="router.push('settings/accounts')"
-              />
-            </div>
+      <div
+        class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
+      >
+        <div class="w-full flex flex-column gap-2">
+          <div class="flex flex-row gap-2 align-items-center w-full">
+            <div class="font-bold">Accounts</div>
+            <i
+              v-if="hasPermission('manage_data')"
+              v-tooltip="'Go to accounts settings.'"
+              class="pi pi-external-link hover-icon mr-auto text-sm"
+              @click="router.push('settings/accounts')"
+            />
           </div>
-          <Button class="main-button" @click="openCreate">
-            <div class="flex flex-row gap-1 align-items-center">
-              <i class="pi pi-plus" />
-              <span> New </span>
-              <span class="mobile-hide"> Account </span>
-            </div>
-          </Button>
+          <div>Manage and monitor all your accounts.</div>
         </div>
-      </SlotSkeleton>
+        <Button class="main-button" @click="openCreate">
+          <div class="flex flex-row gap-1 align-items-center">
+            <i class="pi pi-plus" />
+            <span> New </span>
+            <span class="mobile-hide"> Account </span>
+          </div>
+        </Button>
+      </div>
 
       <Panel :collapsed="false" header="Assets">
         <AccountsPanel

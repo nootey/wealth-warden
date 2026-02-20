@@ -204,17 +204,22 @@ async function handleEmit(emitType: any) {
       class="flex flex-column justify-content-center w-full gap-3 border-round-xl"
     >
       <div
-        class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
+        class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
       >
-        <div style="font-weight: bold">Activity</div>
-        <i
-          v-if="hasPermission('manage_data')"
-          v-tooltip="'Go to categories settings.'"
-          class="pi pi-external-link hover-icon mr-auto text-sm"
-          @click="router.push('settings/categories')"
-        />
+        <div class="w-full flex flex-column gap-2">
+          <div class="flex flex-row gap-2 align-items-center w-full">
+            <div style="font-weight: bold">Activity</div>
+            <i
+              v-if="hasPermission('manage_data')"
+              v-tooltip="'Go to categories settings.'"
+              class="pi pi-external-link hover-icon mr-auto text-sm"
+              @click="router.push('settings/categories')"
+            />
+          </div>
+          <div>A complete record of your financial activity.</div>
+        </div>
         <Button
-          class="outline-button"
+          class="outline-button w-3"
           @click="manipulateDialog('openTemplateView', true)"
         >
           <div class="flex flex-row gap-1 align-items-center">
@@ -226,7 +231,7 @@ async function handleEmit(emitType: any) {
           </div>
         </Button>
         <Button
-          class="main-button"
+          class="main-button w-3"
           @click="manipulateDialog('addTransaction', true)"
         >
           <div class="flex flex-row gap-1 align-items-center">
