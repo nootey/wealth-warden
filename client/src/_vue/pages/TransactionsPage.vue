@@ -203,7 +203,7 @@ async function handleEmit(emitType: any) {
         <div
           class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
         >
-          <div style="font-weight: bold">Money flow</div>
+          <div style="font-weight: bold">Activity</div>
           <i
             v-if="hasPermission('manage_data')"
             v-tooltip="'Go to categories settings.'"
@@ -246,7 +246,7 @@ async function handleEmit(emitType: any) {
         </div>
       </Panel>
 
-      <Panel :collapsed="false" header="Transfers" toggleable>
+      <Panel :collapsed="true" header="Transfers" toggleable>
         <div id="mobile-row" class="flex flex-row w-full">
           <TransfersPaginated ref="trRef" />
         </div>

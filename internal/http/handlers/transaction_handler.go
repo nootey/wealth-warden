@@ -81,7 +81,7 @@ func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
 		accountID = &id
 	}
 
-	records, paginator, err := h.Service.FetchTransactionsPaginated(ctx, userID, p, includeDeleted, accountID)
+	records, totals, paginator, err := h.Service.FetchTransactionsPaginated(ctx, userID, p, includeDeleted, accountID)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -93,7 +93,7 @@ func (h *TransactionHandler) GetTransactionsPaginated(c *gin.Context) {
 		"from":          paginator.From,
 		"to":            paginator.To,
 		"total_records": paginator.TotalRecords,
-		"data":          records,
+		"data":          gin.H{"records": records, "totals": totals},
 	}
 
 	c.JSON(http.StatusOK, response)

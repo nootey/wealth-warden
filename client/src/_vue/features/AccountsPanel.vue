@@ -35,6 +35,7 @@ const emit = defineEmits<{
 const accountStore = useAccountStore();
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
+
 const { hasPermission } = usePermissions();
 
 const apiPrefix = "accounts";
@@ -233,7 +234,7 @@ defineExpose({ refresh: getData });
   <div class="flex flex-column w-full gap-3">
     <div
       id="balance-row"
-      class="flex w-full p-4 gap-2 border-round-xl bordered justify-content-between align-items-center"
+      class="flex w-full p-3 gap-2 border-round-xl bordered justify-content-between align-items-center"
       style="max-width: 1000px"
     >
       <div
@@ -250,13 +251,13 @@ defineExpose({ refresh: getData });
         style="border-right: 1px solid var(--border-color)"
       >
         <div class="text-sm" style="color: var(--text-secondary)">Positive</div>
-        <div class="font-bold" style="color: green">
+        <div class="font-bold">
           {{ vueHelper.displayAsCurrency(totals.positive) }}
         </div>
       </div>
       <div class="flex-1 text-center px-3">
         <div class="text-sm" style="color: var(--text-secondary)">Negative</div>
-        <div class="font-bold" style="color: red">
+        <div class="font-bold">
           {{ vueHelper.displayAsCurrency(totals.negative) }}
         </div>
       </div>
