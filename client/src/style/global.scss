@@ -17,8 +17,8 @@
 .my-app-dark {
   /* Dark mode colors using Material preset variables */
   --background-primary: var(--p-surface-950);
-  --background-secondary: #212121;
-  --background-alt: #121212;
+  --background-secondary: var(--p-surface-900);
+  --background-alt: var(--p-surface-800);
   --text-primary: var(--p-surface-50);
   --text-secondary: var(--p-surface-300);
   --accent-primary: var(--p-primary-300);

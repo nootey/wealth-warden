@@ -5,6 +5,7 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
+import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
 
 const createModal = ref(false);
 const router = useRouter();
@@ -43,41 +44,47 @@ async function handleCreate() {
     <AccountForm mode="create" @complete-operation="handleCreate" />
   </Dialog>
 
-  <main class="flex flex-column w-full p-2 align-items-center">
+  <main class="flex flex-column w-full align-items-center">
     <div
-      id="inner-row"
-      class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
-      style="
-        border: 1px solid var(--border-color);
-        background: var(--background-secondary);
-        max-width: 1000px;
-      "
+      id="mobile-container"
+      class="flex flex-column justify-content-center w-full gap-3 border-round-xl"
     >
-      <div
-        class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
-      >
-        <div class="font-bold">Accounts</div>
-        <i
-          v-if="hasPermission('manage_data')"
-          v-tooltip="'Go to accounts settings.'"
-          class="pi pi-external-link hover-icon mr-auto text-sm"
-          @click="router.push('settings/accounts')"
-        />
-        <Button class="main-button" @click="openCreate">
-          <div class="flex flex-row gap-1 align-items-center">
-            <i class="pi pi-plus" />
-            <span> New </span>
-            <span class="mobile-hide"> Account </span>
+      <SlotSkeleton bg="transparent">
+        <div
+          class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
+        >
+          <div class="w-full flex flex-column gap-2">
+            <div
+              style="font-weight: bold"
+              class="flex flex-row gap-2 align-items-center"
+            >
+              <div class="font-bold">Accounts</div>
+              <i
+                v-if="hasPermission('manage_data')"
+                v-tooltip="'Go to accounts settings.'"
+                class="pi pi-external-link hover-icon mr-auto text-sm"
+                @click="router.push('settings/accounts')"
+              />
+            </div>
           </div>
-        </Button>
-      </div>
+          <Button class="main-button" @click="openCreate">
+            <div class="flex flex-row gap-1 align-items-center">
+              <i class="pi pi-plus" />
+              <span> New </span>
+              <span class="mobile-hide"> Account </span>
+            </div>
+          </Button>
+        </div>
+      </SlotSkeleton>
 
-      <AccountsPanel
-        ref="accountsPanelRef"
-        :advanced="false"
-        :allow-edit="true"
-        :max-height="80"
-      />
+      <Panel :collapsed="false" header="Assets">
+        <AccountsPanel
+          ref="accountsPanelRef"
+          :advanced="false"
+          :allow-edit="true"
+          :max-height="72"
+        />
+      </Panel>
     </div>
   </main>
 </template>

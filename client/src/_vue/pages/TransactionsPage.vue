@@ -12,6 +12,7 @@ import TransactionsPaginated from "../components/data/TransactionsPaginated.vue"
 import { useRouter } from "vue-router";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import TransactionTemplates from "../features/TransactionTemplates.vue";
+import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
 
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
@@ -193,66 +194,63 @@ async function handleEmit(emitType: any) {
     />
   </Dialog>
 
-  <main
-    class="flex flex-column w-full p-2 align-items-center"
-    style="height: 100%"
-  >
+  <main class="flex flex-column w-full align-items-center">
     <div
       id="mobile-container"
-      class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
-      style="
-        border: 1px solid var(--border-color);
-        background: var(--background-secondary);
-        max-width: 1000px;
-      "
+      class="flex flex-column justify-content-center w-full gap-3 border-round-xl"
     >
-      <div
-        class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
-      >
-        <div style="font-weight: bold">Transactions</div>
-        <i
-          v-if="hasPermission('manage_data')"
-          v-tooltip="'Go to categories settings.'"
-          class="pi pi-external-link hover-icon mr-auto text-sm"
-          @click="router.push('settings/categories')"
-        />
-        <Button
-          class="outline-button"
-          @click="manipulateDialog('openTemplateView', true)"
+      <SlotSkeleton bg="transparent">
+        <div
+          class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
         >
-          <div class="flex flex-row gap-1 align-items-center">
-            <i class="pi pi-database" />
-            <span
-              ><span class="mobile-hide"> Templates </span>
-              {{ "(" + trTemplateCount + ")" }}</span
-            >
-          </div>
-        </Button>
-        <Button
-          class="main-button"
-          @click="manipulateDialog('addTransaction', true)"
-        >
-          <div class="flex flex-row gap-1 align-items-center">
-            <i class="pi pi-plus" />
-            <span> New </span>
-            <span class="mobile-hide"> Transaction </span>
-          </div>
-        </Button>
-      </div>
+          <div style="font-weight: bold">Money flow</div>
+          <i
+            v-if="hasPermission('manage_data')"
+            v-tooltip="'Go to categories settings.'"
+            class="pi pi-external-link hover-icon mr-auto text-sm"
+            @click="router.push('settings/categories')"
+          />
+          <Button
+            class="outline-button"
+            @click="manipulateDialog('openTemplateView', true)"
+          >
+            <div class="flex flex-row gap-1 align-items-center">
+              <i class="pi pi-database" />
+              <span
+                ><span class="mobile-hide"> Templates </span>
+                {{ "(" + trTemplateCount + ")" }}</span
+              >
+            </div>
+          </Button>
+          <Button
+            class="main-button"
+            @click="manipulateDialog('addTransaction', true)"
+          >
+            <div class="flex flex-row gap-1 align-items-center">
+              <i class="pi pi-plus" />
+              <span> New </span>
+              <span class="mobile-hide"> Transaction </span>
+            </div>
+          </Button>
+        </div>
+      </SlotSkeleton>
 
-      <div id="mobile-row" class="flex flex-row w-full">
-        <TransactionsPaginated
-          ref="txRef"
-          :read-only="false"
-          :columns="activeColumns"
-          @row-click="(id) => manipulateDialog('updateTransaction', id)"
-        />
-      </div>
+      <Panel :collapsed="false" header="Transactions">
+        <div id="mobile-row" class="flex flex-row w-full">
+          <TransactionsPaginated
+            ref="txRef"
+            :read-only="false"
+            :columns="activeColumns"
+            @row-click="(id) => manipulateDialog('updateTransaction', id)"
+          />
+        </div>
+      </Panel>
 
-      <label>Transfers</label>
-      <div id="mobile-row" class="flex flex-row w-full">
-        <TransfersPaginated ref="trRef" />
-      </div>
+      <Panel :collapsed="false" header="Transfers" toggleable>
+        <div id="mobile-row" class="flex flex-row w-full">
+          <TransfersPaginated ref="trRef" />
+        </div>
+      </Panel>
     </div>
   </main>
 </template>
