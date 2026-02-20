@@ -24,6 +24,8 @@ const createTxnModal = ref(false);
 const updateTxnModal = ref(false);
 const updateTxnID = ref(null);
 
+const activeTab = ref("assets");
+
 function manipulateDialog(modal: string, value: any) {
   switch (modal) {
     case "addAsset": {
@@ -173,20 +175,18 @@ async function handleEmit(emitType: any) {
     />
   </Dialog>
 
-  <main
-    class="flex flex-column w-full p-2 align-items-center"
-    style="height: 100%"
-  >
+  <main class="flex flex-column w-full align-items-center">
     <div
       id="mobile-container"
-      class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
-      style="
-        border: 1px solid var(--border-color);
-        background: var(--background-secondary);
-      "
+      class="flex flex-column justify-content-center w-full gap-3 border-round-xl"
     >
-      <div class="flex flex-row align-items-center text-center gap-2 w-full">
-        <div style="font-weight: bold" class="mr-auto">Investments</div>
+      <div
+        class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
+      >
+        <div class="w-full flex flex-column gap-2">
+          <div style="font-weight: bold">Investments</div>
+          <div>Comprehensive insights into your investment vehicles.</div>
+        </div>
         <Button class="main-button" @click="manipulateDialog('addAsset', true)">
           <div class="flex flex-row gap-1 align-items-center">
             <i class="pi pi-plus" />
@@ -203,20 +203,59 @@ async function handleEmit(emitType: any) {
         </Button>
       </div>
 
-      <div id="mobile-row" class="flex flex-row w-full">
-        <InvestmentAssetsPaginated
-          ref="holdRef"
-          @update-asset="(id) => manipulateDialog('updateAsset', id)"
-        />
+      <div class="flex flex-row gap-3 p-2">
+        <div
+          class="cursor-pointer pb-1"
+          style="color: var(--text-secondary)"
+          :style="
+            activeTab === 'assets'
+              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
+              : ''
+          "
+          @click="activeTab = 'assets'"
+        >
+          Assets
+        </div>
+        <div
+          class="cursor-pointer pb-1"
+          style="color: var(--text-secondary)"
+          :style="
+            activeTab === 'trades'
+              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
+              : ''
+          "
+          @click="activeTab = 'trades'"
+        >
+          Trades
+        </div>
       </div>
 
-      <div style="font-weight: bold">Trades</div>
-      <div id="mobile-row" class="flex flex-row w-full">
-        <InvestmentTradesPaginated
-          ref="txnRef"
-          @update-trade="(id) => manipulateDialog('updateTrade', id)"
-        />
-      </div>
+      <Transition name="fade" mode="out-in">
+        <div
+          v-if="activeTab === 'assets'"
+          key="assets"
+          class="flex flex-column justify-content-center w-full gap-3"
+        >
+          <Panel :collapsed="false" header="Assets">
+            <div id="mobile-row" class="flex flex-row w-full">
+              <InvestmentAssetsPaginated
+                ref="holdRef"
+                @update-asset="(id) => manipulateDialog('updateAsset', id)"
+              />
+            </div>
+          </Panel>
+        </div>
+        <div v-else key="trades" class="w-full">
+          <Panel :collapsed="false" header="Trades">
+            <div id="mobile-row" class="flex flex-row w-full">
+              <InvestmentTradesPaginated
+                ref="txnRef"
+                @update-trade="(id) => manipulateDialog('updateTrade', id)"
+              />
+            </div>
+          </Panel>
+        </div>
+      </Transition>
     </div>
   </main>
 </template>

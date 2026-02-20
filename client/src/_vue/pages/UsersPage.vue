@@ -1,115 +1,31 @@
 <script setup lang="ts">
-import { useSharedStore } from "../../services/stores/shared_store.ts";
-import { useToastStore } from "../../services/stores/toast_store.ts";
-import { computed, onMounted, provide, ref } from "vue";
-import { useUserStore } from "../../services/stores/user_store.ts";
-import type { Role, User } from "../../models/user_models.ts";
-import filterHelper from "../../utils/filter_helper.ts";
-import type { Column } from "../../services/filter_registry.ts";
-import type {FilterObj, PaginatorState} from "../../models/shared_models.ts";
-import FilterMenu from "../components/filters/FilterMenu.vue";
-import ActiveFilters from "../components/filters/ActiveFilters.vue";
-import ActionRow from "../components/layout/ActionRow.vue";
-import dateHelper from "../../utils/date_helper.ts";
-import LoadingSpinner from "../components/base/LoadingSpinner.vue";
-import ColumnHeader from "../components/base/ColumnHeader.vue";
-import CustomPaginator from "../components/base/CustomPaginator.vue";
+import { computed, onMounted, ref } from "vue";
 import UserForm from "../components/forms/UserForm.vue";
 import InvitationsPaginated from "../components/data/InvitationsPaginated.vue";
-import { useRouter } from "vue-router";
+import UsersPaginated from "../components/data/UsersPaginated.vue";
+import type { Role } from "../../models/user_models.ts";
+import { useUserStore } from "../../services/stores/user_store.ts";
 import { usePermissions } from "../../utils/use_permissions.ts";
+import { useRouter } from "vue-router";
 
-const sharedStore = useSharedStore();
-const toastStore = useToastStore();
 const userStore = useUserStore();
+
 const { hasPermission } = usePermissions();
-
-onMounted(async () => {
-  await userStore.getRoles();
-});
-
 const router = useRouter();
-const apiPrefix = userStore.apiPrefix;
 
 const createModal = ref(false);
 const updateModal = ref(false);
 const updateUserID = ref(null);
 
-const loading = ref(false);
-const records = ref<User[]>([]);
-const roles = computed<Role[]>(() => userStore.roles);
-
-const params = computed(() => {
-  return {
-    rowsPerPage: paginator.value.rowsPerPage,
-    sort: sort.value,
-    filters: filters.value,
-  };
-});
-
-const rows = ref([10, 25, 50, 100]);
-const default_rows = ref(rows.value[0]);
-const paginator = ref<PaginatorState>({
-  total: 0,
-  from: 0,
-  to: 0,
-  rowsPerPage: default_rows.value!,
-});
-const page = ref(1);
-const sort = ref(filterHelper.initSort());
-const filterStorageIndex = ref(apiPrefix + "-filters");
-const filters = ref(
-  JSON.parse(localStorage.getItem(filterStorageIndex.value) ?? "[]"),
-);
-const filterOverlayRef = ref<any>(null);
-
-const activeColumns = computed<Column[]>(() => [
-  { field: "display_name", header: "Name", type: "text" },
-  { field: "email", header: "Email", type: "text" },
-  {
-    field: "role",
-    header: "Role",
-    type: "enum",
-    options: roles.value,
-    optionLabel: "name",
-  },
-  { field: "email_confirmed", header: "Verified", type: "date" },
-]);
-
+const usrRef = ref<InstanceType<typeof UsersPaginated> | null>(null);
 const invRef = ref<InstanceType<typeof InvitationsPaginated> | null>(null);
 
+const roles = computed<Role[]>(() => userStore.roles);
+const activeTab = ref("users");
+
 onMounted(async () => {
-  await init();
+  await userStore.getRoles();
 });
-
-async function init() {
-  await getData();
-}
-
-async function getData(new_page: number | null = null) {
-  loading.value = true;
-  if (new_page) page.value = new_page;
-
-  try {
-    let payload = {
-      ...params.value,
-    };
-
-    let paginationResponse = await sharedStore.getRecordsPaginated(
-      apiPrefix,
-      payload,
-      page.value,
-    );
-
-    records.value = paginationResponse.data;
-    paginator.value.total = paginationResponse.total_records;
-    paginator.value.to = paginationResponse.to;
-    paginator.value.from = paginationResponse.from;
-    loading.value = false;
-  } catch (error) {
-    toastStore.errorResponseToast(error);
-  }
-}
 
 function manipulateDialog(modal: string, value: any) {
   switch (modal) {
@@ -133,14 +49,13 @@ async function handleEmit(emitType: any) {
     case "completeOperation": {
       createModal.value = false;
       updateModal.value = false;
-      await getData();
-      invRef.value?.refresh();
+      usrRef.value?.refresh();
       break;
     }
     case "deleteUser": {
       createModal.value = false;
       updateModal.value = false;
-      await getData();
+      usrRef.value?.refresh();
       break;
     }
     default: {
@@ -148,85 +63,9 @@ async function handleEmit(emitType: any) {
     }
   }
 }
-
-async function onPage(event: any) {
-  paginator.value.rowsPerPage = event.rows;
-  page.value = event.page + 1;
-  await getData();
-}
-
-function applyFilters(list: FilterObj[]) {
-  filters.value = filterHelper.mergeFilters(filters.value, list);
-  localStorage.setItem(filterStorageIndex.value, JSON.stringify(filters.value));
-  getData();
-  filterOverlayRef.value.hide();
-}
-
-function clearFilters() {
-  filters.value = [];
-  localStorage.removeItem(filterStorageIndex.value);
-  cancelFilters();
-  getData();
-}
-
-function cancelFilters() {
-  filterOverlayRef.value.hide();
-}
-
-function removeFilter(index: number) {
-  if (index < 0 || index >= filters.value.length) return;
-
-  const next = filters.value.slice();
-  next.splice(index, 1);
-  filters.value = next;
-
-  if (filters.value.length > 0) {
-    localStorage.setItem(
-      filterStorageIndex.value,
-      JSON.stringify(filters.value),
-    );
-  } else {
-    localStorage.removeItem(filterStorageIndex.value);
-  }
-
-  getData();
-}
-
-function switchSort(column: string) {
-  if (sort.value.field === column) {
-    sort.value.order = filterHelper.toggleSort(sort.value.order);
-  } else {
-    sort.value.order = 1;
-  }
-  sort.value.field = column;
-  getData();
-}
-
-function toggleFilterOverlay(event: any) {
-  filterOverlayRef.value.toggle(event);
-}
-
-provide("switchSort", switchSort);
-provide("removeFilter", removeFilter);
 </script>
 
 <template>
-  <Popover
-    ref="filterOverlayRef"
-    class="rounded-popover"
-    :style="{ width: '420px' }"
-    :breakpoints="{ '775px': '90vw' }"
-  >
-    <FilterMenu
-      v-model:value="filters"
-      :columns="activeColumns"
-      :api-source="apiPrefix"
-      @apply="(list) => applyFilters(list)"
-      @clear="clearFilters"
-      @cancel="cancelFilters"
-    />
-  </Popover>
-
   <Dialog
     v-model:visible="createModal"
     class="rounded-dialog"
@@ -260,26 +99,26 @@ provide("removeFilter", removeFilter);
     />
   </Dialog>
 
-  <main class="flex flex-column w-full p-2 align-items-center">
+  <main class="flex flex-column w-full align-items-center">
     <div
       id="mobile-container"
-      class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
-      style="
-        border: 1px solid var(--border-color);
-        background: var(--background-secondary);
-      "
+      class="flex flex-column justify-content-center w-full gap-3 border-round-xl"
     >
       <div
-        class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
+        class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
       >
-        <div style="font-weight: bold">Users</div>
-
-        <i
-          v-if="hasPermission('manage_roles')"
-          v-tooltip="'Go to roles settings.'"
-          class="pi pi-external-link hover-icon mr-auto text-sm"
-          @click="router.push('settings/roles')"
-        />
+        <div class="w-full flex flex-column gap-2">
+          <div class="flex flex-row gap-2 align-items-center w-full">
+            <div style="font-weight: bold">Management</div>
+            <i
+              v-if="hasPermission('manage_roles')"
+              v-tooltip="'Go to roles settings.'"
+              class="pi pi-external-link hover-icon mr-auto text-sm"
+              @click="router.push('settings/roles')"
+            />
+          </div>
+          <div>View and manage users and invitations.</div>
+        </div>
         <Button
           class="main-button"
           @click="manipulateDialog('inviteUser', true)"
@@ -287,109 +126,62 @@ provide("removeFilter", removeFilter);
           <div class="flex flex-row gap-1 align-items-center">
             <i class="pi pi-plus" />
             <span> New </span>
-            <span class="mobile-hide"> User </span>
+            <span class="mobile-hide"> Invitation </span>
           </div>
         </Button>
       </div>
 
-      <div
-        class="flex flex-row justify-content-between align-items-center p-1 gap-3 w-full border-round-md"
-        style="
-          border: 1px solid var(--border-color);
-          background: var(--background-secondary);
-        "
-      >
-        <ActionRow>
-          <template #activeFilters>
-            <ActiveFilters
-              :active-filters="filters"
-              :show-only-active="false"
-              active-filter=""
-            />
-          </template>
-          <template #filterButton>
-            <div
-              class="hover-icon flex flex-row align-items-center gap-2"
-              style="
-                padding: 0.5rem 1rem;
-                border-radius: 8px;
-                border: 1px solid var(--border-color);
-              "
-              @click="toggleFilterOverlay($event)"
-            >
-              <i class="pi pi-filter" style="font-size: 0.845rem" />
-              <div>Filter</div>
-            </div>
-          </template>
-        </ActionRow>
-      </div>
-
-      <div id="mobile-row" class="flex flex-row gap-2 w-full">
-        <DataTable
-          class="w-full enhanced-table"
-          data-key="id"
-          :loading="loading"
-          :value="records"
-          :row-hover="true"
-          :show-gridlines="false"
-          scrollable
-          column-resize-mode="fit"
+      <div class="flex flex-row gap-3 p-2">
+        <div
+          class="cursor-pointer pb-1"
+          style="color: var(--text-secondary)"
+          :style="
+            activeTab === 'users'
+              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
+              : ''
+          "
+          @click="activeTab = 'users'"
         >
-          <template #empty>
-            <div style="padding: 10px">No records found.</div>
-          </template>
-          <template #loading>
-            <LoadingSpinner />
-          </template>
-          <template #footer>
-            <CustomPaginator
-              :paginator="paginator"
-              :rows="rows"
-              @on-page="onPage"
-            />
-          </template>
+          Users
+        </div>
+        <div
+          class="cursor-pointer pb-1"
+          style="color: var(--text-secondary)"
+          :style="
+            activeTab === 'invitations'
+              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
+              : ''
+          "
+          @click="activeTab = 'invitations'"
+        >
+          Invitations
+        </div>
+      </div>
 
-          <Column
-            v-for="col of activeColumns"
-            :key="col.field"
-            :field="col.field"
-          >
-            <template #header>
-              <ColumnHeader
-                :header="col.header"
-                :field="col.field"
-                :sort="sort"
+      <Transition name="fade" mode="out-in">
+        <div
+          v-if="activeTab === 'users'"
+          key="users"
+          class="flex flex-column justify-content-center w-full gap-3"
+        >
+          <Panel :collapsed="false" header="Users">
+            <div id="mobile-row" class="flex flex-row w-full">
+              <UsersPaginated
+                ref="usrRef"
+                :roles="roles"
+                @update-user="(id) => manipulateDialog('updateUser', id)"
               />
-            </template>
-            <template #body="{ data }">
-              <template v-if="col.field === 'email_confirmed'">
-                {{ dateHelper.formatDate(data?.email_confirmed, true) }}
-              </template>
-              <template v-else-if="col.field === 'display_name'">
-                <span
-                  class="hover-icon font-bold"
-                  @click="manipulateDialog('updateUser', data.id)"
-                >
-                  {{ data[col.field] }}
-                </span>
-              </template>
-              <template v-else-if="col.field === 'role'">
-                <span>
-                  {{ data[col.field]["name"] }}
-                </span>
-              </template>
-              <template v-else>
-                {{ data[col.field] }}
-              </template>
-            </template>
-          </Column>
-        </DataTable>
-      </div>
-
-      <label>Invitations</label>
-      <div class="flex flex-row gap-2 w-full">
-        <InvitationsPaginated ref="invRef" />
-      </div>
+            </div>
+          </Panel>
+        </div>
+        <div v-else key="invitations" class="w-full">
+          <Panel :collapsed="false" header="Invitations">
+            <div class="flex flex-row gap-2 w-full">
+              <InvitationsPaginated ref="invRef" />
+            </div>
+          </Panel>
+        </div>
+      </Transition>
     </div>
   </main>
 </template>

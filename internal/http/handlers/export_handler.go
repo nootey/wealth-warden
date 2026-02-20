@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
 
@@ -26,6 +27,13 @@ func NewExportHandler(
 		Service: service,
 		v:       v,
 	}
+}
+
+func (h *ExportHandler) Routes(apiGroup *gin.RouterGroup) {
+	apiGroup.GET("", authz.RequireAllMW("view_data"), h.GetExports)
+	apiGroup.POST("", authz.RequireAllMW("create_exports"), h.CreateExport)
+	apiGroup.POST(":id/download", authz.RequireAllMW("view_data"), h.DownloadExport)
+	apiGroup.DELETE(":id", authz.RequireAllMW("delete_exports"), h.DeleteExport)
 }
 
 func (h *ExportHandler) GetExports(c *gin.Context) {

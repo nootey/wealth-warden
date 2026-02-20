@@ -31,6 +31,23 @@ func NewAuthHandler(
 	}
 }
 
+func (h *AuthHandler) PublicRoutes(apiGroup *gin.RouterGroup) {
+	apiGroup.GET("/validate-email", h.ValidateInvitationEmail)
+	apiGroup.POST("/login", h.LoginUser)
+	apiGroup.POST("/logout", h.LogoutUser)
+	apiGroup.POST("/signup", h.SignUp)
+	apiGroup.POST("/register", h.RegisterUser)
+	apiGroup.POST("/request-password-reset", h.RequestPasswordReset)
+	apiGroup.GET("/validate-password-reset", h.ValidatePasswordReset)
+	apiGroup.POST("/reset-password", h.ResetPassword)
+	apiGroup.GET("/confirm-email", h.ConfirmEmail)
+}
+
+func (h *AuthHandler) Routes(apiGroup *gin.RouterGroup) {
+	apiGroup.GET("/current", h.GetAuthUser)
+	apiGroup.POST("/resend-confirmation-email", h.ResendConfirmationEmail)
+}
+
 func (h *AuthHandler) LoginUser(c *gin.Context) {
 
 	ctx := c.Request.Context()

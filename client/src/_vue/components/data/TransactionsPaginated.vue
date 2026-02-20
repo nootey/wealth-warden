@@ -4,14 +4,20 @@ import dateHelper from "../../../utils/date_helper.ts";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import ColumnHeader from "../base/ColumnHeader.vue";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
-import type { Transaction } from "../../../models/transaction_models.ts";
+import type {
+  Transaction,
+  TransactionBatchTotals,
+} from "../../../models/transaction_models.ts";
 import type { Column } from "../../../services/filter_registry.ts";
 import { computed, onMounted, provide, ref, watch } from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
-import type {FilterObj, PaginatorState} from "../../../models/shared_models.ts";
+import type {
+  FilterObj,
+  PaginatorState,
+} from "../../../models/shared_models.ts";
 import FilterMenu from "../filters/FilterMenu.vue";
 import ActiveFilters from "../filters/ActiveFilters.vue";
 import ActionRow from "../layout/ActionRow.vue";
@@ -35,6 +41,7 @@ const { colors } = useChartColors();
 
 const loading = ref(false);
 const records = ref<Transaction[]>([]);
+const totals = ref<TransactionBatchTotals | null>(null);
 
 const apiPrefix = "transactions";
 const includeDeleted = ref(false);
@@ -94,8 +101,8 @@ async function getData(new_page: number | null = null) {
       { ...params.value },
       page.value,
     );
-
-    records.value = paginationResponse.data;
+    records.value = paginationResponse.data.records;
+    totals.value = paginationResponse.data.totals;
     paginator.value.total = paginationResponse.total_records;
     paginator.value.to = paginationResponse.to;
     paginator.value.from = paginationResponse.from;
@@ -193,7 +200,38 @@ defineExpose({ refresh });
     />
   </Popover>
 
-  <div class="flex flex-column w-full">
+  <div class="flex flex-column w-full gap-3">
+    <div
+      id="balance-row"
+      class="flex w-full p-3 gap-2 border-round-xl bordered justify-content-between align-items-center"
+      style="max-width: 1000px; border: 1px solid var(--border-color)"
+    >
+      <div
+        class="flex-1 text-center px-3"
+        style="border-right: 1px solid var(--border-color)"
+      >
+        <div class="text-sm" style="color: var(--text-secondary)">Total</div>
+        <div class="font-bold">
+          {{ totals?.count }}
+        </div>
+      </div>
+      <div
+        class="flex-1 text-center px-3"
+        style="border-right: 1px solid var(--border-color)"
+      >
+        <div class="text-sm" style="color: var(--text-secondary)">Income</div>
+        <div class="font-bold">
+          {{ vueHelper.displayAsCurrency(totals?.income!) }}
+        </div>
+      </div>
+      <div class="flex-1 text-center px-3">
+        <div class="text-sm" style="color: var(--text-secondary)">Expenses</div>
+        <div class="font-bold">
+          {{ vueHelper.displayAsCurrency(totals?.expenses!) }}
+        </div>
+      </div>
+    </div>
+
     <div v-if="!readOnly" class="flex flex-row w-full">
       <ActionRow>
         <template #activeFilters>
@@ -226,109 +264,124 @@ defineExpose({ refresh });
       </ActionRow>
     </div>
 
-    <DataTable
-      data-key="id"
-      class="w-full enhanced-table"
-      :loading="loading"
-      :value="records"
-      scrollable
-      :row-class="vueHelper.deletedRowClass"
-      column-resize-mode="fit"
-      scroll-direction="both"
+    <div
+      class="flex flex-column w-full border-round-2xl"
+      style="
+        padding: 0.25rem 0.25rem 0 0.25rem;
+        border: 1px solid var(--border-color);
+      "
     >
-      <template #empty>
-        <div style="padding: 10px">No records found.</div>
-      </template>
-      <template #loading>
-        <LoadingSpinner />
-      </template>
-      <template #footer>
-        <CustomPaginator
-          :paginator="paginator"
-          :rows="rows"
-          @on-page="onPage"
-        />
-      </template>
-
-      <Column
-        v-for="col of columns"
-        :key="col.field"
-        :field="col.field"
-        :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
-        :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+      <DataTable
+        data-key="id"
+        class="w-full enhanced-table"
+        :loading="loading"
+        :value="records"
+        scrollable
+        :row-class="vueHelper.deletedRowClass"
+        column-resize-mode="fit"
+        scroll-direction="both"
       >
-        <template #header>
-          <ColumnHeader
-            :header="col.header"
-            :field="col.field"
-            :sort="sort"
-            :sortable="!!sort"
-            @click="!sort"
+        <template #empty>
+          <div style="padding: 10px">No records found.</div>
+        </template>
+        <template #loading>
+          <LoadingSpinner />
+        </template>
+        <template #footer>
+          <CustomPaginator
+            :paginator="paginator"
+            :rows="rows"
+            @on-page="onPage"
           />
         </template>
-        <template #body="{ data }">
-          <template v-if="col.field === 'amount'">
-            <div class="flex flex-row gap-2 align-items-center">
-              <i
-                class="text-xs"
-                :class="
-                  (data.transaction_type === 'expense'
-                    ? data.amount * -1
-                    : data.amount) >= 0
-                    ? 'pi pi-angle-up'
-                    : 'pi pi-angle-down'
-                "
-                :style="{
-                  color:
+
+        <Column
+          v-for="col of columns"
+          :key="col.field"
+          :field="col.field"
+          :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+          :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+        >
+          <template #header>
+            <ColumnHeader
+              :header="col.header"
+              :field="col.field"
+              :sort="sort"
+              :sortable="!!sort"
+              @click="!sort"
+            />
+          </template>
+          <template #body="{ data }">
+            <template v-if="col.field === 'amount'">
+              <div class="flex flex-row gap-2 align-items-center">
+                <i
+                  class="text-xs"
+                  :class="
                     (data.transaction_type === 'expense'
                       ? data.amount * -1
                       : data.amount) >= 0
-                      ? colors.pos
-                      : colors.neg,
-                }"
-              />
-              <span>{{
-                vueHelper.displayAsCurrency(
-                  data.transaction_type == "expense"
-                    ? data.amount * -1
-                    : data.amount,
-                )
-              }}</span>
-            </div>
-          </template>
-          <template v-else-if="col.field === 'txn_date'">
-            {{ dateHelper.formatDate(data.txn_date, false) }}
-          </template>
-          <template v-else-if="col.field === 'account'">
-            <div class="flex flex-row gap-2 align-items-center account-row">
-              <span class="hover" @click="$emit('rowClick', data.id)">
-                {{ data[col.field]?.["name"] }}
+                      ? 'pi pi-angle-up'
+                      : 'pi pi-angle-down'
+                  "
+                  :style="{
+                    color:
+                      (data.transaction_type === 'expense'
+                        ? data.amount * -1
+                        : data.amount) >= 0
+                        ? colors.pos
+                        : colors.neg,
+                  }"
+                />
+                <span>{{
+                  vueHelper.displayAsCurrency(
+                    data.transaction_type == "expense"
+                      ? data.amount * -1
+                      : data.amount,
+                  )
+                }}</span>
+              </div>
+            </template>
+            <template v-else-if="col.field === 'txn_date'">
+              {{ dateHelper.formatDate(data.txn_date, false) }}
+            </template>
+            <template v-else-if="col.field === 'account'">
+              <div class="flex flex-row gap-2 align-items-center account-row">
+                <span class="hover" @click="$emit('rowClick', data.id)">
+                  {{ data[col.field]?.["name"] }}
+                </span>
+                <i
+                  v-if="data[col.field]?.['deleted_at']"
+                  v-tooltip="'This account is closed.'"
+                  class="pi pi-ban popup-icon hover-icon"
+                />
+              </div>
+            </template>
+            <template v-else-if="col.field === 'category'">
+              {{ data[col.field]?.["display_name"] }}
+            </template>
+            <template v-else-if="col.field === 'description'">
+              <span v-tooltip.top="data[col.field]" class="truncate-text">
+                {{ data[col.field] }}
               </span>
-              <i
-                v-if="data[col.field]?.['deleted_at']"
-                v-tooltip="'This account is closed.'"
-                class="pi pi-ban popup-icon hover-icon"
-              />
-            </div>
-          </template>
-          <template v-else-if="col.field === 'category'">
-            {{ data[col.field]?.["display_name"] }}
-          </template>
-          <template v-else-if="col.field === 'description'">
-            <span v-tooltip.top="data[col.field]" class="truncate-text">
+            </template>
+            <template v-else>
               {{ data[col.field] }}
-            </span>
+            </template>
           </template>
-          <template v-else>
-            {{ data[col.field] }}
-          </template>
-        </template>
-      </Column>
-    </DataTable>
+        </Column>
+      </DataTable>
+    </div>
   </div>
 </template>
 
 <style scoped>
+@media (max-width: 768px) {
+  #balance-row {
+    padding: 1rem !important;
+    font-size: 80%;
+  }
+}
+
 .hover {
   font-weight: bold;
 }

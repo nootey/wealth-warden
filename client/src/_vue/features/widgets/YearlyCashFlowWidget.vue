@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import type { YearlyCashFlowResponse } from "../../../models/chart_models.ts";
 import { onMounted, ref, watch } from "vue";
-import { useStatisticsStore } from "../../../services/stores/statistics_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import { useChartStore } from "../../../services/stores/chart_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import type { Account } from "../../../models/account_models.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import ShowLoading from "../../components/base/ShowLoading.vue";
 import YearlyCashFlowBreakdownChart from "../../components/charts/YearlyCashFlowBreakdownChart.vue";
+import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
+import type { YearlyCashFlowResponse } from "../../../models/analytics_models.ts";
 
 withDefaults(
   defineProps<{
@@ -19,9 +18,8 @@ withDefaults(
   },
 );
 
-const statsStore = useStatisticsStore();
+const analyticsStore = useAnalyticsStore();
 const toastStore = useToastStore();
-const chartStore = useChartStore();
 const accStore = useAccountStore();
 
 const years = ref<number[]>([]);
@@ -47,7 +45,8 @@ async function getData(year: number | null, account: number | null = null) {
       params.account = account;
     }
 
-    cashFlow.value = await chartStore.getYearlyCashFlowOverviewForYear(params);
+    cashFlow.value =
+      await analyticsStore.getYearlyCashFlowOverviewForYear(params);
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {
@@ -57,7 +56,7 @@ async function getData(year: number | null, account: number | null = null) {
 
 async function loadYears() {
   try {
-    const result = await statsStore.getAvailableStatsYears(null);
+    const result = await analyticsStore.getAvailableStatsYears(null);
 
     years.value = Array.isArray(result) ? result : [];
 
@@ -100,7 +99,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-column w-full p-3 gap-3">
+  <div class="flex flex-column w-full p-2 gap-3">
     <div
       v-if="years.length > 0"
       id="mobile-row"

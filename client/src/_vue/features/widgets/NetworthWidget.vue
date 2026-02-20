@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import { useChartStore } from "../../../services/stores/chart_store.ts";
-import type {
-  NetworthResponse,
-  ChartPoint,
-} from "../../../models/chart_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import NetworthChart from "../../components/charts/NetworthChart.vue";
 import ShowLoading from "../../components/base/ShowLoading.vue";
 import { useRouter } from "vue-router";
+import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
+import type {
+  ChartPoint,
+  NetworthResponse,
+} from "../../../models/analytics_models.ts";
 
 const props = withDefaults(
   defineProps<{
@@ -53,11 +53,13 @@ const periodLabels: Record<RangeKey, string> = {
 };
 
 const toastStore = useToastStore();
-const chartStore = useChartStore();
+const analyticsStore = useAnalyticsStore();
 
 const hydrating = ref(true);
 const payload = ref<NetworthResponse | null>(null);
-const selectedDTO = ref<(typeof dateRanges)[number] | null>(dateRanges[4] ?? null);
+const selectedDTO = ref<(typeof dateRanges)[number] | null>(
+  dateRanges[4] ?? null,
+);
 const selectedKey = computed<RangeKey>(
   () => (selectedDTO.value?.key ?? "ytd") as RangeKey,
 );
@@ -192,7 +194,7 @@ async function getNetworthData(opts?: {
     }
     if (props.accountId) params.account = props.accountId;
 
-    const res = await chartStore.getNetWorth(params);
+    const res = await analyticsStore.getNetWorth(params);
 
     res.points = res.points.map((p: any) => ({ ...p, value: Number(p.value) }));
     res.current.value = Number(res.current.value);
@@ -226,15 +228,11 @@ onMounted(getData);
 <template>
   <div
     v-if="payload && !isRefreshing"
-    class="w-full flex flex-column justify-content-center p-3 gap-1"
+    class="w-full flex flex-column justify-content-center p-2 gap-1"
   >
     <div class="flex flex-row gap-2 w-full justify-content-between">
       <div class="flex flex-column gap-2">
-        <div class="flex flex-row">
-          <span class="text-sm" style="color: var(--text-secondary)">{{
-            title
-          }}</span>
-        </div>
+        <div class="flex flex-row"></div>
         <div class="flex flex-row">
           <strong>{{
             vueHelper.displayAsCurrency(payload.current.value)

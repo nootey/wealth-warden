@@ -19,7 +19,7 @@ import (
 )
 
 type TransactionServiceInterface interface {
-	FetchTransactionsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transaction, *utils.Paginator, error)
+	FetchTransactionsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transaction, *models.TransactionBatchTotals, *utils.Paginator, error)
 	FetchTransfersPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transfer, *utils.Paginator, error)
 	FetchTransactionByID(ctx context.Context, userID int64, id int64, includeDeleted bool) (*models.Transaction, error)
 	FetchAllCategories(ctx context.Context, userID int64, includeDeleted bool) ([]models.Category, error)
@@ -110,18 +110,28 @@ func (s *TransactionService) updateAccountBalance(ctx context.Context, tx *gorm.
 	return nil
 }
 
-func (s *TransactionService) FetchTransactionsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transaction, *utils.Paginator, error) {
+func (s *TransactionService) FetchTransactionsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transaction, *models.TransactionBatchTotals, *utils.Paginator, error) {
 
 	totalRecords, err := s.repo.CountTransactions(ctx, nil, userID, p.Filters, includeDeleted, accountID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
 
 	records, err := s.repo.FindTransactions(ctx, nil, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, p.Filters, includeDeleted, accountID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+
+	totals := &models.TransactionBatchTotals{}
+	for _, r := range records {
+		totals.Count++
+		if r.TransactionType == "income" {
+			totals.Income = totals.Income.Add(r.Amount)
+		} else {
+			totals.Expenses = totals.Expenses.Add(r.Amount)
+		}
 	}
 
 	from := offset + 1
@@ -142,7 +152,7 @@ func (s *TransactionService) FetchTransactionsPaginated(ctx context.Context, use
 		To:           to,
 	}
 
-	return records, paginator, nil
+	return records, totals, paginator, nil
 }
 
 func (s *TransactionService) FetchTransfersPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transfer, *utils.Paginator, error) {

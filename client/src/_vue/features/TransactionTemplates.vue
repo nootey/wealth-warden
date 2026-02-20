@@ -13,7 +13,7 @@ import LoadingSpinner from "../components/base/LoadingSpinner.vue";
 import TransactionTemplateForm from "../components/forms/TransactionTemplateForm.vue";
 import vueHelper from "../../utils/vue_helper.ts";
 import { useTransactionStore } from "../../services/stores/transaction_store.ts";
-import type {PaginatorState} from "../../models/shared_models.ts";
+import type { PaginatorState } from "../../models/shared_models.ts";
 
 const emit = defineEmits<{
   (event: "refreshTemplateCount"): void;

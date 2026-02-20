@@ -757,7 +757,7 @@ func (_c *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Cal
 }
 
 // FetchTransactionsPaginated provides a mock function with given fields: ctx, userID, p, includeDeleted, accountID
-func (_m *MockTransactionServiceInterface) FetchTransactionsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transaction, *utils.Paginator, error) {
+func (_m *MockTransactionServiceInterface) FetchTransactionsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transaction, *models.TransactionBatchTotals, *utils.Paginator, error) {
 	ret := _m.Called(ctx, userID, p, includeDeleted, accountID)
 
 	if len(ret) == 0 {
@@ -765,9 +765,10 @@ func (_m *MockTransactionServiceInterface) FetchTransactionsPaginated(ctx contex
 	}
 
 	var r0 []models.Transaction
-	var r1 *utils.Paginator
-	var r2 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams, bool, *int64) ([]models.Transaction, *utils.Paginator, error)); ok {
+	var r1 *models.TransactionBatchTotals
+	var r2 *utils.Paginator
+	var r3 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams, bool, *int64) ([]models.Transaction, *models.TransactionBatchTotals, *utils.Paginator, error)); ok {
 		return rf(ctx, userID, p, includeDeleted, accountID)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams, bool, *int64) []models.Transaction); ok {
@@ -778,21 +779,29 @@ func (_m *MockTransactionServiceInterface) FetchTransactionsPaginated(ctx contex
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, int64, utils.PaginationParams, bool, *int64) *utils.Paginator); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, int64, utils.PaginationParams, bool, *int64) *models.TransactionBatchTotals); ok {
 		r1 = rf(ctx, userID, p, includeDeleted, accountID)
 	} else {
 		if ret.Get(1) != nil {
-			r1 = ret.Get(1).(*utils.Paginator)
+			r1 = ret.Get(1).(*models.TransactionBatchTotals)
 		}
 	}
 
-	if rf, ok := ret.Get(2).(func(context.Context, int64, utils.PaginationParams, bool, *int64) error); ok {
+	if rf, ok := ret.Get(2).(func(context.Context, int64, utils.PaginationParams, bool, *int64) *utils.Paginator); ok {
 		r2 = rf(ctx, userID, p, includeDeleted, accountID)
 	} else {
-		r2 = ret.Error(2)
+		if ret.Get(2) != nil {
+			r2 = ret.Get(2).(*utils.Paginator)
+		}
 	}
 
-	return r0, r1, r2
+	if rf, ok := ret.Get(3).(func(context.Context, int64, utils.PaginationParams, bool, *int64) error); ok {
+		r3 = rf(ctx, userID, p, includeDeleted, accountID)
+	} else {
+		r3 = ret.Error(3)
+	}
+
+	return r0, r1, r2, r3
 }
 
 // MockTransactionServiceInterface_FetchTransactionsPaginated_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FetchTransactionsPaginated'
@@ -817,12 +826,12 @@ func (_c *MockTransactionServiceInterface_FetchTransactionsPaginated_Call) Run(r
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_FetchTransactionsPaginated_Call) Return(_a0 []models.Transaction, _a1 *utils.Paginator, _a2 error) *MockTransactionServiceInterface_FetchTransactionsPaginated_Call {
-	_c.Call.Return(_a0, _a1, _a2)
+func (_c *MockTransactionServiceInterface_FetchTransactionsPaginated_Call) Return(_a0 []models.Transaction, _a1 *models.TransactionBatchTotals, _a2 *utils.Paginator, _a3 error) *MockTransactionServiceInterface_FetchTransactionsPaginated_Call {
+	_c.Call.Return(_a0, _a1, _a2, _a3)
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_FetchTransactionsPaginated_Call) RunAndReturn(run func(context.Context, int64, utils.PaginationParams, bool, *int64) ([]models.Transaction, *utils.Paginator, error)) *MockTransactionServiceInterface_FetchTransactionsPaginated_Call {
+func (_c *MockTransactionServiceInterface_FetchTransactionsPaginated_Call) RunAndReturn(run func(context.Context, int64, utils.PaginationParams, bool, *int64) ([]models.Transaction, *models.TransactionBatchTotals, *utils.Paginator, error)) *MockTransactionServiceInterface_FetchTransactionsPaginated_Call {
 	_c.Call.Return(run)
 	return _c
 }

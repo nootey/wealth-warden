@@ -301,6 +301,12 @@ func (suite *TransactionHandlerTestSuite) TestGetTransactionsPaginated_Success()
 		TotalRecords: 1,
 	}
 
+	mockTotals := models.TransactionBatchTotals{
+		Count:    1,
+		Income:   decimal.NewFromInt(0),
+		Expenses: decimal.NewFromInt(0),
+	}
+
 	suite.mockService.EXPECT().
 		FetchTransactionsPaginated(
 			mock.Anything,
@@ -309,7 +315,7 @@ func (suite *TransactionHandlerTestSuite) TestGetTransactionsPaginated_Success()
 			false,
 			mock.Anything,
 		).
-		Return(mockTransactions, mockPaginator, nil).
+		Return(mockTransactions, &mockTotals, mockPaginator, nil).
 		Once()
 
 	req := httptest.NewRequest(http.MethodGet, "/transactions?page=1&rowsPerPage=10", nil)
@@ -336,7 +342,7 @@ func (suite *TransactionHandlerTestSuite) TestGetTransactionsPaginated_ServiceEr
 			false,
 			mock.Anything,
 		).
-		Return(nil, nil, errors.New("database error")).
+		Return(nil, nil, nil, errors.New("database error")).
 		Once()
 
 	req := httptest.NewRequest(http.MethodGet, "/transactions?page=1&rows=10", nil)

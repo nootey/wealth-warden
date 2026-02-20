@@ -7,6 +7,7 @@ import (
 	"strings"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
 
@@ -26,6 +27,15 @@ func NewRolePermissionHandler(
 		Service: service,
 		v:       v,
 	}
+}
+
+func (h *RolePermissionHandler) Routes(apiGroup *gin.RouterGroup) {
+	apiGroup.GET("", authz.RequireAllMW("manage_roles"), h.GetAllRoles)
+	apiGroup.GET("/permissions", authz.RequireAllMW("manage_roles"), h.GetAllPermissions)
+	apiGroup.GET(":id", authz.RequireAllMW("manage_roles"), h.GetRoleById)
+	apiGroup.PUT("", authz.RequireAllMW("manage_roles"), h.InsertRole)
+	apiGroup.PUT(":id", authz.RequireAllMW("manage_roles"), h.UpdateRole)
+	apiGroup.DELETE(":id", authz.RequireAllMW("delete_roles"), h.DeleteRole)
 }
 
 func (h *RolePermissionHandler) GetAllRoles(c *gin.Context) {

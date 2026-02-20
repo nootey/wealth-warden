@@ -7,6 +7,7 @@ import (
 	"strings"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
 
@@ -26,6 +27,28 @@ func NewAccountHandler(
 		service: service,
 		v:       v,
 	}
+}
+
+func (h *AccountHandler) Routes(apiGroup *gin.RouterGroup) {
+	apiGroup.GET("", authz.RequireAllMW("view_data"), h.GetAccountsPaginated)
+	apiGroup.GET("/all", authz.RequireAllMW("view_data"), h.GetAllAccounts)
+	apiGroup.GET("/:id", authz.RequireAllMW("view_data"), h.GetAccountByID)
+	apiGroup.GET("/name/:name", authz.RequireAllMW("view_data"), h.GetAccountByName)
+	apiGroup.GET("/subtype/:sub", authz.RequireAllMW("view_data"), h.GetAccountsBySubtype)
+	apiGroup.GET("/type/:type", authz.RequireAllMW("view_data"), h.GetAccountsByType)
+	apiGroup.GET("/types", authz.RequireAllMW("view_data"), h.GetAccountTypes)
+	apiGroup.PUT("", authz.RequireAllMW("manage_data"), h.InsertAccount)
+	apiGroup.PUT(":id", authz.RequireAllMW("manage_data"), h.UpdateAccount)
+	apiGroup.POST(":id/active", authz.RequireAllMW("manage_data"), h.ToggleAccountActiveState)
+	apiGroup.DELETE(":id", authz.RequireAllMW("manage_data"), h.CloseAccount)
+	apiGroup.POST(":id/projection/save", authz.RequireAllMW("manage_data"), h.SaveAccountProjection)
+	apiGroup.POST(":id/projection/revert", authz.RequireAllMW("manage_data"), h.RevertAccountProjection)
+	apiGroup.GET("/balances/:id/latest", authz.RequireAllMW("view_data"), h.GetLatestBalance)
+	apiGroup.POST("/balances/backfill", authz.RequireAllMW("manage_data"), h.BackfillBalancesForUser)
+	apiGroup.GET("/defaults/all", authz.RequireAllMW("view_data"), h.GetAccountsWithDefaults)
+	apiGroup.GET("/defaults/types", authz.RequireAllMW("view_data"), h.GetAccountTypesWithoutDefaults)
+	apiGroup.PATCH("/defaults/set/:id", authz.RequireAllMW("manage_data"), h.SetDefaultAccount)
+	apiGroup.PATCH("/defaults/unset/:id", authz.RequireAllMW("manage_data"), h.UnsetDefaultAccount)
 }
 
 func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
