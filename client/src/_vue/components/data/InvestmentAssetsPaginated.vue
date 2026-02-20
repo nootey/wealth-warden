@@ -123,7 +123,13 @@ defineExpose({ refresh });
 </script>
 
 <template>
-  <div class="flex flex-column w-full">
+  <div
+    class="flex flex-column w-full border-round-2xl"
+    style="
+      padding: 0.25rem 0.25rem 0 0.25rem;
+      border: 1px solid var(--border-color);
+    "
+  >
     <DataTable
       data-key="id"
       class="w-full enhanced-table"

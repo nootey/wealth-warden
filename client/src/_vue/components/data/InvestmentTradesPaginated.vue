@@ -233,136 +233,147 @@ defineExpose({ refresh });
       </ActionRow>
     </div>
 
-    <DataTable
-      data-key="id"
-      class="w-full enhanced-table"
-      :loading="loading"
-      :value="records"
-      scrollable
-      scroll-height="50vh"
-      :row-class="vueHelper.deletedRowClass"
-      column-resize-mode="fit"
-      scroll-direction="both"
+    <div
+      class="flex flex-column w-full border-round-2xl"
+      style="
+        padding: 0.25rem 0.25rem 0 0.25rem;
+        border: 1px solid var(--border-color);
+      "
     >
-      <template #empty>
-        <div style="padding: 10px">No records found.</div>
-      </template>
-      <template #loading>
-        <LoadingSpinner />
-      </template>
-      <template #footer>
-        <CustomPaginator
-          :paginator="paginator"
-          :rows="rows"
-          @on-page="onPage"
-        />
-      </template>
-
-      <Column
-        v-for="col of activeColumns"
-        :key="col.field"
-        :field="col.field"
-        :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
-        :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+      <DataTable
+        data-key="id"
+        class="w-full enhanced-table"
+        :loading="loading"
+        :value="records"
+        scrollable
+        scroll-height="50vh"
+        :row-class="vueHelper.deletedRowClass"
+        column-resize-mode="fit"
+        scroll-direction="both"
       >
-        <template #header>
-          <ColumnHeader
-            :header="col.header"
-            :field="col.field"
-            :sort="sort"
-            :sortable="!!sort"
-            @click="!sort"
+        <template #empty>
+          <div style="padding: 10px">No records found.</div>
+        </template>
+        <template #loading>
+          <LoadingSpinner />
+        </template>
+        <template #footer>
+          <CustomPaginator
+            :paginator="paginator"
+            :rows="rows"
+            @on-page="onPage"
           />
         </template>
-        <template #body="{ data }">
-          <template v-if="col.field === 'average_buy_price'">
-            <div class="flex flex-row gap-2 align-items-center">
-              <span>{{
-                vueHelper.displayAssetPrice(
-                  data.average_buy_price,
-                  data.investment_type,
+
+        <Column
+          v-for="col of activeColumns"
+          :key="col.field"
+          :field="col.field"
+          :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+          :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+        >
+          <template #header>
+            <ColumnHeader
+              :header="col.header"
+              :field="col.field"
+              :sort="sort"
+              :sortable="!!sort"
+              @click="!sort"
+            />
+          </template>
+          <template #body="{ data }">
+            <template v-if="col.field === 'average_buy_price'">
+              <div class="flex flex-row gap-2 align-items-center">
+                <span>{{
+                  vueHelper.displayAssetPrice(
+                    data.average_buy_price,
+                    data.investment_type,
+                  )
+                }}</span>
+              </div>
+            </template>
+            <template
+              v-else-if="
+                ['current_price', 'value_at_buy', 'current_value'].includes(
+                  col.field,
                 )
-              }}</span>
-            </div>
-          </template>
-          <template
-            v-else-if="
-              ['current_price', 'value_at_buy', 'current_value'].includes(
-                col.field,
-              )
-            "
-          >
-            <div class="flex flex-row gap-2 align-items-center">
-              <span>{{
-                vueHelper.displayAsCurrency(data[col.field], data["currency"])
-              }}</span>
-            </div>
-          </template>
-          <template v-else-if="col.field === 'txn_date'">
-            {{
-              dateHelper.combineDateAndTime(data?.txn_date, data?.created_at)
-            }}
-          </template>
-          <template v-else-if="col.field == 'profit_loss'">
-            <div class="flex flex-row gap-2 align-items-center">
-              <i
-                class="text-xs"
-                :class="
-                  data[col.field] >= 0 ? 'pi pi-angle-up' : 'pi pi-angle-down'
-                "
-                :style="{
-                  color: data[col.field] >= 0 ? colors.pos : colors.neg,
-                }"
-              />
-              <span>
-                {{
+              "
+            >
+              <div class="flex flex-row gap-2 align-items-center">
+                <span>{{
                   vueHelper.displayAsCurrency(data[col.field], data["currency"])
-                }}
-              </span>
-            </div>
+                }}</span>
+              </div>
+            </template>
+            <template v-else-if="col.field === 'txn_date'">
+              {{
+                dateHelper.combineDateAndTime(data?.txn_date, data?.created_at)
+              }}
+            </template>
+            <template v-else-if="col.field == 'profit_loss'">
+              <div class="flex flex-row gap-2 align-items-center">
+                <i
+                  class="text-xs"
+                  :class="
+                    data[col.field] >= 0 ? 'pi pi-angle-up' : 'pi pi-angle-down'
+                  "
+                  :style="{
+                    color: data[col.field] >= 0 ? colors.pos : colors.neg,
+                  }"
+                />
+                <span>
+                  {{
+                    vueHelper.displayAsCurrency(
+                      data[col.field],
+                      data["currency"],
+                    )
+                  }}
+                </span>
+              </div>
+            </template>
+            <template
+              v-else-if="
+                col.field === 'asset.name' || col.field === 'asset.ticker'
+              "
+            >
+              <div class="flex flex-row gap-2 align-items-center">
+                <span
+                  :class="{ hover: col.field === 'asset.name' }"
+                  @click="
+                    col.field === 'asset.name'
+                      ? $emit('updateTrade', data.id)
+                      : null
+                  "
+                >
+                  {{
+                    col.field === "asset.name"
+                      ? data.asset.name
+                      : data.asset.ticker
+                  }}
+                </span>
+              </div>
+            </template>
+            <template v-else-if="col.field === 'trade_type'">
+              <div class="flex flex-row gap-2 align-items-center">
+                <span
+                  :style="{
+                    color: data[col.field] === 'buy' ? colors.pos : colors.neg,
+                  }"
+                >
+                  {{
+                    data[col.field].charAt(0).toUpperCase() +
+                    data[col.field].slice(1)
+                  }}
+                </span>
+              </div>
+            </template>
+            <template v-else>
+              {{ data[col.field] }}
+            </template>
           </template>
-          <template
-            v-else-if="
-              col.field === 'asset.name' || col.field === 'asset.ticker'
-            "
-          >
-            <div class="flex flex-row gap-2 align-items-center">
-              <span
-                :class="{ hover: col.field === 'asset.name' }"
-                @click="
-                  col.field === 'asset.name'
-                    ? $emit('updateTrade', data.id)
-                    : null
-                "
-              >
-                {{
-                  col.field === "asset.name"
-                    ? data.asset.name
-                    : data.asset.ticker
-                }}
-              </span>
-            </div>
-          </template>
-          <template v-else-if="col.field === 'trade_type'">
-            <div class="flex flex-row gap-2 align-items-center">
-              <span
-                :style="{
-                  color: data[col.field] === 'buy' ? colors.pos : colors.neg,
-                }"
-              >
-                {{
-                  data[col.field].charAt(0).toUpperCase() +
-                  data[col.field].slice(1)
-                }}
-              </span>
-            </div>
-          </template>
-          <template v-else>
-            {{ data[col.field] }}
-          </template>
-        </template>
-      </Column>
-    </DataTable>
+        </Column>
+      </DataTable>
+    </div>
   </div>
 </template>
 
