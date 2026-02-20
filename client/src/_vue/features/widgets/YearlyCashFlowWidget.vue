@@ -99,7 +99,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-column w-full p-3 gap-3">
+  <div class="flex flex-column w-full p-2 gap-3">
     <div
       v-if="years.length > 0"
       id="mobile-row"

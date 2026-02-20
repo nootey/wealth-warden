@@ -34,6 +34,11 @@ app.use(PrimeVue, {
     },
   },
   ripple: true,
+  pt: {
+    panel: {
+      root: { class: "border-round-xl" },
+    },
+  },
 });
 
 app.use(ToastService);
