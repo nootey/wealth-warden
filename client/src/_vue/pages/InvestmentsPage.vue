@@ -6,9 +6,6 @@ import InvestmentAssetForm from "../components/forms/InvestmentAssetForm.vue";
 import InvestmentAssetsPaginated from "../components/data/InvestmentAssetsPaginated.vue";
 import InvestmentTradeForm from "../components/forms/InvestmentTradeForm.vue";
 import InvestmentTradesPaginated from "../components/data/InvestmentTradesPaginated.vue";
-import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
-import YearlyBreakdownStats from "../features/YearlyBreakdownStats.vue";
-import AccountBasicStats from "../features/AccountBasicStats.vue";
 
 const toastStore = useToastStore();
 

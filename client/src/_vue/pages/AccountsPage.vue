@@ -5,7 +5,6 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
-import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
 
 const createModal = ref(false);
 const router = useRouter();

@@ -12,9 +12,6 @@ import TransactionsPaginated from "../components/data/TransactionsPaginated.vue"
 import { useRouter } from "vue-router";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import TransactionTemplates from "../features/TransactionTemplates.vue";
-import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
-import YearlyBreakdownStats from "../features/YearlyBreakdownStats.vue";
-import AccountBasicStats from "../features/AccountBasicStats.vue";
 
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
