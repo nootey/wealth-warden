@@ -17,6 +17,7 @@ const props = defineProps<{
   recordId?: number | null;
   roles: Role[];
 }>();
+
 const emit = defineEmits<{
   (event: "completeOperation"): void;
   (event: "completeUserDelete"): void;
