@@ -19,13 +19,13 @@ The app is already working and can currently only be self-hosted with [Docker](.
 
 ## Notes
 
-This project is still in development, there are things I want to implement that are currently on hold
+This project is still in development, there are things I want to implement that are currently on hold.
 Since the app is data heavy, some performance issues may arise.
 
 There are also some features that are implemented half way, those being:
   - **Currencies**: For now, EUR is the default and can not be changed
     - USD is supported for investments
-  - **Timezones**: Not supported everywhere
+  - **Timezones**: Limited support
   - **Permissions**: Limited support
 
 ## Local development
