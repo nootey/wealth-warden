@@ -56,7 +56,6 @@ type TransactionRepositoryInterface interface {
 	InsertTransactionTemplate(ctx context.Context, tx *gorm.DB, newRecord *models.TransactionTemplate) (int64, error)
 	UpdateTransactionTemplate(ctx context.Context, tx *gorm.DB, record models.TransactionTemplate, onlyActive bool) (int64, error)
 	DeleteTransactionTemplate(ctx context.Context, tx *gorm.DB, id int64) error
-	GetTransactionsForYear(ctx context.Context, tx *gorm.DB, userID int64, year int, accountID *int64) ([]models.Transaction, error)
 	GetTransactionsByYearAndClass(ctx context.Context, tx *gorm.DB, userID int64, year int, class string, accountID *int64) ([]models.Transaction, error)
 	GetAllTimeStatsByClass(ctx context.Context, tx *gorm.DB, userID int64, class string, accountID, categoryID *int64) (total decimal.Decimal, monthsWithData int, err error)
 	PurgeImportedTransactions(ctx context.Context, tx *gorm.DB, importID, userID int64) (int64, error)
@@ -954,27 +953,6 @@ func (r *TransactionRepository) DeleteTransactionTemplate(ctx context.Context, t
 		return err
 	}
 	return nil
-}
-
-func (r *TransactionRepository) GetTransactionsForYear(ctx context.Context, tx *gorm.DB, userID int64, year int, accountID *int64) ([]models.Transaction, error) {
-
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	query := db.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ? AND is_transfer = ? AND is_adjustment = ? AND deleted_at IS NULL", userID, year, false, false)
-
-	if accountID != nil {
-		query = query.Where("account_id = ?", *accountID)
-	}
-
-	var txs []models.Transaction
-	if err := query.Find(&txs).Error; err != nil {
-		return nil, err
-	}
-	return txs, nil
 }
 
 func (r *TransactionRepository) GetTransactionsByYearAndClass(ctx context.Context, tx *gorm.DB, userID int64, year int, class string, accountID *int64) ([]models.Transaction, error) {

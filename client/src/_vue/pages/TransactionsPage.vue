@@ -39,6 +39,8 @@ const categories = computed<Category[]>(() => transactionStore.categories);
 const accounts = computed<Account[]>(() => accountStore.accounts);
 const trTemplateCount = ref<number>(0);
 
+const activeTab = ref("transactions");
+
 const activeColumns = computed<Column[]>(() => [
   {
     field: "account",
@@ -193,31 +195,28 @@ async function handleEmit(emitType: any) {
     />
   </Dialog>
 
-  <main
-    class="flex flex-column w-full p-2 align-items-center"
-    style="height: 100%"
-  >
+  <main class="flex flex-column w-full align-items-center">
     <div
       id="mobile-container"
-      class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
-      style="
-        border: 1px solid var(--border-color);
-        background: var(--background-secondary);
-        max-width: 1000px;
-      "
+      class="flex flex-column justify-content-center w-full gap-3 border-round-xl"
     >
       <div
-        class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
+        class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
       >
-        <div style="font-weight: bold">Transactions</div>
-        <i
-          v-if="hasPermission('manage_data')"
-          v-tooltip="'Go to categories settings.'"
-          class="pi pi-external-link hover-icon mr-auto text-sm"
-          @click="router.push('settings/categories')"
-        />
+        <div class="w-full flex flex-column gap-2">
+          <div class="flex flex-row gap-2 align-items-center w-full">
+            <div style="font-weight: bold">Activity</div>
+            <i
+              v-if="hasPermission('manage_data')"
+              v-tooltip="'Go to categories settings.'"
+              class="pi pi-external-link hover-icon mr-auto text-sm"
+              @click="router.push('settings/categories')"
+            />
+          </div>
+          <div>A complete record of your financial activity.</div>
+        </div>
         <Button
-          class="outline-button"
+          class="outline-button w-3"
           @click="manipulateDialog('openTemplateView', true)"
         >
           <div class="flex flex-row gap-1 align-items-center">
@@ -229,7 +228,7 @@ async function handleEmit(emitType: any) {
           </div>
         </Button>
         <Button
-          class="main-button"
+          class="main-button w-3"
           @click="manipulateDialog('addTransaction', true)"
         >
           <div class="flex flex-row gap-1 align-items-center">
@@ -240,19 +239,58 @@ async function handleEmit(emitType: any) {
         </Button>
       </div>
 
-      <div id="mobile-row" class="flex flex-row w-full">
-        <TransactionsPaginated
-          ref="txRef"
-          :read-only="false"
-          :columns="activeColumns"
-          @row-click="(id) => manipulateDialog('updateTransaction', id)"
-        />
+      <div class="flex flex-row gap-3 p-2">
+        <div
+          class="cursor-pointer pb-1"
+          style="color: var(--text-secondary)"
+          :style="
+            activeTab === 'transactions'
+              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
+              : ''
+          "
+          @click="activeTab = 'transactions'"
+        >
+          Transactions
+        </div>
+        <div
+          class="cursor-pointer pb-1"
+          style="color: var(--text-secondary)"
+          :style="
+            activeTab === 'transfers'
+              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
+              : ''
+          "
+          @click="activeTab = 'transfers'"
+        >
+          Transfers
+        </div>
       </div>
 
-      <label>Transfers</label>
-      <div id="mobile-row" class="flex flex-row w-full">
-        <TransfersPaginated ref="trRef" />
-      </div>
+      <Transition name="fade" mode="out-in">
+        <div
+          v-if="activeTab === 'transactions'"
+          key="transactions"
+          class="flex flex-column justify-content-center w-full gap-3"
+        >
+          <Panel :collapsed="false" header="Transactions">
+            <div id="mobile-row" class="flex flex-row w-full">
+              <TransactionsPaginated
+                ref="txRef"
+                :read-only="false"
+                :columns="activeColumns"
+                @row-click="(id) => manipulateDialog('updateTransaction', id)"
+              />
+            </div>
+          </Panel>
+        </div>
+        <div v-else key="transfers" class="w-full">
+          <Panel :collapsed="false" header="Transfers">
+            <div id="mobile-row" class="flex flex-row w-full">
+              <TransfersPaginated ref="trRef" />
+            </div>
+          </Panel>
+        </div>
+      </Transition>
     </div>
   </main>
 </template>

@@ -100,6 +100,12 @@ type CategoryOrGroup struct {
 	CategoryIDs    []int64 `json:"category_ids"`
 }
 
+type TransactionBatchTotals struct {
+	Count    int64           `json:"count"`
+	Income   decimal.Decimal `json:"income"`
+	Expenses decimal.Decimal `json:"expenses"`
+}
+
 type TransactionReq struct {
 	AccountID       int64           `json:"account_id" validate:"required"`
 	CategoryID      *int64          `json:"category_id,omitempty"`

@@ -6,11 +6,14 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
-type StatisticsRepositoryInterface interface {
+type AnalyticsRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
+	FetchNetWorthSeries(ctx context.Context, tx *gorm.DB, userID int64, currency string, from, to time.Time, gran string, accountID *int64) ([]models.ChartPoint, error)
+	FetchLatestNetWorth(ctx context.Context, tx *gorm.DB, userID int64, currency string, accountID *int64) (time.Time, string, error)
 	FetchDailyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, date time.Time) (*models.MonthlyTotalsRow, error)
 	FetchDailyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, date time.Time) (*models.MonthlyTotalsRow, error)
 	FetchYearlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) (models.YearlyTotalsRow, error)
@@ -21,23 +24,160 @@ type StatisticsRepositoryInterface interface {
 	FetchMonthlyCategoryTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year, month int) ([]models.YearlyCategoryRow, error)
 	GetAvailableStatsYears(ctx context.Context, tx *gorm.DB, accID *int64, userID int64) ([]int64, error)
 }
-
-type StatisticsRepository struct {
+type AnalyticsRepository struct {
 	db *gorm.DB
 }
 
-func NewStatisticsRepository(db *gorm.DB) *StatisticsRepository {
-	return &StatisticsRepository{db: db}
+func NewAnalyticsRepository(db *gorm.DB) *AnalyticsRepository {
+	return &AnalyticsRepository{db: db}
 }
 
-var _ StatisticsRepositoryInterface = (*StatisticsRepository)(nil)
+var _ AnalyticsRepositoryInterface = (*AnalyticsRepository)(nil)
 
-func (r *StatisticsRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
+func (r *AnalyticsRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 	tx := r.db.WithContext(ctx).Begin()
 	return tx, tx.Error
 }
 
-func (r *StatisticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) (models.YearlyTotalsRow, error) {
+func (r *AnalyticsRepository) sourceView(accountID *int64) string {
+	if accountID != nil {
+		return "v_user_account_daily_snapshots"
+	}
+	return "v_user_daily_networth_snapshots"
+}
+
+func (r *AnalyticsRepository) FetchNetWorthSeries(ctx context.Context, tx *gorm.DB, userID int64, currency string, from, to time.Time, gran string, accountID *int64) ([]models.ChartPoint, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	type row struct {
+		Date  time.Time
+		Value string
+	}
+	rows := []row{}
+
+	src := r.sourceView(accountID)
+
+	switch gran {
+	case "day":
+		sql := `
+		  SELECT as_of AS date, end_balance::text AS value
+		  FROM ` + src + `
+		  WHERE user_id = ? AND currency = ? AND as_of BETWEEN ? AND ?
+		`
+		args := []any{userID, currency, from, to}
+		if accountID != nil {
+			sql += " AND account_id = ?"
+			args = append(args, *accountID)
+		}
+		sql += " ORDER BY as_of"
+		if err := db.Raw(sql, args...).Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+
+	case "week":
+		sql := `
+		  WITH s AS (
+		    SELECT as_of, end_balance
+		    FROM ` + src + `
+		    WHERE user_id = ? AND currency = ? AND as_of BETWEEN ? AND ?
+		`
+		args := []any{userID, currency, from, to}
+		if accountID != nil {
+			sql += " AND account_id = ?"
+			args = append(args, *accountID)
+		}
+		sql += `
+		  ),
+		  b AS (
+		    SELECT date_trunc('week', as_of)::date AS bucket, as_of, end_balance
+		    FROM s
+		  )
+		  SELECT DISTINCT ON (bucket) 
+			as_of::date      AS date, 
+			end_balance::text AS value
+		  FROM b
+		  ORDER BY bucket, as_of DESC
+		`
+		if err := db.Raw(sql, args...).Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+
+	case "month":
+		sql := `
+		  WITH s AS (
+		    SELECT as_of, end_balance
+		    FROM ` + src + `
+		    WHERE user_id = ? AND currency = ? AND as_of BETWEEN ? AND ?
+		`
+		args := []any{userID, currency, from, to}
+		if accountID != nil {
+			sql += " AND account_id = ?"
+			args = append(args, *accountID)
+		}
+		sql += `
+		  ),
+		  b AS (
+		    SELECT date_trunc('month', as_of)::date AS bucket, as_of, end_balance
+		    FROM s
+		  )
+		  SELECT DISTINCT ON (bucket)
+			  as_of::date       AS date,
+			  end_balance::text AS value
+		  FROM b
+		  ORDER BY bucket, as_of DESC
+		`
+		if err := db.Raw(sql, args...).Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+
+	default:
+		return nil, fmt.Errorf("unknown granularity %q", gran)
+	}
+
+	out := make([]models.ChartPoint, 0, len(rows))
+	for _, r := range rows {
+		v, _ := decimal.NewFromString(r.Value)
+		out = append(out, models.ChartPoint{Date: r.Date, Value: v})
+	}
+
+	return out, nil
+}
+
+func (r *AnalyticsRepository) FetchLatestNetWorth(ctx context.Context, tx *gorm.DB, userID int64, currency string, accountID *int64) (time.Time, string, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+	src := r.sourceView(accountID)
+
+	sql := `
+	  SELECT as_of, end_balance::text
+	  FROM ` + src + `
+	  WHERE user_id = ? AND currency = ?
+	`
+	args := []any{userID, currency}
+	if accountID != nil {
+		sql += " AND account_id = ?"
+		args = append(args, *accountID)
+	}
+	sql += ` ORDER BY as_of DESC LIMIT 1`
+
+	var date time.Time
+	var value string
+	if err := db.Raw(sql, args...).Row().Scan(&date, &value); err != nil {
+		return time.Time{}, "", err
+	}
+	return date, value, nil
+}
+
+func (r *AnalyticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) (models.YearlyTotalsRow, error) {
 
 	db := tx
 	if db == nil {
@@ -99,7 +239,7 @@ func (r *StatisticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.D
 	return row, nil
 }
 
-func (r *StatisticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.YearlyCategoryRow, error) {
+func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.YearlyCategoryRow, error) {
 
 	db := tx
 	if db == nil {
@@ -169,7 +309,7 @@ func (r *StatisticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx
 	return rows, nil
 }
 
-func (r *StatisticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year, month int) ([]models.YearlyCategoryRow, error) {
+func (r *AnalyticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year, month int) ([]models.YearlyCategoryRow, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -241,7 +381,7 @@ func (r *StatisticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, t
 	return rows, nil
 }
 
-func (r *StatisticsRepository) FetchMonthlyCategoryTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year, month int) ([]models.YearlyCategoryRow, error) {
+func (r *AnalyticsRepository) FetchMonthlyCategoryTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year, month int) ([]models.YearlyCategoryRow, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -288,7 +428,7 @@ func (r *StatisticsRepository) FetchMonthlyCategoryTotalsCheckingOnly(ctx contex
 	return rows, nil
 }
 
-func (r *StatisticsRepository) FetchMonthlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.MonthlyTotalsRow, error) {
+func (r *AnalyticsRepository) FetchMonthlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.MonthlyTotalsRow, error) {
 
 	db := tx
 	if db == nil {
@@ -334,7 +474,7 @@ func (r *StatisticsRepository) FetchMonthlyTotals(ctx context.Context, tx *gorm.
 	return rows, nil
 }
 
-func (r *StatisticsRepository) FetchMonthlyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.MonthlyTotalsRow, error) {
+func (r *AnalyticsRepository) FetchMonthlyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.MonthlyTotalsRow, error) {
 
 	db := tx
 	if db == nil {
@@ -376,7 +516,7 @@ func (r *StatisticsRepository) FetchMonthlyTotalsCheckingOnly(ctx context.Contex
 	return rows, err
 }
 
-func (r *StatisticsRepository) GetAvailableStatsYears(ctx context.Context, tx *gorm.DB, accID *int64, userID int64) ([]int64, error) {
+func (r *AnalyticsRepository) GetAvailableStatsYears(ctx context.Context, tx *gorm.DB, accID *int64, userID int64) ([]int64, error) {
 
 	db := tx
 	if db == nil {
@@ -417,7 +557,7 @@ func (r *StatisticsRepository) GetAvailableStatsYears(ctx context.Context, tx *g
 	return years, nil
 }
 
-func (r *StatisticsRepository) FetchDailyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, date time.Time) (*models.MonthlyTotalsRow, error) {
+func (r *AnalyticsRepository) FetchDailyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, date time.Time) (*models.MonthlyTotalsRow, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -459,7 +599,7 @@ func (r *StatisticsRepository) FetchDailyTotals(ctx context.Context, tx *gorm.DB
 	return &row, nil
 }
 
-func (r *StatisticsRepository) FetchDailyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, date time.Time) (*models.MonthlyTotalsRow, error) {
+func (r *AnalyticsRepository) FetchDailyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, date time.Time) (*models.MonthlyTotalsRow, error) {
 	db := tx
 	if db == nil {
 		db = r.db

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
 
@@ -26,6 +27,23 @@ func NewUserHandler(
 		Service: service,
 		v:       v,
 	}
+}
+
+func (h *UserHandler) Routes(apiGroup *gin.RouterGroup) {
+	apiGroup.GET("", authz.RequireAllMW("manage_users"), h.GetUsersPaginated)
+	apiGroup.GET("/:id", authz.RequireAllMW("manage_users"), h.GetUserById)
+	apiGroup.PUT(":id", authz.RequireAllMW("manage_users"), h.UpdateUser)
+	apiGroup.DELETE(":id", authz.RequireAllMW("delete_users"), h.DeleteUser)
+
+	apiGroup.GET("invitations", authz.RequireAllMW("view_data"), h.GetInvitationsPaginated)
+	apiGroup.PUT("invitations", authz.RequireAllMW("view_data"), h.InsertInvitation)
+	apiGroup.POST("invitations/resend/:id", h.ResendInvitation)
+	apiGroup.DELETE("invitations/:id", authz.RequireAllMW("delete_users"), h.DeleteInvitation)
+}
+
+func (h *UserHandler) PublicRoutes(apiGroup *gin.RouterGroup) {
+	apiGroup.GET("/invitations/:hash", h.GetInvitationByHash)
+	apiGroup.GET("/token", h.GetUserByToken)
 }
 
 func (h *UserHandler) GetUsersPaginated(c *gin.Context) {

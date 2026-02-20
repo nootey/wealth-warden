@@ -27,6 +27,12 @@ export interface Transfer {
   to: Transaction | null;
 }
 
+export interface TransactionBatchTotals {
+  count: number;
+  income: string;
+  expenses: string;
+}
+
 export interface Category {
   id?: number | null;
   name: string;

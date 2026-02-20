@@ -52,7 +52,6 @@ const isDisabled = computed(() => {
 });
 
 async function importAccounts() {
-
   if (selectedFiles.value.length < 1) return;
 
   const file = selectedFiles.value[0];

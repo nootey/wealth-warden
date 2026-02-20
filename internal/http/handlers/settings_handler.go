@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/validators"
 
@@ -25,6 +26,14 @@ func NewSettingsHandler(
 		Service: service,
 		v:       v,
 	}
+}
+
+func (h *SettingsHandler) Routes(apiGroup *gin.RouterGroup) {
+	apiGroup.GET("", authz.RequireAllMW("root_access"), h.GetGeneralSettings)
+	apiGroup.GET("/users", authz.RequireAllMW("view_data"), h.GetUserSettings)
+	apiGroup.GET("/timezones", authz.RequireAllMW("view_data"), h.GetAvailableTimezones)
+	apiGroup.PUT("/users/preferences", authz.RequireAllMW("manage_data"), h.UpdatePreferenceSettings)
+	apiGroup.PUT("/users/profile", authz.RequireAllMW("manage_data"), h.UpdateProfileSettings)
 }
 
 func (h *SettingsHandler) GetGeneralSettings(c *gin.Context) {

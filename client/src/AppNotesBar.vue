@@ -132,7 +132,7 @@ import type { Note } from "./models/notes_models.ts";
 import dateHelper from "./utils/date_helper.ts";
 import { useToastStore } from "./services/stores/toast_store.ts";
 import SimplePaginator from "./_vue/components/base/SimplePaginator.vue";
-import type {PaginatorState} from "./models/shared_models.ts";
+import type { PaginatorState } from "./models/shared_models.ts";
 
 const notesStore = useNotesStore();
 const sharedStore = useSharedStore();

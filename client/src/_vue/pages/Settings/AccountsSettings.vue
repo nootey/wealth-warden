@@ -71,7 +71,7 @@ async function closeAccount(id: number) {
           :advanced="true"
           :allow-edit="true"
           :on-toggle="toggleEnabled"
-          :max-height="70"
+          :max-height="57"
           @close-account="closeAccount"
         />
       </div>

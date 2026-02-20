@@ -3,21 +3,21 @@ import { computed, onMounted, ref, watch } from "vue";
 import type {
   BasicAccountStats,
   CategoryStat,
-} from "../../models/statistics_models.ts";
-import { useStatisticsStore } from "../../services/stores/statistics_store.ts";
+} from "../../models/analytics_models.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import ShowLoading from "../components/base/ShowLoading.vue";
 import vueHelper from "../../utils/vue_helper.ts";
 import ComparativePieChart from "../components/charts/ComparativePieChart.vue";
 import type { Account } from "../../models/account_models.ts";
 import { useAccountStore } from "../../services/stores/account_store.ts";
+import { useAnalyticsStore } from "../../services/stores/analytics_store.ts";
 
 const props = defineProps<{
   accID?: number | null;
   pieChartSize: number;
 }>();
 
-const statsStore = useStatisticsStore();
+const analyticsStore = useAnalyticsStore();
 const accStore = useAccountStore();
 const toastStore = useToastStore();
 
@@ -76,7 +76,7 @@ watch(selectedAccountID, async (newVal, oldVal) => {
 async function loadStats() {
   isLoadingStats.value = true;
   try {
-    accBasicStats.value = await statsStore.getBasicStatisticsForAccount(
+    accBasicStats.value = await analyticsStore.getBasicStatisticsForAccount(
       selectedAccountID.value ?? null,
       selectedYear.value,
     );
@@ -88,7 +88,7 @@ async function loadStats() {
 async function loadYears() {
   isLoadingYears.value = true;
   try {
-    const result = await statsStore.getAvailableStatsYears(
+    const result = await analyticsStore.getAvailableStatsYears(
       selectedAccountID.value ?? null,
     );
     years.value = Array.isArray(result) ? result : [];

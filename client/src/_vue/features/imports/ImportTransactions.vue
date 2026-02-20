@@ -98,11 +98,7 @@ async function validateFile(type: string) {
   if (!file) return;
 
   try {
-    const res = await dataStore.validateImport(
-      "custom",
-      file,
-      type,
-    );
+    const res = await dataStore.validateImport("custom", file, type);
     fileValidated.value = true;
     validatedResponse.value = res;
     toastStore.successResponseToast({

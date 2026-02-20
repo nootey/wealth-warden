@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import type { YearlySankeyData } from "../../../models/chart_models.ts";
 import { onMounted, ref, watch } from "vue";
-import { useStatisticsStore } from "../../../services/stores/statistics_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import ShowLoading from "../../components/base/ShowLoading.vue";
 import YearlySankeyCashFlowChart from "../../components/charts/YearlySankeyCashFlowChart.vue";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import type { Account } from "../../../models/account_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
-import { useChartStore } from "../../../services/stores/chart_store.ts";
+import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
+import type { YearlySankeyData } from "../../../models/analytics_models.ts";
 
 withDefaults(
   defineProps<{
@@ -19,8 +18,7 @@ withDefaults(
   },
 );
 
-const chartStore = useChartStore();
-const statsStore = useStatisticsStore();
+const analyticsStore = useAnalyticsStore();
 const toastStore = useToastStore();
 const accStore = useAccountStore();
 
@@ -41,7 +39,7 @@ async function fetchSankeyData(year: number, account: number | null = null) {
     if (account) {
       params.account = account;
     }
-    sankeyData.value = await chartStore.getYearlySankeyData(params);
+    sankeyData.value = await analyticsStore.getYearlySankeyData(params);
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {
@@ -59,7 +57,7 @@ async function loadAccounts() {
 
 async function loadYears() {
   try {
-    const result = await statsStore.getAvailableStatsYears(null);
+    const result = await analyticsStore.getAvailableStatsYears(null);
     years.value = Array.isArray(result) ? result : [];
 
     const current = new Date().getFullYear();
@@ -93,7 +91,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-column w-full p-3 gap-3">
+  <div class="flex flex-column w-full p-2 gap-3">
     <div
       v-if="years.length > 0"
       class="flex flex-row gap-2 w-full justify-content-between align-items-center"
