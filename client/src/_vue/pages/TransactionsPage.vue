@@ -13,6 +13,8 @@ import { useRouter } from "vue-router";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import TransactionTemplates from "../features/TransactionTemplates.vue";
 import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
+import YearlyBreakdownStats from "../features/YearlyBreakdownStats.vue";
+import AccountBasicStats from "../features/AccountBasicStats.vue";
 
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
@@ -39,6 +41,8 @@ const updateTransactionID = ref(null);
 const categories = computed<Category[]>(() => transactionStore.categories);
 const accounts = computed<Account[]>(() => accountStore.accounts);
 const trTemplateCount = ref<number>(0);
+
+const activeTab = ref("transactions");
 
 const activeColumns = computed<Column[]>(() => [
   {
@@ -199,58 +203,92 @@ async function handleEmit(emitType: any) {
       id="mobile-container"
       class="flex flex-column justify-content-center w-full gap-3 border-round-xl"
     >
-      <SlotSkeleton bg="transparent">
-        <div
-          class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
+      <div
+        class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
+      >
+        <div style="font-weight: bold">Activity</div>
+        <i
+          v-if="hasPermission('manage_data')"
+          v-tooltip="'Go to categories settings.'"
+          class="pi pi-external-link hover-icon mr-auto text-sm"
+          @click="router.push('settings/categories')"
+        />
+        <Button
+          class="outline-button"
+          @click="manipulateDialog('openTemplateView', true)"
         >
-          <div style="font-weight: bold">Activity</div>
-          <i
-            v-if="hasPermission('manage_data')"
-            v-tooltip="'Go to categories settings.'"
-            class="pi pi-external-link hover-icon mr-auto text-sm"
-            @click="router.push('settings/categories')"
-          />
-          <Button
-            class="outline-button"
-            @click="manipulateDialog('openTemplateView', true)"
-          >
-            <div class="flex flex-row gap-1 align-items-center">
-              <i class="pi pi-database" />
-              <span
-                ><span class="mobile-hide"> Templates </span>
-                {{ "(" + trTemplateCount + ")" }}</span
-              >
-            </div>
-          </Button>
-          <Button
-            class="main-button"
-            @click="manipulateDialog('addTransaction', true)"
-          >
-            <div class="flex flex-row gap-1 align-items-center">
-              <i class="pi pi-plus" />
-              <span> New </span>
-              <span class="mobile-hide"> Transaction </span>
-            </div>
-          </Button>
-        </div>
-      </SlotSkeleton>
+          <div class="flex flex-row gap-1 align-items-center">
+            <i class="pi pi-database" />
+            <span
+              ><span class="mobile-hide"> Templates </span>
+              {{ "(" + trTemplateCount + ")" }}</span
+            >
+          </div>
+        </Button>
+        <Button
+          class="main-button"
+          @click="manipulateDialog('addTransaction', true)"
+        >
+          <div class="flex flex-row gap-1 align-items-center">
+            <i class="pi pi-plus" />
+            <span> New </span>
+            <span class="mobile-hide"> Transaction </span>
+          </div>
+        </Button>
+      </div>
 
-      <Panel :collapsed="false" header="Transactions">
-        <div id="mobile-row" class="flex flex-row w-full">
-          <TransactionsPaginated
-            ref="txRef"
-            :read-only="false"
-            :columns="activeColumns"
-            @row-click="(id) => manipulateDialog('updateTransaction', id)"
-          />
+      <div class="flex flex-row gap-3 p-2">
+        <div
+          class="cursor-pointer pb-1"
+          style="color: var(--text-secondary)"
+          :style="
+            activeTab === 'transactions'
+              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
+              : ''
+          "
+          @click="activeTab = 'transactions'"
+        >
+          Transactions
         </div>
-      </Panel>
+        <div
+          class="cursor-pointer pb-1"
+          style="color: var(--text-secondary)"
+          :style="
+            activeTab === 'transfers'
+              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
+              : ''
+          "
+          @click="activeTab = 'transfers'"
+        >
+          Transfers
+        </div>
+      </div>
 
-      <Panel :collapsed="true" header="Transfers" toggleable>
-        <div id="mobile-row" class="flex flex-row w-full">
-          <TransfersPaginated ref="trRef" />
+      <Transition name="fade" mode="out-in">
+        <div
+          v-if="activeTab === 'transactions'"
+          key="transactions"
+          class="flex flex-column justify-content-center w-full gap-3"
+        >
+          <Panel :collapsed="false" header="Transactions">
+            <div id="mobile-row" class="flex flex-row w-full">
+              <TransactionsPaginated
+                ref="txRef"
+                :read-only="false"
+                :columns="activeColumns"
+                @row-click="(id) => manipulateDialog('updateTransaction', id)"
+              />
+            </div>
+          </Panel>
         </div>
-      </Panel>
+        <div v-else key="transfers" class="w-full">
+          <Panel :collapsed="false" header="Transfers">
+            <div id="mobile-row" class="flex flex-row w-full">
+              <TransfersPaginated ref="trRef" />
+            </div>
+          </Panel>
+        </div>
+      </Transition>
     </div>
   </main>
 </template>
