@@ -272,23 +272,33 @@ async function handleEmit(emitType: any) {
           key="transactions"
           class="flex flex-column justify-content-center w-full gap-3"
         >
-          <Panel :collapsed="false" header="Transactions">
-            <div id="mobile-row" class="flex flex-row w-full">
-              <TransactionsPaginated
-                ref="txRef"
-                :read-only="false"
-                :columns="activeColumns"
-                @row-click="(id) => manipulateDialog('updateTransaction', id)"
-              />
-            </div>
-          </Panel>
+          <div
+            class="flex flex-column w-full p-3 gap-3 border-round-2xl"
+            style="
+              background-color: var(--background-secondary);
+              border: 1px solid var(--border-color);
+            "
+          >
+            <span class="font-bold">Transactions</span>
+            <TransactionsPaginated
+              ref="txRef"
+              :read-only="false"
+              :columns="activeColumns"
+              @row-click="(id) => manipulateDialog('updateTransaction', id)"
+            />
+          </div>
         </div>
         <div v-else key="transfers" class="w-full">
-          <Panel :collapsed="false" header="Transfers">
-            <div id="mobile-row" class="flex flex-row w-full">
-              <TransfersPaginated ref="trRef" />
-            </div>
-          </Panel>
+          <div
+            class="flex flex-column w-full p-3 gap-3 border-round-2xl"
+            style="
+              background-color: var(--background-secondary);
+              border: 1px solid var(--border-color);
+            "
+          >
+            <span class="font-bold">Transfers</span>
+            <TransfersPaginated ref="trRef" />
+          </div>
         </div>
       </Transition>
     </div>
