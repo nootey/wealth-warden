@@ -37,7 +37,7 @@ const params = computed(() => {
     account_id: props.accID ?? null,
   };
 });
-const rows = ref([5, 10, 25]);
+const rows = ref([10, 25, 50, 100]);
 const default_rows = ref(rows.value[0]);
 const paginator = ref<PaginatorState>({
   total: 0,
@@ -144,110 +144,102 @@ defineExpose({ refresh });
 </script>
 
 <template>
-  <div
-    class="flex flex-column w-full border-round-2xl"
-    style="
-      padding: 0.25rem 0.25rem 0 0.25rem;
-      border: 1px solid var(--border-color);
-    "
-  >
-    <DataTable
-      data-key="id"
-      class="w-full enhanced-table"
-      :loading="loadingRecords"
-      :value="records"
-      scrollable
-      scroll-height="50vh"
-      column-resize-mode="fit"
-      scroll-direction="both"
+  <div class="flex flex-column w-full gap-3">
+    <div
+      class="flex flex-column w-full border-round-2xl"
+      style="
+        padding: 0.25rem 0.25rem 0 0.25rem;
+        border: 1px solid var(--border-color);
+      "
     >
-      <template #empty>
-        <div style="padding: 10px">No records found.</div>
-      </template>
-      <template #loading>
-        <LoadingSpinner />
-      </template>
-      <template #footer>
-        <CustomPaginator
-          :paginator="paginator"
-          :rows="rows"
-          @on-page="onPage"
-        />
-      </template>
-
-      <Column
-        v-for="col of activeColumns"
-        :key="col.field"
-        :field="col.field"
-        :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
-        :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+      <DataTable
+        data-key="id"
+        class="w-full enhanced-table"
+        :loading="loadingRecords"
+        :value="records"
+        scrollable
+        column-resize-mode="fit"
+        scroll-direction="both"
       >
-        <template #header>
-          <ColumnHeader
-            :header="col.header"
-            :field="col.field"
-            :sort="sort"
-            :sortable="!!sort"
-            @click="!sort"
+        <template #empty>
+          <div style="padding: 10px">No records found.</div>
+        </template>
+        <template #loading>
+          <LoadingSpinner />
+        </template>
+        <template #footer>
+          <CustomPaginator
+            :paginator="paginator"
+            :rows="rows"
+            @on-page="onPage"
           />
         </template>
-        <template #body="{ data }">
-          <template v-if="col.field === 'amount'">
-            {{
-              vueHelper.displayAsCurrency(
-                data.transaction_type == "expense"
-                  ? data.amount * -1
-                  : data.amount,
-              )
-            }}
-          </template>
-          <template v-else-if="col.field === 'created_at'">
-            {{ dateHelper.formatDate(data?.created_at, true) }}
-          </template>
-          <template v-else-if="col.field === 'from' || col.field === 'to'">
-            {{ data[col.field]["account"]["name"] }}
-          </template>
-          <template v-else-if="col.field === 'notes'">
-            <span v-tooltip.top="data[col.field]" class="truncate-text">
-              {{ data[col.field] }}
-            </span>
-          </template>
-          <template v-else>
-            {{ data[col.field] }}
-          </template>
-        </template>
-      </Column>
 
-      <Column>
-        <template #header>
-          <span class="mobile-hide">Actions</span>
-        </template>
-        <template #body="{ data }">
-          <i
-            v-if="hasPermission('manage_data') && canDelete(data)"
-            class="pi pi-trash hover-icon"
-            style="font-size: 0.875rem; color: var(--p-red-300)"
-            @click="deleteConfirmation(data?.id)"
-          />
-          <i
-            v-else
-            v-tooltip="'This transfer is in read only state!'"
-            class="pi pi-exclamation-circle"
-            style="font-size: 0.875rem"
-          />
-        </template>
-      </Column>
-    </DataTable>
+        <Column
+          v-for="col of activeColumns"
+          :key="col.field"
+          :field="col.field"
+          :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+          :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+        >
+          <template #header>
+            <ColumnHeader
+              :header="col.header"
+              :field="col.field"
+              :sort="sort"
+              :sortable="!!sort"
+              @click="!sort"
+            />
+          </template>
+          <template #body="{ data }">
+            <template v-if="col.field === 'amount'">
+              {{
+                vueHelper.displayAsCurrency(
+                  data.transaction_type == "expense"
+                    ? data.amount * -1
+                    : data.amount,
+                )
+              }}
+            </template>
+            <template v-else-if="col.field === 'created_at'">
+              {{ dateHelper.formatDate(data?.created_at, true) }}
+            </template>
+            <template v-else-if="col.field === 'from' || col.field === 'to'">
+              {{ data[col.field]["account"]["name"] }}
+            </template>
+            <template v-else-if="col.field === 'notes'">
+              <span v-tooltip.top="data[col.field]" class="truncate-text">
+                {{ data[col.field] }}
+              </span>
+            </template>
+            <template v-else>
+              {{ data[col.field] }}
+            </template>
+          </template>
+        </Column>
+
+        <Column>
+          <template #header>
+            <span class="mobile-hide">Actions</span>
+          </template>
+          <template #body="{ data }">
+            <i
+              v-if="hasPermission('manage_data') && canDelete(data)"
+              class="pi pi-trash hover-icon"
+              style="font-size: 0.875rem; color: var(--p-red-300)"
+              @click="deleteConfirmation(data?.id)"
+            />
+            <i
+              v-else
+              v-tooltip="'This transfer is in read only state!'"
+              class="pi pi-exclamation-circle"
+              style="font-size: 0.875rem"
+            />
+          </template>
+        </Column>
+      </DataTable>
+    </div>
   </div>
 </template>
 
-<style scoped>
-@media (max-width: 768px) {
-  .p-datatable {
-    font-size: 0.85rem;
-  }
-  .p-datatable-table {
-    min-width: 800px;
-  }
-}
-</style>
+<style scoped></style>
