@@ -46,7 +46,7 @@ const params = computed(() => {
     include_deleted: includeDeleted.value,
   };
 });
-const rows = ref([25, 50, 100]);
+const rows = ref([10, 25, 50, 100]);
 const default_rows = ref(rows.value[0]);
 const paginator = ref<PaginatorState>({
   total: 0,

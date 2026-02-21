@@ -185,7 +185,7 @@ async function handleEmit(emitType: any) {
       >
         <div class="w-full flex flex-column gap-2">
           <div style="font-weight: bold">Investments</div>
-          <div>Comprehensive insights into your investment vehicles.</div>
+          <div>A detailed look into your investments.</div>
         </div>
         <Button class="main-button" @click="manipulateDialog('addAsset', true)">
           <div class="flex flex-row gap-1 align-items-center">
@@ -236,24 +236,34 @@ async function handleEmit(emitType: any) {
           key="assets"
           class="flex flex-column justify-content-center w-full gap-3"
         >
-          <Panel :collapsed="false" header="Assets">
-            <div id="mobile-row" class="flex flex-row w-full">
-              <InvestmentAssetsPaginated
-                ref="holdRef"
-                @update-asset="(id) => manipulateDialog('updateAsset', id)"
-              />
-            </div>
-          </Panel>
+          <div
+            class="flex flex-column w-full p-3 gap-3 border-round-2xl"
+            style="
+              background-color: var(--background-secondary);
+              border: 1px solid var(--border-color);
+            "
+          >
+            <span class="font-bold">Assets</span>
+            <InvestmentAssetsPaginated
+              ref="holdRef"
+              @update-asset="(id) => manipulateDialog('updateAsset', id)"
+            />
+          </div>
         </div>
         <div v-else key="trades" class="w-full">
-          <Panel :collapsed="false" header="Trades">
-            <div id="mobile-row" class="flex flex-row w-full">
-              <InvestmentTradesPaginated
-                ref="txnRef"
-                @update-trade="(id) => manipulateDialog('updateTrade', id)"
-              />
-            </div>
-          </Panel>
+          <div
+            class="flex flex-column w-full p-3 gap-3 border-round-2xl"
+            style="
+              background-color: var(--background-secondary);
+              border: 1px solid var(--border-color);
+            "
+          >
+            <span class="font-bold">Trades</span>
+            <InvestmentTradesPaginated
+              ref="txnRef"
+              @update-trade="(id) => manipulateDialog('updateTrade', id)"
+            />
+          </div>
         </div>
       </Transition>
     </div>
