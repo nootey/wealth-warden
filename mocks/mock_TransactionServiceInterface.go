@@ -1139,9 +1139,16 @@ func (_c *MockTransactionServiceInterface_InsertCategoryGroup_Call) RunAndReturn
 	return _c
 }
 
-// InsertTransaction provides a mock function with given fields: ctx, userID, req
-func (_m *MockTransactionServiceInterface) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq) (int64, error) {
-	ret := _m.Called(ctx, userID, req)
+// InsertTransaction provides a mock function with given fields: ctx, userID, req, existingTx
+func (_m *MockTransactionServiceInterface) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (int64, error) {
+	_va := make([]interface{}, len(existingTx))
+	for _i := range existingTx {
+		_va[_i] = existingTx[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, userID, req)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
 		panic("no return value specified for InsertTransaction")
@@ -1149,17 +1156,17 @@ func (_m *MockTransactionServiceInterface) InsertTransaction(ctx context.Context
 
 	var r0 int64
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionReq) (int64, error)); ok {
-		return rf(ctx, userID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionReq, ...*gorm.DB) (int64, error)); ok {
+		return rf(ctx, userID, req, existingTx...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionReq) int64); ok {
-		r0 = rf(ctx, userID, req)
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionReq, ...*gorm.DB) int64); ok {
+		r0 = rf(ctx, userID, req, existingTx...)
 	} else {
 		r0 = ret.Get(0).(int64)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, int64, *models.TransactionReq) error); ok {
-		r1 = rf(ctx, userID, req)
+	if rf, ok := ret.Get(1).(func(context.Context, int64, *models.TransactionReq, ...*gorm.DB) error); ok {
+		r1 = rf(ctx, userID, req, existingTx...)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1176,13 +1183,21 @@ type MockTransactionServiceInterface_InsertTransaction_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - req *models.TransactionReq
-func (_e *MockTransactionServiceInterface_Expecter) InsertTransaction(ctx interface{}, userID interface{}, req interface{}) *MockTransactionServiceInterface_InsertTransaction_Call {
-	return &MockTransactionServiceInterface_InsertTransaction_Call{Call: _e.mock.On("InsertTransaction", ctx, userID, req)}
+//   - existingTx ...*gorm.DB
+func (_e *MockTransactionServiceInterface_Expecter) InsertTransaction(ctx interface{}, userID interface{}, req interface{}, existingTx ...interface{}) *MockTransactionServiceInterface_InsertTransaction_Call {
+	return &MockTransactionServiceInterface_InsertTransaction_Call{Call: _e.mock.On("InsertTransaction",
+		append([]interface{}{ctx, userID, req}, existingTx...)...)}
 }
 
-func (_c *MockTransactionServiceInterface_InsertTransaction_Call) Run(run func(ctx context.Context, userID int64, req *models.TransactionReq)) *MockTransactionServiceInterface_InsertTransaction_Call {
+func (_c *MockTransactionServiceInterface_InsertTransaction_Call) Run(run func(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB)) *MockTransactionServiceInterface_InsertTransaction_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(int64), args[2].(*models.TransactionReq))
+		variadicArgs := make([]*gorm.DB, len(args)-3)
+		for i, a := range args[3:] {
+			if a != nil {
+				variadicArgs[i] = a.(*gorm.DB)
+			}
+		}
+		run(args[0].(context.Context), args[1].(int64), args[2].(*models.TransactionReq), variadicArgs...)
 	})
 	return _c
 }
@@ -1192,7 +1207,7 @@ func (_c *MockTransactionServiceInterface_InsertTransaction_Call) Return(_a0 int
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertTransaction_Call) RunAndReturn(run func(context.Context, int64, *models.TransactionReq) (int64, error)) *MockTransactionServiceInterface_InsertTransaction_Call {
+func (_c *MockTransactionServiceInterface_InsertTransaction_Call) RunAndReturn(run func(context.Context, int64, *models.TransactionReq, ...*gorm.DB) (int64, error)) *MockTransactionServiceInterface_InsertTransaction_Call {
 	_c.Call.Return(run)
 	return _c
 }
