@@ -54,6 +54,7 @@ type TransactionTemplate struct {
 	TransactionType string          `gorm:"not null;enum(income,expense)" json:"transaction_type"`
 	Amount          decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
 	Frequency       string          `gorm:"not null:enum(weekly,biweekly,monthly,quarterly,annually)" json:"frequency"`
+	DayOfMonth      int             `gorm:"not null;default:0" json:"day_of_month"`
 	NextRunAt       time.Time       `gorm:"not null" json:"next_run_at"`
 	LastRunAt       *time.Time      `json:"last_run_at"`
 	RunCount        int             `gorm:"not null;default:0" json:"run_count"`
