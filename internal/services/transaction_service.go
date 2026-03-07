@@ -24,7 +24,7 @@ type TransactionServiceInterface interface {
 	FetchTransactionByID(ctx context.Context, userID int64, id int64, includeDeleted bool) (*models.Transaction, error)
 	FetchAllCategories(ctx context.Context, userID int64, includeDeleted bool) ([]models.Category, error)
 	FetchCategoryByID(ctx context.Context, userID int64, id int64, includeDeleted bool) (*models.Category, error)
-	InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq) (int64, error)
+	InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (int64, error)
 	InsertTransfer(ctx context.Context, userID int64, req *models.TransferReq) (int64, error)
 	InsertCategory(ctx context.Context, userID int64, req *models.CategoryReq) (int64, error)
 	UpdateTransaction(ctx context.Context, userID int64, id int64, req *models.TransactionReq) (int64, error)
@@ -245,19 +245,26 @@ func (s *TransactionService) validateInvestmentBalance(ctx context.Context, tx *
 	return nil
 }
 
-func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq) (int64, error) {
+func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (int64, error) {
 
-	tx, err := s.repo.BeginTx(ctx)
-	if err != nil {
-		return 0, err
-	}
+	var tx *gorm.DB
+	var err error
 
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p)
+	if len(existingTx) > 0 && existingTx[0] != nil {
+		tx = existingTx[0]
+	} else {
+		tx, err = s.repo.BeginTx(ctx)
+		if err != nil {
+			return 0, err
 		}
-	}()
+		defer func() {
+			if p := recover(); p != nil {
+				tx.Rollback()
+				panic(p)
+			}
+		}()
+	}
+	ownsTx := len(existingTx) == 0 || existingTx[0] == nil
 
 	account, err := s.accRepo.FindAccountByID(ctx, tx, req.AccountID, userID, false)
 	if err != nil {
@@ -374,8 +381,10 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		return 0, err
+	if ownsTx {
+		if err := tx.Commit().Error; err != nil {
+			return 0, err
+		}
 	}
 
 	// Dispatch transaction activity log
@@ -1569,7 +1578,6 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 	}
 
 	firstRun := utils.LocalMidnightUTC(req.NextRunAt, loc)
-
 	firstValidDay := time.Now().UTC().Truncate(24 * time.Hour)
 
 	if firstRun.Before(firstValidDay) {
@@ -1593,6 +1601,8 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		endDate = &e
 	}
 
+	day := firstRun.Day()
+
 	tp := models.TransactionTemplate{
 		Name:            req.Name,
 		UserID:          userID,
@@ -1601,6 +1611,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		TransactionType: strings.ToLower(req.TransactionType),
 		Amount:          req.Amount,
 		Frequency:       strings.ToLower(req.Frequency),
+		DayOfMonth:      day,
 		NextRunAt:       firstRun,
 		EndDate:         endDate,
 		MaxRuns:         req.MaxRuns,
@@ -2001,14 +2012,14 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 		Description:     &desc,
 	}
 
-	_, err = s.InsertTransaction(ctx, currentTemplate.UserID, txnReq)
+	_, err = s.InsertTransaction(ctx, currentTemplate.UserID, txnReq, tx)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	// Calculate next run date
-	nextRun := utils.CalculateNextRun(currentTemplate.NextRunAt, currentTemplate.Frequency)
+	nextRun := utils.CalculateNextRun(currentTemplate.NextRunAt, currentTemplate.Frequency, currentTemplate.DayOfMonth)
 	now := time.Now().UTC()
 
 	// Update template

@@ -11,7 +11,7 @@ import TransfersPaginated from "../components/data/TransfersPaginated.vue";
 import TransactionsPaginated from "../components/data/TransactionsPaginated.vue";
 import { useRouter } from "vue-router";
 import { usePermissions } from "../../utils/use_permissions.ts";
-import TransactionTemplates from "../features/TransactionTemplates.vue";
+import TransactionTemplatesPaginated from "../components/data/TransactionTemplatesPaginated.vue";
 
 const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
@@ -28,7 +28,9 @@ const { hasPermission } = usePermissions();
 
 const trRef = ref<InstanceType<typeof TransfersPaginated> | null>(null);
 const txRef = ref<InstanceType<typeof TransactionsPaginated> | null>(null);
-const tpRef = ref<InstanceType<typeof TransactionTemplates> | null>(null);
+const tpRef = ref<InstanceType<typeof TransactionTemplatesPaginated> | null>(
+  null,
+);
 
 const createModal = ref(false);
 const updateModal = ref(false);
@@ -184,12 +186,12 @@ async function handleEmit(emitType: any) {
   <Dialog
     v-model:visible="templateModal"
     class="rounded-dialog"
-    :breakpoints="{ '901px': '90vw' }"
+    :breakpoints="{ '1001px': '90vw' }"
     :modal="true"
-    :style="{ width: '900px' }"
+    :style="{ width: '1000px' }"
     header="Transaction templates"
   >
-    <TransactionTemplates
+    <TransactionTemplatesPaginated
       ref="tpRef"
       @refresh-template-count="handleEmit('refreshTemplateCount')"
     />

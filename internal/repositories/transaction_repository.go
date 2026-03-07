@@ -843,7 +843,7 @@ func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx
 		Where("user_id = ?", userID).
 		Preload("Category").
 		Preload("Account").
-		Order("created_at desc").
+		Order("is_active desc, created_at desc").
 		Limit(limit).
 		Offset(offset).
 		Find(&records).Error
