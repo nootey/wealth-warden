@@ -45,7 +45,7 @@ const params = computed(() => {
     filters: null,
   };
 });
-const rows = ref([5, 10, 25]);
+const rows = ref([10, 25]);
 const default_rows = ref(rows.value[0]);
 const paginator = ref<PaginatorState>({
   total: 0,
