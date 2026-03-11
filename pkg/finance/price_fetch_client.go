@@ -12,6 +12,22 @@ import (
 	"wealth-warden/pkg/utils"
 )
 
+// Map common exchange names to codes
+var exchangeMap = map[string]string{
+	"LONDON":    "L",
+	"LSE":       "L",
+	"AMSTERDAM": "AS",
+	"EURONEXT":  "AS",
+	"PARIS":     "PA",
+	"GERMANY":   "DE",
+	"XETRA":     "DE",
+	"FRANKFURT": "F",
+	"TORONTO":   "TO",
+	"TSX":       "TO",
+	"AUSTRALIA": "AX",
+	"ASX":       "AX",
+}
+
 type PriceFetcher interface {
 	GetAssetPrice(ctx context.Context, ticker string, investmentType models.InvestmentType) (*PriceData, error)
 	GetAssetPriceOnDate(ctx context.Context, ticker string, investmentType models.InvestmentType, date time.Time) (*PriceData, error)
@@ -51,23 +67,7 @@ func (c *PriceFetchClient) normalizeExchange(exchange string) string {
 	}
 
 	normalized := strings.ToUpper(strings.TrimSpace(exchange))
-
-	// Map common exchange names to codes
-	exchangeMap := map[string]string{
-		"LONDON":    "L",
-		"LSE":       "L",
-		"AMSTERDAM": "AS",
-		"EURONEXT":  "AS",
-		"PARIS":     "PA",
-		"GERMANY":   "DE",
-		"XETRA":     "DE",
-		"FRANKFURT": "F",
-		"TORONTO":   "TO",
-		"TSX":       "TO",
-		"AUSTRALIA": "AX",
-		"ASX":       "AX",
-	}
-
+	
 	if code, exists := exchangeMap[normalized]; exists {
 		return code
 	}
