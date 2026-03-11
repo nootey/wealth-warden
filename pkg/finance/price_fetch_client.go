@@ -67,7 +67,7 @@ func (c *PriceFetchClient) normalizeExchange(exchange string) string {
 	}
 
 	normalized := strings.ToUpper(strings.TrimSpace(exchange))
-	
+
 	if code, exists := exchangeMap[normalized]; exists {
 		return code
 	}

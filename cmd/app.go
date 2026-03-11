@@ -7,18 +7,17 @@ import (
 	"go.uber.org/zap"
 )
 
-var httpServerCmd = &cobra.Command{
-	Use:   "http",
-	Short: "Run the API server",
+var appCmd = &cobra.Command{
+	Use:   "app",
+	Short: "Run the app, with workers for http server, scheduler ...",
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		logger.Info("Configuration loaded",
-			zap.String("port", cfg.HttpServer.Port),
 			zap.String("database", cfg.Postgres.Database),
 			zap.Bool("release", cfg.Release),
 		)
 
-		app := runtime.NewHttpServerRuntime(cfg, logger)
+		app := runtime.NewAppRuntime(cfg, logger)
 		return app.Run(cmd.Context())
 	},
 }

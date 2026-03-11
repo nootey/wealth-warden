@@ -1,9 +1,8 @@
-package runtime_test
+package jobscheduler_test
 
 import (
 	"testing"
 	"wealth-warden/internal/bootstrap"
-	"wealth-warden/internal/runtime"
 	"wealth-warden/pkg/config"
 
 	"github.com/stretchr/testify/suite"
@@ -15,7 +14,7 @@ type SchedulerTestSuite struct {
 	suite.Suite
 	logger    *zap.Logger
 	container *bootstrap.ServiceContainer
-	scheduler *runtime.Scheduler
+	scheduler *Scheduler
 }
 
 func (suite *SchedulerTestSuite) SetupTest() {
@@ -27,7 +26,7 @@ func (suite *SchedulerTestSuite) SetupTest() {
 	}
 
 	var err error
-	suite.scheduler, err = runtime.NewScheduler(suite.logger, suite.container, runtime.SchedulerConfig{
+	suite.scheduler, err = NewScheduler(suite.logger, suite.container, SchedulerConfig{
 		StartBackfillImmediately:  false,
 		StartTemplateImmediately:  false,
 		StartPriceSyncImmediately: false,
@@ -58,7 +57,7 @@ func (suite *SchedulerTestSuite) TestScheduler_StartAndShutdown() {
 
 // Test creating scheduler with nil logger returns error
 func (suite *SchedulerTestSuite) TestScheduler_NewWithNilLogger() {
-	scheduler, err := runtime.NewScheduler(nil, suite.container, runtime.SchedulerConfig{
+	scheduler, err := NewScheduler(nil, suite.container, SchedulerConfig{
 		StartBackfillImmediately:  false,
 		StartTemplateImmediately:  false,
 		StartPriceSyncImmediately: false,
@@ -69,7 +68,7 @@ func (suite *SchedulerTestSuite) TestScheduler_NewWithNilLogger() {
 
 // Test creating scheduler with nil container returns error
 func (suite *SchedulerTestSuite) TestScheduler_NewWithNilContainer() {
-	scheduler, err := runtime.NewScheduler(suite.logger, nil, runtime.SchedulerConfig{
+	scheduler, err := NewScheduler(suite.logger, nil, SchedulerConfig{
 		StartBackfillImmediately:  false,
 		StartTemplateImmediately:  false,
 		StartPriceSyncImmediately: false,

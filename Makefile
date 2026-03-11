@@ -3,7 +3,7 @@ default: run
 
 # Run the server using the rootCmd
 run:
-	go run ./cmd http
+	go run ./cmd app
 
 # Run database migrations
 migrate:
