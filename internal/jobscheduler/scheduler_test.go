@@ -1,8 +1,11 @@
 package jobscheduler_test
 
 import (
+	"context"
 	"testing"
+	"time"
 	"wealth-warden/internal/bootstrap"
+	"wealth-warden/internal/jobscheduler"
 	"wealth-warden/pkg/config"
 
 	"github.com/stretchr/testify/suite"
@@ -14,7 +17,7 @@ type SchedulerTestSuite struct {
 	suite.Suite
 	logger    *zap.Logger
 	container *bootstrap.ServiceContainer
-	scheduler *Scheduler
+	scheduler *jobscheduler.Scheduler
 }
 
 func (suite *SchedulerTestSuite) SetupTest() {
@@ -26,7 +29,7 @@ func (suite *SchedulerTestSuite) SetupTest() {
 	}
 
 	var err error
-	suite.scheduler, err = NewScheduler(suite.logger, suite.container, SchedulerConfig{
+	suite.scheduler, err = jobscheduler.NewScheduler(suite.logger, suite.container, jobscheduler.SchedulerConfig{
 		StartBackfillImmediately:  false,
 		StartTemplateImmediately:  false,
 		StartPriceSyncImmediately: false,
@@ -48,7 +51,9 @@ func (suite *SchedulerTestSuite) TestScheduler_New() {
 
 // Test that scheduler can start and shutdown
 func (suite *SchedulerTestSuite) TestScheduler_StartAndShutdown() {
-	err := suite.scheduler.Start()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := suite.scheduler.Start(ctx)
 	suite.NoError(err)
 
 	err = suite.scheduler.Shutdown()
@@ -57,7 +62,7 @@ func (suite *SchedulerTestSuite) TestScheduler_StartAndShutdown() {
 
 // Test creating scheduler with nil logger returns error
 func (suite *SchedulerTestSuite) TestScheduler_NewWithNilLogger() {
-	scheduler, err := NewScheduler(nil, suite.container, SchedulerConfig{
+	scheduler, err := jobscheduler.NewScheduler(nil, suite.container, jobscheduler.SchedulerConfig{
 		StartBackfillImmediately:  false,
 		StartTemplateImmediately:  false,
 		StartPriceSyncImmediately: false,
@@ -68,7 +73,7 @@ func (suite *SchedulerTestSuite) TestScheduler_NewWithNilLogger() {
 
 // Test creating scheduler with nil container returns error
 func (suite *SchedulerTestSuite) TestScheduler_NewWithNilContainer() {
-	scheduler, err := NewScheduler(suite.logger, nil, SchedulerConfig{
+	scheduler, err := jobscheduler.NewScheduler(suite.logger, nil, jobscheduler.SchedulerConfig{
 		StartBackfillImmediately:  false,
 		StartTemplateImmediately:  false,
 		StartPriceSyncImmediately: false,

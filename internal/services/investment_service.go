@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
@@ -43,7 +43,7 @@ type InvestmentService struct {
 	accRepo           repositories.AccountRepositoryInterface
 	settingsRepo      *repositories.SettingsRepository
 	loggingRepo       repositories.LoggingRepositoryInterface
-	jobDispatcher     jobqueue.JobDispatcher
+	jobDispatcher     queue.JobDispatcher
 	priceFetchClient  finance.PriceFetcher
 	currencyConverter finance.CurrencyManager
 }
@@ -53,7 +53,7 @@ func NewInvestmentService(
 	accRepo *repositories.AccountRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
-	jobDispatcher jobqueue.JobDispatcher,
+	jobDispatcher queue.JobDispatcher,
 	priceFetchClient finance.PriceFetcher,
 	currencyConverter finance.CurrencyManager,
 ) *InvestmentService {
@@ -259,7 +259,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	utils.CompareChanges("", string(hold.InvestmentType), changes, "type")
 	utils.CompareChanges("", quantityString, changes, "quantity")
 
-	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "investment",
@@ -654,7 +654,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		utils.CompareChanges("", *txn.Description, changes, "description")
 	}
 
-	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "investment_trade",
@@ -842,7 +842,7 @@ func (s *InvestmentService) UpdateInvestmentAsset(ctx context.Context, userID in
 	utils.CompareChanges(exHold.Name, hold.Name, changes, "name")
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "investment",
@@ -920,7 +920,7 @@ func (s *InvestmentService) UpdateInvestmentTrade(ctx context.Context, userID in
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "investment_trade",
@@ -1051,7 +1051,7 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 	utils.CompareChanges(asset.Ticker, "", changes, "ticker")
 	utils.CompareChanges(asset.Name, "", changes, "name")
 
-	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "delete",
 		Category:    "investment",
@@ -1189,7 +1189,7 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 	utils.CompareChanges(exTxn.PricePerUnit.StringFixed(2), "", changes, "price_per_unit")
 	utils.CompareChanges(string(exTxn.TradeType), "", changes, "type")
 
-	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "delete",
 		Category:    "investment_trade",
@@ -1205,7 +1205,7 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 }
 
 func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, assetID, userID int64) error {
-	job := &jobqueue.RecalculateAssetPnLJob{
+	job := &queue.RecalculateAssetPnLJob{
 		Repo:             s.repo,
 		AccRepo:          s.accRepo,
 		PriceFetchClient: s.priceFetchClient,
@@ -1251,7 +1251,7 @@ func (s *InvestmentService) RecalculateAccountBalances(ctx context.Context, acco
 		toDate = today
 	}
 
-	job := &jobqueue.RecalculateAccountBalancesJob{
+	job := &queue.RecalculateAccountBalancesJob{
 		Repo:             s.repo,
 		AccRepo:          s.accRepo,
 		PriceFetchClient: s.priceFetchClient,

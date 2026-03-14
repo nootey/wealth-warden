@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
-	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
@@ -32,7 +32,7 @@ type AuthService struct {
 	roleRepo      repositories.RolePermissionRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher jobqueue.JobDispatcher
+	jobDispatcher queue.JobDispatcher
 	mailer        *mailer.Mailer
 }
 
@@ -41,7 +41,7 @@ func NewAuthService(
 	roleRepo *repositories.RolePermissionRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
-	jobDispatcher jobqueue.JobDispatcher,
+	jobDispatcher queue.JobDispatcher,
 	mailer *mailer.Mailer,
 ) *AuthService {
 	return &AuthService{
@@ -67,7 +67,7 @@ func (s *AuthService) log(event, email, userAgent, ip, status string, descriptio
 	utils.CompareChanges("", utils.SafeString(&ip), changes, "ip_address")
 	utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
 
-	err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       event,
 		Category:    "auth",

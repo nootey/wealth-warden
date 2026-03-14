@@ -1,4 +1,4 @@
-package jobqueue
+package queue
 
 // InMemoryDispatcher is a simple dispatcher that pushes jobs to an in-memory queue
 // This can be swapped out later for Redis, Kafka, etc.

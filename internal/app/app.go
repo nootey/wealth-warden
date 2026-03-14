@@ -6,6 +6,7 @@ import (
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/http"
 	"wealth-warden/internal/jobscheduler"
+	"wealth-warden/internal/queue"
 	"wealth-warden/internal/worker"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
@@ -17,15 +18,22 @@ type App struct {
 	logger    *zap.Logger
 	http      *http.HttpServer
 	scheduler *jobscheduler.Scheduler
+	jobQueue  *queue.JobQueue
 }
 
 func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
+
+	// Database
 	dbClient, err := database.ConnectToPostgres(cfg, logger.Named("database"))
 	if err != nil {
 		return nil, fmt.Errorf("database connection failed: %w", err)
 	}
 
-	container, err := bootstrap.NewServiceContainer(cfg, dbClient, logger.Named("container"))
+	// In memory job queue
+	jobQueue := queue.NewJobQueue(1, 25)
+	jobDispatcher := &queue.InMemoryDispatcher{Queue: jobQueue}
+
+	container, err := bootstrap.NewServiceContainer(cfg, dbClient, logger.Named("container"), jobDispatcher)
 	if err != nil {
 		return nil, fmt.Errorf("container initialization failed: %w", err)
 	}
@@ -43,6 +51,7 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		logger:    logger,
 		http:      http.NewServer(container, logger.Named("http")),
 		scheduler: scheduler,
+		jobQueue:  jobQueue,
 	}, nil
 }
 
@@ -69,6 +78,14 @@ func (a *App) Run(ctx context.Context) error {
 			cancel()
 		}
 		_ = a.scheduler.Shutdown()
+	}))
+
+	supervisor.Add(worker.NewService("job-queue", func(ctx context.Context) {
+		a.jobQueue.Run(ctx)
+		if err := a.jobQueue.Shutdown(); err != nil {
+			a.logger.Error("job queue shutdown failed", zap.Error(err))
+			cancel()
+		}
 	}))
 
 	supervisor.Run(ctx)

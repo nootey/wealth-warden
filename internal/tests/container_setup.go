@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"time"
 	"wealth-warden/internal/bootstrap"
+	"wealth-warden/internal/queue"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database/seeders"
 
@@ -85,7 +86,9 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 	s.Require().NoError(err, "seeding failed")
 
 	// Build application container
-	appContainer, err := bootstrap.NewServiceContainer(cfg, db, l)
+	jobQueue := queue.NewJobQueue(1, 25)
+	jobDispatcher := &queue.InMemoryDispatcher{Queue: jobQueue}
+	appContainer, err := bootstrap.NewServiceContainer(cfg, db, l, jobDispatcher)
 	s.Require().NoError(err, "failed to bootstrap app container")
 
 	s.TC = &TestContainer{
