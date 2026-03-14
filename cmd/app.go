@@ -1,7 +1,9 @@
 package main
 
 import (
-	"wealth-warden/internal/runtime"
+	"os/signal"
+	"syscall"
+	"wealth-warden/internal/app"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -17,7 +19,13 @@ var appCmd = &cobra.Command{
 			zap.Bool("release", cfg.Release),
 		)
 
-		app := runtime.NewAppRuntime(cfg, logger)
-		return app.Run(cmd.Context())
+		ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGTERM, syscall.SIGINT)
+		defer stop()
+
+		a, err := app.New(cfg, logger)
+		if err != nil {
+			return err
+		}
+		return a.Run(ctx)
 	},
 }

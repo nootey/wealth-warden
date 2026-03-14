@@ -51,4 +51,4 @@ ENV PATH="/usr/local/bin/server:${PATH}"
 HEALTHCHECK --interval=10s --timeout=5s CMD curl --fail http://localhost:2000/healthz || exit 1
 
 ENTRYPOINT ["server"]
-CMD ["http"]
+CMD ["app"]

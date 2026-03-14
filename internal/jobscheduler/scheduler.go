@@ -47,7 +47,9 @@ func NewScheduler(logger *zap.Logger, container *bootstrap.ServiceContainer, con
 	}, nil
 }
 
-func (s *Scheduler) Start() error {
+func (s *Scheduler) Name() string { return "scheduler" }
+
+func (s *Scheduler) Start(ctx context.Context) error {
 
 	// Register jobs
 	err := s.registerJobs()
@@ -58,6 +60,7 @@ func (s *Scheduler) Start() error {
 	s.scheduler.Start()
 	s.logger.Info("Scheduler started")
 
+	<-ctx.Done()
 	return nil
 }
 
@@ -65,6 +68,7 @@ func (s *Scheduler) Shutdown() error {
 	s.logger.Info("Scheduler shutting down")
 	return s.scheduler.Shutdown()
 }
+
 func (s *Scheduler) registerJobs() error {
 
 	err := s.registerBackfillJob()
