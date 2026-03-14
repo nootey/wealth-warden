@@ -19,8 +19,11 @@ bootstrap:
 	go mod tidy
 	@echo "Bootstrap complete."
 
+mock:
+	mockery --config=.mockery.yaml
+
 test:
-	go test -v ./...
+	go test ./...
 
 test-coverage:
 	go test -coverprofile=coverage.out ./...
