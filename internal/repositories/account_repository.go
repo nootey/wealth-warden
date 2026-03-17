@@ -650,15 +650,11 @@ func (r *AccountRepository) UpdateBalance(ctx context.Context, tx *gorm.DB, reco
 	if err := db.Model(models.Balance{}).
 		Where("id = ?", record.ID).
 		Updates(map[string]interface{}{
-			"as_of":             record.AsOf,
-			"start_balance":     record.StartBalance,
-			"cash_inflows":      record.CashInflows,
-			"cash_outflows":     record.CashOutflows,
-			"non_cash_inflows":  record.NonCashInflows,
-			"non_cash_outflows": record.NonCashOutflows,
-			"net_market_flows":  record.NetMarketFlows,
-			"adjustments":       record.Adjustments,
-			"currency":          record.Currency,
+			"as_of":         record.AsOf,
+			"start_balance": record.StartBalance,
+			"cash_inflows":  record.CashInflows,
+			"cash_outflows": record.CashOutflows,
+			"currency":      record.Currency,
 		}).Error; err != nil {
 		return 0, err
 	}

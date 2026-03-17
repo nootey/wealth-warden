@@ -11,7 +11,6 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -53,12 +52,11 @@ type TransactionServiceInterface interface {
 }
 
 type TransactionService struct {
-	repo              repositories.TransactionRepositoryInterface
-	accRepo           repositories.AccountRepositoryInterface
-	settingsRepo      repositories.SettingsRepositoryInterface
-	loggingRepo       repositories.LoggingRepositoryInterface
-	jobDispatcher     queue.JobDispatcher
-	currencyConverter finance.CurrencyManager
+	repo          repositories.TransactionRepositoryInterface
+	accRepo       repositories.AccountRepositoryInterface
+	settingsRepo  repositories.SettingsRepositoryInterface
+	loggingRepo   repositories.LoggingRepositoryInterface
+	jobDispatcher queue.JobDispatcher
 }
 
 func NewTransactionService(
@@ -67,15 +65,13 @@ func NewTransactionService(
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher queue.JobDispatcher,
-	currencyConverter finance.CurrencyManager,
 ) *TransactionService {
 	return &TransactionService{
-		repo:              repo,
-		accRepo:           accRepo,
-		settingsRepo:      settingsRepo,
-		loggingRepo:       loggingRepo,
-		jobDispatcher:     jobDispatcher,
-		currencyConverter: currencyConverter,
+		repo:          repo,
+		accRepo:       accRepo,
+		settingsRepo:  settingsRepo,
+		loggingRepo:   loggingRepo,
+		jobDispatcher: jobDispatcher,
 	}
 }
 
@@ -220,31 +216,6 @@ func (s *TransactionService) FetchCategoryByID(ctx context.Context, userID int64
 	return &record, nil
 }
 
-func (s *TransactionService) validateInvestmentBalance(ctx context.Context, tx *gorm.DB, account *models.Account, userID int64, latestBalance *models.Balance, cashDelta decimal.Decimal) error {
-	totalInvestmentValue, negativeValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, account.ID, userID, account.Currency)
-	if err != nil {
-		return fmt.Errorf("failed to calculate total investment value: %w", err)
-	}
-
-	// Adjust balance by adding back unrealized losses
-	adjustedBalance := latestBalance.EndBalance.Add(negativeValue.Abs())
-
-	// Calculate what the balance would be after this transaction
-	resultingBalance := adjustedBalance.Add(cashDelta)
-
-	// Calculate available cash after accounting for investments
-	availableCashAfterTransaction := resultingBalance.Sub(totalInvestmentValue)
-
-	if availableCashAfterTransaction.LessThan(decimal.Zero) && account.AccountType.Classification != "liability" {
-		return fmt.Errorf("insufficient funds: resulting available cash (%s) would be negative (balance: %s, invested: %s)",
-			availableCashAfterTransaction.StringFixed(2),
-			resultingBalance.StringFixed(2),
-			totalInvestmentValue.StringFixed(2))
-	}
-
-	return nil
-}
-
 func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (int64, error) {
 
 	var tx *gorm.DB
@@ -279,9 +250,11 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 			return 0, err
 		}
 
-		if err := s.validateInvestmentBalance(ctx, tx, account, userID, latestBalance, req.Amount.Neg()); err != nil {
+		resultingBalance := latestBalance.EndBalance.Sub(req.Amount)
+		if resultingBalance.LessThan(decimal.Zero) && account.AccountType.Classification != "liability" {
 			tx.Rollback()
-			return 0, err
+			return 0, fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
+				resultingBalance.StringFixed(2))
 		}
 	}
 
@@ -436,39 +409,15 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		return 0, fmt.Errorf("can't find source account %w", err)
 	}
 
-	if fromAcc.AccountType.Classification == "asset" && fromAcc.Balance.EndBalance.LessThan(req.Amount) {
-		tx.Rollback()
-		return 0, fmt.Errorf("%w: account %s balance=%s, requested=%s",
-			errors.New("insufficient funds"),
-			fromAcc.Name,
-			fromAcc.Balance.EndBalance.StringFixed(2),
-			req.Amount.StringFixed(2),
-		)
-	}
-
-	// Check against total cash invested
-	totalInvestmentValue, negativeValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, fromAcc.ID, userID, fromAcc.Currency)
-	if err != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
-	}
-
-	// Adjust balance by adding back unrealized losses
-	adjustedBalance := fromAcc.Balance.EndBalance.Add(negativeValue.Abs())
-
-	// Calculate what the balance would be after withdrawing req.Amount
-	resultingBalance := adjustedBalance.Sub(req.Amount)
-
-	// Calculate available cash after accounting for investments
-	availableCashAfterTransfer := resultingBalance.Sub(totalInvestmentValue)
-
-	if availableCashAfterTransfer.LessThan(decimal.Zero) && fromAcc.AccountType.Classification != "liability" {
-		tx.Rollback()
-		return 0, fmt.Errorf("insufficient funds: resulting available cash (%s) would be negative in %s (balance: %s, invested: %s)",
-			availableCashAfterTransfer.StringFixed(2),
-			fromAcc.Name,
-			resultingBalance.StringFixed(2),
-			totalInvestmentValue.StringFixed(2))
+	if fromAcc.AccountType.Classification == "asset" {
+		resultingBalance := fromAcc.Balance.EndBalance.Sub(req.Amount)
+		if resultingBalance.LessThan(decimal.Zero) {
+			tx.Rollback()
+			return 0, fmt.Errorf("insufficient funds: account %s balance=%s, requested=%s",
+				fromAcc.Name,
+				fromAcc.Balance.EndBalance.StringFixed(2),
+				req.Amount.StringFixed(2))
+		}
 	}
 
 	toAcc, err := s.accRepo.FindAccountByID(ctx, tx, req.DestinationID, userID, false)
@@ -739,9 +688,11 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 			return 0, err
 		}
 
-		if err := s.validateInvestmentBalance(ctx, tx, newAccount, userID, latestBalance, netChange); err != nil {
+		resultingBalance := latestBalance.EndBalance.Add(netChange)
+		if resultingBalance.LessThan(decimal.Zero) && newAccount.AccountType.Classification != "liability" {
 			tx.Rollback()
-			return 0, err
+			return 0, fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
+				resultingBalance.StringFixed(2))
 		}
 	}
 
@@ -993,9 +944,11 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 			return err
 		}
 
-		if err := s.validateInvestmentBalance(ctx, tx, account, userID, latestBalance, tr.Amount.Neg()); err != nil {
+		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
+		if resultingBalance.LessThan(decimal.Zero) && account.AccountType.Classification != "liability" {
 			tx.Rollback()
-			return err
+			return fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
+				resultingBalance.StringFixed(2))
 		}
 	}
 
@@ -1124,10 +1077,13 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 		return err
 	}
 
-	if err := s.validateInvestmentBalance(ctx, tx, toAcc, userID, latestToBalance, inflow.Amount.Neg()); err != nil {
+	resultingBalance := latestToBalance.EndBalance.Sub(inflow.Amount)
+	if resultingBalance.LessThan(decimal.Zero) && toAcc.AccountType.Classification != "liability" {
 		tx.Rollback()
-		return err
+		return fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
+			resultingBalance.StringFixed(2))
 	}
+
 	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
 		tx.Rollback()
 		return err
@@ -1334,9 +1290,11 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 			return err
 		}
 
-		if err := s.validateInvestmentBalance(ctx, tx, acc, userID, latestBalance, tr.Amount.Neg()); err != nil {
+		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
+		if resultingBalance.LessThan(decimal.Zero) && acc.AccountType.Classification != "liability" {
 			tx.Rollback()
-			return err
+			return fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
+				resultingBalance.StringFixed(2))
 		}
 	}
 

@@ -153,7 +153,7 @@ func (s *Scheduler) registerInvestmentPriceSyncJob() error {
 		logger.Warn("Failed to create price fetch client", zap.Error(err))
 	}
 
-	job := NewInvestmentPriceSyncJob(logger, s.container, client)
+	job := NewInvestmentPriceSyncJob(logger, s.container.InvestmentService, s.container.DB, client)
 
 	var opts []gocron.JobOption
 	if s.config.StartPriceSyncImmediately {

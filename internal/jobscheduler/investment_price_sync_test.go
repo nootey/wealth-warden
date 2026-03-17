@@ -33,7 +33,7 @@ func (s *InvestmentPriceSyncJobTestSuite) TestInvestmentPriceSyncJob_Success() {
 		logger.Warn("Failed to create price fetch client", zap.Error(err))
 	}
 
-	job := jobscheduler.NewInvestmentPriceSyncJob(logger, s.TC.App, client)
+	job := jobscheduler.NewInvestmentPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.DB, client)
 
 	err = job.Run(s.Ctx)
 	s.NoError(err)
@@ -48,13 +48,12 @@ func (s *InvestmentPriceSyncJobTestSuite) TestInvestmentPriceSyncJob_UpdatesPric
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	initialBalance := decimal.NewFromInt(100000)
 
-	accReq := &models.AccountReq{
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
 		Name:          "Investment Account",
 		AccountTypeID: 5,
 		Balance:       &initialBalance,
 		OpenedAt:      today,
-	}
-	accID, err := accSvc.InsertAccount(s.Ctx, userID, accReq)
+	})
 	s.Require().NoError(err)
 
 	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
@@ -103,25 +102,12 @@ func (s *InvestmentPriceSyncJobTestSuite) TestInvestmentPriceSyncJob_UpdatesPric
 		}).Error
 	s.Require().NoError(err)
 
-	// Update balance to match the old price
-	oldNonCashInflows := decimal.NewFromInt(10000)
-	err = s.TC.DB.Model(&models.Balance{}).
-		Where("account_id = ? AND as_of = ?", accID, today).
-		Update("non_cash_inflows", oldNonCashInflows).Error
-	s.Require().NoError(err)
-
-	var balanceBefore models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
-		First(&balanceBefore).Error
-	s.Require().NoError(err)
-
 	// Run price sync job
 	logger := zaptest.NewLogger(s.T())
 	client, err := finance.NewPriceFetchClient(s.TC.App.Config.FinanceAPIBaseURL)
 	s.Require().NoError(err)
 
-	job := jobscheduler.NewInvestmentPriceSyncJob(logger, s.TC.App, client)
+	job := jobscheduler.NewInvestmentPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.DB, client)
 
 	ctx3, cancel3 := context.WithTimeout(s.Ctx, 30*time.Second)
 	defer cancel3()
@@ -134,25 +120,29 @@ func (s *InvestmentPriceSyncJobTestSuite) TestInvestmentPriceSyncJob_UpdatesPric
 		s.Require().NoError(err)
 	}
 
-	// Verify asset updated
+	// Verify asset price updated
 	var assetAfter models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&assetAfter).Error
 	s.Require().NoError(err)
 
 	s.Assert().NotNil(assetAfter.CurrentPrice, "price should be updated")
 	s.Assert().NotNil(assetAfter.LastPriceUpdate, "last update should be set")
-	s.Assert().True(assetAfter.CurrentValue.GreaterThan(decimal.Zero), "value should be updated")
+	s.Assert().True(assetAfter.CurrentValue.GreaterThan(decimal.Zero), "current value should be updated")
+	s.Assert().NotEqual(oldPrice, assetAfter.CurrentPrice, "price should have changed")
 
-	// Verify balance non-cash flows updated
-	var balanceAfter models.Balance
+	// Verify price history populated
+	var priceHistory models.AssetPriceHistory
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("asset_id = ? AND as_of = ?", assetID, today).
+		First(&priceHistory).Error
+	s.Require().NoError(err)
+	s.Assert().True(priceHistory.Price.GreaterThan(decimal.Zero), "price history should be recorded")
+
+	// Verify cash balance reduced by purchase cost (buy wrote cash_outflows)
+	var balance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, today).
-		First(&balanceAfter).Error
+		First(&balance).Error
 	s.Require().NoError(err)
-
-	s.Assert().False(oldNonCashInflows.Equal(balanceAfter.NonCashInflows),
-		"non-cash flows should be updated")
-	s.Assert().True(balanceAfter.NonCashInflows.GreaterThan(oldNonCashInflows),
-		"non-cash flows should have increased with price")
-
+	s.Assert().True(balance.CashOutflows.GreaterThan(decimal.Zero), "buy should have written cash outflows")
 }

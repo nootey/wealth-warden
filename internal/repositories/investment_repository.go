@@ -21,6 +21,7 @@ type InvestmentRepositoryInterface interface {
 	FindInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTrade, error)
 	FindInvestmentTradeByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTrade, error)
 	FindInvestmentTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.InvestmentTrade, error)
+	FindAllTradesByUserID(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTrade, error)
 	FindInvestmentAssetsByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentAsset, error)
 	InsertAsset(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentAsset) (int64, error)
 	InsertInvestmentTrade(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTrade) (int64, error)
@@ -31,13 +32,14 @@ type InvestmentRepositoryInterface interface {
 	RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error
 	DeleteInvestmentTrade(ctx context.Context, tx *gorm.DB, id int64) error
 	GetEarliestTradeDate(ctx context.Context, tx *gorm.DB, assetID, userID int64) (time.Time, error)
-	FindSellTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID, userID int64) ([]models.InvestmentTrade, error)
+	FindAllTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID, userID int64) ([]models.InvestmentTrade, error)
 	DeleteAllTradesForAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64) error
 	DeleteInvestmentAsset(ctx context.Context, tx *gorm.DB, id int64) error
 	GetInvestmentTotalsUpToDate(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time) (decimal.Decimal, decimal.Decimal, error)
 	FindAssetByTicker(ctx context.Context, tx *gorm.DB, ticker string, accID, userID int64) (models.InvestmentAsset, error)
 	FindInvestmentTradesByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentTrade, error)
 	GetInvestmentTradesDateRange(ctx context.Context, tx *gorm.DB, accountID int64) (time.Time, time.Time, error)
+	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal) error
 }
 
 type InvestmentRepository struct {
@@ -609,7 +611,7 @@ func (r *InvestmentRepository) GetEarliestTradeDate(ctx context.Context, tx *gor
 	return txn.TxnDate, nil
 }
 
-func (r *InvestmentRepository) FindSellTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID, userID int64) ([]models.InvestmentTrade, error) {
+func (r *InvestmentRepository) FindAllTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID, userID int64) ([]models.InvestmentTrade, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -617,7 +619,23 @@ func (r *InvestmentRepository) FindSellTradesByAssetID(ctx context.Context, tx *
 	db = db.WithContext(ctx)
 
 	var trades []models.InvestmentTrade
-	err := db.Where("asset_id = ? AND user_id = ? AND trade_type = ?", assetID, userID, models.InvestmentSell).
+	err := db.Where("asset_id = ? AND user_id = ?", assetID, userID).
+		Order("txn_date ASC").
+		Find(&trades).Error
+
+	return trades, err
+}
+
+func (r *InvestmentRepository) FindAllTradesByUserID(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTrade, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var trades []models.InvestmentTrade
+	err := db.Preload("Asset.Account").
+		Where("user_id = ?", userID).
 		Order("txn_date ASC").
 		Find(&trades).Error
 
@@ -690,4 +708,18 @@ func (r *InvestmentRepository) GetInvestmentTradesDateRange(ctx context.Context,
 	}
 
 	return result.MinDate, result.MaxDate, nil
+}
+
+func (r *InvestmentRepository) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	return db.Exec(`
+		INSERT INTO asset_price_history (asset_id, as_of, price)
+		VALUES (?, ?, ?)
+		ON CONFLICT (asset_id, as_of) DO UPDATE SET price = EXCLUDED.price
+	`, assetID, asOf.UTC().Truncate(24*time.Hour), price).Error
 }
