@@ -738,34 +738,33 @@ func (r *AccountRepository) EnsureDailyBalanceRow(ctx context.Context, tx *gorm.
 
 	asOf = asOf.UTC().Truncate(24 * time.Hour)
 	return db.Exec(`
-        WITH prev AS (
-            SELECT end_balance
-            FROM balances
-            WHERE account_id = ? AND as_of < ?
-            ORDER BY as_of DESC
-            LIMIT 1
-        ),
-        nxt AS (
-            -- earliest future row (used when there is no previous row)
-            SELECT start_balance
-            FROM balances
-            WHERE account_id = ? AND as_of > ?
-            ORDER BY as_of ASC
-            LIMIT 1
-        )
-        INSERT INTO balances (
-            account_id, as_of, start_balance,
-            cash_inflows, cash_outflows, non_cash_inflows, non_cash_outflows,
-            net_market_flows, adjustments, currency, created_at, updated_at
-        )
-        VALUES (
-            ?, ?, COALESCE((SELECT end_balance FROM prev),
-                           (SELECT start_balance FROM nxt), 0),
-            0, 0, 0, 0,
-            0, 0, ?, NOW(), NOW()
-        )
-        ON CONFLICT (account_id, as_of) DO NOTHING
-    `, accountID, asOf, accountID, asOf, accountID, asOf, currency).Error
+    WITH prev AS (
+        SELECT end_balance
+        FROM balances
+        WHERE account_id = ? AND as_of < ?
+        ORDER BY as_of DESC
+        LIMIT 1
+    ),
+    nxt AS (
+        SELECT start_balance
+        FROM balances
+        WHERE account_id = ? AND as_of > ?
+        ORDER BY as_of ASC
+        LIMIT 1
+    )
+    INSERT INTO balances (
+        account_id, as_of, start_balance,
+        cash_inflows, cash_outflows,
+        currency, created_at, updated_at
+    )
+    VALUES (
+        ?, ?, COALESCE((SELECT end_balance FROM prev),
+                       (SELECT start_balance FROM nxt), 0),
+        0, 0,
+        ?, NOW(), NOW()
+    )
+    ON CONFLICT (account_id, as_of) DO NOTHING
+`, accountID, asOf, accountID, asOf, accountID, asOf, currency).Error
 }
 
 func (r *AccountRepository) AddToDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, amt decimal.Decimal) error {
@@ -780,7 +779,7 @@ func (r *AccountRepository) AddToDailyBalance(ctx context.Context, tx *gorm.DB, 
 
 	// guard: only allow the expected columns
 	switch field {
-	case "cash_inflows", "cash_outflows", "non_cash_inflows", "non_cash_outflows", "net_market_flows", "adjustments":
+	case "cash_inflows", "cash_outflows":
 	default:
 		return fmt.Errorf("invalid balance field %q", field)
 	}
@@ -937,11 +936,7 @@ func (r *AccountRepository) FrontfillBalances(ctx context.Context, tx *gorm.DB, 
 			b.account_id,
 			b.as_of,
 			( b.cash_inflows
-			- b.cash_outflows
-			+ b.non_cash_inflows
-			- b.non_cash_outflows
-			+ b.net_market_flows
-			+ b.adjustments )::numeric(19,4) AS delta
+			- b.cash_outflows)::numeric(19,4) AS delta
 		  FROM balances b, params p
 		  WHERE b.account_id = p.account_id
 			AND b.as_of > p.from_date
@@ -1138,7 +1133,7 @@ func (r *AccountRepository) SetDailyBalance(ctx context.Context, tx *gorm.DB, ac
 	asOf = asOf.UTC().Truncate(24 * time.Hour)
 
 	switch field {
-	case "cash_inflows", "cash_outflows", "non_cash_inflows", "non_cash_outflows", "net_market_flows", "adjustments":
+	case "cash_inflows", "cash_outflows":
 	default:
 		return fmt.Errorf("invalid balance field %q", field)
 	}
