@@ -32,6 +32,12 @@ type ServiceIntegrationSuite struct {
 	Ctx context.Context
 }
 
+type NoOpDispatcher struct{}
+
+func (d *NoOpDispatcher) Dispatch(job queue.Job) error {
+	return nil
+}
+
 // SetupSuite runs once before all integration tests
 func (s *ServiceIntegrationSuite) SetupSuite() {
 	s.Ctx = context.Background()
@@ -86,8 +92,7 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 	s.Require().NoError(err, "seeding failed")
 
 	// Build application container
-	jobQueue := queue.NewJobQueue(1, 25)
-	jobDispatcher := &queue.InMemoryDispatcher{Queue: jobQueue}
+	jobDispatcher := &NoOpDispatcher{}
 	appContainer, err := bootstrap.NewServiceContainer(cfg, db, l, jobDispatcher)
 	s.Require().NoError(err, "failed to bootstrap app container")
 
