@@ -18,6 +18,7 @@ type ServiceContainer struct {
 	Config             *config.Config
 	DB                 *gorm.DB
 	AuthzService       *authz.Service
+	BackofficeService  *services.BackofficeService
 	AuthService        *services.AuthService
 	UserService        *services.UserService
 	LoggingService     *services.LoggingService
@@ -41,6 +42,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	authzSvc := authz.NewService(db, 5*time.Minute)
 
 	// Initialize repositories
+	backOfficeRepo := repositories.NewBackofficeRepository(db)
 	loggingRepo := repositories.NewLoggingRepository(db)
 	userRepo := repositories.NewUserRepository(db)
 	roleRepo := repositories.NewRolePermissionRepositoryRepository(db)
@@ -63,6 +65,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	currencyConverter := finance.NewCurrencyManager(priceFetchClient, investmentRepo)
 
 	// Initialize services
+	backOfficeService := services.NewBackofficeService(backOfficeRepo, settingsRepo)
 	loggingService := services.NewLoggingService(loggingRepo)
 	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, loggingRepo, jobDispatcher, mail)
 	roleService := services.NewRolePermissionService(roleRepo, loggingRepo, jobDispatcher)
@@ -79,6 +82,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	return &ServiceContainer{
 		Config:             cfg,
 		DB:                 db,
+		BackofficeService:  backOfficeService,
 		AuthzService:       authzSvc,
 		AuthService:        authService,
 		UserService:        userService,
