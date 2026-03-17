@@ -6,6 +6,7 @@ CREATE TABLE asset_price_history (
  price     NUMERIC(19,4) NOT NULL,
  currency  CHAR(3)      NOT NULL DEFAULT 'USD',
 
+ updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
  PRIMARY KEY (asset_id, as_of),

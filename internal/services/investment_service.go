@@ -280,7 +280,9 @@ func (s *InvestmentService) fetchCurrentPrice(ctx context.Context, tx *gorm.DB, 
 	price := decimal.NewFromFloat(priceData.Price)
 	now := time.Unix(priceData.LastUpdate, 0)
 
-	_ = s.repo.UpsertAssetPrice(ctx, tx, asset.ID, now, price)
+	if err := s.repo.UpsertAssetPrice(ctx, nil, asset.ID, now, price); err != nil {
+		fmt.Printf("warn: failed to upsert asset price history for asset %d: %v\n", asset.ID, err)
+	}
 
 	return &price, &now
 }
