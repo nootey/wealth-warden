@@ -23,19 +23,19 @@ import (
 	"go.uber.org/zap"
 )
 
-type Server struct {
+type HttpServer struct {
 	Router *gin.Engine
 	server *http.Server
 	logger *zap.Logger
 }
 
-func NewServer(container *bootstrap.ServiceContainer, logger *zap.Logger) *Server {
+func NewServer(container *bootstrap.ServiceContainer, logger *zap.Logger) *HttpServer {
 
 	router := NewRouter(container, logger)
 
 	addr := net.JoinHostPort(container.Config.Host, container.Config.HttpServer.Port)
 
-	return &Server{
+	return &HttpServer{
 		Router: router,
 		logger: logger,
 		server: &http.Server{
@@ -45,20 +45,28 @@ func NewServer(container *bootstrap.ServiceContainer, logger *zap.Logger) *Serve
 	}
 }
 
-func (s *Server) Start() {
+func (s *HttpServer) Name() string { return "http" }
 
+func (s *HttpServer) Start(ctx context.Context) error {
 	s.logger.Info("Starting the server")
-
 	s.server.Handler = s.Router.Handler()
 
+	errCh := make(chan error, 1)
 	go func() {
 		if err := s.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			s.logger.Fatal("Failed to listen and serve", zap.Error(err))
+			errCh <- err
 		}
 	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		return nil
+	}
 }
 
-func (s *Server) Shutdown() error {
+func (s *HttpServer) Shutdown() error {
 	s.logger.Info("Shutting down the server")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

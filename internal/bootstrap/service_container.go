@@ -2,7 +2,7 @@ package bootstrap
 
 import (
 	"time"
-	"wealth-warden/internal/jobqueue"
+	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -32,15 +32,12 @@ type ServiceContainer struct {
 	AnalyticsService   *services.AnalyticsService
 }
 
-func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*ServiceContainer, error) {
+func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jobDispatcher queue.JobDispatcher) (*ServiceContainer, error) {
 
 	// Initialize mailer
 	mail := mailer.NewMailer(cfg, &mailer.MailConfig{From: cfg.Mailer.Username, FromName: "Wealth Warden Support"})
 
-	// Initialize job queue system (In-Memory)
-	// Can later be swapped to Redis/Kafka with zero change to service layer
-	jobQueue := jobqueue.NewJobQueue(1, 25)
-	jobDispatcher := &jobqueue.InMemoryDispatcher{Queue: jobQueue}
+	// Initialize permission gating
 	authzSvc := authz.NewService(db, 5*time.Minute)
 
 	// Initialize repositories

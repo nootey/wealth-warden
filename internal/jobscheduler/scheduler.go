@@ -1,11 +1,10 @@
-package runtime
+package jobscheduler
 
 import (
 	"context"
 	"fmt"
 	"time"
 	"wealth-warden/internal/bootstrap"
-	"wealth-warden/internal/jobscheduler"
 	"wealth-warden/pkg/finance"
 
 	"github.com/go-co-op/gocron/v2"
@@ -48,7 +47,9 @@ func NewScheduler(logger *zap.Logger, container *bootstrap.ServiceContainer, con
 	}, nil
 }
 
-func (s *Scheduler) Start() error {
+func (s *Scheduler) Name() string { return "scheduler" }
+
+func (s *Scheduler) Start(ctx context.Context) error {
 
 	// Register jobs
 	err := s.registerJobs()
@@ -59,6 +60,7 @@ func (s *Scheduler) Start() error {
 	s.scheduler.Start()
 	s.logger.Info("Scheduler started")
 
+	<-ctx.Done()
 	return nil
 }
 
@@ -66,6 +68,7 @@ func (s *Scheduler) Shutdown() error {
 	s.logger.Info("Scheduler shutting down")
 	return s.scheduler.Shutdown()
 }
+
 func (s *Scheduler) registerJobs() error {
 
 	err := s.registerBackfillJob()
@@ -89,7 +92,7 @@ func (s *Scheduler) registerJobs() error {
 func (s *Scheduler) registerBackfillJob() error {
 
 	logger := s.logger.Named("backfill")
-	job := jobscheduler.NewBackfillJob(logger, s.container)
+	job := NewBackfillJob(logger, s.container)
 
 	var opts []gocron.JobOption
 	if s.config.StartBackfillImmediately {
@@ -117,7 +120,7 @@ func (s *Scheduler) registerBackfillJob() error {
 func (s *Scheduler) registerTemplateJob() error {
 
 	logger := s.logger.Named("template")
-	job := jobscheduler.NewAutomateTemplateJob(logger, s.container)
+	job := NewAutomateTemplateJob(logger, s.container)
 
 	var opts []gocron.JobOption
 	if s.config.StartTemplateImmediately {
@@ -150,7 +153,7 @@ func (s *Scheduler) registerInvestmentPriceSyncJob() error {
 		logger.Warn("Failed to create price fetch client", zap.Error(err))
 	}
 
-	job := jobscheduler.NewInvestmentPriceSyncJob(logger, s.container, client)
+	job := NewInvestmentPriceSyncJob(logger, s.container, client)
 
 	var opts []gocron.JobOption
 	if s.config.StartPriceSyncImmediately {
