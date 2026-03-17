@@ -9,19 +9,19 @@ import (
 	"go.uber.org/zap"
 )
 
-type BackfillJob struct {
+type BalanceBackfillJob struct {
 	logger    *zap.Logger
 	container *bootstrap.ServiceContainer
 }
 
-func NewBackfillJob(logger *zap.Logger, container *bootstrap.ServiceContainer) *BackfillJob {
-	return &BackfillJob{
+func NewBalanceBackfillJob(logger *zap.Logger, container *bootstrap.ServiceContainer) *BalanceBackfillJob {
+	return &BalanceBackfillJob{
 		logger:    logger,
 		container: container,
 	}
 }
 
-func (j *BackfillJob) Run(ctx context.Context) error {
+func (j *BalanceBackfillJob) Run(ctx context.Context) error {
 
 	userIDs, err := j.container.UserService.GetAllActiveUserIDs(ctx)
 	if err != nil {

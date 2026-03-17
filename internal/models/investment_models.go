@@ -74,6 +74,10 @@ type AssetPriceHistory struct {
 	CreatedAt time.Time       `gorm:"autoCreateTime" json:"created_at"`
 }
 
+func (AssetPriceHistory) TableName() string {
+	return "asset_price_history"
+}
+
 type InvestmentAssetReq struct {
 	AccountID      int64           `json:"account_id" validate:"required"`
 	InvestmentType InvestmentType  `json:"investment_type" validate:"required"`

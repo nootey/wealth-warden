@@ -9,18 +9,18 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-type BackfillJobTestSuite struct {
+type BalanceBackfillJobTestSuite struct {
 	tests.ServiceIntegrationSuite
 }
 
-func TestBackfillJobSuite(t *testing.T) {
-	suite.Run(t, new(BackfillJobTestSuite))
+func TestBalanceBackfillJobSuite(t *testing.T) {
+	suite.Run(t, new(BalanceBackfillJobTestSuite))
 }
 
 // Test that backfill job runs
-func (s *BackfillJobTestSuite) TestBackfillJob_Success() {
+func (s *BalanceBackfillJobTestSuite) TestBalanceBackfillJob_Success() {
 	logger := zaptest.NewLogger(s.T())
-	job := jobscheduler.NewBackfillJob(logger, s.TC.App)
+	job := jobscheduler.NewBalanceBackfillJob(logger, s.TC.App)
 
 	err := job.Run(s.Ctx)
 	s.NoError(err)

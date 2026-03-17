@@ -16,16 +16,16 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-type InvestmentPriceSyncJobTestSuite struct {
+type AssetPriceSyncJobTestSuite struct {
 	tests.ServiceIntegrationSuite
 }
 
-func TestInvestmentPriceSyncJobSuite(t *testing.T) {
-	suite.Run(t, new(InvestmentPriceSyncJobTestSuite))
+func TestAssetPriceSyncJobSuite(t *testing.T) {
+	suite.Run(t, new(AssetPriceSyncJobTestSuite))
 }
 
 // Test that job runs
-func (s *InvestmentPriceSyncJobTestSuite) TestInvestmentPriceSyncJob_Success() {
+func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_Success() {
 	logger := zaptest.NewLogger(s.T())
 
 	client, err := finance.NewPriceFetchClient(s.TC.App.Config.FinanceAPIBaseURL)
@@ -33,14 +33,14 @@ func (s *InvestmentPriceSyncJobTestSuite) TestInvestmentPriceSyncJob_Success() {
 		logger.Warn("Failed to create price fetch client", zap.Error(err))
 	}
 
-	job := jobscheduler.NewInvestmentPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.DB, client)
+	job := jobscheduler.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.DB, client)
 
 	err = job.Run(s.Ctx)
 	s.NoError(err)
 }
 
 // Tests that the job updates asset prices, values, P&L, and account balance non-cash flows
-func (s *InvestmentPriceSyncJobTestSuite) TestInvestmentPriceSyncJob_UpdatesPricesAndBalances() {
+func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalances() {
 	accSvc := s.TC.App.AccountService
 	invSvc := s.TC.App.InvestmentService
 	userID := int64(1)
@@ -107,7 +107,7 @@ func (s *InvestmentPriceSyncJobTestSuite) TestInvestmentPriceSyncJob_UpdatesPric
 	client, err := finance.NewPriceFetchClient(s.TC.App.Config.FinanceAPIBaseURL)
 	s.Require().NoError(err)
 
-	job := jobscheduler.NewInvestmentPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.DB, client)
+	job := jobscheduler.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.DB, client)
 
 	ctx3, cancel3 := context.WithTimeout(s.Ctx, 30*time.Second)
 	defer cancel3()

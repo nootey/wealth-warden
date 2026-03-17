@@ -13,20 +13,20 @@ import (
 	"gorm.io/gorm"
 )
 
-type InvestmentPriceSyncJob struct {
+type AssetPriceSyncJob struct {
 	logger           *zap.Logger
 	investmentSvc    services.InvestmentServiceInterface
 	db               *gorm.DB
 	priceFetchClient finance.PriceFetcher
 }
 
-func NewInvestmentPriceSyncJob(
+func NewAssetPriceSyncJob(
 	logger *zap.Logger,
 	investmentSvc services.InvestmentServiceInterface,
 	db *gorm.DB,
 	priceFetchClient finance.PriceFetcher,
-) *InvestmentPriceSyncJob {
-	return &InvestmentPriceSyncJob{
+) *AssetPriceSyncJob {
+	return &AssetPriceSyncJob{
 		logger:           logger,
 		investmentSvc:    investmentSvc,
 		db:               db,
@@ -34,7 +34,7 @@ func NewInvestmentPriceSyncJob(
 	}
 }
 
-func (j *InvestmentPriceSyncJob) Run(ctx context.Context) error {
+func (j *AssetPriceSyncJob) Run(ctx context.Context) error {
 
 	assets, err := j.getAssetsToUpdate(ctx)
 	if err != nil {
@@ -67,7 +67,7 @@ func (j *InvestmentPriceSyncJob) Run(ctx context.Context) error {
 	return nil
 }
 
-func (j *InvestmentPriceSyncJob) getAssetsToUpdate(ctx context.Context) ([]struct {
+func (j *AssetPriceSyncJob) getAssetsToUpdate(ctx context.Context) ([]struct {
 	Ticker         string
 	InvestmentType models.InvestmentType
 }, error) {
@@ -94,7 +94,7 @@ func (j *InvestmentPriceSyncJob) getAssetsToUpdate(ctx context.Context) ([]struc
 	return assets, nil
 }
 
-func (j *InvestmentPriceSyncJob) fetchPrices(ctx context.Context, assets []struct {
+func (j *AssetPriceSyncJob) fetchPrices(ctx context.Context, assets []struct {
 	Ticker         string
 	InvestmentType models.InvestmentType
 }) (map[string]*finance.PriceData, error) {
@@ -141,7 +141,7 @@ func (j *InvestmentPriceSyncJob) fetchPrices(ctx context.Context, assets []struc
 	return priceData, nil
 }
 
-func (j *InvestmentPriceSyncJob) updateAssetsAndTrades(ctx context.Context, priceData map[string]*finance.PriceData) (int, error) {
+func (j *AssetPriceSyncJob) updateAssetsAndTrades(ctx context.Context, priceData map[string]*finance.PriceData) (int, error) {
 	tx := j.db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -173,7 +173,7 @@ func (j *InvestmentPriceSyncJob) updateAssetsAndTrades(ctx context.Context, pric
 	return updatedCount, nil
 }
 
-func (j *InvestmentPriceSyncJob) updateAssetsByTicker(ctx context.Context, tx *gorm.DB, ticker string, price *finance.PriceData, now time.Time, today time.Time) (int, error) {
+func (j *AssetPriceSyncJob) updateAssetsByTicker(ctx context.Context, tx *gorm.DB, ticker string, price *finance.PriceData, now time.Time, today time.Time) (int, error) {
 	var assets []models.InvestmentAsset
 	err := tx.WithContext(ctx).
 		Preload("Account").
@@ -210,7 +210,7 @@ func (j *InvestmentPriceSyncJob) updateAssetsByTicker(ctx context.Context, tx *g
 	return len(assets), nil
 }
 
-func (j *InvestmentPriceSyncJob) updateAsset(tx *gorm.DB, asset models.InvestmentAsset, price decimal.Decimal, now time.Time) error {
+func (j *AssetPriceSyncJob) updateAsset(tx *gorm.DB, asset models.InvestmentAsset, price decimal.Decimal, now time.Time) error {
 
 	if price.IsZero() || price.IsNegative() {
 		j.logger.Error("Refusing to update asset with invalid price",
@@ -262,7 +262,7 @@ func (j *InvestmentPriceSyncJob) updateAsset(tx *gorm.DB, asset models.Investmen
 	return nil
 }
 
-func (j *InvestmentPriceSyncJob) updateTrades(tx *gorm.DB, assetID int64, price decimal.Decimal, now time.Time) error {
+func (j *AssetPriceSyncJob) updateTrades(tx *gorm.DB, assetID int64, price decimal.Decimal, now time.Time) error {
 	err := tx.Exec(`
         UPDATE investment_trades
         SET 

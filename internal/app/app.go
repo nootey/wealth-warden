@@ -39,9 +39,10 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 	}
 
 	scheduler, err := jobscheduler.NewScheduler(logger.Named("scheduler"), container, jobscheduler.SchedulerConfig{
-		StartBackfillImmediately:  false,
-		StartTemplateImmediately:  false,
-		StartPriceSyncImmediately: true,
+		StartBalanceBackfillImmediately:      false,
+		StartTemplatesImmediately:            false,
+		StartAssetPriceSyncImmediately:       true,
+		StartAssetHistoryBackfillImmediately: false,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)
