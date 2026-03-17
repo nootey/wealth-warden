@@ -61,7 +61,7 @@ func (j *AssetPriceSyncJob) Run(ctx context.Context) error {
 		return err
 	}
 
-	j.logger.Info("Investment price sync completed",
+	j.logger.Info("Asset price sync completed",
 		zap.Int("assets_updated", updatedCount))
 
 	return nil

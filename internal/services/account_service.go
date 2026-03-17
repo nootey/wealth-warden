@@ -40,6 +40,8 @@ type AccountServiceInterface interface {
 	FetchAccountTypesWithoutDefaults(ctx context.Context, userID int64) ([]models.AccountType, error)
 	SetDefaultAccount(ctx context.Context, userID, accountID int64) error
 	UnsetDefaultAccount(ctx context.Context, userID, accountID int64) error
+	ClearInvestmentCashFlows(ctx context.Context, userID int64) error
+	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
 }
 
 type AccountService struct {
@@ -1096,4 +1098,12 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 	}
 
 	return nil
+}
+
+func (s *AccountService) ClearInvestmentCashFlows(ctx context.Context, userID int64) error {
+	return s.repo.ClearInvestmentCashFlows(ctx, userID)
+}
+
+func (s *AccountService) ClearInvestmentSnapshots(ctx context.Context, userID int64) error {
+	return s.repo.ClearInvestmentSnapshots(ctx, userID)
 }

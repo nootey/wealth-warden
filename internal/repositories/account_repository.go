@@ -57,6 +57,8 @@ type AccountRepositoryInterface interface {
 	ClearNonCashFlowsFromDate(ctx context.Context, tx *gorm.DB, accountID int64, fromDate time.Time) error
 	SetDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, value decimal.Decimal) error
 	GetBalancesInRange(ctx context.Context, tx *gorm.DB, accountID int64, fromDate, toDate time.Time) ([]models.Balance, error)
+	ClearInvestmentCashFlows(ctx context.Context, userID int64) error
+	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
 }
 
 type AccountRepository struct {
@@ -1157,4 +1159,38 @@ func (r *AccountRepository) GetBalancesInRange(ctx context.Context, tx *gorm.DB,
 		Order("as_of ASC").
 		Find(&balances).Error
 	return balances, err
+}
+
+func (r *AccountRepository) ClearInvestmentCashFlows(ctx context.Context, userID int64) error {
+	db := r.db.WithContext(ctx)
+	return db.Exec(`
+		UPDATE balances b
+		SET cash_outflows = 0,
+			cash_inflows = 0,
+			updated_at = NOW()
+		FROM accounts a
+		JOIN account_types at ON at.id = a.account_type_id
+		WHERE b.account_id = a.id
+		AND a.user_id = ?
+		AND at.type IN ('investment', 'crypto')
+		AND EXISTS (
+			SELECT 1 FROM investment_trades it
+			JOIN investment_assets ia ON ia.id = it.asset_id
+			WHERE ia.account_id = a.id
+			AND it.txn_date::date = b.as_of
+		);
+    `, userID).Error
+}
+
+func (r *AccountRepository) ClearInvestmentSnapshots(ctx context.Context, userID int64) error {
+	db := r.db.WithContext(ctx)
+	return db.Exec(`
+        DELETE FROM account_daily_snapshots
+        WHERE account_id IN (
+            SELECT a.id FROM accounts a
+            JOIN account_types at ON at.id = a.account_type_id
+            WHERE a.user_id = ?
+            AND at.type IN ('investment', 'crypto')
+        )
+    `, userID).Error
 }

@@ -42,7 +42,7 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		StartBalanceBackfillImmediately:      false,
 		StartTemplatesImmediately:            false,
 		StartAssetPriceSyncImmediately:       true,
-		StartAssetHistoryBackfillImmediately: false,
+		StartAssetHistoryBackfillImmediately: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)

@@ -71,32 +71,37 @@ func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
 	totalSkipped := 0
 
 	for _, asset := range assets {
-		j.logger.Info("Backfilling price history",
-			zap.Int64("asset_id", asset.ID),
-			zap.String("ticker", asset.Ticker),
-			zap.String("from", asset.EarliestTrade.Format("2006-01-02")),
-			zap.String("to", today.Format("2006-01-02")),
-		)
+		func() {
+			assetCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			defer cancel()
 
-		inserted, skipped, err := j.backfillAsset(ctx, asset.ID, asset.Ticker, asset.InvestmentType, asset.EarliestTrade, today)
-		if err != nil {
-			j.logger.Error("Failed to backfill asset",
+			j.logger.Info("Backfilling price history",
 				zap.Int64("asset_id", asset.ID),
 				zap.String("ticker", asset.Ticker),
-				zap.Error(err))
-			// non-fatal, continue with next asset
-			continue
-		}
+				zap.String("from", asset.EarliestTrade.Format("2006-01-02")),
+				zap.String("to", today.Format("2006-01-02")),
+			)
 
-		totalInserted += inserted
-		totalSkipped += skipped
+			inserted, skipped, err := j.backfillAsset(assetCtx, asset.ID, asset.Ticker, asset.InvestmentType, asset.EarliestTrade, today)
+			if err != nil {
+				j.logger.Error("Failed to backfill asset",
+					zap.Int64("asset_id", asset.ID),
+					zap.String("ticker", asset.Ticker),
+					zap.String("error", err.Error()),
+				)
+				return
+			}
 
-		j.logger.Info("Asset backfill complete",
-			zap.Int64("asset_id", asset.ID),
-			zap.String("ticker", asset.Ticker),
-			zap.Int("inserted", inserted),
-			zap.Int("skipped", skipped),
-		)
+			totalInserted += inserted
+			totalSkipped += skipped
+
+			j.logger.Info("Asset backfill complete",
+				zap.Int64("asset_id", asset.ID),
+				zap.String("ticker", asset.Ticker),
+				zap.Int("inserted", inserted),
+				zap.Int("skipped", skipped),
+			)
+		}()
 	}
 
 	j.logger.Info("Price history backfill completed",
@@ -146,20 +151,21 @@ func (j *AssetPriceHistoryBackfillJob) backfillAsset(ctx context.Context, assetI
 		}
 
 		// Rate limit — pause every 5 requests
-		if requestCount > 0 && requestCount%5 == 0 {
+		if requestCount > 0 && requestCount%10 == 0 {
 			select {
 			case <-ctx.Done():
 				return inserted, skipped, ctx.Err()
-			case <-time.After(2 * time.Second):
+			case <-time.After(500 * time.Millisecond):
 			}
 		}
 
 		priceData, err := j.priceFetchClient.GetAssetPriceOnDate(ctx, ticker, investmentType, current)
 		if err != nil {
-			j.logger.Warn("Failed to fetch historical price",
+			j.logger.Info("Failed to fetch historical price",
 				zap.String("ticker", ticker),
 				zap.String("date", dateKey),
-				zap.Error(err))
+				zap.String("error", err.Error()),
+			)
 			current = current.AddDate(0, 0, 1)
 			requestCount++
 			continue
@@ -167,7 +173,7 @@ func (j *AssetPriceHistoryBackfillJob) backfillAsset(ctx context.Context, assetI
 
 		price := decimal.NewFromFloat(priceData.Price)
 		if price.IsZero() || price.IsNegative() {
-			j.logger.Warn("Invalid price received, skipping",
+			j.logger.Info("Invalid price received, skipping",
 				zap.String("ticker", ticker),
 				zap.String("date", dateKey),
 			)
@@ -177,10 +183,10 @@ func (j *AssetPriceHistoryBackfillJob) backfillAsset(ctx context.Context, assetI
 		}
 
 		if err := j.investmentSvc.UpsertAssetPrice(ctx, nil, assetID, current, price); err != nil {
-			j.logger.Warn("Failed to insert price history",
+			j.logger.Info("Failed to insert price history",
 				zap.Int64("asset_id", assetID),
 				zap.String("date", dateKey),
-				zap.Error(err))
+				zap.String("error", err.Error()))
 		} else {
 			inserted++
 		}
