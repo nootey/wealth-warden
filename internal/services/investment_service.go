@@ -347,7 +347,8 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 			purchaseCostInAccountCurrency = purchaseCost.Mul(exchangeRate)
 		}
 
-		if purchaseCostInAccountCurrency.GreaterThan(availableBalance.EndBalance) {
+		// Skip check for zero-cost trades (staking rewards, dividends recorded at price 0).
+		if purchaseCostInAccountCurrency.IsPositive() && purchaseCostInAccountCurrency.GreaterThan(availableBalance.EndBalance) {
 			tx.Rollback()
 			return 0, fmt.Errorf("insufficient funds: need %s %s but only %s %s available",
 				purchaseCostInAccountCurrency.StringFixed(2),
