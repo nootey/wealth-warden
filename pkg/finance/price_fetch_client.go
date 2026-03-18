@@ -12,8 +12,9 @@ import (
 	"wealth-warden/pkg/utils"
 )
 
-// Map common exchange names to codes
-var exchangeMap = map[string]string{
+// ExchangeMap maps common exchange names/aliases to their Yahoo Finance suffix codes.
+// US stocks (NYSE/NASDAQ) use no suffix.
+var ExchangeMap = map[string]string{
 	"LONDON":    "L",
 	"LSE":       "L",
 	"AMSTERDAM": "AS",
@@ -68,7 +69,7 @@ func (c *PriceFetchClient) normalizeExchange(exchange string) string {
 
 	normalized := strings.ToUpper(strings.TrimSpace(exchange))
 
-	if code, exists := exchangeMap[normalized]; exists {
+	if code, exists := ExchangeMap[normalized]; exists {
 		return code
 	}
 

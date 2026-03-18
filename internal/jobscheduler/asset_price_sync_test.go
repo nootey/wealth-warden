@@ -8,11 +8,9 @@ import (
 	"wealth-warden/internal/jobscheduler"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/tests"
-	"wealth-warden/pkg/finance"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -24,18 +22,12 @@ func TestAssetPriceSyncJobSuite(t *testing.T) {
 	suite.Run(t, new(AssetPriceSyncJobTestSuite))
 }
 
-// Test that job runs
+// Test that job runs with no assets
 func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_Success() {
 	logger := zaptest.NewLogger(s.T())
+	job := jobscheduler.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.DB, &tests.MockPriceFetcher{})
 
-	client, err := finance.NewPriceFetchClient(s.TC.App.Config.FinanceAPIBaseURL)
-	if err != nil {
-		logger.Warn("Failed to create price fetch client", zap.Error(err))
-	}
-
-	job := jobscheduler.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.DB, client)
-
-	err = job.Run(s.Ctx)
+	err := job.Run(s.Ctx)
 	s.NoError(err)
 }
 
@@ -104,10 +96,7 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalan
 
 	// Run price sync job
 	logger := zaptest.NewLogger(s.T())
-	client, err := finance.NewPriceFetchClient(s.TC.App.Config.FinanceAPIBaseURL)
-	s.Require().NoError(err)
-
-	job := jobscheduler.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.DB, client)
+	job := jobscheduler.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.DB, &tests.MockPriceFetcher{})
 
 	ctx3, cancel3 := context.WithTimeout(s.Ctx, 30*time.Second)
 	defer cancel3()

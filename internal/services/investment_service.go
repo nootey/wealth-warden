@@ -68,7 +68,19 @@ func NewInvestmentService(
 
 var _ InvestmentServiceInterface = (*InvestmentService)(nil)
 
-var stockTickerRegex = regexp.MustCompile(`^[A-Z]{1,6}(\.[A-Z]{1,5})?$`)
+// stockTickerRegex is built from finance.ExchangeMap so the two stay in sync.
+// Matches US tickers (e.g. AAPL) or TICKER.EXCHANGE (e.g. IWDA.AS).
+var stockTickerRegex = func() *regexp.Regexp {
+	seen := make(map[string]struct{})
+	codes := make([]string, 0)
+	for _, code := range finance.ExchangeMap {
+		if _, ok := seen[code]; !ok {
+			seen[code] = struct{}{}
+			codes = append(codes, code)
+		}
+	}
+	return regexp.MustCompile(`^[A-Z]{1,7}(\.(` + strings.Join(codes, "|") + `))?$`)
+}()
 
 func (s *InvestmentService) FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error) {
 
@@ -203,6 +215,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 			//   - pure ticker: AAPL
 			//   - ticker + exchange: IWDA.AS
 			if !stockTickerRegex.MatchString(formattedTicker) {
+				tx.Rollback()
 				return 0, fmt.Errorf("invalid stock/ETF ticker: must look like AAPL or IWDA.AS")
 			}
 		}

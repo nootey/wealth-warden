@@ -1,8 +1,6 @@
 package services_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 	"time"
 	"wealth-warden/internal/models"
@@ -45,16 +43,8 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_ValidStockWithExchange() {
 		Quantity:       qty,
 	}
 
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
-	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			s.T().Skip("Skipping test: price fetch timed out (network issue)")
-		}
-		s.Require().NoError(err)
-	}
+	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
+	s.Require().NoError(err)
 	s.Assert().Greater(assetID, int64(0))
 
 	var asset models.InvestmentAsset
@@ -99,10 +89,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_StockWithInvalidExchange() 
 		Quantity:       qty,
 	}
 
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
+	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
 
 	s.Require().Error(err)
 	s.Assert().Equal(int64(0), assetID)
@@ -141,16 +128,8 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_CryptoWithoutCurrency() {
 		Quantity:       qty,
 	}
 
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
-	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
+	s.Require().NoError(err)
 	s.Assert().Greater(assetID, int64(0))
 
 	var asset models.InvestmentAsset
@@ -192,16 +171,8 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_CryptoWithValidCurrency() {
 		Quantity:       qty,
 	}
 
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
-	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
+	s.Require().NoError(err)
 	s.Assert().Greater(assetID, int64(0))
 
 	var asset models.InvestmentAsset
@@ -246,16 +217,8 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 		Quantity:       qty,
 	}
 
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
-	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
+	s.Require().NoError(err)
 
 	// Buy 1 BTC at 50k EUR today
 	buyQty := decimal.NewFromInt(1)
@@ -269,16 +232,8 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 		Currency:     "EUR",
 	}
 
-	ctx2, cancel2 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel2()
-
-	tradeID, err := svc.InsertInvestmentTrade(ctx2, userID, tradeReq)
-	if err != nil {
-		if errors.Is(ctx2.Err(), context.DeadlineExceeded) {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	tradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, tradeReq)
+	s.Require().NoError(err)
 	s.Assert().Greater(tradeID, int64(0))
 
 	// Verify asset updated
@@ -346,22 +301,11 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_MultipleBuysUpdat
 		Quantity:       decimal.NewFromInt(0),
 	}
 
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
+	s.Require().NoError(err)
 
 	// Buy 1 BTC at 50k
-	ctx1, cancel1 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel1()
-
-	_, err = svc.InsertInvestmentTrade(ctx1, userID, &models.InvestmentTradeReq{
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -369,18 +313,10 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_MultipleBuysUpdat
 		PricePerUnit: decimal.NewFromInt(50000),
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx1.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	// Buy 0.5 BTC at 60k
-	ctx2, cancel2 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel2()
-
-	_, err = svc.InsertInvestmentTrade(ctx2, userID, &models.InvestmentTradeReq{
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -388,18 +324,10 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_MultipleBuysUpdat
 		PricePerUnit: decimal.NewFromInt(60000),
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx2.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	// Buy 0.5 BTC at 55k
-	ctx3, cancel3 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel3()
-
-	_, err = svc.InsertInvestmentTrade(ctx3, userID, &models.InvestmentTradeReq{
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -407,12 +335,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_MultipleBuysUpdat
 		PricePerUnit: decimal.NewFromInt(55000),
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx3.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	// Verify final asset state
 	var asset models.InvestmentAsset
@@ -473,22 +396,11 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 		Quantity:       decimal.NewFromInt(0),
 	}
 
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
+	s.Require().NoError(err)
 
 	// Buy 2 BTC at 50k each = 100k total
-	ctx1, cancel1 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel1()
-
-	_, err = svc.InsertInvestmentTrade(ctx1, userID, &models.InvestmentTradeReq{
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -496,12 +408,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 		PricePerUnit: decimal.NewFromInt(50000),
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx1.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	// Verify balance after buy: 200k - 100k = 100k
 	var balanceAfterBuy models.Balance
@@ -516,10 +423,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 	sellQty := decimal.NewFromInt(1)
 	sellPrice := decimal.NewFromInt(90000)
 
-	ctx2, cancel2 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel2()
-
-	sellTradeID, err := svc.InsertInvestmentTrade(ctx2, userID, &models.InvestmentTradeReq{
+	sellTradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentSell,
@@ -527,12 +431,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 		PricePerUnit: sellPrice,
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if errors.Is(ctx2.Err(), context.DeadlineExceeded) {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 	s.Assert().Greater(sellTradeID, int64(0))
 
 	// Verify asset quantity reduced
@@ -542,10 +441,10 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 	s.Assert().True(decimal.NewFromInt(1).Equal(asset.Quantity))
 	s.Assert().True(decimal.NewFromInt(50000).Equal(asset.AverageBuyPrice))
 
-	// Proceeds = 1 * 90k = 90k
+	// Proceeds = 1 * 90k = 90k (full proceeds recorded as cash_inflows)
 	// Cost basis = 1 * 50k = 50k
-	// Realized P&L = 40k
-	expectedRealizedPnL := decimal.NewFromInt(40000)
+	// Realized P&L = 40k (tracked on trade, not reflected in cash_inflows)
+	expectedProceeds := decimal.NewFromInt(90000)
 
 	var balanceAfterSell models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
@@ -553,12 +452,12 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 		First(&balanceAfterSell).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(expectedRealizedPnL.Equal(balanceAfterSell.CashInflows),
-		"realized P&L should be recorded as cash_inflows of %s, got %s",
-		expectedRealizedPnL.String(), balanceAfterSell.CashInflows.String())
+	s.Assert().True(expectedProceeds.Equal(balanceAfterSell.CashInflows),
+		"full proceeds should be recorded as cash_inflows of %s, got %s",
+		expectedProceeds.String(), balanceAfterSell.CashInflows.String())
 
-	// End balance = 200k - 100k (buys) + 40k (realized P&L) = 140k
-	expectedEndBalance := decimal.NewFromInt(140000)
+	// End balance = 200k - 100k (buys) + 90k (full proceeds) = 190k
+	expectedEndBalance := decimal.NewFromInt(190000)
 	s.Assert().True(expectedEndBalance.Equal(balanceAfterSell.EndBalance),
 		"end balance should be %s, got %s",
 		expectedEndBalance.String(), balanceAfterSell.EndBalance.String())
@@ -591,22 +490,11 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 		Quantity:       decimal.NewFromInt(0),
 	}
 
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	cryptoAssetID, err := svc.InsertAsset(ctx, userID, cryptoAssetReq)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	cryptoAssetID, err := svc.InsertAsset(s.Ctx, userID, cryptoAssetReq)
+	s.Require().NoError(err)
 
 	cryptoFee := decimal.NewFromFloat(0.01)
-	ctx2, cancel2 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel2()
-
-	cryptoTradeID, err := svc.InsertInvestmentTrade(ctx2, userID, &models.InvestmentTradeReq{
+	cryptoTradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      cryptoAssetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -615,12 +503,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 		Fee:          &cryptoFee,
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx2.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 	s.Assert().Greater(cryptoTradeID, int64(0))
 
 	// Verify crypto asset: quantity = 0.99, value = 0.99 * 50k = 49,500
@@ -652,22 +535,11 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 		Quantity:       decimal.NewFromInt(0),
 	}
 
-	ctx3, cancel3 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel3()
-
-	stockAssetID, err := svc.InsertAsset(ctx3, userID, stockAssetReq)
-	if err != nil {
-		if ctx3.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	stockAssetID, err := svc.InsertAsset(s.Ctx, userID, stockAssetReq)
+	s.Require().NoError(err)
 
 	stockFee := decimal.NewFromInt(3)
-	ctx4, cancel4 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel4()
-
-	stockTradeID, err := svc.InsertInvestmentTrade(ctx4, userID, &models.InvestmentTradeReq{
+	stockTradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      stockAssetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -676,12 +548,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 		Fee:          &stockFee,
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx4.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 	s.Assert().Greater(stockTradeID, int64(0))
 
 	// Verify stock asset: quantity = 5, value = 500 - 3 = 497
@@ -736,23 +603,12 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 		Quantity:       decimal.NewFromInt(0),
 	}
 
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	stockAssetID, err := svc.InsertAsset(ctx, userID, stockAssetReq)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	stockAssetID, err := svc.InsertAsset(s.Ctx, userID, stockAssetReq)
+	s.Require().NoError(err)
 
 	// Buy 10 shares at 100 EUR with 5 EUR fee = value 995
 	buyFee := decimal.NewFromInt(5)
-	ctx2, cancel2 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel2()
-
-	_, err = svc.InsertInvestmentTrade(ctx2, userID, &models.InvestmentTradeReq{
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      stockAssetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -761,22 +617,14 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 		Fee:          &buyFee,
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx2.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	// Sell 5 shares at 120 EUR with 3 EUR fee
 	// Proceeds = (5 * 120) - 3 = 597
 	// Cost basis = 5 * 99.5 = 497.5
 	// Realized P&L = 597 - 497.5 = 99.5
 	sellFee := decimal.NewFromInt(3)
-	ctx3, cancel3 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel3()
-
-	sellTradeID, err := svc.InsertInvestmentTrade(ctx3, userID, &models.InvestmentTradeReq{
+	sellTradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      stockAssetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentSell,
@@ -785,12 +633,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 		Fee:          &sellFee,
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx3.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	var stockSellTrade models.InvestmentTrade
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", sellTradeID).First(&stockSellTrade).Error
@@ -810,9 +653,9 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	s.Assert().True(expectedOutflows.Equal(balance.CashOutflows),
 		"cash outflows should be %s, got %s", expectedOutflows.String(), balance.CashOutflows.String())
 
-	expectedInflows := decimal.NewFromFloat(99.5)
+	expectedInflows := decimal.NewFromFloat(597)
 	s.Assert().True(expectedInflows.Equal(balance.CashInflows),
-		"cash inflows (realized P&L) should be %s, got %s", expectedInflows.String(), balance.CashInflows.String())
+		"cash inflows (full proceeds after fee) should be %s, got %s", expectedInflows.String(), balance.CashInflows.String())
 
 	// Crypto with fee (fee in tokens)
 	cryptoAssetReq := &models.InvestmentAssetReq{
@@ -824,23 +667,12 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 		Quantity:       decimal.NewFromInt(0),
 	}
 
-	ctx4, cancel4 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel4()
-
-	cryptoAssetID, err := svc.InsertAsset(ctx4, userID, cryptoAssetReq)
-	if err != nil {
-		if ctx4.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	cryptoAssetID, err := svc.InsertAsset(s.Ctx, userID, cryptoAssetReq)
+	s.Require().NoError(err)
 
 	// Buy 1 BTC with 0.01 BTC fee -> effective 0.99 BTC
 	cryptoBuyFee := decimal.NewFromFloat(0.01)
-	ctx5, cancel5 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel5()
-
-	_, err = svc.InsertInvestmentTrade(ctx5, userID, &models.InvestmentTradeReq{
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      cryptoAssetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -849,21 +681,13 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 		Fee:          &cryptoBuyFee,
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx5.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	// Sell 0.5 BTC at 90k with 0.005 BTC fee
 	// Effective sell qty = 0.5 - 0.005 = 0.495
 	// Realized value = 0.495 * 90k = 44,550
 	cryptoSellFee := decimal.NewFromFloat(0.005)
-	ctx6, cancel6 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel6()
-
-	cryptoSellTradeID, err := svc.InsertInvestmentTrade(ctx6, userID, &models.InvestmentTradeReq{
+	cryptoSellTradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      cryptoAssetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentSell,
@@ -872,12 +696,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 		Fee:          &cryptoSellFee,
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx6.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	var cryptoSellTrade models.InvestmentTrade
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", cryptoSellTradeID).First(&cryptoSellTrade).Error
@@ -922,22 +741,11 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesSellReali
 		Quantity:       decimal.NewFromInt(0),
 	}
 
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
+	s.Require().NoError(err)
 
 	// Buy 2 BTC at 50k EUR
-	ctx2, cancel2 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel2()
-
-	_, err = svc.InsertInvestmentTrade(ctx2, userID, &models.InvestmentTradeReq{
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -945,18 +753,10 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesSellReali
 		PricePerUnit: decimal.NewFromInt(50000),
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx2.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	// Sell 1 BTC at 90k EUR (40k profit)
-	ctx3, cancel3 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel3()
-
-	sellTradeID, err := svc.InsertInvestmentTrade(ctx3, userID, &models.InvestmentTradeReq{
+	sellTradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentSell,
@@ -964,14 +764,9 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesSellReali
 		PricePerUnit: decimal.NewFromInt(90000),
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx3.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
-	// Verify: balance should have 100k outflows (buy) and 40k inflows (realized P&L)
+	// Verify: balance should have 100k outflows (buy) and 90k inflows (full sell proceeds)
 	var balanceBeforeDelete models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, today).
@@ -980,8 +775,8 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesSellReali
 
 	s.Assert().True(decimal.NewFromInt(100000).Equal(balanceBeforeDelete.CashOutflows),
 		"cash outflows should be 100k, got %s", balanceBeforeDelete.CashOutflows.String())
-	s.Assert().True(decimal.NewFromInt(40000).Equal(balanceBeforeDelete.CashInflows),
-		"cash inflows should be 40k, got %s", balanceBeforeDelete.CashInflows.String())
+	s.Assert().True(decimal.NewFromInt(90000).Equal(balanceBeforeDelete.CashInflows),
+		"cash inflows should be 90k, got %s", balanceBeforeDelete.CashInflows.String())
 
 	// Delete the sell trade
 	err = svc.DeleteInvestmentTrade(s.Ctx, userID, sellTradeID)
@@ -1047,22 +842,11 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesBuyAndRec
 		Quantity:       decimal.NewFromInt(0),
 	}
 
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
+	s.Require().NoError(err)
 
 	// Buy 1: 1 BTC at 50k EUR
-	ctx2, cancel2 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel2()
-
-	_, err = svc.InsertInvestmentTrade(ctx2, userID, &models.InvestmentTradeReq{
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -1070,18 +854,10 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesBuyAndRec
 		PricePerUnit: decimal.NewFromInt(50000),
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx2.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	// Buy 2: 1 BTC at 60k EUR
-	ctx3, cancel3 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel3()
-
-	secondBuyTradeID, err := svc.InsertInvestmentTrade(ctx3, userID, &models.InvestmentTradeReq{
+	secondBuyTradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -1089,12 +865,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesBuyAndRec
 		PricePerUnit: decimal.NewFromInt(60000),
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx3.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	// Verify: 2 BTC, avg 55k, outflows = 110k
 	var assetBeforeDelete models.InvestmentAsset
@@ -1180,22 +951,11 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_BlockedByInsuffic
 		Quantity:       decimal.NewFromInt(0),
 	}
 
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
+	s.Require().NoError(err)
 
 	// Buy 1: 1 BTC at 50k
-	ctx2, cancel2 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel2()
-
-	firstBuyTradeID, err := svc.InsertInvestmentTrade(ctx2, userID, &models.InvestmentTradeReq{
+	firstBuyTradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -1203,18 +963,10 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_BlockedByInsuffic
 		PricePerUnit: decimal.NewFromInt(50000),
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx2.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	// Buy 2: 1 BTC at 60k
-	ctx3, cancel3 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel3()
-
-	_, err = svc.InsertInvestmentTrade(ctx3, userID, &models.InvestmentTradeReq{
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -1222,18 +974,10 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_BlockedByInsuffic
 		PricePerUnit: decimal.NewFromInt(60000),
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx3.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	// Sell 1.5 BTC
-	ctx4, cancel4 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel4()
-
-	_, err = svc.InsertInvestmentTrade(ctx4, userID, &models.InvestmentTradeReq{
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentSell,
@@ -1241,12 +985,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_BlockedByInsuffic
 		PricePerUnit: decimal.NewFromInt(90000),
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx4.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
 	// Verify 0.5 BTC remaining
 	var assetBeforeDelete models.InvestmentAsset
@@ -1300,22 +1039,11 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 		Quantity:       decimal.NewFromInt(0),
 	}
 
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	assetID, err := svc.InsertAsset(ctx, userID, assetReq)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
+	s.Require().NoError(err)
 
 	// Buy 2 BTC at 50k EUR each = 100k outflows
-	ctx2, cancel2 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel2()
-
-	_, err = svc.InsertInvestmentTrade(ctx2, userID, &models.InvestmentTradeReq{
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
@@ -1323,18 +1051,10 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 		PricePerUnit: decimal.NewFromInt(50000),
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx2.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
-	// Sell 1 BTC at 90k EUR = 40k realized P&L inflows
-	ctx3, cancel3 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel3()
-
-	_, err = svc.InsertInvestmentTrade(ctx3, userID, &models.InvestmentTradeReq{
+	// Sell 1 BTC at 90k EUR = 90k full proceeds inflows
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentSell,
@@ -1342,14 +1062,9 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 		PricePerUnit: decimal.NewFromInt(90000),
 		Currency:     "EUR",
 	})
-	if err != nil {
-		if ctx3.Err() == context.DeadlineExceeded {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
+	s.Require().NoError(err)
 
-	// Verify balance before delete: 100k outflows, 40k inflows, end = 140k
+	// Verify balance before delete: 100k outflows, 90k inflows (full proceeds), end = 190k
 	var balanceBeforeDelete models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, today).
@@ -1358,10 +1073,10 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 
 	s.Assert().True(decimal.NewFromInt(100000).Equal(balanceBeforeDelete.CashOutflows),
 		"cash outflows should be 100k before delete")
-	s.Assert().True(decimal.NewFromInt(40000).Equal(balanceBeforeDelete.CashInflows),
-		"cash inflows should be 40k before delete")
-	s.Assert().True(decimal.NewFromInt(140000).Equal(balanceBeforeDelete.EndBalance),
-		"end balance should be 140k before delete")
+	s.Assert().True(decimal.NewFromInt(90000).Equal(balanceBeforeDelete.CashInflows),
+		"cash inflows should be 90k before delete")
+	s.Assert().True(decimal.NewFromInt(190000).Equal(balanceBeforeDelete.EndBalance),
+		"end balance should be 190k before delete")
 
 	var tradeCountBefore int64
 	err = s.TC.DB.WithContext(s.Ctx).

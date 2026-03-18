@@ -33,7 +33,7 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 	jobQueue := queue.NewJobQueue(1, 25)
 	jobDispatcher := &queue.InMemoryDispatcher{Queue: jobQueue}
 
-	container, err := bootstrap.NewServiceContainer(cfg, dbClient, logger.Named("container"), jobDispatcher)
+	container, err := bootstrap.NewServiceContainer(cfg, dbClient, logger.Named("container"), jobDispatcher, nil)
 	if err != nil {
 		return nil, fmt.Errorf("container initialization failed: %w", err)
 	}

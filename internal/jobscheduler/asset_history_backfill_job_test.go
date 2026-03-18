@@ -8,7 +8,6 @@ import (
 	"wealth-warden/internal/jobscheduler"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/tests"
-	"wealth-warden/pkg/finance"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/suite"
@@ -26,13 +25,9 @@ func TestAssetPriceHistoryBackfillJobSuite(t *testing.T) {
 // Tests that the job runs without error when there are no assets
 func (s *AssetPriceHistoryBackfillJobTestSuite) TestAssetPriceHistoryBackfillJob_NoAssets() {
 	logger := zaptest.NewLogger(s.T())
+	job := jobscheduler.NewAssetPriceHistoryBackfillJob(logger, s.TC.App.InvestmentService, s.TC.DB, &tests.MockPriceFetcher{})
 
-	client, err := finance.NewPriceFetchClient(s.TC.App.Config.FinanceAPIBaseURL)
-	s.Require().NoError(err)
-
-	job := jobscheduler.NewAssetPriceHistoryBackfillJob(logger, s.TC.App.InvestmentService, s.TC.DB, client)
-
-	err = job.Run(s.Ctx)
+	err := job.Run(s.Ctx)
 	s.NoError(err)
 }
 
@@ -107,10 +102,7 @@ func (s *AssetPriceHistoryBackfillJobTestSuite) TestAssetPriceHistoryBackfillJob
 
 	// Run the backfill job
 	logger := zaptest.NewLogger(s.T())
-	client, err := finance.NewPriceFetchClient(s.TC.App.Config.FinanceAPIBaseURL)
-	s.Require().NoError(err)
-
-	job := jobscheduler.NewAssetPriceHistoryBackfillJob(logger, s.TC.App.InvestmentService, s.TC.DB, client)
+	job := jobscheduler.NewAssetPriceHistoryBackfillJob(logger, s.TC.App.InvestmentService, s.TC.DB, &tests.MockPriceFetcher{})
 
 	ctx3, cancel3 := context.WithTimeout(s.Ctx, 60*time.Second)
 	defer cancel3()
@@ -204,10 +196,7 @@ func (s *AssetPriceHistoryBackfillJobTestSuite) TestAssetPriceHistoryBackfillJob
 	}
 
 	logger := zaptest.NewLogger(s.T())
-	client, err := finance.NewPriceFetchClient(s.TC.App.Config.FinanceAPIBaseURL)
-	s.Require().NoError(err)
-
-	job := jobscheduler.NewAssetPriceHistoryBackfillJob(logger, s.TC.App.InvestmentService, s.TC.DB, client)
+	job := jobscheduler.NewAssetPriceHistoryBackfillJob(logger, s.TC.App.InvestmentService, s.TC.DB, &tests.MockPriceFetcher{})
 
 	// Run once
 	ctx3, cancel3 := context.WithTimeout(s.Ctx, 30*time.Second)
