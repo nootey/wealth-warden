@@ -182,7 +182,7 @@ func (j *AssetPriceHistoryBackfillJob) backfillAsset(ctx context.Context, assetI
 			continue
 		}
 
-		if err := j.investmentSvc.UpsertAssetPrice(ctx, nil, assetID, current, price); err != nil {
+		if err := j.investmentSvc.UpsertAssetPrice(ctx, nil, assetID, current, price, priceData.Currency); err != nil {
 			j.logger.Info("Failed to insert price history",
 				zap.Int64("asset_id", assetID),
 				zap.String("date", dateKey),

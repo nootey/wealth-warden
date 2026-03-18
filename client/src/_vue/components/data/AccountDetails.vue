@@ -48,7 +48,7 @@ const transactionColumns = computed<Column[]>(() => [
 
 const expectedDifference = computed(() => {
   const expectedBalance = account.value?.expected_balance;
-  const endBalance = latestBalance.value?.end_balance;
+  const endBalance = latestBalance.value?.total_balance ?? latestBalance.value?.end_balance;
 
   if (!expectedBalance || !endBalance) {
     return null;

@@ -199,7 +199,7 @@ func (j *AssetPriceSyncJob) updateAssetsByTicker(ctx context.Context, tx *gorm.D
 		}
 
 		// Persist to price history
-		if err := j.investmentSvc.UpsertAssetPrice(ctx, tx, asset.ID, today, priceDecimal); err != nil {
+		if err := j.investmentSvc.UpsertAssetPrice(ctx, tx, asset.ID, today, priceDecimal, price.Currency); err != nil {
 			j.logger.Warn("Failed to upsert asset price history",
 				zap.Int64("asset_id", asset.ID),
 				zap.Error(err))

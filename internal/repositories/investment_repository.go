@@ -39,7 +39,9 @@ type InvestmentRepositoryInterface interface {
 	FindAssetByTicker(ctx context.Context, tx *gorm.DB, ticker string, accID, userID int64) (models.InvestmentAsset, error)
 	FindInvestmentTradesByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentTrade, error)
 	GetInvestmentTradesDateRange(ctx context.Context, tx *gorm.DB, accountID int64) (time.Time, time.Time, error)
-	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal) error
+	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal, currency string) error
+	GetPriceHistoryForAsset(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.AssetPriceHistory, error)
+	GetAssetIDsForAccount(ctx context.Context, tx *gorm.DB, accountID, userID int64) ([]int64, error)
 }
 
 type InvestmentRepository struct {
@@ -710,7 +712,33 @@ func (r *InvestmentRepository) GetInvestmentTradesDateRange(ctx context.Context,
 	return result.MinDate, result.MaxDate, nil
 }
 
-func (r *InvestmentRepository) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal) error {
+func (r *InvestmentRepository) GetAssetIDsForAccount(ctx context.Context, tx *gorm.DB, accountID, userID int64) ([]int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var ids []int64
+	err := db.WithContext(ctx).
+		Model(&models.InvestmentAsset{}).
+		Where("account_id = ? AND user_id = ?", accountID, userID).
+		Pluck("id", &ids).Error
+	return ids, err
+}
+
+func (r *InvestmentRepository) GetPriceHistoryForAsset(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.AssetPriceHistory, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var prices []models.AssetPriceHistory
+	err := db.WithContext(ctx).
+		Where("asset_id = ?", assetID).
+		Order("as_of ASC").
+		Find(&prices).Error
+	return prices, err
+}
+
+func (r *InvestmentRepository) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal, currency string) error {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -718,8 +746,8 @@ func (r *InvestmentRepository) UpsertAssetPrice(ctx context.Context, tx *gorm.DB
 	db = db.WithContext(ctx)
 
 	return db.Exec(`
-		INSERT INTO asset_price_history (asset_id, as_of, price)
-		VALUES (?, ?, ?)
-		ON CONFLICT (asset_id, as_of) DO UPDATE SET price = EXCLUDED.price
-	`, assetID, asOf.UTC().Truncate(24*time.Hour), price).Error
+		INSERT INTO asset_price_history (asset_id, as_of, price, currency)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (asset_id, as_of) DO UPDATE SET price = EXCLUDED.price, currency = EXCLUDED.currency
+	`, assetID, asOf.UTC().Truncate(24*time.Hour), price, currency).Error
 }

@@ -59,6 +59,9 @@ type AccountRepositoryInterface interface {
 	GetBalancesInRange(ctx context.Context, tx *gorm.DB, accountID int64, fromDate, toDate time.Time) ([]models.Balance, error)
 	ClearInvestmentCashFlows(ctx context.Context, userID int64) error
 	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
+	UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64) error
+	GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.AccountDailySnapshot, error)
+	SetSnapshotMarketValue(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, value decimal.Decimal) error
 }
 
 type AccountRepository struct {
@@ -147,6 +150,8 @@ func (r *AccountRepository) FindAccounts(ctx context.Context, tx *gorm.DB, userI
 			accounts[i].Balance = b
 		}
 	}
+
+	r.fillMarketValues(ctx, db, accounts)
 
 	return accounts, nil
 }
@@ -337,6 +342,19 @@ func (r *AccountRepository) FindAccountByID(ctx context.Context, tx *gorm.DB, ID
 		}
 	}
 
+	if result.Error == nil && withBalance {
+		var mv struct{ MarketValue decimal.Decimal }
+		db.Raw(`
+			SELECT COALESCE(market_value, 0) AS market_value
+			FROM account_daily_snapshots
+			WHERE account_id = ?
+			ORDER BY as_of DESC
+			LIMIT 1
+		`, record.ID).Scan(&mv)
+		record.Balance.MarketValue = mv.MarketValue
+		record.Balance.TotalBalance = record.Balance.EndBalance.Add(mv.MarketValue)
+	}
+
 	return &record, result.Error
 }
 
@@ -355,8 +373,22 @@ func (r *AccountRepository) FindAccountByName(ctx context.Context, tx *gorm.DB, 
 			return db.Order("as_of desc").Limit(1)
 		})
 
-	result := query.First(&record)
-	return &record, result.Error
+	if err := query.First(&record).Error; err != nil {
+		return &record, err
+	}
+
+	var mv struct{ MarketValue decimal.Decimal }
+	db.Raw(`
+		SELECT COALESCE(market_value, 0) AS market_value
+		FROM account_daily_snapshots
+		WHERE account_id = ?
+		ORDER BY as_of DESC
+		LIMIT 1
+	`, record.ID).Scan(&mv)
+	record.Balance.MarketValue = mv.MarketValue
+	record.Balance.TotalBalance = record.Balance.EndBalance.Add(mv.MarketValue)
+
+	return &record, nil
 }
 
 func (r *AccountRepository) FindAccountTypeByAccID(ctx context.Context, tx *gorm.DB, accID, userID int64) (*models.AccountType, error) {
@@ -422,6 +454,8 @@ func (r *AccountRepository) FindAllAccountsWithLatestBalance(ctx context.Context
 			accounts[i].Balance = b
 		}
 	}
+
+	r.fillMarketValues(ctx, db, accounts)
 
 	return accounts, nil
 }
@@ -986,12 +1020,54 @@ func (r *AccountRepository) FindLatestBalance(ctx context.Context, tx *gorm.DB, 
 		Order("as_of DESC").
 		Limit(1).
 		First(&balance).Error
-
 	if err != nil {
 		return nil, err
 	}
 
+	var mv struct{ MarketValue decimal.Decimal }
+	db.Raw(`
+		SELECT COALESCE(market_value, 0) AS market_value
+		FROM account_daily_snapshots
+		WHERE account_id = ?
+		ORDER BY as_of DESC
+		LIMIT 1
+	`, accountID).Scan(&mv)
+	balance.MarketValue = mv.MarketValue
+	balance.TotalBalance = balance.EndBalance.Add(mv.MarketValue)
+
 	return &balance, nil
+}
+
+// fillMarketValues batch-fetches the latest market_value from account_daily_snapshots
+// and sets it on each account's Balance. One query for all accounts.
+func (r *AccountRepository) fillMarketValues(ctx context.Context, db *gorm.DB, accounts []models.Account) {
+	if len(accounts) == 0 {
+		return
+	}
+	ids := make([]int64, len(accounts))
+	for i, a := range accounts {
+		ids[i] = a.ID
+	}
+
+	var rows []struct {
+		AccountID   int64
+		MarketValue decimal.Decimal
+	}
+	db.WithContext(ctx).Raw(`
+		SELECT DISTINCT ON (account_id) account_id, market_value
+		FROM account_daily_snapshots
+		WHERE account_id IN ?
+		ORDER BY account_id, as_of DESC
+	`, ids).Scan(&rows)
+
+	mv := make(map[int64]decimal.Decimal, len(rows))
+	for _, row := range rows {
+		mv[row.AccountID] = row.MarketValue
+	}
+	for i := range accounts {
+		accounts[i].Balance.MarketValue = mv[accounts[i].ID]
+		accounts[i].Balance.TotalBalance = accounts[i].Balance.EndBalance.Add(accounts[i].Balance.MarketValue)
+	}
 }
 
 func (r *AccountRepository) FindAccountsWithDefaults(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Account, error) {
@@ -1163,23 +1239,32 @@ func (r *AccountRepository) GetBalancesInRange(ctx context.Context, tx *gorm.DB,
 
 func (r *AccountRepository) ClearInvestmentCashFlows(ctx context.Context, userID int64) error {
 	db := r.db.WithContext(ctx)
+	// Reset every balance row for this user to only what the transactions table
+	// actually records. This makes the state safe for BackfillInvestmentCashFlows
+	// to add trade flows on top without double-counting or losing regular txns.
 	return db.Exec(`
 		UPDATE balances b
-		SET cash_outflows = 0,
-			cash_inflows = 0,
+		SET cash_inflows  = COALESCE((
+				SELECT SUM(t.amount)
+				FROM transactions t
+				WHERE t.account_id = b.account_id
+				  AND t.txn_date::date = b.as_of
+				  AND t.transaction_type = 'income'
+				  AND t.deleted_at IS NULL
+			), 0),
+			cash_outflows = COALESCE((
+				SELECT SUM(t.amount)
+				FROM transactions t
+				WHERE t.account_id = b.account_id
+				  AND t.txn_date::date = b.as_of
+				  AND t.transaction_type = 'expense'
+				  AND t.deleted_at IS NULL
+			), 0),
 			updated_at = NOW()
 		FROM accounts a
-		JOIN account_types at ON at.id = a.account_type_id
 		WHERE b.account_id = a.id
-		AND a.user_id = ?
-		AND at.type IN ('investment', 'crypto')
-		AND EXISTS (
-			SELECT 1 FROM investment_trades it
-			JOIN investment_assets ia ON ia.id = it.asset_id
-			WHERE ia.account_id = a.id
-			AND it.txn_date::date = b.as_of
-		);
-    `, userID).Error
+		  AND a.user_id = ?;
+	`, userID).Error
 }
 
 func (r *AccountRepository) ClearInvestmentSnapshots(ctx context.Context, userID int64) error {
@@ -1187,10 +1272,78 @@ func (r *AccountRepository) ClearInvestmentSnapshots(ctx context.Context, userID
 	return db.Exec(`
         DELETE FROM account_daily_snapshots
         WHERE account_id IN (
-            SELECT a.id FROM accounts a
-            JOIN account_types at ON at.id = a.account_type_id
-            WHERE a.user_id = ?
-            AND at.type IN ('investment', 'crypto')
+            SELECT id FROM accounts WHERE user_id = ?
         )
     `, userID).Error
+}
+
+func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	// For each investment/crypto account snapshot, sum (last known price × quantity held)
+	// across all assets for that account on that date.
+	// No currency filter — prices are stored in whatever currency the price API returned.
+	// Currency conversion is left for future multi-currency support.
+	return db.Exec(`
+		UPDATE account_daily_snapshots s
+		SET market_value = (
+			SELECT COALESCE(SUM(
+				(
+					SELECT ph.price
+					FROM asset_price_history ph
+					WHERE ph.asset_id = ia.id
+					  AND ph.as_of    <= s.as_of
+					ORDER BY ph.as_of DESC
+					LIMIT 1
+				)
+				*
+				GREATEST((
+					SELECT COALESCE(SUM(
+						CASE WHEN it.trade_type = 'buy'  THEN  it.quantity
+						     WHEN it.trade_type = 'sell' THEN -it.quantity
+						END
+					), 0)
+					FROM investment_trades it
+					WHERE it.asset_id  = ia.id
+					  AND it.txn_date <= s.as_of
+				), 0)
+			), 0)
+			FROM investment_assets ia
+			WHERE ia.account_id = s.account_id
+		)
+		FROM accounts a
+		JOIN account_types at ON at.id = a.account_type_id
+		WHERE s.account_id   = a.id
+		  AND a.user_id      = ?
+		  AND at.type IN ('investment', 'crypto');
+	`, userID).Error
+}
+
+func (r *AccountRepository) GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.AccountDailySnapshot, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var snapshots []models.AccountDailySnapshot
+	err := db.WithContext(ctx).
+		Where("account_id = ?", accountID).
+		Order("as_of ASC").
+		Find(&snapshots).Error
+	return snapshots, err
+}
+
+func (r *AccountRepository) SetSnapshotMarketValue(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, value decimal.Decimal) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).Exec(`
+		UPDATE account_daily_snapshots
+		SET market_value = ?
+		WHERE account_id = ? AND as_of = ?
+	`, value, accountID, asOf.UTC().Truncate(24*time.Hour)).Error
 }

@@ -10,6 +10,7 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -42,14 +43,18 @@ type AccountServiceInterface interface {
 	UnsetDefaultAccount(ctx context.Context, userID, accountID int64) error
 	ClearInvestmentCashFlows(ctx context.Context, userID int64) error
 	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
+	RebuildSnapshotsForUser(ctx context.Context, userID int64) error
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
 }
 
 type AccountService struct {
-	repo          repositories.AccountRepositoryInterface
-	txnRepo       repositories.TransactionRepositoryInterface
-	settingsRepo  repositories.SettingsRepositoryInterface
-	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher queue.JobDispatcher
+	repo           repositories.AccountRepositoryInterface
+	txnRepo        repositories.TransactionRepositoryInterface
+	settingsRepo   repositories.SettingsRepositoryInterface
+	loggingRepo    repositories.LoggingRepositoryInterface
+	investmentRepo repositories.InvestmentRepositoryInterface
+	jobDispatcher  queue.JobDispatcher
+	priceClient    finance.PriceFetcher
 }
 
 func NewAccountService(
@@ -57,14 +62,18 @@ func NewAccountService(
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
+	investmentRepo *repositories.InvestmentRepository,
 	jobDispatcher queue.JobDispatcher,
+	priceClient finance.PriceFetcher,
 ) *AccountService {
 	return &AccountService{
-		repo:          repo,
-		txnRepo:       txnRepo,
-		settingsRepo:  settingsRepo,
-		loggingRepo:   loggingRepo,
-		jobDispatcher: jobDispatcher,
+		repo:           repo,
+		txnRepo:        txnRepo,
+		settingsRepo:   settingsRepo,
+		loggingRepo:    loggingRepo,
+		investmentRepo: investmentRepo,
+		jobDispatcher:  jobDispatcher,
+		priceClient:    priceClient,
 	}
 }
 
@@ -1106,4 +1115,172 @@ func (s *AccountService) ClearInvestmentCashFlows(ctx context.Context, userID in
 
 func (s *AccountService) ClearInvestmentSnapshots(ctx context.Context, userID int64) error {
 	return s.repo.ClearInvestmentSnapshots(ctx, userID)
+}
+
+func (s *AccountService) RebuildSnapshotsForUser(ctx context.Context, userID int64) error {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	accounts, err := s.repo.FindAllAccounts(ctx, tx, userID, true, false)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	for _, acc := range accounts {
+		earliest, err := s.repo.GetAccountOpeningAsOf(ctx, tx, acc.ID)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to get opening date for account %d: %w", acc.ID, err)
+		}
+
+		if err := s.repo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, earliest); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to frontfill balances for account %d: %w", acc.ID, err)
+		}
+
+		if err := s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, earliest, today); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to rebuild snapshots for account %d: %w", acc.ID, err)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return s.UpdateSnapshotMarketValues(ctx, userID)
+}
+
+func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
+	if s.priceClient == nil {
+		return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID)
+	}
+
+	accounts, err := s.repo.FetchAccountsByType(ctx, nil, userID, "investment", true)
+	if err != nil {
+		return err
+	}
+	cryptoAccounts, err := s.repo.FetchAccountsByType(ctx, nil, userID, "crypto", true)
+	if err != nil {
+		return err
+	}
+	accounts = append(accounts, cryptoAccounts...)
+
+	rateCache := make(map[string]decimal.Decimal)
+
+	for _, acc := range accounts {
+		assets, err := s.investmentRepo.FindAssetsByAccountID(ctx, nil, acc.ID, acc.UserID)
+		if err != nil || len(assets) == 0 {
+			continue
+		}
+
+		snapshots, err := s.repo.GetSnapshotsForAccount(ctx, nil, acc.ID)
+		if err != nil || len(snapshots) == 0 {
+			continue
+		}
+
+		type priceRow struct {
+			asOf     time.Time
+			price    decimal.Decimal
+			currency string
+		}
+
+		type assetInfo struct {
+			prices []priceRow
+			trades []models.InvestmentTrade
+		}
+
+		assetMap := make(map[int64]assetInfo, len(assets))
+		for _, asset := range assets {
+			prices, err := s.investmentRepo.GetPriceHistoryForAsset(ctx, nil, asset.ID)
+			if err != nil {
+				continue
+			}
+			trades, err := s.investmentRepo.FindInvestmentTradesByAssetID(ctx, nil, asset.ID)
+			if err != nil {
+				continue
+			}
+			rows := make([]priceRow, len(prices))
+			for i, p := range prices {
+				rows[i] = priceRow{asOf: p.AsOf, price: p.Price, currency: p.Currency}
+			}
+			assetMap[asset.ID] = assetInfo{prices: rows, trades: trades}
+		}
+
+		for _, snap := range snapshots {
+			marketValue := decimal.Zero
+
+			for _, asset := range assets {
+				data, ok := assetMap[asset.ID]
+				if !ok {
+					continue
+				}
+
+				qty := decimal.Zero
+				for _, t := range data.trades {
+					if !t.TxnDate.After(snap.AsOf) {
+						if t.TradeType == models.InvestmentBuy {
+							qty = qty.Add(t.Quantity)
+						} else {
+							qty = qty.Sub(t.Quantity)
+						}
+					}
+				}
+				if qty.IsNegative() {
+					qty = decimal.Zero
+				}
+				if qty.IsZero() {
+					continue
+				}
+
+				var lastPrice decimal.Decimal
+				var priceCurrency string
+				for _, p := range data.prices {
+					if !p.asOf.After(snap.AsOf) {
+						lastPrice = p.price
+						priceCurrency = p.currency
+					}
+				}
+				if lastPrice.IsZero() {
+					continue
+				}
+
+				value := lastPrice.Mul(qty)
+
+				if priceCurrency != "" && priceCurrency != acc.Currency {
+					rateKey := priceCurrency + "-" + acc.Currency + "-" + snap.AsOf.Format("2006-01-02")
+					rate, ok := rateCache[rateKey]
+					if !ok {
+						r, err := s.priceClient.GetExchangeRateOnDate(ctx, priceCurrency, acc.Currency, snap.AsOf)
+						if err == nil {
+							rate = decimal.NewFromFloat(r)
+						}
+						rateCache[rateKey] = rate
+					}
+					if !rate.IsZero() {
+						value = value.Mul(rate)
+					}
+				}
+
+				marketValue = marketValue.Add(value)
+			}
+
+			if err := s.repo.SetSnapshotMarketValue(ctx, nil, snap.AccountID, snap.AsOf, marketValue); err != nil {
+				return fmt.Errorf("failed to set market value for account %d on %s: %w", snap.AccountID, snap.AsOf.Format("2006-01-02"), err)
+			}
+		}
+	}
+
+	return nil
 }

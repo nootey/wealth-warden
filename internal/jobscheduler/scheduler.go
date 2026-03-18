@@ -200,7 +200,7 @@ func (s *Scheduler) registerAssetPriceHistoryBackfillJob() error {
 	}
 
 	_, err = s.scheduler.NewJob(
-		gocron.DurationJob(12*time.Hour),
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 15, 0))),
 		gocron.NewTask(func() {
 			logger.Info("Starting asset price history backfill ...")
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)

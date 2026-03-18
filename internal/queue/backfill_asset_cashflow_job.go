@@ -10,9 +10,9 @@ type investmentBackfillSvc interface {
 }
 
 type accountBackfillSvc interface {
-	BackfillBalancesForUser(ctx context.Context, userID int64, from, to string) error
 	ClearInvestmentCashFlows(ctx context.Context, userID int64) error
 	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
+	RebuildSnapshotsForUser(ctx context.Context, userID int64) error
 }
 
 type userBackfillSvc interface {
@@ -49,13 +49,14 @@ func (j *BackfillAssetCashFlowsJob) Process(ctx context.Context) error {
 			return fmt.Errorf("failed to clear investment snapshots for user %d: %w", userID, err)
 		}
 
-		// Rebuild from trades and balances
+		// Add investment trade cash flows on top of the reset balance rows
 		if err := j.InvestmentService.BackfillInvestmentCashFlows(ctx, userID); err != nil {
 			return fmt.Errorf("failed to backfill cash flows for user %d: %w", userID, err)
 		}
 
-		if err := j.AccountService.BackfillBalancesForUser(ctx, userID, "", ""); err != nil {
-			return fmt.Errorf("failed to backfill balances for user %d: %w", userID, err)
+		// Frontfill start_balance chains then rebuild all snapshots from scratch
+		if err := j.AccountService.RebuildSnapshotsForUser(ctx, userID); err != nil {
+			return fmt.Errorf("failed to rebuild snapshots for user %d: %w", userID, err)
 		}
 	}
 

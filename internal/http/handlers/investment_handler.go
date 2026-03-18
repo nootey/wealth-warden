@@ -375,45 +375,51 @@ func (h *InvestmentHandler) DeleteInvestmentTrade(c *gin.Context) {
 }
 
 func (h *InvestmentHandler) SyncAssetPNL(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
-	//ctx := c.Request.Context()
-	//userID := c.GetInt64("user_id")
-	//
-	//idStr := c.Param("id")
-	//
-	//if idStr == "" {
-	//	err := errors.New("invalid asset id provided")
-	//	utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-	//	return
-	//}
-	//
-	//id, err := strconv.ParseInt(idStr, 10, 64)
-	//if err != nil {
-	//	utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
-	//	return
-	//}
+	idStr := c.Param("id")
+	if idStr == "" {
+		err := errors.New("invalid asset id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
 
-	utils.SuccessMessage(c, "TODO", "TODO", http.StatusOK)
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.SyncAssetPnL(ctx, userID, id); err != nil {
+		utils.ErrorMessage(c, "Sync error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "PnL sync queued", "Asset PnL recalculation has been queued", http.StatusOK)
 }
 
 func (h *InvestmentHandler) SyncAssetAccountBalance(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
-	//ctx := c.Request.Context()
-	//userID := c.GetInt64("user_id")
-	//
-	//idStr := c.Param("acc_id")
-	//
-	//if idStr == "" {
-	//	err := errors.New("invalid asset account id provided")
-	//	utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-	//	return
-	//}
-	//
-	//accID, err := strconv.ParseInt(idStr, 10, 64)
-	//if err != nil {
-	//	utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
-	//	return
-	//}
+	idStr := c.Param("acc_id")
+	if idStr == "" {
+		err := errors.New("invalid account id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
 
-	utils.SuccessMessage(c, "TODO", "TODO", http.StatusOK)
+	accID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.SyncAccountPnL(ctx, userID, accID); err != nil {
+		utils.ErrorMessage(c, "Sync error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "PnL sync queued", "Account PnL recalculation has been queued", http.StatusOK)
 }
