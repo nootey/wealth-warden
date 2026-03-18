@@ -29,7 +29,7 @@ func (suite *SchedulerTestSuite) SetupTest() {
 	}
 
 	var err error
-	suite.scheduler, err = jobscheduler.NewScheduler(suite.logger, suite.container, jobscheduler.SchedulerConfig{
+	suite.scheduler, err = jobscheduler.NewScheduler(suite.logger, suite.container, jobscheduler.SchedulerFlags{
 		StartBalanceBackfillImmediately:      false,
 		StartTemplatesImmediately:            false,
 		StartAssetPriceSyncImmediately:       false,
@@ -63,7 +63,7 @@ func (suite *SchedulerTestSuite) TestScheduler_StartAndShutdown() {
 
 // Test creating scheduler with nil logger returns error
 func (suite *SchedulerTestSuite) TestScheduler_NewWithNilLogger() {
-	scheduler, err := jobscheduler.NewScheduler(nil, suite.container, jobscheduler.SchedulerConfig{
+	scheduler, err := jobscheduler.NewScheduler(nil, suite.container, jobscheduler.SchedulerFlags{
 		StartBalanceBackfillImmediately:      false,
 		StartTemplatesImmediately:            false,
 		StartAssetPriceSyncImmediately:       false,
@@ -75,7 +75,7 @@ func (suite *SchedulerTestSuite) TestScheduler_NewWithNilLogger() {
 
 // Test creating scheduler with nil container returns error
 func (suite *SchedulerTestSuite) TestScheduler_NewWithNilContainer() {
-	scheduler, err := jobscheduler.NewScheduler(suite.logger, nil, jobscheduler.SchedulerConfig{
+	scheduler, err := jobscheduler.NewScheduler(suite.logger, nil, jobscheduler.SchedulerFlags{
 		StartBalanceBackfillImmediately:      false,
 		StartTemplatesImmediately:            false,
 		StartAssetPriceSyncImmediately:       false,

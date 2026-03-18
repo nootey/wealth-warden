@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 	"wealth-warden/internal/bootstrap"
+	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/finance"
 
 	"github.com/go-co-op/gocron/v2"
@@ -15,17 +16,34 @@ type Scheduler struct {
 	logger    *zap.Logger
 	container *bootstrap.ServiceContainer
 	scheduler gocron.Scheduler
-	config    SchedulerConfig
+	flags     SchedulerFlags
 }
 
-type SchedulerConfig struct {
+type SchedulerFlags struct {
 	StartBalanceBackfillImmediately      bool
 	StartTemplatesImmediately            bool
 	StartAssetPriceSyncImmediately       bool
 	StartAssetHistoryBackfillImmediately bool
 }
 
-func NewScheduler(logger *zap.Logger, container *bootstrap.ServiceContainer, config SchedulerConfig) (*Scheduler, error) {
+func FlagsFromConfig(cfg config.SchedulerConfig) SchedulerFlags {
+	flags := SchedulerFlags{}
+	for _, job := range cfg.ImmediateJobs {
+		switch job {
+		case "balance_backfill":
+			flags.StartBalanceBackfillImmediately = true
+		case "templates":
+			flags.StartTemplatesImmediately = true
+		case "asset_price_sync":
+			flags.StartAssetPriceSyncImmediately = true
+		case "asset_history_backfill":
+			flags.StartAssetHistoryBackfillImmediately = true
+		}
+	}
+	return flags
+}
+
+func NewScheduler(logger *zap.Logger, container *bootstrap.ServiceContainer, flags SchedulerFlags) (*Scheduler, error) {
 
 	if logger == nil {
 		return nil, fmt.Errorf("logger cannot be nil")
@@ -44,7 +62,7 @@ func NewScheduler(logger *zap.Logger, container *bootstrap.ServiceContainer, con
 		logger:    logger,
 		container: container,
 		scheduler: s,
-		config:    config,
+		flags:     flags,
 	}, nil
 }
 
@@ -101,7 +119,7 @@ func (s *Scheduler) registerBackfillJob() error {
 	job := NewBalanceBackfillJob(logger, s.container)
 
 	var opts []gocron.JobOption
-	if s.config.StartBalanceBackfillImmediately {
+	if s.flags.StartBalanceBackfillImmediately {
 		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 	}
 
@@ -129,7 +147,7 @@ func (s *Scheduler) registerTemplatesJob() error {
 	job := NewAutomateTemplateJob(logger, s.container)
 
 	var opts []gocron.JobOption
-	if s.config.StartTemplatesImmediately {
+	if s.flags.StartTemplatesImmediately {
 		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 	}
 
@@ -162,7 +180,7 @@ func (s *Scheduler) registerAssetPriceSyncJob() error {
 	job := NewAssetPriceSyncJob(logger, s.container.InvestmentService, s.container.DB, client)
 
 	var opts []gocron.JobOption
-	if s.config.StartAssetPriceSyncImmediately {
+	if s.flags.StartAssetPriceSyncImmediately {
 		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 	}
 
@@ -195,7 +213,7 @@ func (s *Scheduler) registerAssetPriceHistoryBackfillJob() error {
 	job := NewAssetPriceHistoryBackfillJob(logger, s.container.InvestmentService, s.container.DB, client)
 
 	var opts []gocron.JobOption
-	if s.config.StartAssetHistoryBackfillImmediately {
+	if s.flags.StartAssetHistoryBackfillImmediately {
 		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 	}
 

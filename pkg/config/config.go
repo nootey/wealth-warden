@@ -50,6 +50,9 @@ func setDefaults() *Config {
 			MemberUserEmail:    "",
 			MemberUserPassword: "",
 		},
+		Scheduler: SchedulerConfig{
+			ImmediateJobs: []string{},
+		},
 	}
 }
 
