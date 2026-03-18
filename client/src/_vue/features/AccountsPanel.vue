@@ -120,7 +120,10 @@ const groupedAccounts = computed(() => {
 
 const groupTotal = (group: Account[]) =>
   group.reduce(
-    (sum, acc) => sum.add(new Decimal(acc.balance.total_balance || acc.balance.end_balance || 0)),
+    (sum, acc) =>
+      sum.add(
+        new Decimal(acc.balance.total_balance || acc.balance.end_balance || 0),
+      ),
     new Decimal(0),
   );
 
@@ -350,7 +353,11 @@ defineExpose({ refresh: getData });
 
           <div class="flex align-items-center gap-2">
             <div class="font-bold mr-1">
-              {{ vueHelper.displayAsCurrency(account.balance.total_balance ?? account.balance.end_balance) }}
+              {{
+                vueHelper.displayAsCurrency(
+                  account.balance.total_balance ?? account.balance.end_balance,
+                )
+              }}
             </div>
 
             <template v-if="advanced">

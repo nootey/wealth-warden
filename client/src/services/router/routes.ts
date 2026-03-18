@@ -42,7 +42,11 @@ const routes: RouteRecordRaw[] = [
   {
     path: "/backoffice",
     name: "backoffice",
-    meta: { title: "Backoffice", requiresAuth: true, permsAll: ["root_access"] },
+    meta: {
+      title: "Backoffice",
+      requiresAuth: true,
+      permsAll: ["root_access"],
+    },
     component: BackofficePage,
   },
   {

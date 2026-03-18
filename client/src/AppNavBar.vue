@@ -207,7 +207,6 @@ function handleMenuClick(source: string) {
         </div>
 
         <div class="flex flex-column gap-2 p-1">
-
           <div
             v-if="hasPermission('root_access')"
             id="profileMenuItem"

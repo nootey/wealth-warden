@@ -2622,7 +2622,7 @@ func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, im
 				return err
 			}
 
-			var exchangeRate decimal.Decimal = decimal.NewFromFloat(1.0)
+			exchangeRate := decimal.NewFromFloat(1.0)
 			if txn.Currency != acc.Currency {
 				rate, err := client.GetExchangeRate(ctx, txn.Currency, acc.Currency)
 				if err == nil {
@@ -2696,7 +2696,7 @@ func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, im
 			return err
 		}
 
-		var exchangeRate decimal.Decimal = decimal.NewFromFloat(1.0)
+		exchangeRate := decimal.NewFromFloat(1.0)
 		if trade.Currency != acc.Currency {
 			rate, err := client.GetExchangeRate(ctx, trade.Currency, acc.Currency)
 			if err == nil {
