@@ -3,126 +3,47 @@ package queue
 import (
 	"context"
 	"fmt"
-	"time"
-	"wealth-warden/internal/models"
-	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/finance"
-
-	"github.com/shopspring/decimal"
 )
 
+type pnlInvestmentSvc interface {
+	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
+	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
+}
+
 type RecalculateAssetPnLJob struct {
-	Repo             repositories.InvestmentRepositoryInterface
-	AccRepo          repositories.AccountRepositoryInterface
-	PriceFetchClient finance.PriceFetcher
-	AssetID          int64
-	UserID           int64
+	InvestmentService pnlInvestmentSvc
+	UserID            int64
+	AssetID           *int64 // nil = all assets for the account
+	AccountID         *int64 // nil = single asset mode
 }
 
 func (j *RecalculateAssetPnLJob) Process(ctx context.Context) error {
-	tx, err := j.Repo.BeginTx(ctx)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	if j.AssetID != nil {
+		fmt.Printf("pnl sync: recalculating asset %d\n", *j.AssetID)
+		if err := j.InvestmentService.RecalculateAssetPnL(ctx, j.UserID, *j.AssetID); err != nil {
+			fmt.Printf("pnl sync: error recalculating asset %d: %v\n", *j.AssetID, err)
+			return fmt.Errorf("failed to recalculate PnL for asset %d: %w", *j.AssetID, err)
 		}
-	}()
-
-	asset, err := j.Repo.FindInvestmentAssetByID(ctx, tx, j.AssetID, j.UserID)
-	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to find asset: %w", err)
+		fmt.Printf("pnl sync: asset %d done\n", *j.AssetID)
+		return nil
 	}
 
-	// Fetch fresh price
-	var currentPrice *decimal.Decimal
-	var lastPriceUpdate *time.Time
-
-	if j.PriceFetchClient != nil {
-		priceData, err := j.PriceFetchClient.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
-		if err == nil && priceData != nil && priceData.Price > 0 {
-			price := decimal.NewFromFloat(priceData.Price)
-			now := time.Unix(priceData.LastUpdate, 0)
-			currentPrice = &price
-			lastPriceUpdate = &now
+	if j.AccountID != nil {
+		fmt.Printf("pnl sync: recalculating all assets for account %d\n", *j.AccountID)
+		assetIDs, err := j.InvestmentService.GetAssetIDsForAccount(ctx, j.UserID, *j.AccountID)
+		if err != nil {
+			fmt.Printf("pnl sync: error fetching assets for account %d: %v\n", *j.AccountID, err)
+			return fmt.Errorf("failed to get assets for account %d: %w", *j.AccountID, err)
 		}
-	}
-
-	// If price could not be fetched, keep the existing one
-	if currentPrice == nil {
-		currentPrice = asset.CurrentPrice
-		lastPriceUpdate = asset.LastPriceUpdate
-	}
-
-	trades, err := j.Repo.FindInvestmentTradesByAssetID(ctx, tx, j.AssetID)
-	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to find trades: %w", err)
-	}
-
-	var totalQuantity decimal.Decimal
-	var totalCost decimal.Decimal
-
-	for _, trade := range trades {
-		switch trade.TradeType {
-		case models.InvestmentBuy:
-			totalQuantity = totalQuantity.Add(trade.Quantity)
-			totalCost = totalCost.Add(trade.ValueAtBuy)
-		case models.InvestmentSell:
-			totalQuantity = totalQuantity.Sub(trade.Quantity)
-			if !totalQuantity.IsZero() {
-				avgPrice := totalCost.Div(totalQuantity.Add(trade.Quantity))
-				totalCost = totalQuantity.Mul(avgPrice)
+		for _, id := range assetIDs {
+			if err := j.InvestmentService.RecalculateAssetPnL(ctx, j.UserID, id); err != nil {
+				fmt.Printf("pnl sync: error recalculating asset %d: %v\n", id, err)
+				return fmt.Errorf("failed to recalculate PnL for asset %d: %w", id, err)
 			}
 		}
+		fmt.Printf("pnl sync: account %d done (%d assets)\n", *j.AccountID, len(assetIDs))
+		return nil
 	}
 
-	var newAvgBuyPrice decimal.Decimal
-	if !totalQuantity.IsZero() {
-		newAvgBuyPrice = totalCost.Div(totalQuantity)
-	}
-
-	var newCurrentValue, newProfitLoss, newProfitLossPercent decimal.Decimal
-	if currentPrice != nil && !currentPrice.IsZero() {
-		newCurrentValue = totalQuantity.Mul(*currentPrice)
-		newProfitLoss = newCurrentValue.Sub(totalCost)
-		if !totalCost.IsZero() {
-			newProfitLossPercent = newProfitLoss.Div(totalCost)
-		}
-	}
-
-	updates := map[string]interface{}{
-		"quantity":            totalQuantity,
-		"average_buy_price":   newAvgBuyPrice,
-		"value_at_buy":        totalCost,
-		"current_value":       newCurrentValue,
-		"profit_loss":         newProfitLoss,
-		"profit_loss_percent": newProfitLossPercent,
-		"updated_at":          time.Now(),
-	}
-
-	if currentPrice != nil {
-		updates["current_price"] = *currentPrice
-	}
-	if lastPriceUpdate != nil {
-		updates["last_price_update"] = *lastPriceUpdate
-	}
-
-	err = tx.Model(&models.InvestmentAsset{}).
-		Where("id = ?", j.AssetID).
-		Updates(updates).Error
-
-	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("failed to update asset: %w", err)
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return fmt.Errorf("failed to commit: %w", err)
-	}
-
-	return nil
+	return fmt.Errorf("RecalculateAssetPnLJob: neither AssetID nor AccountID provided")
 }

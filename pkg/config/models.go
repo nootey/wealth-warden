@@ -11,6 +11,7 @@ type Config struct {
 	CORS              CorsConfig       `mapstructure:"cors"`
 	Seed              SeedConfig       `mapstructure:"seed"`
 	Mailer            MailerConfig     `mapstructure:"mailer"`
+	Scheduler         SchedulerConfig  `mapstructure:"scheduler"`
 }
 
 type WebClientConfig struct {
@@ -55,4 +56,8 @@ type MailerConfig struct {
 	Port     int    `mapstructure:"port"`
 	Username string `mapstructure:"username"`
 	Password string `mapstructure:"password"`
+}
+
+type SchedulerConfig struct {
+	ImmediateJobs []string `mapstructure:"immediate_jobs"`
 }

@@ -40,6 +40,11 @@ function toggleProfileMenu(event: any) {
 
 function checkAccess(route: string) {
   switch (route) {
+    case "backoffice":
+      if (hasPermission("root_access")) {
+        router.push("/backoffice");
+      }
+      break;
     case "logs":
       if (hasPermission("view_activity_logs")) {
         router.push("/logs");
@@ -47,7 +52,7 @@ function checkAccess(route: string) {
       break;
     case "users":
       if (hasPermission("manage_users")) {
-        router.push("/Users");
+        router.push("/users");
       }
       break;
   }
@@ -55,6 +60,10 @@ function checkAccess(route: string) {
 
 function handleMenuClick(source: string) {
   switch (source) {
+    case "backoffice": {
+      checkAccess("backoffice");
+      break;
+    }
     case "logs": {
       checkAccess("logs");
       break;
@@ -198,6 +207,22 @@ function handleMenuClick(source: string) {
         </div>
 
         <div class="flex flex-column gap-2 p-1">
+
+          <div
+            v-if="hasPermission('root_access')"
+            id="profileMenuItem"
+            class="flex align-items-center gap-2 p-1 border-round-md"
+            style="
+              cursor: pointer;
+              transition: all 0.2s ease;
+              color: var(--text-primary);
+            "
+            @click="handleMenuClick('backoffice')"
+          >
+            <i class="pi pi-briefcase" />
+            <span class="text-sm">Backoffice</span>
+          </div>
+
           <div
             v-if="hasPermission('view_activity_logs')"
             id="profileMenuItem"

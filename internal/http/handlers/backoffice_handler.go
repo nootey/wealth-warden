@@ -8,7 +8,7 @@ import (
 )
 
 type BackofficeHandler struct {
-	Service *services.BackofficeService
+	service *services.BackofficeService
 	v       *validators.GoValidator
 }
 
@@ -17,11 +17,20 @@ func NewBackofficeHandler(
 	v *validators.GoValidator,
 ) *BackofficeHandler {
 	return &BackofficeHandler{
-		Service: service,
+		service: service,
 		v:       v,
 	}
 }
 
 func (h *BackofficeHandler) Routes(ap *gin.RouterGroup) {
+	ap.POST("/backfill/asset-cash-flows", h.BackfillAssetCashFlows)
+}
 
+func (h *BackofficeHandler) BackfillAssetCashFlows(c *gin.Context) {
+	if err := h.service.BackfillAssetCashFlows(c.Request.Context()); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(202, gin.H{"message": "backfill job queued"})
 }

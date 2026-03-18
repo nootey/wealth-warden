@@ -20,6 +20,7 @@ import RolesSettings from "../../_vue/pages/Settings/RolesSettings.vue";
 import DataSettings from "../../_vue/pages/Settings/DataSettings.vue";
 import InvestmentsPage from "../../_vue/pages/InvestmentsPage.vue";
 import AnalyticsPage from "../../_vue/pages/AnalyticsPage.vue";
+import BackofficePage from "../../_vue/pages/BackofficePage.vue";
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -37,6 +38,12 @@ const routes: RouteRecordRaw[] = [
     name: "dashboard",
     meta: { title: "Dash", requiresAuth: true },
     component: DashboardPage,
+  },
+  {
+    path: "/backoffice",
+    name: "backoffice",
+    meta: { title: "Backoffice", requiresAuth: true, permsAll: ["root_access"] },
+    component: BackofficePage,
   },
   {
     path: "/confirm-email",

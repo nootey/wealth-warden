@@ -82,7 +82,6 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 		panic(err)
 	}
 	cfg.Postgres.Database = "wealth_warden_test"
-	cfg.FinanceAPIBaseURL = "https://query1.finance.yahoo.com"
 	s.Require().NoError(err, "failed to load test configuration")
 
 	l := zap.NewNop() // Silent logger for tests
@@ -93,7 +92,7 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 
 	// Build application container
 	jobDispatcher := &NoOpDispatcher{}
-	appContainer, err := bootstrap.NewServiceContainer(cfg, db, l, jobDispatcher)
+	appContainer, err := bootstrap.NewServiceContainer(cfg, db, l, jobDispatcher, &MockPriceFetcher{})
 	s.Require().NoError(err, "failed to bootstrap app container")
 
 	s.TC = &TestContainer{

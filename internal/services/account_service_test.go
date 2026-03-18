@@ -677,7 +677,6 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByInvestmentValue() {
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	initialBalance := decimal.NewFromInt(100000)
 
-	// Create investment account
 	accReq := &models.AccountReq{
 		Name:          "Investment Account",
 		AccountTypeID: 5,
@@ -687,7 +686,6 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByInvestmentValue() {
 	accID, err := accSvc.InsertAccount(s.Ctx, userID, accReq)
 	s.Require().NoError(err)
 
-	// Create BTC asset
 	assetReq := &models.InvestmentAssetReq{
 		AccountID:      accID,
 		InvestmentType: models.InvestmentCrypto,
@@ -707,50 +705,37 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByInvestmentValue() {
 		s.Require().NoError(err)
 	}
 
-	// Buy 1 BTC at 50k (invests 50k)
 	ctx2, cancel2 := context.WithTimeout(s.Ctx, 5*time.Second)
 	defer cancel2()
 
+	// Buy 90k of BTC — balance drops to 10k
 	_, err = invSvc.InsertInvestmentTrade(ctx2, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
 		Quantity:     decimal.NewFromInt(1),
-		PricePerUnit: decimal.NewFromInt(50000),
-		Currency:     "USD",
+		PricePerUnit: decimal.NewFromInt(90000),
+		Currency:     "EUR",
 	})
 	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if errors.Is(ctx2.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out")
 		}
 		s.Require().NoError(err)
 	}
 
-	// Verify investment exists
-	var asset models.InvestmentAsset
-	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
-	s.Require().NoError(err)
-	s.T().Logf("Asset current value: %s", asset.CurrentValue.String())
-
-	// Try to adjust balance to 40k (below the 50k+ invested)
-	newBalance := decimal.NewFromInt(40000)
+	// Try to adjust balance to -5k (negative) — should be blocked
+	negativeBalance := decimal.NewFromInt(-5000)
 	updateReq := &models.AccountReq{
 		Name:          "Investment Account",
 		AccountTypeID: 5,
-		Balance:       &newBalance,
+		Balance:       &negativeBalance,
 	}
 
 	_, err = accSvc.UpdateAccount(s.Ctx, userID, accID, updateReq)
-	s.Require().Error(err, "should not allow balance adjustment below investment value")
+	s.Require().Error(err, "should not allow negative balance adjustment on asset account")
 
-	// Verify account balance unchanged
-	var account models.Account
-	err = s.TC.DB.WithContext(s.Ctx).
-		Preload("Balance").
-		Where("id = ?", accID).
-		First(&account).Error
-	s.Require().NoError(err)
-
+	// Verify balance unchanged — should still be 10k (100k - 90k buy)
 	var latestBalance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ?", accID).
@@ -758,6 +743,8 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByInvestmentValue() {
 		First(&latestBalance).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(latestBalance.EndBalance.GreaterThan(newBalance),
-		"balance should remain above %s, got %s", newBalance.String(), latestBalance.EndBalance.String())
+	expectedBalance := decimal.NewFromInt(10000)
+	s.Assert().True(expectedBalance.Equal(latestBalance.EndBalance),
+		"balance should remain at %s, got %s",
+		expectedBalance.String(), latestBalance.EndBalance.String())
 }

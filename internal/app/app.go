@@ -33,16 +33,12 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 	jobQueue := queue.NewJobQueue(1, 25)
 	jobDispatcher := &queue.InMemoryDispatcher{Queue: jobQueue}
 
-	container, err := bootstrap.NewServiceContainer(cfg, dbClient, logger.Named("container"), jobDispatcher)
+	container, err := bootstrap.NewServiceContainer(cfg, dbClient, logger.Named("container"), jobDispatcher, nil)
 	if err != nil {
 		return nil, fmt.Errorf("container initialization failed: %w", err)
 	}
 
-	scheduler, err := jobscheduler.NewScheduler(logger.Named("scheduler"), container, jobscheduler.SchedulerConfig{
-		StartBackfillImmediately:  false,
-		StartTemplateImmediately:  false,
-		StartPriceSyncImmediately: true,
-	})
+	scheduler, err := jobscheduler.NewScheduler(logger.Named("scheduler"), container, jobscheduler.FlagsFromConfig(cfg.Scheduler))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)
 	}

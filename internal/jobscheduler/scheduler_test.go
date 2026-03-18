@@ -29,10 +29,11 @@ func (suite *SchedulerTestSuite) SetupTest() {
 	}
 
 	var err error
-	suite.scheduler, err = jobscheduler.NewScheduler(suite.logger, suite.container, jobscheduler.SchedulerConfig{
-		StartBackfillImmediately:  false,
-		StartTemplateImmediately:  false,
-		StartPriceSyncImmediately: false,
+	suite.scheduler, err = jobscheduler.NewScheduler(suite.logger, suite.container, jobscheduler.SchedulerFlags{
+		StartBalanceBackfillImmediately:      false,
+		StartTemplatesImmediately:            false,
+		StartAssetPriceSyncImmediately:       false,
+		StartAssetHistoryBackfillImmediately: false,
 	})
 	suite.NoError(err)
 	suite.NotNil(suite.scheduler)
@@ -51,7 +52,7 @@ func (suite *SchedulerTestSuite) TestScheduler_New() {
 
 // Test that scheduler can start and shutdown
 func (suite *SchedulerTestSuite) TestScheduler_StartAndShutdown() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	err := suite.scheduler.Start(ctx)
 	suite.NoError(err)
@@ -62,10 +63,11 @@ func (suite *SchedulerTestSuite) TestScheduler_StartAndShutdown() {
 
 // Test creating scheduler with nil logger returns error
 func (suite *SchedulerTestSuite) TestScheduler_NewWithNilLogger() {
-	scheduler, err := jobscheduler.NewScheduler(nil, suite.container, jobscheduler.SchedulerConfig{
-		StartBackfillImmediately:  false,
-		StartTemplateImmediately:  false,
-		StartPriceSyncImmediately: false,
+	scheduler, err := jobscheduler.NewScheduler(nil, suite.container, jobscheduler.SchedulerFlags{
+		StartBalanceBackfillImmediately:      false,
+		StartTemplatesImmediately:            false,
+		StartAssetPriceSyncImmediately:       false,
+		StartAssetHistoryBackfillImmediately: false,
 	})
 	suite.Error(err)
 	suite.Nil(scheduler)
@@ -73,10 +75,11 @@ func (suite *SchedulerTestSuite) TestScheduler_NewWithNilLogger() {
 
 // Test creating scheduler with nil container returns error
 func (suite *SchedulerTestSuite) TestScheduler_NewWithNilContainer() {
-	scheduler, err := jobscheduler.NewScheduler(suite.logger, nil, jobscheduler.SchedulerConfig{
-		StartBackfillImmediately:  false,
-		StartTemplateImmediately:  false,
-		StartPriceSyncImmediately: false,
+	scheduler, err := jobscheduler.NewScheduler(suite.logger, nil, jobscheduler.SchedulerFlags{
+		StartBalanceBackfillImmediately:      false,
+		StartTemplatesImmediately:            false,
+		StartAssetPriceSyncImmediately:       false,
+		StartAssetHistoryBackfillImmediately: false,
 	})
 	suite.Error(err)
 	suite.Nil(scheduler)

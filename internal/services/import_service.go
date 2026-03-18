@@ -2608,43 +2608,51 @@ func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, im
 			touch(acc, earliestTxnDate)
 		}
 
-		sellTxns, err := s.investmentRepo.FindSellTradesByAssetID(ctx, tx, asset.ID, userID)
+		allTrades, err := s.investmentRepo.FindAllTradesByAssetID(ctx, tx, asset.ID, userID)
 		if err != nil {
 			tx.Rollback()
 			return err
 		}
 
-		// Reverse realized P&L from all sells
-		for _, txn := range sellTxns {
-			if txn.RealizedValue == decimal.Zero {
-				continue
-			}
+		for _, txn := range allTrades {
+			txnDate := txn.TxnDate.UTC().Truncate(24 * time.Hour)
 
-			costBasis := txn.ValueAtBuy
-			realizedPnL := txn.RealizedValue.Sub(costBasis)
-
-			realizedPnLInAccountCurrency := realizedPnL
-			if txn.Currency != acc.Currency {
-				rate, err := client.GetExchangeRate(ctx, txn.Currency, acc.Currency)
-				if err == nil {
-					realizedPnLInAccountCurrency = realizedPnL.Mul(decimal.NewFromFloat(rate))
-				}
-			}
-
-			if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txn.TxnDate, acc.Currency); err != nil {
+			if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txnDate, acc.Currency); err != nil {
 				tx.Rollback()
 				return err
 			}
 
-			if realizedPnLInAccountCurrency.GreaterThanOrEqual(decimal.Zero) {
-				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txn.TxnDate, "cash_inflows", realizedPnLInAccountCurrency.Neg()); err != nil {
+			var exchangeRate decimal.Decimal = decimal.NewFromFloat(1.0)
+			if txn.Currency != acc.Currency {
+				rate, err := client.GetExchangeRate(ctx, txn.Currency, acc.Currency)
+				if err == nil {
+					exchangeRate = decimal.NewFromFloat(rate)
+				}
+			}
+
+			if txn.TradeType == models.InvestmentBuy {
+				purchaseCost := txn.ValueAtBuy
+				if txn.Currency != acc.Currency {
+					purchaseCost = txn.ValueAtBuy.Mul(exchangeRate)
+				}
+				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", purchaseCost.Neg()); err != nil {
 					tx.Rollback()
 					return err
 				}
 			} else {
-				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txn.TxnDate, "cash_outflows", realizedPnLInAccountCurrency.Abs().Neg()); err != nil {
-					tx.Rollback()
-					return err
+				realizedPnL := txn.RealizedValue.Sub(txn.ValueAtBuy)
+				realizedPnLInAccountCurrency := realizedPnL.Mul(exchangeRate)
+
+				if realizedPnLInAccountCurrency.GreaterThanOrEqual(decimal.Zero) {
+					if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_inflows", realizedPnLInAccountCurrency.Neg()); err != nil {
+						tx.Rollback()
+						return err
+					}
+				} else {
+					if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", realizedPnLInAccountCurrency.Abs().Neg()); err != nil {
+						tx.Rollback()
+						return err
+					}
 				}
 			}
 		}
@@ -2681,32 +2689,41 @@ func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, im
 		}
 
 		touch(acc, trade.TxnDate)
+		txnDate := trade.TxnDate.UTC().Truncate(24 * time.Hour)
 
-		// Reverse sell realized P&L if it was a sell
-		if trade.TradeType == models.InvestmentSell {
-			costBasis := trade.ValueAtBuy
-			realizedPnL := trade.RealizedValue.Sub(costBasis)
+		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txnDate, acc.Currency); err != nil {
+			tx.Rollback()
+			return err
+		}
 
-			realizedPnLInAccountCurrency := realizedPnL
-			if trade.Currency != acc.Currency {
-				rate, err := client.GetExchangeRate(ctx, trade.Currency, acc.Currency)
-				if err == nil {
-					realizedPnLInAccountCurrency = realizedPnL.Mul(decimal.NewFromFloat(rate))
-				}
+		var exchangeRate decimal.Decimal = decimal.NewFromFloat(1.0)
+		if trade.Currency != acc.Currency {
+			rate, err := client.GetExchangeRate(ctx, trade.Currency, acc.Currency)
+			if err == nil {
+				exchangeRate = decimal.NewFromFloat(rate)
 			}
+		}
 
-			if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, trade.TxnDate, acc.Currency); err != nil {
+		if trade.TradeType == models.InvestmentBuy {
+			purchaseCost := trade.ValueAtBuy
+			if trade.Currency != acc.Currency {
+				purchaseCost = trade.ValueAtBuy.Mul(exchangeRate)
+			}
+			if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", purchaseCost.Neg()); err != nil {
 				tx.Rollback()
 				return err
 			}
+		} else {
+			realizedPnL := trade.RealizedValue.Sub(trade.ValueAtBuy)
+			realizedPnLInAccountCurrency := realizedPnL.Mul(exchangeRate)
 
 			if realizedPnLInAccountCurrency.GreaterThanOrEqual(decimal.Zero) {
-				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, trade.TxnDate, "cash_inflows", realizedPnLInAccountCurrency.Neg()); err != nil {
+				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_inflows", realizedPnLInAccountCurrency.Neg()); err != nil {
 					tx.Rollback()
 					return err
 				}
 			} else {
-				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, trade.TxnDate, "cash_outflows", realizedPnLInAccountCurrency.Abs().Neg()); err != nil {
+				if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", realizedPnLInAccountCurrency.Abs().Neg()); err != nil {
 					tx.Rollback()
 					return err
 				}
@@ -2718,7 +2735,6 @@ func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, im
 			return err
 		}
 
-		// Recalculate asset from remaining trades
 		if err := s.investmentRepo.RecalculateAssetFromTrades(ctx, tx, asset.ID, userID); err != nil {
 			tx.Rollback()
 			return err
@@ -2730,24 +2746,6 @@ func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, im
 	for _, at := range touched {
 		if at == nil || at.acc == nil || at.minAs.IsZero() {
 			continue
-		}
-
-		// Clear non-cash flows from earliest date
-		if err := s.accRepo.ClearNonCashFlowsFromDate(ctx, tx, at.acc.ID, at.minAs); err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		// Recalculate unrealized P&L for remaining assets
-		assets, err := s.investmentRepo.FindAssetsByAccountID(ctx, tx, at.acc.ID, userID)
-		if err == nil && len(assets) > 0 {
-			checkpoints := s.generateCheckpointDates(at.minAs, today)
-			for _, checkpointDate := range checkpoints {
-				if err := s.updateInvestmentAccountBalance(ctx, tx, client, at.acc.ID, userID, checkpointDate, at.acc.Currency); err != nil {
-					tx.Rollback()
-					return err
-				}
-			}
 		}
 
 		if err := s.accRepo.FrontfillBalances(ctx, tx, at.acc.ID, at.acc.Currency, at.minAs); err != nil {
