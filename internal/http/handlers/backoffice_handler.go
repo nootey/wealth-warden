@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"wealth-warden/internal/services"
+	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/validators"
 
 	"github.com/gin-gonic/gin"
@@ -23,7 +24,7 @@ func NewBackofficeHandler(
 }
 
 func (h *BackofficeHandler) Routes(ap *gin.RouterGroup) {
-	ap.POST("/backfill/asset-cash-flows", h.BackfillAssetCashFlows)
+	ap.POST("/backfill/asset-cash-flows", authz.RequireAllMW("access_backoffice"), h.BackfillAssetCashFlows)
 }
 
 func (h *BackofficeHandler) BackfillAssetCashFlows(c *gin.Context) {

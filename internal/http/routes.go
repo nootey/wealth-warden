@@ -69,7 +69,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	}
 
 	authHandler.Routes(authenticated.Group("/auth"))
-	backOfficeHandler.Routes(authenticated.Group("/backoffice"))
+	backOfficeHandler.Routes(protected.Group("/backoffice"))
 	accountHandler.Routes(protected.Group("/accounts"))
 	analyticsHandler.Routes(protected.Group("/analytics"))
 	exportHandler.Routes(protected.Group("/exports"))

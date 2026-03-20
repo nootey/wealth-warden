@@ -4,12 +4,14 @@ import { storeToRefs } from "pinia";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { usePermissions } from "./utils/use_permissions.ts";
+import { useConfirm } from "primevue/useconfirm";
 
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
 const { hasPermission } = usePermissions();
 
 const router = useRouter();
+const confirm = useConfirm();
 
 interface MenuItem {
   to: string;
@@ -30,6 +32,49 @@ const visibleMenuItems = computed(() =>
   menuItems.filter((item) => !item.block),
 );
 
+interface ProfileMenuItem {
+  icon: string;
+  text: string;
+  permission?: string;
+  action: () => void;
+  danger?: boolean;
+}
+
+const profileMenuItems: ProfileMenuItem[] = [
+  {
+    icon: "pi-briefcase",
+    text: "Backoffice",
+    permission: "access_backoffice",
+    action: () => router.push("/backoffice"),
+  },
+  {
+    icon: "pi-users",
+    text: "Users",
+    permission: "manage_users",
+    action: () => router.push("/users"),
+  },
+  { icon: "pi-cog", text: "Settings", action: () => router.push("/settings") },
+  {
+    icon: "pi-sign-out",
+    text: "Sign out",
+    danger: true,
+    action: () =>
+      confirm.require({
+        message: "Are you sure you want to sign out?",
+        header: "Sign out",
+        rejectLabel: "Cancel",
+        acceptLabel: "Sign out",
+        accept: () => authStore.logoutUser(),
+      }),
+  },
+];
+
+const visibleProfileMenuItems = computed(() =>
+  profileMenuItems.filter(
+    (item) => !item.permission || hasPermission(item.permission),
+  ),
+);
+
 const profileMenuRef = ref<any>(null);
 
 function toggleProfileMenu(event: any) {
@@ -38,52 +83,8 @@ function toggleProfileMenu(event: any) {
   }
 }
 
-function checkAccess(route: string) {
-  switch (route) {
-    case "backoffice":
-      if (hasPermission("root_access")) {
-        router.push("/backoffice");
-      }
-      break;
-    case "logs":
-      if (hasPermission("view_activity_logs")) {
-        router.push("/logs");
-      }
-      break;
-    case "users":
-      if (hasPermission("manage_users")) {
-        router.push("/users");
-      }
-      break;
-  }
-}
-
-function handleMenuClick(source: string) {
-  switch (source) {
-    case "backoffice": {
-      checkAccess("backoffice");
-      break;
-    }
-    case "logs": {
-      checkAccess("logs");
-      break;
-    }
-    case "users": {
-      checkAccess("users");
-      break;
-    }
-    case "settings": {
-      router.push("/settings");
-      break;
-    }
-    case "logout": {
-      authStore.logoutUser();
-      break;
-    }
-    default: {
-      break;
-    }
-  }
+function handleMenuClick(item: ProfileMenuItem) {
+  item.action();
   toggleProfileMenu(false);
 }
 </script>
@@ -208,72 +209,15 @@ function handleMenuClick(source: string) {
 
         <div class="flex flex-column gap-2 p-1">
           <div
-            v-if="hasPermission('root_access')"
+            v-for="item in visibleProfileMenuItems"
             id="profileMenuItem"
+            :key="item.text"
             class="flex align-items-center gap-2 p-1 border-round-md"
-            style="
-              cursor: pointer;
-              transition: all 0.2s ease;
-              color: var(--text-primary);
-            "
-            @click="handleMenuClick('backoffice')"
+            :style="`cursor: pointer; transition: all 0.2s ease; color: ${item.danger ? '#ef4444' : 'var(--text-primary)'}`"
+            @click="handleMenuClick(item)"
           >
-            <i class="pi pi-briefcase" />
-            <span class="text-sm">Backoffice</span>
-          </div>
-
-          <div
-            v-if="hasPermission('view_activity_logs')"
-            id="profileMenuItem"
-            class="flex align-items-center gap-2 p-1 border-round-md"
-            style="
-              cursor: pointer;
-              transition: all 0.2s ease;
-              color: var(--text-primary);
-            "
-            @click="handleMenuClick('logs')"
-          >
-            <i class="pi pi-address-book" />
-            <span class="text-sm">Activity logs</span>
-          </div>
-
-          <div
-            v-if="hasPermission('manage_users')"
-            id="profileMenuItem"
-            class="flex align-items-center gap-2 p-1 border-round-md"
-            style="
-              cursor: pointer;
-              transition: all 0.2s ease;
-              color: var(--text-primary);
-            "
-            @click="handleMenuClick('users')"
-          >
-            <i class="pi pi-users" />
-            <span class="text-sm">Users</span>
-          </div>
-
-          <div
-            id="profileMenuItem"
-            class="flex align-items-center gap-2 p-1 border-round-md"
-            style="
-              cursor: pointer;
-              transition: all 0.2s ease;
-              color: var(--text-primary);
-            "
-            @click="handleMenuClick('settings')"
-          >
-            <i class="pi pi-cog" />
-            <span class="text-sm">Settings</span>
-          </div>
-
-          <div
-            id="profileMenuItem"
-            class="flex align-items-center gap-2 p-1 border-round-md"
-            style="cursor: pointer; transition: all 0.2s ease; color: #ef4444"
-            @click="handleMenuClick('logout')"
-          >
-            <i class="pi pi-sign-out" />
-            <span class="text-sm">Sign out</span>
+            <i :class="['pi', item.icon]" />
+            <span class="text-sm">{{ item.text }}</span>
           </div>
         </div>
       </div>

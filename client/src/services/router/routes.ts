@@ -4,7 +4,6 @@ import Login from "../../_vue/features/auth/Login.vue";
 import SignUp from "../../_vue/features/auth/SignUp.vue";
 import ConfirmEmail from "../../_vue/features/auth/ConfirmEmail.vue";
 import ForgotPassword from "../../_vue/features/auth/ForgotPassword.vue";
-import ActivityLogsPage from "../../_vue/pages/ActivityLogsPage.vue";
 import TransactionsPage from "../../_vue/pages/TransactionsPage.vue";
 import AccountsPage from "../../_vue/pages/AccountsPage.vue";
 import SettingsPage from "../../_vue/pages/SettingsPage.vue";
@@ -45,7 +44,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       title: "Backoffice",
       requiresAuth: true,
-      permsAll: ["root_access"],
+      permsAll: ["access_backoffice"],
     },
     component: BackofficePage,
   },
@@ -101,16 +100,6 @@ const routes: RouteRecordRaw[] = [
     name: "users",
     meta: { title: "Users", requiresAuth: true, permsAny: ["manage_users"] },
     component: UsersPage,
-  },
-  {
-    path: "/logs",
-    name: "logs",
-    meta: {
-      title: "Audit",
-      requiresAuth: true,
-      permsAny: ["view_activity_logs"],
-    },
-    component: ActivityLogsPage,
   },
   {
     path: "/analytics",
