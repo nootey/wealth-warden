@@ -39,10 +39,12 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, cfg *config.Confi
 		//  Top level root permission
 		{"root_access", "Root level access", "root"},
 
+		// Backoffice
+		{"access_backoffice", "Access backoffice (global)", "backoffice"},
+
 		// User management
 		{"manage_users", "Manage users (global)", "users"},
 		{"delete_users", "Delete users (global)", "users"},
-
 		{"manage_roles", "Manage roles (global)", "users"},
 		{"delete_roles", "Delete non default roles (global)", "users"},
 
@@ -81,6 +83,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, cfg *config.Confi
 		{
 			Role: "admin",
 			Permissions: []string{
+				"access_backoffice",
 				"manage_users",
 				"delete_users",
 				"manage_subscriptions",

@@ -4,7 +4,6 @@ import Login from "../../_vue/features/auth/Login.vue";
 import SignUp from "../../_vue/features/auth/SignUp.vue";
 import ConfirmEmail from "../../_vue/features/auth/ConfirmEmail.vue";
 import ForgotPassword from "../../_vue/features/auth/ForgotPassword.vue";
-import ActivityLogsPage from "../../_vue/pages/ActivityLogsPage.vue";
 import TransactionsPage from "../../_vue/pages/TransactionsPage.vue";
 import AccountsPage from "../../_vue/pages/AccountsPage.vue";
 import SettingsPage from "../../_vue/pages/SettingsPage.vue";
@@ -20,6 +19,7 @@ import RolesSettings from "../../_vue/pages/Settings/RolesSettings.vue";
 import DataSettings from "../../_vue/pages/Settings/DataSettings.vue";
 import InvestmentsPage from "../../_vue/pages/InvestmentsPage.vue";
 import AnalyticsPage from "../../_vue/pages/AnalyticsPage.vue";
+import BackofficePage from "../../_vue/pages/BackofficePage.vue";
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -37,6 +37,16 @@ const routes: RouteRecordRaw[] = [
     name: "dashboard",
     meta: { title: "Dash", requiresAuth: true },
     component: DashboardPage,
+  },
+  {
+    path: "/backoffice",
+    name: "backoffice",
+    meta: {
+      title: "Backoffice",
+      requiresAuth: true,
+      permsAll: ["access_backoffice"],
+    },
+    component: BackofficePage,
   },
   {
     path: "/confirm-email",
@@ -90,16 +100,6 @@ const routes: RouteRecordRaw[] = [
     name: "users",
     meta: { title: "Users", requiresAuth: true, permsAny: ["manage_users"] },
     component: UsersPage,
-  },
-  {
-    path: "/logs",
-    name: "logs",
-    meta: {
-      title: "Audit",
-      requiresAuth: true,
-      permsAny: ["view_activity_logs"],
-    },
-    component: ActivityLogsPage,
   },
   {
     path: "/analytics",

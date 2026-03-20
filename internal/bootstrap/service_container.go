@@ -2,7 +2,7 @@ package bootstrap
 
 import (
 	"time"
-	"wealth-warden/internal/jobqueue"
+	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -18,6 +18,7 @@ type ServiceContainer struct {
 	Config             *config.Config
 	DB                 *gorm.DB
 	AuthzService       *authz.Service
+	BackofficeService  *services.BackofficeService
 	AuthService        *services.AuthService
 	UserService        *services.UserService
 	LoggingService     *services.LoggingService
@@ -32,18 +33,26 @@ type ServiceContainer struct {
 	AnalyticsService   *services.AnalyticsService
 }
 
-func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*ServiceContainer, error) {
+// NewServiceContainer initialises the application service layer.
+// Pass a non-nil priceFetcher to override the default client (e.g. a mock in tests).
+// Pass nil to have the real Yahoo Finance client created from cfg.FinanceAPIBaseURL.
+func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jobDispatcher queue.JobDispatcher, priceFetcher finance.PriceFetcher) (*ServiceContainer, error) {
+	if priceFetcher == nil {
+		var err error
+		priceFetcher, err = finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
+		if err != nil {
+			logger.Warn("Failed to create price fetch client", zap.Error(err))
+		}
+	}
 
 	// Initialize mailer
 	mail := mailer.NewMailer(cfg, &mailer.MailConfig{From: cfg.Mailer.Username, FromName: "Wealth Warden Support"})
 
-	// Initialize job queue system (In-Memory)
-	// Can later be swapped to Redis/Kafka with zero change to service layer
-	jobQueue := jobqueue.NewJobQueue(1, 25)
-	jobDispatcher := &jobqueue.InMemoryDispatcher{Queue: jobQueue}
+	// Initialize permission gating
 	authzSvc := authz.NewService(db, 5*time.Minute)
 
 	// Initialize repositories
+	backOfficeRepo := repositories.NewBackofficeRepository(db)
 	loggingRepo := repositories.NewLoggingRepository(db)
 	userRepo := repositories.NewUserRepository(db)
 	roleRepo := repositories.NewRolePermissionRepositoryRepository(db)
@@ -56,32 +65,25 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger) (*
 	notesRepo := repositories.NewNotesRepository(db)
 	analyticsRepo := repositories.NewAnalyticsRepository(db)
 
-	// Initialize price fetch client
-	priceFetchClient, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
-	if err != nil {
-		logger.Warn("Failed to create price fetch client", zap.Error(err))
-	}
-
-	// Initialize currency converter
-	currencyConverter := finance.NewCurrencyManager(priceFetchClient, investmentRepo)
-
 	// Initialize services
 	loggingService := services.NewLoggingService(loggingRepo)
 	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, loggingRepo, jobDispatcher, mail)
 	roleService := services.NewRolePermissionService(roleRepo, loggingRepo, jobDispatcher)
 	userService := services.NewUserService(userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
-	accountService := services.NewAccountService(accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher, currencyConverter)
-	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, currencyConverter)
+	accountService := services.NewAccountService(accountRepo, transactionRepo, settingsRepo, loggingRepo, investmentRepo, jobDispatcher, priceFetcher)
+	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
 	settingsService := services.NewSettingsService(cfg, logger.Named("settings_serv"), settingsRepo, userRepo, loggingRepo, jobDispatcher)
 	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, investmentRepo, settingsRepo, loggingRepo, jobDispatcher)
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
-	investmentService := services.NewInvestmentService(investmentRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetchClient, currencyConverter)
+	investmentService := services.NewInvestmentService(investmentRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetcher)
 	notesService := services.NewNotesService(notesRepo, loggingRepo, jobDispatcher)
 	analyticsService := services.NewAnalyticsService(analyticsRepo, accountRepo, transactionRepo, settingsRepo)
+	backOfficeService := services.NewBackofficeService(jobDispatcher, backOfficeRepo, investmentService, accountService, userService)
 
 	return &ServiceContainer{
 		Config:             cfg,
 		DB:                 db,
+		BackofficeService:  backOfficeService,
 		AuthzService:       authzSvc,
 		AuthService:        authService,
 		UserService:        userService,

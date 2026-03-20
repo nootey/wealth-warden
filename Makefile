@@ -1,26 +1,30 @@
-# Default target runs the server
+.PHONY: default run migrate seed mock build test test-coverage lint lint-fix docker-up docker-down docker-rpi-up docker-rpi-down tidy
+
+# Default target runs the app
 default: run
 
-# Run the server using the rootCmd
 run:
-	go run ./cmd http
+	go run ./cmd app
 
-# Run database migrations
 migrate:
 	go run ./cmd migrate $(type)
 
-# Seed essential tables
 seed:
-	go run ./cmd seed $(type)
+	go run ./cmd seed $(type) $(name)
 
-# Perform first time setup.
-bootstrap:
-	@echo "Tidying Go modules and installing tools..."
-	go mod tidy
-	@echo "Bootstrap complete."
+mock:
+	mockery --config=.mockery.yaml
+
+build:
+	@echo "Building binary ..."
+	go build -o build/wealthwarden ./cmd
+	@echo "Binary available at ./build"
+
+bench:
+	go test -bench=. -run=Benchmark -timeout=5s ./...
 
 test:
-	go test -v ./...
+	go test -count=1 ./...
 
 test-coverage:
 	go test -coverprofile=coverage.out ./...
@@ -28,9 +32,11 @@ test-coverage:
 	@echo "Coverage report: coverage.html"
 
 lint:
+	gofmt -l -e . | grep . && exit 1 || true
 	golangci-lint run
 
 lint-fix:
+	gofmt -w .
 	golangci-lint run --fix
 
 docker-up:
@@ -44,3 +50,7 @@ docker-rpi-up:
 
 docker-rpi-down:
 	docker compose -f ./deployments/docker/docker-compose.rpi.yaml -p wealth-warden down
+
+tidy:
+	go mod tidy
+	go mod verify

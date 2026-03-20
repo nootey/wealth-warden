@@ -247,6 +247,8 @@ function initData(): Transaction {
         as_of: null,
         start_balance: null,
         end_balance: null,
+        total_balance: null,
+        market_value: null,
       },
     },
     transaction_type: "Expense",

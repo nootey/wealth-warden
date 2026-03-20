@@ -11,6 +11,8 @@ export interface Balance {
   as_of: Date | null;
   start_balance: string | null;
   end_balance: string | null;
+  market_value: string | null;
+  total_balance: string | null;
 }
 
 export interface Account {

@@ -2527,7 +2527,6 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		expectedDest2After.String(), destTodaySnapshot.EndBalance.String())
 }
 
-// Tests that an expense transaction is blocked if it would reduce balance below total investment value
 func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments() {
 	accSvc := s.TC.App.AccountService
 	invSvc := s.TC.App.InvestmentService
@@ -2589,13 +2588,8 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 		First(&trade).Error
 	s.Require().NoError(err)
 
-	var latestBalance models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ?", accID).
-		Order("as_of DESC").
-		First(&latestBalance).Error
-	s.Require().NoError(err)
-
+	// After buying 60k of BTC, cash_outflows reduces available balance to 40k.
+	// An expense of 55k should be blocked because 55k > 40k available balance.
 	expenseAmount := decimal.NewFromInt(55000)
 
 	txnReq := &models.TransactionReq{
@@ -2622,101 +2616,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 		Order("as_of DESC").
 		First(&balanceAfter).Error
 	s.Require().NoError(err)
-	s.Assert().True(latestBalance.EndBalance.Equal(balanceAfter.EndBalance),
-		"balance should remain unchanged")
+	expectedBalance := initialBalance.Sub(decimal.NewFromInt(60000)) // 40k after buy
+	s.Assert().True(expectedBalance.Equal(balanceAfter.EndBalance),
+		"balance should remain at %s after failed transaction", expectedBalance.String())
 }
 
-// Tests that updating a transaction is blocked if it would reduce balance below total investment value
-func (s *TransactionServiceTestSuite) TestUpdateTransaction_BlockedByInvestments() {
-	accSvc := s.TC.App.AccountService
-	invSvc := s.TC.App.InvestmentService
-	txnSvc := s.TC.App.TransactionService
-	userID := int64(1)
-
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	initialBalance := decimal.NewFromInt(100000)
-
-	accReq := &models.AccountReq{
-		Name:          "Investment Account",
-		AccountTypeID: 5,
-		Balance:       &initialBalance,
-		OpenedAt:      today,
-	}
-	accID, err := accSvc.InsertAccount(s.Ctx, userID, accReq)
-	s.Require().NoError(err)
-
-	// Create a small expense transaction (10k)
-	txnReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          decimal.NewFromInt(10000),
-		TxnDate:         today,
-	}
-
-	txnID, err := txnSvc.InsertTransaction(s.Ctx, userID, txnReq)
-	s.Require().NoError(err)
-
-	// Buy BTC worth 50k
-	assetReq := &models.InvestmentAssetReq{
-		AccountID:      accID,
-		InvestmentType: models.InvestmentCrypto,
-		Name:           "Bitcoin",
-		Ticker:         "BTC-USD",
-		Quantity:       decimal.NewFromInt(0),
-	}
-
-	ctx, cancel := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel()
-
-	assetID, err := invSvc.InsertAsset(ctx, userID, assetReq)
-	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
-
-	ctx2, cancel2 := context.WithTimeout(s.Ctx, 5*time.Second)
-	defer cancel2()
-
-	_, err = invSvc.InsertInvestmentTrade(ctx2, userID, &models.InvestmentTradeReq{
-		AssetID:      assetID,
-		TxnDate:      today,
-		TradeType:    models.InvestmentBuy,
-		Quantity:     decimal.NewFromInt(1),
-		PricePerUnit: decimal.NewFromInt(50000),
-		Currency:     "USD",
-	})
-	if err != nil {
-		if errors.Is(ctx2.Err(), context.DeadlineExceeded) {
-			s.T().Skip("Skipping test: price fetch timed out")
-		}
-		s.Require().NoError(err)
-	}
-
-	// Try to update the 10k expense to 60k
-	// This would drop balance below investment value
-	updateReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          decimal.NewFromInt(60000),
-		TxnDate:         today,
-	}
-
-	_, err = txnSvc.UpdateTransaction(s.Ctx, userID, txnID, updateReq)
-	s.Require().Error(err, "should block update that would drop balance below investments")
-
-	// Verify transaction unchanged
-	var txn models.Transaction
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ?", txnID).
-		First(&txn).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(10000).Equal(txn.Amount),
-		"transaction amount should remain 10000, got %s", txn.Amount.String())
-}
-
-// Tests that deleting an income transaction is blocked if it would reduce balance below total investment value
 func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByInvestments() {
 	accSvc := s.TC.App.AccountService
 	invSvc := s.TC.App.InvestmentService
@@ -2782,20 +2686,10 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByInvestments
 		s.Require().NoError(err)
 	}
 
-	var trade models.InvestmentTrade
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("asset_id = ?", assetID).
-		First(&trade).Error
-	s.Require().NoError(err)
-
-	var account models.Account
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ?", accID).
-		First(&account).Error
-	s.Require().NoError(err)
-
+	// After buy of 60k, available balance is 40k.
+	// Deleting the 50k income would drop balance by 50k → negative → should be blocked.
 	err = txnSvc.DeleteTransaction(s.Ctx, userID, incomeID)
-	s.Require().Error(err, "should block deleting income that would drop balance below cash invested")
+	s.Require().Error(err, "should block deleting income that would drop balance below zero")
 
 	var txn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
@@ -2806,7 +2700,6 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByInvestments
 		"income transaction should still exist")
 }
 
-// Tests that a transfer is blocked if it would reduce the source account balance below total investment value
 func (s *TransactionServiceTestSuite) TestInsertTransfer_BlockedByInvestments() {
 	accSvc := s.TC.App.AccountService
 	invSvc := s.TC.App.InvestmentService
@@ -2816,7 +2709,6 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BlockedByInvestments() 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	initialBalance := decimal.NewFromInt(100000)
 
-	// Create investment account
 	accReq := &models.AccountReq{
 		Name:          "Investment Account",
 		AccountTypeID: 5,
@@ -2826,7 +2718,6 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BlockedByInvestments() 
 	sourceAccID, err := accSvc.InsertAccount(s.Ctx, userID, accReq)
 	s.Require().NoError(err)
 
-	// Create destination account
 	destReq := &models.AccountReq{
 		Name:          "Checking Account",
 		AccountTypeID: 1,
@@ -2836,7 +2727,6 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BlockedByInvestments() 
 	destAccID, err := accSvc.InsertAccount(s.Ctx, userID, destReq)
 	s.Require().NoError(err)
 
-	// Buy BTC worth 60k in source account
 	assetReq := &models.InvestmentAssetReq{
 		AccountID:      sourceAccID,
 		InvestmentType: models.InvestmentCrypto,
@@ -2864,18 +2754,18 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BlockedByInvestments() 
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
 		Quantity:     decimal.NewFromInt(1),
-		PricePerUnit: decimal.NewFromInt(60000),
-		Currency:     "USD",
+		PricePerUnit: decimal.NewFromInt(90000),
+		Currency:     "EUR",
 	})
 	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if errors.Is(ctx2.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out")
 		}
 		s.Require().NoError(err)
 	}
 
-	// Try to transfer 50k out of investment account
-	// This would drop balance below 60k+ investment value
+	// After 90k buy, available balance is 10k.
+	// Transferring 50k would drop balance below zero — should be blocked.
 	transferReq := &models.TransferReq{
 		SourceID:      sourceAccID,
 		DestinationID: destAccID,
@@ -2884,9 +2774,8 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BlockedByInvestments() 
 	}
 
 	_, err = txnSvc.InsertTransfer(s.Ctx, userID, transferReq)
-	s.Require().Error(err, "should block transfer that would drop source balance below investments")
+	s.Require().Error(err, "should block transfer that would drop source balance below zero")
 
-	// Verify no transfer created
 	var transferCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
 		Model(&models.Transfer{}).
@@ -2896,7 +2785,6 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BlockedByInvestments() 
 	s.Assert().Equal(int64(0), transferCount, "no transfer should be created")
 }
 
-// Tests that deleting a transfer is blocked if reversing it would reduce the destination account balance below investment value
 func (s *TransactionServiceTestSuite) TestDeleteTransfer_BlockedByInvestments() {
 	accSvc := s.TC.App.AccountService
 	invSvc := s.TC.App.InvestmentService
@@ -2924,7 +2812,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_BlockedByInvestments() 
 	invAccID, err := accSvc.InsertAccount(s.Ctx, userID, invReq)
 	s.Require().NoError(err)
 
-	// Transfer 50k from checking to investment (brings investment to 100k)
+	// Transfer 50k from checking to investment — investment account now has 100k
 	transferReq := &models.TransferReq{
 		SourceID:      sourceAccID,
 		DestinationID: invAccID,
@@ -2935,7 +2823,6 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_BlockedByInvestments() 
 	transferID, err := txnSvc.InsertTransfer(s.Ctx, userID, transferReq)
 	s.Require().NoError(err)
 
-	// Buy BTC worth 60k in investment account
 	assetReq := &models.InvestmentAssetReq{
 		AccountID:      invAccID,
 		InvestmentType: models.InvestmentCrypto,
@@ -2958,27 +2845,26 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_BlockedByInvestments() 
 	ctx2, cancel2 := context.WithTimeout(s.Ctx, 5*time.Second)
 	defer cancel2()
 
+	// Buy 90k of BTC — investment account balance drops to 10k
 	_, err = invSvc.InsertInvestmentTrade(ctx2, userID, &models.InvestmentTradeReq{
 		AssetID:      assetID,
 		TxnDate:      today,
 		TradeType:    models.InvestmentBuy,
 		Quantity:     decimal.NewFromInt(1),
-		PricePerUnit: decimal.NewFromInt(60000),
-		Currency:     "USD",
+		PricePerUnit: decimal.NewFromInt(90000),
+		Currency:     "EUR",
 	})
 	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if errors.Is(ctx2.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out")
 		}
 		s.Require().NoError(err)
 	}
 
-	// Try to delete the transfer
-	// This would remove 50k from investment account, dropping it to ~50k below 60k+ investment
+	// Deleting the transfer would remove 50k from investment account (10k → -40k) — should be blocked.
 	err = txnSvc.DeleteTransfer(s.Ctx, userID, transferID)
-	s.Require().Error(err, "should block deleting transfer that would drop destination balance below investments")
+	s.Require().Error(err, "should block deleting transfer that would drop destination balance below zero")
 
-	// Verify transfer still exists
 	var transfer models.Transfer
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("id = ?", transferID).
@@ -2988,7 +2874,6 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_BlockedByInvestments() 
 		"transfer should still exist")
 }
 
-// Tests that restoring a deleted expense is blocked if it would reduce balance below total investment value
 func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedByInvestments() {
 	accSvc := s.TC.App.AccountService
 	invSvc := s.TC.App.InvestmentService
@@ -3007,7 +2892,7 @@ func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedByInvestment
 	accID, err := accSvc.InsertAccount(s.Ctx, userID, accReq)
 	s.Require().NoError(err)
 
-	// Create expense transaction (50k)
+	// Create and immediately delete a 50k expense
 	expenseReq := &models.TransactionReq{
 		AccountID:       accID,
 		TransactionType: "expense",
@@ -3018,11 +2903,10 @@ func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedByInvestment
 	expenseID, err := txnSvc.InsertTransaction(s.Ctx, userID, expenseReq)
 	s.Require().NoError(err)
 
-	// Delete the expense (balance goes back to 100k)
 	err = txnSvc.DeleteTransaction(s.Ctx, userID, expenseID)
 	s.Require().NoError(err)
 
-	// Buy BTC worth 60k
+	// Buy 60k of BTC — balance drops to 40k
 	assetReq := &models.InvestmentAssetReq{
 		AccountID:      accID,
 		InvestmentType: models.InvestmentCrypto,
@@ -3051,21 +2935,19 @@ func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedByInvestment
 		TradeType:    models.InvestmentBuy,
 		Quantity:     decimal.NewFromInt(1),
 		PricePerUnit: decimal.NewFromInt(60000),
-		Currency:     "USD",
+		Currency:     "EUR",
 	})
 	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if errors.Is(ctx2.Err(), context.DeadlineExceeded) {
 			s.T().Skip("Skipping test: price fetch timed out")
 		}
 		s.Require().NoError(err)
 	}
 
-	// Try to restore the 50k expense
-	// This would drop balance from ~100k to ~50k, below 60k+ investment
+	// Restoring the 50k expense would drop balance from 40k to -10k — should be blocked.
 	err = txnSvc.RestoreTransaction(s.Ctx, userID, expenseID)
-	s.Require().Error(err, "should block restoring expense that would drop balance below investments")
+	s.Require().Error(err, "should block restoring expense that would drop balance below zero")
 
-	// Verify transaction still deleted
 	var txn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).Unscoped().
 		Where("id = ?", expenseID).

@@ -375,12 +375,10 @@ func (h *InvestmentHandler) DeleteInvestmentTrade(c *gin.Context) {
 }
 
 func (h *InvestmentHandler) SyncAssetPNL(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("id")
-
 	if idStr == "" {
 		err := errors.New("invalid asset id provided")
 		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
@@ -393,24 +391,21 @@ func (h *InvestmentHandler) SyncAssetPNL(c *gin.Context) {
 		return
 	}
 
-	err = h.Service.RecalculateAssetPnL(ctx, id, userID)
-	if err != nil {
-		utils.ErrorMessage(c, "Asset PNL sync error", err.Error(), http.StatusInternalServerError, err)
+	if err := h.Service.SyncAssetPnL(ctx, userID, id); err != nil {
+		utils.ErrorMessage(c, "Sync error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage(c, "Asset sync started in the background.", "Pending", http.StatusOK)
+	utils.SuccessMessage(c, "PnL sync queued", "Asset PnL recalculation has been queued", http.StatusOK)
 }
 
 func (h *InvestmentHandler) SyncAssetAccountBalance(c *gin.Context) {
-
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
 	idStr := c.Param("acc_id")
-
 	if idStr == "" {
-		err := errors.New("invalid asset account id provided")
+		err := errors.New("invalid account id provided")
 		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
 		return
 	}
@@ -421,11 +416,10 @@ func (h *InvestmentHandler) SyncAssetAccountBalance(c *gin.Context) {
 		return
 	}
 
-	err = h.Service.RecalculateAccountBalances(ctx, accID, userID)
-	if err != nil {
-		utils.ErrorMessage(c, "Asset PNL sync error", err.Error(), http.StatusInternalServerError, err)
+	if err := h.Service.SyncAccountPnL(ctx, userID, accID); err != nil {
+		utils.ErrorMessage(c, "Sync error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage(c, "Asset sync started in the background.", "Pending", http.StatusOK)
+	utils.SuccessMessage(c, "PnL sync queued", "Account PnL recalculation has been queued", http.StatusOK)
 }

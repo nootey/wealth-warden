@@ -13,9 +13,9 @@ import (
 )
 
 var seedCmd = &cobra.Command{
-	Use:   "seed [type]",
+	Use:   "seed [type] [name]",
 	Short: "Run database seeders",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		seedType := "help"
@@ -26,24 +26,38 @@ var seedCmd = &cobra.Command{
 			seedType = args[0]
 		}
 
-		return runSeeders(seedType, cfg, seedLogger)
+		var seederName string
+		if len(args) > 1 {
+			seederName = args[1]
+		}
+
+		return runSeeders(seedType, seederName, cfg, seedLogger)
 	},
 }
 
 var validSeedTypes = map[string]bool{
-	"full":  true,
-	"basic": true,
-	"help":  true,
+	"full":       true,
+	"basic":      true,
+	"individual": true,
+	"help":       true,
 }
 
 func isValidSeedType(seedType string) bool {
 	return validSeedTypes[seedType]
 }
 
-func runSeeders(seedType string, cfg *config.Config, logger *zap.Logger) error {
+func runSeeders(seedType string, seederName string, cfg *config.Config, logger *zap.Logger) error {
 
 	if !isValidSeedType(seedType) {
 		return fmt.Errorf("invalid seed type: %s", seedType)
+	}
+
+	if seedType == "help" {
+		return fmt.Errorf("\n Provide an additional argument to the seeder function. Valid arguments are: full, basic, individual <name>")
+	}
+
+	if seedType == "individual" && seederName == "" {
+		return fmt.Errorf("seeder name required for individual type")
 	}
 
 	logger.Info("Starting database seeding")
@@ -57,21 +71,14 @@ func runSeeders(seedType string, cfg *config.Config, logger *zap.Logger) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	switch seedType {
-	case "full":
-		err = seeders.SeedDatabase(ctx, gormDB, logger, cfg, "full")
-		if err != nil {
-			return fmt.Errorf("failed to seed database: %v", err)
-		}
-	case "basic":
-		err = seeders.SeedDatabase(ctx, gormDB, logger, cfg, "basic")
-		if err != nil {
-			return fmt.Errorf("failed to seed database: %v", err)
-		}
-	case "help":
-		return fmt.Errorf("\n Provide an additional argument to the seeder function. Valid arguments are: full, basic")
-	default:
-		return fmt.Errorf("invalid seeder type: %s", seedType)
+	args := []string{}
+	if seederName != "" {
+		args = append(args, seederName)
 	}
+
+	if err := seeders.SeedDatabase(ctx, gormDB, logger, cfg, seedType, args...); err != nil {
+		return fmt.Errorf("failed to seed database: %v", err)
+	}
+
 	return nil
 }

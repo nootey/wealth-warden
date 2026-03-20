@@ -251,6 +251,8 @@ function initData(): Account {
       start_balance: null,
       end_balance: null,
       as_of: null,
+      total_balance: null,
+      market_value: null,
     },
   };
 }
