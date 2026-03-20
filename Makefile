@@ -10,7 +10,7 @@ migrate:
 	go run ./cmd migrate $(type)
 
 seed:
-	go run ./cmd seed $(type)
+	go run ./cmd seed $(type) $(name)
 
 mock:
 	mockery --config=.mockery.yaml
