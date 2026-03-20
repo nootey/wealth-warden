@@ -1744,9 +1744,7 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 	if tp.MaxRuns != nil {
 		var exMaxRunsStr string
 		if exTp.MaxRuns != nil {
-			exMaxRunsStr = tp.EndDate.UTC().Format(time.RFC3339)
-		} else {
-			exMaxRunsStr = ""
+			exMaxRunsStr = strconv.FormatInt(int64(*exTp.MaxRuns), 10)
 		}
 		maxRunsStr := strconv.FormatInt(int64(*tp.MaxRuns), 10)
 		utils.CompareChanges(exMaxRunsStr, maxRunsStr, changes, "max_runs")
