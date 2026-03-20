@@ -222,15 +222,14 @@ func (j *AssetPriceSyncJob) updateAsset(tx *gorm.DB, asset models.InvestmentAsse
 
 	if asset.CurrentPrice != nil && !asset.CurrentPrice.IsZero() {
 		changePercent := price.Sub(*asset.CurrentPrice).Div(*asset.CurrentPrice).Abs()
-		// If price dropped more than 90%, flag it
 		if changePercent.GreaterThan(decimal.NewFromFloat(0.90)) && price.LessThan(*asset.CurrentPrice) {
-			j.logger.Warn("Extreme price change detected",
+			j.logger.Warn("Extreme price drop detected — skipping update to prevent data corruption",
 				zap.Int64("asset_id", asset.ID),
 				zap.String("ticker", asset.Ticker),
 				zap.String("old_price", asset.CurrentPrice.String()),
 				zap.String("new_price", price.String()),
-				zap.String("change_percent", changePercent.Mul(decimal.NewFromInt(100)).String()))
-			// For now do nothing but a log
+				zap.String("change_percent", changePercent.Mul(decimal.NewFromInt(100)).StringFixed(2)+"%"))
+			return nil
 		}
 	}
 

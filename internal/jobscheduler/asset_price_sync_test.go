@@ -31,6 +31,54 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_Success() {
 	s.NoError(err)
 }
 
+// Tests that an asset whose new price is >90% below the current price is skipped to prevent data corruption
+func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_SkipsExtremePriceDrop() {
+	accSvc := s.TC.App.AccountService
+	invSvc := s.TC.App.InvestmentService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := invSvc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentCrypto,
+		Name:           "Bitcoin",
+		Ticker:         "BTC-USD",
+		Quantity:       decimal.NewFromInt(1),
+	})
+	s.Require().NoError(err)
+
+	// Mock returns BTC-USD at 50,000 — set current price to 1,000,000 so the "new" price is a >90% drop
+	inflatedPrice := decimal.NewFromInt(1000000)
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentAsset{}).
+		Where("id = ?", assetID).
+		Update("current_price", inflatedPrice).Error
+	s.Require().NoError(err)
+
+	logger := zaptest.NewLogger(s.T())
+	job := jobscheduler.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.DB, &tests.MockPriceFetcher{})
+
+	err = job.Run(s.Ctx)
+	s.Require().NoError(err)
+
+	var asset models.InvestmentAsset
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
+	s.Require().NoError(err)
+
+	s.Assert().True(inflatedPrice.Equal(*asset.CurrentPrice),
+		"price should not have been updated on extreme drop: expected %s, got %s",
+		inflatedPrice.String(), asset.CurrentPrice.String())
+}
+
 // Tests that the job updates asset prices, values, P&L, and account balance non-cash flows
 func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalances() {
 	accSvc := s.TC.App.AccountService
