@@ -40,8 +40,8 @@ const activeColumns = computed<Column[]>(() => [
 function openModal(type: string, data: any) {
   switch (type) {
     case "update": {
-      updateModal.value = true;
       selectedID.value = data;
+      updateModal.value = true;
       break;
     }
   }
@@ -51,6 +51,7 @@ async function handleEmit(type: string, data?: any) {
   switch (type) {
     case "completeOperation": {
       updateModal.value = false;
+      selectedID.value = null;
       emit("completeOperation");
       break;
     }

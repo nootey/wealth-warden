@@ -1137,7 +1137,7 @@ func (r *TransactionRepository) FindCategoryGroupByID(ctx context.Context, tx *g
 	var record models.CategoryGroup
 	db.Model(&models.CategoryGroup{}).
 		Preload("Categories").
-		Where("user_id = ?", userID).
+		Where("id = ? AND user_id = ?", ID, userID).
 		Order("classification, name").
 		First(&record)
 	return record, db.Error
