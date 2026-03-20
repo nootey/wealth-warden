@@ -19,6 +19,7 @@ import (
 type SeederFunc func(ctx context.Context, db *gorm.DB, cfg *config.Config) error
 
 type SeederWorkers struct {
+	Name  string
 	Func  SeederFunc
 	Basic bool
 	Full  bool
@@ -59,15 +60,16 @@ func clearStorage() error {
 func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config, seederType string, seederName ...string) error {
 	var seeders []SeederFunc
 
-	allSeeders := map[string]SeederWorkers{
-		"SeedDefaultSettings":     {Func: workers.SeedDefaultSettings, Basic: true, Full: true},
-		"SeedRolesAndPermissions": {Func: workers.SeedRolesAndPermissions, Basic: true, Full: true},
-		"SeedRootUser":            {Func: workers.SeedRootUser, Basic: true, Full: true},
-		"SeedMemberUser":          {Func: workers.SeedMemberUser, Basic: false, Full: true},
-		"SeedAccountTypes":        {Func: workers.SeedAccountTypes, Basic: true, Full: true},
-		"SeedAccounts":            {Func: workers.SeedAccounts, Basic: false, Full: true},
-		"SeedCategories":          {Func: workers.SeedCategories, Basic: true, Full: true},
-		"SeedTransactions":        {Func: workers.SeedTransactions, Basic: false, Full: true},
+	// Order matters — dependencies must run before dependants
+	allSeeders := []SeederWorkers{
+		{Name: "SeedDefaultSettings", Func: workers.SeedDefaultSettings, Basic: true, Full: true},
+		{Name: "SeedRolesAndPermissions", Func: workers.SeedRolesAndPermissions, Basic: true, Full: true},
+		{Name: "SeedRootUser", Func: workers.SeedRootUser, Basic: true, Full: true},
+		{Name: "SeedMemberUser", Func: workers.SeedMemberUser, Basic: false, Full: true},
+		{Name: "SeedAccountTypes", Func: workers.SeedAccountTypes, Basic: true, Full: true},
+		{Name: "SeedAccounts", Func: workers.SeedAccounts, Basic: false, Full: true},
+		{Name: "SeedCategories", Func: workers.SeedCategories, Basic: true, Full: true},
+		{Name: "SeedTransactions", Func: workers.SeedTransactions, Basic: false, Full: true},
 	}
 
 	switch seederType {
@@ -93,11 +95,17 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 		if len(seederName) == 0 {
 			return fmt.Errorf("seeder name required for individual seeder type")
 		}
-		worker, ok := allSeeders[seederName[0]]
-		if !ok {
+		var found *SeederWorkers
+		for i := range allSeeders {
+			if allSeeders[i].Name == seederName[0] {
+				found = &allSeeders[i]
+				break
+			}
+		}
+		if found == nil {
 			return fmt.Errorf("unknown seeder: %s", seederName[0])
 		}
-		seeders = []SeederFunc{worker.Func}
+		seeders = []SeederFunc{found.Func}
 	default:
 		return fmt.Errorf("unknown seeder type: %s", seederType)
 	}
