@@ -1161,3 +1161,123 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 		"end balance should be restored to initial %s, got %s",
 		initialBalance.String(), balanceAfterDelete.EndBalance.String())
 }
+
+// Tests that deleting an asset with no trades succeeds cleanly and leaves account state untouched
+func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_NoTrades_LeavesCleanState() {
+	svc := s.TC.App.InvestmentService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(50000)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentCrypto,
+		Name:           "Bitcoin",
+		Ticker:         "BTC-USD",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+
+	err = svc.DeleteInvestmentAsset(s.Ctx, userID, assetID)
+	s.Require().NoError(err)
+
+	var assetCount int64
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentAsset{}).
+		Where("id = ?", assetID).Count(&assetCount).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(0), assetCount, "asset should be deleted")
+
+	// Balance and snapshot should be unaffected
+	var balance models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accID, today).
+		First(&balance).Error
+	s.Require().NoError(err)
+	s.Assert().True(initialBalance.Equal(balance.EndBalance),
+		"end balance should be unchanged: expected %s, got %s",
+		initialBalance.String(), balance.EndBalance.String())
+}
+
+// Tests that deleting a trade on a historical date recalculates snapshots from that date forward
+func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_HistoricalTrade_RecalculatesSnapshotsForward() {
+	svc := s.TC.App.InvestmentService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	tradDate := today.AddDate(0, 0, -3)
+	initialBalance := decimal.NewFromInt(100000)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      tradDate,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentCrypto,
+		Name:           "Bitcoin",
+		Ticker:         "BTC-USD",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+
+	buyPrice := decimal.NewFromInt(40000)
+	tradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      tradDate,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(1),
+		PricePerUnit: buyPrice,
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	// Snapshot at trade date should reflect the outflow
+	var snapBefore models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accID, tradDate).
+		First(&snapBefore).Error
+	s.Require().NoError(err)
+	expectedAfterBuy := initialBalance.Sub(buyPrice)
+	s.Assert().True(expectedAfterBuy.Equal(snapBefore.EndBalance),
+		"snapshot at trade date should reflect outflow: expected %s, got %s",
+		expectedAfterBuy.String(), snapBefore.EndBalance.String())
+
+	// Delete the trade
+	err = svc.DeleteInvestmentTrade(s.Ctx, userID, tradeID)
+	s.Require().NoError(err)
+
+	// Snapshot at trade date should now be back to initial balance
+	var snapAtTrade models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accID, tradDate).
+		First(&snapAtTrade).Error
+	s.Require().NoError(err)
+	s.Assert().True(initialBalance.Equal(snapAtTrade.EndBalance),
+		"snapshot at trade date should be restored: expected %s, got %s",
+		initialBalance.String(), snapAtTrade.EndBalance.String())
+
+	// Snapshot at today should also reflect the reversal (forward recalculation)
+	var snapToday models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accID, today).
+		First(&snapToday).Error
+	s.Require().NoError(err)
+	s.Assert().True(initialBalance.Equal(snapToday.EndBalance),
+		"snapshot at today should also be recalculated: expected %s, got %s",
+		initialBalance.String(), snapToday.EndBalance.String())
+}
