@@ -64,6 +64,44 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_ValidStockWithExchange() {
 	s.Assert().True(asset.CurrentPrice.GreaterThan(decimal.Zero))
 }
 
+// Verifies that creating an asset seeds today's price into asset_price_history
+func (s *InvestmentServiceTestSuite) TestInsertAsset_SeedsPriceHistory() {
+	svc := s.TC.App.InvestmentService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	initialBalance := decimal.NewFromInt(100000)
+	accReq := &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      time.Now(),
+	}
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, accReq)
+	s.Require().NoError(err)
+
+	assetReq := &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentCrypto,
+		Name:           "Bitcoin",
+		Ticker:         "BTC-USD",
+		Quantity:       decimal.NewFromInt(0),
+	}
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
+	s.Require().NoError(err)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	var ph models.AssetPriceHistory
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("asset_id = ? AND as_of = ?", assetID, today).
+		First(&ph).Error
+	s.Require().NoError(err, "asset_price_history should have a row for today after asset creation")
+	s.Assert().True(ph.Price.GreaterThan(decimal.Zero), "seeded price should be > 0")
+	s.Assert().NotEmpty(ph.Currency, "seeded price should have a currency")
+}
+
 // Verifies that a stock with an invalid/non-existent exchange returns an error
 func (s *InvestmentServiceTestSuite) TestInsertAsset_StockWithInvalidExchange() {
 	svc := s.TC.App.InvestmentService

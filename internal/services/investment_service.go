@@ -199,6 +199,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	var currentPrice *decimal.Decimal
 	var lastPriceUpdate *time.Time
 	var formattedTicker string
+	var fetchedPriceCurrency string
 
 	if s.priceFetchClient != nil {
 
@@ -230,6 +231,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 		now := time.Unix(priceData.LastUpdate, 0)
 		currentPrice = &price
 		lastPriceUpdate = &now
+		fetchedPriceCurrency = priceData.Currency
 
 	} else {
 		// Client not available - allow creation but without price
@@ -254,6 +256,14 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	if err != nil {
 		tx.Rollback()
 		return 0, err
+	}
+
+	if currentPrice != nil && fetchedPriceCurrency != "" {
+		today := time.Now().UTC().Truncate(24 * time.Hour)
+		if err := s.repo.UpsertAssetPrice(ctx, tx, holdID, today, *currentPrice, fetchedPriceCurrency); err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to seed price history for new asset: %w", err)
+		}
 	}
 
 	if err := tx.Commit().Error; err != nil {
