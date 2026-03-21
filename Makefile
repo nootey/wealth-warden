@@ -1,4 +1,4 @@
-.PHONY: default run migrate seed mock build test test-coverage lint lint-fix docker-up docker-down docker-rpi-up docker-rpi-down tidy
+.PHONY: default run migrate seed mock build test test-coverage lint lint-fix docker-up docker-down docker-rpi-up docker-rpi-down tidy pre-push
 
 # Default target runs the app
 default: run
@@ -54,3 +54,14 @@ docker-rpi-down:
 tidy:
 	go mod tidy
 	go mod verify
+
+pre-push:
+	@echo "--- App ---"
+	@go build ./... && echo "build successful" || (echo "build failed" && exit 1)
+	@golangci-lint run && echo "lint successful" || (echo "lint failed" && exit 1)
+	@go test -count=1 ./... && echo "test successful" || (echo "test failed" && exit 1)
+	@echo ""
+	@echo "--- Client ---"
+	@cd client && npm run build && echo "build successful" || (echo "build failed" && exit 1)
+	@cd client && npm run format && echo "format successful" || (echo "format failed" && exit 1)
+	@cd client && npm run lint && echo "lint successful" || (echo "lint failed" && exit 1)
