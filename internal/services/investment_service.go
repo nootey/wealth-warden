@@ -15,6 +15,7 @@ import (
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -35,11 +36,10 @@ type InvestmentServiceInterface interface {
 	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal, currency string) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
-	SyncAssetPnL(ctx context.Context, userID, assetID int64) error
-	SyncAccountPnL(ctx context.Context, userID, accountID int64) error
 }
 
 type InvestmentService struct {
+	logger           *zap.Logger
 	repo             repositories.InvestmentRepositoryInterface
 	accRepo          repositories.AccountRepositoryInterface
 	settingsRepo     *repositories.SettingsRepository
@@ -49,6 +49,7 @@ type InvestmentService struct {
 }
 
 func NewInvestmentService(
+	logger *zap.Logger,
 	repo *repositories.InvestmentRepository,
 	accRepo *repositories.AccountRepository,
 	settingsRepo *repositories.SettingsRepository,
@@ -57,6 +58,7 @@ func NewInvestmentService(
 	priceFetchClient finance.PriceFetcher,
 ) *InvestmentService {
 	return &InvestmentService{
+		logger:           logger,
 		repo:             repo,
 		accRepo:          accRepo,
 		settingsRepo:     settingsRepo,
@@ -452,10 +454,18 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	}
 
 	if req.TradeType == models.InvestmentBuy {
-		// Cash leaves the account
-		purchaseCostInAccountCurrency := valueAtBuy
+		// Cash outflow is qty*price for stocks/ETFs — the raw trade cost.
+		// valueAtBuy (qty*price-fee) is a separate concept tracking cost basis for PnL;
+		// the fee reduces asset value, not the cash paid.
+		var cashOut decimal.Decimal
+		if asset.InvestmentType == models.InvestmentStock || asset.InvestmentType == models.InvestmentETF {
+			cashOut = req.Quantity.Mul(req.PricePerUnit)
+		} else {
+			cashOut = valueAtBuy
+		}
+		purchaseCostInAccountCurrency := cashOut
 		if req.Currency != asset.Account.Currency {
-			purchaseCostInAccountCurrency = valueAtBuy.Mul(exchangeRate)
+			purchaseCostInAccountCurrency = cashOut.Mul(exchangeRate)
 		}
 		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", purchaseCostInAccountCurrency); err != nil {
 			tx.Rollback()
@@ -583,9 +593,19 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		}
 
 		if trade.TradeType == models.InvestmentBuy {
-			purchaseCost := trade.ValueAtBuy
+			// For stocks/ETFs the original raw qty/price/fee are no longer available here,
+			// only the stored ValueAtBuy (qty*price-fee). The true cash outflow is qty*price
+			// (the raw trade cost), which equals ValueAtBuy + Fee (adding back the fee that was
+			// subtracted for cost-basis purposes). Fee reduces asset value, not cash paid.
+			var rawCashOut decimal.Decimal
+			if trade.Asset.InvestmentType == models.InvestmentStock || trade.Asset.InvestmentType == models.InvestmentETF {
+				rawCashOut = trade.ValueAtBuy.Add(trade.Fee)
+			} else {
+				rawCashOut = trade.ValueAtBuy
+			}
+			purchaseCost := rawCashOut
 			if trade.Currency != trade.Asset.Account.Currency {
-				purchaseCost = trade.ValueAtBuy.Mul(exchangeRate)
+				purchaseCost = rawCashOut.Mul(exchangeRate)
 			}
 			if err := s.accRepo.AddToDailyBalance(ctx, tx, trade.Asset.AccountID, txnDate, "cash_outflows", purchaseCost); err != nil {
 				tx.Rollback()
@@ -1087,20 +1107,4 @@ func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, userID, ass
 
 func (s *InvestmentService) GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error) {
 	return s.repo.GetAssetIDsForAccount(ctx, nil, accountID, userID)
-}
-
-func (s *InvestmentService) SyncAssetPnL(ctx context.Context, userID, assetID int64) error {
-	return s.jobDispatcher.Dispatch(&queue.RecalculateAssetPnLJob{
-		InvestmentService: s,
-		UserID:            userID,
-		AssetID:           &assetID,
-	})
-}
-
-func (s *InvestmentService) SyncAccountPnL(ctx context.Context, userID, accountID int64) error {
-	return s.jobDispatcher.Dispatch(&queue.RecalculateAssetPnLJob{
-		InvestmentService: s,
-		UserID:            userID,
-		AccountID:         &accountID,
-	})
 }

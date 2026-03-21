@@ -49,6 +49,8 @@ func (h *AccountHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.GET("/defaults/types", authz.RequireAllMW("view_data"), h.GetAccountTypesWithoutDefaults)
 	apiGroup.PATCH("/defaults/set/:id", authz.RequireAllMW("manage_data"), h.SetDefaultAccount)
 	apiGroup.PATCH("/defaults/unset/:id", authz.RequireAllMW("manage_data"), h.UnsetDefaultAccount)
+	apiGroup.GET("/sync/asset/:id", authz.RequireAllMW("manage_data"), h.SyncAssetPnL)
+	apiGroup.GET("/sync/account/:acc_id", authz.RequireAllMW("manage_data"), h.SyncAccountPnL)
 }
 
 func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
@@ -488,4 +490,40 @@ func (h *AccountHandler) UnsetDefaultAccount(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Default unset", "Success", http.StatusOK)
+}
+
+func (h *AccountHandler) SyncAssetPnL(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.service.SyncAssetPnL(ctx, userID, id); err != nil {
+		utils.ErrorMessage(c, "Sync error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "PnL sync queued", "Asset PnL recalculation has been queued", http.StatusOK)
+}
+
+func (h *AccountHandler) SyncAccountPnL(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	accID, err := strconv.ParseInt(c.Param("acc_id"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.service.SyncAccountPnL(ctx, userID, accID); err != nil {
+		utils.ErrorMessage(c, "Sync error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "PnL sync queued", "Account PnL recalculation has been queued", http.StatusOK)
 }

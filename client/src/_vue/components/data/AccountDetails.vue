@@ -200,6 +200,18 @@ async function handleEmit(type: string) {
             >{{ vueHelper.displayAsCurrency(account.balance.start_balance) }}
           </b>
         </span>
+        <span
+          v-if="
+            ['investment', 'crypto', 'other_asset'].includes(
+              account.account_type.type,
+            )
+          "
+        >
+          Cash:
+          <b>{{
+            vueHelper.displayAsCurrency(latestBalance?.end_balance ?? null)
+          }}</b>
+        </span>
 
         <span>
           Opened: <b>{{ dateHelper.formatDate(account.opened_at!, false) }} </b>

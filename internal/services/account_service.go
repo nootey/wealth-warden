@@ -14,6 +14,7 @@ import (
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -45,6 +46,10 @@ type AccountServiceInterface interface {
 	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
 	RebuildSnapshotsForUser(ctx context.Context, userID int64) error
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
+	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
+	SyncAssetPnL(ctx context.Context, userID, assetID int64) error
+	SyncAccountPnL(ctx context.Context, userID, accountID int64) error
 }
 
 type AccountService struct {
@@ -55,9 +60,11 @@ type AccountService struct {
 	investmentRepo repositories.InvestmentRepositoryInterface
 	jobDispatcher  queue.JobDispatcher
 	priceClient    finance.PriceFetcher
+	logger         *zap.Logger
 }
 
 func NewAccountService(
+	logger *zap.Logger,
 	repo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
@@ -74,6 +81,7 @@ func NewAccountService(
 		investmentRepo: investmentRepo,
 		jobDispatcher:  jobDispatcher,
 		priceClient:    priceClient,
+		logger:         logger,
 	}
 }
 
@@ -1283,4 +1291,26 @@ func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID 
 	}
 
 	return nil
+}
+
+func (s *AccountService) RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error {
+	return s.investmentRepo.RecalculateAssetFromTrades(ctx, nil, assetID, userID)
+}
+
+func (s *AccountService) GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error) {
+	return s.investmentRepo.GetAssetIDsForAccount(ctx, nil, accountID, userID)
+}
+
+func (s *AccountService) SyncAssetPnL(ctx context.Context, userID, assetID int64) error {
+	return s.jobDispatcher.Dispatch(queue.NewRecalculateAssetPnLJob(
+		s.logger.Named("pnl_sync"),
+		s, userID, &assetID, nil,
+	))
+}
+
+func (s *AccountService) SyncAccountPnL(ctx context.Context, userID, accountID int64) error {
+	return s.jobDispatcher.Dispatch(queue.NewRecalculateAssetPnLJob(
+		s.logger.Named("pnl_sync"),
+		s, userID, nil, &accountID,
+	))
 }

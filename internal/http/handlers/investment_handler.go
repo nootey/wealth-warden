@@ -40,8 +40,6 @@ func (h *InvestmentHandler) Routes(ap *gin.RouterGroup) {
 	ap.PUT("trades/:id", authz.RequireAllMW("manage_data"), h.UpdateInvestmentTrade)
 	ap.DELETE(":id", authz.RequireAllMW("manage_data"), h.DeleteInvestmentAsset)
 	ap.DELETE("trades/:id", authz.RequireAllMW("manage_data"), h.DeleteInvestmentTrade)
-	ap.GET("sync/:id", authz.RequireAllMW("view_data"), h.SyncAssetPNL)
-	ap.GET("sync/account/:acc_id", authz.RequireAllMW("view_data"), h.SyncAssetAccountBalance)
 }
 
 func (h *InvestmentHandler) GetInvestmentAssetsPaginated(c *gin.Context) {
@@ -372,54 +370,4 @@ func (h *InvestmentHandler) DeleteInvestmentTrade(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
-}
-
-func (h *InvestmentHandler) SyncAssetPNL(c *gin.Context) {
-	ctx := c.Request.Context()
-	userID := c.GetInt64("user_id")
-
-	idStr := c.Param("id")
-	if idStr == "" {
-		err := errors.New("invalid asset id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
-		return
-	}
-
-	if err := h.Service.SyncAssetPnL(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Sync error", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-
-	utils.SuccessMessage(c, "PnL sync queued", "Asset PnL recalculation has been queued", http.StatusOK)
-}
-
-func (h *InvestmentHandler) SyncAssetAccountBalance(c *gin.Context) {
-	ctx := c.Request.Context()
-	userID := c.GetInt64("user_id")
-
-	idStr := c.Param("acc_id")
-	if idStr == "" {
-		err := errors.New("invalid account id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
-		return
-	}
-
-	accID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
-		return
-	}
-
-	if err := h.Service.SyncAccountPnL(ctx, userID, accID); err != nil {
-		utils.ErrorMessage(c, "Sync error", err.Error(), http.StatusInternalServerError, err)
-		return
-	}
-
-	utils.SuccessMessage(c, "PnL sync queued", "Account PnL recalculation has been queued", http.StatusOK)
 }

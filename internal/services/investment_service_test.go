@@ -601,14 +601,14 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 	s.Assert().True(decimal.NewFromFloat(99.4).Equal(stockAsset.AverageBuyPrice),
 		"stock avg buy price should be 99.4, got %s", stockAsset.AverageBuyPrice.String())
 
-	// Verify total cash outflows = 49500 (crypto) + 497 (stock) = 49997
+	// Verify total cash outflows = 49500 (crypto) + 500 (stock qty*price, fee reduces valueAtBuy not cash) = 50000
 	var finalBalance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, today).
 		First(&finalBalance).Error
 	s.Require().NoError(err)
 
-	expectedTotalOutflows := decimal.NewFromFloat(49997)
+	expectedTotalOutflows := decimal.NewFromFloat(50000)
 	s.Assert().True(expectedTotalOutflows.Equal(finalBalance.CashOutflows),
 		"total cash outflows should be %s, got %s",
 		expectedTotalOutflows.String(), finalBalance.CashOutflows.String())
@@ -680,14 +680,14 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	s.Assert().True(decimal.NewFromInt(597).Equal(stockSellTrade.RealizedValue),
 		"stock realized value should be 597 (proceeds after fee)")
 
-	// Verify balance: buy wrote 995 outflows, sell wrote 99.5 inflows
+	// Verify balance: buy wrote 1000 outflows (qty*price, fee reduces valueAtBuy not cash), sell wrote 597 inflows
 	var balance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, today).
 		First(&balance).Error
 	s.Require().NoError(err)
 
-	expectedOutflows := decimal.NewFromFloat(995)
+	expectedOutflows := decimal.NewFromFloat(1000)
 	s.Assert().True(expectedOutflows.Equal(balance.CashOutflows),
 		"cash outflows should be %s, got %s", expectedOutflows.String(), balance.CashOutflows.String())
 

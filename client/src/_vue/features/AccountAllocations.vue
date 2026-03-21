@@ -36,7 +36,7 @@ const buckets = computed<Bucket[]>(() => {
   const map = new Map<string, number>();
   for (const a of accounts.value) {
     const key = a?.account_type?.type || "Other";
-    const amt = toNumber(a?.balance?.end_balance);
+    const amt = toNumber(a?.balance?.total_balance ?? a?.balance?.end_balance);
     map.set(key, (map.get(key) ?? 0) + amt);
   }
 

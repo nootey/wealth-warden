@@ -90,17 +90,17 @@ func (s *Scheduler) Shutdown() error {
 
 func (s *Scheduler) registerJobs() error {
 
-	err := s.registerBackfillJob()
+	err := s.registerAssetPriceSyncJob()
+	if err != nil {
+		return err
+	}
+
+	err = s.registerBackfillJob()
 	if err != nil {
 		return err
 	}
 
 	err = s.registerTemplatesJob()
-	if err != nil {
-		return err
-	}
-
-	err = s.registerAssetPriceSyncJob()
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (s *Scheduler) registerBackfillJob() error {
 	}
 
 	_, err := s.scheduler.NewJob(
-		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 0, 0))),
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 5, 0))),
 		gocron.NewTask(func() {
 			logger.Info("Starting scheduled backfill job...")
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -177,7 +177,7 @@ func (s *Scheduler) registerAssetPriceSyncJob() error {
 		logger.Warn("Failed to create price fetch client", zap.Error(err))
 	}
 
-	job := NewAssetPriceSyncJob(logger, s.container.InvestmentService, s.container.DB, client)
+	job := NewAssetPriceSyncJob(logger, s.container.InvestmentService, s.container.AccountService, s.container.DB, client)
 
 	var opts []gocron.JobOption
 	if s.flags.StartAssetPriceSyncImmediately {
@@ -185,7 +185,7 @@ func (s *Scheduler) registerAssetPriceSyncJob() error {
 	}
 
 	_, err = s.scheduler.NewJob(
-		gocron.DurationJob(12*time.Hour),
+		gocron.DurationJob(8*time.Hour),
 		gocron.NewTask(func() {
 			logger.Info("Starting asset price sync ...")
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -218,7 +218,7 @@ func (s *Scheduler) registerAssetPriceHistoryBackfillJob() error {
 	}
 
 	_, err = s.scheduler.NewJob(
-		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 15, 0))),
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 0, 0))),
 		gocron.NewTask(func() {
 			logger.Info("Starting asset price history backfill ...")
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
