@@ -201,10 +201,16 @@ async function handleEmit(type: string) {
           </b>
         </span>
         <span
-          v-if="['investment', 'crypto', 'other_asset'].includes(account.account_type.type)"
+          v-if="
+            ['investment', 'crypto', 'other_asset'].includes(
+              account.account_type.type,
+            )
+          "
         >
           Cash:
-          <b>{{ vueHelper.displayAsCurrency(latestBalance?.end_balance) }}</b>
+          <b>{{
+            vueHelper.displayAsCurrency(latestBalance?.end_balance ?? null)
+          }}</b>
         </span>
 
         <span>
