@@ -23,7 +23,6 @@ import ShowLoading from "../base/ShowLoading.vue";
 import { useConfirm } from "primevue/useconfirm";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import AuditTrail from "../base/AuditTrail.vue";
-import { useInvestmentStore } from "../../../services/stores/investment_store.ts";
 import NetworthWidget from "../../features/widgets/NetworthWidget.vue";
 
 const props = defineProps<{
@@ -41,7 +40,6 @@ const apiPrefix = "investments";
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const accountStore = useAccountStore();
-const investmentStore = useInvestmentStore();
 
 const confirm = useConfirm();
 const { hasPermission } = usePermissions();
@@ -295,7 +293,7 @@ async function syncAssetPrice(id: number | null) {
   if (!id) return;
 
   try {
-    let response = await investmentStore.syncAssetPrice(id);
+    let response = await accountStore.syncAssetPnL(id);
     toastStore.successResponseToast(response);
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -306,7 +304,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
   if (!acc_id) return;
 
   try {
-    let response = await investmentStore.syncAssetAccountBalance(acc_id);
+    let response = await accountStore.syncAssetAccountBalance(acc_id);
     toastStore.successResponseToast(response);
   } catch (error) {
     toastStore.errorResponseToast(error);

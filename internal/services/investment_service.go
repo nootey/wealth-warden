@@ -36,8 +36,6 @@ type InvestmentServiceInterface interface {
 	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal, currency string) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
-	SyncAssetPnL(ctx context.Context, userID, assetID int64) error
-	SyncAccountPnL(ctx context.Context, userID, accountID int64) error
 }
 
 type InvestmentService struct {
@@ -1109,22 +1107,4 @@ func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, userID, ass
 
 func (s *InvestmentService) GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error) {
 	return s.repo.GetAssetIDsForAccount(ctx, nil, accountID, userID)
-}
-
-func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
-	return s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID)
-}
-
-func (s *InvestmentService) SyncAssetPnL(ctx context.Context, userID, assetID int64) error {
-	return s.jobDispatcher.Dispatch(queue.NewRecalculateAssetPnLJob(
-		s.logger.Named("pnl_sync"),
-		s, userID, &assetID, nil,
-	))
-}
-
-func (s *InvestmentService) SyncAccountPnL(ctx context.Context, userID, accountID int64) error {
-	return s.jobDispatcher.Dispatch(queue.NewRecalculateAssetPnLJob(
-		s.logger.Named("pnl_sync"),
-		s, userID, nil, &accountID,
-	))
 }

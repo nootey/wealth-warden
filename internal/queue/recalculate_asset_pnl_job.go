@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type pnlInvestmentSvc interface {
+type pnlSvc interface {
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
@@ -15,7 +15,7 @@ type pnlInvestmentSvc interface {
 
 type RecalculateAssetPnLJob struct {
 	logger            *zap.Logger
-	InvestmentService pnlInvestmentSvc
+	InvestmentService pnlSvc
 	UserID            int64
 	AssetID           *int64 // nil = all assets for the account
 	AccountID         *int64 // nil = single asset mode
@@ -23,7 +23,7 @@ type RecalculateAssetPnLJob struct {
 
 func NewRecalculateAssetPnLJob(
 	logger *zap.Logger,
-	investmentService pnlInvestmentSvc,
+	investmentService pnlSvc,
 	userID int64,
 	assetID *int64,
 	accountID *int64,

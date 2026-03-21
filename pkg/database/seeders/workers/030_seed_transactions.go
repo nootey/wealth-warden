@@ -13,6 +13,7 @@ import (
 	"wealth-warden/pkg/config"
 
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -33,7 +34,7 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 	jobDispatcher := &queue.InMemoryDispatcher{Queue: jobQueue}
 
 	investmentRepo := repositories.NewInvestmentRepository(db)
-	accService := services.NewAccountService(accRepo, txnRepo, settingsRepo, loggingRepo, investmentRepo, jobDispatcher, nil)
+	accService := services.NewAccountService(zap.NewNop(), accRepo, txnRepo, settingsRepo, loggingRepo, investmentRepo, jobDispatcher, nil)
 
 	var incCats, expCats []models.Category
 	_ = db.WithContext(ctx).Where("classification = ?", "income").Find(&incCats).Error

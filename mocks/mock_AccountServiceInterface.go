@@ -895,6 +895,66 @@ func (_c *MockAccountServiceInterface_FrontfillBalancesForAccount_Call) RunAndRe
 	return _c
 }
 
+// GetAssetIDsForAccount provides a mock function with given fields: ctx, userID, accountID
+func (_m *MockAccountServiceInterface) GetAssetIDsForAccount(ctx context.Context, userID int64, accountID int64) ([]int64, error) {
+	ret := _m.Called(ctx, userID, accountID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAssetIDsForAccount")
+	}
+
+	var r0 []int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64) ([]int64, error)); ok {
+		return rf(ctx, userID, accountID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64) []int64); ok {
+		r0 = rf(ctx, userID, accountID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]int64)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64, int64) error); ok {
+		r1 = rf(ctx, userID, accountID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockAccountServiceInterface_GetAssetIDsForAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAssetIDsForAccount'
+type MockAccountServiceInterface_GetAssetIDsForAccount_Call struct {
+	*mock.Call
+}
+
+// GetAssetIDsForAccount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - accountID int64
+func (_e *MockAccountServiceInterface_Expecter) GetAssetIDsForAccount(ctx interface{}, userID interface{}, accountID interface{}) *MockAccountServiceInterface_GetAssetIDsForAccount_Call {
+	return &MockAccountServiceInterface_GetAssetIDsForAccount_Call{Call: _e.mock.On("GetAssetIDsForAccount", ctx, userID, accountID)}
+}
+
+func (_c *MockAccountServiceInterface_GetAssetIDsForAccount_Call) Run(run func(ctx context.Context, userID int64, accountID int64)) *MockAccountServiceInterface_GetAssetIDsForAccount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_GetAssetIDsForAccount_Call) Return(_a0 []int64, _a1 error) *MockAccountServiceInterface_GetAssetIDsForAccount_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_GetAssetIDsForAccount_Call) RunAndReturn(run func(context.Context, int64, int64) ([]int64, error)) *MockAccountServiceInterface_GetAssetIDsForAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // InsertAccount provides a mock function with given fields: ctx, userID, req
 func (_m *MockAccountServiceInterface) InsertAccount(ctx context.Context, userID int64, req *models.AccountReq) (int64, error) {
 	ret := _m.Called(ctx, userID, req)
@@ -996,6 +1056,54 @@ func (_c *MockAccountServiceInterface_RebuildSnapshotsForUser_Call) Return(_a0 e
 }
 
 func (_c *MockAccountServiceInterface_RebuildSnapshotsForUser_Call) RunAndReturn(run func(context.Context, int64) error) *MockAccountServiceInterface_RebuildSnapshotsForUser_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// RecalculateAssetPnL provides a mock function with given fields: ctx, userID, assetID
+func (_m *MockAccountServiceInterface) RecalculateAssetPnL(ctx context.Context, userID int64, assetID int64) error {
+	ret := _m.Called(ctx, userID, assetID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RecalculateAssetPnL")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64) error); ok {
+		r0 = rf(ctx, userID, assetID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAccountServiceInterface_RecalculateAssetPnL_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RecalculateAssetPnL'
+type MockAccountServiceInterface_RecalculateAssetPnL_Call struct {
+	*mock.Call
+}
+
+// RecalculateAssetPnL is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - assetID int64
+func (_e *MockAccountServiceInterface_Expecter) RecalculateAssetPnL(ctx interface{}, userID interface{}, assetID interface{}) *MockAccountServiceInterface_RecalculateAssetPnL_Call {
+	return &MockAccountServiceInterface_RecalculateAssetPnL_Call{Call: _e.mock.On("RecalculateAssetPnL", ctx, userID, assetID)}
+}
+
+func (_c *MockAccountServiceInterface_RecalculateAssetPnL_Call) Run(run func(ctx context.Context, userID int64, assetID int64)) *MockAccountServiceInterface_RecalculateAssetPnL_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_RecalculateAssetPnL_Call) Return(_a0 error) *MockAccountServiceInterface_RecalculateAssetPnL_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_RecalculateAssetPnL_Call) RunAndReturn(run func(context.Context, int64, int64) error) *MockAccountServiceInterface_RecalculateAssetPnL_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1141,6 +1249,102 @@ func (_c *MockAccountServiceInterface_SetDefaultAccount_Call) Return(_a0 error) 
 }
 
 func (_c *MockAccountServiceInterface_SetDefaultAccount_Call) RunAndReturn(run func(context.Context, int64, int64) error) *MockAccountServiceInterface_SetDefaultAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SyncAccountPnL provides a mock function with given fields: ctx, userID, accountID
+func (_m *MockAccountServiceInterface) SyncAccountPnL(ctx context.Context, userID int64, accountID int64) error {
+	ret := _m.Called(ctx, userID, accountID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SyncAccountPnL")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64) error); ok {
+		r0 = rf(ctx, userID, accountID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAccountServiceInterface_SyncAccountPnL_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SyncAccountPnL'
+type MockAccountServiceInterface_SyncAccountPnL_Call struct {
+	*mock.Call
+}
+
+// SyncAccountPnL is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - accountID int64
+func (_e *MockAccountServiceInterface_Expecter) SyncAccountPnL(ctx interface{}, userID interface{}, accountID interface{}) *MockAccountServiceInterface_SyncAccountPnL_Call {
+	return &MockAccountServiceInterface_SyncAccountPnL_Call{Call: _e.mock.On("SyncAccountPnL", ctx, userID, accountID)}
+}
+
+func (_c *MockAccountServiceInterface_SyncAccountPnL_Call) Run(run func(ctx context.Context, userID int64, accountID int64)) *MockAccountServiceInterface_SyncAccountPnL_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_SyncAccountPnL_Call) Return(_a0 error) *MockAccountServiceInterface_SyncAccountPnL_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_SyncAccountPnL_Call) RunAndReturn(run func(context.Context, int64, int64) error) *MockAccountServiceInterface_SyncAccountPnL_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SyncAssetPnL provides a mock function with given fields: ctx, userID, assetID
+func (_m *MockAccountServiceInterface) SyncAssetPnL(ctx context.Context, userID int64, assetID int64) error {
+	ret := _m.Called(ctx, userID, assetID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SyncAssetPnL")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64, int64) error); ok {
+		r0 = rf(ctx, userID, assetID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockAccountServiceInterface_SyncAssetPnL_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SyncAssetPnL'
+type MockAccountServiceInterface_SyncAssetPnL_Call struct {
+	*mock.Call
+}
+
+// SyncAssetPnL is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - assetID int64
+func (_e *MockAccountServiceInterface_Expecter) SyncAssetPnL(ctx interface{}, userID interface{}, assetID interface{}) *MockAccountServiceInterface_SyncAssetPnL_Call {
+	return &MockAccountServiceInterface_SyncAssetPnL_Call{Call: _e.mock.On("SyncAssetPnL", ctx, userID, assetID)}
+}
+
+func (_c *MockAccountServiceInterface_SyncAssetPnL_Call) Run(run func(ctx context.Context, userID int64, assetID int64)) *MockAccountServiceInterface_SyncAssetPnL_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64), args[2].(int64))
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_SyncAssetPnL_Call) Return(_a0 error) *MockAccountServiceInterface_SyncAssetPnL_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_SyncAssetPnL_Call) RunAndReturn(run func(context.Context, int64, int64) error) *MockAccountServiceInterface_SyncAssetPnL_Call {
 	_c.Call.Return(run)
 	return _c
 }
