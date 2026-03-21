@@ -452,10 +452,18 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	}
 
 	if req.TradeType == models.InvestmentBuy {
-		// Cash leaves the account
-		purchaseCostInAccountCurrency := valueAtBuy
+		// Cash outflow is qty*price for stocks/ETFs — the raw trade cost.
+		// valueAtBuy (qty*price-fee) is a separate concept tracking cost basis for PnL;
+		// the fee reduces asset value, not the cash paid.
+		var cashOut decimal.Decimal
+		if asset.InvestmentType == models.InvestmentStock || asset.InvestmentType == models.InvestmentETF {
+			cashOut = req.Quantity.Mul(req.PricePerUnit)
+		} else {
+			cashOut = valueAtBuy
+		}
+		purchaseCostInAccountCurrency := cashOut
 		if req.Currency != asset.Account.Currency {
-			purchaseCostInAccountCurrency = valueAtBuy.Mul(exchangeRate)
+			purchaseCostInAccountCurrency = cashOut.Mul(exchangeRate)
 		}
 		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", purchaseCostInAccountCurrency); err != nil {
 			tx.Rollback()
@@ -583,9 +591,19 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		}
 
 		if trade.TradeType == models.InvestmentBuy {
-			purchaseCost := trade.ValueAtBuy
+			// For stocks/ETFs the original raw qty/price/fee are no longer available here,
+			// only the stored ValueAtBuy (qty*price-fee). The true cash outflow is qty*price
+			// (the raw trade cost), which equals ValueAtBuy + Fee (adding back the fee that was
+			// subtracted for cost-basis purposes). Fee reduces asset value, not cash paid.
+			var rawCashOut decimal.Decimal
+			if trade.Asset.InvestmentType == models.InvestmentStock || trade.Asset.InvestmentType == models.InvestmentETF {
+				rawCashOut = trade.ValueAtBuy.Add(trade.Fee)
+			} else {
+				rawCashOut = trade.ValueAtBuy
+			}
+			purchaseCost := rawCashOut
 			if trade.Currency != trade.Asset.Account.Currency {
-				purchaseCost = trade.ValueAtBuy.Mul(exchangeRate)
+				purchaseCost = rawCashOut.Mul(exchangeRate)
 			}
 			if err := s.accRepo.AddToDailyBalance(ctx, tx, trade.Asset.AccountID, txnDate, "cash_outflows", purchaseCost); err != nil {
 				tx.Rollback()
