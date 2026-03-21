@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"wealth-warden/internal/queue"
+
+	"go.uber.org/zap/zaptest"
 )
 
 type mockPnLSvc struct {
@@ -26,15 +28,15 @@ func (m *mockPnLSvc) GetAssetIDsForAccount(_ context.Context, _, _ int64) ([]int
 	return m.assetIDs, m.assetIDsErr
 }
 
+func (m *mockPnLSvc) UpdateSnapshotMarketValues(_ context.Context, _ int64) error {
+	return nil
+}
+
 func ptr[T any](v T) *T { return &v }
 
 func TestRecalculateAssetPnLJob_SingleAsset(t *testing.T) {
 	svc := &mockPnLSvc{}
-	job := &queue.RecalculateAssetPnLJob{
-		InvestmentService: svc,
-		UserID:            1,
-		AssetID:           ptr(int64(42)),
-	}
+	job := queue.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, 1, ptr(int64(42)), nil)
 
 	if err := job.Process(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -47,11 +49,7 @@ func TestRecalculateAssetPnLJob_SingleAsset(t *testing.T) {
 
 func TestRecalculateAssetPnLJob_AccountScope(t *testing.T) {
 	svc := &mockPnLSvc{assetIDs: []int64{10, 20, 30}}
-	job := &queue.RecalculateAssetPnLJob{
-		InvestmentService: svc,
-		UserID:            1,
-		AccountID:         ptr(int64(5)),
-	}
+	job := queue.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, 1, nil, ptr(int64(5)))
 
 	if err := job.Process(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -69,10 +67,7 @@ func TestRecalculateAssetPnLJob_AccountScope(t *testing.T) {
 
 func TestRecalculateAssetPnLJob_NeitherAssetNorAccount(t *testing.T) {
 	svc := &mockPnLSvc{}
-	job := &queue.RecalculateAssetPnLJob{
-		InvestmentService: svc,
-		UserID:            1,
-	}
+	job := queue.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, 1, nil, nil)
 
 	if err := job.Process(context.Background()); err == nil {
 		t.Error("expected error when neither AssetID nor AccountID provided")
@@ -81,11 +76,7 @@ func TestRecalculateAssetPnLJob_NeitherAssetNorAccount(t *testing.T) {
 
 func TestRecalculateAssetPnLJob_RecalcError(t *testing.T) {
 	svc := &mockPnLSvc{recalcErr: errors.New("db error")}
-	job := &queue.RecalculateAssetPnLJob{
-		InvestmentService: svc,
-		UserID:            1,
-		AssetID:           ptr(int64(99)),
-	}
+	job := queue.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, 1, ptr(int64(99)), nil)
 
 	if err := job.Process(context.Background()); err == nil {
 		t.Error("expected error to propagate from RecalculateAssetPnL")
@@ -94,11 +85,7 @@ func TestRecalculateAssetPnLJob_RecalcError(t *testing.T) {
 
 func TestRecalculateAssetPnLJob_GetAssetIDsError(t *testing.T) {
 	svc := &mockPnLSvc{assetIDsErr: errors.New("lookup failed")}
-	job := &queue.RecalculateAssetPnLJob{
-		InvestmentService: svc,
-		UserID:            1,
-		AccountID:         ptr(int64(5)),
-	}
+	job := queue.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, 1, nil, ptr(int64(5)))
 
 	if err := job.Process(context.Background()); err == nil {
 		t.Error("expected error to propagate from GetAssetIDsForAccount")

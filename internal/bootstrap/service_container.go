@@ -72,13 +72,13 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	userService := services.NewUserService(userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
 	accountService := services.NewAccountService(accountRepo, transactionRepo, settingsRepo, loggingRepo, investmentRepo, jobDispatcher, priceFetcher)
 	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
-	settingsService := services.NewSettingsService(cfg, logger.Named("settings_serv"), settingsRepo, userRepo, loggingRepo, jobDispatcher)
+	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, loggingRepo, jobDispatcher)
 	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, investmentRepo, settingsRepo, loggingRepo, jobDispatcher)
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
-	investmentService := services.NewInvestmentService(investmentRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetcher)
+	investmentService := services.NewInvestmentService(logger.Named("investment_sev"), investmentRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetcher)
 	notesService := services.NewNotesService(notesRepo, loggingRepo, jobDispatcher)
 	analyticsService := services.NewAnalyticsService(analyticsRepo, accountRepo, transactionRepo, settingsRepo)
-	backOfficeService := services.NewBackofficeService(jobDispatcher, backOfficeRepo, investmentService, accountService, userService)
+	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService, accountService, userService)
 
 	return &ServiceContainer{
 		Config:             cfg,

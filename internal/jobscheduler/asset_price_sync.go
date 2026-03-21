@@ -13,9 +13,14 @@ import (
 	"gorm.io/gorm"
 )
 
+type accService interface {
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+}
+
 type AssetPriceSyncJob struct {
 	logger           *zap.Logger
 	investmentSvc    services.InvestmentServiceInterface
+	accService       accService
 	db               *gorm.DB
 	priceFetchClient finance.PriceFetcher
 }
@@ -23,12 +28,14 @@ type AssetPriceSyncJob struct {
 func NewAssetPriceSyncJob(
 	logger *zap.Logger,
 	investmentSvc services.InvestmentServiceInterface,
+	accService accService,
 	db *gorm.DB,
 	priceFetchClient finance.PriceFetcher,
 ) *AssetPriceSyncJob {
 	return &AssetPriceSyncJob{
 		logger:           logger,
 		investmentSvc:    investmentSvc,
+		accService:       accService,
 		db:               db,
 		priceFetchClient: priceFetchClient,
 	}
@@ -63,6 +70,33 @@ func (j *AssetPriceSyncJob) Run(ctx context.Context) error {
 
 	j.logger.Info("Asset price sync completed",
 		zap.Int("assets_updated", updatedCount))
+
+	if err := j.refreshSnapshotMarketValues(ctx); err != nil {
+		j.logger.Warn("Failed to refresh snapshot market values after price sync", zap.Error(err))
+	}
+
+	return nil
+}
+
+func (j *AssetPriceSyncJob) refreshSnapshotMarketValues(ctx context.Context) error {
+	var userIDs []int64
+	err := j.db.WithContext(ctx).Raw(`
+		SELECT DISTINCT a.user_id
+		FROM investment_assets ia
+		JOIN accounts a ON a.id = ia.account_id
+		WHERE a.is_active = TRUE AND a.closed_at IS NULL
+	`).Scan(&userIDs).Error
+	if err != nil {
+		return err
+	}
+
+	for _, userID := range userIDs {
+		if err := j.accService.UpdateSnapshotMarketValues(ctx, userID); err != nil {
+			j.logger.Warn("Failed to update snapshot market values",
+				zap.Int64("userID", userID),
+				zap.Error(err))
+		}
+	}
 
 	return nil
 }

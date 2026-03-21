@@ -177,7 +177,7 @@ func (s *Scheduler) registerAssetPriceSyncJob() error {
 		logger.Warn("Failed to create price fetch client", zap.Error(err))
 	}
 
-	job := NewAssetPriceSyncJob(logger, s.container.InvestmentService, s.container.DB, client)
+	job := NewAssetPriceSyncJob(logger, s.container.InvestmentService, s.container.AccountService, s.container.DB, client)
 
 	var opts []gocron.JobOption
 	if s.flags.StartAssetPriceSyncImmediately {
@@ -185,7 +185,7 @@ func (s *Scheduler) registerAssetPriceSyncJob() error {
 	}
 
 	_, err = s.scheduler.NewJob(
-		gocron.DurationJob(12*time.Hour),
+		gocron.DurationJob(8*time.Hour),
 		gocron.NewTask(func() {
 			logger.Info("Starting asset price sync ...")
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)

@@ -15,6 +15,7 @@ import (
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -40,6 +41,7 @@ type InvestmentServiceInterface interface {
 }
 
 type InvestmentService struct {
+	logger           *zap.Logger
 	repo             repositories.InvestmentRepositoryInterface
 	accRepo          repositories.AccountRepositoryInterface
 	settingsRepo     *repositories.SettingsRepository
@@ -49,6 +51,7 @@ type InvestmentService struct {
 }
 
 func NewInvestmentService(
+	logger *zap.Logger,
 	repo *repositories.InvestmentRepository,
 	accRepo *repositories.AccountRepository,
 	settingsRepo *repositories.SettingsRepository,
@@ -57,6 +60,7 @@ func NewInvestmentService(
 	priceFetchClient finance.PriceFetcher,
 ) *InvestmentService {
 	return &InvestmentService{
+		logger:           logger,
 		repo:             repo,
 		accRepo:          accRepo,
 		settingsRepo:     settingsRepo,
@@ -1107,18 +1111,20 @@ func (s *InvestmentService) GetAssetIDsForAccount(ctx context.Context, userID, a
 	return s.repo.GetAssetIDsForAccount(ctx, nil, accountID, userID)
 }
 
+func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
+	return s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID)
+}
+
 func (s *InvestmentService) SyncAssetPnL(ctx context.Context, userID, assetID int64) error {
-	return s.jobDispatcher.Dispatch(&queue.RecalculateAssetPnLJob{
-		InvestmentService: s,
-		UserID:            userID,
-		AssetID:           &assetID,
-	})
+	return s.jobDispatcher.Dispatch(queue.NewRecalculateAssetPnLJob(
+		s.logger.Named("pnl_sync"),
+		s, userID, &assetID, nil,
+	))
 }
 
 func (s *InvestmentService) SyncAccountPnL(ctx context.Context, userID, accountID int64) error {
-	return s.jobDispatcher.Dispatch(&queue.RecalculateAssetPnLJob{
-		InvestmentService: s,
-		UserID:            userID,
-		AccountID:         &accountID,
-	})
+	return s.jobDispatcher.Dispatch(queue.NewRecalculateAssetPnLJob(
+		s.logger.Named("pnl_sync"),
+		s, userID, nil, &accountID,
+	))
 }

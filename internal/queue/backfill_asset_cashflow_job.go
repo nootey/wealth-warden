@@ -3,6 +3,8 @@ package queue
 import (
 	"context"
 	"fmt"
+
+	"go.uber.org/zap"
 )
 
 type investmentBackfillSvc interface {
@@ -20,9 +22,24 @@ type userBackfillSvc interface {
 }
 
 type BackfillAssetCashFlowsJob struct {
+	logger            *zap.Logger
 	InvestmentService investmentBackfillSvc
 	AccountService    accountBackfillSvc
 	UserService       userBackfillSvc
+}
+
+func NewBackfillAssetCashFlowsJob(
+	logger *zap.Logger,
+	investmentService investmentBackfillSvc,
+	accountService accountBackfillSvc,
+	userService userBackfillSvc,
+) *BackfillAssetCashFlowsJob {
+	return &BackfillAssetCashFlowsJob{
+		logger:            logger,
+		InvestmentService: investmentService,
+		AccountService:    accountService,
+		UserService:       userService,
+	}
 }
 
 func (j *BackfillAssetCashFlowsJob) Process(ctx context.Context) error {
@@ -32,11 +49,11 @@ func (j *BackfillAssetCashFlowsJob) Process(ctx context.Context) error {
 	}
 
 	if len(userIDs) == 0 {
-		fmt.Println("asset cash backfill: no users to process")
+		j.logger.Info("No users to process")
 		return nil
 	}
 
-	fmt.Printf("asset cash backfill: processing %d users\n", len(userIDs))
+	j.logger.Info("Processing users", zap.Int("count", len(userIDs)))
 
 	for _, userID := range userIDs {
 
@@ -58,8 +75,10 @@ func (j *BackfillAssetCashFlowsJob) Process(ctx context.Context) error {
 		if err := j.AccountService.RebuildSnapshotsForUser(ctx, userID); err != nil {
 			return fmt.Errorf("failed to rebuild snapshots for user %d: %w", userID, err)
 		}
+
+		j.logger.Info("User backfill complete", zap.Int64("userID", userID))
 	}
 
-	fmt.Println("asset cash backfill: completed successfully")
+	j.logger.Info("Completed successfully")
 	return nil
 }
