@@ -1,0 +1,309 @@
+# Default values for wealth-warden
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+imagePullSecrets: [ ]
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: { }
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# API Configuration
+api:
+  image:
+    repository: nootey/wealth-warden
+    pullPolicy: IfNotPresent
+    tag: "latest"
+    # Override image registry
+    # registry: ""
+  
+  podAnnotations: { }
+  
+  podSecurityContext: { }
+  # fsGroup: 2000
+  
+  securityContext: { }
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+  # runAsUser: 1000
+  
+  service:
+    type: ClusterIP
+    port: 2000
+    targetPort: 2000
+  
+  ingress:
+    enabled: true
+    className: ""
+    annotations: {}
+    #  kubernetes.io/ingress.class: nginx
+    #  kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: api.wealth-warden.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+    #  - secretName: wealth-warden-api-tls
+    #    hosts:
+    #      - api.wealth-warden.local
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+  
+  nodeSelector: { }
+  
+  tolerations: [ ]
+  
+  affinity: { }
+  
+  # Liveness probe configuration
+  livenessProbe:
+    enabled: true
+    path: "/healthz"
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  # Readiness probe configuration
+  readinessProbe:
+    enabled: true
+    path: "/healthz"
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  
+  # Extra environment variables
+  extraEnv: [ ]
+    # - name: EXTRA_VAR
+  #   value: "value"
+  
+  # Extra volumes
+  extraVolumes: [ ]
+    # - name: extra-volume
+  #   emptyDir: {}
+  
+  # Extra volume mounts
+  extraVolumeMounts: [ ]
+    # - name: extra-volume
+  #   mountPath: /extra
+  
+  # Init containers configuration
+  initContainers:
+    
+    # Migration init container - runs migrations before API starts
+    migrate:
+      enabled: true
+      image:
+        repository: nootey/wealth-warden
+        pullPolicy: IfNotPresent
+        tag: "latest"
+      # Migration directory path (optional, defaults to ./storage/migrations)
+      directory: "/app/migrations"
+      securityContext: { }
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      # Extra environment variables
+      extraEnv: [ ]
+    
+    # Seed init container - runs seed basic before API starts
+    # NOTE: Seeders are idempotent (they check if data exists before inserting), so it's safe to leave enabled.
+    # For production, you may want to disable this after the initial install to avoid unnecessary checks.
+    seed:
+      enabled: true
+      image:
+        repository: nootey/wealth-warden
+        pullPolicy: Always
+        tag: "latest"
+      securityContext: { }
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      # Extra environment variables
+      extraEnv: [ ]
+
+# WebUI Configuration
+webui:
+  image:
+    repository: nootey/wealth-warden-client
+    pullPolicy: Always
+    tag: "latest"
+    # Override image registry
+    # registry: ""
+  
+  podAnnotations: { }
+  
+  podSecurityContext: { }
+  
+  securityContext: { }
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  
+  ingress:
+    enabled: true
+    className: ""
+    annotations: {}
+    #  kubernetes.io/ingress.class: nginx
+    #  kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: wealth-warden.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+    #  - secretName: wealth-warden-webui-tls
+    #    hosts:
+    #      - wealth-warden.local
+  
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+  
+  nodeSelector: { }
+  
+  tolerations: [ ]
+  
+  affinity: { }
+  
+  # Liveness probe configuration
+  livenessProbe:
+    enabled: true
+    path: "/"
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  # Readiness probe configuration
+  readinessProbe:
+    enabled: true
+    path: "/"
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Application configuration
+config:
+  # HTTP Server configuration
+  httpServer:
+    port: 2000
+    requestTimeout: 60
+
+  release: true
+  
+  # Finance API configuration
+  financeApiBaseUrl: "https://query1.finance.yahoo.com"
+  
+  # Web client configuration
+  webClient:
+    domain: "localhost"
+    port: 5000
+  
+  # PostgreSQL configuration
+  postgres:
+    #host: "postgres"
+    user: "postgres"
+    password: "abcdef"  # Should be set via secret
+    port: 5432
+    db: "wealth_warden"
+  
+  # JWT configuration (should be set via secrets)
+  jwt:
+    webClientAccess: ""
+    webClientRefresh: ""
+    webClientEncodeId: ""
+  
+  # CORS configuration
+  cors:
+    allowedOrigins:
+      - "http://localhost:5000"
+      - "http://wealth-warden.local"
+    wildcardSuffixes: [ ]
+    allowedSchemes:
+      - "http"
+      - "https"
+  
+  # Mailer configuration (should be set via secrets)
+  mailer:
+    host: ""
+    port: 587
+    username: ""
+    password: ""
+  
+  # Seed configuration
+  seed:
+    superAdminEmail: "support@wealth.warden"
+    superAdminPassword: ""  # Should be set via secret
+    memberUserEmail: ""
+    memberUserPassword: ""
+
+# Secrets configuration
+secrets:
+  # If create is true, secrets will be created from the values below
+  # Otherwise, you should create secrets manually and reference them
+  create: false
+  postgresPassword: ""
+  jwtWebClientAccess: ""
+  jwtWebClientRefresh: ""
+  jwtWebClientEncodeId: ""
+  mailerPassword: ""
+  superAdminPassword: ""
+
+# PostgreSQL dependency (optional - set to false if using external database)
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "abcdef"
+    enablePostgresUser: true
+    database: "wealth_warden"
+  primary:
+    persistence:
+      enabled: true
+      size: 1Gi
