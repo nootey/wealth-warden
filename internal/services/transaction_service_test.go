@@ -53,14 +53,14 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_CurrentDate() {
 		Description:     &desc,
 	}
 
-	txnID, err := svc.InsertTransaction(s.Ctx, userID, req)
+	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().NoError(err)
-	s.Assert().Greater(txnID, int64(0))
+	s.Assert().Greater(txn.ID, int64(0))
 
 	// Verify transaction was inserted
 	var transaction models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ? AND user_id = ?", txnID, userID).
+		Where("id = ? AND user_id = ?", txn.ID, userID).
 		First(&transaction).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(accID, transaction.AccountID)
@@ -129,14 +129,14 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_PastDate() {
 		Description:     &desc,
 	}
 
-	txnID, err := svc.InsertTransaction(s.Ctx, userID, req)
+	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().NoError(err)
-	s.Assert().Greater(txnID, int64(0))
+	s.Assert().Greater(txn.ID, int64(0))
 
 	// Verify transaction and related records were inserted
 	var transaction models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ?", txnID).
+		Where("id = ?", txn.ID).
 		First(&transaction).Error
 	s.Require().NoError(err)
 
@@ -655,7 +655,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_CurrentDate() {
 		TxnDate:         time.Now(),
 		Description:     &desc,
 	}
-	txnID, err := svc.InsertTransaction(s.Ctx, userID, req)
+	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().NoError(err)
 
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
@@ -678,14 +678,14 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_CurrentDate() {
 		expectedBefore.String(), snapshotBefore.EndBalance.String())
 
 	// delete the transaction
-	err = svc.DeleteTransaction(s.Ctx, userID, txnID)
+	err = svc.DeleteTransaction(s.Ctx, userID, txn.ID)
 	s.Require().NoError(err)
 
 	// Verify transaction is soft-deleted
 	var deletedTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
 		Unscoped().
-		Where("id = ?", txnID).
+		Where("id = ?", txn.ID).
 		First(&deletedTxn).Error
 	s.Require().NoError(err)
 	s.Assert().NotNil(deletedTxn.DeletedAt, "transaction should be soft-deleted")
@@ -760,7 +760,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 		TxnDate:         txn2Date,
 		Description:     &desc2,
 	}
-	txn2ID, err := svc.InsertTransaction(s.Ctx, userID, req2)
+	txn2, err := svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
 
 	// Transaction 3: Day -2, income of 3,000 -> balance = 16,000
@@ -806,14 +806,14 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 		expectedDay2Before.String(), snapshot3Before.EndBalance.String())
 
 	// Delete the middle transaction (day -5)
-	err = svc.DeleteTransaction(s.Ctx, userID, txn2ID)
+	err = svc.DeleteTransaction(s.Ctx, userID, txn2.ID)
 	s.Require().NoError(err)
 
 	// Verify transaction 2 is soft-deleted
 	var deletedTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
 		Unscoped().
-		Where("id = ?", txn2ID).
+		Where("id = ?", txn2.ID).
 		First(&deletedTxn).Error
 	s.Require().NoError(err)
 	s.Assert().NotNil(deletedTxn.DeletedAt)
@@ -920,7 +920,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 		TxnDate:         txn2Date,
 		Description:     &desc2,
 	}
-	txn2ID, err := svc.InsertTransaction(s.Ctx, userID, req2)
+	txn2, err := svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
 
 	// Transaction 3: Day -2, income of 3,000 -> balance = 16,000
@@ -974,13 +974,13 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 		TxnDate:         txn2Date,
 		Description:     &newDesc2,
 	}
-	_, err = svc.UpdateTransaction(s.Ctx, userID, txn2ID, updateReq)
+	_, err = svc.UpdateTransaction(s.Ctx, userID, txn2.ID, updateReq)
 	s.Require().NoError(err)
 
 	// Verify transaction was updated
 	var updatedTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ?", txn2ID).
+		Where("id = ?", txn2.ID).
 		First(&updatedTxn).Error
 	s.Require().NoError(err)
 	s.Assert().True(newAmt2.Equal(updatedTxn.Amount),
@@ -1079,7 +1079,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 		TxnDate:         txn2Date,
 		Description:     &desc2,
 	}
-	txn2ID, err := svc.InsertTransaction(s.Ctx, userID, req2)
+	txn2, err := svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
 
 	// Transaction 3: Day -3, income of 3,000 -> balance becomes 16,000
@@ -1127,13 +1127,13 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 		TxnDate:         newTxn2Date,
 		Description:     &desc2,
 	}
-	_, err = svc.UpdateTransaction(s.Ctx, userID, txn2ID, updateReq)
+	_, err = svc.UpdateTransaction(s.Ctx, userID, txn2.ID, updateReq)
 	s.Require().NoError(err)
 
 	// Verify transaction date was updated
 	var updatedTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ?", txn2ID).
+		Where("id = ?", txn2.ID).
 		First(&updatedTxn).Error
 	s.Require().NoError(err)
 	newTxn2Midnight := newTxn2Date.UTC().Truncate(24 * time.Hour)
@@ -1255,7 +1255,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 		TxnDate:         txn2Date,
 		Description:     &desc2,
 	}
-	txn2ID, err := svc.InsertTransaction(s.Ctx, userID, req2)
+	txn2, err := svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
 
 	// Transaction 3: Day -3, income of 3,000 -> balance becomes 16,000
@@ -1293,13 +1293,13 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 		TxnDate:         newTxn2Date,
 		Description:     &desc2,
 	}
-	_, err = svc.UpdateTransaction(s.Ctx, userID, txn2ID, updateReq)
+	_, err = svc.UpdateTransaction(s.Ctx, userID, txn2.ID, updateReq)
 	s.Require().NoError(err)
 
 	// Verify transaction date was updated
 	var updatedTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ?", txn2ID).
+		Where("id = ?", txn2.ID).
 		First(&updatedTxn).Error
 	s.Require().NoError(err)
 	newTxn2Midnight := newTxn2Date.UTC().Truncate(24 * time.Hour)
@@ -1420,7 +1420,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 		TxnDate:         txnDate,
 		Description:     &desc,
 	}
-	txnID, err := svc.InsertTransaction(s.Ctx, userID, req)
+	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().NoError(err)
 
 	txnMidnight := txnDate.UTC().Truncate(24 * time.Hour)
@@ -1455,13 +1455,13 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 		TxnDate:         txnDate,
 		Description:     &desc,
 	}
-	_, err = svc.UpdateTransaction(s.Ctx, userID, txnID, updateReq)
+	_, err = svc.UpdateTransaction(s.Ctx, userID, txn.ID, updateReq)
 	s.Require().NoError(err)
 
 	// Verify transaction type was updated
 	var updatedTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ?", txnID).
+		Where("id = ?", txn.ID).
 		First(&updatedTxn).Error
 	s.Require().NoError(err)
 	s.Assert().Equal("income", updatedTxn.TransactionType)
@@ -1547,14 +1547,14 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 		CreatedAt:     time.Now(),
 	}
 
-	transferID, err := svc.InsertTransfer(s.Ctx, userID, transferReq)
+	tr, err := svc.InsertTransfer(s.Ctx, userID, transferReq)
 	s.Require().NoError(err)
-	s.Assert().Greater(transferID, int64(0))
+	s.Assert().Greater(tr.ID, int64(0))
 
 	// Verify transfer was created
 	var transfer models.Transfer
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ?", transferID).
+		Where("id = ?", tr.ID).
 		First(&transfer).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(userID, transfer.UserID)
@@ -1677,14 +1677,14 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 		CreatedAt:     transferDate,
 	}
 
-	transferID, err := svc.InsertTransfer(s.Ctx, userID, transferReq)
+	tr, err := svc.InsertTransfer(s.Ctx, userID, transferReq)
 	s.Require().NoError(err)
-	s.Assert().Greater(transferID, int64(0))
+	s.Assert().Greater(tr.ID, int64(0))
 
 	// Verify transfer was created
 	var transfer models.Transfer
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ?", transferID).
+		Where("id = ?", tr.ID).
 		First(&transfer).Error
 	s.Require().NoError(err)
 
@@ -2186,7 +2186,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 		CreatedAt:     time.Now(),
 	}
 
-	transferID, err := svc.InsertTransfer(s.Ctx, userID, transferReq)
+	tr, err := svc.InsertTransfer(s.Ctx, userID, transferReq)
 	s.Require().NoError(err)
 
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
@@ -2228,14 +2228,14 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 		"Before delete: dest snapshot should be %s", expectedDestBefore.String())
 
 	// Delete the transfer
-	err = svc.DeleteTransfer(s.Ctx, userID, transferID)
+	err = svc.DeleteTransfer(s.Ctx, userID, tr.ID)
 	s.Require().NoError(err)
 
 	// Verify transfer is soft-deleted
 	var deletedTransfer models.Transfer
 	err = s.TC.DB.WithContext(s.Ctx).
 		Unscoped().
-		Where("id = ?", transferID).
+		Where("id = ?", tr.ID).
 		First(&deletedTransfer).Error
 	s.Require().NoError(err)
 	s.Assert().NotNil(deletedTransfer.DeletedAt, "transfer should be soft-deleted")
@@ -2361,7 +2361,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		Notes:         &notes2,
 		CreatedAt:     transfer2Date,
 	}
-	transfer2ID, err := svc.InsertTransfer(s.Ctx, userID, req2)
+	tr2, err := svc.InsertTransfer(s.Ctx, userID, req2)
 	s.Require().NoError(err)
 
 	// Transfer 3: Day -2, transfer 8,000
@@ -2426,7 +2426,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		"Before delete: dest day -2 should be %s", expectedDest2Before.String())
 
 	// Delete transfer 2 (middle transfer on day -5)
-	err = svc.DeleteTransfer(s.Ctx, userID, transfer2ID)
+	err = svc.DeleteTransfer(s.Ctx, userID, tr2.ID)
 	s.Require().NoError(err)
 
 	// After delete, timeline should be:
@@ -2439,7 +2439,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 	var deletedTransfer models.Transfer
 	err = s.TC.DB.WithContext(s.Ctx).
 		Unscoped().
-		Where("id = ?", transfer2ID).
+		Where("id = ?", tr2.ID).
 		First(&deletedTransfer).Error
 	s.Require().NoError(err)
 	s.Assert().NotNil(deletedTransfer.DeletedAt)
@@ -2646,7 +2646,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByInvestments
 		TxnDate:         today,
 	}
 
-	incomeID, err := txnSvc.InsertTransaction(s.Ctx, userID, incomeReq)
+	income, err := txnSvc.InsertTransaction(s.Ctx, userID, incomeReq)
 	s.Require().NoError(err)
 
 	assetReq := &models.InvestmentAssetReq{
@@ -2688,12 +2688,12 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByInvestments
 
 	// After buy of 60k, available balance is 40k.
 	// Deleting the 50k income would drop balance by 50k → negative → should be blocked.
-	err = txnSvc.DeleteTransaction(s.Ctx, userID, incomeID)
+	err = txnSvc.DeleteTransaction(s.Ctx, userID, income.ID)
 	s.Require().Error(err, "should block deleting income that would drop balance below zero")
 
 	var txn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ?", incomeID).
+		Where("id = ?", income.ID).
 		First(&txn).Error
 	s.Require().NoError(err)
 	s.Assert().True(decimal.NewFromInt(50000).Equal(txn.Amount),
@@ -2820,7 +2820,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_BlockedByInvestments() 
 		CreatedAt:     today,
 	}
 
-	transferID, err := txnSvc.InsertTransfer(s.Ctx, userID, transferReq)
+	tr, err := txnSvc.InsertTransfer(s.Ctx, userID, transferReq)
 	s.Require().NoError(err)
 
 	assetReq := &models.InvestmentAssetReq{
@@ -2862,12 +2862,12 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_BlockedByInvestments() 
 	}
 
 	// Deleting the transfer would remove 50k from investment account (10k → -40k) — should be blocked.
-	err = txnSvc.DeleteTransfer(s.Ctx, userID, transferID)
+	err = txnSvc.DeleteTransfer(s.Ctx, userID, tr.ID)
 	s.Require().Error(err, "should block deleting transfer that would drop destination balance below zero")
 
 	var transfer models.Transfer
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ?", transferID).
+		Where("id = ?", tr.ID).
 		First(&transfer).Error
 	s.Require().NoError(err)
 	s.Assert().True(decimal.NewFromInt(50000).Equal(transfer.Amount),
@@ -2900,10 +2900,10 @@ func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedByInvestment
 		TxnDate:         today,
 	}
 
-	expenseID, err := txnSvc.InsertTransaction(s.Ctx, userID, expenseReq)
+	expense, err := txnSvc.InsertTransaction(s.Ctx, userID, expenseReq)
 	s.Require().NoError(err)
 
-	err = txnSvc.DeleteTransaction(s.Ctx, userID, expenseID)
+	err = txnSvc.DeleteTransaction(s.Ctx, userID, expense.ID)
 	s.Require().NoError(err)
 
 	// Buy 60k of BTC — balance drops to 40k
@@ -2945,13 +2945,124 @@ func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedByInvestment
 	}
 
 	// Restoring the 50k expense would drop balance from 40k to -10k — should be blocked.
-	err = txnSvc.RestoreTransaction(s.Ctx, userID, expenseID)
+	err = txnSvc.RestoreTransaction(s.Ctx, userID, expense.ID)
 	s.Require().Error(err, "should block restoring expense that would drop balance below zero")
 
 	var txn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).Unscoped().
-		Where("id = ?", expenseID).
+		Where("id = ?", expense.ID).
 		First(&txn).Error
 	s.Require().NoError(err)
 	s.Assert().NotNil(txn.DeletedAt, "transaction should still be deleted")
+}
+
+func (s *TransactionServiceTestSuite) TestInsertTransaction_IdempotencyKey_DeduplicatesOnRetry() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	initialBalance := decimal.NewFromInt(50000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Idempotency Txn Account",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &initialBalance,
+		OpenedAt:       time.Now(),
+	})
+	s.Require().NoError(err)
+
+	key := "test-idempotency-key-txn-001"
+	req := &models.TransactionReq{
+		AccountID:       accID,
+		TransactionType: "expense",
+		Amount:          decimal.NewFromInt(1000),
+		TxnDate:         time.Now(),
+		IdempotencyKey:  &key,
+	}
+
+	first, err := svc.InsertTransaction(s.Ctx, userID, req)
+	s.Require().NoError(err)
+	s.Assert().Greater(first.ID, int64(0))
+	s.Assert().False(first.IsDuplicate)
+
+	// Simulate a retry with the same key
+	second, err := svc.InsertTransaction(s.Ctx, userID, req)
+	s.Require().NoError(err)
+	s.Assert().Equal(first.ID, second.ID, "retry with same idempotency key should return the original transaction ID")
+	s.Assert().True(second.IsDuplicate)
+
+	// Confirm only one record exists with this key
+	var count int64
+	s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("idempotency_key = ? AND user_id = ?", key, userID).
+		Count(&count)
+	s.Assert().Equal(int64(1), count, "only one transaction should exist for a given idempotency key")
+}
+
+func (s *TransactionServiceTestSuite) TestInsertTransfer_IdempotencyKey_DeduplicatesOnRetry() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	srcBalance := decimal.NewFromInt(20000)
+	sourceID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Idempotency Transfer Source",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &srcBalance,
+		OpenedAt:       time.Now(),
+	})
+	s.Require().NoError(err)
+
+	destBalance := decimal.NewFromInt(5000)
+	destID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Idempotency Transfer Dest",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &destBalance,
+		OpenedAt:       time.Now(),
+	})
+	s.Require().NoError(err)
+
+	key := "test-idempotency-key-transfer-001"
+	req := &models.TransferReq{
+		SourceID:       sourceID,
+		DestinationID:  destID,
+		Amount:         decimal.NewFromInt(3000),
+		CreatedAt:      time.Now(),
+		IdempotencyKey: &key,
+	}
+
+	first, err := svc.InsertTransfer(s.Ctx, userID, req)
+	s.Require().NoError(err)
+	s.Assert().Greater(first.ID, int64(0))
+	s.Assert().False(first.IsDuplicate)
+
+	// Simulate a retry with the same key
+	second, err := svc.InsertTransfer(s.Ctx, userID, req)
+	s.Require().NoError(err)
+	s.Assert().Equal(first.ID, second.ID, "retry with same idempotency key should return the original transfer ID")
+	s.Assert().True(second.IsDuplicate)
+
+	// Confirm only one transfer record exists with this key
+	var transferCount int64
+	s.TC.DB.WithContext(s.Ctx).Model(&models.Transfer{}).
+		Where("idempotency_key = ? AND user_id = ?", key, userID).
+		Count(&transferCount)
+	s.Assert().Equal(int64(1), transferCount, "only one transfer should exist for a given idempotency key")
+
+	// Confirm only two child transactions were created (not four)
+	var transfer models.Transfer
+	s.TC.DB.WithContext(s.Ctx).Where("id = ?", first.ID).First(&transfer)
+	var txnCount int64
+	s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("id IN ?", []int64{transfer.TransactionInflowID, transfer.TransactionOutflowID}).
+		Count(&txnCount)
+	s.Assert().Equal(int64(2), txnCount, "only two child transactions should exist for the transfer")
 }

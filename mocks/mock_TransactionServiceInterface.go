@@ -1140,7 +1140,7 @@ func (_c *MockTransactionServiceInterface_InsertCategoryGroup_Call) RunAndReturn
 }
 
 // InsertTransaction provides a mock function with given fields: ctx, userID, req, existingTx
-func (_m *MockTransactionServiceInterface) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (int64, error) {
+func (_m *MockTransactionServiceInterface) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (models.InsertResult, error) {
 	_va := make([]interface{}, len(existingTx))
 	for _i := range existingTx {
 		_va[_i] = existingTx[_i]
@@ -1154,15 +1154,15 @@ func (_m *MockTransactionServiceInterface) InsertTransaction(ctx context.Context
 		panic("no return value specified for InsertTransaction")
 	}
 
-	var r0 int64
+	var r0 models.InsertResult
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionReq, ...*gorm.DB) (int64, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionReq, ...*gorm.DB) (models.InsertResult, error)); ok {
 		return rf(ctx, userID, req, existingTx...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionReq, ...*gorm.DB) int64); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransactionReq, ...*gorm.DB) models.InsertResult); ok {
 		r0 = rf(ctx, userID, req, existingTx...)
 	} else {
-		r0 = ret.Get(0).(int64)
+		r0 = ret.Get(0).(models.InsertResult)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, int64, *models.TransactionReq, ...*gorm.DB) error); ok {
@@ -1202,12 +1202,12 @@ func (_c *MockTransactionServiceInterface_InsertTransaction_Call) Run(run func(c
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertTransaction_Call) Return(_a0 int64, _a1 error) *MockTransactionServiceInterface_InsertTransaction_Call {
+func (_c *MockTransactionServiceInterface_InsertTransaction_Call) Return(_a0 models.InsertResult, _a1 error) *MockTransactionServiceInterface_InsertTransaction_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertTransaction_Call) RunAndReturn(run func(context.Context, int64, *models.TransactionReq, ...*gorm.DB) (int64, error)) *MockTransactionServiceInterface_InsertTransaction_Call {
+func (_c *MockTransactionServiceInterface_InsertTransaction_Call) RunAndReturn(run func(context.Context, int64, *models.TransactionReq, ...*gorm.DB) (models.InsertResult, error)) *MockTransactionServiceInterface_InsertTransaction_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1271,22 +1271,22 @@ func (_c *MockTransactionServiceInterface_InsertTransactionTemplate_Call) RunAnd
 }
 
 // InsertTransfer provides a mock function with given fields: ctx, userID, req
-func (_m *MockTransactionServiceInterface) InsertTransfer(ctx context.Context, userID int64, req *models.TransferReq) (int64, error) {
+func (_m *MockTransactionServiceInterface) InsertTransfer(ctx context.Context, userID int64, req *models.TransferReq) (models.InsertResult, error) {
 	ret := _m.Called(ctx, userID, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for InsertTransfer")
 	}
 
-	var r0 int64
+	var r0 models.InsertResult
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransferReq) (int64, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransferReq) (models.InsertResult, error)); ok {
 		return rf(ctx, userID, req)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransferReq) int64); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, int64, *models.TransferReq) models.InsertResult); ok {
 		r0 = rf(ctx, userID, req)
 	} else {
-		r0 = ret.Get(0).(int64)
+		r0 = ret.Get(0).(models.InsertResult)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, int64, *models.TransferReq) error); ok {
@@ -1318,12 +1318,12 @@ func (_c *MockTransactionServiceInterface_InsertTransfer_Call) Run(run func(ctx 
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertTransfer_Call) Return(_a0 int64, _a1 error) *MockTransactionServiceInterface_InsertTransfer_Call {
+func (_c *MockTransactionServiceInterface_InsertTransfer_Call) Return(_a0 models.InsertResult, _a1 error) *MockTransactionServiceInterface_InsertTransfer_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_InsertTransfer_Call) RunAndReturn(run func(context.Context, int64, *models.TransferReq) (int64, error)) *MockTransactionServiceInterface_InsertTransfer_Call {
+func (_c *MockTransactionServiceInterface_InsertTransfer_Call) RunAndReturn(run func(context.Context, int64, *models.TransferReq) (models.InsertResult, error)) *MockTransactionServiceInterface_InsertTransfer_Call {
 	_c.Call.Return(run)
 	return _c
 }

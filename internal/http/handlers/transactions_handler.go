@@ -228,9 +228,14 @@ func (h *TransactionHandler) InsertTransaction(c *gin.Context) {
 		return
 	}
 
-	_, err := h.Service.InsertTransaction(ctx, userID, record)
+	result, err := h.Service.InsertTransaction(ctx, userID, record)
 	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	if result.IsDuplicate {
+		utils.SuccessMessage(c, "Request already processed", "Already recorded", http.StatusAlreadyReported)
 		return
 	}
 
@@ -254,9 +259,14 @@ func (h *TransactionHandler) InsertTransfer(c *gin.Context) {
 		return
 	}
 
-	_, err := h.Service.InsertTransfer(ctx, userID, record)
+	result, err := h.Service.InsertTransfer(ctx, userID, record)
 	if err != nil {
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	if result.IsDuplicate {
+		utils.SuccessMessage(c, "Request already processed", "Already recorded", http.StatusAlreadyReported)
 		return
 	}
 

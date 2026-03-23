@@ -55,8 +55,10 @@ const confirm = useConfirm();
 const { hasPermission } = usePermissions();
 
 const loading = ref(false);
+const submitting = ref(false);
 const defaultPreSelected = ref(false);
 const userSettings = ref<UserSettings>();
+const idempotencyKey = ref(crypto.randomUUID());
 
 const isGlobalReadOnly = computed(
   () => !!record.value.deleted_at || !!record.value.is_adjustment,
@@ -350,6 +352,8 @@ async function loadRecord(id: number) {
 }
 
 async function manageRecord() {
+  if (submitting.value) return;
+
   if (isFormReadOnly.value) {
     toastStore.infoResponseToast({
       title: "Not allowed",
@@ -362,11 +366,16 @@ async function manageRecord() {
     return;
   }
 
-  if (selectedParentCategory.value.name.toLowerCase() == "transfer") {
-    await startTransferOperation();
-  } else {
-    if (!(await isRecordValid())) return;
-    await startTransactionOperation();
+  submitting.value = true;
+  try {
+    if (selectedParentCategory.value.name.toLowerCase() == "transfer") {
+      await startTransferOperation();
+    } else {
+      if (!(await isRecordValid())) return;
+      await startTransactionOperation();
+    }
+  } finally {
+    submitting.value = false;
   }
 }
 
@@ -390,10 +399,11 @@ async function startTransactionOperation() {
 
     switch (props.mode) {
       case "create":
-        response = await sharedStore.createRecord(
-          transactionStore.apiPrefix,
-          recordData,
-        );
+        response = await sharedStore.createRecord(transactionStore.apiPrefix, {
+          ...recordData,
+          idempotency_key: idempotencyKey.value,
+        });
+        idempotencyKey.value = crypto.randomUUID();
         break;
       case "update":
         response = await sharedStore.updateRecord(
@@ -408,8 +418,12 @@ async function startTransactionOperation() {
     }
 
     // record.value = initData();
+    if (response?.code === 208) {
+      toastStore.infoResponseToast(response);
+    } else {
+      toastStore.successResponseToast(response);
+    }
     v$.value.record.$reset();
-    toastStore.successResponseToast(response);
     emit("completeTxOperation");
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -431,11 +445,17 @@ async function startTransferOperation() {
     amount: transfer.value.amount,
     notes: transfer.value.notes,
     created_at: created_at,
+    idempotency_key: idempotencyKey.value,
   };
 
   try {
     const response = await transactionStore.startTransfer(recordData);
-    toastStore.successResponseToast(response);
+    idempotencyKey.value = crypto.randomUUID();
+    if (response?.code === 208) {
+      toastStore.infoResponseToast(response);
+    } else {
+      toastStore.successResponseToast(response);
+    }
     v$.value.record.$reset();
     emit("completeTrOperation");
   } catch (error) {
@@ -655,6 +675,8 @@ async function deleteRecord(id: number, tx_type: string) {
               ? 'Start transfer'
               : (mode == 'create' ? 'Add' : 'Update') + ' transaction'
           "
+          :disabled="submitting"
+          :loading="submitting"
           style="height: 42px"
           @click="manageRecord"
         />
