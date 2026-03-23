@@ -1,9 +1,12 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"time"
 	"wealth-warden/internal/models"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func ValidateAccount(acc *models.Account, role string) error {
@@ -94,4 +97,9 @@ func AdjustToWeekday(date time.Time) time.Time {
 	default:
 		return date
 	}
+}
+
+func IsUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }

@@ -19,6 +19,7 @@ type Transaction struct {
 	Description     *string         `gorm:"type:varchar(255)" json:"description,omitempty"`
 	IsAdjustment    bool            `gorm:"not null;type:boolean" json:"is_adjustment"`
 	IsTransfer      bool            `gorm:"not null;type:boolean" json:"is_transfer"`
+	IdempotencyKey  *string         `gorm:"type:varchar(64)" json:"idempotency_key,omitempty"`
 	Account         Account         `json:"account"`
 	Category        Category        `json:"category,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`
@@ -36,6 +37,7 @@ type Transfer struct {
 	Currency             string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	Status               string          `gorm:"not null" json:"status"`
 	Notes                *string         `gorm:"type:text" json:"notes"`
+	IdempotencyKey       *string         `gorm:"type:varchar(64)" json:"idempotency_key,omitempty"`
 	CreatedAt            time.Time       `json:"created_at"`
 	UpdatedAt            time.Time       `json:"updated_at"`
 	DeletedAt            *time.Time      `json:"deleted_at"`
@@ -101,6 +103,11 @@ type CategoryOrGroup struct {
 	CategoryIDs    []int64 `json:"category_ids"`
 }
 
+type InsertResult struct {
+	ID          int64
+	IsDuplicate bool
+}
+
 type TransactionBatchTotals struct {
 	Count    int64           `json:"count"`
 	Income   decimal.Decimal `json:"income"`
@@ -114,14 +121,16 @@ type TransactionReq struct {
 	Amount          decimal.Decimal `json:"amount" validate:"required"`
 	TxnDate         time.Time       `json:"txn_date" validate:"required"`
 	Description     *string         `json:"description,omitempty"`
+	IdempotencyKey  *string         `json:"idempotency_key,omitempty"`
 }
 
 type TransferReq struct {
-	SourceID      int64           `json:"source_id" validate:"required"`
-	DestinationID int64           `json:"destination_id" validate:"required"`
-	Amount        decimal.Decimal `json:"amount" validate:"required"`
-	Notes         *string         `json:"notes"`
-	CreatedAt     time.Time       `json:"created_at"`
+	SourceID       int64           `json:"source_id" validate:"required"`
+	DestinationID  int64           `json:"destination_id" validate:"required"`
+	Amount         decimal.Decimal `json:"amount" validate:"required"`
+	Notes          *string         `json:"notes"`
+	CreatedAt      time.Time       `json:"created_at"`
+	IdempotencyKey *string         `json:"idempotency_key,omitempty"`
 }
 
 type TrRestoreReq struct {

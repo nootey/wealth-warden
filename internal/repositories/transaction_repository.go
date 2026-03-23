@@ -33,8 +33,10 @@ type TransactionRepositoryInterface interface {
 	FindCategoryByName(ctx context.Context, tx *gorm.DB, name string, userID *int64) (models.Category, error)
 	FindTransactionByID(ctx context.Context, tx *gorm.DB, ID, userID int64, includeDeleted bool) (models.Transaction, error)
 	FindTransactionsByImportID(ctx context.Context, tx *gorm.DB, importID, userID int64) ([]models.Transaction, error)
+	FindTransactionByIdempotencyKey(ctx context.Context, tx *gorm.DB, userID int64, key string) (models.Transaction, error)
 	FindTransferByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.Transfer, error)
 	FindTransfersByImportID(ctx context.Context, tx *gorm.DB, importID, userID int64) ([]models.Transfer, error)
+	FindTransferByIdempotencyKey(ctx context.Context, tx *gorm.DB, userID int64, key string) (models.Transfer, error)
 	CountActiveTransactionsForCategory(ctx context.Context, tx *gorm.DB, userID, categoryID int64) (int64, error)
 	InsertTransaction(ctx context.Context, tx *gorm.DB, newRecord *models.Transaction) (int64, error)
 	InsertTransfer(ctx context.Context, tx *gorm.DB, newRecord *models.Transfer) (int64, error)
@@ -490,6 +492,30 @@ func (r *TransactionRepository) FindTransferByID(ctx context.Context, tx *gorm.D
 	var record models.Transfer
 	result := db.
 		Where("id = ? AND user_id = ?", ID, userID).First(&record)
+	return record, result.Error
+}
+
+func (r *TransactionRepository) FindTransactionByIdempotencyKey(ctx context.Context, tx *gorm.DB, userID int64, key string) (models.Transaction, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var record models.Transaction
+	result := db.Where("user_id = ? AND idempotency_key = ? AND deleted_at IS NULL", userID, key).First(&record)
+	return record, result.Error
+}
+
+func (r *TransactionRepository) FindTransferByIdempotencyKey(ctx context.Context, tx *gorm.DB, userID int64, key string) (models.Transfer, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var record models.Transfer
+	result := db.Where("user_id = ? AND idempotency_key = ? AND deleted_at IS NULL", userID, key).First(&record)
 	return record, result.Error
 }
 
