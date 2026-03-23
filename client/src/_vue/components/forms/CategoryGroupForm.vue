@@ -37,6 +37,7 @@ onMounted(async () => {
 });
 
 const loading = ref(false);
+const submitting = ref(false);
 
 const parentCategories = computed(() => {
   return props.categories.filter(
@@ -141,6 +142,7 @@ async function manageRecord() {
     selected_categories: selectedCategories.value.map((cat) => cat.id),
   };
 
+  submitting.value = true;
   try {
     let response = null;
 
@@ -165,6 +167,8 @@ async function manageRecord() {
     emit("completeOperation");
   } catch (error) {
     toastStore.errorResponseToast(error);
+  } finally {
+    submitting.value = false;
   }
 }
 
@@ -250,6 +254,8 @@ const searchClassifications = (event: { query: string }) => {
         <Button
           class="main-button"
           :label="(mode == 'create' ? 'Add' : 'Update') + ' group'"
+          :disabled="submitting"
+          :loading="submitting"
           style="height: 42px"
           @click="manageRecord"
         />
