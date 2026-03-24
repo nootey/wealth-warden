@@ -8,6 +8,7 @@ import (
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type InvestmentRepositoryInterface interface {
@@ -39,7 +40,7 @@ type InvestmentRepositoryInterface interface {
 	FindAssetByTicker(ctx context.Context, tx *gorm.DB, ticker string, accID, userID int64) (models.InvestmentAsset, error)
 	FindInvestmentTradesByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentTrade, error)
 	GetInvestmentTradesDateRange(ctx context.Context, tx *gorm.DB, accountID int64) (time.Time, time.Time, error)
-	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal, currency string) error
+	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error
 	GetPriceHistoryForAsset(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.AssetPriceHistory, error)
 	GetAssetIDsForAccount(ctx context.Context, tx *gorm.DB, accountID, userID int64) ([]int64, error)
 }
@@ -738,16 +739,18 @@ func (r *InvestmentRepository) GetPriceHistoryForAsset(ctx context.Context, tx *
 	return prices, err
 }
 
-func (r *InvestmentRepository) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal, currency string) error {
+func (r *InvestmentRepository) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error {
+	if len(entries) == 0 {
+		return nil
+	}
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	return db.Exec(`
-		INSERT INTO asset_price_history (asset_id, as_of, price, currency)
-		VALUES (?, ?, ?, ?)
-		ON CONFLICT (asset_id, as_of) DO UPDATE SET price = EXCLUDED.price, currency = EXCLUDED.currency
-	`, assetID, asOf.UTC().Truncate(24*time.Hour), price, currency).Error
+	return db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "asset_id"}, {Name: "as_of"}},
+		DoUpdates: clause.AssignmentColumns([]string{"price", "currency"}),
+	}).Create(&entries).Error
 }

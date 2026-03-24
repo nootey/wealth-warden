@@ -13,10 +13,11 @@ import (
 )
 
 type Scheduler struct {
-	logger    *zap.Logger
-	container *bootstrap.ServiceContainer
-	scheduler gocron.Scheduler
-	flags     SchedulerFlags
+	logger            *zap.Logger
+	container         *bootstrap.ServiceContainer
+	scheduler         gocron.Scheduler
+	flags             SchedulerFlags
+	concurrentWorkers int
 }
 
 type SchedulerFlags struct {
@@ -43,7 +44,7 @@ func FlagsFromConfig(cfg config.SchedulerConfig) SchedulerFlags {
 	return flags
 }
 
-func NewScheduler(logger *zap.Logger, container *bootstrap.ServiceContainer, flags SchedulerFlags) (*Scheduler, error) {
+func NewScheduler(logger *zap.Logger, container *bootstrap.ServiceContainer, flags SchedulerFlags, concurrentWorkers int) (*Scheduler, error) {
 
 	if logger == nil {
 		return nil, fmt.Errorf("logger cannot be nil")
@@ -58,11 +59,16 @@ func NewScheduler(logger *zap.Logger, container *bootstrap.ServiceContainer, fla
 		return nil, err
 	}
 
+	if concurrentWorkers <= 0 {
+		concurrentWorkers = 5
+	}
+
 	return &Scheduler{
-		logger:    logger,
-		container: container,
-		scheduler: s,
-		flags:     flags,
+		logger:            logger,
+		container:         container,
+		scheduler:         s,
+		flags:             flags,
+		concurrentWorkers: concurrentWorkers,
 	}, nil
 }
 
@@ -116,7 +122,7 @@ func (s *Scheduler) registerJobs() error {
 func (s *Scheduler) registerBackfillJob() error {
 
 	logger := s.logger.Named("balance-backfill-job")
-	job := NewBalanceBackfillJob(logger, s.container)
+	job := NewBalanceBackfillJob(logger, s.container, s.concurrentWorkers)
 
 	var opts []gocron.JobOption
 	if s.flags.StartBalanceBackfillImmediately {
@@ -144,7 +150,7 @@ func (s *Scheduler) registerBackfillJob() error {
 func (s *Scheduler) registerTemplatesJob() error {
 
 	logger := s.logger.Named("templates-job")
-	job := NewAutomateTemplateJob(logger, s.container)
+	job := NewAutomateTemplateJob(logger, s.container, s.concurrentWorkers)
 
 	var opts []gocron.JobOption
 	if s.flags.StartTemplatesImmediately {
@@ -177,12 +183,14 @@ func (s *Scheduler) registerAssetPriceSyncJob() error {
 		logger.Warn("Failed to create price fetch client", zap.Error(err))
 	}
 
-	job := NewAssetPriceSyncJob(logger, s.container.InvestmentService, s.container.AccountService, s.container.DB, client)
+	job := NewAssetPriceSyncJob(logger, s.container.InvestmentService, s.container.AccountService, s.container.DB, client, s.concurrentWorkers)
 
 	var opts []gocron.JobOption
 	if s.flags.StartAssetPriceSyncImmediately {
 		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 	}
+
+	opts = append(opts, gocron.WithSingletonMode(gocron.LimitModeReschedule))
 
 	_, err = s.scheduler.NewJob(
 		gocron.DurationJob(8*time.Hour),

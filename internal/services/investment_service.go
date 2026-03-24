@@ -33,7 +33,7 @@ type InvestmentServiceInterface interface {
 	DeleteInvestmentAsset(ctx context.Context, userID int64, id int64) error
 	DeleteInvestmentTrade(ctx context.Context, userID int64, id int64) error
 	GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string, date *time.Time) (decimal.Decimal, error)
-	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal, currency string) error
+	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
 }
@@ -262,7 +262,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 
 	if currentPrice != nil && fetchedPriceCurrency != "" {
 		today := time.Now().UTC().Truncate(24 * time.Hour)
-		if err := s.repo.UpsertAssetPrice(ctx, tx, holdID, today, *currentPrice, fetchedPriceCurrency); err != nil {
+		if err := s.repo.UpsertAssetPrice(ctx, tx, []models.AssetPriceHistory{{AssetID: holdID, AsOf: today, Price: *currentPrice, Currency: fetchedPriceCurrency}}); err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to seed price history for new asset: %w", err)
 		}
@@ -310,7 +310,7 @@ func (s *InvestmentService) fetchCurrentPrice(ctx context.Context, tx *gorm.DB, 
 	price := decimal.NewFromFloat(priceData.Price)
 	now := time.Unix(priceData.LastUpdate, 0)
 
-	if err := s.repo.UpsertAssetPrice(ctx, nil, asset.ID, now, price, priceData.Currency); err != nil {
+	if err := s.repo.UpsertAssetPrice(ctx, nil, []models.AssetPriceHistory{{AssetID: asset.ID, AsOf: now, Price: price, Currency: priceData.Currency}}); err != nil {
 		fmt.Printf("warn: failed to upsert asset price history for asset %d: %v\n", asset.ID, err)
 	}
 
@@ -1097,8 +1097,8 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 	return nil
 }
 
-func (s *InvestmentService) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal, currency string) error {
-	return s.repo.UpsertAssetPrice(ctx, tx, assetID, asOf, price, currency)
+func (s *InvestmentService) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error {
+	return s.repo.UpsertAssetPrice(ctx, tx, entries)
 }
 
 func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error {

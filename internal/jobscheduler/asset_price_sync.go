@@ -3,6 +3,7 @@ package jobscheduler
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
@@ -18,11 +19,12 @@ type accService interface {
 }
 
 type AssetPriceSyncJob struct {
-	logger           *zap.Logger
-	investmentSvc    services.InvestmentServiceInterface
-	accService       accService
-	db               *gorm.DB
-	priceFetchClient finance.PriceFetcher
+	logger            *zap.Logger
+	investmentSvc     services.InvestmentServiceInterface
+	accService        accService
+	db                *gorm.DB
+	priceFetchClient  finance.PriceFetcher
+	concurrentWorkers int
 }
 
 func NewAssetPriceSyncJob(
@@ -31,13 +33,15 @@ func NewAssetPriceSyncJob(
 	accService accService,
 	db *gorm.DB,
 	priceFetchClient finance.PriceFetcher,
+	concurrentWorkers int,
 ) *AssetPriceSyncJob {
 	return &AssetPriceSyncJob{
-		logger:           logger,
-		investmentSvc:    investmentSvc,
-		accService:       accService,
-		db:               db,
-		priceFetchClient: priceFetchClient,
+		logger:            logger,
+		investmentSvc:     investmentSvc,
+		accService:        accService,
+		db:                db,
+		priceFetchClient:  priceFetchClient,
+		concurrentWorkers: concurrentWorkers,
 	}
 }
 
@@ -90,13 +94,32 @@ func (j *AssetPriceSyncJob) refreshSnapshotMarketValues(ctx context.Context) err
 		return err
 	}
 
-	for _, userID := range userIDs {
-		if err := j.accService.UpdateSnapshotMarketValues(ctx, userID); err != nil {
-			j.logger.Warn("Failed to update snapshot market values",
-				zap.Int64("userID", userID),
-				zap.Error(err))
-		}
+	jobs := make(chan int64, len(userIDs))
+	var wg sync.WaitGroup
+	for i := 0; i < j.concurrentWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for uid := range jobs {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+				if err := j.accService.UpdateSnapshotMarketValues(ctx, uid); err != nil {
+					j.logger.Warn("Failed to update snapshot market values",
+						zap.Int64("userID", uid),
+						zap.Error(err))
+				}
+			}
+		}()
 	}
+
+	for _, uid := range userIDs {
+		jobs <- uid
+	}
+	close(jobs)
+	wg.Wait()
 
 	return nil
 }
@@ -233,7 +256,7 @@ func (j *AssetPriceSyncJob) updateAssetsByTicker(ctx context.Context, tx *gorm.D
 		}
 
 		// Persist to price history
-		if err := j.investmentSvc.UpsertAssetPrice(ctx, tx, asset.ID, today, priceDecimal, price.Currency); err != nil {
+		if err := j.investmentSvc.UpsertAssetPrice(ctx, tx, []models.AssetPriceHistory{{AssetID: asset.ID, AsOf: today, Price: priceDecimal, Currency: price.Currency}}); err != nil {
 			j.logger.Warn("Failed to upsert asset price history",
 				zap.Int64("asset_id", asset.ID),
 				zap.Error(err))

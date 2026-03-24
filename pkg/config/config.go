@@ -51,7 +51,8 @@ func setDefaults() *Config {
 			MemberUserPassword: "",
 		},
 		Scheduler: SchedulerConfig{
-			ImmediateJobs: []string{},
+			ConcurrentWorkers: 5,
+			ImmediateJobs:     []string{},
 		},
 	}
 }

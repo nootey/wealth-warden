@@ -59,5 +59,6 @@ type MailerConfig struct {
 }
 
 type SchedulerConfig struct {
-	ImmediateJobs []string `mapstructure:"immediate_jobs"`
+	ImmediateJobs     []string `mapstructure:"immediate_jobs"`
+	ConcurrentWorkers int      `mapstructure:"concurrent_workers"`
 }

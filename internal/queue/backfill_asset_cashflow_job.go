@@ -55,30 +55,40 @@ func (j *BackfillAssetCashFlowsJob) Process(ctx context.Context) error {
 
 	j.logger.Info("Processing users", zap.Int("count", len(userIDs)))
 
+	failCount := 0
+
 	for _, userID := range userIDs {
 
 		// Clear derived data, keep raw ledger and trades
 		if err := j.AccountService.ClearInvestmentCashFlows(ctx, userID); err != nil {
-			return fmt.Errorf("failed to clear investment cash flows for user %d: %w", userID, err)
+			j.logger.Error("Failed to clear investment cash flows", zap.Int64("userID", userID), zap.Error(err))
+			failCount++
+			continue
 		}
 
 		if err := j.AccountService.ClearInvestmentSnapshots(ctx, userID); err != nil {
-			return fmt.Errorf("failed to clear investment snapshots for user %d: %w", userID, err)
+			j.logger.Error("Failed to clear investment snapshots", zap.Int64("userID", userID), zap.Error(err))
+			failCount++
+			continue
 		}
 
 		// Add investment trade cash flows on top of the reset balance rows
 		if err := j.InvestmentService.BackfillInvestmentCashFlows(ctx, userID); err != nil {
-			return fmt.Errorf("failed to backfill cash flows for user %d: %w", userID, err)
+			j.logger.Error("Failed to backfill cash flows", zap.Int64("userID", userID), zap.Error(err))
+			failCount++
+			continue
 		}
 
 		// Frontfill start_balance chains then rebuild all snapshots from scratch
 		if err := j.AccountService.RebuildSnapshotsForUser(ctx, userID); err != nil {
-			return fmt.Errorf("failed to rebuild snapshots for user %d: %w", userID, err)
+			j.logger.Error("Failed to rebuild snapshots", zap.Int64("userID", userID), zap.Error(err))
+			failCount++
+			continue
 		}
 
 		j.logger.Info("User backfill complete", zap.Int64("userID", userID))
 	}
 
-	j.logger.Info("Completed successfully")
+	j.logger.Info("Completed", zap.Int("success", len(userIDs)-failCount), zap.Int("failed", failCount))
 	return nil
 }

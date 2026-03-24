@@ -34,7 +34,7 @@ func (suite *SchedulerTestSuite) SetupTest() {
 		StartTemplatesImmediately:            false,
 		StartAssetPriceSyncImmediately:       false,
 		StartAssetHistoryBackfillImmediately: false,
-	})
+	}, 0)
 	suite.NoError(err)
 	suite.NotNil(suite.scheduler)
 }
@@ -68,7 +68,7 @@ func (suite *SchedulerTestSuite) TestScheduler_NewWithNilLogger() {
 		StartTemplatesImmediately:            false,
 		StartAssetPriceSyncImmediately:       false,
 		StartAssetHistoryBackfillImmediately: false,
-	})
+	}, 0)
 	suite.Error(err)
 	suite.Nil(scheduler)
 }
@@ -80,7 +80,7 @@ func (suite *SchedulerTestSuite) TestScheduler_NewWithNilContainer() {
 		StartTemplatesImmediately:            false,
 		StartAssetPriceSyncImmediately:       false,
 		StartAssetHistoryBackfillImmediately: false,
-	})
+	}, 0)
 	suite.Error(err)
 	suite.Nil(scheduler)
 	suite.Contains(err.Error(), "container cannot be nil")
