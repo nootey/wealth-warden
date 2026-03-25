@@ -43,6 +43,8 @@ type InvestmentRepositoryInterface interface {
 	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error
 	GetPriceHistoryForAsset(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.AssetPriceHistory, error)
 	GetAssetIDsForAccount(ctx context.Context, tx *gorm.DB, accountID, userID int64) ([]int64, error)
+	UpsertExchangeRate(ctx context.Context, tx *gorm.DB, entry models.ExchangeRateHistory) error
+	GetCachedExchangeRate(ctx context.Context, tx *gorm.DB, from, to string, asOf time.Time) (decimal.Decimal, bool, error)
 }
 
 type InvestmentRepository struct {
@@ -753,4 +755,33 @@ func (r *InvestmentRepository) UpsertAssetPrice(ctx context.Context, tx *gorm.DB
 		Columns:   []clause.Column{{Name: "asset_id"}, {Name: "as_of"}},
 		DoUpdates: clause.AssignmentColumns([]string{"price", "currency"}),
 	}).Create(&entries).Error
+}
+
+func (r *InvestmentRepository) UpsertExchangeRate(ctx context.Context, tx *gorm.DB, entry models.ExchangeRateHistory) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "from_currency"}, {Name: "to_currency"}, {Name: "as_of"}},
+		DoUpdates: clause.AssignmentColumns([]string{"rate"}),
+	}).Create(&entry).Error
+}
+
+func (r *InvestmentRepository) GetCachedExchangeRate(ctx context.Context, tx *gorm.DB, from, to string, asOf time.Time) (decimal.Decimal, bool, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var entry models.ExchangeRateHistory
+	err := db.WithContext(ctx).
+		Where("from_currency = ? AND to_currency = ? AND as_of = ?", from, to, asOf.UTC().Truncate(24*time.Hour)).
+		First(&entry).Error
+	if err == gorm.ErrRecordNotFound {
+		return decimal.Zero, false, nil
+	}
+	if err != nil {
+		return decimal.Zero, false, err
+	}
+	return entry.Rate, true, nil
 }

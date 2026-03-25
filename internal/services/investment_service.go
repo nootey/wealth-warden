@@ -662,15 +662,36 @@ func (s *InvestmentService) GetExchangeRate(ctx context.Context, fromCurrency, t
 		return decimal.Zero, fmt.Errorf("price fetch client not initialized")
 	}
 
-	var rate float64
-	var err error
-
+	// For historical rates, check the DB cache first
 	if date != nil {
-		rate, err = s.priceFetchClient.GetExchangeRateOnDate(ctx, fromCurrency, toCurrency, *date)
-	} else {
-		rate, err = s.priceFetchClient.GetExchangeRate(ctx, fromCurrency, toCurrency)
+		cached, found, err := s.repo.GetCachedExchangeRate(ctx, nil, fromCurrency, toCurrency, *date)
+		if err != nil {
+			return decimal.Zero, err
+		}
+		if found {
+			return cached, nil
+		}
+
+		rate, err := s.priceFetchClient.GetExchangeRateOnDate(ctx, fromCurrency, toCurrency, *date)
+		if err != nil {
+			return decimal.Zero, err
+		}
+
+		result := decimal.NewFromFloat(rate)
+		if upsertErr := s.repo.UpsertExchangeRate(ctx, nil, models.ExchangeRateHistory{
+			FromCurrency: fromCurrency,
+			ToCurrency:   toCurrency,
+			AsOf:         *date,
+			Rate:         result,
+		}); upsertErr != nil {
+			s.logger.Warn("Failed to cache exchange rate", zap.Error(upsertErr))
+		}
+
+		return result, nil
 	}
 
+	// Live rate — never cache
+	rate, err := s.priceFetchClient.GetExchangeRate(ctx, fromCurrency, toCurrency)
 	if err != nil {
 		return decimal.Zero, err
 	}

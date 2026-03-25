@@ -19,12 +19,12 @@ func (m *mockUserSvc) GetAllActiveUserIDs(_ context.Context) ([]int64, error) {
 }
 
 type mockAccountBackfillSvc struct {
-	clearCashFlowsErr  map[int64]error
-	clearSnapshotsErr  map[int64]error
-	rebuildErr         map[int64]error
-	clearedCashFlows   []int64
-	clearedSnapshots   []int64
-	rebuilt            []int64
+	clearCashFlowsErr map[int64]error
+	clearSnapshotsErr map[int64]error
+	rebuildErr        map[int64]error
+	clearedCashFlows  []int64
+	clearedSnapshots  []int64
+	rebuilt           []int64
 }
 
 func (m *mockAccountBackfillSvc) ClearInvestmentCashFlows(_ context.Context, userID int64) error {
