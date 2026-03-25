@@ -7,6 +7,5 @@ type InMemoryDispatcher struct {
 }
 
 func (d *InMemoryDispatcher) Dispatch(job Job) error {
-	d.Queue.AddJob(job)
-	return nil
+	return d.Queue.AddJob(job)
 }

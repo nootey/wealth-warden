@@ -23,7 +23,9 @@ func TestJobQueue_ProcessesJob(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	job := &mockJob{}
-	q.AddJob(job)
+	if err := q.AddJob(job); err != nil {
+		t.Logf("AddJob: %v", err)
+	}
 
 	go q.Run(ctx)
 
@@ -40,7 +42,9 @@ func TestJobQueue_ProcessesMultipleJobs(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	for range 5 {
-		q.AddJob(&mockJob{})
+		if err := q.AddJob(&mockJob{}); err != nil {
+			t.Logf("AddJob: %v", err)
+		}
 	}
 
 	go q.Run(ctx)
@@ -56,7 +60,9 @@ func TestJobQueue_ShutdownDrainsQueue(t *testing.T) {
 	var processed atomic.Int32
 	for range 5 {
 		job := &mockJob{}
-		q.AddJob(job)
+		if err := q.AddJob(job); err != nil {
+			t.Logf("AddJob: %v", err)
+		}
 		if job.called.Load() {
 			processed.Add(1)
 		}

@@ -2,8 +2,11 @@ package queue
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
+
+var ErrQueueFull = errors.New("job queue is full")
 
 // JobQueue handles background job processing using worker goroutines
 type JobQueue struct {
@@ -49,6 +52,11 @@ func (q *JobQueue) worker(ctx context.Context) {
 	}
 }
 
-func (q *JobQueue) AddJob(job Job) {
-	q.jobChannel <- job
+func (q *JobQueue) AddJob(job Job) error {
+	select {
+	case q.jobChannel <- job:
+		return nil
+	default:
+		return ErrQueueFull
+	}
 }
