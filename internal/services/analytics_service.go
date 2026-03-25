@@ -21,8 +21,8 @@ type AnalyticsServiceInterface interface {
 	GetYearlyCashFlowBreakdown(ctx context.Context, userID int64, year int, accountID *int64) (*models.YearlyCashflowBreakdown, error)
 	GetYearlySankeyData(ctx context.Context, userID int64, accountID *int64, year int) (*models.YearlySankeyData, error)
 	GetAccountBasicStatistics(ctx context.Context, accID *int64, userID int64, year int) (*models.BasicAccountStats, error)
-	GetAvailableStatsYears(ctx context.Context, accID *int64, userID int64) ([]int64, error)
-	GetCurrentMonthStats(ctx context.Context, userID int64, accountID *int64) (*models.CurrentMonthStats, error)
+	GetAvailableStatsYears(ctx context.Context, accID *int64, userID int64, includeMonths bool) ([]models.AvailableStatsYear, error)
+	GetMonthlyStats(ctx context.Context, userID int64, accountID *int64, year, month int) (*models.MonthlyStats, error)
 	GetYearlyAverageForCategory(ctx context.Context, userID int64, accountID int64, categoryID int64, isGroup bool) (float64, error)
 }
 type AnalyticsService struct {
@@ -794,11 +794,11 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 	}, nil
 }
 
-func (s *AnalyticsService) GetAvailableStatsYears(ctx context.Context, accID *int64, userID int64) ([]int64, error) {
-	return s.repo.GetAvailableStatsYears(ctx, nil, accID, userID)
+func (s *AnalyticsService) GetAvailableStatsYears(ctx context.Context, accID *int64, userID int64, includeMonths bool) ([]models.AvailableStatsYear, error) {
+	return s.repo.GetAvailableStatsYears(ctx, nil, accID, userID, includeMonths)
 }
 
-func (s *AnalyticsService) GetCurrentMonthStats(ctx context.Context, userID int64, accountID *int64) (*models.CurrentMonthStats, error) {
+func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, accountID *int64, year, month int) (*models.MonthlyStats, error) {
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
@@ -810,10 +810,6 @@ func (s *AnalyticsService) GetCurrentMonthStats(ctx context.Context, userID int6
 			panic(p)
 		}
 	}()
-
-	now := time.Now().UTC()
-	year := now.Year()
-	month := int(now.Month())
 
 	var mrows []models.MonthlyTotalsRow
 	var checkingAccounts []models.Account
@@ -944,7 +940,7 @@ func (s *AnalyticsService) GetCurrentMonthStats(ctx context.Context, userID int6
 		return nil, err
 	}
 
-	return &models.CurrentMonthStats{
+	return &models.MonthlyStats{
 		UserID:            userID,
 		AccountID:         accountID,
 		Currency:          models.DefaultCurrency,
