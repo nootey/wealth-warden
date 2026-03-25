@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import apiClient from "../api/axios.ts";
 import type {
+  AvailableStatsYear,
   BasicAccountStats,
   DailyStats,
   MonthlyStats,
@@ -12,12 +13,19 @@ export const useAnalyticsStore = defineStore("analytics", {
     apiPrefix: "analytics",
   }),
   actions: {
-    async getAvailableStatsYears(accID: number | null | undefined) {
-      const res = await apiClient.get<number[]>(`${this.apiPrefix}/years`, {
-        params: {
-          acc_id: accID ?? undefined,
+    async getAvailableStatsYears(
+      accID: number | null | undefined,
+      includeMonths = false,
+    ) {
+      const res = await apiClient.get<AvailableStatsYear[]>(
+        `${this.apiPrefix}/years`,
+        {
+          params: {
+            acc_id: accID ?? undefined,
+            include_months: includeMonths || undefined,
+          },
         },
-      });
+      );
       return res.data;
     },
     async getBasicStatisticsForAccount(
@@ -35,10 +43,16 @@ export const useAnalyticsStore = defineStore("analytics", {
       );
       return res.data;
     },
-    async getCurrentMonthsStats(accID: number | null | undefined) {
+    async getCurrentMonthsStats(
+      accID: number | null | undefined,
+      year?: number,
+      month?: number,
+    ) {
       const res = await apiClient.get<MonthlyStats>(`${this.apiPrefix}/month`, {
         params: {
           acc_id: accID ?? undefined,
+          year: year ?? undefined,
+          month: month ?? undefined,
         },
       });
       return res.data;

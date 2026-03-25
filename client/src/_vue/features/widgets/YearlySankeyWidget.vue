@@ -58,7 +58,7 @@ async function loadAccounts() {
 async function loadYears() {
   try {
     const result = await analyticsStore.getAvailableStatsYears(null);
-    years.value = Array.isArray(result) ? result : [];
+    years.value = Array.isArray(result) ? result.map((y) => y.year) : [];
 
     const current = new Date().getFullYear();
     selectedYear.value = years.value.includes(current)

@@ -1,3 +1,8 @@
+export interface AvailableStatsYear {
+  year: number;
+  months?: number[];
+}
+
 export interface CategoryStat {
   category_id: number;
   category_name?: string | null;

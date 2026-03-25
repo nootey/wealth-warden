@@ -1,39 +1,98 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import type { MonthlyStats } from "../../../models/analytics_models.ts";
+import { computed, onMounted, ref, watch } from "vue";
+import type {
+  AvailableStatsYear,
+  MonthlyStats,
+} from "../../../models/analytics_models.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import ComparativePieChart from "../charts/ComparativePieChart.vue";
-import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
 
 const analyticsStore = useAnalyticsStore();
 const toastStore = useToastStore();
 
 const loading = ref(false);
-
 const monthlyStats = ref<MonthlyStats | null>(null);
 
+const now = new Date();
+const selectedYear = ref<number>(now.getFullYear());
+const selectedMonth = ref<number>(now.getMonth() + 1);
+const availableYears = ref<AvailableStatsYear[]>([]);
+
+const yearOptions = computed(() =>
+  availableYears.value.map((y) => ({ label: String(y.year), value: y.year })),
+);
+
+const monthOptions = computed(() => {
+  const entry = availableYears.value.find((y) => y.year === selectedYear.value);
+  if (!entry?.months?.length) return [];
+  return entry.months.map((m) => ({
+    label: new Date(selectedYear.value, m - 1).toLocaleString("default", {
+      month: "long",
+    }),
+    value: m,
+  }));
+});
+
 onMounted(async () => {
+  await loadAvailableYears();
   await loadStats();
 });
+
+async function loadAvailableYears() {
+  try {
+    const result = await analyticsStore.getAvailableStatsYears(null, true);
+    availableYears.value = result;
+
+    // Default to current year if available, otherwise latest
+    const currentYearEntry = result.find((y) => y.year === now.getFullYear());
+    const entry = currentYearEntry ?? result[result.length - 1];
+    if (!entry) return;
+
+    selectedYear.value = entry.year;
+
+    // Default to current month if available, otherwise latest valid month
+    const months = entry.months ?? [];
+    const currentMonth = now.getMonth() + 1;
+    selectedMonth.value = months.includes(currentMonth)
+      ? currentMonth
+      : (months[months.length - 1] ?? currentMonth);
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+  }
+}
 
 async function loadStats() {
   try {
     loading.value = true;
-    const result = await analyticsStore.getCurrentMonthsStats(null);
-
-    if (!result) {
-      monthlyStats.value = null;
-    } else {
-      monthlyStats.value = result;
-    }
+    const result = await analyticsStore.getCurrentMonthsStats(
+      null,
+      selectedYear.value,
+      selectedMonth.value,
+    );
+    monthlyStats.value = result ?? null;
   } catch (e) {
     toastStore.errorResponseToast(e);
   } finally {
     loading.value = false;
   }
 }
+
+// When year changes, reset month to latest valid for that year
+watch(selectedYear, (newYear) => {
+  const entry = availableYears.value.find((y) => y.year === newYear);
+  const months = entry?.months ?? [];
+  const currentMonth = now.getMonth() + 1;
+  selectedMonth.value = months.includes(currentMonth)
+    ? currentMonth
+    : (months[months.length - 1] ?? currentMonth);
+});
+
+watch(selectedMonth, async () => {
+  await loadStats();
+});
 
 // Pie chart data
 const outflowLabels = computed<string[]>(() => {
@@ -189,13 +248,34 @@ const pieOptions = computed(() => ({
         <span class="text-sm" style="color: var(--text-secondary)"
           >View what you've spent your money on this month.</span
         >
+        <div class="flex flex-row gap-2 align-items-center w-full pr-2">
+          <Select
+            v-model="selectedYear"
+            class="w-full"
+            :options="yearOptions"
+            option-label="label"
+            option-value="value"
+            size="small"
+            placeholder="Year"
+          />
+          <Select
+            v-model="selectedMonth"
+            class="w-full"
+            :options="monthOptions"
+            option-label="label"
+            option-value="value"
+            size="small"
+            placeholder="Month"
+            :disabled="!monthOptions.length"
+          />
+        </div>
         <div
           v-if="hasOutflowData"
           class="flex flex-column justify-content-center align-items-center"
         >
           <ComparativePieChart
             class="mt-3"
-            :size="225"
+            :size="250"
             :show-legend="false"
             :options="pieOptions"
             :values="outflowValues"

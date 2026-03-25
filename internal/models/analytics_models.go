@@ -159,7 +159,12 @@ type MonthlyTotalsRow struct {
 	NetText     string
 }
 
-type CurrentMonthStats struct {
+type AvailableStatsYear struct {
+	Year   int   `json:"year"`
+	Months []int `json:"months,omitempty"`
+}
+
+type MonthlyStats struct {
 	UserID            int64           `json:"user_id"`
 	AccountID         *int64          `json:"account_id,omitempty"`
 	Currency          string          `json:"currency"`
