@@ -575,8 +575,9 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		return tx.Commit().Error
 	}
 
-	// Track earliest date per account for frontfill
+	// Track earliest date and currency per account for frontfill
 	earliestByAccount := make(map[int64]time.Time)
+	accountCurrency := make(map[int64]string)
 
 	for _, trade := range trades {
 		txnDate := trade.TxnDate.UTC().Truncate(24 * time.Hour)
@@ -625,19 +626,13 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		if earliest, ok := earliestByAccount[trade.Asset.AccountID]; !ok || txnDate.Before(earliest) {
 			earliestByAccount[trade.Asset.AccountID] = txnDate
 		}
+		accountCurrency[trade.Asset.AccountID] = trade.Asset.Account.Currency
 	}
 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	for accountID, earliestDate := range earliestByAccount {
-		// Need currency — grab from first trade for this account
-		var currency string
-		for _, t := range trades {
-			if t.Asset.AccountID == accountID {
-				currency = t.Asset.Account.Currency
-				break
-			}
-		}
+		currency := accountCurrency[accountID]
 
 		if err := s.accRepo.FrontfillBalances(ctx, tx, accountID, currency, earliestDate); err != nil {
 			tx.Rollback()
