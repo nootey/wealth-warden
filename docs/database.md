@@ -41,7 +41,6 @@ Options include:
 - `fresh` -> drops database and runs all migrations
 - `fresh-seed-basic` -> runs fresh migrations and basic seeders
 - `fresh-seed-full` -> runs fresh migrations and all defined seeders
-    - you can include/exclude seeders in `./databse/seeders/main.go`
 
 Available flags:
 - `-d or --dir` -> specify the directory containing migration files (default is `./storage/migrations`)
@@ -52,20 +51,35 @@ Seeders populate the database with either initial production values or fake deve
 
 ### Creating a Seeder
 
-Seeders are handled manually. To create a new seeder, create it in `./databse/seeders/workers`
-- Make sure to follow the proper declaration.
+Seeders are handled manually. To create a new seeder, create it in `./pkg/database/seeders/workers` and register it in the `allSeeders` map inside `SeedDatabase` (`./pkg/database/seeders/seed.go`).
+
+Each seeder must follow this signature:
 ```go
-func(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
-	
+func SeedMySeeder(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
+
 }
+```
+
+When registering, set the `Basic` and `Full` flags to control which seed types include it:
+```go
+"SeedMySeeder": {Func: workers.SeedMySeeder, Basic: false, Full: true},
 ```
 
 ### Running seeders
 
 Run the seeders with the following command:
-```go 
-go run ./cmd seed $(type)
+```sh
+go run ./cmd seed <type> [name]
 ```
-You can use the following options:
-- `basic` -> runs the basic seeders for a fresh rollout
-- `full` -> runs all defined seeders, for faking data
+
+Available types:
+- `basic` -> runs all seeders flagged as `basic` (initial production values)
+- `full` -> runs all seeders flagged as `full` (includes fake/dev data)
+- `individual <name>` -> runs a single seeder by name without clearing storage
+
+```sh
+# Examples
+go run ./cmd seed basic
+go run ./cmd seed full
+go run ./cmd seed individual SeedRolesAndPermissions
+```

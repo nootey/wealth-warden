@@ -18,6 +18,13 @@ import (
 
 type SeederFunc func(ctx context.Context, db *gorm.DB, cfg *config.Config) error
 
+type SeederWorkers struct {
+	Name  string
+	Func  SeederFunc
+	Basic bool
+	Full  bool
+}
+
 func clearStorage() error {
 	storagePath := "./storage"
 
@@ -50,42 +57,61 @@ func clearStorage() error {
 	return nil
 }
 
-func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config, seederType string) error {
+func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config, seederType string, seederName ...string) error {
 	var seeders []SeederFunc
 
-	err := clearStorage()
-	if err != nil {
-		return err
+	// Order matters — dependencies must run before dependants
+	allSeeders := []SeederWorkers{
+		{Name: "SeedDefaultSettings", Func: workers.SeedDefaultSettings, Basic: true, Full: true},
+		{Name: "SeedRolesAndPermissions", Func: workers.SeedRolesAndPermissions, Basic: true, Full: true},
+		{Name: "SeedRootUser", Func: workers.SeedRootUser, Basic: true, Full: true},
+		{Name: "SeedMemberUser", Func: workers.SeedMemberUser, Basic: false, Full: true},
+		{Name: "SeedAccountTypes", Func: workers.SeedAccountTypes, Basic: true, Full: true},
+		{Name: "SeedAccounts", Func: workers.SeedAccounts, Basic: false, Full: true},
+		{Name: "SeedCategories", Func: workers.SeedCategories, Basic: true, Full: true},
+		{Name: "SeedTransactions", Func: workers.SeedTransactions, Basic: false, Full: true},
 	}
 
 	switch seederType {
 	case "full":
-
-		seeders = []SeederFunc{
-			workers.SeedDefaultSettings,
-			workers.SeedRolesAndPermissions,
-			workers.SeedRootUser,
-			workers.SeedMemberUser,
-			workers.SeedAccountTypes,
-			workers.SeedAccounts,
-			workers.SeedCategories,
-			workers.SeedTransactions,
+		if err := clearStorage(); err != nil {
+			return err
+		}
+		for _, worker := range allSeeders {
+			if worker.Full {
+				seeders = append(seeders, worker.Func)
+			}
 		}
 	case "basic":
-		seeders = []SeederFunc{
-			workers.SeedDefaultSettings,
-			workers.SeedRolesAndPermissions,
-			workers.SeedRootUser,
-			workers.SeedAccountTypes,
-			//workers.SeedRootAccounts,
-			workers.SeedCategories,
+		if err := clearStorage(); err != nil {
+			return err
 		}
+		for _, worker := range allSeeders {
+			if worker.Basic {
+				seeders = append(seeders, worker.Func)
+			}
+		}
+	case "individual":
+		if len(seederName) == 0 {
+			return fmt.Errorf("seeder name required for individual seeder type")
+		}
+		var found *SeederWorkers
+		for i := range allSeeders {
+			if allSeeders[i].Name == seederName[0] {
+				found = &allSeeders[i]
+				break
+			}
+		}
+		if found == nil {
+			return fmt.Errorf("unknown seeder: %s", seederName[0])
+		}
+		seeders = []SeederFunc{found.Func}
 	default:
 		return fmt.Errorf("unknown seeder type: %s", seederType)
 	}
 
 	// Execute all seeders within a transaction
-	err = db.Transaction(func(tx *gorm.DB) error {
+	err := db.Transaction(func(tx *gorm.DB) error {
 		for _, seeder := range seeders {
 			// Get the function name using reflection
 			seederName := getFunctionName(seeder)

@@ -7,13 +7,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -41,32 +41,43 @@ type AccountServiceInterface interface {
 	FetchAccountTypesWithoutDefaults(ctx context.Context, userID int64) ([]models.AccountType, error)
 	SetDefaultAccount(ctx context.Context, userID, accountID int64) error
 	UnsetDefaultAccount(ctx context.Context, userID, accountID int64) error
+	ClearInvestmentCashFlows(ctx context.Context, userID int64) error
+	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
+	RebuildSnapshotsForUser(ctx context.Context, userID int64) error
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
+	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
+	SyncAssetPnL(ctx context.Context, userID, assetID int64) error
+	SyncAccountPnL(ctx context.Context, userID, accountID int64) error
 }
 
 type AccountService struct {
-	repo              repositories.AccountRepositoryInterface
-	txnRepo           repositories.TransactionRepositoryInterface
-	settingsRepo      repositories.SettingsRepositoryInterface
-	loggingRepo       repositories.LoggingRepositoryInterface
-	jobDispatcher     jobqueue.JobDispatcher
-	currencyConverter finance.CurrencyManager
+	repo           repositories.AccountRepositoryInterface
+	txnRepo        repositories.TransactionRepositoryInterface
+	settingsRepo   repositories.SettingsRepositoryInterface
+	loggingRepo    repositories.LoggingRepositoryInterface
+	investmentRepo repositories.InvestmentRepositoryInterface
+	jobDispatcher  queue.JobDispatcher
+	logger         *zap.Logger
 }
 
 func NewAccountService(
+	logger *zap.Logger,
 	repo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
-	jobDispatcher jobqueue.JobDispatcher,
-	currencyConverter finance.CurrencyManager,
+	investmentRepo *repositories.InvestmentRepository,
+	jobDispatcher queue.JobDispatcher,
 ) *AccountService {
 	return &AccountService{
-		repo:              repo,
-		txnRepo:           txnRepo,
-		settingsRepo:      settingsRepo,
-		loggingRepo:       loggingRepo,
-		jobDispatcher:     jobDispatcher,
-		currencyConverter: currencyConverter,
+		repo:           repo,
+		txnRepo:        txnRepo,
+		settingsRepo:   settingsRepo,
+		loggingRepo:    loggingRepo,
+		investmentRepo: investmentRepo,
+		jobDispatcher:  jobDispatcher,
+		logger:         logger,
 	}
 }
 
@@ -88,7 +99,7 @@ func (s *AccountService) LogBalanceChange(ctx context.Context, account *models.A
 	utils.CompareChanges("", endBalance.StringFixed(2), changes, "end_balance")
 	utils.CompareChanges("", account.Currency, changes, "currency")
 
-	return s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	return s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "update",
 		Category:    "balance",
@@ -315,7 +326,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 		return 0, err
 	}
 
-	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "account",
@@ -493,31 +504,6 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			return 0, fmt.Errorf("asset account balance cannot be negative")
 		}
 
-		// Only check investment constraints for asset accounts, not liabilities
-		if !isLiability {
-			totalInvestmentValue, negativeValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, exAcc.ID, userID, exAcc.Currency)
-			if err != nil {
-				tx.Rollback()
-				return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
-			}
-
-			// Adjust balance by adding back unrealized losses
-			adjustedBalance := latestBalance.EndBalance.Add(negativeValue.Abs())
-
-			// Calculate available cash (what's not locked in investments)
-			availableCash := adjustedBalance.Sub(totalInvestmentValue)
-
-			// The desired balance must be at least equal to current investment value
-			if desired.LessThan(totalInvestmentValue) {
-				tx.Rollback()
-				return 0, fmt.Errorf("cannot set balance to %s: %s is currently invested (adjusted balance: %s, available cash: %s)",
-					desired.StringFixed(2),
-					totalInvestmentValue.StringFixed(2),
-					adjustedBalance.StringFixed(2),
-					availableCash.StringFixed(2))
-			}
-		}
-
 		delta = desired.Sub(latestBalance.EndBalance)
 		signed := delta
 
@@ -582,7 +568,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "account",
@@ -653,7 +639,7 @@ func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID in
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "account",
@@ -734,7 +720,7 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 	utils.CompareChanges(acc.AccountType.Subtype, "", changes, "sub_type")
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "close",
 			Category:    "account",
@@ -975,7 +961,7 @@ func (s *AccountService) SaveAccountProjection(ctx context.Context, id, userID i
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "account_projection",
@@ -1037,7 +1023,7 @@ func (s *AccountService) RevertAccountProjection(ctx context.Context, id, userID
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "account_projection",
@@ -1113,7 +1099,7 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 		return err
 	}
 
-	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "update",
 		Category:    "account",
@@ -1125,4 +1111,83 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 	}
 
 	return nil
+}
+
+func (s *AccountService) ClearInvestmentCashFlows(ctx context.Context, userID int64) error {
+	return s.repo.ClearInvestmentCashFlows(ctx, userID)
+}
+
+func (s *AccountService) ClearInvestmentSnapshots(ctx context.Context, userID int64) error {
+	return s.repo.ClearInvestmentSnapshots(ctx, userID)
+}
+
+func (s *AccountService) RebuildSnapshotsForUser(ctx context.Context, userID int64) error {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	accounts, err := s.repo.FindAllAccounts(ctx, tx, userID, true, false)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	for _, acc := range accounts {
+		earliest, err := s.repo.GetAccountOpeningAsOf(ctx, tx, acc.ID)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to get opening date for account %d: %w", acc.ID, err)
+		}
+
+		if err := s.repo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, earliest); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to frontfill balances for account %d: %w", acc.ID, err)
+		}
+
+		if err := s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, earliest, today); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to rebuild snapshots for account %d: %w", acc.ID, err)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return s.UpdateSnapshotMarketValues(ctx, userID)
+}
+
+func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
+	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID)
+}
+
+func (s *AccountService) RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error {
+	return s.investmentRepo.RecalculateAssetFromTrades(ctx, nil, assetID, userID)
+}
+
+func (s *AccountService) GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error) {
+	return s.investmentRepo.GetAssetIDsForAccount(ctx, nil, accountID, userID)
+}
+
+func (s *AccountService) SyncAssetPnL(ctx context.Context, userID, assetID int64) error {
+	return s.jobDispatcher.Dispatch(queue.NewRecalculateAssetPnLJob(
+		s.logger.Named("pnl_sync"),
+		s, userID, &assetID, nil,
+	))
+}
+
+func (s *AccountService) SyncAccountPnL(ctx context.Context, userID, accountID int64) error {
+	return s.jobDispatcher.Dispatch(queue.NewRecalculateAssetPnLJob(
+		s.logger.Named("pnl_sync"),
+		s, userID, nil, &accountID,
+	))
 }

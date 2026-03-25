@@ -22,7 +22,7 @@ type AnalyticsRepositoryInterface interface {
 	FetchMonthlyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, year int) ([]models.MonthlyTotalsRow, error)
 	FetchMonthlyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.MonthlyTotalsRow, error)
 	FetchMonthlyCategoryTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year, month int) ([]models.YearlyCategoryRow, error)
-	GetAvailableStatsYears(ctx context.Context, tx *gorm.DB, accID *int64, userID int64) ([]int64, error)
+	GetAvailableStatsYears(ctx context.Context, tx *gorm.DB, accID *int64, userID int64, includeMonths bool) ([]models.AvailableStatsYear, error)
 }
 type AnalyticsRepository struct {
 	db *gorm.DB
@@ -516,8 +516,7 @@ func (r *AnalyticsRepository) FetchMonthlyTotalsCheckingOnly(ctx context.Context
 	return rows, err
 }
 
-func (r *AnalyticsRepository) GetAvailableStatsYears(ctx context.Context, tx *gorm.DB, accID *int64, userID int64) ([]int64, error) {
-
+func (r *AnalyticsRepository) GetAvailableStatsYears(ctx context.Context, tx *gorm.DB, accID *int64, userID int64, includeMonths bool) ([]models.AvailableStatsYear, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -525,21 +524,21 @@ func (r *AnalyticsRepository) GetAvailableStatsYears(ctx context.Context, tx *go
 	db = db.WithContext(ctx)
 
 	var (
-		query string
-		args  []any
+		yearQuery string
+		yearArgs  []any
 	)
 
 	if accID == nil {
-		query = `
+		yearQuery = `
 			SELECT DISTINCT EXTRACT(YEAR FROM txn_date)::int AS year
 			FROM transactions
 			WHERE user_id = ?
-			AND deleted_at IS NULL
+			  AND deleted_at IS NULL
 			ORDER BY year;
 		`
-		args = []any{userID}
+		yearArgs = []any{userID}
 	} else {
-		query = `
+		yearQuery = `
 			SELECT DISTINCT EXTRACT(YEAR FROM txn_date)::int AS year
 			FROM transactions
 			WHERE user_id = ?
@@ -547,14 +546,58 @@ func (r *AnalyticsRepository) GetAvailableStatsYears(ctx context.Context, tx *go
 			  AND deleted_at IS NULL
 			ORDER BY year;
 		`
-		args = []any{userID, *accID}
+		yearArgs = []any{userID, *accID}
 	}
 
-	var years []int64
-	if err := db.Raw(query, args...).Scan(&years).Error; err != nil {
+	var rawYears []int64
+	if err := db.Raw(yearQuery, yearArgs...).Scan(&rawYears).Error; err != nil {
 		return nil, fmt.Errorf("querying available stats years: %w", err)
 	}
-	return years, nil
+
+	result := make([]models.AvailableStatsYear, len(rawYears))
+	for i, y := range rawYears {
+		result[i] = models.AvailableStatsYear{Year: int(y)}
+	}
+
+	if !includeMonths {
+		return result, nil
+	}
+
+	var monthQuery string
+	var monthBaseArgs []any
+	if accID == nil {
+		monthQuery = `
+			SELECT DISTINCT EXTRACT(MONTH FROM txn_date)::int AS month
+			FROM transactions
+			WHERE user_id = ?
+			  AND EXTRACT(YEAR FROM txn_date)::int = ?
+			  AND deleted_at IS NULL
+			ORDER BY month;
+		`
+		monthBaseArgs = []any{userID}
+	} else {
+		monthQuery = `
+			SELECT DISTINCT EXTRACT(MONTH FROM txn_date)::int AS month
+			FROM transactions
+			WHERE user_id = ?
+			  AND account_id = ?
+			  AND EXTRACT(YEAR FROM txn_date)::int = ?
+			  AND deleted_at IS NULL
+			ORDER BY month;
+		`
+		monthBaseArgs = []any{userID, *accID}
+	}
+
+	for i, entry := range result {
+		var months []int
+		args := append(monthBaseArgs, entry.Year)
+		if err := db.Raw(monthQuery, args...).Scan(&months).Error; err != nil {
+			return nil, fmt.Errorf("querying available months for year %d: %w", entry.Year, err)
+		}
+		result[i].Months = months
+	}
+
+	return result, nil
 }
 
 func (r *AnalyticsRepository) FetchDailyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, date time.Time) (*models.MonthlyTotalsRow, error) {

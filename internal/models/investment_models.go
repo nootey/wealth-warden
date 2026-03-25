@@ -66,6 +66,30 @@ type InvestmentTrade struct {
 	UpdatedAt         time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
+type AssetPriceHistory struct {
+	AssetID   int64           `gorm:"primaryKey" json:"asset_id"`
+	AsOf      time.Time       `gorm:"type:date;primaryKey" json:"as_of"`
+	Price     decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"price"`
+	Currency  string          `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
+	CreatedAt time.Time       `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (AssetPriceHistory) TableName() string {
+	return "asset_price_history"
+}
+
+type ExchangeRateHistory struct {
+	FromCurrency string          `gorm:"primaryKey;type:char(3)" json:"from_currency"`
+	ToCurrency   string          `gorm:"primaryKey;type:char(3)" json:"to_currency"`
+	AsOf         time.Time       `gorm:"primaryKey;type:date" json:"as_of"`
+	Rate         decimal.Decimal `gorm:"type:decimal(19,6);not null" json:"rate"`
+	CreatedAt    time.Time       `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (ExchangeRateHistory) TableName() string {
+	return "exchange_rate_history"
+}
+
 type InvestmentAssetReq struct {
 	AccountID      int64           `json:"account_id" validate:"required"`
 	InvestmentType InvestmentType  `json:"investment_type" validate:"required"`

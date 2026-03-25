@@ -59,6 +59,7 @@ const isAccountRestricted = computed<boolean>(() => {
 });
 
 const loading = ref(false);
+const submitting = ref(false);
 
 const record = ref<TransactionTemplate>(initData());
 const amountRef = computed({
@@ -217,6 +218,8 @@ function initData(): TransactionTemplate {
         as_of: null,
         start_balance: null,
         end_balance: null,
+        total_balance: null,
+        market_value: null,
       },
     },
     transaction_type: "Expense",
@@ -341,6 +344,7 @@ async function loadRecord(id: number) {
 }
 
 async function manageRecord() {
+  if (submitting.value) return;
   if (isReadOnly.value || isAccountRestricted.value) {
     toastStore.infoResponseToast({
       title: "Not allowed",
@@ -354,7 +358,13 @@ async function manageRecord() {
   }
 
   if (!(await isRecordValid())) return;
-  await startOperation();
+
+  submitting.value = true;
+  try {
+    await startOperation();
+  } finally {
+    submitting.value = false;
+  }
 }
 
 async function startOperation() {
@@ -687,6 +697,8 @@ async function startOperation() {
           v-if="!isReadOnly"
           class="main-button"
           :label="(mode == 'create' ? 'Add' : 'Update') + ' template'"
+          :disabled="submitting"
+          :loading="submitting"
           style="height: 42px"
           @click="manageRecord"
         />

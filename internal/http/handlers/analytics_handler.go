@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -36,7 +37,7 @@ func (h *AnalyticsHandler) Routes(ap *gin.RouterGroup) {
 	ap.GET("/account", authz.RequireAllMW("view_basic_statistics"), h.GetAccountBasicStatistics)
 	ap.GET("/breakdown/yearly", authz.RequireAllMW("view_basic_statistics"), h.GetYearlyBreakdownStats)
 	ap.GET("/years", authz.RequireAllMW("view_basic_statistics"), h.GetAvailableStatsYears)
-	ap.GET("/month", authz.RequireAllMW("view_basic_statistics"), h.GetCurrentMonthStats)
+	ap.GET("/month", authz.RequireAllMW("view_basic_statistics"), h.GetMonthlyStats)
 	ap.GET("/today", authz.RequireAllMW("view_basic_statistics"), h.GetTodayStats)
 	ap.GET("/categories/:id/average", authz.RequireAllMW("view_basic_statistics"), h.GetYearlyAverageForCategory)
 }
@@ -305,7 +306,9 @@ func (h *AnalyticsHandler) GetAvailableStatsYears(c *gin.Context) {
 		accID = &v
 	}
 
-	years, err := h.Service.GetAvailableStatsYears(ctx, accID, userID)
+	includeMonths := c.Query("include_months") == "true"
+
+	years, err := h.Service.GetAvailableStatsYears(ctx, accID, userID, includeMonths)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", "Error getting available years", http.StatusBadRequest, err)
 		return
@@ -314,12 +317,34 @@ func (h *AnalyticsHandler) GetAvailableStatsYears(c *gin.Context) {
 	c.JSON(http.StatusOK, years)
 }
 
-func (h *AnalyticsHandler) GetCurrentMonthStats(c *gin.Context) {
+func (h *AnalyticsHandler) GetMonthlyStats(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	records, err := h.Service.GetCurrentMonthStats(ctx, userID, nil)
+	now := time.Now()
+	year := now.Year()
+	month := int(now.Month())
+
+	if y := c.Query("year"); y != "" {
+		v, err := strconv.Atoi(y)
+		if err != nil || v < 1900 || v > 3000 {
+			utils.ErrorMessage(c, "param error", "year must be a valid integer", http.StatusBadRequest, err)
+			return
+		}
+		year = v
+	}
+
+	if m := c.Query("month"); m != "" {
+		v, err := strconv.Atoi(m)
+		if err != nil || v < 1 || v > 12 {
+			utils.ErrorMessage(c, "param error", "month must be between 1 and 12", http.StatusBadRequest, err)
+			return
+		}
+		month = v
+	}
+
+	records, err := h.Service.GetMonthlyStats(ctx, userID, nil, year, month)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", "Error getting monthly stats", http.StatusBadRequest, err)
 		return

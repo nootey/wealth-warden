@@ -52,7 +52,7 @@ func GetPaginationParams(queryParams url.Values) PaginationParams {
 	if sortFieldParam := queryParams.Get("sort[field]"); sortFieldParam != "" {
 		sortField = sortFieldParam
 	}
-	
+
 	if sortOrderParam := queryParams.Get("sort[order]"); sortOrderParam != "" {
 		switch sortOrderParam {
 		case "asc", "1":

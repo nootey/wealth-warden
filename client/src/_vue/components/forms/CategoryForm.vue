@@ -36,6 +36,7 @@ onMounted(async () => {
 
 const readOnly = ref(false);
 const loading = ref(false);
+const submitting = ref(false);
 
 const changedName = ref(false);
 const record = ref<Category>(initData());
@@ -115,6 +116,7 @@ async function manageRecord() {
     classification: record.value.classification,
   };
 
+  submitting.value = true;
   try {
     let response = null;
 
@@ -139,6 +141,8 @@ async function manageRecord() {
     emit("completeOperation");
   } catch (error) {
     toastStore.errorResponseToast(error);
+  } finally {
+    submitting.value = false;
   }
 }
 
@@ -266,6 +270,8 @@ async function restoreCategoryName() {
           v-if="!readOnly"
           class="main-button"
           :label="(mode == 'create' ? 'Add' : 'Update') + ' category'"
+          :disabled="submitting"
+          :loading="submitting"
           style="height: 42px"
           @click="manageRecord"
         />

@@ -1,9 +1,11 @@
-package runtime_test
+package jobscheduler_test
 
 import (
+	"context"
 	"testing"
+	"time"
 	"wealth-warden/internal/bootstrap"
-	"wealth-warden/internal/runtime"
+	"wealth-warden/internal/jobscheduler"
 	"wealth-warden/pkg/config"
 
 	"github.com/stretchr/testify/suite"
@@ -15,7 +17,7 @@ type SchedulerTestSuite struct {
 	suite.Suite
 	logger    *zap.Logger
 	container *bootstrap.ServiceContainer
-	scheduler *runtime.Scheduler
+	scheduler *jobscheduler.Scheduler
 }
 
 func (suite *SchedulerTestSuite) SetupTest() {
@@ -27,11 +29,12 @@ func (suite *SchedulerTestSuite) SetupTest() {
 	}
 
 	var err error
-	suite.scheduler, err = runtime.NewScheduler(suite.logger, suite.container, runtime.SchedulerConfig{
-		StartBackfillImmediately:  false,
-		StartTemplateImmediately:  false,
-		StartPriceSyncImmediately: false,
-	})
+	suite.scheduler, err = jobscheduler.NewScheduler(suite.logger, suite.container, jobscheduler.SchedulerFlags{
+		StartBalanceBackfillImmediately:      false,
+		StartTemplatesImmediately:            false,
+		StartAssetPriceSyncImmediately:       false,
+		StartAssetHistoryBackfillImmediately: false,
+	}, 0)
 	suite.NoError(err)
 	suite.NotNil(suite.scheduler)
 }
@@ -49,7 +52,9 @@ func (suite *SchedulerTestSuite) TestScheduler_New() {
 
 // Test that scheduler can start and shutdown
 func (suite *SchedulerTestSuite) TestScheduler_StartAndShutdown() {
-	err := suite.scheduler.Start()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	err := suite.scheduler.Start(ctx)
 	suite.NoError(err)
 
 	err = suite.scheduler.Shutdown()
@@ -58,22 +63,24 @@ func (suite *SchedulerTestSuite) TestScheduler_StartAndShutdown() {
 
 // Test creating scheduler with nil logger returns error
 func (suite *SchedulerTestSuite) TestScheduler_NewWithNilLogger() {
-	scheduler, err := runtime.NewScheduler(nil, suite.container, runtime.SchedulerConfig{
-		StartBackfillImmediately:  false,
-		StartTemplateImmediately:  false,
-		StartPriceSyncImmediately: false,
-	})
+	scheduler, err := jobscheduler.NewScheduler(nil, suite.container, jobscheduler.SchedulerFlags{
+		StartBalanceBackfillImmediately:      false,
+		StartTemplatesImmediately:            false,
+		StartAssetPriceSyncImmediately:       false,
+		StartAssetHistoryBackfillImmediately: false,
+	}, 0)
 	suite.Error(err)
 	suite.Nil(scheduler)
 }
 
 // Test creating scheduler with nil container returns error
 func (suite *SchedulerTestSuite) TestScheduler_NewWithNilContainer() {
-	scheduler, err := runtime.NewScheduler(suite.logger, nil, runtime.SchedulerConfig{
-		StartBackfillImmediately:  false,
-		StartTemplateImmediately:  false,
-		StartPriceSyncImmediately: false,
-	})
+	scheduler, err := jobscheduler.NewScheduler(suite.logger, nil, jobscheduler.SchedulerFlags{
+		StartBalanceBackfillImmediately:      false,
+		StartTemplatesImmediately:            false,
+		StartAssetPriceSyncImmediately:       false,
+		StartAssetHistoryBackfillImmediately: false,
+	}, 0)
 	suite.Error(err)
 	suite.Nil(scheduler)
 	suite.Contains(err.Error(), "container cannot be nil")

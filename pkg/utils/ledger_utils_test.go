@@ -66,55 +66,98 @@ func TestLocalMidnightUTC(t *testing.T) {
 
 func TestCalculateNextRun(t *testing.T) {
 	loc := time.UTC
-	current := time.Date(2025, time.January, 15, 10, 30, 0, 0, loc)
 
 	tests := []struct {
-		name      string
-		frequency string
-		want      time.Time
+		name       string
+		frequency  string
+		current    time.Time
+		dayOfMonth int
+		want       time.Time
 	}{
 		{
-			name:      "weekly adds 7 days",
-			frequency: "weekly",
-			want:      current.AddDate(0, 0, 7),
+			name:       "weekly adds 7 days",
+			frequency:  "weekly",
+			current:    time.Date(2025, time.January, 15, 10, 30, 0, 0, loc),
+			dayOfMonth: 15,
+			want:       time.Date(2025, time.January, 22, 10, 30, 0, 0, loc),
 		},
 		{
-			name:      "biweekly adds 14 days",
-			frequency: "biweekly",
-			want:      current.AddDate(0, 0, 14),
+			name:       "biweekly adds 14 days",
+			frequency:  "biweekly",
+			current:    time.Date(2025, time.January, 15, 10, 30, 0, 0, loc),
+			dayOfMonth: 15,
+			want:       time.Date(2025, time.January, 29, 10, 30, 0, 0, loc),
 		},
 		{
-			name:      "monthly adds 1 month",
-			frequency: "monthly",
-			want:      current.AddDate(0, 1, 0),
+			name:       "monthly adds 1 month",
+			frequency:  "monthly",
+			current:    time.Date(2025, time.January, 15, 10, 30, 0, 0, loc),
+			dayOfMonth: 15,
+			want:       time.Date(2025, time.February, 15, 0, 0, 0, 0, loc),
 		},
 		{
-			name:      "quarterly adds 3 months",
-			frequency: "quarterly",
-			want:      current.AddDate(0, 3, 0),
+			name:       "quarterly adds 3 months",
+			frequency:  "quarterly",
+			current:    time.Date(2025, time.January, 15, 10, 30, 0, 0, loc),
+			dayOfMonth: 15,
+			want:       time.Date(2025, time.April, 15, 0, 0, 0, 0, loc),
 		},
 		{
-			name:      "annually adds 1 year",
-			frequency: "annually",
-			want:      current.AddDate(1, 0, 0),
+			name:       "annually adds 1 year",
+			frequency:  "annually",
+			current:    time.Date(2025, time.January, 15, 10, 30, 0, 0, loc),
+			dayOfMonth: 15,
+			want:       time.Date(2026, time.January, 15, 0, 0, 0, 0, loc),
 		},
 		{
-			name:      "unknown defaults to monthly",
-			frequency: "something-else",
-			want:      current.AddDate(0, 1, 0),
+			name:       "monthly snaps jan 31 to feb 28",
+			frequency:  "monthly",
+			current:    time.Date(2025, time.January, 31, 0, 0, 0, 0, loc),
+			dayOfMonth: 31,
+			want:       time.Date(2025, time.February, 28, 0, 0, 0, 0, loc),
 		},
 		{
-			name:      "empty defaults to monthly",
-			frequency: "",
-			want:      current.AddDate(0, 1, 0),
+			name:       "monthly recovers back to 31 in march",
+			frequency:  "monthly",
+			current:    time.Date(2025, time.February, 28, 0, 0, 0, 0, loc),
+			dayOfMonth: 31,
+			want:       time.Date(2025, time.March, 31, 0, 0, 0, 0, loc),
+		},
+		{
+			name:       "quarterly snaps oct 31 to jan 31",
+			frequency:  "quarterly",
+			current:    time.Date(2025, time.October, 31, 0, 0, 0, 0, loc),
+			dayOfMonth: 31,
+			want:       time.Date(2026, time.January, 31, 0, 0, 0, 0, loc),
+		},
+		{
+			name:       "annually snaps feb 29 leap year to feb 28",
+			frequency:  "annually",
+			current:    time.Date(2024, time.February, 29, 0, 0, 0, 0, loc),
+			dayOfMonth: 29,
+			want:       time.Date(2025, time.February, 28, 0, 0, 0, 0, loc),
+		},
+		{
+			name:       "unknown defaults to monthly",
+			frequency:  "something-else",
+			current:    time.Date(2025, time.January, 15, 10, 30, 0, 0, loc),
+			dayOfMonth: 15,
+			want:       time.Date(2025, time.January, 15, 10, 30, 0, 0, loc).AddDate(0, 1, 0),
+		},
+		{
+			name:       "empty defaults to monthly",
+			frequency:  "",
+			current:    time.Date(2025, time.January, 15, 10, 30, 0, 0, loc),
+			dayOfMonth: 15,
+			want:       time.Date(2025, time.January, 15, 10, 30, 0, 0, loc).AddDate(0, 1, 0),
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := utils.CalculateNextRun(current, tc.frequency)
+			got := utils.CalculateNextRun(tc.current, tc.frequency, tc.dayOfMonth)
 			if !got.Equal(tc.want) {
-				t.Fatalf("CalculateNextRun(%v, %q) = %v; want %v", current, tc.frequency, got, tc.want)
+				t.Fatalf("CalculateNextRun(%v, %q) = %v; want %v", tc.current, tc.frequency, got, tc.want)
 			}
 		})
 	}

@@ -86,5 +86,17 @@ export const useAccountStore = defineStore("account", {
       );
       return response.data;
     },
+    async syncAssetPnL(id: number) {
+      const response = await apiClient.get(
+        `${this.apiPrefix}/sync/asset/${id}`,
+      );
+      return response.data;
+    },
+    async syncAssetAccountBalance(acc_id: number) {
+      const response = await apiClient.get(
+        `${this.apiPrefix}/sync/account/${acc_id}`,
+      );
+      return response.data;
+    },
   },
 });

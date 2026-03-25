@@ -39,3 +39,6 @@ go.work.sum
 
 coverage.html
 coverage.out
+
+/build/wealthwarden
+/build/wealthwarden.exe

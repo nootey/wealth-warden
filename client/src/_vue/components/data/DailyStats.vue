@@ -37,7 +37,7 @@ async function loadStats() {
 
 <template>
   <div v-if="!loading" class="flex flex-column p-2 gap-2">
-    <span style="color: var(--text-secondary)"
+    <span class="mobile-hide" style="color: var(--text-secondary)"
       >View your daily spending activity.</span
     >
     <div v-if="dailyStats" class="flex flex-column mt-2">

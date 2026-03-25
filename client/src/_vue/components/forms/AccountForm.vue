@@ -48,6 +48,7 @@ const readOnly = ref(false);
 
 const confirm = useConfirm();
 const initializing = ref(false);
+const submitting = ref(false);
 const userSettings = ref<UserSettings>();
 
 const record = ref<Account>(initData());
@@ -251,6 +252,8 @@ function initData(): Account {
       start_balance: null,
       end_balance: null,
       as_of: null,
+      total_balance: null,
+      market_value: null,
     },
   };
 }
@@ -343,6 +346,7 @@ async function confirmAdjustments() {
 }
 
 async function manageRecord() {
+  if (submitting.value) return;
   if (readOnly.value) {
     toastStore.infoResponseToast({
       title: "Not allowed",
@@ -350,6 +354,7 @@ async function manageRecord() {
     });
     return;
   }
+  submitting.value = true;
 
   if (!(await isRecordValid())) return;
 
@@ -423,6 +428,8 @@ async function manageRecord() {
     emit("completeOperation");
   } catch (error) {
     toastStore.errorResponseToast(error);
+  } finally {
+    submitting.value = false;
   }
 }
 </script>
@@ -572,6 +579,8 @@ async function manageRecord() {
           v-if="!readOnly"
           class="main-button"
           :label="(mode == 'create' ? 'Add' : 'Update') + ' account'"
+          :disabled="submitting"
+          :loading="submitting"
           style="height: 42px"
           @click="confirmAdjustments"
         />

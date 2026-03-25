@@ -6,14 +6,14 @@ import (
 	"math"
 	"math/rand"
 	"time"
-	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/config"
-	"wealth-warden/pkg/finance"
 
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -30,11 +30,11 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 	txnRepo := repositories.NewTransactionRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
 	loggingRepo := repositories.NewLoggingRepository(db)
-	jobQueue := jobqueue.NewJobQueue(1, 25)
-	jobDispatcher := &jobqueue.InMemoryDispatcher{Queue: jobQueue}
-	mockConverter := &finance.CurrencyConverter{}
+	jobQueue := queue.NewJobQueue(1, 25)
+	jobDispatcher := &queue.InMemoryDispatcher{Queue: jobQueue}
 
-	accService := services.NewAccountService(accRepo, txnRepo, settingsRepo, loggingRepo, jobDispatcher, mockConverter)
+	investmentRepo := repositories.NewInvestmentRepository(db)
+	accService := services.NewAccountService(zap.NewNop(), accRepo, txnRepo, settingsRepo, loggingRepo, investmentRepo, jobDispatcher)
 
 	var incCats, expCats []models.Category
 	_ = db.WithContext(ctx).Where("classification = ?", "income").Find(&incCats).Error

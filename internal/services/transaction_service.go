@@ -8,10 +8,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -24,8 +23,8 @@ type TransactionServiceInterface interface {
 	FetchTransactionByID(ctx context.Context, userID int64, id int64, includeDeleted bool) (*models.Transaction, error)
 	FetchAllCategories(ctx context.Context, userID int64, includeDeleted bool) ([]models.Category, error)
 	FetchCategoryByID(ctx context.Context, userID int64, id int64, includeDeleted bool) (*models.Category, error)
-	InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq) (int64, error)
-	InsertTransfer(ctx context.Context, userID int64, req *models.TransferReq) (int64, error)
+	InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (models.InsertResult, error)
+	InsertTransfer(ctx context.Context, userID int64, req *models.TransferReq) (models.InsertResult, error)
 	InsertCategory(ctx context.Context, userID int64, req *models.CategoryReq) (int64, error)
 	UpdateTransaction(ctx context.Context, userID int64, id int64, req *models.TransactionReq) (int64, error)
 	UpdateCategory(ctx context.Context, userID int64, id int64, req *models.CategoryReq) (int64, error)
@@ -53,12 +52,11 @@ type TransactionServiceInterface interface {
 }
 
 type TransactionService struct {
-	repo              repositories.TransactionRepositoryInterface
-	accRepo           repositories.AccountRepositoryInterface
-	settingsRepo      repositories.SettingsRepositoryInterface
-	loggingRepo       repositories.LoggingRepositoryInterface
-	jobDispatcher     jobqueue.JobDispatcher
-	currencyConverter finance.CurrencyManager
+	repo          repositories.TransactionRepositoryInterface
+	accRepo       repositories.AccountRepositoryInterface
+	settingsRepo  repositories.SettingsRepositoryInterface
+	loggingRepo   repositories.LoggingRepositoryInterface
+	jobDispatcher queue.JobDispatcher
 }
 
 func NewTransactionService(
@@ -66,16 +64,14 @@ func NewTransactionService(
 	accRepo *repositories.AccountRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
-	jobDispatcher jobqueue.JobDispatcher,
-	currencyConverter finance.CurrencyManager,
+	jobDispatcher queue.JobDispatcher,
 ) *TransactionService {
 	return &TransactionService{
-		repo:              repo,
-		accRepo:           accRepo,
-		settingsRepo:      settingsRepo,
-		loggingRepo:       loggingRepo,
-		jobDispatcher:     jobDispatcher,
-		currencyConverter: currencyConverter,
+		repo:          repo,
+		accRepo:       accRepo,
+		settingsRepo:  settingsRepo,
+		loggingRepo:   loggingRepo,
+		jobDispatcher: jobDispatcher,
 	}
 }
 
@@ -220,68 +216,58 @@ func (s *TransactionService) FetchCategoryByID(ctx context.Context, userID int64
 	return &record, nil
 }
 
-func (s *TransactionService) validateInvestmentBalance(ctx context.Context, tx *gorm.DB, account *models.Account, userID int64, latestBalance *models.Balance, cashDelta decimal.Decimal) error {
-	totalInvestmentValue, negativeValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, account.ID, userID, account.Currency)
-	if err != nil {
-		return fmt.Errorf("failed to calculate total investment value: %w", err)
-	}
+func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB) (models.InsertResult, error) {
 
-	// Adjust balance by adding back unrealized losses
-	adjustedBalance := latestBalance.EndBalance.Add(negativeValue.Abs())
-
-	// Calculate what the balance would be after this transaction
-	resultingBalance := adjustedBalance.Add(cashDelta)
-
-	// Calculate available cash after accounting for investments
-	availableCashAfterTransaction := resultingBalance.Sub(totalInvestmentValue)
-
-	if availableCashAfterTransaction.LessThan(decimal.Zero) && account.AccountType.Classification != "liability" {
-		return fmt.Errorf("insufficient funds: resulting available cash (%s) would be negative (balance: %s, invested: %s)",
-			availableCashAfterTransaction.StringFixed(2),
-			resultingBalance.StringFixed(2),
-			totalInvestmentValue.StringFixed(2))
-	}
-
-	return nil
-}
-
-func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64, req *models.TransactionReq) (int64, error) {
-
-	tx, err := s.repo.BeginTx(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p)
+	if req.IdempotencyKey != nil && *req.IdempotencyKey != "" {
+		if existing, err := s.repo.FindTransactionByIdempotencyKey(ctx, nil, userID, *req.IdempotencyKey); err == nil {
+			return models.InsertResult{ID: existing.ID, IsDuplicate: true}, nil
 		}
-	}()
+	}
+
+	var tx *gorm.DB
+	var err error
+
+	if len(existingTx) > 0 && existingTx[0] != nil {
+		tx = existingTx[0]
+	} else {
+		tx, err = s.repo.BeginTx(ctx)
+		if err != nil {
+			return models.InsertResult{}, err
+		}
+		defer func() {
+			if p := recover(); p != nil {
+				tx.Rollback()
+				panic(p)
+			}
+		}()
+	}
+	ownsTx := len(existingTx) == 0 || existingTx[0] == nil
 
 	account, err := s.accRepo.FindAccountByID(ctx, tx, req.AccountID, userID, false)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find account with given id %w", err)
+		return models.InsertResult{}, fmt.Errorf("can't find account with given id %w", err)
 	}
 
 	if req.TransactionType == "expense" {
 		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, account.ID, userID)
 		if err != nil {
 			tx.Rollback()
-			return 0, err
+			return models.InsertResult{}, err
 		}
 
-		if err := s.validateInvestmentBalance(ctx, tx, account, userID, latestBalance, req.Amount.Neg()); err != nil {
+		resultingBalance := latestBalance.EndBalance.Sub(req.Amount)
+		if resultingBalance.LessThan(decimal.Zero) && account.AccountType.Classification != "liability" {
 			tx.Rollback()
-			return 0, err
+			return models.InsertResult{}, fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
+				resultingBalance.StringFixed(2))
 		}
 	}
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't fetch user settings %w", err)
+		return models.InsertResult{}, fmt.Errorf("can't fetch user settings %w", err)
 	}
 
 	// pick the user's timezone from settings; fall back to UTC
@@ -295,9 +281,9 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	if err != nil {
 		tx.Rollback()
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, fmt.Errorf("account has no opening balance; set an opening balance first")
+			return models.InsertResult{}, fmt.Errorf("account has no opening balance; set an opening balance first")
 		}
-		return 0, err
+		return models.InsertResult{}, err
 	}
 
 	txDay := utils.LocalMidnightUTC(req.TxnDate, loc)
@@ -306,14 +292,14 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 
 	if txDay.Before(openDay) {
 		tx.Rollback()
-		return 0, fmt.Errorf(
+		return models.InsertResult{}, fmt.Errorf(
 			"transaction date (%s) cannot be before account opening date (%s)",
 			txDay.Format("2006-01-02"), openDay.Format("2006-01-02"),
 		)
 	}
 	if txDay.After(todayDay) {
 		tx.Rollback()
-		return 0, fmt.Errorf(
+		return models.InsertResult{}, fmt.Errorf(
 			"transaction date (%s) cannot be in the future (>%s)",
 			txDay.Format("2006-01-02"), todayDay.Format("2006-01-02"),
 		)
@@ -324,13 +310,13 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		category, err = s.repo.FindCategoryByID(ctx, tx, *req.CategoryID, &userID, false)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("can't find category with given id %w", err)
+			return models.InsertResult{}, fmt.Errorf("can't find category with given id %w", err)
 		}
 	} else {
 		category, err = s.repo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
 		if err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("can't find default category %w", err)
+			return models.InsertResult{}, fmt.Errorf("can't find default category %w", err)
 		}
 	}
 
@@ -343,17 +329,23 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		Currency:        models.DefaultCurrency,
 		TxnDate:         txDay,
 		Description:     req.Description,
+		IdempotencyKey:  req.IdempotencyKey,
 	}
 
 	txnID, err := s.repo.InsertTransaction(ctx, tx, &tr)
 	if err != nil {
 		tx.Rollback()
-		return 0, err
+		if req.IdempotencyKey != nil && *req.IdempotencyKey != "" && utils.IsUniqueViolation(err) {
+			if existing, lookupErr := s.repo.FindTransactionByIdempotencyKey(ctx, nil, userID, *req.IdempotencyKey); lookupErr == nil {
+				return models.InsertResult{ID: existing.ID, IsDuplicate: true}, nil
+			}
+		}
+		return models.InsertResult{}, err
 	}
 
 	if err := s.updateAccountBalance(ctx, tx, account, tr.TxnDate, tr.TransactionType, tr.Amount); err != nil {
 		tx.Rollback()
-		return 0, err
+		return models.InsertResult{}, err
 	}
 
 	// forward-fill the balance chain when the txn is back-dated
@@ -365,17 +357,19 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		today := time.Now().UTC().Truncate(24 * time.Hour)
 		if err := s.accRepo.FrontfillBalances(ctx, tx, account.ID, account.Currency, from); err != nil {
 			tx.Rollback()
-			return 0, err
+			return models.InsertResult{}, err
 		}
 		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, account.ID, account.Currency, from, today); err != nil {
 			tx.Rollback()
-			return 0, err
+			return models.InsertResult{}, err
 		}
 
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		return 0, err
+	if ownsTx {
+		if err := tx.Commit().Error; err != nil {
+			return models.InsertResult{}, err
+		}
 	}
 
 	// Dispatch transaction activity log
@@ -392,7 +386,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	utils.CompareChanges("", category.Name, changes, "category")
 	utils.CompareChanges("", utils.SafeString(tr.Description), changes, "description")
 
-	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "transaction",
@@ -401,17 +395,23 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		Causer:      &userID,
 	})
 	if err != nil {
-		return 0, err
+		return models.InsertResult{}, err
 	}
 
-	return txnID, nil
+	return models.InsertResult{ID: txnID}, nil
 }
 
-func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, req *models.TransferReq) (int64, error) {
+func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, req *models.TransferReq) (models.InsertResult, error) {
+
+	if req.IdempotencyKey != nil && *req.IdempotencyKey != "" {
+		if existing, err := s.repo.FindTransferByIdempotencyKey(ctx, nil, userID, *req.IdempotencyKey); err == nil {
+			return models.InsertResult{ID: existing.ID, IsDuplicate: true}, nil
+		}
+	}
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
-		return 0, err
+		return models.InsertResult{}, err
 	}
 
 	defer func() {
@@ -424,54 +424,30 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	fromAcc, err := s.accRepo.FindAccountByID(ctx, tx, req.SourceID, userID, true)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find source account %w", err)
+		return models.InsertResult{}, fmt.Errorf("can't find source account %w", err)
 	}
 
-	if fromAcc.AccountType.Classification == "asset" && fromAcc.Balance.EndBalance.LessThan(req.Amount) {
-		tx.Rollback()
-		return 0, fmt.Errorf("%w: account %s balance=%s, requested=%s",
-			errors.New("insufficient funds"),
-			fromAcc.Name,
-			fromAcc.Balance.EndBalance.StringFixed(2),
-			req.Amount.StringFixed(2),
-		)
-	}
-
-	// Check against total cash invested
-	totalInvestmentValue, negativeValue, err := s.currencyConverter.ConvertInvestmentValueToAccountCurrency(ctx, tx, fromAcc.ID, userID, fromAcc.Currency)
-	if err != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("failed to calculate total investment value: %w", err)
-	}
-
-	// Adjust balance by adding back unrealized losses
-	adjustedBalance := fromAcc.Balance.EndBalance.Add(negativeValue.Abs())
-
-	// Calculate what the balance would be after withdrawing req.Amount
-	resultingBalance := adjustedBalance.Sub(req.Amount)
-
-	// Calculate available cash after accounting for investments
-	availableCashAfterTransfer := resultingBalance.Sub(totalInvestmentValue)
-
-	if availableCashAfterTransfer.LessThan(decimal.Zero) && fromAcc.AccountType.Classification != "liability" {
-		tx.Rollback()
-		return 0, fmt.Errorf("insufficient funds: resulting available cash (%s) would be negative in %s (balance: %s, invested: %s)",
-			availableCashAfterTransfer.StringFixed(2),
-			fromAcc.Name,
-			resultingBalance.StringFixed(2),
-			totalInvestmentValue.StringFixed(2))
+	if fromAcc.AccountType.Classification == "asset" {
+		resultingBalance := fromAcc.Balance.EndBalance.Sub(req.Amount)
+		if resultingBalance.LessThan(decimal.Zero) {
+			tx.Rollback()
+			return models.InsertResult{}, fmt.Errorf("insufficient funds: account %s balance=%s, requested=%s",
+				fromAcc.Name,
+				fromAcc.Balance.EndBalance.StringFixed(2),
+				req.Amount.StringFixed(2))
+		}
 	}
 
 	toAcc, err := s.accRepo.FindAccountByID(ctx, tx, req.DestinationID, userID, false)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find destination account %w", err)
+		return models.InsertResult{}, fmt.Errorf("can't find destination account %w", err)
 	}
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't fetch user settings %w", err)
+		return models.InsertResult{}, fmt.Errorf("can't fetch user settings %w", err)
 	}
 
 	loc, _ := time.LoadLocation(settings.Timezone)
@@ -499,7 +475,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 
 	if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
 		tx.Rollback()
-		return 0, err
+		return models.InsertResult{}, err
 	}
 
 	inflow := models.Transaction{
@@ -515,7 +491,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 
 	if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
 		tx.Rollback()
-		return 0, err
+		return models.InsertResult{}, err
 	}
 
 	transfer := models.Transfer{
@@ -527,23 +503,29 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		Status:               "success",
 		Notes:                req.Notes,
 		CreatedAt:            req.CreatedAt,
+		IdempotencyKey:       req.IdempotencyKey,
 	}
 
 	trID, err := s.repo.InsertTransfer(ctx, tx, &transfer)
 	if err != nil {
 		tx.Rollback()
-		return 0, err
+		if req.IdempotencyKey != nil && *req.IdempotencyKey != "" && utils.IsUniqueViolation(err) {
+			if existing, lookupErr := s.repo.FindTransferByIdempotencyKey(ctx, nil, userID, *req.IdempotencyKey); lookupErr == nil {
+				return models.InsertResult{ID: existing.ID, IsDuplicate: true}, nil
+			}
+		}
+		return models.InsertResult{}, err
 	}
 
 	// Update balances for both accounts
 	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount); err != nil {
 		tx.Rollback()
-		return 0, err
+		return models.InsertResult{}, err
 	}
 
 	if err := s.updateAccountBalance(ctx, tx, toAcc, inflow.TxnDate, "income", inflow.Amount); err != nil {
 		tx.Rollback()
-		return 0, err
+		return models.InsertResult{}, err
 	}
 
 	from := txDate.UTC().Truncate(24 * time.Hour)
@@ -552,24 +534,24 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	// Frontfill and update snapshots for both accounts
 	if err := s.accRepo.FrontfillBalances(ctx, tx, fromAcc.ID, fromAcc.Currency, from); err != nil {
 		tx.Rollback()
-		return 0, err
+		return models.InsertResult{}, err
 	}
 	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, from, today); err != nil {
 		tx.Rollback()
-		return 0, err
+		return models.InsertResult{}, err
 	}
 
 	if err := s.accRepo.FrontfillBalances(ctx, tx, toAcc.ID, toAcc.Currency, from); err != nil {
 		tx.Rollback()
-		return 0, err
+		return models.InsertResult{}, err
 	}
 	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, from, today); err != nil {
 		tx.Rollback()
-		return 0, err
+		return models.InsertResult{}, err
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return 0, err
+		return models.InsertResult{}, err
 	}
 
 	// Log transfer (one event)
@@ -580,7 +562,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	utils.CompareChanges("", req.Amount.StringFixed(2), changes, "amount")
 	utils.CompareChanges("", transfer.Currency, changes, "currency")
 
-	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "transfer",
@@ -588,10 +570,10 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		Payload:     changes,
 		Causer:      &userID,
 	}); err != nil {
-		return 0, err
+		return models.InsertResult{}, err
 	}
 
-	return trID, nil
+	return models.InsertResult{ID: trID}, nil
 }
 
 func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, req *models.CategoryReq) (int64, error) {
@@ -639,7 +621,7 @@ func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, r
 	utils.CompareChanges("", rec.DisplayName, changes, "name")
 	utils.CompareChanges("", rec.Classification, changes, "classification")
 
-	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "category",
@@ -730,9 +712,11 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 			return 0, err
 		}
 
-		if err := s.validateInvestmentBalance(ctx, tx, newAccount, userID, latestBalance, netChange); err != nil {
+		resultingBalance := latestBalance.EndBalance.Add(netChange)
+		if resultingBalance.LessThan(decimal.Zero) && newAccount.AccountType.Classification != "liability" {
 			tx.Rollback()
-			return 0, err
+			return 0, fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
+				resultingBalance.StringFixed(2))
 		}
 	}
 
@@ -869,7 +853,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	utils.CompareChanges(utils.SafeString(exTr.Description), utils.SafeString(tr.Description), changes, "description")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 
 			Event:       "update",
@@ -932,7 +916,7 @@ func (s *TransactionService) UpdateCategory(ctx context.Context, userID int64, i
 	utils.CompareChanges(exCat.Classification, cat.Classification, changes, "classification")
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 
 			Event:       "update",
@@ -984,9 +968,11 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 			return err
 		}
 
-		if err := s.validateInvestmentBalance(ctx, tx, account, userID, latestBalance, tr.Amount.Neg()); err != nil {
+		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
+		if resultingBalance.LessThan(decimal.Zero) && account.AccountType.Classification != "liability" {
 			tx.Rollback()
-			return err
+			return fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
+				resultingBalance.StringFixed(2))
 		}
 	}
 
@@ -1040,7 +1026,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	utils.CompareChanges(utils.SafeString(tr.Description), "", changes, "description")
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 
 			Event:       "delete",
@@ -1115,10 +1101,13 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 		return err
 	}
 
-	if err := s.validateInvestmentBalance(ctx, tx, toAcc, userID, latestToBalance, inflow.Amount.Neg()); err != nil {
+	resultingBalance := latestToBalance.EndBalance.Sub(inflow.Amount)
+	if resultingBalance.LessThan(decimal.Zero) && toAcc.AccountType.Classification != "liability" {
 		tx.Rollback()
-		return err
+		return fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
+			resultingBalance.StringFixed(2))
 	}
+
 	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
 		tx.Rollback()
 		return err
@@ -1181,7 +1170,7 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 	utils.CompareChanges(utils.SafeString(transfer.Notes), "", changes, "description")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 
 			Event:       "delete",
@@ -1269,7 +1258,7 @@ func (s *TransactionService) DeleteCategory(ctx context.Context, userID int64, i
 	utils.CompareChanges(cat.Classification, "", changes, "classification")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 
 			Event:       "delete",
@@ -1325,9 +1314,11 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 			return err
 		}
 
-		if err := s.validateInvestmentBalance(ctx, tx, acc, userID, latestBalance, tr.Amount.Neg()); err != nil {
+		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
+		if resultingBalance.LessThan(decimal.Zero) && acc.AccountType.Classification != "liability" {
 			tx.Rollback()
-			return err
+			return fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
+				resultingBalance.StringFixed(2))
 		}
 	}
 
@@ -1369,7 +1360,7 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 	utils.CompareChanges("", tr.Amount.StringFixed(2), changes, "amount")
 	utils.CompareChanges("", tr.Currency, changes, "currency")
 
-	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "restore",
 		Category:    "transaction",
@@ -1424,7 +1415,7 @@ func (s *TransactionService) RestoreCategory(ctx context.Context, userID int64, 
 	utils.CompareChanges("", cat.DisplayName, changes, "name")
 	utils.CompareChanges("", cat.Classification, changes, "classification")
 
-	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "restore",
 		Category:    "category",
@@ -1472,7 +1463,7 @@ func (s *TransactionService) RestoreCategoryName(ctx context.Context, userID int
 		return err
 	}
 
-	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "restore",
 		Category:    "category",
@@ -1569,7 +1560,6 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 	}
 
 	firstRun := utils.LocalMidnightUTC(req.NextRunAt, loc)
-
 	firstValidDay := time.Now().UTC().Truncate(24 * time.Hour)
 
 	if firstRun.Before(firstValidDay) {
@@ -1593,6 +1583,8 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		endDate = &e
 	}
 
+	day := firstRun.Day()
+
 	tp := models.TransactionTemplate{
 		Name:            req.Name,
 		UserID:          userID,
@@ -1601,6 +1593,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		TransactionType: strings.ToLower(req.TransactionType),
 		Amount:          req.Amount,
 		Frequency:       strings.ToLower(req.Frequency),
+		DayOfMonth:      day,
 		NextRunAt:       firstRun,
 		EndDate:         endDate,
 		MaxRuns:         req.MaxRuns,
@@ -1641,7 +1634,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		utils.CompareChanges("", maxRunsStr, changes, "max_runs")
 	}
 
-	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "txn_template",
@@ -1775,15 +1768,13 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 	if tp.MaxRuns != nil {
 		var exMaxRunsStr string
 		if exTp.MaxRuns != nil {
-			exMaxRunsStr = tp.EndDate.UTC().Format(time.RFC3339)
-		} else {
-			exMaxRunsStr = ""
+			exMaxRunsStr = strconv.FormatInt(int64(*exTp.MaxRuns), 10)
 		}
 		maxRunsStr := strconv.FormatInt(int64(*tp.MaxRuns), 10)
 		utils.CompareChanges(exMaxRunsStr, maxRunsStr, changes, "max_runs")
 	}
 
-	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "update",
 		Category:    "txn_template",
@@ -1852,7 +1843,7 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Co
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "txn_template",
@@ -1920,7 +1911,7 @@ func (s *TransactionService) DeleteTransactionTemplate(ctx context.Context, user
 		utils.CompareChanges(maxRunsStr, "", changes, "max_runs")
 	}
 
-	err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "delete",
 		Category:    "txn_template",
@@ -2001,14 +1992,14 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 		Description:     &desc,
 	}
 
-	_, err = s.InsertTransaction(ctx, currentTemplate.UserID, txnReq)
+	_, err = s.InsertTransaction(ctx, currentTemplate.UserID, txnReq, tx)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	// Calculate next run date
-	nextRun := utils.CalculateNextRun(currentTemplate.NextRunAt, currentTemplate.Frequency)
+	nextRun := utils.CalculateNextRun(currentTemplate.NextRunAt, currentTemplate.Frequency, currentTemplate.DayOfMonth)
 	now := time.Now().UTC()
 
 	// Update template
@@ -2164,7 +2155,7 @@ func (s *TransactionService) InsertCategoryGroup(ctx context.Context, userID int
 	utils.CompareChanges("", rec.Classification, changes, "classification")
 	utils.CompareChanges("", fmt.Sprintf("%d categories", len(categoryIDs)), changes, "categories_count")
 
-	if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "category_group",
@@ -2253,7 +2244,7 @@ func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int
 	utils.CompareChanges(exGroup.Classification, rec.Classification, changes, "classification")
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "category_group",
@@ -2310,7 +2301,7 @@ func (s *TransactionService) DeleteCategoryGroup(ctx context.Context, userID int
 	utils.CompareChanges(group.Classification, "", changes, "classification")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(&jobqueue.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "delete",
 			Category:    "category_group",

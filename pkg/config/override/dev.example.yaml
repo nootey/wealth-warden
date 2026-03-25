@@ -40,3 +40,9 @@ seed:
   super_admin_password: "password"
   member_user_email: ""
   member_user_password: ""
+
+scheduler:
+  concurrent_workers: 5
+  immediate_jobs:
+    - asset_price_sync
+#    - asset_history_backfill

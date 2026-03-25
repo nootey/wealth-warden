@@ -115,7 +115,7 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 			if err := db.WithContext(ctx).Create(&bal).Error; err != nil {
 				return err
 			}
-			
+
 		}
 	}
 

@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import { useSharedStore } from "../../services/stores/shared_store.ts";
-import { useToastStore } from "../../services/stores/toast_store.ts";
-import { usePermissions } from "../../utils/use_permissions.ts";
+import { useSharedStore } from "../../../services/stores/shared_store.ts";
+import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
 import { computed, onMounted, ref } from "vue";
-import type { TransactionTemplate } from "../../models/transaction_models.ts";
-import filterHelper from "../../utils/filter_helper.ts";
-import type { Column } from "../../services/filter_registry.ts";
-import dateHelper from "../../utils/date_helper.ts";
-import CustomPaginator from "../components/base/CustomPaginator.vue";
-import LoadingSpinner from "../components/base/LoadingSpinner.vue";
-import TransactionTemplateForm from "../components/forms/TransactionTemplateForm.vue";
-import vueHelper from "../../utils/vue_helper.ts";
-import { useTransactionStore } from "../../services/stores/transaction_store.ts";
-import type { PaginatorState } from "../../models/shared_models.ts";
+import type { TransactionTemplate } from "../../../models/transaction_models.ts";
+import filterHelper from "../../../utils/filter_helper.ts";
+import type { Column } from "../../../services/filter_registry.ts";
+import dateHelper from "../../../utils/date_helper.ts";
+import CustomPaginator from "../base/CustomPaginator.vue";
+import LoadingSpinner from "../base/LoadingSpinner.vue";
+import TransactionTemplateForm from "../forms/TransactionTemplateForm.vue";
+import vueHelper from "../../../utils/vue_helper.ts";
+import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
+import type { PaginatorState } from "../../../models/shared_models.ts";
 
 const emit = defineEmits<{
   (event: "refreshTemplateCount"): void;
@@ -45,7 +45,7 @@ const params = computed(() => {
     filters: null,
   };
 });
-const rows = ref([5, 10, 25]);
+const rows = ref([10, 25]);
 const default_rows = ref(rows.value[0]);
 const paginator = ref<PaginatorState>({
   total: 0,
@@ -188,6 +188,7 @@ async function toggleActiveTemplate(
     toastStore.successResponseToast(response);
 
     emit("refreshTemplateCount");
+    await getData();
     return true;
   } catch (error) {
     // add a small delay for the toggle animation to complete
@@ -257,11 +258,13 @@ defineExpose({ refresh });
     <div class="flex flex-row gap-2 w-full">
       <DataTable
         class="w-full enhanced-table"
+        size="small"
         data-key="id"
         :loading="loadingRecords"
         :value="records"
         scrollable
-        scroll-height="50vh"
+        :row-class="vueHelper.isActiveRowClass"
+        scroll-direction="both"
       >
         <template #empty>
           <div style="padding: 10px">No records found.</div>

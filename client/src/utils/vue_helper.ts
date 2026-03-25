@@ -163,6 +163,9 @@ const vueHelper = {
   deletedRowClass<T extends { deleted_at?: string | null }>(data: T) {
     return data?.deleted_at ? "row-deleted" : "";
   },
+  isActiveRowClass<T extends { is_active?: string | null }>(data: T) {
+    return !data?.is_active ? "row-deleted" : "";
+  },
 };
 
 export default vueHelper;

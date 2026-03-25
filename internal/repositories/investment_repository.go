@@ -8,6 +8,7 @@ import (
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type InvestmentRepositoryInterface interface {
@@ -21,6 +22,7 @@ type InvestmentRepositoryInterface interface {
 	FindInvestmentTrades(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, filters []utils.Filter, accountID *int64) ([]models.InvestmentTrade, error)
 	FindInvestmentTradeByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTrade, error)
 	FindInvestmentTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.InvestmentTrade, error)
+	FindAllTradesByUserID(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTrade, error)
 	FindInvestmentAssetsByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentAsset, error)
 	InsertAsset(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentAsset) (int64, error)
 	InsertInvestmentTrade(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTrade) (int64, error)
@@ -31,13 +33,18 @@ type InvestmentRepositoryInterface interface {
 	RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error
 	DeleteInvestmentTrade(ctx context.Context, tx *gorm.DB, id int64) error
 	GetEarliestTradeDate(ctx context.Context, tx *gorm.DB, assetID, userID int64) (time.Time, error)
-	FindSellTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID, userID int64) ([]models.InvestmentTrade, error)
+	FindAllTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID, userID int64) ([]models.InvestmentTrade, error)
 	DeleteAllTradesForAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64) error
 	DeleteInvestmentAsset(ctx context.Context, tx *gorm.DB, id int64) error
 	GetInvestmentTotalsUpToDate(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time) (decimal.Decimal, decimal.Decimal, error)
 	FindAssetByTicker(ctx context.Context, tx *gorm.DB, ticker string, accID, userID int64) (models.InvestmentAsset, error)
 	FindInvestmentTradesByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentTrade, error)
 	GetInvestmentTradesDateRange(ctx context.Context, tx *gorm.DB, accountID int64) (time.Time, time.Time, error)
+	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error
+	GetPriceHistoryForAsset(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.AssetPriceHistory, error)
+	GetAssetIDsForAccount(ctx context.Context, tx *gorm.DB, accountID, userID int64) ([]int64, error)
+	UpsertExchangeRate(ctx context.Context, tx *gorm.DB, entry models.ExchangeRateHistory) error
+	GetCachedExchangeRate(ctx context.Context, tx *gorm.DB, from, to string, asOf time.Time) (decimal.Decimal, bool, error)
 }
 
 type InvestmentRepository struct {
@@ -609,7 +616,7 @@ func (r *InvestmentRepository) GetEarliestTradeDate(ctx context.Context, tx *gor
 	return txn.TxnDate, nil
 }
 
-func (r *InvestmentRepository) FindSellTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID, userID int64) ([]models.InvestmentTrade, error) {
+func (r *InvestmentRepository) FindAllTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID, userID int64) ([]models.InvestmentTrade, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -617,7 +624,23 @@ func (r *InvestmentRepository) FindSellTradesByAssetID(ctx context.Context, tx *
 	db = db.WithContext(ctx)
 
 	var trades []models.InvestmentTrade
-	err := db.Where("asset_id = ? AND user_id = ? AND trade_type = ?", assetID, userID, models.InvestmentSell).
+	err := db.Where("asset_id = ? AND user_id = ?", assetID, userID).
+		Order("txn_date ASC").
+		Find(&trades).Error
+
+	return trades, err
+}
+
+func (r *InvestmentRepository) FindAllTradesByUserID(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTrade, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var trades []models.InvestmentTrade
+	err := db.Preload("Asset.Account").
+		Where("user_id = ?", userID).
 		Order("txn_date ASC").
 		Find(&trades).Error
 
@@ -690,4 +713,75 @@ func (r *InvestmentRepository) GetInvestmentTradesDateRange(ctx context.Context,
 	}
 
 	return result.MinDate, result.MaxDate, nil
+}
+
+func (r *InvestmentRepository) GetAssetIDsForAccount(ctx context.Context, tx *gorm.DB, accountID, userID int64) ([]int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var ids []int64
+	err := db.WithContext(ctx).
+		Model(&models.InvestmentAsset{}).
+		Where("account_id = ? AND user_id = ?", accountID, userID).
+		Pluck("id", &ids).Error
+	return ids, err
+}
+
+func (r *InvestmentRepository) GetPriceHistoryForAsset(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.AssetPriceHistory, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var prices []models.AssetPriceHistory
+	err := db.WithContext(ctx).
+		Where("asset_id = ?", assetID).
+		Order("as_of ASC").
+		Find(&prices).Error
+	return prices, err
+}
+
+func (r *InvestmentRepository) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	return db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "asset_id"}, {Name: "as_of"}},
+		DoUpdates: clause.AssignmentColumns([]string{"price", "currency"}),
+	}).Create(&entries).Error
+}
+
+func (r *InvestmentRepository) UpsertExchangeRate(ctx context.Context, tx *gorm.DB, entry models.ExchangeRateHistory) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "from_currency"}, {Name: "to_currency"}, {Name: "as_of"}},
+		DoUpdates: clause.AssignmentColumns([]string{"rate"}),
+	}).Create(&entry).Error
+}
+
+func (r *InvestmentRepository) GetCachedExchangeRate(ctx context.Context, tx *gorm.DB, from, to string, asOf time.Time) (decimal.Decimal, bool, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var entry models.ExchangeRateHistory
+	err := db.WithContext(ctx).
+		Where("from_currency = ? AND to_currency = ? AND as_of = ?", from, to, asOf.UTC().Truncate(24*time.Hour)).
+		First(&entry).Error
+	if err == gorm.ErrRecordNotFound {
+		return decimal.Zero, false, nil
+	}
+	if err != nil {
+		return decimal.Zero, false, err
+	}
+	return entry.Rate, true, nil
 }

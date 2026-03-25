@@ -1,9 +1,12 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"time"
 	"wealth-warden/internal/models"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func ValidateAccount(acc *models.Account, role string) error {
@@ -21,18 +24,36 @@ func LocalMidnightUTC(t time.Time, loc *time.Location) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
-func CalculateNextRun(current time.Time, frequency string) time.Time {
+func CalculateNextRun(current time.Time, frequency string, dayOfMonth int) time.Time {
 	switch frequency {
+	case "monthly":
+		next := time.Date(current.Year(), current.Month()+1, 1, 0, 0, 0, 0, current.Location())
+		lastDay := time.Date(next.Year(), next.Month()+1, 0, 0, 0, 0, 0, current.Location()).Day()
+		day := dayOfMonth
+		if day > lastDay {
+			day = lastDay
+		}
+		return time.Date(next.Year(), next.Month(), day, 0, 0, 0, 0, current.Location())
 	case "weekly":
 		return current.AddDate(0, 0, 7)
 	case "biweekly":
 		return current.AddDate(0, 0, 14)
-	case "monthly":
-		return current.AddDate(0, 1, 0)
 	case "quarterly":
-		return current.AddDate(0, 3, 0)
+		next := time.Date(current.Year(), current.Month()+3, 1, 0, 0, 0, 0, current.Location())
+		lastDay := time.Date(next.Year(), next.Month()+1, 0, 0, 0, 0, 0, current.Location()).Day()
+		day := dayOfMonth
+		if day > lastDay {
+			day = lastDay
+		}
+		return time.Date(next.Year(), next.Month(), day, 0, 0, 0, 0, current.Location())
 	case "annually":
-		return current.AddDate(1, 0, 0)
+		next := time.Date(current.Year()+1, current.Month(), 1, 0, 0, 0, 0, current.Location())
+		lastDay := time.Date(next.Year(), next.Month()+1, 0, 0, 0, 0, 0, current.Location()).Day()
+		day := dayOfMonth
+		if day > lastDay {
+			day = lastDay
+		}
+		return time.Date(next.Year(), next.Month(), day, 0, 0, 0, 0, current.Location())
 	default:
 		return current.AddDate(0, 1, 0) // default to monthly
 	}
@@ -76,4 +97,9 @@ func AdjustToWeekday(date time.Time) time.Time {
 	default:
 		return date
 	}
+}
+
+func IsUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }

@@ -50,6 +50,10 @@ func setDefaults() *Config {
 			MemberUserEmail:    "",
 			MemberUserPassword: "",
 		},
+		Scheduler: SchedulerConfig{
+			ConcurrentWorkers: 5,
+			ImmediateJobs:     []string{},
+		},
 	}
 }
 
@@ -63,7 +67,7 @@ func LoadConfig(configPath *string, configName ...string) (*Config, error) {
 
 	// Load env variables
 	v.AutomaticEnv()
-	
+
 	// Bind environment variables for nested postgres config
 	_ = v.BindEnv("postgres.host", "POSTGRES_HOST")
 	_ = v.BindEnv("postgres.user", "POSTGRES_USER")

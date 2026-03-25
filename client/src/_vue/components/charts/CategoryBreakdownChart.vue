@@ -11,7 +11,10 @@ import {
   Legend,
 } from "chart.js";
 import vueHelper from "../../../utils/vue_helper.ts";
-import { useChartColors } from "../../../style/theme/chartColors.ts";
+import {
+  useChartColors,
+  CATEGORY_PALETTE,
+} from "../../../style/theme/chartColors.ts";
 
 ChartJS.register(
   BarController,
@@ -86,9 +89,7 @@ const hoverGuidePlugin = {
   },
 };
 
-const HEX_PALETTE = ["#5B8FF9", "#FF9D4D", "#36CFC9", "#F759AB", "#9254DE"];
-
-const palette = computed(() => HEX_PALETTE);
+const palette = computed(() => CATEGORY_PALETTE);
 const chartData = computed(() => ({
   labels: months,
   datasets: props.series.map((s, i) => ({

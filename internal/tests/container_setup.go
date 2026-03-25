@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"time"
 	"wealth-warden/internal/bootstrap"
+	"wealth-warden/internal/queue"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database/seeders"
 
@@ -29,6 +30,12 @@ type ServiceIntegrationSuite struct {
 	suite.Suite
 	TC  *TestContainer
 	Ctx context.Context
+}
+
+type NoOpDispatcher struct{}
+
+func (d *NoOpDispatcher) Dispatch(job queue.Job) error {
+	return nil
 }
 
 // SetupSuite runs once before all integration tests
@@ -75,7 +82,6 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 		panic(err)
 	}
 	cfg.Postgres.Database = "wealth_warden_test"
-	cfg.FinanceAPIBaseURL = "https://query1.finance.yahoo.com"
 	s.Require().NoError(err, "failed to load test configuration")
 
 	l := zap.NewNop() // Silent logger for tests
@@ -85,7 +91,8 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 	s.Require().NoError(err, "seeding failed")
 
 	// Build application container
-	appContainer, err := bootstrap.NewServiceContainer(cfg, db, l)
+	jobDispatcher := &NoOpDispatcher{}
+	appContainer, err := bootstrap.NewServiceContainer(cfg, db, l, jobDispatcher, &MockPriceFetcher{})
 	s.Require().NoError(err, "failed to bootstrap app container")
 
 	s.TC = &TestContainer{

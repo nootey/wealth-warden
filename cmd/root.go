@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	cfg    *config.Config
-	logger *zap.Logger
+	cfg        *config.Config
+	logger     *zap.Logger
 	configPath string
 )
 
@@ -25,7 +25,7 @@ var rootCmd = &cobra.Command{
 		var err error
 		cfg, err = config.LoadConfig(&configPath)
 		if err != nil {
-			return fmt.Errorf("failed to load configuration: %s", err.Error())
+			return fmt.Errorf("failed to load configuration: %w", err)
 		}
 
 		logger = logging.InitLogger(cfg.Release)
@@ -35,7 +35,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(httpServerCmd)
+	rootCmd.AddCommand(appCmd)
 	rootCmd.AddCommand(migrateCmd)
 	rootCmd.AddCommand(seedCmd)
 

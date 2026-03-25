@@ -48,7 +48,8 @@ const transactionColumns = computed<Column[]>(() => [
 
 const expectedDifference = computed(() => {
   const expectedBalance = account.value?.expected_balance;
-  const endBalance = latestBalance.value?.end_balance;
+  const endBalance =
+    latestBalance.value?.total_balance ?? latestBalance.value?.end_balance;
 
   if (!expectedBalance || !endBalance) {
     return null;
@@ -198,6 +199,18 @@ async function handleEmit(type: string) {
           <b
             >{{ vueHelper.displayAsCurrency(account.balance.start_balance) }}
           </b>
+        </span>
+        <span
+          v-if="
+            ['investment', 'crypto', 'other_asset'].includes(
+              account.account_type.type,
+            )
+          "
+        >
+          Cash:
+          <b>{{
+            vueHelper.displayAsCurrency(latestBalance?.end_balance ?? null)
+          }}</b>
         </span>
 
         <span>
