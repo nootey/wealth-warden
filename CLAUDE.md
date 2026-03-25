@@ -4,6 +4,9 @@
 
 Ledger based personal finance manager with an included web based client.
 
+- Jobs: `internal/jobscheduler` for scheduled/recurring jobs, `internal/queue` for async HTTP-triggered jobs
+- Exchange rates: `GetExchangeRate` with a date caches to `exchange_rate_history`; without a date it's a live rate and never cached
+
 ## Response Style
 
 - Keep responses concise and actionable
@@ -18,18 +21,23 @@ Ledger based personal finance manager with an included web based client.
 
 ## Workflow
 
-- Ask for permission before making significant changes
 - Confirm understanding before proceeding
 - Present options when multiple approaches exist
 
 ## Git
 
-- Use `git rm <file>` for deletions - not `rm` + `git add`
 - Never commit unless explicitly requested
-- Main branch for PRs: `developent`
+- Main branch for PRs: `development`
+
+## Mocks
+
+- Generated with `mockery`, live in `/mocks`
+- Can be regenerated with `make mock`
 
 ## Development Guidelines
 
 - Follow existing code patterns and conventions
+- DO NOT suggest service to service injections, unless absolutely necessary
 - Consider security and performance implications
+- Use make build and make lint to verify new code
 - Test changes when possible
