@@ -33,7 +33,7 @@ There are also some features that are implemented half way, those being:
 The instructions below are for anyone that wants to run the app locally.
 
 ### Requirements
-- Go > 1.25
+- Go > 1.26
 - Node > 20
 - PostgreSQL > 14
 
