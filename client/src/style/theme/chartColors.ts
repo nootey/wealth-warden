@@ -1,6 +1,24 @@
 import { computed } from "vue";
 import { useThemeStore } from "../../services/stores/theme_store.ts";
 
+export const CATEGORY_PALETTE = [
+  "#6366f1", // indigo-500 (primary accent)
+  "#3b82f6", // blue-500
+  "#8b5cf6", // violet-500
+  "#0ea5e9", // sky-500
+  "#a855f7", // purple-500
+  "#60a5fa", // blue-400
+  "#ec4899", // pink-500
+  "#818cf8", // indigo-400
+  "#06b6d4", // cyan-500
+  "#c084fc", // purple-400
+  "#4f46e5", // indigo-600
+  "#f472b6", // pink-400
+  "#7c3aed", // violet-600
+  "#38bdf8", // sky-400
+  "#db2777", // pink-600
+];
+
 export function useChartColors() {
   const themeStore = useThemeStore();
   const isDark = computed(() => themeStore.isDark);

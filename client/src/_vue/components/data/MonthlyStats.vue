@@ -95,17 +95,41 @@ watch(selectedMonth, async () => {
 });
 
 // Pie chart data
-const outflowLabels = computed<string[]>(() => {
-  if (!monthlyStats.value?.categories?.length) return [];
-  return monthlyStats.value.categories.map(
-    (c) => c.category_name ?? "Uncategorized",
-  );
+const MAX_SLICES = 12;
+
+const processedOutflowData = computed(() => {
+  if (!monthlyStats.value?.categories?.length)
+    return { labels: [] as string[], values: [] as number[] };
+
+  const items = monthlyStats.value.categories.map((c) => ({
+    label: c.category_name ?? "Uncategorized",
+    value: parseFloat(c.outflow),
+  }));
+
+  items.sort((a, b) => b.value - a.value);
+
+  if (items.length <= MAX_SLICES)
+    return {
+      labels: items.map((c) => c.label),
+      values: items.map((c) => c.value),
+    };
+
+  const main = items.slice(0, MAX_SLICES - 1);
+  const rest = items.slice(MAX_SLICES - 1);
+  main.push({
+    label: "Other",
+    value: rest.reduce((sum, c) => sum + c.value, 0),
+  });
+
+  return { labels: main.map((c) => c.label), values: main.map((c) => c.value) };
 });
 
-const outflowValues = computed<number[]>(() => {
-  if (!monthlyStats.value?.categories?.length) return [];
-  return monthlyStats.value.categories.map((c) => parseFloat(c.outflow));
-});
+const outflowLabels = computed<string[]>(
+  () => processedOutflowData.value.labels,
+);
+const outflowValues = computed<number[]>(
+  () => processedOutflowData.value.values,
+);
 
 const hasOutflowData = computed(() => outflowValues.value?.length > 0);
 
@@ -131,7 +155,7 @@ const pieOptions = computed(() => ({
 
 <template>
   <div v-if="!loading" class="flex flex-column p-2 gap-2">
-    <span class="text-sm" style="color: var(--text-secondary)"
+    <span class="text-sm mobile-hide" style="color: var(--text-secondary)"
       >Monthly stats are computed for all checking accounts, which are treated
       as main accounts.</span
     >
@@ -244,9 +268,9 @@ const pieOptions = computed(() => ({
       </div>
 
       <div class="flex flex-column w-full gap-2 mt-3">
-        <h4 class="mobile-hide">Expense Breakdown</h4>
+        <h4>Expense Breakdown</h4>
         <span class="text-sm" style="color: var(--text-secondary)"
-          >View what you've spent your money on this month.</span
+          >View what you've spent your money on per month.</span
         >
         <div class="flex flex-row gap-2 align-items-center w-full pr-2">
           <Select
@@ -275,7 +299,7 @@ const pieOptions = computed(() => ({
         >
           <ComparativePieChart
             class="mt-3"
-            :size="250"
+            :size="300"
             :show-legend="false"
             :options="pieOptions"
             :values="outflowValues"
