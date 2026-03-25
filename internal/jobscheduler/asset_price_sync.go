@@ -83,6 +83,34 @@ func (j *AssetPriceSyncJob) Run(ctx context.Context) error {
 }
 
 func (j *AssetPriceSyncJob) refreshSnapshotMarketValues(ctx context.Context) error {
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	// Warm today's exchange rates for all active price→account currency pairs
+	// so the SQL in UpdateSnapshotMarketValues has fresh rates to work with.
+	type currencyPair struct {
+		FromCurrency string
+		ToCurrency   string
+	}
+	var pairs []currencyPair
+	if err := j.db.WithContext(ctx).Raw(`
+		SELECT DISTINCT ph.currency AS from_currency, a.currency AS to_currency
+		FROM investment_assets ia
+		JOIN accounts a ON a.id = ia.account_id
+		JOIN asset_price_history ph ON ph.asset_id = ia.id
+		WHERE a.is_active = TRUE AND a.closed_at IS NULL
+		  AND ph.currency != a.currency
+	`).Scan(&pairs).Error; err != nil {
+		j.logger.Warn("Failed to query currency pairs for rate refresh", zap.Error(err))
+	}
+	for _, p := range pairs {
+		if _, err := j.investmentSvc.GetExchangeRate(ctx, p.FromCurrency, p.ToCurrency, &today); err != nil {
+			j.logger.Warn("Failed to refresh exchange rate",
+				zap.String("from", p.FromCurrency),
+				zap.String("to", p.ToCurrency),
+				zap.Error(err))
+		}
+	}
+
 	var userIDs []int64
 	err := j.db.WithContext(ctx).Raw(`
 		SELECT DISTINCT a.user_id
