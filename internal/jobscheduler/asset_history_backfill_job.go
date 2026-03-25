@@ -2,6 +2,7 @@ package jobscheduler
 
 import (
 	"context"
+	"sync"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
@@ -34,7 +35,6 @@ func NewAssetPriceHistoryBackfillJob(
 }
 
 func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
-	// Find all assets with their earliest trade date
 	type assetRow struct {
 		ID             int64
 		Ticker         string
@@ -45,7 +45,7 @@ func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
 
 	var assets []assetRow
 	err := j.db.WithContext(ctx).Raw(`
-		SELECT 
+		SELECT
 			ia.id,
 			ia.ticker,
 			ia.investment_type,
@@ -67,41 +67,58 @@ func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
 	}
 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
-	totalInserted := 0
-	totalSkipped := 0
+
+	type result struct {
+		asset    assetRow
+		inserted int
+		skipped  int
+		err      error
+	}
+
+	jobs := make(chan assetRow, len(assets))
+	results := make(chan result, len(assets))
+
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for asset := range jobs {
+				assetCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+				inserted, skipped, err := j.backfillAsset(assetCtx, asset.ID, asset.Ticker, asset.InvestmentType, asset.EarliestTrade, today)
+				cancel()
+				results <- result{asset: asset, inserted: inserted, skipped: skipped, err: err}
+			}
+		}()
+	}
 
 	for _, asset := range assets {
-		func() {
-			assetCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-			defer cancel()
+		jobs <- asset
+	}
+	close(jobs)
 
-			j.logger.Info("Backfilling price history",
-				zap.Int64("asset_id", asset.ID),
-				zap.String("ticker", asset.Ticker),
-				zap.String("from", asset.EarliestTrade.Format("2006-01-02")),
-				zap.String("to", today.Format("2006-01-02")),
+	wg.Wait()
+	close(results)
+
+	totalInserted := 0
+	totalSkipped := 0
+	for r := range results {
+		if r.err != nil {
+			j.logger.Error("Failed to backfill asset",
+				zap.Int64("asset_id", r.asset.ID),
+				zap.String("ticker", r.asset.Ticker),
+				zap.Error(r.err),
 			)
-
-			inserted, skipped, err := j.backfillAsset(assetCtx, asset.ID, asset.Ticker, asset.InvestmentType, asset.EarliestTrade, today)
-			if err != nil {
-				j.logger.Error("Failed to backfill asset",
-					zap.Int64("asset_id", asset.ID),
-					zap.String("ticker", asset.Ticker),
-					zap.String("error", err.Error()),
-				)
-				return
-			}
-
-			totalInserted += inserted
-			totalSkipped += skipped
-
-			j.logger.Info("Asset backfill complete",
-				zap.Int64("asset_id", asset.ID),
-				zap.String("ticker", asset.Ticker),
-				zap.Int("inserted", inserted),
-				zap.Int("skipped", skipped),
-			)
-		}()
+			continue
+		}
+		j.logger.Info("Asset backfill complete",
+			zap.Int64("asset_id", r.asset.ID),
+			zap.String("ticker", r.asset.Ticker),
+			zap.Int("inserted", r.inserted),
+			zap.Int("skipped", r.skipped),
+		)
+		totalInserted += r.inserted
+		totalSkipped += r.skipped
 	}
 
 	j.logger.Info("Price history backfill completed",
@@ -116,7 +133,6 @@ func (j *AssetPriceHistoryBackfillJob) backfillAsset(ctx context.Context, assetI
 	from = from.UTC().Truncate(24 * time.Hour)
 	to = to.UTC().Truncate(24 * time.Hour)
 
-	// Find dates that already have price history so we can skip them
 	var existingDates []time.Time
 	err = j.db.WithContext(ctx).Raw(`
 		SELECT as_of FROM asset_price_history
@@ -133,24 +149,22 @@ func (j *AssetPriceHistoryBackfillJob) backfillAsset(ctx context.Context, assetI
 
 	current := from
 	requestCount := 0
+	var batch []models.AssetPriceHistory
 
 	for !current.After(to) {
 		dateKey := current.Format("2006-01-02")
 
-		// Skip weekends — markets closed, no price data
 		if current.Weekday() == time.Saturday || current.Weekday() == time.Sunday {
 			current = current.AddDate(0, 0, 1)
 			continue
 		}
 
-		// Skip if already exists
 		if existingSet[dateKey] {
 			skipped++
 			current = current.AddDate(0, 0, 1)
 			continue
 		}
 
-		// Rate limit — pause every 5 requests
 		if requestCount > 0 && requestCount%10 == 0 {
 			select {
 			case <-ctx.Done():
@@ -182,17 +196,26 @@ func (j *AssetPriceHistoryBackfillJob) backfillAsset(ctx context.Context, assetI
 			continue
 		}
 
-		if err := j.investmentSvc.UpsertAssetPrice(ctx, nil, assetID, current, price, priceData.Currency); err != nil {
-			j.logger.Info("Failed to insert price history",
-				zap.Int64("asset_id", assetID),
-				zap.String("date", dateKey),
-				zap.String("error", err.Error()))
-		} else {
-			inserted++
-		}
+		batch = append(batch, models.AssetPriceHistory{
+			AssetID:  assetID,
+			AsOf:     current,
+			Price:    price,
+			Currency: priceData.Currency,
+		})
 
 		requestCount++
 		current = current.AddDate(0, 0, 1)
+	}
+
+	if len(batch) > 0 {
+		if err := j.investmentSvc.UpsertAssetPrice(ctx, nil, batch); err != nil {
+			j.logger.Error("Failed to insert price history batch",
+				zap.Int64("asset_id", assetID),
+				zap.Int("count", len(batch)),
+				zap.Error(err))
+			return 0, skipped, err
+		}
+		inserted = len(batch)
 	}
 
 	return inserted, skipped, nil

@@ -10,7 +10,6 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -59,7 +58,6 @@ type AccountService struct {
 	loggingRepo    repositories.LoggingRepositoryInterface
 	investmentRepo repositories.InvestmentRepositoryInterface
 	jobDispatcher  queue.JobDispatcher
-	priceClient    finance.PriceFetcher
 	logger         *zap.Logger
 }
 
@@ -71,7 +69,6 @@ func NewAccountService(
 	loggingRepo *repositories.LoggingRepository,
 	investmentRepo *repositories.InvestmentRepository,
 	jobDispatcher queue.JobDispatcher,
-	priceClient finance.PriceFetcher,
 ) *AccountService {
 	return &AccountService{
 		repo:           repo,
@@ -80,7 +77,6 @@ func NewAccountService(
 		loggingRepo:    loggingRepo,
 		investmentRepo: investmentRepo,
 		jobDispatcher:  jobDispatcher,
-		priceClient:    priceClient,
 		logger:         logger,
 	}
 }
@@ -1171,126 +1167,7 @@ func (s *AccountService) RebuildSnapshotsForUser(ctx context.Context, userID int
 }
 
 func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
-	if s.priceClient == nil {
-		return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID)
-	}
-
-	accounts, err := s.repo.FetchAccountsByType(ctx, nil, userID, "investment", true)
-	if err != nil {
-		return err
-	}
-	cryptoAccounts, err := s.repo.FetchAccountsByType(ctx, nil, userID, "crypto", true)
-	if err != nil {
-		return err
-	}
-	accounts = append(accounts, cryptoAccounts...)
-
-	rateCache := make(map[string]decimal.Decimal)
-
-	for _, acc := range accounts {
-		assets, err := s.investmentRepo.FindAssetsByAccountID(ctx, nil, acc.ID, acc.UserID)
-		if err != nil || len(assets) == 0 {
-			continue
-		}
-
-		snapshots, err := s.repo.GetSnapshotsForAccount(ctx, nil, acc.ID)
-		if err != nil || len(snapshots) == 0 {
-			continue
-		}
-
-		type priceRow struct {
-			asOf     time.Time
-			price    decimal.Decimal
-			currency string
-		}
-
-		type assetInfo struct {
-			prices []priceRow
-			trades []models.InvestmentTrade
-		}
-
-		assetMap := make(map[int64]assetInfo, len(assets))
-		for _, asset := range assets {
-			prices, err := s.investmentRepo.GetPriceHistoryForAsset(ctx, nil, asset.ID)
-			if err != nil {
-				continue
-			}
-			trades, err := s.investmentRepo.FindInvestmentTradesByAssetID(ctx, nil, asset.ID)
-			if err != nil {
-				continue
-			}
-			rows := make([]priceRow, len(prices))
-			for i, p := range prices {
-				rows[i] = priceRow{asOf: p.AsOf, price: p.Price, currency: p.Currency}
-			}
-			assetMap[asset.ID] = assetInfo{prices: rows, trades: trades}
-		}
-
-		for _, snap := range snapshots {
-			marketValue := decimal.Zero
-
-			for _, asset := range assets {
-				data, ok := assetMap[asset.ID]
-				if !ok {
-					continue
-				}
-
-				qty := decimal.Zero
-				for _, t := range data.trades {
-					if !t.TxnDate.After(snap.AsOf) {
-						if t.TradeType == models.InvestmentBuy {
-							qty = qty.Add(t.Quantity)
-						} else {
-							qty = qty.Sub(t.Quantity)
-						}
-					}
-				}
-				if qty.IsNegative() {
-					qty = decimal.Zero
-				}
-				if qty.IsZero() {
-					continue
-				}
-
-				var lastPrice decimal.Decimal
-				var priceCurrency string
-				for _, p := range data.prices {
-					if !p.asOf.After(snap.AsOf) {
-						lastPrice = p.price
-						priceCurrency = p.currency
-					}
-				}
-				if lastPrice.IsZero() {
-					continue
-				}
-
-				value := lastPrice.Mul(qty)
-
-				if priceCurrency != "" && priceCurrency != acc.Currency {
-					rateKey := priceCurrency + "-" + acc.Currency + "-" + snap.AsOf.Format("2006-01-02")
-					rate, ok := rateCache[rateKey]
-					if !ok {
-						r, err := s.priceClient.GetExchangeRateOnDate(ctx, priceCurrency, acc.Currency, snap.AsOf)
-						if err == nil {
-							rate = decimal.NewFromFloat(r)
-						}
-						rateCache[rateKey] = rate
-					}
-					if !rate.IsZero() {
-						value = value.Mul(rate)
-					}
-				}
-
-				marketValue = marketValue.Add(value)
-			}
-
-			if err := s.repo.SetSnapshotMarketValue(ctx, nil, snap.AccountID, snap.AsOf, marketValue); err != nil {
-				return fmt.Errorf("failed to set market value for account %d on %s: %w", snap.AccountID, snap.AsOf.Format("2006-01-02"), err)
-			}
-		}
-	}
-
-	return nil
+	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID)
 }
 
 func (s *AccountService) RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error {

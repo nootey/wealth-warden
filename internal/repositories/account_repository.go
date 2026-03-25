@@ -1285,40 +1285,50 @@ func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *
 	db = db.WithContext(ctx)
 
 	// For each investment/crypto account snapshot, sum (last known price × quantity held)
-	// across all assets for that account on that date.
-	// No currency filter — prices are stored in whatever currency the price API returned.
-	// Currency conversion is left for future multi-currency support.
+	// across all assets for that account on that date, with inline currency conversion
+	// via the exchange_rate_history cache. Falls back to rate=1 if no cached rate exists.
 	return db.Exec(`
 		UPDATE account_daily_snapshots s
 		SET market_value = (
 			SELECT COALESCE(SUM(
-				(
-					SELECT ph.price
-					FROM asset_price_history ph
-					WHERE ph.asset_id = ia.id
-					  AND ph.as_of    <= s.as_of
-					ORDER BY ph.as_of DESC
-					LIMIT 1
-				)
-				*
-				GREATEST((
-					SELECT COALESCE(SUM(
-						CASE WHEN it.trade_type = 'buy'  THEN  it.quantity
-						     WHEN it.trade_type = 'sell' THEN -it.quantity
-						END
-					), 0)
-					FROM investment_trades it
-					WHERE it.asset_id  = ia.id
-					  AND it.txn_date <= s.as_of
-				), 0)
+				ph_latest.price
+				* COALESCE(erh_latest.rate, 1)
+				* GREATEST(qty.held, 0)
 			), 0)
 			FROM investment_assets ia
+			JOIN LATERAL (
+				SELECT ph.price, ph.currency
+				FROM asset_price_history ph
+				WHERE ph.asset_id = ia.id
+				  AND ph.as_of   <= s.as_of
+				ORDER BY ph.as_of DESC
+				LIMIT 1
+			) ph_latest ON true
+			JOIN LATERAL (
+				SELECT COALESCE(SUM(
+					CASE WHEN it.trade_type = 'buy'  THEN  it.quantity
+					     WHEN it.trade_type = 'sell' THEN -it.quantity
+					END
+				), 0) AS held
+				FROM investment_trades it
+				WHERE it.asset_id  = ia.id
+				  AND it.txn_date <= s.as_of
+			) qty ON true
+			LEFT JOIN LATERAL (
+				SELECT erh.rate
+				FROM exchange_rate_history erh
+				WHERE erh.from_currency = ph_latest.currency
+				  AND erh.to_currency   = a.currency
+				  AND erh.as_of        <= s.as_of
+				ORDER BY erh.as_of DESC
+				LIMIT 1
+			) erh_latest ON ph_latest.currency != a.currency
 			WHERE ia.account_id = s.account_id
 		)
 		FROM accounts a
 		JOIN account_types at ON at.id = a.account_type_id
-		WHERE s.account_id   = a.id
-		  AND a.user_id      = ?
+		WHERE s.account_id = a.id
+		  AND a.user_id    = ?
 		  AND at.type IN ('investment', 'crypto');
 	`, userID).Error
 }

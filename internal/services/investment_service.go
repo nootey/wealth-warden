@@ -33,7 +33,7 @@ type InvestmentServiceInterface interface {
 	DeleteInvestmentAsset(ctx context.Context, userID int64, id int64) error
 	DeleteInvestmentTrade(ctx context.Context, userID int64, id int64) error
 	GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string, date *time.Time) (decimal.Decimal, error)
-	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal, currency string) error
+	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
 }
@@ -262,7 +262,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 
 	if currentPrice != nil && fetchedPriceCurrency != "" {
 		today := time.Now().UTC().Truncate(24 * time.Hour)
-		if err := s.repo.UpsertAssetPrice(ctx, tx, holdID, today, *currentPrice, fetchedPriceCurrency); err != nil {
+		if err := s.repo.UpsertAssetPrice(ctx, tx, []models.AssetPriceHistory{{AssetID: holdID, AsOf: today, Price: *currentPrice, Currency: fetchedPriceCurrency}}); err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to seed price history for new asset: %w", err)
 		}
@@ -310,7 +310,7 @@ func (s *InvestmentService) fetchCurrentPrice(ctx context.Context, tx *gorm.DB, 
 	price := decimal.NewFromFloat(priceData.Price)
 	now := time.Unix(priceData.LastUpdate, 0)
 
-	if err := s.repo.UpsertAssetPrice(ctx, nil, asset.ID, now, price, priceData.Currency); err != nil {
+	if err := s.repo.UpsertAssetPrice(ctx, nil, []models.AssetPriceHistory{{AssetID: asset.ID, AsOf: now, Price: price, Currency: priceData.Currency}}); err != nil {
 		fmt.Printf("warn: failed to upsert asset price history for asset %d: %v\n", asset.ID, err)
 	}
 
@@ -575,8 +575,9 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		return tx.Commit().Error
 	}
 
-	// Track earliest date per account for frontfill
+	// Track earliest date and currency per account for frontfill
 	earliestByAccount := make(map[int64]time.Time)
+	accountCurrency := make(map[int64]string)
 
 	for _, trade := range trades {
 		txnDate := trade.TxnDate.UTC().Truncate(24 * time.Hour)
@@ -625,19 +626,13 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		if earliest, ok := earliestByAccount[trade.Asset.AccountID]; !ok || txnDate.Before(earliest) {
 			earliestByAccount[trade.Asset.AccountID] = txnDate
 		}
+		accountCurrency[trade.Asset.AccountID] = trade.Asset.Account.Currency
 	}
 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	for accountID, earliestDate := range earliestByAccount {
-		// Need currency — grab from first trade for this account
-		var currency string
-		for _, t := range trades {
-			if t.Asset.AccountID == accountID {
-				currency = t.Asset.Account.Currency
-				break
-			}
-		}
+		currency := accountCurrency[accountID]
 
 		if err := s.accRepo.FrontfillBalances(ctx, tx, accountID, currency, earliestDate); err != nil {
 			tx.Rollback()
@@ -662,15 +657,36 @@ func (s *InvestmentService) GetExchangeRate(ctx context.Context, fromCurrency, t
 		return decimal.Zero, fmt.Errorf("price fetch client not initialized")
 	}
 
-	var rate float64
-	var err error
-
+	// For historical rates, check the DB cache first
 	if date != nil {
-		rate, err = s.priceFetchClient.GetExchangeRateOnDate(ctx, fromCurrency, toCurrency, *date)
-	} else {
-		rate, err = s.priceFetchClient.GetExchangeRate(ctx, fromCurrency, toCurrency)
+		cached, found, err := s.repo.GetCachedExchangeRate(ctx, nil, fromCurrency, toCurrency, *date)
+		if err != nil {
+			return decimal.Zero, err
+		}
+		if found {
+			return cached, nil
+		}
+
+		rate, err := s.priceFetchClient.GetExchangeRateOnDate(ctx, fromCurrency, toCurrency, *date)
+		if err != nil {
+			return decimal.Zero, err
+		}
+
+		result := decimal.NewFromFloat(rate)
+		if upsertErr := s.repo.UpsertExchangeRate(ctx, nil, models.ExchangeRateHistory{
+			FromCurrency: fromCurrency,
+			ToCurrency:   toCurrency,
+			AsOf:         *date,
+			Rate:         result,
+		}); upsertErr != nil {
+			s.logger.Warn("Failed to cache exchange rate", zap.Error(upsertErr))
+		}
+
+		return result, nil
 	}
 
+	// Live rate — never cache
+	rate, err := s.priceFetchClient.GetExchangeRate(ctx, fromCurrency, toCurrency)
 	if err != nil {
 		return decimal.Zero, err
 	}
@@ -1097,8 +1113,8 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 	return nil
 }
 
-func (s *InvestmentService) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, assetID int64, asOf time.Time, price decimal.Decimal, currency string) error {
-	return s.repo.UpsertAssetPrice(ctx, tx, assetID, asOf, price, currency)
+func (s *InvestmentService) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error {
+	return s.repo.UpsertAssetPrice(ctx, tx, entries)
 }
 
 func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error {

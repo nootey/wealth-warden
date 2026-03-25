@@ -20,7 +20,7 @@ func TestAutomateTemplateJobSuite(t *testing.T) {
 // Test that automate template job runs
 func (s *AutomateTemplateJobTestSuite) TestAutomateTemplateJob_Success() {
 	logger := zaptest.NewLogger(s.T())
-	job := jobscheduler.NewAutomateTemplateJob(logger, s.TC.App)
+	job := jobscheduler.NewAutomateTemplateJob(logger, s.TC.App, 0)
 
 	err := job.Run(s.Ctx)
 	s.NoError(err)
