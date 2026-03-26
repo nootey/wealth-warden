@@ -59,6 +59,13 @@ export interface CategoryOrGroup {
   category_ids: number[];
 }
 
+export interface TemplateSummary {
+  monthly_expense: string;
+  monthly_income: string;
+  this_month_expense: string;
+  this_month_income: string;
+}
+
 export interface TransactionTemplate {
   id: number | null;
   name: string;

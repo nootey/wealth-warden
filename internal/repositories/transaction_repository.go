@@ -76,6 +76,7 @@ type TransactionRepositoryInterface interface {
 	GetYearlyAverageForCategoryGroup(ctx context.Context, tx *gorm.DB, userID int64, accountID int64, groupID int64, year int) (float64, error)
 	GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error)
 	GetYearlyTransfersFromChecking(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.Transfer, error)
+	GetActiveTemplates(ctx context.Context, tx *gorm.DB, userID int64) ([]models.TransactionTemplate, error)
 }
 
 type TransactionRepository struct {
@@ -872,6 +873,24 @@ func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx
 		Order("is_active desc, created_at desc").
 		Limit(limit).
 		Offset(offset).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (r *TransactionRepository) GetActiveTemplates(ctx context.Context, tx *gorm.DB, userID int64) ([]models.TransactionTemplate, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.TransactionTemplate
+	err := db.Model(&models.TransactionTemplate{}).
+		Where("user_id = ? AND is_active = ?", userID, true).
 		Find(&records).Error
 	if err != nil {
 		return nil, err

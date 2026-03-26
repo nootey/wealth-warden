@@ -41,6 +41,7 @@ type TransactionServiceInterface interface {
 	ToggleTransactionTemplateActiveState(ctx context.Context, userID int64, id int64) error
 	DeleteTransactionTemplate(ctx context.Context, userID int64, id int64) error
 	GetTransactionTemplateCount(ctx context.Context, userID int64) (int64, error)
+	GetTemplateSummary(ctx context.Context, userID int64) (*models.TemplateSummary, error)
 	GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error)
 	ProcessTemplate(ctx context.Context, template *models.TransactionTemplate) error
 	FetchAllCategoryGroups(ctx context.Context, userID int64) ([]models.CategoryGroup, error)
@@ -1928,6 +1929,53 @@ func (s *TransactionService) DeleteTransactionTemplate(ctx context.Context, user
 
 func (s *TransactionService) GetTransactionTemplateCount(ctx context.Context, userID int64) (int64, error) {
 	return s.repo.CountTransactionTemplates(ctx, nil, userID, true)
+}
+
+func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int64) (*models.TemplateSummary, error) {
+	templates, err := s.repo.GetActiveTemplates(ctx, nil, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	baseMultipliers := map[string]decimal.Decimal{
+		"weekly":   decimal.NewFromFloat(4.33),
+		"biweekly": decimal.NewFromFloat(2.17),
+		"monthly":  decimal.NewFromInt(1),
+	}
+
+	periodicFrequencies := map[string]bool{
+		"quarterly": true,
+		"annually":  true,
+	}
+
+	now := time.Now()
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	monthEnd := monthStart.AddDate(0, 1, 0)
+
+	summary := &models.TemplateSummary{}
+	for _, t := range templates {
+		if multiplier, ok := baseMultipliers[t.Frequency]; ok {
+			monthlyAmount := t.Amount.Mul(multiplier)
+			if t.TransactionType == "expense" {
+				summary.MonthlyExpense = summary.MonthlyExpense.Add(monthlyAmount)
+			} else {
+				summary.MonthlyIncome = summary.MonthlyIncome.Add(monthlyAmount)
+			}
+			continue
+		}
+
+		if periodicFrequencies[t.Frequency] {
+			if !t.NextRunAt.Before(monthStart) && t.NextRunAt.Before(monthEnd) {
+				if t.TransactionType == "expense" {
+					summary.ThisMonthExpense = summary.ThisMonthExpense.Add(t.Amount)
+				} else {
+					summary.ThisMonthIncome = summary.ThisMonthIncome.Add(t.Amount)
+				}
+			}
+		}
+	}
+
+	return summary, nil
 }
 
 func (s *TransactionService) GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error) {

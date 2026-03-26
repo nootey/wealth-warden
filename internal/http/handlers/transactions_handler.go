@@ -55,6 +55,7 @@ func (h *TransactionHandler) Routes(ap *gin.RouterGroup) {
 	ap.GET("templates", authz.RequireAllMW("view_data"), h.GetTransactionTemplatesPaginated)
 	ap.GET("templates/:id", authz.RequireAllMW("view_data"), h.GetTransactionTemplateByID)
 	ap.GET("templates/count", authz.RequireAllMW("view_data"), h.GetTransactionTemplateCount)
+	ap.GET("templates/summary", authz.RequireAllMW("view_data"), h.GetTransactionTemplateSummary)
 	ap.PUT("templates", authz.RequireAllMW("manage_data"), h.InsertTransactionTemplate)
 	ap.PUT("templates/:id", authz.RequireAllMW("manage_data"), h.UpdateTransactionTemplate)
 	ap.POST("templates/:id/active", authz.RequireAllMW("manage_data"), h.ToggleTransactionTemplateActiveState)
@@ -706,6 +707,20 @@ func (h *TransactionHandler) GetTransactionTemplateCount(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, record)
+}
+
+func (h *TransactionHandler) GetTransactionTemplateSummary(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	summary, err := h.Service.GetTemplateSummary(ctx, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, summary)
 }
 
 func (h *TransactionHandler) GetCategoryGroups(c *gin.Context) {
