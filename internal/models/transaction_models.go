@@ -114,6 +114,13 @@ type TransactionBatchTotals struct {
 	Expenses decimal.Decimal `json:"expenses"`
 }
 
+type TemplateSummary struct {
+	MonthlyExpense   decimal.Decimal `json:"monthly_expense"`
+	MonthlyIncome    decimal.Decimal `json:"monthly_income"`
+	ThisMonthExpense decimal.Decimal `json:"this_month_expense"`
+	ThisMonthIncome  decimal.Decimal `json:"this_month_income"`
+}
+
 type TransactionReq struct {
 	AccountID       int64           `json:"account_id" validate:"required"`
 	CategoryID      *int64          `json:"category_id,omitempty"`

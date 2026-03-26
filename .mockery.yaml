@@ -1,6 +1,7 @@
-with-expecter: true
-dir: "mocks"
-outpkg: mocks
+config:
+  with-expecter: true
+  dir: "mocks"
+  outpkg: mocks
 packages:
   wealth-warden/internal/services:
     interfaces:

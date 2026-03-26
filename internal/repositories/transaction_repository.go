@@ -52,7 +52,7 @@ type TransactionRepositoryInterface interface {
 	RestoreTransaction(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	RestoreCategory(ctx context.Context, tx *gorm.DB, id int64, userID *int64) error
 	RestoreCategoryName(ctx context.Context, tx *gorm.DB, id int64, userID *int64, name string) error
-	FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int) ([]models.TransactionTemplate, error)
+	FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string) ([]models.TransactionTemplate, error)
 	CountTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, onlyActive bool) (int64, error)
 	FindTransactionTemplateByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.TransactionTemplate, error)
 	InsertTransactionTemplate(ctx context.Context, tx *gorm.DB, newRecord *models.TransactionTemplate) (int64, error)
@@ -76,6 +76,7 @@ type TransactionRepositoryInterface interface {
 	GetYearlyAverageForCategoryGroup(ctx context.Context, tx *gorm.DB, userID int64, accountID int64, groupID int64, year int) (float64, error)
 	GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error)
 	GetYearlyTransfersFromChecking(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.Transfer, error)
+	GetActiveTemplates(ctx context.Context, tx *gorm.DB, userID int64) ([]models.TransactionTemplate, error)
 }
 
 type TransactionRepository struct {
@@ -856,8 +857,40 @@ func (r *TransactionRepository) RestoreCategoryName(ctx context.Context, tx *gor
 	return res.Error
 }
 
-func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int) ([]models.TransactionTemplate, error) {
+func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string) ([]models.TransactionTemplate, error) {
 
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	joins := []string{}
+	orderBy := utils.ConstructOrderByClause(&joins, "transaction_templates", sortField, sortOrder)
+
+	var records []models.TransactionTemplate
+	q := db.Model(&models.TransactionTemplate{}).
+		Where("transaction_templates.user_id = ?", userID).
+		Preload("Category").
+		Preload("Account")
+
+	for _, join := range joins {
+		q = q.Joins(join)
+	}
+
+	err := q.
+		Order("transaction_templates.is_active desc, " + orderBy).
+		Limit(limit).
+		Offset(offset).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (r *TransactionRepository) GetActiveTemplates(ctx context.Context, tx *gorm.DB, userID int64) ([]models.TransactionTemplate, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -866,12 +899,7 @@ func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx
 
 	var records []models.TransactionTemplate
 	err := db.Model(&models.TransactionTemplate{}).
-		Where("user_id = ?", userID).
-		Preload("Category").
-		Preload("Account").
-		Order("is_active desc, created_at desc").
-		Limit(limit).
-		Offset(offset).
+		Where("user_id = ? AND is_active = ?", userID, true).
 		Find(&records).Error
 	if err != nil {
 		return nil, err

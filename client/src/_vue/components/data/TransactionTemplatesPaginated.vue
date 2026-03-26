@@ -3,17 +3,22 @@ import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
-import { computed, onMounted, ref } from "vue";
-import type { TransactionTemplate } from "../../../models/transaction_models.ts";
+import { computed, onMounted, provide, ref } from "vue";
+import type {
+  TemplateSummary,
+  TransactionTemplate,
+} from "../../../models/transaction_models.ts";
 import filterHelper from "../../../utils/filter_helper.ts";
 import type { Column } from "../../../services/filter_registry.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
+import ColumnHeader from "../base/ColumnHeader.vue";
 import TransactionTemplateForm from "../forms/TransactionTemplateForm.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import type { PaginatorState } from "../../../models/shared_models.ts";
+import { useChartColors } from "../../../style/theme/chartColors.ts";
 
 const emit = defineEmits<{
   (event: "refreshTemplateCount"): void;
@@ -25,15 +30,18 @@ const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
 
 const confirm = useConfirm();
+const { colors } = useChartColors();
 
 const apiPrefix = "transactions/templates";
 
 onMounted(async () => {
-  await getData();
+  await Promise.all([getData(), getSummary()]);
 });
 
 const loadingRecords = ref(true);
+const loadingSummary = ref(true);
 const records = ref<TransactionTemplate[]>([]);
+const summary = ref<TemplateSummary | null>(null);
 const createModal = ref(false);
 const updateModal = ref(false);
 const updateRecordID = ref(null);
@@ -65,6 +73,18 @@ const activeColumns = computed<Column[]>(() => [
   { field: "frequency", header: "Frequency" },
   { field: "next_run_at", header: "Next run" },
 ]);
+
+async function getSummary() {
+  loadingSummary.value = true;
+  try {
+    const response = await transactionStore.getTemplateSummary();
+    summary.value = response.data;
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  } finally {
+    loadingSummary.value = false;
+  }
+}
 
 async function getData(new_page = null) {
   loadingRecords.value = true;
@@ -114,7 +134,7 @@ async function deleteRecord(id: number) {
   try {
     let response = await sharedStore.deleteRecord(apiPrefix, id);
     toastStore.successResponseToast(response);
-    await getData();
+    await Promise.all([getData(), getSummary()]);
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
@@ -160,7 +180,7 @@ async function handleEmit(emitType: any, data?: any) {
     case "completeOperation": {
       createModal.value = false;
       updateModal.value = false;
-      await getData();
+      await Promise.all([getData(), getSummary()]);
       emit("refreshTemplateCount");
       break;
     }
@@ -188,7 +208,7 @@ async function toggleActiveTemplate(
     toastStore.successResponseToast(response);
 
     emit("refreshTemplateCount");
-    await getData();
+    await Promise.all([getData(), getSummary()]);
     return true;
   } catch (error) {
     // add a small delay for the toggle animation to complete
@@ -198,6 +218,18 @@ async function toggleActiveTemplate(
     return false;
   }
 }
+
+function switchSort(column: string) {
+  if (sort.value.field === column) {
+    sort.value.order = filterHelper.toggleSort(sort.value.order);
+  } else {
+    sort.value.order = 1;
+  }
+  sort.value.field = column;
+  getData();
+}
+
+provide("switchSort", switchSort);
 
 defineExpose({ refresh });
 </script>
@@ -255,6 +287,69 @@ defineExpose({ refresh });
       </Button>
     </div>
 
+    <div
+      class="flex w-full p-3 gap-2 border-round-xl justify-content-between align-items-center"
+      style="border: 1px solid var(--border-color)"
+    >
+      <div
+        class="flex-1 text-center px-3"
+        style="border-right: 1px solid var(--border-color)"
+      >
+        <div class="text-sm" style="color: var(--text-secondary)">
+          {{
+            !loadingSummary && Number(summary?.this_month_income ?? 0) > 0
+              ? "Projected income this month"
+              : "Projected monthly income"
+          }}
+        </div>
+        <div class="font-bold" :style="{ color: colors.pos }">
+          {{
+            loadingSummary
+              ? "—"
+              : vueHelper.displayAsCurrency(
+                  Number(summary?.monthly_income ?? 0) +
+                    Number(summary?.this_month_income ?? 0) || 0,
+                )
+          }}
+        </div>
+        <div
+          v-if="!loadingSummary && Number(summary?.this_month_income ?? 0) > 0"
+          class="text-xs mt-1"
+          style="color: var(--text-secondary)"
+        >
+          {{ vueHelper.displayAsCurrency(summary?.monthly_income ?? 0) }} on
+          average
+        </div>
+      </div>
+      <div class="flex-1 text-center px-3">
+        <div class="text-sm" style="color: var(--text-secondary)">
+          {{
+            !loadingSummary && Number(summary?.this_month_expense ?? 0) > 0
+              ? "Projected expenses this month"
+              : "Projected monthly expenses"
+          }}
+        </div>
+        <div class="font-bold" :style="{ color: colors.neg }">
+          {{
+            loadingSummary
+              ? "—"
+              : vueHelper.displayAsCurrency(
+                  Number(summary?.monthly_expense ?? 0) +
+                    Number(summary?.this_month_expense ?? 0) || 0,
+                )
+          }}
+        </div>
+        <div
+          v-if="!loadingSummary && Number(summary?.this_month_expense ?? 0) > 0"
+          class="text-xs mt-1"
+          style="color: var(--text-secondary)"
+        >
+          {{ vueHelper.displayAsCurrency(summary?.monthly_expense ?? 0) }} on
+          average
+        </div>
+      </div>
+    </div>
+
     <div class="flex flex-row gap-2 w-full">
       <DataTable
         class="w-full enhanced-table"
@@ -283,10 +378,17 @@ defineExpose({ refresh });
         <Column
           v-for="col of activeColumns"
           :key="col.field"
-          :header="col.header"
           :field="col.field"
           style="width: 25%"
         >
+          <template #header>
+            <ColumnHeader
+              :header="col.header"
+              :field="col.field"
+              :sortable="true"
+              :sort="sort"
+            />
+          </template>
           <template #body="{ data }">
             <template
               v-if="col.field === 'next_run_at' || col.field === 'end_date'"

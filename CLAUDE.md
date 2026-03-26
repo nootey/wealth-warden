@@ -38,6 +38,7 @@ Ledger based personal finance manager with an included web based client.
 
 - Follow existing code patterns and conventions
 - DO NOT suggest service to service injections, unless absolutely necessary
+- For the client, do NOT write custom css classes, use inline primeflex classes where possible
 - Consider security and performance implications
 - Use make build and make lint to verify new code
 - Test changes when possible

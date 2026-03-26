@@ -1023,6 +1023,65 @@ func (_c *MockTransactionServiceInterface_GetTransactionTemplateCount_Call) RunA
 	return _c
 }
 
+// GetTemplateSummary provides a mock function with given fields: ctx, userID
+func (_m *MockTransactionServiceInterface) GetTemplateSummary(ctx context.Context, userID int64) (*models.TemplateSummary, error) {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetTemplateSummary")
+	}
+
+	var r0 *models.TemplateSummary
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int64) (*models.TemplateSummary, error)); ok {
+		return rf(ctx, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int64) *models.TemplateSummary); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*models.TemplateSummary)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockTransactionServiceInterface_GetTemplateSummary_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTemplateSummary'
+type MockTransactionServiceInterface_GetTemplateSummary_Call struct {
+	*mock.Call
+}
+
+// GetTemplateSummary is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+func (_e *MockTransactionServiceInterface_Expecter) GetTemplateSummary(ctx interface{}, userID interface{}) *MockTransactionServiceInterface_GetTemplateSummary_Call {
+	return &MockTransactionServiceInterface_GetTemplateSummary_Call{Call: _e.mock.On("GetTemplateSummary", ctx, userID)}
+}
+
+func (_c *MockTransactionServiceInterface_GetTemplateSummary_Call) Run(run func(ctx context.Context, userID int64)) *MockTransactionServiceInterface_GetTemplateSummary_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(int64))
+	})
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_GetTemplateSummary_Call) Return(_a0 *models.TemplateSummary, _a1 error) *MockTransactionServiceInterface_GetTemplateSummary_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_GetTemplateSummary_Call) RunAndReturn(run func(context.Context, int64) (*models.TemplateSummary, error)) *MockTransactionServiceInterface_GetTemplateSummary_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // InsertCategory provides a mock function with given fields: ctx, userID, req
 func (_m *MockTransactionServiceInterface) InsertCategory(ctx context.Context, userID int64, req *models.CategoryReq) (int64, error) {
 	ret := _m.Called(ctx, userID, req)
