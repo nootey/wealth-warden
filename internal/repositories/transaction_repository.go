@@ -52,7 +52,7 @@ type TransactionRepositoryInterface interface {
 	RestoreTransaction(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	RestoreCategory(ctx context.Context, tx *gorm.DB, id int64, userID *int64) error
 	RestoreCategoryName(ctx context.Context, tx *gorm.DB, id int64, userID *int64, name string) error
-	FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int) ([]models.TransactionTemplate, error)
+	FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string) ([]models.TransactionTemplate, error)
 	CountTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, onlyActive bool) (int64, error)
 	FindTransactionTemplateByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.TransactionTemplate, error)
 	InsertTransactionTemplate(ctx context.Context, tx *gorm.DB, newRecord *models.TransactionTemplate) (int64, error)
@@ -857,7 +857,7 @@ func (r *TransactionRepository) RestoreCategoryName(ctx context.Context, tx *gor
 	return res.Error
 }
 
-func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int) ([]models.TransactionTemplate, error) {
+func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string) ([]models.TransactionTemplate, error) {
 
 	db := tx
 	if db == nil {
@@ -865,12 +865,21 @@ func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx
 	}
 	db = db.WithContext(ctx)
 
+	joins := []string{}
+	orderBy := utils.ConstructOrderByClause(&joins, "transaction_templates", sortField, sortOrder)
+
 	var records []models.TransactionTemplate
-	err := db.Model(&models.TransactionTemplate{}).
-		Where("user_id = ?", userID).
+	q := db.Model(&models.TransactionTemplate{}).
+		Where("transaction_templates.user_id = ?", userID).
 		Preload("Category").
-		Preload("Account").
-		Order("is_active desc, created_at desc").
+		Preload("Account")
+
+	for _, join := range joins {
+		q = q.Joins(join)
+	}
+
+	err := q.
+		Order("transaction_templates.is_active desc, " + orderBy).
 		Limit(limit).
 		Offset(offset).
 		Find(&records).Error

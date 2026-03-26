@@ -66,6 +66,20 @@ var FieldMap = map[string]map[string]FieldMetadata{
 			OrEquals:     true,
 		},
 	},
+	"transaction_templates": {
+		"category": {
+			Column:       "categories.name",
+			FilterColumn: "categories.id",
+			Join:         "LEFT JOIN categories ON categories.id = transaction_templates.category_id",
+			OrEquals:     true,
+		},
+		"account": {
+			Column:       "accounts.name",
+			FilterColumn: "accounts.id",
+			Join:         "LEFT JOIN accounts ON accounts.id = transaction_templates.account_id",
+			OrEquals:     true,
+		},
+	},
 	"investment_trades": {
 		"asset.name": {
 			Column:       "investment_assets.name",

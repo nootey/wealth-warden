@@ -3,7 +3,7 @@ import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, provide, ref } from "vue";
 import type {
   TemplateSummary,
   TransactionTemplate,
@@ -13,6 +13,7 @@ import type { Column } from "../../../services/filter_registry.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 import CustomPaginator from "../base/CustomPaginator.vue";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
+import ColumnHeader from "../base/ColumnHeader.vue";
 import TransactionTemplateForm from "../forms/TransactionTemplateForm.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
@@ -218,6 +219,18 @@ async function toggleActiveTemplate(
   }
 }
 
+function switchSort(column: string) {
+  if (sort.value.field === column) {
+    sort.value.order = filterHelper.toggleSort(sort.value.order);
+  } else {
+    sort.value.order = 1;
+  }
+  sort.value.field = column;
+  getData();
+}
+
+provide("switchSort", switchSort);
+
 defineExpose({ refresh });
 </script>
 
@@ -365,10 +378,17 @@ defineExpose({ refresh });
         <Column
           v-for="col of activeColumns"
           :key="col.field"
-          :header="col.header"
           :field="col.field"
           style="width: 25%"
         >
+          <template #header>
+            <ColumnHeader
+              :header="col.header"
+              :field="col.field"
+              :sortable="true"
+              :sort="sort"
+            />
+          </template>
           <template #body="{ data }">
             <template
               v-if="col.field === 'next_run_at' || col.field === 'end_date'"

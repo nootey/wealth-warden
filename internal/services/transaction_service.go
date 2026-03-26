@@ -1487,7 +1487,7 @@ func (s *TransactionService) FetchTransactionTemplatesPaginated(ctx context.Cont
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
 
-	records, err := s.repo.FindTransactionTemplates(ctx, nil, userID, offset, p.RowsPerPage)
+	records, err := s.repo.FindTransactionTemplates(ctx, nil, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder)
 	if err != nil {
 		return nil, nil, err
 	}
