@@ -19,6 +19,25 @@ const toastStore = useToastStore();
 const trail = ref<ActivityLog[]>([]);
 const loading = ref(false);
 
+function formatAuditValue(item: { newVal: unknown; oldVal: unknown }): string {
+  const fmt = (v: unknown): string => {
+    if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
+      return dateHelper.formatDate(v, true);
+    }
+    return String(v ?? "");
+  };
+
+  const hasNew =
+    item.newVal !== undefined && item.newVal !== null && item.newVal !== "";
+  const hasOld =
+    item.oldVal !== undefined && item.oldVal !== null && item.oldVal !== "";
+
+  if (hasNew && hasOld && item.newVal !== item.oldVal) {
+    return `${fmt(item.oldVal)} => ${fmt(item.newVal)}`;
+  }
+  return fmt(hasNew ? item.newVal : hasOld ? item.oldVal : "");
+}
+
 onMounted(async () => {
   loading.value = true;
   try {
@@ -77,10 +96,10 @@ onMounted(async () => {
                 }}</label>
                 <span
                   v-if="item?.prop !== 'id'"
-                  v-tooltip="vueHelper.formatValue(item)"
+                  v-tooltip="formatAuditValue(item)"
                   class="text-sm"
                 >
-                  {{ vueHelper.formatValue(item) }}
+                  {{ formatAuditValue(item) }}
                 </span>
               </div>
             </div>
