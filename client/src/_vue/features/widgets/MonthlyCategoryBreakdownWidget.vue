@@ -200,7 +200,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-column w-full p-2 gap-3">
+  <div class="flex flex-column w-full p-2 gap-3" style="overflow-x: hidden">
     <div
       class="flex flex-row gap-2 w-full justify-content-between align-items-center"
     >
@@ -240,8 +240,9 @@ watch(
         <MultiSelect
           v-model="selectedYears"
           :options="yearOptions"
-          :max-selected-labels="5"
+          :max-selected-labels="1"
           :selection-limit="5"
+          selected-items-label="{0} years"
           size="small"
           class="select-width"
           placeholder="Years"
@@ -397,10 +398,15 @@ watch(
 @media (max-width: 768px) {
   .select-container {
     width: 100% !important;
+    flex-shrink: 1 !important;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .select-width {
     width: 100% !important;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .year-box {
