@@ -2017,15 +2017,14 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 
 	summary := &models.TemplateSummary{}
 	for _, t := range templates {
-		// transfers are balance-neutral; exclude from projected cost summary
-		if t.TemplateType == "transfer" {
-			continue
-		}
+		isTransfer := t.TemplateType == "transfer"
 		isExpense := t.TransactionType != nil && *t.TransactionType == "expense"
 
 		if multiplier, ok := baseMultipliers[t.Frequency]; ok {
 			monthlyAmount := t.Amount.Mul(multiplier)
-			if isExpense {
+			if isTransfer {
+				summary.MonthlyTransfer = summary.MonthlyTransfer.Add(monthlyAmount)
+			} else if isExpense {
 				summary.MonthlyExpense = summary.MonthlyExpense.Add(monthlyAmount)
 			} else {
 				summary.MonthlyIncome = summary.MonthlyIncome.Add(monthlyAmount)
@@ -2035,7 +2034,9 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 
 		if periodicFrequencies[t.Frequency] {
 			if !t.NextRunAt.Before(monthStart) && t.NextRunAt.Before(monthEnd) {
-				if isExpense {
+				if isTransfer {
+					summary.ThisMonthTransfer = summary.ThisMonthTransfer.Add(t.Amount)
+				} else if isExpense {
 					summary.ThisMonthExpense = summary.ThisMonthExpense.Add(t.Amount)
 				} else {
 					summary.ThisMonthIncome = summary.ThisMonthIncome.Add(t.Amount)

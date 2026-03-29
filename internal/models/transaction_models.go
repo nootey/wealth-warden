@@ -118,10 +118,12 @@ type TransactionBatchTotals struct {
 }
 
 type TemplateSummary struct {
-	MonthlyExpense   decimal.Decimal `json:"monthly_expense"`
-	MonthlyIncome    decimal.Decimal `json:"monthly_income"`
-	ThisMonthExpense decimal.Decimal `json:"this_month_expense"`
-	ThisMonthIncome  decimal.Decimal `json:"this_month_income"`
+	MonthlyExpense    decimal.Decimal `json:"monthly_expense"`
+	MonthlyIncome     decimal.Decimal `json:"monthly_income"`
+	ThisMonthExpense  decimal.Decimal `json:"this_month_expense"`
+	ThisMonthIncome   decimal.Decimal `json:"this_month_income"`
+	MonthlyTransfer   decimal.Decimal `json:"monthly_transfer"`
+	ThisMonthTransfer decimal.Decimal `json:"this_month_transfer"`
 }
 
 type TransactionReq struct {

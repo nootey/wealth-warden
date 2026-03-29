@@ -64,6 +64,8 @@ export interface TemplateSummary {
   monthly_income: string;
   this_month_expense: string;
   this_month_income: string;
+  monthly_transfer: string;
+  this_month_transfer: string;
 }
 
 export interface TransactionTemplate {
