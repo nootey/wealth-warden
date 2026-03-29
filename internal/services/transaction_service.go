@@ -29,6 +29,7 @@ type TransactionServiceInterface interface {
 	UpdateTransaction(ctx context.Context, userID int64, id int64, req *models.TransactionReq) (int64, error)
 	UpdateCategory(ctx context.Context, userID int64, id int64, req *models.CategoryReq) (int64, error)
 	DeleteTransaction(ctx context.Context, userID int64, id int64) error
+	UpdateTransfer(ctx context.Context, userID int64, id int64, req *models.UpdateTransferReq) error
 	DeleteTransfer(ctx context.Context, userID int64, id int64) error
 	DeleteCategory(ctx context.Context, userID int64, id int64) error
 	RestoreTransaction(ctx context.Context, userID int64, id int64) error
@@ -503,7 +504,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		Currency:             models.DefaultCurrency,
 		Status:               "success",
 		Notes:                req.Notes,
-		CreatedAt:            req.CreatedAt,
+		CreatedAt:            t,
 		IdempotencyKey:       req.IdempotencyKey,
 	}
 
@@ -1039,6 +1040,184 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, id int64, req *models.UpdateTransferReq) error {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	transfer, err := s.repo.FindTransferByID(ctx, tx, id, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find transfer: %w", err)
+	}
+
+	inflow, err := s.repo.FindTransactionByID(ctx, tx, transfer.TransactionInflowID, userID, false)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find inflow transaction: %w", err)
+	}
+
+	outflow, err := s.repo.FindTransactionByID(ctx, tx, transfer.TransactionOutflowID, userID, false)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find outflow transaction: %w", err)
+	}
+
+	fromAcc, err := s.accRepo.FindAccountByID(ctx, tx, outflow.AccountID, userID, true)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find source account: %w", err)
+	}
+
+	toAcc, err := s.accRepo.FindAccountByID(ctx, tx, inflow.AccountID, userID, false)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find destination account: %w", err)
+	}
+
+	if err := utils.ValidateAccount(fromAcc, "source"); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't fetch user settings: %w", err)
+	}
+	loc, _ := time.LoadLocation(settings.Timezone)
+	if loc == nil {
+		loc = time.UTC
+	}
+
+	oldDate := outflow.TxnDate
+	oldAmount := outflow.Amount
+	newDate := utils.LocalMidnightUTC(req.CreatedAt, loc)
+
+	// Sufficient funds check: only when the outflow increases
+	netChange := req.Amount.Sub(oldAmount)
+	if netChange.GreaterThan(decimal.Zero) && fromAcc.AccountType.Classification == "asset" {
+		if fromAcc.Balance.EndBalance.Sub(netChange).LessThan(decimal.Zero) {
+			tx.Rollback()
+			return fmt.Errorf("insufficient funds: account %s balance=%s, additional required=%s",
+				fromAcc.Name,
+				fromAcc.Balance.EndBalance.StringFixed(2),
+				netChange.StringFixed(2))
+		}
+	}
+
+	// Reverse old balance effects
+	if err := s.updateAccountBalance(ctx, tx, fromAcc, oldDate, "expense", oldAmount.Neg()); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := s.updateAccountBalance(ctx, tx, toAcc, oldDate, "income", oldAmount.Neg()); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Apply new balance effects
+	if err := s.updateAccountBalance(ctx, tx, fromAcc, newDate, "expense", req.Amount); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := s.updateAccountBalance(ctx, tx, toAcc, newDate, "income", req.Amount); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Update transfer record
+	if err := s.repo.UpdateTransferRecord(ctx, tx, transfer.ID, req.Amount, req.Notes, req.CreatedAt); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Update both transactions
+	outflow.Amount = req.Amount
+	outflow.TxnDate = newDate
+	outflow.Description = req.Notes
+	if _, err := s.repo.UpdateTransaction(ctx, tx, outflow); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	inflow.Amount = req.Amount
+	inflow.TxnDate = newDate
+	inflow.Description = req.Notes
+	if _, err := s.repo.UpdateTransaction(ctx, tx, inflow); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Recalculate snapshots from the earliest affected date
+	recalcFrom := oldDate
+	if newDate.Before(oldDate) {
+		recalcFrom = newDate
+	}
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	if err := s.accRepo.FrontfillBalances(ctx, tx, fromAcc.ID, fromAcc.Currency, recalcFrom); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, recalcFrom, today); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.accRepo.FrontfillBalances(ctx, tx, toAcc.ID, toAcc.Currency, recalcFrom); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, recalcFrom, today); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	// Capture old values for audit log
+	oldNotesStr := ""
+	if transfer.Notes != nil {
+		oldNotesStr = *transfer.Notes
+	}
+	newNotesStr := ""
+	if req.Notes != nil {
+		newNotesStr = *req.Notes
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(oldAmount.StringFixed(2), req.Amount.StringFixed(2), changes, "amount")
+	utils.CompareChanges(oldDate.UTC().Format(time.RFC3339), newDate.UTC().Format(time.RFC3339), changes, "date")
+	utils.CompareChanges(oldNotesStr, newNotesStr, changes, "notes")
+
+	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
+		Event:       "update",
+		Category:    "transfer",
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		return err
 	}
 
 	return nil

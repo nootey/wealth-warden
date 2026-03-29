@@ -56,6 +56,13 @@ export const useTransactionStore = defineStore("transaction", {
       );
       return response.data;
     },
+    async updateTransfer(id: number, record: object) {
+      const response = await apiClient.patch(
+        `${this.apiPrefix}/transfers/${id}`,
+        record,
+      );
+      return response.data;
+    },
     async restoreTransaction(id: number) {
       const response = await apiClient.post(`${this.apiPrefix}/restore`, {
         id,

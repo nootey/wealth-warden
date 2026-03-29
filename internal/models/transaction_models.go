@@ -161,6 +161,12 @@ type CategoryGroupReq struct {
 	SelectedCategories interface{} `json:"selected_categories" validate:"required"`
 }
 
+type UpdateTransferReq struct {
+	Amount    decimal.Decimal `json:"amount" validate:"required"`
+	Notes     *string         `json:"notes"`
+	CreatedAt time.Time       `json:"created_at" validate:"required"`
+}
+
 type TransactionTemplateReq struct {
 	Name            string          `json:"name" validate:"required"`
 	TemplateType    string          `json:"template_type" validate:"required"`

@@ -3066,3 +3066,248 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_IdempotencyKey_Deduplic
 		Count(&txnCount)
 	s.Assert().Equal(int64(2), txnCount, "only two child transactions should exist for the transfer")
 }
+
+func (s *TransactionServiceTestSuite) assertSnapshot(accountID int64, asOf time.Time, expected decimal.Decimal, label string) {
+	var snap models.AccountDailySnapshot
+	err := s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accountID, asOf.UTC().Truncate(24*time.Hour)).
+		First(&snap).Error
+	s.Require().NoError(err, "%s snapshot not found", label)
+	s.Assert().True(expected.Equal(snap.EndBalance),
+		"%s snapshot: expected %s, got %s", label, expected.String(), snap.EndBalance.String())
+}
+
+func (s *TransactionServiceTestSuite) assertBalanceRow(accountID int64, asOf time.Time, expectedInflows, expectedOutflows decimal.Decimal, label string) {
+	var bal models.Balance
+	err := s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accountID, asOf.UTC().Truncate(24*time.Hour)).
+		First(&bal).Error
+	s.Require().NoError(err, "%s balance row not found", label)
+	s.Assert().True(expectedInflows.Equal(bal.CashInflows),
+		"%s inflows: expected %s, got %s", label, expectedInflows.String(), bal.CashInflows.String())
+	s.Assert().True(expectedOutflows.Equal(bal.CashOutflows),
+		"%s outflows: expected %s, got %s", label, expectedOutflows.String(), bal.CashOutflows.String())
+}
+
+// TestUpdateTransfer_SameValues verifies that re-saving a transfer with identical
+// amount and date leaves both account balances unchanged.
+func (s *TransactionServiceTestSuite) TestUpdateTransfer_SameValues() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	srcBal := decimal.NewFromInt(500)
+	dstBal := decimal.NewFromInt(100)
+	srcID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Source Account", AccountTypeID: 1, Balance: &srcBal, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+	dstID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Destination Account", AccountTypeID: 1, Balance: &dstBal, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+
+	amount := decimal.NewFromInt(50)
+	notes := "original"
+	tr, err := svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID: srcID, DestinationID: dstID, Amount: amount, Notes: &notes, CreatedAt: today,
+	})
+	s.Require().NoError(err)
+
+	// Update with identical values
+	err = svc.UpdateTransfer(s.Ctx, userID, tr.ID, &models.UpdateTransferReq{
+		Amount: amount, Notes: &notes, CreatedAt: today,
+	})
+	s.Require().NoError(err)
+
+	// Source: 500 - 50 = 450
+	s.assertSnapshot(srcID, today, srcBal.Sub(amount), "source")
+	// Destination: 100 + 50 = 150
+	s.assertSnapshot(dstID, today, dstBal.Add(amount), "destination")
+
+	// Balance rows: exactly one outflow/inflow of 50, no drift
+	s.assertBalanceRow(srcID, today, decimal.Zero, amount, "source balance")
+	s.assertBalanceRow(dstID, today, amount, decimal.Zero, "destination balance")
+}
+
+// TestUpdateTransfer_AmountChange verifies that updating the amount correctly
+// adjusts both account balances.
+func (s *TransactionServiceTestSuite) TestUpdateTransfer_AmountChange() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	srcBal := decimal.NewFromInt(500)
+	dstBal := decimal.NewFromInt(100)
+	srcID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Source Account", AccountTypeID: 1, Balance: &srcBal, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+	dstID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Destination Account", AccountTypeID: 1, Balance: &dstBal, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+
+	original := decimal.NewFromInt(10)
+	tr, err := svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID: srcID, DestinationID: dstID, Amount: original, CreatedAt: today,
+	})
+	s.Require().NoError(err)
+
+	updated := decimal.NewFromInt(40)
+	err = svc.UpdateTransfer(s.Ctx, userID, tr.ID, &models.UpdateTransferReq{
+		Amount: updated, CreatedAt: today,
+	})
+	s.Require().NoError(err)
+
+	// Source: 500 - 40 = 460
+	s.assertSnapshot(srcID, today, srcBal.Sub(updated), "source")
+	// Destination: 100 + 40 = 140
+	s.assertSnapshot(dstID, today, dstBal.Add(updated), "destination")
+
+	s.assertBalanceRow(srcID, today, decimal.Zero, updated, "source balance")
+	s.assertBalanceRow(dstID, today, updated, decimal.Zero, "destination balance")
+
+	// Transfer record should reflect the new amount
+	var updatedTransfer models.Transfer
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", tr.ID).First(&updatedTransfer).Error)
+	s.Assert().True(updated.Equal(updatedTransfer.Amount), "transfer record amount should be updated")
+}
+
+// TestUpdateTransfer_DateChange verifies that moving a transfer to a different date
+// recalculates snapshots correctly for both the old and new dates.
+func (s *TransactionServiceTestSuite) TestUpdateTransfer_DateChange() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	yesterday := today.AddDate(0, 0, -1)
+
+	srcBal := decimal.NewFromInt(500)
+	dstBal := decimal.NewFromInt(100)
+
+	srcID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Transfer Source Date", AccountTypeID: 1, Balance: &srcBal, OpenedAt: yesterday,
+	})
+	s.Require().NoError(err)
+	dstID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Transfer Destination Date", AccountTypeID: 1, Balance: &dstBal, OpenedAt: yesterday,
+	})
+	s.Require().NoError(err)
+
+	amount := decimal.NewFromInt(50)
+	tr, err := svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID: srcID, DestinationID: dstID, Amount: amount, CreatedAt: yesterday,
+	})
+	s.Require().NoError(err)
+
+	// Move transfer to today
+	err = svc.UpdateTransfer(s.Ctx, userID, tr.ID, &models.UpdateTransferReq{
+		Amount: amount, CreatedAt: today,
+	})
+	s.Require().NoError(err)
+
+	// Old date balance row should now have no outflow/inflow
+	s.assertBalanceRow(srcID, yesterday, decimal.Zero, decimal.Zero, "source old date")
+	s.assertBalanceRow(dstID, yesterday, decimal.Zero, decimal.Zero, "destination old date")
+
+	// New date balance row should have the transfer
+	s.assertBalanceRow(srcID, today, decimal.Zero, amount, "source new date")
+	s.assertBalanceRow(dstID, today, amount, decimal.Zero, "destination new date")
+
+	// Today snapshot: 500 - 50 = 450 for source, 100 + 50 = 150 for destination
+	s.assertSnapshot(srcID, today, srcBal.Sub(amount), "source today")
+	s.assertSnapshot(dstID, today, dstBal.Add(amount), "destination today")
+}
+
+// TestUpdateTransfer_NotesOnly verifies that updating only notes leaves balances untouched.
+func (s *TransactionServiceTestSuite) TestUpdateTransfer_NotesOnly() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	srcBal := decimal.NewFromInt(300)
+	dstBal := decimal.NewFromInt(50)
+	srcID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Source Account", AccountTypeID: 1, Balance: &srcBal, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+	dstID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Destination Account", AccountTypeID: 1, Balance: &dstBal, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+
+	amount := decimal.NewFromInt(100)
+	oldNotes := "old notes"
+	tr, err := svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID: srcID, DestinationID: dstID, Amount: amount, Notes: &oldNotes, CreatedAt: today,
+	})
+	s.Require().NoError(err)
+
+	newNotes := "updated notes"
+	err = svc.UpdateTransfer(s.Ctx, userID, tr.ID, &models.UpdateTransferReq{
+		Amount: amount, Notes: &newNotes, CreatedAt: today,
+	})
+	s.Require().NoError(err)
+
+	// Balances must not drift
+	s.assertSnapshot(srcID, today, srcBal.Sub(amount), "source")
+	s.assertSnapshot(dstID, today, dstBal.Add(amount), "destination")
+	s.assertBalanceRow(srcID, today, decimal.Zero, amount, "source balance")
+	s.assertBalanceRow(dstID, today, amount, decimal.Zero, "destination balance")
+
+	// Notes updated on transfer and both transactions
+	var updatedTransfer models.Transfer
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", tr.ID).First(&updatedTransfer).Error)
+	s.Require().NotNil(updatedTransfer.Notes)
+	s.Assert().Equal(newNotes, *updatedTransfer.Notes)
+
+	var outflow models.Transaction
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", updatedTransfer.TransactionOutflowID).First(&outflow).Error)
+	s.Require().NotNil(outflow.Description)
+	s.Assert().Equal(newNotes, *outflow.Description)
+}
+
+// TestUpdateTransfer_InsufficientFunds verifies that increasing the transfer amount
+// beyond the source account balance is rejected.
+func (s *TransactionServiceTestSuite) TestUpdateTransfer_InsufficientFunds() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	srcBal := decimal.NewFromInt(100)
+	dstBal := decimal.NewFromInt(50)
+	srcID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Source Account", AccountTypeID: 1, Balance: &srcBal, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+	dstID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Destination Account", AccountTypeID: 1, Balance: &dstBal, OpenedAt: today,
+	})
+	s.Require().NoError(err)
+
+	original := decimal.NewFromInt(50)
+	tr, err := svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID: srcID, DestinationID: dstID, Amount: original, CreatedAt: today,
+	})
+	s.Require().NoError(err)
+
+	// Try to increase to 200 — only 50 remains after the original transfer
+	tooMuch := decimal.NewFromInt(200)
+	err = svc.UpdateTransfer(s.Ctx, userID, tr.ID, &models.UpdateTransferReq{
+		Amount: tooMuch, CreatedAt: today,
+	})
+	s.Require().Error(err, "should reject update that would overdraft source account")
+
+	// Transfer amount must be unchanged
+	var unchanged models.Transfer
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", tr.ID).First(&unchanged).Error)
+	s.Assert().True(original.Equal(unchanged.Amount), "transfer amount should be unchanged after rejected update")
+
+	// Source balance must be unchanged: 100 - 50 = 50
+	s.assertSnapshot(srcID, today, srcBal.Sub(original), "source")
+}

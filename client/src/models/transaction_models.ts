@@ -17,6 +17,7 @@ export interface Transaction {
 }
 
 export interface Transfer {
+  id?: number | null;
   source_id: number | null;
   destination_id: number | null;
   amount: string | null;

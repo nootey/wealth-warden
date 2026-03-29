@@ -13,6 +13,8 @@ import CustomPaginator from "../base/CustomPaginator.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import ColumnHeader from "../base/ColumnHeader.vue";
 import type { PaginatorState } from "../../../models/shared_models.ts";
+import TransferForm from "../forms/TransferForm.vue";
+import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 
 const props = defineProps<{
   accID?: number;
@@ -20,9 +22,15 @@ const props = defineProps<{
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
+const transactionStore = useTransactionStore();
 const { hasPermission } = usePermissions();
 
 const confirm = useConfirm();
+
+const updateModal = ref(false);
+const selectedTransfer = ref<Transfer | null>(null);
+const transferFormRef = ref<InstanceType<typeof TransferForm> | null>(null);
+const submitting = ref(false);
 
 const apiPrefix = "transactions/transfers";
 
@@ -114,7 +122,7 @@ async function deleteRecord(id: number) {
   }
 }
 
-function canDelete(tr: Transfer) {
+function canUpdate(tr: Transfer) {
   return (
     !tr.deleted_at &&
     !tr?.from?.account?.closed_at &&
@@ -122,6 +130,48 @@ function canDelete(tr: Transfer) {
     !tr?.to?.account?.closed_at &&
     tr?.to?.account?.is_active
   );
+}
+
+function canDelete(tr: Transfer) {
+  return canUpdate(tr);
+}
+
+function openUpdate(tr: Transfer) {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
+  selectedTransfer.value = tr;
+  updateModal.value = true;
+}
+
+async function submitUpdate() {
+  if (submitting.value || !selectedTransfer.value) return;
+  const isValid = await transferFormRef.value?.v$.localTransfer.$validate();
+  if (!isValid) return;
+
+  submitting.value = true;
+  try {
+    const local = transferFormRef.value!.localTransfer;
+    const response = await transactionStore.updateTransfer(
+      selectedTransfer.value.id as number,
+      {
+        amount: local.amount,
+        notes: local.notes,
+        created_at: local.created_at,
+      },
+    );
+    toastStore.successResponseToast(response);
+    updateModal.value = false;
+    await getData();
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  } finally {
+    submitting.value = false;
+  }
 }
 
 async function switchSort(column: string) {
@@ -144,6 +194,33 @@ defineExpose({ refresh });
 </script>
 
 <template>
+  <Dialog
+    v-model:visible="updateModal"
+    position="right"
+    class="rounded-dialog"
+    :breakpoints="{ '501px': '90vw' }"
+    :modal="true"
+    :style="{ width: '500px' }"
+    header="Edit transfer"
+  >
+    <div v-if="selectedTransfer" class="flex flex-column gap-3 p-1">
+      <TransferForm
+        ref="transferFormRef"
+        :accounts="[]"
+        :transfer="selectedTransfer"
+        mode="update"
+      />
+      <Button
+        class="main-button"
+        label="Update transfer"
+        :disabled="submitting"
+        :loading="submitting"
+        style="height: 42px"
+        @click="submitUpdate"
+      />
+    </div>
+  </Dialog>
+
   <div class="flex flex-column w-full gap-3">
     <div
       class="flex flex-column w-full border-round-2xl"
@@ -204,7 +281,17 @@ defineExpose({ refresh });
             <template v-else-if="col.field === 'created_at'">
               {{ dateHelper.formatDate(data?.created_at, true) }}
             </template>
-            <template v-else-if="col.field === 'from' || col.field === 'to'">
+            <template v-else-if="col.field === 'from'">
+              <span
+                v-if="canUpdate(data)"
+                class="hover"
+                @click="openUpdate(data)"
+              >
+                {{ data[col.field]["account"]["name"] }}
+              </span>
+              <span v-else>{{ data[col.field]["account"]["name"] }}</span>
+            </template>
+            <template v-else-if="col.field === 'to'">
               {{ data[col.field]["account"]["name"] }}
             </template>
             <template v-else-if="col.field === 'notes'">
@@ -242,4 +329,12 @@ defineExpose({ refresh });
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.hover {
+  font-weight: bold;
+}
+.hover:hover {
+  cursor: pointer;
+  text-decoration: underline;
+}
+</style>

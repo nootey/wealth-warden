@@ -40,6 +40,7 @@ type TransactionRepositoryInterface interface {
 	CountActiveTransactionsForCategory(ctx context.Context, tx *gorm.DB, userID, categoryID int64) (int64, error)
 	InsertTransaction(ctx context.Context, tx *gorm.DB, newRecord *models.Transaction) (int64, error)
 	InsertTransfer(ctx context.Context, tx *gorm.DB, newRecord *models.Transfer) (int64, error)
+	UpdateTransferRecord(ctx context.Context, tx *gorm.DB, id int64, amount decimal.Decimal, notes *string, createdAt time.Time) error
 	InsertCategory(ctx context.Context, tx *gorm.DB, newRecord *models.Category) (int64, error)
 	UpdateTransaction(ctx context.Context, tx *gorm.DB, record models.Transaction) (int64, error)
 	UpdateCategory(ctx context.Context, tx *gorm.DB, record models.Category) (int64, error)
@@ -574,6 +575,23 @@ func (r *TransactionRepository) InsertTransfer(ctx context.Context, tx *gorm.DB,
 		return 0, err
 	}
 	return newRecord.ID, nil
+}
+
+func (r *TransactionRepository) UpdateTransferRecord(ctx context.Context, tx *gorm.DB, id int64, amount decimal.Decimal, notes *string, createdAt time.Time) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	return db.Model(models.Transfer{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"amount":     amount,
+			"notes":      notes,
+			"created_at": createdAt,
+			"updated_at": time.Now().UTC(),
+		}).Error
 }
 
 func (r *TransactionRepository) InsertCategory(ctx context.Context, tx *gorm.DB, newRecord *models.Category) (int64, error) {
