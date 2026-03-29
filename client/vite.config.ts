@@ -16,6 +16,34 @@ export default defineConfig(({ mode }) => {
         resolvers: [PrimeVueResolver()],
       }),
     ],
+    build: {
+      chunkSizeWarningLimit: 800,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes("node_modules/chart.js") ||
+                id.includes("node_modules/vue-chart-3") ||
+                id.includes("node_modules/chartjs-") ||
+                id.includes("node_modules/date-fns")) {
+              return "charts";
+            }
+            if (id.includes("node_modules/primevue") ||
+                id.includes("node_modules/@primevue") ||
+                id.includes("node_modules/primeicons")) {
+              return "primevue";
+            }
+            if (id.includes("node_modules/vue") ||
+                id.includes("node_modules/vue-router") ||
+                id.includes("node_modules/pinia")) {
+              return "vue-vendor";
+            }
+            if (id.includes("node_modules/")) {
+              return "vendor";
+            }
+          },
+        },
+      },
+    },
     server: {
       host: true,
       port: DEV_PORT,
