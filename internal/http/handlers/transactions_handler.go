@@ -528,8 +528,9 @@ func (h *TransactionHandler) GetTransactionTemplatesPaginated(c *gin.Context) {
 
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
+	templateType := qp.Get("template_type")
 
-	records, paginator, err := h.Service.FetchTransactionTemplatesPaginated(ctx, userID, p)
+	records, paginator, err := h.Service.FetchTransactionTemplatesPaginated(ctx, userID, p, templateType)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -700,7 +701,8 @@ func (h *TransactionHandler) GetTransactionTemplateCount(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	record, err := h.Service.GetTransactionTemplateCount(ctx, userID)
+	templateType := c.Query("template_type")
+	record, err := h.Service.GetTransactionTemplateCount(ctx, userID, templateType)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

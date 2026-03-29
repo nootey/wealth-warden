@@ -52,8 +52,10 @@ type TransactionTemplate struct {
 	Name            string          `gorm:"varchar(150)" json:"name"`
 	UserID          int64           `gorm:"not null" json:"user_id"`
 	AccountID       int64           `gorm:"not null" json:"account_id"`
-	CategoryID      int64           `gorm:"not null;" json:"category_id,omitempty"`
-	TransactionType string          `gorm:"not null;enum(income,expense)" json:"transaction_type"`
+	ToAccountID     *int64          `json:"to_account_id,omitempty"`
+	CategoryID      *int64          `json:"category_id,omitempty"`
+	TemplateType    string          `gorm:"not null;default:'transaction'" json:"template_type"`
+	TransactionType *string         `gorm:"enum(income,expense)" json:"transaction_type,omitempty"`
 	Amount          decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
 	Frequency       string          `gorm:"not null:enum(weekly,biweekly,monthly,quarterly,annually)" json:"frequency"`
 	DayOfMonth      int             `gorm:"not null;default:0" json:"day_of_month"`
@@ -64,7 +66,8 @@ type TransactionTemplate struct {
 	MaxRuns         *int            `json:"max_runs"`
 	IsActive        bool            `gorm:"not null;default:true" json:"is_active"`
 	Account         Account         `json:"account"`
-	Category        Category        `json:"category,omitempty"`
+	ToAccount       *Account        `gorm:"foreignKey:ToAccountID" json:"to_account,omitempty"`
+	Category        *Category       `json:"category,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 }
@@ -158,12 +161,14 @@ type CategoryGroupReq struct {
 
 type TransactionTemplateReq struct {
 	Name            string          `json:"name" validate:"required"`
+	TemplateType    string          `json:"template_type" validate:"required"`
 	AccountID       int64           `json:"account_id" validate:"required"`
-	CategoryID      int64           `json:"category_id" validate:"required"`
-	TransactionType string          `json:"transaction_type" validate:"required"`
+	ToAccountID     *int64          `json:"to_account_id,omitempty"`
+	CategoryID      *int64          `json:"category_id,omitempty"`
+	TransactionType *string         `json:"transaction_type,omitempty"`
 	Amount          decimal.Decimal `json:"amount" validate:"required"`
-	Frequency       string          `gorm:"not null:enum(weekly,biweekly,monthly,quarterly,annually)" json:"frequency" validate:"required"`
-	NextRunAt       time.Time       `gorm:"not null" json:"next_run_at" validate:"required"`
+	Frequency       string          `json:"frequency" validate:"required"`
+	NextRunAt       time.Time       `json:"next_run_at" validate:"required"`
 	EndDate         *time.Time      `json:"end_date"`
 	MaxRuns         *int            `json:"max_runs"`
 	IsActive        bool            `json:"is_active" validate:"required"`

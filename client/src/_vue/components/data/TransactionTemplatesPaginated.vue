@@ -3,7 +3,7 @@ import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
-import { computed, onMounted, provide, ref } from "vue";
+import { computed, onMounted, provide, ref, watch } from "vue";
 import type {
   TemplateSummary,
   TransactionTemplate,
@@ -34,8 +34,20 @@ const { colors } = useChartColors();
 
 const apiPrefix = "transactions/templates";
 
+const tabOptions = [
+  { label: "Transactions", value: "transaction" },
+  { label: "Transfers", value: "transfer" },
+];
+const activeTab = ref<"transaction" | "transfer">("transaction");
+
 onMounted(async () => {
   await Promise.all([getData(), getSummary()]);
+});
+
+watch(activeTab, async () => {
+  page.value = 1;
+  sort.value = filterHelper.initSort();
+  await getData();
 });
 
 const loadingRecords = ref(true);
@@ -51,6 +63,7 @@ const params = computed(() => {
     rowsPerPage: paginator.value.rowsPerPage,
     sort: sort.value,
     filters: null,
+    template_type: activeTab.value,
   };
 });
 const rows = ref([10, 25]);
@@ -64,15 +77,27 @@ const paginator = ref<PaginatorState>({
 const page = ref(1);
 const sort = ref(filterHelper.initSort());
 
-const activeColumns = computed<Column[]>(() => [
-  { field: "name", header: "Name" },
-  { field: "account", header: "Account" },
-  { field: "category", header: "Category" },
-  { field: "transaction_type", header: "Type" },
-  { field: "amount", header: "Amount" },
-  { field: "frequency", header: "Frequency" },
-  { field: "next_run_at", header: "Next run" },
-]);
+const activeColumns = computed<Column[]>(() => {
+  if (activeTab.value === "transfer") {
+    return [
+      { field: "name", header: "Name" },
+      { field: "account", header: "From" },
+      { field: "to_account", header: "To" },
+      { field: "amount", header: "Amount" },
+      { field: "frequency", header: "Frequency" },
+      { field: "next_run_at", header: "Next run" },
+    ];
+  }
+  return [
+    { field: "name", header: "Name" },
+    { field: "account", header: "Account" },
+    { field: "category", header: "Category" },
+    { field: "transaction_type", header: "Type" },
+    { field: "amount", header: "Amount" },
+    { field: "frequency", header: "Frequency" },
+    { field: "next_run_at", header: "Next run" },
+  ];
+});
 
 async function getSummary() {
   loadingSummary.value = true;
@@ -245,6 +270,7 @@ defineExpose({ refresh });
   >
     <TransactionTemplateForm
       mode="create"
+      :template-type="activeTab"
       @complete-operation="handleEmit('completeOperation')"
     />
   </Dialog>
@@ -272,9 +298,14 @@ defineExpose({ refresh });
     <div
       class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
     >
-      <span style="color: var(--text-secondary)"
-        >Create and manage custom templates, for executing transactions.</span
-      >
+      <SelectButton
+        v-model="activeTab"
+        :options="tabOptions"
+        option-label="label"
+        option-value="value"
+        :allow-empty="false"
+        size="small"
+      />
       <Button
         class="main-button ml-auto"
         @click="manipulateDialog('addTemplate', true)"
@@ -288,6 +319,7 @@ defineExpose({ refresh });
     </div>
 
     <div
+      v-if="activeTab === 'transaction'"
       class="flex w-full p-3 gap-2 border-round-xl justify-content-between align-items-center"
       style="border: 1px solid var(--border-color)"
     >
@@ -403,11 +435,13 @@ defineExpose({ refresh });
                 {{ data[col.field] }}
               </span>
             </template>
-            <template v-else-if="col.field === 'account'">
-              {{ data[col.field].name }}
+            <template
+              v-else-if="col.field === 'account' || col.field === 'to_account'"
+            >
+              {{ data[col.field]?.name }}
             </template>
             <template v-else-if="col.field === 'category'">
-              {{ data[col.field].display_name }}
+              {{ data[col.field]?.display_name }}
             </template>
             <template
               v-else-if="

@@ -69,7 +69,9 @@ export interface TemplateSummary {
 export interface TransactionTemplate {
   id: number | null;
   name: string;
+  template_type: string;
   account_id: number | null;
+  to_account_id?: number | null;
   category_id: number | null;
   transaction_type: string;
   amount: string | null;
@@ -83,4 +85,5 @@ export interface TransactionTemplate {
   is_active: boolean;
   category: Category | null;
   account: Account;
+  to_account?: Account | null;
 }

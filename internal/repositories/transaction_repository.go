@@ -52,8 +52,8 @@ type TransactionRepositoryInterface interface {
 	RestoreTransaction(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	RestoreCategory(ctx context.Context, tx *gorm.DB, id int64, userID *int64) error
 	RestoreCategoryName(ctx context.Context, tx *gorm.DB, id int64, userID *int64, name string) error
-	FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string) ([]models.TransactionTemplate, error)
-	CountTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, onlyActive bool) (int64, error)
+	FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, templateType string) ([]models.TransactionTemplate, error)
+	CountTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, onlyActive bool, templateType string) (int64, error)
 	FindTransactionTemplateByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.TransactionTemplate, error)
 	InsertTransactionTemplate(ctx context.Context, tx *gorm.DB, newRecord *models.TransactionTemplate) (int64, error)
 	UpdateTransactionTemplate(ctx context.Context, tx *gorm.DB, record models.TransactionTemplate, onlyActive bool) (int64, error)
@@ -857,7 +857,7 @@ func (r *TransactionRepository) RestoreCategoryName(ctx context.Context, tx *gor
 	return res.Error
 }
 
-func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string) ([]models.TransactionTemplate, error) {
+func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, templateType string) ([]models.TransactionTemplate, error) {
 
 	db := tx
 	if db == nil {
@@ -872,7 +872,12 @@ func (r *TransactionRepository) FindTransactionTemplates(ctx context.Context, tx
 	q := db.Model(&models.TransactionTemplate{}).
 		Where("transaction_templates.user_id = ?", userID).
 		Preload("Category").
-		Preload("Account")
+		Preload("Account").
+		Preload("ToAccount")
+
+	if templateType != "" {
+		q = q.Where("template_type = ?", templateType)
+	}
 
 	for _, join := range joins {
 		q = q.Joins(join)
@@ -908,7 +913,7 @@ func (r *TransactionRepository) GetActiveTemplates(ctx context.Context, tx *gorm
 	return records, nil
 }
 
-func (r *TransactionRepository) CountTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, onlyActive bool) (int64, error) {
+func (r *TransactionRepository) CountTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, onlyActive bool, templateType string) (int64, error) {
 
 	db := tx
 	if db == nil {
@@ -922,6 +927,10 @@ func (r *TransactionRepository) CountTransactionTemplates(ctx context.Context, t
 
 	if onlyActive {
 		q = q.Where("is_active = ?", true)
+	}
+
+	if templateType != "" {
+		q = q.Where("template_type = ?", templateType)
 	}
 
 	if err := q.Count(&totalRecords).Error; err != nil {
@@ -942,6 +951,7 @@ func (r *TransactionRepository) FindTransactionTemplateByID(ctx context.Context,
 	q := db.
 		Preload("Category").
 		Preload("Account").
+		Preload("ToAccount").
 		Where("id = ? AND user_id = ?", ID, userID)
 
 	q = q.First(&record)
@@ -1354,6 +1364,7 @@ func (r *TransactionRepository) GetTemplatesReadyToRun(ctx context.Context, tx *
 
 	query := db.WithContext(ctx).
 		Preload("Account").
+		Preload("ToAccount").
 		Preload("Category").
 		Where("is_active = ?", true).
 		Where("next_run_at <= ?", now)

@@ -34,13 +34,13 @@ type TransactionServiceInterface interface {
 	RestoreTransaction(ctx context.Context, userID int64, id int64) error
 	RestoreCategory(ctx context.Context, userID int64, id int64) error
 	RestoreCategoryName(ctx context.Context, userID int64, id int64) error
-	FetchTransactionTemplatesPaginated(ctx context.Context, userID int64, p utils.PaginationParams) ([]models.TransactionTemplate, *utils.Paginator, error)
+	FetchTransactionTemplatesPaginated(ctx context.Context, userID int64, p utils.PaginationParams, templateType string) ([]models.TransactionTemplate, *utils.Paginator, error)
 	FetchTransactionTemplateByID(ctx context.Context, userID int64, id int64) (*models.TransactionTemplate, error)
 	InsertTransactionTemplate(ctx context.Context, userID int64, req *models.TransactionTemplateReq) (int64, error)
 	UpdateTransactionTemplate(ctx context.Context, userID, id int64, req *models.TransactionTemplateReq) (int64, error)
 	ToggleTransactionTemplateActiveState(ctx context.Context, userID int64, id int64) error
 	DeleteTransactionTemplate(ctx context.Context, userID int64, id int64) error
-	GetTransactionTemplateCount(ctx context.Context, userID int64) (int64, error)
+	GetTransactionTemplateCount(ctx context.Context, userID int64, templateType string) (int64, error)
 	GetTemplateSummary(ctx context.Context, userID int64) (*models.TemplateSummary, error)
 	GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error)
 	ProcessTemplate(ctx context.Context, template *models.TransactionTemplate) error
@@ -1478,16 +1478,16 @@ func (s *TransactionService) RestoreCategoryName(ctx context.Context, userID int
 	return nil
 }
 
-func (s *TransactionService) FetchTransactionTemplatesPaginated(ctx context.Context, userID int64, p utils.PaginationParams) ([]models.TransactionTemplate, *utils.Paginator, error) {
+func (s *TransactionService) FetchTransactionTemplatesPaginated(ctx context.Context, userID int64, p utils.PaginationParams, templateType string) ([]models.TransactionTemplate, *utils.Paginator, error) {
 
-	totalRecords, err := s.repo.CountTransactionTemplates(ctx, nil, userID, false)
+	totalRecords, err := s.repo.CountTransactionTemplates(ctx, nil, userID, false, templateType)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
 
-	records, err := s.repo.FindTransactionTemplates(ctx, nil, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder)
+	records, err := s.repo.FindTransactionTemplates(ctx, nil, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder, templateType)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1542,10 +1542,44 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		return 0, fmt.Errorf("can't find account with given id %w", err)
 	}
 
-	category, err := s.repo.FindCategoryByID(ctx, tx, req.CategoryID, &userID, false)
-	if err != nil {
+	templateType := strings.ToLower(req.TemplateType)
+	if templateType != "transaction" && templateType != "transfer" {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find category with given id %w", err)
+		return 0, fmt.Errorf("invalid template type: %s", templateType)
+	}
+
+	var categoryID *int64
+	if templateType == "transaction" {
+		if req.CategoryID != nil {
+			cat, err := s.repo.FindCategoryByID(ctx, tx, *req.CategoryID, &userID, false)
+			if err != nil {
+				tx.Rollback()
+				return 0, fmt.Errorf("can't find category with given id %w", err)
+			}
+			categoryID = &cat.ID
+		}
+		if req.TransactionType == nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("transaction_type is required for transaction templates")
+		}
+	}
+
+	var toAccountID *int64
+	if templateType == "transfer" {
+		if account.AccountType.Subtype != "checking" {
+			tx.Rollback()
+			return 0, fmt.Errorf("transfer templates can only originate from a checking account")
+		}
+		if req.ToAccountID == nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("to_account_id is required for transfer templates")
+		}
+		toAcc, err := s.accRepo.FindAccountByID(ctx, tx, *req.ToAccountID, userID, false)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("can't find destination account with given id %w", err)
+		}
+		toAccountID = &toAcc.ID
 	}
 
 	// pick the user's timezone from settings; fall back to UTC
@@ -1584,14 +1618,22 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		endDate = &e
 	}
 
+	var txnType *string
+	if req.TransactionType != nil {
+		v := strings.ToLower(*req.TransactionType)
+		txnType = &v
+	}
+
 	day := firstRun.Day()
 
 	tp := models.TransactionTemplate{
 		Name:            req.Name,
+		TemplateType:    templateType,
 		UserID:          userID,
 		AccountID:       account.ID,
-		CategoryID:      category.ID,
-		TransactionType: strings.ToLower(req.TransactionType),
+		ToAccountID:     toAccountID,
+		CategoryID:      categoryID,
+		TransactionType: txnType,
 		Amount:          req.Amount,
 		Frequency:       strings.ToLower(req.Frequency),
 		DayOfMonth:      day,
@@ -1617,11 +1659,21 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 	amountString := tp.Amount.StringFixed(2)
 	firstRunStr := tp.NextRunAt.UTC().Format(time.RFC3339)
 
+	var categoryName string
+	if categoryID != nil && tp.Category != nil {
+		categoryName = tp.Category.Name
+	}
+	var txnTypeStr string
+	if tp.TransactionType != nil {
+		txnTypeStr = *tp.TransactionType
+	}
+
 	utils.CompareChanges("", strconv.FormatInt(tpID, 10), changes, "id")
 	utils.CompareChanges("", tp.Name, changes, "name")
 	utils.CompareChanges("", account.Name, changes, "account")
-	utils.CompareChanges("", category.Name, changes, "category")
-	utils.CompareChanges("", tp.TransactionType, changes, "type")
+	utils.CompareChanges("", categoryName, changes, "category")
+	utils.CompareChanges("", tp.TemplateType, changes, "template_type")
+	utils.CompareChanges("", txnTypeStr, changes, "type")
 	utils.CompareChanges("", amountString, changes, "amount")
 	utils.CompareChanges("", firstRunStr, changes, "first_run")
 
@@ -1721,8 +1773,10 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 		Name:            req.Name,
 		UserID:          userID,
 		AccountID:       exTp.AccountID,
+		ToAccountID:     exTp.ToAccountID,
 		CategoryID:      exTp.CategoryID,
-		TransactionType: strings.ToLower(exTp.TransactionType),
+		TemplateType:    exTp.TemplateType,
+		TransactionType: exTp.TransactionType,
 		Amount:          req.Amount,
 		Frequency:       exTp.Frequency,
 		NextRunAt:       nextRun,
@@ -1894,11 +1948,20 @@ func (s *TransactionService) DeleteTransactionTemplate(ctx context.Context, user
 	amountString := tp.Amount.StringFixed(2)
 	firstRunStr := tp.NextRunAt.UTC().Format(time.RFC3339)
 
+	var deleteCategoryName string
+	if tp.Category != nil {
+		deleteCategoryName = tp.Category.Name
+	}
+	var deleteTypeStr string
+	if tp.TransactionType != nil {
+		deleteTypeStr = *tp.TransactionType
+	}
+
 	utils.CompareChanges("", strconv.FormatInt(tp.ID, 10), changes, "id")
 	utils.CompareChanges(tp.Name, "", changes, "name")
 	utils.CompareChanges(tp.Account.Name, "", changes, "account")
-	utils.CompareChanges(tp.Category.Name, "", changes, "category")
-	utils.CompareChanges(tp.TransactionType, "", changes, "type")
+	utils.CompareChanges(deleteCategoryName, "", changes, "category")
+	utils.CompareChanges(deleteTypeStr, "", changes, "type")
 	utils.CompareChanges(amountString, "", changes, "amount")
 	utils.CompareChanges(firstRunStr, "", changes, "first_run")
 
@@ -1927,8 +1990,8 @@ func (s *TransactionService) DeleteTransactionTemplate(ctx context.Context, user
 	return nil
 }
 
-func (s *TransactionService) GetTransactionTemplateCount(ctx context.Context, userID int64) (int64, error) {
-	return s.repo.CountTransactionTemplates(ctx, nil, userID, true)
+func (s *TransactionService) GetTransactionTemplateCount(ctx context.Context, userID int64, templateType string) (int64, error) {
+	return s.repo.CountTransactionTemplates(ctx, nil, userID, true, templateType)
 }
 
 func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int64) (*models.TemplateSummary, error) {
@@ -1954,9 +2017,15 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 
 	summary := &models.TemplateSummary{}
 	for _, t := range templates {
+		// transfers are balance-neutral; exclude from projected cost summary
+		if t.TemplateType == "transfer" {
+			continue
+		}
+		isExpense := t.TransactionType != nil && *t.TransactionType == "expense"
+
 		if multiplier, ok := baseMultipliers[t.Frequency]; ok {
 			monthlyAmount := t.Amount.Mul(multiplier)
-			if t.TransactionType == "expense" {
+			if isExpense {
 				summary.MonthlyExpense = summary.MonthlyExpense.Add(monthlyAmount)
 			} else {
 				summary.MonthlyIncome = summary.MonthlyIncome.Add(monthlyAmount)
@@ -1966,7 +2035,7 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 
 		if periodicFrequencies[t.Frequency] {
 			if !t.NextRunAt.Before(monthStart) && t.NextRunAt.Before(monthEnd) {
-				if t.TransactionType == "expense" {
+				if isExpense {
 					summary.ThisMonthExpense = summary.ThisMonthExpense.Add(t.Amount)
 				} else {
 					summary.ThisMonthIncome = summary.ThisMonthIncome.Add(t.Amount)
@@ -2015,32 +2084,115 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 		return fmt.Errorf("account not found: %w", err)
 	}
 
-	// Verify category still exists
-	var categoryID int64
-	_, err = s.repo.FindCategoryByID(ctx, tx, currentTemplate.CategoryID, &currentTemplate.UserID, false)
-	if err != nil {
-		cat, err := s.repo.FindCategoryByClassification(ctx, tx, "uncategorized", &currentTemplate.UserID)
+	desc := fmt.Sprintf("Auto: %s", currentTemplate.Name)
+	txDate := currentTemplate.NextRunAt
+
+	if currentTemplate.TemplateType == "transfer" {
+		srcAcc, err := s.accRepo.FindAccountByID(ctx, tx, currentTemplate.AccountID, currentTemplate.UserID, true)
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("can't find default category %w", err)
+			return fmt.Errorf("source account not found: %w", err)
 		}
-		categoryID = cat.ID
+		if srcAcc.Balance.EndBalance.Sub(currentTemplate.Amount).LessThan(decimal.Zero) {
+			tx.Rollback()
+			return fmt.Errorf("insufficient funds in source account %s (balance: %s, requested: %s)",
+				srcAcc.Name, srcAcc.Balance.EndBalance.StringFixed(2), currentTemplate.Amount.StringFixed(2))
+		}
+
+		toAcc, err := s.accRepo.FindAccountByID(ctx, tx, *currentTemplate.ToAccountID, currentTemplate.UserID, false)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("destination account not found: %w", err)
+		}
+
+		outflow := models.Transaction{
+			UserID:          currentTemplate.UserID,
+			AccountID:       srcAcc.ID,
+			TransactionType: "expense",
+			Amount:          currentTemplate.Amount,
+			Currency:        models.DefaultCurrency,
+			TxnDate:         txDate,
+			Description:     &desc,
+			IsTransfer:      true,
+		}
+		if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		inflow := models.Transaction{
+			UserID:          currentTemplate.UserID,
+			AccountID:       toAcc.ID,
+			TransactionType: "income",
+			Amount:          currentTemplate.Amount,
+			Currency:        models.DefaultCurrency,
+			TxnDate:         txDate,
+			Description:     &desc,
+			IsTransfer:      true,
+		}
+		if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		transfer := models.Transfer{
+			UserID:               currentTemplate.UserID,
+			TransactionInflowID:  inflow.ID,
+			TransactionOutflowID: outflow.ID,
+			Amount:               currentTemplate.Amount,
+			Currency:             models.DefaultCurrency,
+			Status:               "success",
+			Notes:                &desc,
+			CreatedAt:            txDate,
+		}
+		if _, err := s.repo.InsertTransfer(ctx, tx, &transfer); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if err := s.updateAccountBalance(ctx, tx, srcAcc, txDate, "expense", currentTemplate.Amount); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := s.updateAccountBalance(ctx, tx, toAcc, txDate, "income", currentTemplate.Amount); err != nil {
+			tx.Rollback()
+			return err
+		}
 	} else {
-		categoryID = currentTemplate.CategoryID
-	}
+		// Verify category still exists
+		var categoryID *int64
+		if currentTemplate.CategoryID != nil {
+			_, err = s.repo.FindCategoryByID(ctx, tx, *currentTemplate.CategoryID, &currentTemplate.UserID, false)
+			if err != nil {
+				cat, err := s.repo.FindCategoryByClassification(ctx, tx, "uncategorized", &currentTemplate.UserID)
+				if err != nil {
+					tx.Rollback()
+					return fmt.Errorf("can't find default category %w", err)
+				}
+				categoryID = &cat.ID
+			} else {
+				categoryID = currentTemplate.CategoryID
+			}
+		}
 
-	// Create the transaction
-	desc := fmt.Sprintf("Auto: %s", currentTemplate.Name)
-	txnReq := &models.TransactionReq{
-		AccountID:       acc.ID,
-		CategoryID:      &categoryID,
-		TransactionType: currentTemplate.TransactionType,
-		Amount:          currentTemplate.Amount,
-		TxnDate:         currentTemplate.NextRunAt,
-		Description:     &desc,
-	}
+		txnType := ""
+		if currentTemplate.TransactionType != nil {
+			txnType = *currentTemplate.TransactionType
+		}
 
-	_, err = s.InsertTransaction(ctx, currentTemplate.UserID, txnReq, tx)
+		txnReq := &models.TransactionReq{
+			AccountID:       acc.ID,
+			CategoryID:      categoryID,
+			TransactionType: txnType,
+			Amount:          currentTemplate.Amount,
+			TxnDate:         txDate,
+			Description:     &desc,
+		}
+		if _, err = s.InsertTransaction(ctx, currentTemplate.UserID, txnReq, tx); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
 	if err != nil {
 		tx.Rollback()
 		return err
