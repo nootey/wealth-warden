@@ -3805,8 +3805,8 @@ func (_c *MockTransactionServiceInterface_FetchTransactionTemplateByID_Call) Run
 }
 
 // FetchTransactionTemplatesPaginated provides a mock function for the type MockTransactionServiceInterface
-func (_mock *MockTransactionServiceInterface) FetchTransactionTemplatesPaginated(ctx context.Context, userID int64, p utils.PaginationParams) ([]models.TransactionTemplate, *utils.Paginator, error) {
-	ret := _mock.Called(ctx, userID, p)
+func (_mock *MockTransactionServiceInterface) FetchTransactionTemplatesPaginated(ctx context.Context, userID int64, p utils.PaginationParams, templateType string) ([]models.TransactionTemplate, *utils.Paginator, error) {
+	ret := _mock.Called(ctx, userID, p, templateType)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FetchTransactionTemplatesPaginated")
@@ -3815,25 +3815,25 @@ func (_mock *MockTransactionServiceInterface) FetchTransactionTemplatesPaginated
 	var r0 []models.TransactionTemplate
 	var r1 *utils.Paginator
 	var r2 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams) ([]models.TransactionTemplate, *utils.Paginator, error)); ok {
-		return returnFunc(ctx, userID, p)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams, string) ([]models.TransactionTemplate, *utils.Paginator, error)); ok {
+		return returnFunc(ctx, userID, p, templateType)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams) []models.TransactionTemplate); ok {
-		r0 = returnFunc(ctx, userID, p)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, utils.PaginationParams, string) []models.TransactionTemplate); ok {
+		r0 = returnFunc(ctx, userID, p, templateType)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.TransactionTemplate)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, utils.PaginationParams) *utils.Paginator); ok {
-		r1 = returnFunc(ctx, userID, p)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, utils.PaginationParams, string) *utils.Paginator); ok {
+		r1 = returnFunc(ctx, userID, p, templateType)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(*utils.Paginator)
 		}
 	}
-	if returnFunc, ok := ret.Get(2).(func(context.Context, int64, utils.PaginationParams) error); ok {
-		r2 = returnFunc(ctx, userID, p)
+	if returnFunc, ok := ret.Get(2).(func(context.Context, int64, utils.PaginationParams, string) error); ok {
+		r2 = returnFunc(ctx, userID, p, templateType)
 	} else {
 		r2 = ret.Error(2)
 	}
@@ -3849,11 +3849,12 @@ type MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call str
 //   - ctx context.Context
 //   - userID int64
 //   - p utils.PaginationParams
-func (_e *MockTransactionServiceInterface_Expecter) FetchTransactionTemplatesPaginated(ctx interface{}, userID interface{}, p interface{}) *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call {
-	return &MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call{Call: _e.mock.On("FetchTransactionTemplatesPaginated", ctx, userID, p)}
+//   - templateType string
+func (_e *MockTransactionServiceInterface_Expecter) FetchTransactionTemplatesPaginated(ctx interface{}, userID interface{}, p interface{}, templateType interface{}) *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call {
+	return &MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call{Call: _e.mock.On("FetchTransactionTemplatesPaginated", ctx, userID, p, templateType)}
 }
 
-func (_c *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call) Run(run func(ctx context.Context, userID int64, p utils.PaginationParams)) *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call {
+func (_c *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call) Run(run func(ctx context.Context, userID int64, p utils.PaginationParams, templateType string)) *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -3867,10 +3868,15 @@ func (_c *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Cal
 		if args[2] != nil {
 			arg2 = args[2].(utils.PaginationParams)
 		}
+		var arg3 string
+		if args[3] != nil {
+			arg3 = args[3].(string)
+		}
 		run(
 			arg0,
 			arg1,
 			arg2,
+			arg3,
 		)
 	})
 	return _c
@@ -3881,7 +3887,7 @@ func (_c *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Cal
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call) RunAndReturn(run func(ctx context.Context, userID int64, p utils.PaginationParams) ([]models.TransactionTemplate, *utils.Paginator, error)) *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call {
+func (_c *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call) RunAndReturn(run func(ctx context.Context, userID int64, p utils.PaginationParams, templateType string) ([]models.TransactionTemplate, *utils.Paginator, error)) *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -4219,8 +4225,8 @@ func (_c *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call) RunAndRet
 }
 
 // GetTransactionTemplateCount provides a mock function for the type MockTransactionServiceInterface
-func (_mock *MockTransactionServiceInterface) GetTransactionTemplateCount(ctx context.Context, userID int64) (int64, error) {
-	ret := _mock.Called(ctx, userID)
+func (_mock *MockTransactionServiceInterface) GetTransactionTemplateCount(ctx context.Context, userID int64, templateType string) (int64, error) {
+	ret := _mock.Called(ctx, userID, templateType)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetTransactionTemplateCount")
@@ -4228,16 +4234,16 @@ func (_mock *MockTransactionServiceInterface) GetTransactionTemplateCount(ctx co
 
 	var r0 int64
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) (int64, error)); ok {
-		return returnFunc(ctx, userID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string) (int64, error)); ok {
+		return returnFunc(ctx, userID, templateType)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) int64); ok {
-		r0 = returnFunc(ctx, userID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string) int64); ok {
+		r0 = returnFunc(ctx, userID, templateType)
 	} else {
 		r0 = ret.Get(0).(int64)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, int64) error); ok {
-		r1 = returnFunc(ctx, userID)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, string) error); ok {
+		r1 = returnFunc(ctx, userID, templateType)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -4252,11 +4258,12 @@ type MockTransactionServiceInterface_GetTransactionTemplateCount_Call struct {
 // GetTransactionTemplateCount is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockTransactionServiceInterface_Expecter) GetTransactionTemplateCount(ctx interface{}, userID interface{}) *MockTransactionServiceInterface_GetTransactionTemplateCount_Call {
-	return &MockTransactionServiceInterface_GetTransactionTemplateCount_Call{Call: _e.mock.On("GetTransactionTemplateCount", ctx, userID)}
+//   - templateType string
+func (_e *MockTransactionServiceInterface_Expecter) GetTransactionTemplateCount(ctx interface{}, userID interface{}, templateType interface{}) *MockTransactionServiceInterface_GetTransactionTemplateCount_Call {
+	return &MockTransactionServiceInterface_GetTransactionTemplateCount_Call{Call: _e.mock.On("GetTransactionTemplateCount", ctx, userID, templateType)}
 }
 
-func (_c *MockTransactionServiceInterface_GetTransactionTemplateCount_Call) Run(run func(ctx context.Context, userID int64)) *MockTransactionServiceInterface_GetTransactionTemplateCount_Call {
+func (_c *MockTransactionServiceInterface_GetTransactionTemplateCount_Call) Run(run func(ctx context.Context, userID int64, templateType string)) *MockTransactionServiceInterface_GetTransactionTemplateCount_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -4266,9 +4273,14 @@ func (_c *MockTransactionServiceInterface_GetTransactionTemplateCount_Call) Run(
 		if args[1] != nil {
 			arg1 = args[1].(int64)
 		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
 		run(
 			arg0,
 			arg1,
+			arg2,
 		)
 	})
 	return _c
@@ -4279,7 +4291,7 @@ func (_c *MockTransactionServiceInterface_GetTransactionTemplateCount_Call) Retu
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_GetTransactionTemplateCount_Call) RunAndReturn(run func(ctx context.Context, userID int64) (int64, error)) *MockTransactionServiceInterface_GetTransactionTemplateCount_Call {
+func (_c *MockTransactionServiceInterface_GetTransactionTemplateCount_Call) RunAndReturn(run func(ctx context.Context, userID int64, templateType string) (int64, error)) *MockTransactionServiceInterface_GetTransactionTemplateCount_Call {
 	_c.Call.Return(run)
 	return _c
 }

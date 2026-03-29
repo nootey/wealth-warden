@@ -37,6 +37,7 @@ func (h *TransactionHandler) Routes(ap *gin.RouterGroup) {
 	ap.DELETE("/:id", authz.RequireAllMW("manage_data"), h.DeleteTransaction)
 	ap.GET("transfers", authz.RequireAllMW("view_data"), h.GetTransfersPaginated)
 	ap.PUT("transfers", authz.RequireAllMW("manage_data"), h.InsertTransfer)
+	ap.PATCH("transfers/:id", authz.RequireAllMW("manage_data"), h.UpdateTransfer)
 	ap.DELETE("transfers/:id", authz.RequireAllMW("manage_data"), h.DeleteTransfer)
 	ap.POST("/restore", authz.RequireAllMW("manage_data"), h.RestoreTransaction)
 	ap.GET("categories", authz.RequireAllMW("view_data"), h.GetCategories)
@@ -272,6 +273,35 @@ func (h *TransactionHandler) InsertTransfer(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
+}
+
+func (h *TransactionHandler) UpdateTransfer(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid ID", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	var record *models.UpdateTransferReq
+	if err := c.ShouldBindJSON(&record); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(record); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.Service.UpdateTransfer(ctx, userID, id, record); err != nil {
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
 }
 
 func (h *TransactionHandler) InsertCategory(c *gin.Context) {
@@ -528,8 +558,9 @@ func (h *TransactionHandler) GetTransactionTemplatesPaginated(c *gin.Context) {
 
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
+	templateType := qp.Get("template_type")
 
-	records, paginator, err := h.Service.FetchTransactionTemplatesPaginated(ctx, userID, p)
+	records, paginator, err := h.Service.FetchTransactionTemplatesPaginated(ctx, userID, p, templateType)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
@@ -700,7 +731,8 @@ func (h *TransactionHandler) GetTransactionTemplateCount(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	record, err := h.Service.GetTransactionTemplateCount(ctx, userID)
+	templateType := c.Query("template_type")
+	record, err := h.Service.GetTransactionTemplateCount(ctx, userID, templateType)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

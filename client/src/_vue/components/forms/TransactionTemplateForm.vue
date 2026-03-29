@@ -29,6 +29,7 @@ import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 const props = defineProps<{
   mode?: "create" | "update";
   recordId?: number | null;
+  templateType?: "transaction" | "transfer";
 }>();
 
 const emit = defineEmits<{
@@ -50,6 +51,18 @@ const selectedPreset = ref<string>("recurring");
 const isReadOnly = ref(false);
 const isImmutable = ref(false);
 const userSettings = ref<UserSettings>();
+
+// In create mode: driven by the prop. In update mode: driven by the loaded record.
+const effectiveTemplateType = computed<"transaction" | "transfer">(() => {
+  if (props.mode === "update") {
+    return (
+      (record.value.template_type as "transaction" | "transfer") ||
+      "transaction"
+    );
+  }
+  return props.templateType ?? "transaction";
+});
+const isTransfer = computed(() => effectiveTemplateType.value === "transfer");
 
 const isAccountRestricted = computed<boolean>(() => {
   const acc = record.value.account as Account | null | undefined;
@@ -101,25 +114,24 @@ const availableCategories = computed<Category[]>(() => {
 
 const filteredCategories = ref<Category[]>([]);
 const filteredAccounts = ref<Account[]>([]);
+const filteredToAccounts = ref<Account[]>([]);
 const filteredFrequencies = ref<string[]>([]);
 
-const rules = {
+const rules = computed(() => ({
   record: {
-    category: {
-      name: {
-        $autoDirty: true,
-      },
-    },
+    name: { required, $autoDirty: true },
     account: {
-      name: {
-        required,
-        $autoDirty: true,
-      },
+      name: { required, $autoDirty: true },
     },
-    transaction_type: {
-      required,
-      $autoDirty: true,
+    to_account: isTransfer.value
+      ? { name: { required, $autoDirty: true } }
+      : { name: { $autoDirty: true } },
+    category: {
+      name: { $autoDirty: true },
     },
+    transaction_type: isTransfer.value
+      ? { $autoDirty: true }
+      : { required, $autoDirty: true },
     amount: {
       required,
       decimalValid,
@@ -127,32 +139,17 @@ const rules = {
       decimalMax: decimalMax(1_000_000_000),
       $autoDirty: true,
     },
-    name: {
-      required,
-      $autoDirty: true,
-    },
-    frequency: {
-      required,
-      $autoDirty: true,
-    },
-    next_run_at: {
-      required,
-      $autoDirty: true,
-    },
-    end_date: {
-      $autoDirty: true,
-    },
+    frequency: { required, $autoDirty: true },
+    next_run_at: { required, $autoDirty: true },
+    end_date: { $autoDirty: true },
     max_runs: {
       $autoDirty: true,
       min: minValue(1),
       max: maxValue(99999),
     },
-    is_active: {
-      required,
-      $autoDirty: true,
-    },
+    is_active: { required, $autoDirty: true },
   },
-};
+}));
 
 const v$ = useVuelidate(rules, { record });
 
@@ -187,10 +184,34 @@ async function getSettings() {
 }
 
 function initData(): TransactionTemplate {
+  const emptyAccount = () => ({
+    id: null,
+    name: "",
+    is_active: true,
+    closed_at: null,
+    account_type: {
+      id: null,
+      name: "",
+      type: "",
+      sub_type: "",
+      classification: "",
+    },
+    balance: {
+      id: null,
+      as_of: null,
+      start_balance: null,
+      end_balance: null,
+      total_balance: null,
+      market_value: null,
+    },
+  });
+
   return {
     id: null,
     name: "",
+    template_type: props.templateType ?? "transaction",
     account_id: null,
+    to_account_id: null,
     category_id: null,
     category: {
       id: null,
@@ -201,27 +222,8 @@ function initData(): TransactionTemplate {
       parent_id: null,
       deleted_at: null,
     },
-    account: {
-      id: null,
-      name: "",
-      is_active: true,
-      closed_at: null,
-      account_type: {
-        id: null,
-        name: "",
-        type: "",
-        sub_type: "",
-        classification: "",
-      },
-      balance: {
-        id: null,
-        as_of: null,
-        start_balance: null,
-        end_balance: null,
-        total_balance: null,
-        market_value: null,
-      },
-    },
+    account: emptyAccount(),
+    to_account: emptyAccount(),
     transaction_type: "Expense",
     amount: null,
     period: "",
@@ -283,12 +285,29 @@ const searchCategory = (event: { query: string }) => {
 
 const searchAccount = (event: { query: string }) => {
   setTimeout(() => {
+    const pool = isTransfer.value
+      ? accounts.value.filter((a) => a.account_type.sub_type === "checking")
+      : accounts.value;
     if (!event.query.trim().length) {
-      filteredAccounts.value = [...accounts.value];
+      filteredAccounts.value = [...pool];
     } else {
-      filteredAccounts.value = accounts.value.filter((record) => {
-        return record.name.toLowerCase().startsWith(event.query.toLowerCase());
-      });
+      filteredAccounts.value = pool.filter((a) =>
+        a.name.toLowerCase().startsWith(event.query.toLowerCase()),
+      );
+    }
+  }, 250);
+};
+
+const searchToAccount = (event: { query: string }) => {
+  setTimeout(() => {
+    const sourceId = record.value.account?.id;
+    const pool = accounts.value.filter((a) => a.id !== sourceId);
+    if (!event.query.trim().length) {
+      filteredToAccounts.value = [...pool];
+    } else {
+      filteredToAccounts.value = pool.filter((a) =>
+        a.name.toLowerCase().startsWith(event.query.toLowerCase()),
+      );
     }
   }, 250);
 };
@@ -323,18 +342,21 @@ async function loadRecord(id: number) {
       frequency: vueHelper.capitalize(data.frequency),
       next_run_at: data.next_run_at ? dayjs(data.next_run_at).toDate() : null,
       end_date: data.end_date ? dayjs(data.end_date).toDate() : null,
+      to_account: data.to_account ?? initData().to_account,
     };
 
     if (!record.value.is_active) isReadOnly.value = true;
 
-    selectedParentCategory.value =
-      parentCategories.value.find(
-        (p) =>
-          p.classification?.toLowerCase?.() ===
-            String(data.transaction_type).toLowerCase() ||
-          p.name?.toLowerCase?.() ===
-            String(data.transaction_type).toLowerCase(),
-      ) || null;
+    if (data.template_type !== "transfer") {
+      selectedParentCategory.value =
+        parentCategories.value.find(
+          (p) =>
+            p.classification?.toLowerCase?.() ===
+              String(data.transaction_type).toLowerCase() ||
+            p.name?.toLowerCase?.() ===
+              String(data.transaction_type).toLowerCase(),
+        ) || null;
+    }
 
     await nextTick();
     loading.value = false;
@@ -353,7 +375,7 @@ async function manageRecord() {
     return;
   }
 
-  if (selectedParentCategory.value == null) {
+  if (!isTransfer.value && selectedParentCategory.value == null) {
     return;
   }
 
@@ -380,18 +402,24 @@ async function startOperation() {
       )
     : null;
 
-  const recordData = {
+  const recordData: Record<string, unknown> = {
     name: record.value.name,
+    template_type: effectiveTemplateType.value,
     is_active: record.value.is_active,
     account_id: record.value.account.id,
-    category_id: record.value.category?.id,
-    transaction_type: selectedParentCategory.value?.classification,
     amount: record.value.amount,
     frequency: record.value.frequency,
     next_run_at: next_run_at,
     end_date: end_date,
     max_runs: record.value.max_runs,
   };
+
+  if (isTransfer.value) {
+    recordData.to_account_id = record.value.to_account?.id;
+  } else {
+    recordData.category_id = record.value.category?.id;
+    recordData.transaction_type = selectedParentCategory.value?.classification;
+  }
 
   try {
     let response = null;
@@ -428,7 +456,7 @@ async function startOperation() {
 <template>
   <div v-if="!loading" class="flex flex-column gap-3 p-1">
     <div
-      v-if="!isImmutable"
+      v-if="!isImmutable && !isTransfer"
       class="flex flex-row w-full justify-content-center"
     >
       <div class="flex flex-column w-50">
@@ -443,7 +471,7 @@ async function startOperation() {
         />
       </div>
     </div>
-    <h5 v-else style="color: var(--text-secondary)">
+    <h5 v-if="isImmutable" style="color: var(--text-secondary)">
       Some parts of the record are immutable.
     </h5>
     <h5 v-if="isReadOnly" style="color: var(--text-secondary)">
@@ -527,6 +555,29 @@ async function startOperation() {
         </div>
       </div>
 
+      <div v-if="isTransfer" class="flex flex-row w-full">
+        <div class="flex flex-column gap-1 w-full">
+          <ValidationError
+            :is-required="true"
+            :message="v$.record.to_account?.name.$errors[0]?.$message"
+          >
+            <label>To account</label>
+          </ValidationError>
+          <AutoComplete
+            v-model="record.to_account"
+            :readonly="isReadOnly"
+            :disabled="isReadOnly"
+            size="small"
+            :suggestions="filteredToAccounts"
+            option-label="name"
+            force-selection
+            placeholder="Select destination account"
+            dropdown
+            @complete="searchToAccount"
+          />
+        </div>
+      </div>
+
       <div class="flex flex-row w-full">
         <div class="flex flex-column gap-1 w-full">
           <ValidationError
@@ -548,7 +599,7 @@ async function startOperation() {
         </div>
       </div>
 
-      <div class="flex flex-row w-full">
+      <div v-if="!isTransfer" class="flex flex-row w-full">
         <div class="flex flex-column gap-1 w-full">
           <ValidationError
             :is-required="false"

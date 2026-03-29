@@ -17,6 +17,7 @@ import dayjs from "dayjs";
 const props = defineProps<{
   accounts: Account[];
   transfer: Transfer;
+  mode?: "create" | "update";
 }>();
 
 const emit = defineEmits<{
@@ -32,9 +33,11 @@ const localTransfer = ref<{
   notes: string | null;
   created_at: Date | null;
 }>({
-  source: null,
-  destination: null,
-  amount: null,
+  source:
+    props.mode === "update" ? (props.transfer.from?.account ?? null) : null,
+  destination:
+    props.mode === "update" ? (props.transfer.to?.account ?? null) : null,
+  amount: props.mode === "update" ? (props.transfer.amount ?? null) : null,
   notes: props.transfer.notes ?? null,
   created_at: props.transfer.created_at
     ? dayjs(props.transfer.created_at).toDate()
@@ -138,6 +141,8 @@ defineExpose({ v$, localTransfer });
           option-label="name"
           placeholder="Select source account"
           dropdown
+          :disabled="mode === 'update'"
+          :readonly="mode === 'update'"
           @complete="(e) => searchAccount('source', e)"
         />
       </div>
@@ -158,6 +163,8 @@ defineExpose({ v$, localTransfer });
           option-label="name"
           placeholder="Select destination account"
           dropdown
+          :disabled="mode === 'update'"
+          :readonly="mode === 'update'"
           @complete="(e) => searchAccount('destination', e)"
         />
       </div>

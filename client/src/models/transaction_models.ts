@@ -17,6 +17,7 @@ export interface Transaction {
 }
 
 export interface Transfer {
+  id?: number | null;
   source_id: number | null;
   destination_id: number | null;
   amount: string | null;
@@ -64,12 +65,16 @@ export interface TemplateSummary {
   monthly_income: string;
   this_month_expense: string;
   this_month_income: string;
+  monthly_transfer: string;
+  this_month_transfer: string;
 }
 
 export interface TransactionTemplate {
   id: number | null;
   name: string;
+  template_type: string;
   account_id: number | null;
+  to_account_id?: number | null;
   category_id: number | null;
   transaction_type: string;
   amount: string | null;
@@ -83,4 +88,5 @@ export interface TransactionTemplate {
   is_active: boolean;
   category: Category | null;
   account: Account;
+  to_account?: Account | null;
 }
