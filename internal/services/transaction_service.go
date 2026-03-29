@@ -1715,10 +1715,20 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		}
 	}()
 
-	account, err := s.accRepo.FindAccountByID(ctx, tx, req.AccountID, userID, false)
+	account, err := s.accRepo.FindAccountByID(ctx, tx, req.AccountID, userID, true)
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	if account.Balance.EndBalance.LessThan(req.Amount) {
+		deficit := req.Amount.Sub(account.Balance.EndBalance)
+
+		tx.Rollback()
+		return 0, fmt.Errorf(
+			"insufficient balance: missing %s",
+			deficit.String(),
+		)
 	}
 
 	templateType := strings.ToLower(req.TemplateType)
