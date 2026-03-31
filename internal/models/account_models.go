@@ -6,8 +6,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const DefaultCurrency = "EUR"
-
 type Account struct {
 	ID                int64           `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserID            int64           `gorm:"not null;index:idx_accounts_user" json:"user_id"`

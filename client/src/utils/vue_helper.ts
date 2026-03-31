@@ -1,4 +1,5 @@
 import Decimal from "decimal.js";
+import { useSettingsStore } from "../services/stores/settings_store.ts";
 
 interface ValidationObject {
   $error: boolean;
@@ -49,37 +50,28 @@ const vueHelper = {
   },
   displayAsCurrency: (
     amount: Decimal | number | string | null,
-    currency: string = "EUR",
+    currency?: string,
   ) => {
     if (amount === null || amount === undefined) return null;
     const num = Number(amount);
     if (isNaN(num)) return "Invalid Amount";
 
-    const symbols: Record<string, string> = {
-      USD: "$",
-      EUR: "€",
-    };
+    const cur = (
+      currency ||
+      useSettingsStore().defaultCurrency ||
+      "EUR"
+    ).toUpperCase();
 
-    const symbol = symbols[currency.toUpperCase()] || currency.toUpperCase();
-
-    if (currency.toUpperCase() === "USD") {
-      return (
-        symbol +
-        num.toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })
-      );
-    }
-
-    return (
-      num.toLocaleString("de-DE", {
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: cur,
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-      }) +
-      " " +
-      symbol
-    );
+      }).format(num);
+    } catch {
+      return num.toFixed(2) + " " + cur;
+    }
   },
   displayAsPercentage: (value: number | string | null, decimals = 1) => {
     if (value === null || value === undefined) return null;
@@ -92,39 +84,29 @@ const vueHelper = {
   displayAssetPrice: (
     amount: Decimal | number | string | null,
     investmentType?: string,
-    currency: string = "EUR",
+    currency?: string,
   ) => {
     if (amount === null || amount === undefined) return null;
     const num = Number(amount);
     if (isNaN(num)) return "Invalid Amount";
 
     const decimals = investmentType === "crypto" ? 4 : 2;
+    const cur = (
+      currency ||
+      useSettingsStore().defaultCurrency ||
+      "EUR"
+    ).toUpperCase();
 
-    const symbols: Record<string, string> = {
-      USD: "$",
-      EUR: "€",
-    };
-
-    const symbol = symbols[currency.toUpperCase()] || currency.toUpperCase();
-
-    if (currency.toUpperCase() === "USD") {
-      return (
-        symbol +
-        num.toLocaleString("en-US", {
-          minimumFractionDigits: decimals,
-          maximumFractionDigits: decimals,
-        })
-      );
-    }
-
-    return (
-      num.toLocaleString("de-DE", {
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: cur,
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,
-      }) +
-      " " +
-      symbol
-    );
+      }).format(num);
+    } catch {
+      return num.toFixed(decimals) + " " + cur;
+    }
   },
   formatChanges(payload: unknown): Change[] | null {
     if (!payload) return null;

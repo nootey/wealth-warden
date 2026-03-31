@@ -5,6 +5,7 @@ export interface User {
   email_confirmed?: Date | null;
   role_id?: number;
   role?: Role;
+  has_completed_setup: boolean;
   deleted_at?: Date | null;
 }
 

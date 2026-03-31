@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
@@ -52,9 +51,6 @@ func (h *AnalyticsHandler) NetWorthChart(c *gin.Context) {
 	currency := c.Query("currency")
 	if currency == "" {
 		currency = p["currency"]
-	}
-	if currency == "" {
-		currency = models.DefaultCurrency
 	}
 
 	r := strings.ToLower(strings.TrimSpace(c.Query("range")))

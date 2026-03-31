@@ -18,6 +18,7 @@ export const useAuthStore = defineStore("auth", {
     isAuthenticated: (s) => s.authenticated,
     isInitialized: (s) => s.initialized,
     isValidated: (s) => !!s.user?.email_confirmed,
+    hasSetupCompleted: (s) => !!s.user?.has_completed_setup,
     isAdmin: (s) =>
       s.user?.role?.name == "super-admin" || s.user?.role?.name == "admin",
     isSuperAdmin: (s) => s.user?.role?.name == "super-admin",
@@ -34,6 +35,10 @@ export const useAuthStore = defineStore("auth", {
         ...form,
         ...(invitation_id && { invitation_id }),
       });
+    },
+
+    async completeSetup(payload: object) {
+      return await apiClient.post(`${this.apiPrefix}/setup/complete`, payload);
     },
 
     async resendConfirmationEmail(email?: string) {
@@ -118,6 +123,9 @@ export const useAuthStore = defineStore("auth", {
                 response.data.theme || "system",
                 response.data.accent || "blurple",
               );
+              if (response.data.default_currency) {
+                settingsStore.defaultCurrency = response.data.default_currency;
+              }
             }
           } catch (error) {
             console.error("Failed to load theme settings:", error);

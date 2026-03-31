@@ -11,6 +11,8 @@ import {
   decimalValid,
 } from "../../../validators/currency.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
+import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import dayjs from "dayjs";
 
@@ -24,6 +26,7 @@ const emit = defineEmits<{
   (event: "update:transfer", value: Transfer): void;
 }>();
 
+const settingsStore = useSettingsStore();
 const loading = ref(false);
 
 const localTransfer = ref<{
@@ -182,9 +185,8 @@ defineExpose({ v$, localTransfer });
           v-model="amountNumber"
           size="small"
           mode="currency"
-          currency="EUR"
-          locale="de-DE"
-          placeholder="0,00 €"
+          :currency="settingsStore.defaultCurrency"
+          :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
         />
       </div>
     </div>

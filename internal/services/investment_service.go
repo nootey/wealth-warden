@@ -36,6 +36,8 @@ type InvestmentServiceInterface interface {
 	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
+	BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, investmentType models.InvestmentType, from, to time.Time) error
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
 }
 
 type InvestmentService struct {
@@ -522,6 +524,18 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	})
 	if err != nil {
 		return 0, err
+	}
+
+	if err := s.jobDispatcher.Dispatch(queue.NewSyncAssetAfterTradeJob(
+		s.logger.Named("sync_after_trade"),
+		s,
+		userID,
+		asset.ID,
+		asset.Ticker,
+		asset.InvestmentType,
+		txnDate,
+	)); err != nil {
+		s.logger.Warn("Failed to dispatch post-trade sync job", zap.Error(err))
 	}
 
 	return txnID, nil
@@ -1123,4 +1137,83 @@ func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, userID, ass
 
 func (s *InvestmentService) GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error) {
 	return s.repo.GetAssetIDsForAccount(ctx, nil, accountID, userID)
+}
+
+func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
+	return s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID)
+}
+
+func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, investmentType models.InvestmentType, from, to time.Time) error {
+	if s.priceFetchClient == nil {
+		return nil
+	}
+
+	from = from.UTC().Truncate(24 * time.Hour)
+	to = to.UTC().Truncate(24 * time.Hour)
+
+	existing, err := s.repo.GetPriceHistoryForAsset(ctx, nil, assetID)
+	if err != nil {
+		return err
+	}
+
+	existingSet := make(map[string]bool, len(existing))
+	for _, p := range existing {
+		existingSet[p.AsOf.UTC().Truncate(24*time.Hour).Format("2006-01-02")] = true
+	}
+
+	current := from
+	var batch []models.AssetPriceHistory
+	requestCount := 0
+
+	for !current.After(to) {
+		dateKey := current.Format("2006-01-02")
+
+		if current.Weekday() == time.Saturday || current.Weekday() == time.Sunday {
+			current = current.AddDate(0, 0, 1)
+			continue
+		}
+
+		if existingSet[dateKey] {
+			current = current.AddDate(0, 0, 1)
+			continue
+		}
+
+		if requestCount > 0 && requestCount%10 == 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(500 * time.Millisecond):
+			}
+		}
+
+		priceData, err := s.priceFetchClient.GetAssetPriceOnDate(ctx, ticker, investmentType, current)
+		if err != nil {
+			s.logger.Info("Failed to fetch historical price", zap.String("ticker", ticker), zap.String("date", dateKey), zap.Error(err))
+			current = current.AddDate(0, 0, 1)
+			requestCount++
+			continue
+		}
+
+		price := decimal.NewFromFloat(priceData.Price)
+		if price.IsZero() || price.IsNegative() {
+			current = current.AddDate(0, 0, 1)
+			requestCount++
+			continue
+		}
+
+		batch = append(batch, models.AssetPriceHistory{
+			AssetID:  assetID,
+			AsOf:     current,
+			Price:    price,
+			Currency: priceData.Currency,
+		})
+
+		requestCount++
+		current = current.AddDate(0, 0, 1)
+	}
+
+	if len(batch) > 0 {
+		return s.repo.UpsertAssetPrice(ctx, nil, batch)
+	}
+	return nil
 }

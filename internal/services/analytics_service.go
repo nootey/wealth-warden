@@ -61,6 +61,15 @@ func (s *AnalyticsService) GetNetWorthSeries(ctx context.Context, userID int64, 
 		}
 	}()
 
+	if currency == "" {
+		settings, sErr := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
+		if sErr != nil {
+			tx.Rollback()
+			return nil, sErr
+		}
+		currency = settings.DefaultCurrency
+	}
+
 	var dfrom, dto time.Time
 
 	if from != "" || to != "" {
@@ -585,13 +594,18 @@ func (s *AnalyticsService) GetYearlySankeyData(ctx context.Context, userID int64
 		}
 	}
 
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
 
 	return &models.YearlySankeyData{
 		Year:              year,
-		Currency:          models.DefaultCurrency,
+		Currency:          settings.DefaultCurrency,
 		TotalIncome:       totalIncome,
 		Savings:           savings,
 		Investments:       investments,
@@ -770,6 +784,12 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 		return cats[i].Outflow.GreaterThan(cats[j].Outflow)
 	})
 
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
@@ -777,7 +797,7 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 	return &models.BasicAccountStats{
 		UserID:             userID,
 		AccountID:          accID,
-		Currency:           models.DefaultCurrency,
+		Currency:           settings.DefaultCurrency,
 		Year:               year,
 		Inflow:             inflow,
 		Outflow:            outflow,
@@ -936,6 +956,12 @@ func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, ac
 		}
 	}
 
+	monthlySettings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
@@ -943,7 +969,7 @@ func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, ac
 	return &models.MonthlyStats{
 		UserID:            userID,
 		AccountID:         accountID,
-		Currency:          models.DefaultCurrency,
+		Currency:          monthlySettings.DefaultCurrency,
 		Year:              year,
 		Month:             month,
 		Inflow:            inflow,
@@ -1032,7 +1058,7 @@ func (s *AnalyticsService) GetTodayStats(ctx context.Context, userID int64, acco
 	return &models.TodayStats{
 		UserID:      userID,
 		AccountID:   accountID,
-		Currency:    models.DefaultCurrency,
+		Currency:    settings.DefaultCurrency,
 		Inflow:      inflow,
 		Outflow:     outflow,
 		Net:         net,

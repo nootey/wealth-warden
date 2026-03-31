@@ -10,6 +10,7 @@ import {
   type ChartOptions,
 } from "chart.js";
 import { CATEGORY_PALETTE } from "../../../style/theme/chartColors.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
 
 ChartJS.register(PieController, ArcElement, Tooltip, Legend);
 
@@ -80,7 +81,7 @@ const baseOptions = computed<ChartOptions<"pie">>(() => ({
           const data = (ctx.dataset?.data ?? []) as (number | string)[];
           const total = data.map((v) => Number(v)).reduce((a, b) => a + b, 0);
           const pct = total ? (raw / total) * 100 : 0;
-          return `${label}: ${raw.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€ · ${pct.toFixed(1)} %`;
+          return `${label}: ${vueHelper.displayAsCurrency(raw)} · ${pct.toFixed(1)} %`;
         },
       },
     },

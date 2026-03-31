@@ -288,6 +288,12 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		}
 	}()
 
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
+	if err != nil {
+		return err
+	}
+	loc, _ := time.LoadLocation(settings.Timezone)
+
 	// create the import as PENDING
 	started := time.Now().UTC()
 
@@ -298,7 +304,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		SubType:   "transactions",
 		Status:    "pending",
 		Step:      "cash",
-		Currency:  models.DefaultCurrency,
+		Currency:  settings.DefaultCurrency,
 		StartedAt: &started,
 	})
 	if err != nil {
@@ -317,12 +323,6 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 			panic(p)
 		}
 	}()
-
-	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
-	if err != nil {
-		return err
-	}
-	loc, _ := time.LoadLocation(settings.Timezone)
 	if loc == nil {
 		loc = time.UTC
 	}
@@ -378,7 +378,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 				CategoryID:      &category.ID,
 				TransactionType: txn.TransactionType,
 				Amount:          amount,
-				Currency:        models.DefaultCurrency,
+				Currency:        sourceAcc.Currency,
 				TxnDate:         txDay,
 				Description:     &txn.Category,
 				ImportID:        &importID,
@@ -406,7 +406,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		tx,
 		userID,
 		sourceAcc.ID,
-		models.DefaultCurrency,
+		sourceAcc.Currency,
 		frontfillFrom,
 	); err != nil {
 		tx.Rollback()
@@ -462,7 +462,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	utils.CompareChanges("", "transactions", changes, "sub_type")
 	utils.CompareChanges("", importName, changes, "name")
 	utils.CompareChanges("", sourceAcc.Name, changes, "source_account")
-	utils.CompareChanges("", models.DefaultCurrency, changes, "currency")
+	utils.CompareChanges("", settings.DefaultCurrency, changes, "currency")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Txns)), changes, "transactions_count")
 
 	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
@@ -528,6 +528,11 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 		}
 	}()
 
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
+	if err != nil {
+		return fmt.Errorf("can't fetch user settings %w", err)
+	}
+
 	// create the import as PENDING
 	started := time.Now().UTC()
 
@@ -538,7 +543,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 		SubType:   "accounts",
 		Status:    "pending",
 		Step:      "accounts",
-		Currency:  models.DefaultCurrency,
+		Currency:  settings.DefaultCurrency,
 		StartedAt: &started,
 	})
 	if err != nil {
@@ -557,13 +562,6 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 			panic(p)
 		}
 	}()
-
-	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
-	if err != nil {
-		tx.Rollback()
-		s.markImportFailed(ctx, importID, err)
-		return fmt.Errorf("can't fetch user settings %w", err)
-	}
 
 	loc, _ := time.LoadLocation(settings.Timezone)
 	if loc == nil {
@@ -587,7 +585,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 
 		account := &models.Account{
 			Name:              acc.Name,
-			Currency:          models.DefaultCurrency,
+			Currency:          settings.DefaultCurrency,
 			AccountTypeID:     accType.ID,
 			UserID:            userID,
 			ImportID:          &importID,
@@ -618,7 +616,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 
 		balance := &models.Balance{
 			AccountID:    accountID,
-			Currency:     models.DefaultCurrency,
+			Currency:     account.Currency,
 			StartBalance: amount,
 			AsOf:         asOf,
 		}
@@ -636,7 +634,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 			tx,
 			userID,
 			accountID,
-			models.DefaultCurrency,
+			account.Currency,
 			asOf,
 			time.Now().UTC().Truncate(24*time.Hour),
 		); err != nil {
@@ -694,7 +692,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 	utils.CompareChanges("", "custom", changes, "type")
 	utils.CompareChanges("", "accounts", changes, "sub_type")
 	utils.CompareChanges("", importName, changes, "name")
-	utils.CompareChanges("", models.DefaultCurrency, changes, "currency")
+	utils.CompareChanges("", settings.DefaultCurrency, changes, "currency")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Accounts)), changes, "accounts_count")
 
 	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
@@ -746,6 +744,11 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 		}
 	}()
 
+	catSettings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
+	if err != nil {
+		return fmt.Errorf("can't fetch user settings %w", err)
+	}
+
 	// create the import as PENDING
 	started := time.Now().UTC()
 
@@ -756,7 +759,7 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 		SubType:   "categories",
 		Status:    "pending",
 		Step:      "categories",
-		Currency:  models.DefaultCurrency,
+		Currency:  catSettings.DefaultCurrency,
 		StartedAt: &started,
 	})
 	if err != nil {
@@ -1018,7 +1021,7 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 			AccountID:       checkingAcc.ID,
 			TransactionType: "expense",
 			Amount:          amt,
-			Currency:        models.DefaultCurrency,
+			Currency:        checkingAcc.Currency,
 			TxnDate:         txDay,
 			Description:     &desc,
 			IsTransfer:      true,
@@ -1035,7 +1038,7 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 			AccountID:       toAccount.ID,
 			TransactionType: "income",
 			Amount:          amt,
-			Currency:        models.DefaultCurrency,
+			Currency:        toAccount.Currency,
 			TxnDate:         txDay,
 			Description:     &desc,
 			IsTransfer:      true,
@@ -1052,7 +1055,7 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 			TransactionInflowID:  income.ID,
 			TransactionOutflowID: expense.ID,
 			Amount:               amt,
-			Currency:             models.DefaultCurrency,
+			Currency:             checkingAcc.Currency,
 			Status:               "success",
 			CreatedAt:            txDay,
 			ImportID:             &imp.ID,
@@ -1086,7 +1089,7 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 		tx,
 		userID,
 		checkingAcc.ID,
-		models.DefaultCurrency,
+		checkingAcc.Currency,
 		frontfillFrom,
 	); err != nil {
 		tx.Rollback()
@@ -1097,12 +1100,12 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 	// Frontfill & refresh snapshots for each affected account from its earliest date
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for accID, from := range earliest {
-		if err := s.frontfillBalances(ctx, tx, userID, accID, models.DefaultCurrency, from); err != nil {
+		if err := s.frontfillBalances(ctx, tx, userID, accID, checkingAcc.Currency, from); err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, models.DefaultCurrency, from, today); err != nil {
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, checkingAcc.Currency, from, today); err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
@@ -1289,7 +1292,7 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 			AccountID:       fromAccID,
 			TransactionType: "expense",
 			Amount:          amt,
-			Currency:        models.DefaultCurrency,
+			Currency:        fromAcc.Currency,
 			TxnDate:         txDay,
 			Description:     &desc,
 			IsTransfer:      true,
@@ -1306,7 +1309,7 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 			AccountID:       toAccID,
 			TransactionType: "income",
 			Amount:          amt,
-			Currency:        models.DefaultCurrency,
+			Currency:        toAcc.Currency,
 			TxnDate:         txDay,
 			Description:     &desc,
 			IsTransfer:      true,
@@ -1323,7 +1326,7 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 			TransactionInflowID:  income.ID,
 			TransactionOutflowID: expense.ID,
 			Amount:               amt,
-			Currency:             models.DefaultCurrency,
+			Currency:             fromAcc.Currency,
 			Status:               "success",
 			CreatedAt:            txDay,
 			ImportID:             &imp.ID,
@@ -1357,7 +1360,7 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 		tx,
 		userID,
 		checkingAcc.ID,
-		models.DefaultCurrency,
+		checkingAcc.Currency,
 		frontfillFrom,
 	); err != nil {
 		tx.Rollback()
@@ -1368,12 +1371,12 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 	// Frontfill & refresh snapshots for each affected account from its earliest date
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for accID, from := range earliest {
-		if err := s.frontfillBalances(ctx, tx, userID, accID, models.DefaultCurrency, from); err != nil {
+		if err := s.frontfillBalances(ctx, tx, userID, accID, checkingAcc.Currency, from); err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, models.DefaultCurrency, from, today); err != nil {
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, checkingAcc.Currency, from, today); err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
@@ -1560,7 +1563,7 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 			AccountID:       fromAccID,
 			TransactionType: "expense",
 			Amount:          amt,
-			Currency:        models.DefaultCurrency,
+			Currency:        fromAcc.Currency,
 			TxnDate:         txDay,
 			Description:     &desc,
 			IsTransfer:      true,
@@ -1577,7 +1580,7 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 			AccountID:       toAccID,
 			TransactionType: "income",
 			Amount:          amt,
-			Currency:        models.DefaultCurrency,
+			Currency:        toAcc.Currency,
 			TxnDate:         txDay,
 			Description:     &desc,
 			IsTransfer:      true,
@@ -1594,7 +1597,7 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 			TransactionInflowID:  income.ID,
 			TransactionOutflowID: expense.ID,
 			Amount:               amt,
-			Currency:             models.DefaultCurrency,
+			Currency:             fromAcc.Currency,
 			Status:               "success",
 			CreatedAt:            txDay,
 			ImportID:             &imp.ID,
@@ -1628,7 +1631,7 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 		tx,
 		userID,
 		checkingAcc.ID,
-		models.DefaultCurrency,
+		checkingAcc.Currency,
 		frontfillFrom,
 	); err != nil {
 		tx.Rollback()
@@ -1639,12 +1642,12 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 	// Frontfill & refresh snapshots for each affected account from its earliest date
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for accID, from := range earliest {
-		if err := s.frontfillBalances(ctx, tx, userID, accID, models.DefaultCurrency, from); err != nil {
+		if err := s.frontfillBalances(ctx, tx, userID, accID, checkingAcc.Currency, from); err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
 		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, models.DefaultCurrency, from, today); err != nil {
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, checkingAcc.Currency, from, today); err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
@@ -1729,6 +1732,11 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		}
 	}()
 
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
+	if err != nil {
+		return err
+	}
+
 	started := time.Now().UTC()
 
 	importID, err := s.repo.InsertImport(ctx, nil, models.Import{
@@ -1738,7 +1746,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		SubType:   "trades",
 		Status:    "pending",
 		Step:      "investments",
-		Currency:  models.DefaultCurrency,
+		Currency:  settings.DefaultCurrency,
 		StartedAt: &started,
 	})
 	if err != nil {
@@ -1757,12 +1765,6 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		}
 	}()
 
-	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
-	if err != nil {
-		tx.Rollback()
-		s.markImportFailed(ctx, importID, err)
-		return err
-	}
 	loc, _ := time.LoadLocation(settings.Timezone)
 	if loc == nil {
 		loc = time.UTC

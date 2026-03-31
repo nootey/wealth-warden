@@ -18,13 +18,14 @@ func (SettingsGeneral) TableName() string {
 }
 
 type SettingsUser struct {
-	UserID    int64     `gorm:"column:user_id;primaryKey" json:"id"`
-	Theme     string    `gorm:"column:theme" json:"theme"`
-	Accent    *string   `gorm:"column:accent" json:"accent"`
-	Language  string    `gorm:"column:language" json:"language"`
-	Timezone  string    `gorm:"column:timezone" json:"timezone"`
-	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
+	UserID          int64     `gorm:"column:user_id;primaryKey" json:"id"`
+	Theme           string    `gorm:"column:theme" json:"theme"`
+	Accent          *string   `gorm:"column:accent" json:"accent"`
+	Language        string    `gorm:"column:language" json:"language"`
+	Timezone        string    `gorm:"column:timezone" json:"timezone"`
+	DefaultCurrency string    `gorm:"column:default_currency" json:"default_currency"`
+	CreatedAt       time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt       time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
 func (SettingsUser) TableName() string {
@@ -38,11 +39,25 @@ type TimezoneInfo struct {
 	DisplayName string `json:"displayName"` // Human-readable name
 }
 
+type CurrencyInfo struct {
+	Value string `json:"value"` // ISO 4217 code, e.g., "EUR"
+	Label string `json:"label"` // e.g., "EUR - Euro"
+}
+
 type PreferenceSettingsReq struct {
-	Theme    string  `json:"theme"`
-	Accent   *string `json:"accent"`
-	Language string  `json:"language"`
-	Timezone string  `json:"timezone"`
+	Theme           string  `json:"theme"`
+	Accent          *string `json:"accent"`
+	Language        string  `json:"language"`
+	Timezone        string  `json:"timezone"`
+	DefaultCurrency string  `json:"default_currency"`
+}
+
+type CompleteSetupReq struct {
+	DefaultCurrency string `json:"default_currency" validate:"required"`
+	Timezone        string `json:"timezone" validate:"required"`
+	Language        string `json:"language" validate:"required"`
+	Theme           string `json:"theme" validate:"required"`
+	Accent          string `json:"accent"`
 }
 
 type ProfileSettingsReq struct {

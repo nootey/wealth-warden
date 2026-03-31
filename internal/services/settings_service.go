@@ -26,6 +26,7 @@ type SettingsServiceInterface interface {
 	FetchGeneralSettings(ctx context.Context) (*models.SettingsGeneral, error)
 	FetchUserSettings(ctx context.Context, userID int64) (*models.SettingsUser, error)
 	FetchAvailableTimezones(ctx context.Context) ([]models.TimezoneInfo, error)
+	FetchAvailableCurrencies(ctx context.Context) ([]models.CurrencyInfo, error)
 	UpdatePreferenceSettings(ctx context.Context, userID int64, req models.PreferenceSettingsReq) error
 	UpdateProfileSettings(ctx context.Context, userID int64, req models.ProfileSettingsReq) error
 	RestoreDatabaseBackup(ctx context.Context, userID int64, backupName string) error
@@ -119,6 +120,24 @@ func (s *SettingsService) FetchAvailableTimezones(ctx context.Context) ([]models
 	return timezones, nil
 }
 
+func (s *SettingsService) FetchAvailableCurrencies(ctx context.Context) ([]models.CurrencyInfo, error) {
+	currencies := utils.GetIsoCurrencies()
+
+	result := make([]models.CurrencyInfo, 0, len(currencies))
+	for code, name := range currencies {
+		result = append(result, models.CurrencyInfo{
+			Value: code,
+			Label: fmt.Sprintf("%s - %s", code, name),
+		})
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Value < result[j].Value
+	})
+
+	return result, nil
+}
+
 func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID int64, req models.PreferenceSettingsReq) error {
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -140,12 +159,18 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 		return fmt.Errorf("can't find settings for given user: %w", err)
 	}
 
+	if req.DefaultCurrency != "" && req.DefaultCurrency != existingSettings.DefaultCurrency {
+		tx.Rollback()
+		return fmt.Errorf("default currency currently cannot be changed after initial setup")
+	}
+
 	settings := models.SettingsUser{
-		UserID:   userID,
-		Theme:    req.Theme,
-		Accent:   req.Accent,
-		Timezone: req.Timezone,
-		Language: req.Language,
+		UserID:          userID,
+		Theme:           req.Theme,
+		Accent:          req.Accent,
+		Timezone:        req.Timezone,
+		Language:        req.Language,
+		DefaultCurrency: existingSettings.DefaultCurrency,
 	}
 
 	err = s.repo.UpdateUserSettings(ctx, tx, userID, settings)
@@ -165,6 +190,7 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 	utils.CompareChanges(utils.SafeString(existingSettings.Accent), utils.SafeString(settings.Accent), changes, "accent")
 	utils.CompareChanges(existingSettings.Language, settings.Language, changes, "language")
 	utils.CompareChanges(existingSettings.Timezone, settings.Timezone, changes, "timezone")
+	utils.CompareChanges(existingSettings.DefaultCurrency, settings.DefaultCurrency, changes, "default_currency")
 
 	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,

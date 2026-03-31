@@ -46,6 +46,7 @@ func (h *AuthHandler) PublicRoutes(apiGroup *gin.RouterGroup) {
 func (h *AuthHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.GET("/current", h.GetAuthUser)
 	apiGroup.POST("/resend-confirmation-email", h.ResendConfirmationEmail)
+	apiGroup.POST("/setup/complete", h.CompleteSetup)
 }
 
 func (h *AuthHandler) LoginUser(c *gin.Context) {
@@ -175,6 +176,24 @@ func (h *AuthHandler) ResendConfirmationEmail(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "", "Email dispatched", http.StatusOK)
+}
+
+func (h *AuthHandler) CompleteSetup(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var req models.CompleteSetupReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.CompleteSetup(ctx, userID, req); err != nil {
+		utils.ErrorMessage(c, "Setup failed", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "", "Setup complete", http.StatusOK)
 }
 
 func (h *AuthHandler) ConfirmEmail(c *gin.Context) {

@@ -4,6 +4,7 @@ import apiClient from "../api/axios_interceptor.ts";
 export const useSettingsStore = defineStore("settings", {
   state: () => ({
     apiPrefix: "settings",
+    defaultCurrency: "EUR",
   }),
   actions: {
     async getGeneralSettings() {
@@ -14,6 +15,9 @@ export const useSettingsStore = defineStore("settings", {
     },
     async getAvailableTimezones() {
       return await apiClient.get(`${this.apiPrefix}/timezones`);
+    },
+    async getAvailableCurrencies() {
+      return await apiClient.get(`${this.apiPrefix}/currencies`);
     },
     async updatePreferenceSettings(settings: object) {
       return await apiClient.put(

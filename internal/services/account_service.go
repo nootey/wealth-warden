@@ -262,7 +262,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 
 	account := &models.Account{
 		Name:              req.Name,
-		Currency:          models.DefaultCurrency,
+		Currency:          settings.DefaultCurrency,
 		AccountTypeID:     accType.ID,
 		UserID:            userID,
 		OpenedAt:          openedDay,
@@ -297,7 +297,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 
 	balance := &models.Balance{
 		AccountID:    accountID,
-		Currency:     models.DefaultCurrency,
+		Currency:     account.Currency,
 		StartBalance: amount,
 		AsOf:         asOf,
 	}
@@ -314,7 +314,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 		tx,
 		userID,
 		accountID,
-		models.DefaultCurrency,
+		account.Currency,
 		asOf,
 		time.Now().UTC().Truncate(24*time.Hour),
 	); err != nil {
@@ -425,7 +425,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		// Create new initial balance with the true initial amount at the new date
 		newInitialBalance := &models.Balance{
 			AccountID:    id,
-			Currency:     models.DefaultCurrency,
+			Currency:     exAcc.Currency,
 			StartBalance: initialBalance,
 			AsOf:         newOpenedAt,
 		}
@@ -436,7 +436,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			return 0, fmt.Errorf("failed to create new initial balance: %w", err)
 		}
 
-		if err := s.repo.FrontfillBalances(ctx, tx, id, models.DefaultCurrency, newOpenedAt); err != nil {
+		if err := s.repo.FrontfillBalances(ctx, tx, id, exAcc.Currency, newOpenedAt); err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to rebuild balances from transactions: %w", err)
 		}
@@ -447,7 +447,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			tx,
 			userID,
 			id,
-			models.DefaultCurrency,
+			exAcc.Currency,
 			newOpenedAt,
 			time.Now().UTC().Truncate(24*time.Hour),
 		); err != nil {
@@ -459,7 +459,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 	acc := &models.Account{
 		ID:            id,
 		Name:          req.Name,
-		Currency:      models.DefaultCurrency,
+		Currency:      exAcc.Currency,
 		AccountTypeID: newAccType.ID,
 		IsActive:      exAcc.IsActive,
 		UserID:        userID,

@@ -38,6 +38,69 @@ func (_m *MockAuthServiceInterface) EXPECT() *MockAuthServiceInterface_Expecter 
 	return &MockAuthServiceInterface_Expecter{mock: &_m.Mock}
 }
 
+// CompleteSetup provides a mock function for the type MockAuthServiceInterface
+func (_mock *MockAuthServiceInterface) CompleteSetup(ctx context.Context, userID int64, req models.CompleteSetupReq) error {
+	ret := _mock.Called(ctx, userID, req)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CompleteSetup")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, models.CompleteSetupReq) error); ok {
+		r0 = returnFunc(ctx, userID, req)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockAuthServiceInterface_CompleteSetup_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CompleteSetup'
+type MockAuthServiceInterface_CompleteSetup_Call struct {
+	*mock.Call
+}
+
+// CompleteSetup is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - req models.CompleteSetupReq
+func (_e *MockAuthServiceInterface_Expecter) CompleteSetup(ctx interface{}, userID interface{}, req interface{}) *MockAuthServiceInterface_CompleteSetup_Call {
+	return &MockAuthServiceInterface_CompleteSetup_Call{Call: _e.mock.On("CompleteSetup", ctx, userID, req)}
+}
+
+func (_c *MockAuthServiceInterface_CompleteSetup_Call) Run(run func(ctx context.Context, userID int64, req models.CompleteSetupReq)) *MockAuthServiceInterface_CompleteSetup_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 models.CompleteSetupReq
+		if args[2] != nil {
+			arg2 = args[2].(models.CompleteSetupReq)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockAuthServiceInterface_CompleteSetup_Call) Return(err error) *MockAuthServiceInterface_CompleteSetup_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockAuthServiceInterface_CompleteSetup_Call) RunAndReturn(run func(ctx context.Context, userID int64, req models.CompleteSetupReq) error) *MockAuthServiceInterface_CompleteSetup_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ConfirmEmail provides a mock function for the type MockAuthServiceInterface
 func (_mock *MockAuthServiceInterface) ConfirmEmail(ctx context.Context, tokenValue string, userAgent string, ip string) error {
 	ret := _mock.Called(ctx, tokenValue, userAgent, ip)

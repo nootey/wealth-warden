@@ -16,6 +16,8 @@ import type { CategoryOrGroup } from "../../../models/transaction_models.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import Decimal from "decimal.js";
 import currencyHelper from "../../../utils/currency_helper.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
+import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
@@ -28,6 +30,7 @@ const emit = defineEmits<{
   (event: "completeOperation"): void;
 }>();
 
+const settingsStore = useSettingsStore();
 const transactionStore = useTransactionStore();
 const analyticsStore = useAnalyticsStore();
 const sharedStore = useSharedStore();
@@ -304,14 +307,7 @@ async function revertProjection() {
             Loading...
           </span>
           <span v-else style="color: var(--text-secondary)">
-            {{
-              expectedBalance.toLocaleString("de-DE", {
-                style: "currency",
-                currency: "EUR",
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })
-            }}
+            {{ vueHelper.displayAsCurrency(expectedBalance) }}
           </span>
         </div>
 
@@ -349,10 +345,9 @@ async function revertProjection() {
             v-model="expectedBalanceNumber"
             size="small"
             mode="currency"
-            currency="EUR"
-            locale="de-DE"
+            :currency="settingsStore.defaultCurrency"
             :min="0"
-            placeholder="0,00 €"
+            :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
             :min-fraction-digits="2"
             :max-fraction-digits="2"
           />
@@ -373,8 +368,7 @@ async function revertProjection() {
               size="small"
               :model-value="parseFloat(account.balance.end_balance!)"
               mode="currency"
-              currency="EUR"
-              locale="de-DE"
+              :currency="settingsStore.defaultCurrency"
               :min-fraction-digits="2"
               :max-fraction-digits="2"
               disabled

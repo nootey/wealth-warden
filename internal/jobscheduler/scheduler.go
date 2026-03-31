@@ -213,19 +213,14 @@ func (s *Scheduler) registerAssetPriceSyncJob() error {
 func (s *Scheduler) registerAssetPriceHistoryBackfillJob() error {
 
 	logger := s.logger.Named("asset-history-backfill-job")
-	client, err := finance.NewPriceFetchClient(s.container.Config.FinanceAPIBaseURL)
-	if err != nil {
-		logger.Warn("Failed to create price fetch client", zap.Error(err))
-	}
-
-	job := NewAssetPriceHistoryBackfillJob(logger, s.container.InvestmentService, s.container.DB, client)
+	job := NewAssetPriceHistoryBackfillJob(logger, s.container.InvestmentService, s.container.DB)
 
 	var opts []gocron.JobOption
 	if s.flags.StartAssetHistoryBackfillImmediately {
 		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 	}
 
-	_, err = s.scheduler.NewJob(
+	_, err := s.scheduler.NewJob(
 		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 0, 0))),
 		gocron.NewTask(func() {
 			logger.Info("Starting asset price history backfill ...")
