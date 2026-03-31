@@ -210,7 +210,7 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 		UserID:     userID,
 		ExportType: "custom",
 		Status:     "pending",
-		Currency:   models.DefaultCurrency,
+		Currency:   settings.DefaultCurrency,
 		StartedAt:  &now,
 	}
 

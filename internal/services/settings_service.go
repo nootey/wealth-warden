@@ -159,13 +159,18 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 		return fmt.Errorf("can't find settings for given user: %w", err)
 	}
 
+	if req.DefaultCurrency != "" && req.DefaultCurrency != existingSettings.DefaultCurrency {
+		tx.Rollback()
+		return fmt.Errorf("default currency currently cannot be changed after initial setup")
+	}
+
 	settings := models.SettingsUser{
 		UserID:          userID,
 		Theme:           req.Theme,
 		Accent:          req.Accent,
 		Timezone:        req.Timezone,
 		Language:        req.Language,
-		DefaultCurrency: req.DefaultCurrency,
+		DefaultCurrency: existingSettings.DefaultCurrency,
 	}
 
 	err = s.repo.UpdateUserSettings(ctx, tx, userID, settings)

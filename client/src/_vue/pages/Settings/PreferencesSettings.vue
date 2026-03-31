@@ -233,7 +233,7 @@ async function updateSettings() {
             </IftaLabel>
           </div>
 
-          <div class="w-full flex flex-row gap-2 w-full">
+          <div class="w-full flex flex-column gap-1">
             <IftaLabel class="w-full" variant="in">
               <AutoComplete
                 id="currency_input"
@@ -247,10 +247,14 @@ async function updateSettings() {
                 :input-class="'w-full'"
                 placeholder="Search currency..."
                 force-selection
+                disabled
                 @complete="searchCurrency"
               />
               <label for="currency_input">Default Currency</label>
             </IftaLabel>
+            <small style="color: var(--text-secondary)">
+              Default currency cannot be changed after initial setup.
+            </small>
           </div>
 
           <div class="w-full flex flex-row gap-2 w-full">
