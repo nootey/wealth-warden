@@ -16,13 +16,23 @@ Ledger based personal finance manager with an included web based client.
 ## Code Style
 
 - Write clean, self-documenting code
-- Use descriptive variable and function names
 - Minimize comments unless essential for clarity
 
-## Workflow
+## Typography - ASCII Only
+- Do not use em dashes. Use hyphens instead. 
+- Do not use smart or curly quotes. Use straight quotes instead. 
+- Do not use the ellipsis character. Use three plain dots instead. 
+- Do not use Unicode bullets. Use hyphens or asterisks instead. 
+- Do not use non-breaking spaces. 
+- Do not modify content inside backticks. Treat it as a literal example.
 
-- Confirm understanding before proceeding
+## Accuracy and Speculation Control
+
+- Ask clarifying questions when requirements are unclear
 - Present options when multiple approaches exist
+- Never speculate about code, files, or APIs you have not read.
+- If unsure: say "I don't know." Never guess confidently.
+- Do not create new files unless strictly necessary.
 
 ## Git
 
