@@ -73,6 +73,7 @@ function initData(): User {
     display_name: "",
     email: "",
     deleted_at: null,
+    has_completed_setup: false,
   };
 }
 

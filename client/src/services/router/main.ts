@@ -40,6 +40,22 @@ router.beforeEach(async (to) => {
     }
   }
 
+  // Authenticated + email confirmed but setup not done
+  if (
+    requiresAuth &&
+    auth.isAuthenticated &&
+    auth.isValidated &&
+    !auth.hasSetupCompleted &&
+    to.name !== "setup"
+  ) {
+    return { name: "setup" };
+  }
+
+  // Setup already done - prevent re-entering setup
+  if (to.name === "setup" && auth.isAuthenticated && auth.hasSetupCompleted) {
+    return { name: "dashboard" };
+  }
+
   // Guest-only pages
   if (guestOnly && auth.isAuthenticated) {
     return { name: "dashboard" };

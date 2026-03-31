@@ -1,4 +1,5 @@
 import type { RouteRecordRaw } from "vue-router";
+import SetupPage from "../../_vue/features/auth/SetupPage.vue";
 import DashboardPage from "../../_vue/pages/DashboardPage.vue";
 import Login from "../../_vue/features/auth/Login.vue";
 import SignUp from "../../_vue/features/auth/SignUp.vue";
@@ -58,6 +59,16 @@ const routes: RouteRecordRaw[] = [
       hideNavigation: true,
     },
     component: ConfirmEmail,
+  },
+  {
+    path: "/setup",
+    name: "setup",
+    meta: {
+      title: "Setup",
+      requiresAuth: true,
+      hideNavigation: true,
+    },
+    component: SetupPage,
   },
   {
     path: "/login",

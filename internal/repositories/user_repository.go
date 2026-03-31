@@ -30,6 +30,7 @@ type UserRepositoryInterface interface {
 	InsertUserSettings(ctx context.Context, tx *gorm.DB, userID int64, record *models.SettingsUser) (int64, error)
 	UpdateUser(ctx context.Context, tx *gorm.DB, record models.User) (int64, error)
 	UpdateUserPassword(ctx context.Context, tx *gorm.DB, id int64, password string) error
+	MarkSetupComplete(ctx context.Context, tx *gorm.DB, userID int64) error
 	ValidateUser(ctx context.Context, tx *gorm.DB, userID int64) (int64, error)
 	DeleteUser(ctx context.Context, tx *gorm.DB, id int64, newEmail string) error
 	DeleteInvitation(ctx context.Context, tx *gorm.DB, id int64) error
@@ -453,6 +454,21 @@ func (r *UserRepository) ValidateUser(ctx context.Context, tx *gorm.DB, userID i
 	}
 
 	return userID, nil
+}
+
+func (r *UserRepository) MarkSetupComplete(ctx context.Context, tx *gorm.DB, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	return db.Model(models.User{}).
+		Where("id = ?", userID).
+		Updates(map[string]interface{}{
+			"has_completed_setup": true,
+			"updated_at":          time.Now().UTC(),
+		}).Error
 }
 
 func (r *UserRepository) UpdateUserPassword(ctx context.Context, tx *gorm.DB, id int64, password string) error {

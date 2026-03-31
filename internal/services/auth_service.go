@@ -26,6 +26,7 @@ type AuthServiceInterface interface {
 	ValidatePasswordReset(ctx context.Context, tokenValue string) (string, error)
 	ResetPassword(ctx context.Context, form models.ResetPasswordForm, userAgent, ip string) error
 	RegisterUser(ctx context.Context, form models.RegisterForm, userAgent, ip string) error
+	CompleteSetup(ctx context.Context, userID int64, req models.CompleteSetupReq) error
 }
 type AuthService struct {
 	userRepo      repositories.UserRepositoryInterface
@@ -193,6 +194,49 @@ func (s *AuthService) GetCurrentUser(ctx context.Context, userID int64) (*models
 	}
 
 	return user, nil
+}
+
+func (s *AuthService) CompleteSetup(ctx context.Context, userID int64, req models.CompleteSetupReq) error {
+	user, err := s.userRepo.FindUserByID(ctx, nil, userID)
+	if err != nil {
+		return err
+	}
+
+	if user.HasCompletedSetup {
+		return fmt.Errorf("setup has already been completed")
+	}
+
+	tx, err := s.userRepo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	accent := req.Accent
+	settings := models.SettingsUser{
+		Theme:           req.Theme,
+		Accent:          &accent,
+		Language:        req.Language,
+		Timezone:        req.Timezone,
+		DefaultCurrency: req.DefaultCurrency,
+	}
+
+	if err := s.settingsRepo.UpdateUserSettings(ctx, tx, userID, settings); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.userRepo.MarkSetupComplete(ctx, tx, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }
 
 func (s *AuthService) ValidateInvitation(ctx context.Context, hash string) error {

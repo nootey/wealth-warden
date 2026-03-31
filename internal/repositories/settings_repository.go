@@ -115,6 +115,10 @@ func (r *SettingsRepository) UpdateUserSettings(ctx context.Context, tx *gorm.DB
 		"updated_at": time.Now().UTC(),
 	}
 
+	if record.DefaultCurrency != "" {
+		updates["default_currency"] = record.DefaultCurrency
+	}
+
 	res := db.Model(&models.SettingsUser{}).
 		Where("user_id = ?", userID).
 		Updates(updates)

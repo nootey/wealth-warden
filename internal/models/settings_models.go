@@ -52,6 +52,14 @@ type PreferenceSettingsReq struct {
 	DefaultCurrency string  `json:"default_currency"`
 }
 
+type CompleteSetupReq struct {
+	DefaultCurrency string `json:"default_currency" validate:"required"`
+	Timezone        string `json:"timezone" validate:"required"`
+	Language        string `json:"language" validate:"required"`
+	Theme           string `json:"theme" validate:"required"`
+	Accent          string `json:"accent"`
+}
+
 type ProfileSettingsReq struct {
 	DisplayName  string `json:"display_name" validate:"required"`
 	Email        string `json:"email" validate:"required"`
