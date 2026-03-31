@@ -21,6 +21,7 @@ import type { Account } from "../../../models/account_models.ts";
 import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
+import vueHelper from "../../../utils/vue_helper.ts";
 import TransferForm from "./TransferForm.vue";
 import ShowLoading from "../base/ShowLoading.vue";
 import { useConfirm } from "primevue/useconfirm";
@@ -584,9 +585,8 @@ async function deleteRecord(id: number, tx_type: string) {
             :disabled="isFormReadOnly"
             size="small"
             mode="currency"
-            currency="EUR"
-            locale="de-DE"
-            placeholder="0,00 €"
+            :currency="settingsStore.defaultCurrency"
+            :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
           />
         </div>
       </div>

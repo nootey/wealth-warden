@@ -123,6 +123,9 @@ export const useAuthStore = defineStore("auth", {
                 response.data.theme || "system",
                 response.data.accent || "blurple",
               );
+              if (response.data.default_currency) {
+                settingsStore.defaultCurrency = response.data.default_currency;
+              }
             }
           } catch (error) {
             console.error("Failed to load theme settings:", error);

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import vueHelper from "../../../../utils/vue_helper.ts";
+import { useSettingsStore } from "../../../../services/stores/settings_store.ts";
 
 type OpVal = "=" | ">=" | "<=";
 type Model = {
@@ -12,6 +14,7 @@ type Model = {
 const model = defineModel<Model>({ required: true });
 defineProps<{ label?: string }>();
 
+const settingsStore = useSettingsStore();
 const singleVal = ref<number | null>(model.value.single ?? null);
 
 const operators = [
@@ -111,9 +114,8 @@ const searchOperator = (event: any) => {
           :disabled="singleDisabled"
           :model-value="singleVal"
           mode="currency"
-          currency="EUR"
-          locale="de-DE"
-          placeholder="0,00 €"
+          :currency="settingsStore.defaultCurrency"
+          :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
           @update:model-value="onSingleInput"
         />
         <label for="single">Single value</label>
@@ -129,9 +131,8 @@ const searchOperator = (event: any) => {
           :disabled="rangeDisabled"
           :model-value="model.min"
           mode="currency"
-          currency="EUR"
-          locale="de-DE"
-          placeholder="0,00 €"
+          :currency="settingsStore.defaultCurrency"
+          :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
           @update:model-value="onRangeMin"
         />
         <label for="range_min">Min</label>
@@ -145,9 +146,8 @@ const searchOperator = (event: any) => {
           :disabled="rangeDisabled"
           :model-value="model.max"
           mode="currency"
-          currency="EUR"
-          locale="de-DE"
-          placeholder="0,00 €"
+          :currency="settingsStore.defaultCurrency"
+          :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
           @update:model-value="onRangeMax"
         />
         <label for="range_max">Max</label>

@@ -592,9 +592,8 @@ async function startOperation() {
             :disabled="isReadOnly"
             size="small"
             mode="currency"
-            currency="EUR"
-            locale="de-DE"
-            placeholder="0,00 €"
+            :currency="settingsStore.defaultCurrency"
+            :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
           />
         </div>
       </div>
