@@ -515,6 +515,12 @@ func (c *PriceFetchClient) GetExchangeRateOnDate(ctx context.Context, fromCurren
 		}
 
 		if rate > 0 {
+			// Yahoo historical close for {CURR}=X returns local-per-USD (e.g. EUR=X = 0.87 EUR/USD).
+			// When converting FROM a currency TO USD we need USD-per-local, so invert.
+			// When converting FROM USD the raw value is already correct.
+			if toCurrency == "USD" {
+				return 1.0 / rate, nil
+			}
 			return rate, nil
 		}
 	}
