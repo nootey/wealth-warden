@@ -2199,19 +2199,23 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 		isTransfer := t.TemplateType == "transfer"
 		isExpense := t.TransactionType != nil && *t.TransactionType == "expense"
 
-		if multiplier, ok := baseMultipliers[t.Frequency]; ok {
-			monthlyAmount := t.Amount.Mul(multiplier)
-			if isTransfer {
-				summary.MonthlyTransfer = summary.MonthlyTransfer.Add(monthlyAmount)
-			} else if isExpense {
-				summary.MonthlyExpense = summary.MonthlyExpense.Add(monthlyAmount)
-			} else {
-				summary.MonthlyIncome = summary.MonthlyIncome.Add(monthlyAmount)
+		isOneOff := t.MaxRuns != nil && *t.MaxRuns == 1
+
+		if !isOneOff {
+			if multiplier, ok := baseMultipliers[t.Frequency]; ok {
+				monthlyAmount := t.Amount.Mul(multiplier)
+				if isTransfer {
+					summary.MonthlyTransfer = summary.MonthlyTransfer.Add(monthlyAmount)
+				} else if isExpense {
+					summary.MonthlyExpense = summary.MonthlyExpense.Add(monthlyAmount)
+				} else {
+					summary.MonthlyIncome = summary.MonthlyIncome.Add(monthlyAmount)
+				}
+				continue
 			}
-			continue
 		}
 
-		if periodicFrequencies[t.Frequency] {
+		if isOneOff || periodicFrequencies[t.Frequency] {
 			if !t.NextRunAt.Before(monthStart) && t.NextRunAt.Before(monthEnd) {
 				if isTransfer {
 					summary.ThisMonthTransfer = summary.ThisMonthTransfer.Add(t.Amount)

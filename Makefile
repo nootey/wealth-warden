@@ -1,4 +1,4 @@
-.PHONY: default run migrate seed mock build test test-coverage lint lint-fix docker-up docker-down docker-rpi-up docker-rpi-down tidy pre-push
+.PHONY: default run migrate seed mock build test test-coverage lint lint-fix docker-up docker-down docker-migrate docker-rpi-up docker-rpi-down docker-rpi-migrate tidy pre-push
 
 # Default target runs the app
 default: run
@@ -45,17 +45,25 @@ docker-up:
 docker-down:
 	docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden down
 
+docker-migrate:
+	docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden run --rm --build migrate $(type)
+
 docker-rpi-up:
 	docker compose -f ./deployments/docker/docker-compose.rpi.yaml -p wealth-warden up -d --build
 
 docker-rpi-down:
 	docker compose -f ./deployments/docker/docker-compose.rpi.yaml -p wealth-warden down
 
+docker-rpi-migrate:
+	docker compose -f ./deployments/docker/docker-compose.rpi.yaml -p wealth-warden run --rm --build migrate $(type)
+
 tidy:
 	go mod tidy
 	go mod verify
 
 pre-push:
+	@echo "--- Bootstrap ---"
+	mockery --config=.mockery.yaml
 	@echo "--- App ---"
 	@go build ./... && echo "build successful" || (echo "build failed" && exit 1)
 	@golangci-lint run && echo "lint successful" || (echo "lint failed" && exit 1)

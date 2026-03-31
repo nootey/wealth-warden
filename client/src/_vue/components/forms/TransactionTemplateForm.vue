@@ -167,7 +167,7 @@ watch(selectedPreset, (newPreset) => {
   if (newPreset === "once") {
     record.value.max_runs = 1;
     record.value.end_date = null;
-    record.value.frequency = "Monthly";
+    record.value.frequency = "Annually";
   } else {
     record.value.max_runs = null;
     record.value.frequency = "";
