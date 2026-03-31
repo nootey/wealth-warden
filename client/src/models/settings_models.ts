@@ -3,6 +3,7 @@ export type UserSettings = {
   timezone: string;
   theme: string;
   accent: string;
+  default_currency: string;
 };
 
 export type GeneralSettings = {
@@ -21,6 +22,11 @@ export interface TimezoneInfo {
 }
 
 export interface LanguageInfo {
+  value: string;
+  label: string;
+}
+
+export interface CurrencyInfo {
   value: string;
   label: string;
 }

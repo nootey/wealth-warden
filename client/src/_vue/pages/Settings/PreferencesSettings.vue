@@ -2,6 +2,7 @@
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
 import { computed, onMounted, ref } from "vue";
 import type {
+  CurrencyInfo,
   LanguageInfo,
   TimezoneInfo,
   UserSettings,
@@ -25,6 +26,9 @@ const filteredLanguages = ref<LanguageInfo[]>([]);
 const timezones = ref<TimezoneInfo[]>([]);
 const filteredTimezones = ref<TimezoneInfo[]>([]);
 
+const currencies = ref<CurrencyInfo[]>([]);
+const filteredCurrencies = ref<CurrencyInfo[]>([]);
+
 const themeOptions = ref([
   { value: "system", label: "System" },
   { value: "dark", label: "Dark" },
@@ -32,6 +36,18 @@ const themeOptions = ref([
 ]);
 
 const accentOptions = ref([{ value: "blurple", label: "Blurple" }]);
+
+const selectedCurrency = computed({
+  get: () =>
+    currencies.value.find(
+      (c) => c.value === userSettings.value?.default_currency,
+    ),
+  set: (newValue: CurrencyInfo | null) => {
+    if (userSettings.value && newValue) {
+      userSettings.value.default_currency = newValue.value;
+    }
+  },
+});
 
 const selectedLanguage = computed({
   get: () =>
@@ -81,6 +97,7 @@ onMounted(async () => {
   await initUserSettings();
   await getAvailableTimezones();
   await getAvailableLanguages();
+  await getAvailableCurrencies();
 });
 
 async function initUserSettings() {
@@ -112,6 +129,15 @@ async function getAvailableLanguages() {
   }
 }
 
+async function getAvailableCurrencies() {
+  try {
+    let response = await settingsStore.getAvailableCurrencies();
+    currencies.value = response.data;
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
 function searchTimezone(event: any) {
   const query = event.query.toLowerCase();
 
@@ -122,6 +148,20 @@ function searchTimezone(event: any) {
       (tz) =>
         tz.label.toLowerCase().includes(query) ||
         tz.value.toLowerCase().includes(query),
+    );
+  }
+}
+
+function searchCurrency(event: { query: string }) {
+  const query = event.query.toLowerCase();
+
+  if (!query) {
+    filteredCurrencies.value = currencies.value;
+  } else {
+    filteredCurrencies.value = currencies.value.filter(
+      (c) =>
+        c.label.toLowerCase().includes(query) ||
+        c.value.toLowerCase().includes(query),
     );
   }
 }
@@ -147,6 +187,7 @@ async function updateSettings() {
     timezone: userSettings.value?.timezone,
     theme: userSettings.value?.theme as "system" | "dark" | "light",
     accent: userSettings.value?.accent,
+    default_currency: userSettings.value?.default_currency,
   };
   try {
     let response = await settingsStore.updatePreferenceSettings(settings);
@@ -189,6 +230,26 @@ async function updateSettings() {
                 @complete="searchLanguage"
               />
               <label for="in_label">Language</label>
+            </IftaLabel>
+          </div>
+
+          <div class="w-full flex flex-row gap-2 w-full">
+            <IftaLabel class="w-full" variant="in">
+              <AutoComplete
+                id="currency_input"
+                v-model="selectedCurrency"
+                dropdown
+                size="small"
+                :suggestions="filteredCurrencies"
+                option-label="label"
+                option-value="value"
+                class="w-full"
+                :input-class="'w-full'"
+                placeholder="Search currency..."
+                force-selection
+                @complete="searchCurrency"
+              />
+              <label for="currency_input">Default Currency</label>
             </IftaLabel>
           </div>
 

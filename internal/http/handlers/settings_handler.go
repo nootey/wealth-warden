@@ -32,6 +32,7 @@ func (h *SettingsHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.GET("", authz.RequireAllMW("root_access"), h.GetGeneralSettings)
 	apiGroup.GET("/users", authz.RequireAllMW("view_data"), h.GetUserSettings)
 	apiGroup.GET("/timezones", authz.RequireAllMW("view_data"), h.GetAvailableTimezones)
+	apiGroup.GET("/currencies", authz.RequireAllMW("view_data"), h.GetAvailableCurrencies)
 	apiGroup.PUT("/users/preferences", authz.RequireAllMW("manage_data"), h.UpdatePreferenceSettings)
 	apiGroup.PUT("/users/profile", authz.RequireAllMW("manage_data"), h.UpdateProfileSettings)
 }
@@ -72,6 +73,18 @@ func (h *SettingsHandler) GetAvailableTimezones(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, tzones)
+}
+
+func (h *SettingsHandler) GetAvailableCurrencies(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	currencies, err := h.Service.FetchAvailableCurrencies(ctx)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, currencies)
 }
 
 func (h *SettingsHandler) UpdatePreferenceSettings(c *gin.Context) {
