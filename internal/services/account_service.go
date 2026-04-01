@@ -45,6 +45,7 @@ type AccountServiceInterface interface {
 	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
 	RebuildSnapshotsForUser(ctx context.Context, userID int64) error
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	SyncForUser(ctx context.Context, userID int64) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
 	SyncAssetPnL(ctx context.Context, userID, assetID int64) error
@@ -1167,7 +1168,37 @@ func (s *AccountService) RebuildSnapshotsForUser(ctx context.Context, userID int
 }
 
 func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
-	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID)
+	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID, nil)
+}
+
+func (s *AccountService) SyncForUser(ctx context.Context, userID int64) error {
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
+	if err != nil {
+		return err
+	}
+
+	loc, err := time.LoadLocation(settings.Timezone)
+	if err != nil || loc == nil {
+		loc = time.UTC
+	}
+
+	now := time.Now().In(loc)
+	today := now.Truncate(24 * time.Hour)
+
+	exists, err := s.repo.HasSnapshotForDate(ctx, userID, today)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+
+	yesterday := today.AddDate(0, 0, -1)
+	if err := s.BackfillBalancesForUser(ctx, userID, yesterday.Format("2006-01-02"), today.Format("2006-01-02")); err != nil {
+		return err
+	}
+
+	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID, &today)
 }
 
 func (s *AccountService) RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error {

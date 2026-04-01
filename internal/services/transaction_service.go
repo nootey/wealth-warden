@@ -1803,7 +1803,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		txnType = &v
 	}
 
-	day := firstRun.Day()
+	day := firstRun.In(loc).Day()
 
 	tp := models.TransactionTemplate{
 		Name:            req.Name,

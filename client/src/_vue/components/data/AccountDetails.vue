@@ -73,6 +73,7 @@ const differenceColor = computed(() => {
 });
 
 onMounted(async () => {
+  await accountStore.syncBalances().catch(() => {});
   await loadRecord(props.accID);
   await loadLatestBalance(props.accID);
 });

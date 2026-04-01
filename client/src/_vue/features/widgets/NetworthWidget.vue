@@ -6,6 +6,7 @@ import NetworthChart from "../../components/charts/NetworthChart.vue";
 import ShowLoading from "../../components/base/ShowLoading.vue";
 import { useRouter } from "vue-router";
 import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
+import { useAccountStore } from "../../../services/stores/account_store.ts";
 import type {
   ChartPoint,
   NetworthResponse,
@@ -54,6 +55,7 @@ const periodLabels: Record<RangeKey, string> = {
 
 const toastStore = useToastStore();
 const analyticsStore = useAnalyticsStore();
+const accountStore = useAccountStore();
 
 const hydrating = ref(true);
 const payload = ref<NetworthResponse | null>(null);
@@ -175,6 +177,7 @@ async function getData() {
     const found = dateRanges.find((r) => r.key === lastKey);
     if (found) selectedDTO.value = found;
   }
+  await accountStore.syncBalances().catch(() => {});
   await getNetworthData({ rangeKey: selectedKey.value });
   hydrating.value = false;
 }
