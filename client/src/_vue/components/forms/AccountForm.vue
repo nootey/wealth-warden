@@ -482,6 +482,7 @@ async function manageRecord() {
         size="small"
         mode="currency"
         :currency="settingsStore.defaultCurrency"
+        :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
         :min="selectedClassification === 'Asset' ? 0 : -999999999999999"
         :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
         :min-fraction-digits="2"

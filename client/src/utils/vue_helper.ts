@@ -16,7 +16,22 @@ type Causer = {
   name: string;
 };
 
+const CURRENCY_LOCALE: Record<string, string> = {
+  EUR: "de-DE",
+  CHF: "de-CH",
+  NOK: "nb-NO",
+  SEK: "sv-SE",
+  DKK: "da-DK",
+  PLN: "pl-PL",
+  CZK: "cs-CZ",
+  HUF: "hu-HU",
+};
+
 const vueHelper = {
+  getCurrencyLocale: (currency?: string): string | undefined => {
+    if (!currency) return undefined;
+    return CURRENCY_LOCALE[currency.toUpperCase()];
+  },
   capitalize(value: unknown): string {
     if (value == null) return "";
     const str = String(value);
@@ -63,7 +78,7 @@ const vueHelper = {
     ).toUpperCase();
 
     try {
-      return new Intl.NumberFormat(undefined, {
+      return new Intl.NumberFormat(CURRENCY_LOCALE[cur], {
         style: "currency",
         currency: cur,
         minimumFractionDigits: 2,
@@ -98,7 +113,7 @@ const vueHelper = {
     ).toUpperCase();
 
     try {
-      return new Intl.NumberFormat(undefined, {
+      return new Intl.NumberFormat(CURRENCY_LOCALE[cur], {
         style: "currency",
         currency: cur,
         minimumFractionDigits: decimals,
