@@ -1378,7 +1378,7 @@ func (r *TransactionRepository) GetTemplatesReadyToRun(ctx context.Context, tx *
 
 	var templates []*models.TransactionTemplate
 
-	now := time.Now().UTC().Truncate(24 * time.Hour)
+	now := time.Now().UTC()
 
 	query := db.WithContext(ctx).
 		Preload("Account").

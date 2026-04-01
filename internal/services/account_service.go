@@ -828,25 +828,34 @@ func (s *AccountService) BackfillBalancesForUser(ctx context.Context, userID int
 }
 
 func (s *AccountService) resolveUserDateRange(ctx context.Context, tx *gorm.DB, userID int64, from, to string) (time.Time, time.Time, error) {
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
+	loc := time.UTC
+	if err == nil && settings != nil {
+		if l, e := time.LoadLocation(settings.Timezone); e == nil && l != nil {
+			loc = l
+		}
+	}
+	now := time.Now().In(loc)
+	y, m, d := now.Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, loc)
 
 	var dfrom time.Time
 	var dto time.Time
-	var err error
+	var parseErr error
 
 	if strings.TrimSpace(to) == "" {
 		dto = today
 	} else {
-		dto, err = time.Parse("2006-01-02", to)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid 'to' date: %w", err)
+		dto, parseErr = time.Parse("2006-01-02", to)
+		if parseErr != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid 'to' date: %w", parseErr)
 		}
 	}
 
 	if strings.TrimSpace(from) != "" {
-		dfrom, err = time.Parse("2006-01-02", from)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid 'from' date: %w", err)
+		dfrom, parseErr = time.Parse("2006-01-02", from)
+		if parseErr != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid 'from' date: %w", parseErr)
 		}
 	} else {
 		// default from = min(first balance as_of, first txn date, today)
