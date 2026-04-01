@@ -17,6 +17,7 @@ const toastStore = useToastStore();
 const themeStore = useThemeStore();
 
 const userSettings = ref<UserSettings>();
+const originalTimezone = ref<string>("");
 
 const loading = ref<boolean>(true);
 
@@ -69,6 +70,12 @@ const selectedTimezone = computed({
   },
 });
 
+const timezoneChanged = computed(
+  () =>
+    originalTimezone.value !== "" &&
+    userSettings.value?.timezone !== originalTimezone.value,
+);
+
 const selectedTheme = computed({
   get: () =>
     themeOptions.value.find(
@@ -105,6 +112,7 @@ async function initUserSettings() {
   try {
     let response = await settingsStore.getUserSettings();
     userSettings.value = response.data;
+    originalTimezone.value = response.data?.timezone ?? "";
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {
@@ -192,6 +200,7 @@ async function updateSettings() {
   try {
     let response = await settingsStore.updatePreferenceSettings(settings);
     themeStore.setTheme(settings.theme!, settings.accent);
+    originalTimezone.value = settings.timezone ?? "";
     toastStore.successResponseToast(response);
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -252,12 +261,12 @@ async function updateSettings() {
               />
               <label for="currency_input">Default Currency</label>
             </IftaLabel>
-            <small style="color: var(--text-secondary)">
+            <span class="text-xs" style="color: var(--text-secondary)">
               Default currency cannot be changed after initial setup.
-            </small>
+            </span>
           </div>
 
-          <div class="w-full flex flex-row gap-2 w-full">
+          <div class="w-full flex flex-column gap-1">
             <IftaLabel class="w-full" variant="in">
               <AutoComplete
                 id="in_label"
@@ -275,6 +284,14 @@ async function updateSettings() {
               />
               <label for="in_label">Timezone</label>
             </IftaLabel>
+            <span
+              v-if="timezoneChanged"
+              class="text-xs"
+              style="color: var(--p-red-300)"
+            >
+              Active templates will be rescheduled to match the same dates in
+              the new timezone.
+            </span>
           </div>
         </div>
         <ShowLoading v-else :num-fields="2" />

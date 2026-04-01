@@ -167,6 +167,12 @@ type UpdateTransferReq struct {
 	CreatedAt time.Time       `json:"created_at" validate:"required"`
 }
 
+type TemplateTimezoneUpdate struct {
+	ID         int64
+	NextRunAt  time.Time
+	DayOfMonth int
+}
+
 type TransactionTemplateReq struct {
 	Name            string          `json:"name" validate:"required"`
 	TemplateType    string          `json:"template_type" validate:"required"`

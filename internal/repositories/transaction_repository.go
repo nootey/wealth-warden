@@ -78,6 +78,8 @@ type TransactionRepositoryInterface interface {
 	GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error)
 	GetYearlyTransfersFromChecking(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.Transfer, error)
 	GetActiveTemplates(ctx context.Context, tx *gorm.DB, userID int64) ([]models.TransactionTemplate, error)
+	GetActiveTemplatesForUser(ctx context.Context, userID int64) ([]models.TransactionTemplate, error)
+	BulkUpdateTemplateTimezone(ctx context.Context, updates []models.TemplateTimezoneUpdate) error
 }
 
 type TransactionRepository struct {
@@ -1398,4 +1400,31 @@ func (r *TransactionRepository) GetTemplatesReadyToRun(ctx context.Context, tx *
 	}
 
 	return templates, nil
+}
+
+func (r *TransactionRepository) GetActiveTemplatesForUser(ctx context.Context, userID int64) ([]models.TransactionTemplate, error) {
+	var records []models.TransactionTemplate
+	err := r.db.WithContext(ctx).
+		Where("user_id = ? AND is_active = ?", userID, true).
+		Find(&records).Error
+	return records, err
+}
+
+func (r *TransactionRepository) BulkUpdateTemplateTimezone(ctx context.Context, updates []models.TemplateTimezoneUpdate) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, u := range updates {
+			if err := tx.Model(&models.TransactionTemplate{}).
+				Where("id = ?", u.ID).
+				Updates(map[string]interface{}{
+					"next_run_at":  u.NextRunAt,
+					"day_of_month": u.DayOfMonth,
+				}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

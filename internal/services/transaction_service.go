@@ -2382,8 +2382,14 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 		return err
 	}
 
-	// Calculate next run date
-	nextRun := utils.CalculateNextRun(currentTemplate.NextRunAt, currentTemplate.Frequency, currentTemplate.DayOfMonth)
+	// Calculate next run date in user's local timezone
+	loc := time.UTC
+	if settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, currentTemplate.UserID); err == nil {
+		if l, err := time.LoadLocation(settings.Timezone); err == nil && l != nil {
+			loc = l
+		}
+	}
+	nextRun := utils.CalculateNextRun(currentTemplate.NextRunAt, currentTemplate.Frequency, currentTemplate.DayOfMonth, loc)
 	now := time.Now().UTC()
 
 	// Update template
