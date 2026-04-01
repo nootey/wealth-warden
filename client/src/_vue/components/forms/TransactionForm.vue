@@ -586,6 +586,7 @@ async function deleteRecord(id: number, tx_type: string) {
             size="small"
             mode="currency"
             :currency="settingsStore.defaultCurrency"
+            :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
             :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
           />
         </div>

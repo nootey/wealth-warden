@@ -346,6 +346,7 @@ async function revertProjection() {
             size="small"
             mode="currency"
             :currency="settingsStore.defaultCurrency"
+            :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
             :min="0"
             :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
             :min-fraction-digits="2"
@@ -369,6 +370,9 @@ async function revertProjection() {
               :model-value="parseFloat(account.balance.end_balance!)"
               mode="currency"
               :currency="settingsStore.defaultCurrency"
+              :locale="
+                vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)
+              "
               :min-fraction-digits="2"
               :max-fraction-digits="2"
               disabled

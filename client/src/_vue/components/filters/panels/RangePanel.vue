@@ -115,6 +115,7 @@ const searchOperator = (event: any) => {
           :model-value="singleVal"
           mode="currency"
           :currency="settingsStore.defaultCurrency"
+          :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
           :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
           @update:model-value="onSingleInput"
         />
@@ -132,6 +133,7 @@ const searchOperator = (event: any) => {
           :model-value="model.min"
           mode="currency"
           :currency="settingsStore.defaultCurrency"
+          :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
           :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
           @update:model-value="onRangeMin"
         />
@@ -147,6 +149,7 @@ const searchOperator = (event: any) => {
           :model-value="model.max"
           mode="currency"
           :currency="settingsStore.defaultCurrency"
+          :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
           :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
           @update:model-value="onRangeMax"
         />

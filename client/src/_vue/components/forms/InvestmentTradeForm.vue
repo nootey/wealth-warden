@@ -523,7 +523,7 @@ async function deleteRecord(id: number) {
           size="small"
           mode="currency"
           :currency="record.currency"
-          locale="de-DE"
+          :locale="vueHelper.getCurrencyLocale(record.currency)"
           :min-fraction-digits="2"
           :max-fraction-digits="
             record.asset?.investment_type === 'crypto' ? 6 : 2
