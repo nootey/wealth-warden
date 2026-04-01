@@ -20,42 +20,48 @@ func ValidateAccount(acc *models.Account, role string) error {
 }
 
 func LocalMidnightUTC(t time.Time, loc *time.Location) time.Time {
-	y, m, d := t.Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+	local := t.In(loc)
+	y, m, d := local.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, loc).UTC()
 }
 
-func CalculateNextRun(current time.Time, frequency string, dayOfMonth int) time.Time {
+func CalculateNextRun(current time.Time, frequency string, dayOfMonth int, loc *time.Location) time.Time {
+	if loc == nil {
+		loc = time.UTC
+	}
+	local := current.In(loc)
+
 	switch frequency {
 	case "monthly":
-		next := time.Date(current.Year(), current.Month()+1, 1, 0, 0, 0, 0, current.Location())
-		lastDay := time.Date(next.Year(), next.Month()+1, 0, 0, 0, 0, 0, current.Location()).Day()
+		next := time.Date(local.Year(), local.Month()+1, 1, 0, 0, 0, 0, loc)
+		lastDay := time.Date(next.Year(), next.Month()+1, 0, 0, 0, 0, 0, loc).Day()
 		day := dayOfMonth
 		if day > lastDay {
 			day = lastDay
 		}
-		return time.Date(next.Year(), next.Month(), day, 0, 0, 0, 0, current.Location())
+		return time.Date(next.Year(), next.Month(), day, 0, 0, 0, 0, loc).UTC()
 	case "weekly":
-		return current.AddDate(0, 0, 7)
+		return local.AddDate(0, 0, 7).UTC()
 	case "biweekly":
-		return current.AddDate(0, 0, 14)
+		return local.AddDate(0, 0, 14).UTC()
 	case "quarterly":
-		next := time.Date(current.Year(), current.Month()+3, 1, 0, 0, 0, 0, current.Location())
-		lastDay := time.Date(next.Year(), next.Month()+1, 0, 0, 0, 0, 0, current.Location()).Day()
+		next := time.Date(local.Year(), local.Month()+3, 1, 0, 0, 0, 0, loc)
+		lastDay := time.Date(next.Year(), next.Month()+1, 0, 0, 0, 0, 0, loc).Day()
 		day := dayOfMonth
 		if day > lastDay {
 			day = lastDay
 		}
-		return time.Date(next.Year(), next.Month(), day, 0, 0, 0, 0, current.Location())
+		return time.Date(next.Year(), next.Month(), day, 0, 0, 0, 0, loc).UTC()
 	case "annually":
-		next := time.Date(current.Year()+1, current.Month(), 1, 0, 0, 0, 0, current.Location())
-		lastDay := time.Date(next.Year(), next.Month()+1, 0, 0, 0, 0, 0, current.Location()).Day()
+		next := time.Date(local.Year()+1, local.Month(), 1, 0, 0, 0, 0, loc)
+		lastDay := time.Date(next.Year(), next.Month()+1, 0, 0, 0, 0, 0, loc).Day()
 		day := dayOfMonth
 		if day > lastDay {
 			day = lastDay
 		}
-		return time.Date(next.Year(), next.Month(), day, 0, 0, 0, 0, current.Location())
+		return time.Date(next.Year(), next.Month(), day, 0, 0, 0, 0, loc).UTC()
 	default:
-		return current.AddDate(0, 1, 0) // default to monthly
+		return local.AddDate(0, 1, 0).UTC()
 	}
 }
 

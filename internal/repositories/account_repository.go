@@ -59,7 +59,8 @@ type AccountRepositoryInterface interface {
 	GetBalancesInRange(ctx context.Context, tx *gorm.DB, accountID int64, fromDate, toDate time.Time) ([]models.Balance, error)
 	ClearInvestmentCashFlows(ctx context.Context, userID int64) error
 	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
-	UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64) error
+	UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, date *time.Time) error
+	HasSnapshotForDate(ctx context.Context, userID int64, date time.Time) (bool, error)
 	GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.AccountDailySnapshot, error)
 	SetSnapshotMarketValue(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, value decimal.Decimal) error
 }
@@ -1277,17 +1278,24 @@ func (r *AccountRepository) ClearInvestmentSnapshots(ctx context.Context, userID
     `, userID).Error
 }
 
-func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64) error {
+func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, date *time.Time) error {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
+	dateFilter := ""
+	args := []interface{}{userID}
+	if date != nil {
+		dateFilter = "AND s.as_of = ?"
+		args = append(args, date.UTC().Truncate(24*time.Hour))
+	}
+
 	// For each investment/crypto account snapshot, sum (last known price × quantity held)
 	// across all assets for that account on that date, with inline currency conversion
 	// via the exchange_rate_history cache. Falls back to rate=1 if no cached rate exists.
-	return db.Exec(`
+	query := fmt.Sprintf(`
 		UPDATE account_daily_snapshots s
 		SET market_value = (
 			SELECT COALESCE(SUM(
@@ -1329,8 +1337,24 @@ func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *
 		JOIN account_types at ON at.id = a.account_type_id
 		WHERE s.account_id = a.id
 		  AND a.user_id    = ?
-		  AND at.type IN ('investment', 'crypto');
-	`, userID).Error
+		  AND at.type IN ('investment', 'crypto')
+		  %s;
+	`, dateFilter)
+
+	return db.Exec(query, args...).Error
+}
+
+func (r *AccountRepository) HasSnapshotForDate(ctx context.Context, userID int64, date time.Time) (bool, error) {
+	normalized := date.UTC().Truncate(24 * time.Hour)
+	var exists bool
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT EXISTS (
+			SELECT 1 FROM account_daily_snapshots s
+			JOIN accounts a ON a.id = s.account_id
+			WHERE a.user_id = ? AND s.as_of = ?
+		)
+	`, userID, normalized).Scan(&exists).Error
+	return exists, err
 }
 
 func (r *AccountRepository) GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.AccountDailySnapshot, error) {

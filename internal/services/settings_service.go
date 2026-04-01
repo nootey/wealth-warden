@@ -34,12 +34,13 @@ type SettingsServiceInterface interface {
 }
 
 type SettingsService struct {
-	cfg           *config.Config
-	logger        *zap.Logger
-	repo          repositories.SettingsRepositoryInterface
-	userRepo      repositories.UserRepositoryInterface
-	loggingRepo   repositories.LoggingRepositoryInterface
-	jobDispatcher queue.JobDispatcher
+	cfg             *config.Config
+	logger          *zap.Logger
+	repo            repositories.SettingsRepositoryInterface
+	userRepo        repositories.UserRepositoryInterface
+	loggingRepo     repositories.LoggingRepositoryInterface
+	transactionRepo repositories.TransactionRepositoryInterface
+	jobDispatcher   queue.JobDispatcher
 }
 
 func NewSettingsService(
@@ -48,15 +49,17 @@ func NewSettingsService(
 	repo *repositories.SettingsRepository,
 	userRepo *repositories.UserRepository,
 	loggingRepo *repositories.LoggingRepository,
+	transactionRepo *repositories.TransactionRepository,
 	jobDispatcher queue.JobDispatcher,
 ) *SettingsService {
 	return &SettingsService{
-		cfg:           cfg,
-		logger:        logger,
-		repo:          repo,
-		userRepo:      userRepo,
-		loggingRepo:   loggingRepo,
-		jobDispatcher: jobDispatcher,
+		cfg:             cfg,
+		logger:          logger,
+		repo:            repo,
+		userRepo:        userRepo,
+		loggingRepo:     loggingRepo,
+		transactionRepo: transactionRepo,
+		jobDispatcher:   jobDispatcher,
 	}
 }
 
@@ -202,6 +205,19 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 	})
 	if err != nil {
 		return err
+	}
+
+	if req.Timezone != "" && req.Timezone != existingSettings.Timezone {
+		err = s.jobDispatcher.Dispatch(queue.NewRecalculateTemplateTimezoneJob(
+			s.logger,
+			s.transactionRepo,
+			userID,
+			existingSettings.Timezone,
+			req.Timezone,
+		))
+		if err != nil {
+			s.logger.Warn("Failed to dispatch template timezone recalculation job", zap.Error(err))
+		}
 	}
 
 	return nil

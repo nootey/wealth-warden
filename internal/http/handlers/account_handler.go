@@ -51,6 +51,7 @@ func (h *AccountHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.PATCH("/defaults/unset/:id", authz.RequireAllMW("manage_data"), h.UnsetDefaultAccount)
 	apiGroup.GET("/sync/asset/:id", authz.RequireAllMW("manage_data"), h.SyncAssetPnL)
 	apiGroup.GET("/sync/account/:acc_id", authz.RequireAllMW("manage_data"), h.SyncAccountPnL)
+	apiGroup.POST("/sync/balances", authz.RequireAllMW("view_data"), h.SyncBalancesForUser)
 }
 
 func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
@@ -508,6 +509,18 @@ func (h *AccountHandler) SyncAssetPnL(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "PnL sync queued", "Asset PnL recalculation has been queued", http.StatusOK)
+}
+
+func (h *AccountHandler) SyncBalancesForUser(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	if err := h.service.SyncForUser(ctx, userID); err != nil {
+		utils.ErrorMessage(c, "Sync error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Sync completed", "Balance sync completed", http.StatusOK)
 }
 
 func (h *AccountHandler) SyncAccountPnL(c *gin.Context) {

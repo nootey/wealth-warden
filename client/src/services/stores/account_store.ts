@@ -98,5 +98,8 @@ export const useAccountStore = defineStore("account", {
       );
       return response.data;
     },
+    async syncBalances() {
+      await apiClient.post(`${this.apiPrefix}/sync/balances`);
+    },
   },
 });

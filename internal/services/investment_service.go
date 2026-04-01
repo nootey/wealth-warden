@@ -1140,7 +1140,7 @@ func (s *InvestmentService) GetAssetIDsForAccount(ctx context.Context, userID, a
 }
 
 func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
-	return s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID)
+	return s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID, nil)
 }
 
 func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, investmentType models.InvestmentType, from, to time.Time) error {

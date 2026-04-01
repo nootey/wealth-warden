@@ -155,7 +155,7 @@ func TestCalculateNextRun(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := utils.CalculateNextRun(tc.current, tc.frequency, tc.dayOfMonth)
+			got := utils.CalculateNextRun(tc.current, tc.frequency, tc.dayOfMonth, loc)
 			if !got.Equal(tc.want) {
 				t.Fatalf("CalculateNextRun(%v, %q) = %v; want %v", tc.current, tc.frequency, got, tc.want)
 			}

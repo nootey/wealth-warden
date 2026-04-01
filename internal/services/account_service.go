@@ -45,6 +45,7 @@ type AccountServiceInterface interface {
 	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
 	RebuildSnapshotsForUser(ctx context.Context, userID int64) error
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	SyncForUser(ctx context.Context, userID int64) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
 	SyncAssetPnL(ctx context.Context, userID, assetID int64) error
@@ -827,25 +828,34 @@ func (s *AccountService) BackfillBalancesForUser(ctx context.Context, userID int
 }
 
 func (s *AccountService) resolveUserDateRange(ctx context.Context, tx *gorm.DB, userID int64, from, to string) (time.Time, time.Time, error) {
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
+	loc := time.UTC
+	if err == nil && settings != nil {
+		if l, e := time.LoadLocation(settings.Timezone); e == nil && l != nil {
+			loc = l
+		}
+	}
+	now := time.Now().In(loc)
+	y, m, d := now.Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, loc)
 
 	var dfrom time.Time
 	var dto time.Time
-	var err error
+	var parseErr error
 
 	if strings.TrimSpace(to) == "" {
 		dto = today
 	} else {
-		dto, err = time.Parse("2006-01-02", to)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid 'to' date: %w", err)
+		dto, parseErr = time.Parse("2006-01-02", to)
+		if parseErr != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid 'to' date: %w", parseErr)
 		}
 	}
 
 	if strings.TrimSpace(from) != "" {
-		dfrom, err = time.Parse("2006-01-02", from)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid 'from' date: %w", err)
+		dfrom, parseErr = time.Parse("2006-01-02", from)
+		if parseErr != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("invalid 'from' date: %w", parseErr)
 		}
 	} else {
 		// default from = min(first balance as_of, first txn date, today)
@@ -1167,7 +1177,37 @@ func (s *AccountService) RebuildSnapshotsForUser(ctx context.Context, userID int
 }
 
 func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
-	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID)
+	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID, nil)
+}
+
+func (s *AccountService) SyncForUser(ctx context.Context, userID int64) error {
+	settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
+	if err != nil {
+		return err
+	}
+
+	loc, err := time.LoadLocation(settings.Timezone)
+	if err != nil || loc == nil {
+		loc = time.UTC
+	}
+
+	now := time.Now().In(loc)
+	today := now.Truncate(24 * time.Hour)
+
+	exists, err := s.repo.HasSnapshotForDate(ctx, userID, today)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+
+	yesterday := today.AddDate(0, 0, -1)
+	if err := s.BackfillBalancesForUser(ctx, userID, yesterday.Format("2006-01-02"), today.Format("2006-01-02")); err != nil {
+		return err
+	}
+
+	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID, &today)
 }
 
 func (s *AccountService) RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error {
