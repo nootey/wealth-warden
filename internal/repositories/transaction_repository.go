@@ -58,6 +58,7 @@ type TransactionRepositoryInterface interface {
 	FindTransactionTemplateByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.TransactionTemplate, error)
 	InsertTransactionTemplate(ctx context.Context, tx *gorm.DB, newRecord *models.TransactionTemplate) (int64, error)
 	UpdateTransactionTemplate(ctx context.Context, tx *gorm.DB, record models.TransactionTemplate, onlyActive bool) (int64, error)
+	RenameTransactionTemplate(ctx context.Context, tx *gorm.DB, id int64, name string) error
 	DeleteTransactionTemplate(ctx context.Context, tx *gorm.DB, id int64) error
 	GetTransactionsByYearAndClass(ctx context.Context, tx *gorm.DB, userID int64, year int, class string, accountID *int64) ([]models.Transaction, error)
 	GetAllTimeStatsByClass(ctx context.Context, tx *gorm.DB, userID int64, class string, accountID, categoryID *int64) (total decimal.Decimal, monthsWithData int, err error)
@@ -1023,6 +1024,19 @@ func (r *TransactionRepository) UpdateTransactionTemplate(ctx context.Context, t
 	}
 
 	return record.ID, nil
+}
+
+func (r *TransactionRepository) RenameTransactionTemplate(ctx context.Context, tx *gorm.DB, id int64, name string) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).Model(&models.TransactionTemplate{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"name":       name,
+			"updated_at": time.Now().UTC(),
+		}).Error
 }
 
 func (r *TransactionRepository) DeleteTransactionTemplate(ctx context.Context, tx *gorm.DB, id int64) error {

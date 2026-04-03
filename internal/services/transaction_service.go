@@ -39,6 +39,7 @@ type TransactionServiceInterface interface {
 	FetchTransactionTemplateByID(ctx context.Context, userID int64, id int64) (*models.TransactionTemplate, error)
 	InsertTransactionTemplate(ctx context.Context, userID int64, req *models.TransactionTemplateReq) (int64, error)
 	UpdateTransactionTemplate(ctx context.Context, userID, id int64, req *models.TransactionTemplateReq) (int64, error)
+	RenameTransactionTemplate(ctx context.Context, userID, id int64, name string) error
 	ToggleTransactionTemplateActiveState(ctx context.Context, userID int64, id int64) error
 	DeleteTransactionTemplate(ctx context.Context, userID int64, id int64) error
 	GetTransactionTemplateCount(ctx context.Context, userID int64, templateType string) (int64, error)
@@ -1929,7 +1930,7 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 	nextRun := utils.LocalMidnightUTC(req.NextRunAt, loc)
 
 	firstValidDay := time.Now().UTC().Truncate(24 * time.Hour)
-	if nextRun.Before(firstValidDay) {
+	if exTp.IsActive && nextRun.Before(firstValidDay) {
 		tx.Rollback()
 		return 0, fmt.Errorf("next run cannot be today or earlier (%s)", firstValidDay.Format("2006-01-02"))
 	}
@@ -2089,6 +2090,58 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Co
 			Causer:      &userID,
 		})
 		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *TransactionService) RenameTransactionTemplate(ctx context.Context, userID, id int64, name string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("name cannot be empty")
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	exTp, err := s.repo.FindTransactionTemplateByID(ctx, tx, id, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find transaction template with given id %w", err)
+	}
+
+	if err := s.repo.RenameTransactionTemplate(ctx, tx, id, name); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(id, 10), changes, "id")
+	utils.CompareChanges(exTp.Name, name, changes, "name")
+
+	if !changes.IsEmpty() {
+		if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
+			Event:       "update",
+			Category:    "txn_template",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		}); err != nil {
 			return err
 		}
 	}
