@@ -92,7 +92,6 @@ const activeColumns = computed<Column[]>(() => {
     { field: "name", header: "Name" },
     { field: "account", header: "Account" },
     { field: "category", header: "Category" },
-    { field: "transaction_type", header: "Type" },
     { field: "amount", header: "Amount" },
     { field: "frequency", header: "Frequency" },
     { field: "next_run_at", header: "Next run" },
@@ -468,6 +467,37 @@ defineExpose({ refresh });
               v-else-if="col.field === 'account' || col.field === 'to_account'"
             >
               {{ data[col.field]?.name }}
+            </template>
+            <template v-else-if="col.field === 'amount'">
+              <div class="flex flex-row gap-2 align-items-center">
+                <i
+                  class="text-xs"
+                  :class="
+                    (data.transaction_type === 'expense'
+                      ? data.amount * -1
+                      : data.amount) >= 0
+                      ? 'pi pi-angle-up'
+                      : 'pi pi-angle-down'
+                  "
+                  :style="{
+                    color:
+                      (data.transaction_type === 'expense'
+                        ? data.amount * -1
+                        : data.amount) >= 0
+                        ? colors.pos
+                        : colors.neg,
+                  }"
+                />
+                <span>
+                  {{
+                    vueHelper.displayAsCurrency(
+                      data.transaction_type == "expense"
+                        ? data.amount * -1
+                        : data.amount,
+                    )
+                  }}
+                </span>
+              </div>
             </template>
             <template v-else-if="col.field === 'category'">
               {{ data[col.field]?.display_name }}
