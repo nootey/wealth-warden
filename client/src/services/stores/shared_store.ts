@@ -3,7 +3,11 @@ import apiClient from "../api/api_client.ts";
 
 export const useSharedStore = defineStore("shared", {
   actions: {
-    async getRecordsPaginated(prefix: string, params: object, page: number) {
+    async getRecordsPaginated(
+      prefix: string,
+      params: Record<string, unknown>,
+      page: number,
+    ) {
       const queryParams = {
         ...params,
         page: page,
@@ -15,7 +19,11 @@ export const useSharedStore = defineStore("shared", {
 
       return response.data;
     },
-    async getRecordByID(prefix: string, id: number, params?: object) {
+    async getRecordByID(
+      prefix: string,
+      id: number,
+      params?: Record<string, unknown>,
+    ) {
       const response = await apiClient.get(`${prefix}/${id}`, {
         params: params,
       });
@@ -29,7 +37,11 @@ export const useSharedStore = defineStore("shared", {
       const response = await apiClient.put(`${prefix}/${id}`, record);
       return response.data;
     },
-    async deleteRecord(prefix: string, id: number, params?: object) {
+    async deleteRecord(
+      prefix: string,
+      id: number,
+      params?: Record<string, unknown>,
+    ) {
       const response = await apiClient.delete(`${prefix}/${id}`, {
         params: params,
       });
