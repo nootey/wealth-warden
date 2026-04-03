@@ -98,9 +98,6 @@ export const useDataStore = defineStore("data", {
       const res = await apiClient.post(
         `${this.importPrefix}/custom/trades`,
         formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        },
       );
       return res.data;
     },

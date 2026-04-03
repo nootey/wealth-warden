@@ -52,6 +52,9 @@ async function doFetch(
 
   if (body instanceof FormData) {
     fetchBody = body;
+  } else if (body instanceof Blob) {
+    fetchBody = body;
+    if (body.type) headers["Content-Type"] = body.type;
   } else if (body !== null && body !== undefined) {
     headers["Content-Type"] = "application/json";
     fetchBody = JSON.stringify(body);
