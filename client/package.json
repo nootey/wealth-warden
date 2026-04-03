@@ -22,7 +22,7 @@
     "chartjs-chart-sankey": "^0.14.0",
     "dayjs": "^1.11.13",
     "decimal.js": "^10.6.0",
-    "dotenv": "^16.4.7",
+    "dotenv": "^17.2.4",
     "material-icons": "^1.13.13",
     "pinia": "^3.0.3",
     "primeflex": "^3.3.1",
