@@ -1947,6 +1947,8 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 		endDate = &e
 	}
 
+	day := nextRun.In(loc).Day()
+
 	tp := models.TransactionTemplate{
 		ID:              exTp.ID,
 		Name:            req.Name,
@@ -1958,6 +1960,7 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 		TransactionType: exTp.TransactionType,
 		Amount:          req.Amount,
 		Frequency:       exTp.Frequency,
+		DayOfMonth:      day,
 		NextRunAt:       nextRun,
 		EndDate:         endDate,
 		MaxRuns:         req.MaxRuns,

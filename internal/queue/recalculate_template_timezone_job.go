@@ -56,11 +56,13 @@ func (j *RecalculateTemplateTimezoneJob) Process(ctx context.Context) error {
 	for _, t := range templates {
 		// Re-anchor to the same local calendar date in the new timezone.
 		// E.g. next_run_at 23:00 UTC (midnight Paris CET) becomes 05:00 UTC (midnight NYC EST).
+		// DayOfMonth is preserved as-is: it is the intended anchor day (e.g. 31), which may
+		// differ from the actual day in next_run_at when the month is shorter.
 		y, m, d := t.NextRunAt.In(newLoc).Date()
 		updates = append(updates, models.TemplateTimezoneUpdate{
 			ID:         t.ID,
 			NextRunAt:  time.Date(y, m, d, 0, 0, 0, 0, newLoc).UTC(),
-			DayOfMonth: d,
+			DayOfMonth: t.DayOfMonth,
 		})
 	}
 
