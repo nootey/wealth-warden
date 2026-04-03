@@ -1010,12 +1010,13 @@ func (r *TransactionRepository) UpdateTransactionTemplate(ctx context.Context, t
 		if err := db.Model(models.TransactionTemplate{}).
 			Where("id = ?", record.ID).
 			Updates(map[string]interface{}{
-				"name":        record.Name,
-				"amount":      record.Amount,
-				"next_run_at": record.NextRunAt,
-				"end_date":    record.EndDate,
-				"max_runs":    record.MaxRuns,
-				"updated_at":  time.Now().UTC(),
+				"name":         record.Name,
+				"amount":       record.Amount,
+				"next_run_at":  record.NextRunAt,
+				"day_of_month": record.DayOfMonth,
+				"end_date":     record.EndDate,
+				"max_runs":     record.MaxRuns,
+				"updated_at":   time.Now().UTC(),
 			}).Error; err != nil {
 			return 0, err
 		}
