@@ -1,0 +1,41 @@
+name: "Test Client"
+
+on:
+  push:
+    paths:
+      - 'client/**'
+    branches:
+      - main
+      - development
+  workflow_dispatch:
+
+  pull_request:
+    paths:
+      - 'client/**'
+    branches:
+      - main
+    types: [ opened, synchronize ]
+
+jobs:
+  test:
+    name: Run client tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Run tests
+        working-directory: client
+        run: npm test

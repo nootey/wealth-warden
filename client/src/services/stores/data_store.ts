@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import apiClient from "../api/axios_interceptor.ts";
+import apiClient from "../api/api_client.ts";
 
 export const useDataStore = defineStore("data", {
   state: () => ({
@@ -98,9 +98,6 @@ export const useDataStore = defineStore("data", {
       const res = await apiClient.post(
         `${this.importPrefix}/custom/trades`,
         formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        },
       );
       return res.data;
     },

@@ -67,9 +67,10 @@ pre-push:
 	@echo "--- App ---"
 	@go build ./... && echo "build successful" || (echo "build failed" && exit 1)
 	@golangci-lint run && echo "lint successful" || (echo "lint failed" && exit 1)
-	@go test -count=1 ./... && echo "test successful" || (echo "test failed" && exit 1)
+	@go test -count=1 ./... && echo "tests successful" || (echo "tests failed" && exit 1)
 	@echo ""
 	@echo "--- Client ---"
 	@cd client && npm run build && echo "build successful" || (echo "build failed" && exit 1)
 	@cd client && npm run format && echo "format successful" || (echo "format failed" && exit 1)
 	@cd client && npm run lint && echo "lint successful" || (echo "lint failed" && exit 1)
+	@cd client && npm run test && echo "tests successful" || (echo "tests failed" && exit 1)

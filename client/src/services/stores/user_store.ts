@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import type { AuthForm } from "../../models/auth_models.ts";
-import apiClient from "../api/axios_interceptor.ts";
+import apiClient from "../api/api_client.ts";
 import type { Permission, Role } from "../../models/user_models.ts";
 
 export const useUserStore = defineStore("user", {
