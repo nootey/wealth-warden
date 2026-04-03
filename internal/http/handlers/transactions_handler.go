@@ -59,6 +59,7 @@ func (h *TransactionHandler) Routes(ap *gin.RouterGroup) {
 	ap.GET("templates/summary", authz.RequireAllMW("view_data"), h.GetTransactionTemplateSummary)
 	ap.PUT("templates", authz.RequireAllMW("manage_data"), h.InsertTransactionTemplate)
 	ap.PUT("templates/:id", authz.RequireAllMW("manage_data"), h.UpdateTransactionTemplate)
+	ap.PATCH("templates/:id/name", authz.RequireAllMW("manage_data"), h.RenameTransactionTemplate)
 	ap.POST("templates/:id/active", authz.RequireAllMW("manage_data"), h.ToggleTransactionTemplateActiveState)
 	ap.DELETE("templates/:id", authz.RequireAllMW("manage_data"), h.DeleteTransactionTemplate)
 }
@@ -670,6 +671,32 @@ func (h *TransactionHandler) UpdateTransactionTemplate(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
+}
+
+func (h *TransactionHandler) RenameTransactionTemplate(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "param error", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.RenameTransactionTemplate(ctx, userID, id, body.Name); err != nil {
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
 }
 
 func (h *TransactionHandler) ToggleTransactionTemplateActiveState(c *gin.Context) {

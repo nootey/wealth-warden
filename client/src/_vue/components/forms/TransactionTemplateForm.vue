@@ -389,6 +389,24 @@ async function manageRecord() {
   }
 }
 
+async function renameRecord() {
+  if (submitting.value) return;
+  submitting.value = true;
+  try {
+    const response = await transactionStore.renameTemplate(
+      record.value.id!,
+      record.value.name,
+    );
+    v$.value.record.$reset();
+    toastStore.successResponseToast(response);
+    emit("completeOperation");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  } finally {
+    submitting.value = false;
+  }
+}
+
 async function startOperation() {
   const next_run_at = dateHelper.mergeDateWithCurrentTime(
     dayjs(record.value.next_run_at).format("YYYY-MM-DD"),
@@ -494,7 +512,11 @@ async function startOperation() {
             background: var(--background-secondary);
           "
         >
-          {{ record.last_run_at ?? "Not ran yet" }}</span
+          {{
+            record.last_run_at
+              ? dateHelper.formatDate(record.last_run_at, false)
+              : "Not ran yet"
+          }}</span
         >
       </div>
       <div class="flex flex-column gap-1 w-6">
@@ -524,8 +546,6 @@ async function startOperation() {
           </ValidationError>
           <InputText
             v-model="record.name"
-            :readonly="isReadOnly"
-            :disabled="isReadOnly"
             size="small"
             placeholder="Input name"
           />
@@ -752,6 +772,15 @@ async function startOperation() {
           :loading="submitting"
           style="height: 42px"
           @click="manageRecord"
+        />
+        <Button
+          v-if="(isReadOnly || isImmutable) && mode === 'update'"
+          class="main-button"
+          label="Rename template"
+          :disabled="submitting"
+          :loading="submitting"
+          style="height: 42px"
+          @click="renameRecord"
         />
       </div>
     </div>
