@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import type { Account, AccountType } from "../../models/account_models.ts";
-import apiClient from "../api/axios.ts";
+import apiClient from "../api/api_client.ts";
 
 export const useAccountStore = defineStore("account", {
   state: () => ({

@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import apiClient from "../api/axios_interceptor.ts";
+import apiClient from "../api/api_client.ts";
 
 export const useSharedStore = defineStore("shared", {
   actions: {

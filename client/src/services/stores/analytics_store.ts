@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import apiClient from "../api/axios.ts";
+import apiClient from "../api/api_client.ts";
 import type {
   AvailableStatsYear,
   BasicAccountStats,
