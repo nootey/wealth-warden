@@ -49,11 +49,13 @@ describe("apiClient", () => {
       expect(url.searchParams.get("sort[order]")).toBe("-1");
     });
 
-    it("serializes arrays with bracket notation", async () => {
+    it("serializes arrays with indexed bracket notation", async () => {
       mockFetch.mockResolvedValue(mockResponse(200, {}));
       await apiClient.get("test", { params: { ids: [1, 2, 3] } });
       const url = new URL(mockFetch.mock.calls[0]![0], "http://localhost");
-      expect(url.searchParams.getAll("ids[]")).toEqual(["1", "2", "3"]);
+      expect(url.searchParams.get("ids[0]")).toBe("1");
+      expect(url.searchParams.get("ids[1]")).toBe("2");
+      expect(url.searchParams.get("ids[2]")).toBe("3");
     });
 
     it("skips null and undefined params", async () => {

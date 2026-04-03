@@ -20,7 +20,7 @@ function appendParam(
 ): void {
   if (value === null || value === undefined) return;
   if (Array.isArray(value)) {
-    value.forEach((item) => appendParam(searchParams, `${key}[]`, item));
+    value.forEach((item, i) => appendParam(searchParams, `${key}[${i}]`, item));
   } else if (typeof value === "object") {
     Object.entries(value as Record<string, unknown>).forEach(([k, v]) =>
       appendParam(searchParams, `${key}[${k}]`, v),
