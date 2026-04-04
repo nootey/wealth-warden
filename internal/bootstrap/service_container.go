@@ -31,6 +31,7 @@ type ServiceContainer struct {
 	InvestmentService  *services.InvestmentService
 	NotesService       *services.NotesService
 	AnalyticsService   *services.AnalyticsService
+	SavingsService     *services.SavingsService
 }
 
 // NewServiceContainer initialises the application service layer.
@@ -64,6 +65,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	investmentRepo := repositories.NewInvestmentRepository(db)
 	notesRepo := repositories.NewNotesRepository(db)
 	analyticsRepo := repositories.NewAnalyticsRepository(db)
+	savingsRepo := repositories.NewSavingsRepository(db)
 
 	// Initialize services
 	loggingService := services.NewLoggingService(loggingRepo)
@@ -79,6 +81,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	notesService := services.NewNotesService(notesRepo, loggingRepo, jobDispatcher)
 	analyticsService := services.NewAnalyticsService(analyticsRepo, accountRepo, transactionRepo, settingsRepo)
 	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService, accountService, userService)
+	savingsService := services.NewSavingsService(savingsRepo, loggingRepo, jobDispatcher)
 
 	return &ServiceContainer{
 		Config:             cfg,
@@ -97,5 +100,6 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 		InvestmentService:  investmentService,
 		NotesService:       notesService,
 		AnalyticsService:   analyticsService,
+		SavingsService:     savingsService,
 	}, nil
 }

@@ -22,10 +22,10 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   { to: "/", icon: "pi-home", text: "Home" },
-  { to: "/accounts", icon: "pi-hashtag", text: "Acc" },
   { to: "/transactions", icon: "pi-credit-card", text: "Txn" },
-  { to: "/analytics", icon: "pi-chart-bar", text: "Stats" },
+  { to: "/goals", icon: "pi-tablet", text: "Goals" },
   { to: "/investments", icon: "pi-ticket", text: "Invest" },
+  { to: "/analytics", icon: "pi-chart-bar", text: "Stats" },
 ];
 
 const visibleMenuItems = computed(() =>
