@@ -774,7 +774,7 @@ async function startOperation() {
           @click="manageRecord"
         />
         <Button
-          v-if="(isReadOnly || isImmutable) && mode === 'update'"
+          v-else-if="(isReadOnly || isImmutable) && mode === 'update'"
           class="main-button"
           label="Rename template"
           :disabled="submitting"
