@@ -748,3 +748,403 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByInvestmentValue() {
 		"balance should remain at %s, got %s",
 		expectedBalance.String(), latestBalance.EndBalance.String())
 }
+
+// Merging two cash accounts moves all transactions to the destination
+// and closes the source account
+func (s *AccountServiceTestSuite) TestMergeAccount_Success() {
+	svc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+	zero := decimal.Zero
+
+	srcID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Source Checking",
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	dstID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Dest Checking",
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:       srcID,
+		TransactionType: "income",
+		Amount:          decimal.NewFromInt(1000),
+		TxnDate:         time.Now(),
+	})
+	s.Require().NoError(err)
+
+	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:       srcID,
+		TransactionType: "expense",
+		Amount:          decimal.NewFromInt(200),
+		TxnDate:         time.Now(),
+	})
+	s.Require().NoError(err)
+
+	err = svc.MergeAccount(s.Ctx, userID, srcID, dstID)
+	s.Require().NoError(err)
+
+	// Source account should be closed
+	var src models.Account
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", srcID).First(&src).Error
+	s.Require().NoError(err)
+	s.Assert().NotNil(src.ClosedAt, "source account should be closed")
+
+	// Both transactions should now belong to destination
+	var count int64
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("account_id = ? AND deleted_at IS NULL", dstID).
+		Count(&count).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(2), count, "both transactions should be on destination")
+
+	// Destination balance should reflect the moved transactions
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	var bal models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", dstID, today).
+		First(&bal).Error
+	s.Require().NoError(err)
+	s.Assert().True(bal.CashInflows.Equal(decimal.NewFromInt(1000)),
+		"destination should have 1000 inflows, got %s", bal.CashInflows)
+	s.Assert().True(bal.CashOutflows.Equal(decimal.NewFromInt(200)),
+		"destination should have 200 outflows, got %s", bal.CashOutflows)
+}
+
+// Merging an account into itself should return an error
+func (s *AccountServiceTestSuite) TestMergeAccount_SameAccount() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+	zero := decimal.Zero
+
+	accID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Single Account",
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	err = svc.MergeAccount(s.Ctx, userID, accID, accID)
+	s.Assert().Error(err)
+	s.Assert().Contains(err.Error(), "must be different")
+}
+
+// A transfer between source and destination gets soft-deleted
+// and both its transactions flagged as adjustments
+func (s *AccountServiceTestSuite) TestMergeAccount_IntraTransferVoided() {
+	svc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+	zero := decimal.Zero
+
+	srcID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Transfer Source",
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	dstID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Transfer Dest",
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:       srcID,
+		TransactionType: "income",
+		Amount:          decimal.NewFromInt(500),
+		TxnDate:         time.Now(),
+	})
+	s.Require().NoError(err)
+
+	_, err = txnSvc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID:      srcID,
+		DestinationID: dstID,
+		Amount:        decimal.NewFromInt(500),
+		CreatedAt:     time.Now(),
+	})
+	s.Require().NoError(err)
+
+	err = svc.MergeAccount(s.Ctx, userID, srcID, dstID)
+	s.Require().NoError(err)
+
+	// Transfer should be soft-deleted
+	var transfer models.Transfer
+	err = s.TC.DB.WithContext(s.Ctx).Where("user_id = ?", userID).First(&transfer).Error
+	s.Require().NoError(err)
+	s.Assert().NotNil(transfer.DeletedAt, "transfer should be soft-deleted")
+
+	// Both transfer transactions should be flagged as adjustments
+	var adjustmentCount int64
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("is_adjustment = true AND user_id = ?", userID).
+		Count(&adjustmentCount).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(2), adjustmentCount, "both transfer transactions should be flagged as adjustments")
+}
+
+// Investment accounts can only merge into the same type and sub-type
+func (s *AccountServiceTestSuite) TestMergeAccount_InvestmentGuard_SubtypeMismatch() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+	zero := decimal.Zero
+
+	// investment/brokerage = type ID 5, investment/retirement = type ID 6
+	srcID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "My Brokerage",
+		AccountTypeID: 5,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	dstID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "My Retirement",
+		AccountTypeID: 6,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	err = svc.MergeAccount(s.Ctx, userID, srcID, dstID)
+	s.Assert().Error(err)
+	s.Assert().Contains(err.Error(), "same type and sub-type")
+}
+
+// Investment accounts cannot be merged into crypto accounts
+func (s *AccountServiceTestSuite) TestMergeAccount_InvestmentGuard_CrossTypeCrypto() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+	zero := decimal.Zero
+
+	// investment/brokerage = type ID 5, crypto/wallet = type ID 9
+	srcID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "My Brokerage",
+		AccountTypeID: 5,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	dstID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "My Wallet",
+		AccountTypeID: 9,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	err = svc.MergeAccount(s.Ctx, userID, srcID, dstID)
+	s.Assert().Error(err)
+	s.Assert().Contains(err.Error(), "same type and sub-type")
+}
+
+// Liability accounts cannot be merged into asset accounts
+func (s *AccountServiceTestSuite) TestMergeAccount_LiabilityGuard() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+	zero := decimal.Zero
+
+	// cash/checking = type ID 1, credit_card/credit = type ID 18
+	cashAccID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Checking",
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	creditAccID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Credit Card",
+		AccountTypeID: 18,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	err = svc.MergeAccount(s.Ctx, userID, creditAccID, cashAccID)
+	s.Assert().Error(err)
+	s.Assert().Contains(err.Error(), "liability")
+}
+
+// Merging two accounts with initial balances and transactions on different days
+// produces correct balance rows and snapshots on destination, and zeros source.
+func (s *AccountServiceTestSuite) TestMergeAccount_BalancesAndSnapshotsWithTransactions() {
+	svc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	day5ago := today.AddDate(0, 0, -5)
+	day2ago := today.AddDate(0, 0, -2)
+	openedAt := today.AddDate(0, 0, -10)
+
+	srcInitial := decimal.NewFromInt(1000)
+	dstInitial := decimal.NewFromInt(2000)
+
+	srcID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Merge Src Txns", AccountTypeID: 1, Balance: &srcInitial, OpenedAt: openedAt,
+	})
+	s.Require().NoError(err)
+
+	dstID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Merge Dst Txns", AccountTypeID: 1, Balance: &dstInitial, OpenedAt: openedAt,
+	})
+	s.Require().NoError(err)
+
+	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: srcID, TransactionType: "income", Amount: decimal.NewFromInt(500), TxnDate: day5ago,
+	})
+	s.Require().NoError(err)
+
+	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: srcID, TransactionType: "income", Amount: decimal.NewFromInt(300), TxnDate: day2ago,
+	})
+	s.Require().NoError(err)
+
+	err = svc.MergeAccount(s.Ctx, userID, srcID, dstID)
+	s.Require().NoError(err)
+
+	// Dest today snapshot = 1000 + 500 + 300 + 2000 = 3800
+	expectedTotal := decimal.NewFromInt(3800)
+	var dstSnap models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", dstID, today).First(&dstSnap).Error
+	s.Require().NoError(err)
+	s.Assert().True(expectedTotal.Equal(dstSnap.EndBalance),
+		"dest today snapshot should be %s, got %s", expectedTotal, dstSnap.EndBalance)
+
+	// Source today snapshot = 0
+	var srcSnap models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", srcID, today).First(&srcSnap).Error
+	s.Require().NoError(err)
+	s.Assert().True(srcSnap.EndBalance.IsZero(),
+		"source today snapshot should be 0, got %s", srcSnap.EndBalance)
+
+	// Dest opening balance row start_balance = 1000 + 2000 = 3000
+	var dstOpeningBal models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", dstID, openedAt).First(&dstOpeningBal).Error
+	s.Require().NoError(err)
+	s.Assert().True(decimal.NewFromInt(3000).Equal(dstOpeningBal.StartBalance),
+		"dest opening start_balance should be 3000, got %s", dstOpeningBal.StartBalance)
+
+	// Dest day-5 balance row has 500 inflow
+	var dstBal5 models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", dstID, day5ago).First(&dstBal5).Error
+	s.Require().NoError(err)
+	s.Assert().True(decimal.NewFromInt(500).Equal(dstBal5.CashInflows),
+		"dest day-5 cash_inflows should be 500, got %s", dstBal5.CashInflows)
+
+	// Source opening balance row start_balance = 0 (transferred to dest)
+	var srcOpeningBal models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", srcID, openedAt).First(&srcOpeningBal).Error
+	s.Require().NoError(err)
+	s.Assert().True(srcOpeningBal.StartBalance.IsZero(),
+		"source opening start_balance should be 0, got %s", srcOpeningBal.StartBalance)
+
+	// Source day-5 balance row cash_inflows = 0 (zeroed after move)
+	var srcBal5 models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", srcID, day5ago).First(&srcBal5).Error
+	s.Require().NoError(err)
+	s.Assert().True(srcBal5.CashInflows.IsZero(),
+		"source day-5 cash_inflows should be 0, got %s", srcBal5.CashInflows)
+}
+
+// Merging a source account that has only an initial balance (no transactions)
+// transfers that balance to destination and zeroes source.
+func (s *AccountServiceTestSuite) TestMergeAccount_SourceNoTransactions_InitialBalanceTransferred() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	openedAt := today.AddDate(0, 0, -10)
+
+	srcInitial := decimal.NewFromInt(5000)
+	dstInitial := decimal.NewFromInt(3000)
+
+	srcID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Merge Src NoTxns", AccountTypeID: 1, Balance: &srcInitial, OpenedAt: openedAt,
+	})
+	s.Require().NoError(err)
+
+	dstID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Merge Dst NoTxns", AccountTypeID: 1, Balance: &dstInitial, OpenedAt: openedAt,
+	})
+	s.Require().NoError(err)
+
+	err = svc.MergeAccount(s.Ctx, userID, srcID, dstID)
+	s.Require().NoError(err)
+
+	// Dest today snapshot = 5000 + 3000 = 8000
+	expectedTotal := decimal.NewFromInt(8000)
+	var dstSnap models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", dstID, today).First(&dstSnap).Error
+	s.Require().NoError(err)
+	s.Assert().True(expectedTotal.Equal(dstSnap.EndBalance),
+		"dest today snapshot should be %s, got %s", expectedTotal, dstSnap.EndBalance)
+
+	// Source today snapshot = 0
+	var srcSnap models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", srcID, today).First(&srcSnap).Error
+	s.Require().NoError(err)
+	s.Assert().True(srcSnap.EndBalance.IsZero(),
+		"source today snapshot should be 0, got %s", srcSnap.EndBalance)
+
+	// Dest opening start_balance = 8000
+	var dstOpeningBal models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", dstID, openedAt).First(&dstOpeningBal).Error
+	s.Require().NoError(err)
+	s.Assert().True(expectedTotal.Equal(dstOpeningBal.StartBalance),
+		"dest opening start_balance should be %s, got %s", expectedTotal, dstOpeningBal.StartBalance)
+
+	// Source opening start_balance = 0
+	var srcOpeningBal models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", srcID, openedAt).First(&srcOpeningBal).Error
+	s.Require().NoError(err)
+	s.Assert().True(srcOpeningBal.StartBalance.IsZero(),
+		"source opening start_balance should be 0, got %s", srcOpeningBal.StartBalance)
+}
+
+// Two liability accounts of different sub-types can be merged
+func (s *AccountServiceTestSuite) TestMergeAccount_LiabilityToLiability_OK() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+	zero := decimal.Zero
+
+	// credit_card/credit = type ID 18, loan/mortgage = type ID 19
+	srcID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Old Credit Card",
+		AccountTypeID: 18,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	dstID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Mortgage",
+		AccountTypeID: 19,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	err = svc.MergeAccount(s.Ctx, userID, srcID, dstID)
+	s.Assert().NoError(err)
+
+	var src models.Account
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", srcID).First(&src).Error
+	s.Require().NoError(err)
+	s.Assert().NotNil(src.ClosedAt)
+}

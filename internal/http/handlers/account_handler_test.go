@@ -311,3 +311,95 @@ func (suite *AccountHandlerTestSuite) TestCloseAccount_NotFound() {
 func TestAccountHandlerTestSuite(t *testing.T) {
 	suite.Run(t, new(AccountHandlerTestSuite))
 }
+
+func (suite *AccountHandlerTestSuite) SetupMergeRoute() {
+	suite.router.POST("/accounts/merge", suite.handler.MergeAccounts)
+}
+
+func (suite *AccountHandlerTestSuite) TestMergeAccounts_Success() {
+	suite.SetupMergeRoute()
+
+	payload := map[string]int64{"source_id": 1, "destination_id": 2}
+
+	suite.mockValidator.EXPECT().
+		ValidateStruct(mock.Anything).
+		Return(nil).
+		Once()
+
+	suite.mockService.EXPECT().
+		MergeAccount(mock.Anything, int64(123), int64(1), int64(2)).
+		Return(nil).
+		Once()
+
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/accounts/merge", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusOK, w.Code)
+	var resp map[string]interface{}
+	suite.NoError(json.Unmarshal(w.Body.Bytes(), &resp))
+	suite.Equal("Accounts merged", resp["message"])
+}
+
+func (suite *AccountHandlerTestSuite) TestMergeAccounts_InvalidJSON() {
+	suite.SetupMergeRoute()
+
+	req := httptest.NewRequest(http.MethodPost, "/accounts/merge", bytes.NewBufferString(`{bad}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusBadRequest, w.Code)
+	suite.mockValidator.AssertNotCalled(suite.T(), "ValidateStruct")
+	suite.mockService.AssertNotCalled(suite.T(), "MergeAccount")
+}
+
+func (suite *AccountHandlerTestSuite) TestMergeAccounts_ValidationFailed() {
+	suite.SetupMergeRoute()
+
+	payload := map[string]int64{"source_id": 0, "destination_id": 0}
+
+	suite.mockValidator.EXPECT().
+		ValidateStruct(mock.Anything).
+		Return(errors.New("source_id is required")).
+		Once()
+
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/accounts/merge", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusUnprocessableEntity, w.Code)
+	suite.mockService.AssertNotCalled(suite.T(), "MergeAccount")
+}
+
+func (suite *AccountHandlerTestSuite) TestMergeAccounts_ServiceError() {
+	suite.SetupMergeRoute()
+
+	payload := map[string]int64{"source_id": 1, "destination_id": 2}
+
+	suite.mockValidator.EXPECT().
+		ValidateStruct(mock.Anything).
+		Return(nil).
+		Once()
+
+	suite.mockService.EXPECT().
+		MergeAccount(mock.Anything, int64(123), int64(1), int64(2)).
+		Return(errors.New("liability accounts can only be merged into other liability accounts")).
+		Once()
+
+	body, _ := json.Marshal(payload)
+	req := httptest.NewRequest(http.MethodPost, "/accounts/merge", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusInternalServerError, w.Code)
+}

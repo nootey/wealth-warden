@@ -52,6 +52,7 @@ func (h *AccountHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.GET("/sync/asset/:id", authz.RequireAllMW("manage_data"), h.SyncAssetPnL)
 	apiGroup.GET("/sync/account/:acc_id", authz.RequireAllMW("manage_data"), h.SyncAccountPnL)
 	apiGroup.POST("/sync/balances", authz.RequireAllMW("view_data"), h.SyncBalancesForUser)
+	apiGroup.POST("/merge", authz.RequireAllMW("manage_data"), h.MergeAccounts)
 }
 
 func (h *AccountHandler) GetAccountsPaginated(c *gin.Context) {
@@ -521,6 +522,33 @@ func (h *AccountHandler) SyncBalancesForUser(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Sync completed", "Balance sync completed", http.StatusOK)
+}
+
+func (h *AccountHandler) MergeAccounts(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var req struct {
+		SourceID      int64 `json:"source_id" validate:"required"`
+		DestinationID int64 `json:"destination_id" validate:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.service.MergeAccount(ctx, userID, req.SourceID, req.DestinationID); err != nil {
+		utils.ErrorMessage(c, "Merge error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Accounts merged", "Success", http.StatusOK)
 }
 
 func (h *AccountHandler) SyncAccountPnL(c *gin.Context) {

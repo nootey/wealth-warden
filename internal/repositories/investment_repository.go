@@ -45,6 +45,7 @@ type InvestmentRepositoryInterface interface {
 	GetAssetIDsForAccount(ctx context.Context, tx *gorm.DB, accountID, userID int64) ([]int64, error)
 	UpsertExchangeRate(ctx context.Context, tx *gorm.DB, entry models.ExchangeRateHistory) error
 	GetCachedExchangeRate(ctx context.Context, tx *gorm.DB, from, to string, asOf time.Time) (decimal.Decimal, bool, error)
+	BulkUpdateAssetAccountID(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error
 }
 
 type InvestmentRepository struct {
@@ -766,6 +767,16 @@ func (r *InvestmentRepository) UpsertExchangeRate(ctx context.Context, tx *gorm.
 		Columns:   []clause.Column{{Name: "from_currency"}, {Name: "to_currency"}, {Name: "as_of"}},
 		DoUpdates: clause.AssignmentColumns([]string{"rate"}),
 	}).Create(&entry).Error
+}
+
+func (r *InvestmentRepository) BulkUpdateAssetAccountID(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).Model(&models.InvestmentAsset{}).
+		Where("account_id = ? AND user_id = ?", fromAccountID, userID).
+		Update("account_id", toAccountID).Error
 }
 
 func (r *InvestmentRepository) GetCachedExchangeRate(ctx context.Context, tx *gorm.DB, from, to string, asOf time.Time) (decimal.Decimal, bool, error) {

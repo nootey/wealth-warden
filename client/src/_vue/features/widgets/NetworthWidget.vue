@@ -300,7 +300,7 @@ onMounted(getData);
         <span> No data yet - connect an</span>
         <span
           class="hover-icon font-bold text-base"
-          @click="router.push({ name: 'accounts' })"
+          @click="router.push({ name: 'settings.accounts' })"
         >
           account
         </span>

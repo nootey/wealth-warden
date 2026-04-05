@@ -63,6 +63,7 @@ type AccountRepositoryInterface interface {
 	HasSnapshotForDate(ctx context.Context, userID int64, date time.Time) (bool, error)
 	GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.AccountDailySnapshot, error)
 	SetSnapshotMarketValue(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, value decimal.Decimal) error
+	RebuildCashFlowsForAccount(ctx context.Context, tx *gorm.DB, accountID int64, currency string, from time.Time) error
 }
 
 type AccountRepository struct {
@@ -1380,4 +1381,56 @@ func (r *AccountRepository) SetSnapshotMarketValue(ctx context.Context, tx *gorm
 		SET market_value = ?
 		WHERE account_id = ? AND as_of = ?
 	`, value, accountID, asOf.UTC().Truncate(24*time.Hour)).Error
+}
+
+func (r *AccountRepository) RebuildCashFlowsForAccount(ctx context.Context, tx *gorm.DB, accountID int64, currency string, from time.Time) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+	from = from.UTC().Truncate(24 * time.Hour)
+
+	// Ensure a balance row exists for every date that now has transactions
+	if err := db.Exec(`
+		INSERT INTO balances (account_id, as_of, currency, start_balance, cash_inflows, cash_outflows, created_at, updated_at)
+		SELECT
+			?::bigint,
+			t.txn_date::date,
+			?::char(3),
+			0, 0, 0,
+			NOW(), NOW()
+		FROM transactions t
+		WHERE t.account_id = ?
+		  AND t.deleted_at IS NULL
+		  AND t.txn_date::date >= ?
+		GROUP BY t.txn_date::date
+		ON CONFLICT (account_id, as_of) DO NOTHING
+	`, accountID, currency, accountID, from).Error; err != nil {
+		return err
+	}
+
+	// Recompute cash_inflows and cash_outflows for all rows from the earliest date
+	return db.Exec(`
+		UPDATE balances b
+		SET cash_inflows = COALESCE((
+			SELECT SUM(t.amount)
+			FROM transactions t
+			WHERE t.account_id = b.account_id
+			  AND t.txn_date::date = b.as_of
+			  AND t.transaction_type = 'income'
+			  AND t.deleted_at IS NULL
+		), 0),
+		cash_outflows = COALESCE((
+			SELECT SUM(t.amount)
+			FROM transactions t
+			WHERE t.account_id = b.account_id
+			  AND t.txn_date::date = b.as_of
+			  AND t.transaction_type = 'expense'
+			  AND t.deleted_at IS NULL
+		), 0),
+		updated_at = NOW()
+		WHERE b.account_id = ?
+		  AND b.as_of >= ?
+	`, accountID, from).Error
 }

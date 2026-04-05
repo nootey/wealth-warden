@@ -8,6 +8,7 @@ import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { ref } from "vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import DefaultAccounts from "../../features/DefaultAccounts.vue";
+import MergeAccounts from "../../features/MergeAccounts.vue";
 import AccountForm from "../../components/forms/AccountForm.vue";
 
 const accountStore = useAccountStore();
@@ -123,6 +124,12 @@ async function closeAccount(id: number) {
     <SettingsSkeleton class="w-full">
       <div id="main-col" class="w-full flex flex-column gap-3 p-2">
         <DefaultAccounts />
+      </div>
+    </SettingsSkeleton>
+
+    <SettingsSkeleton class="w-full">
+      <div id="main-col" class="w-full flex flex-column gap-3 p-2">
+        <MergeAccounts />
       </div>
     </SettingsSkeleton>
   </div>

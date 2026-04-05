@@ -1272,6 +1272,75 @@ func (_c *MockAccountServiceInterface_InsertAccount_Call) RunAndReturn(run func(
 	return _c
 }
 
+// MergeAccount provides a mock function for the type MockAccountServiceInterface
+func (_mock *MockAccountServiceInterface) MergeAccount(ctx context.Context, userID int64, sourceID int64, destinationID int64) error {
+	ret := _mock.Called(ctx, userID, sourceID, destinationID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MergeAccount")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64, int64) error); ok {
+		r0 = returnFunc(ctx, userID, sourceID, destinationID)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockAccountServiceInterface_MergeAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MergeAccount'
+type MockAccountServiceInterface_MergeAccount_Call struct {
+	*mock.Call
+}
+
+// MergeAccount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - sourceID int64
+//   - destinationID int64
+func (_e *MockAccountServiceInterface_Expecter) MergeAccount(ctx interface{}, userID interface{}, sourceID interface{}, destinationID interface{}) *MockAccountServiceInterface_MergeAccount_Call {
+	return &MockAccountServiceInterface_MergeAccount_Call{Call: _e.mock.On("MergeAccount", ctx, userID, sourceID, destinationID)}
+}
+
+func (_c *MockAccountServiceInterface_MergeAccount_Call) Run(run func(ctx context.Context, userID int64, sourceID int64, destinationID int64)) *MockAccountServiceInterface_MergeAccount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 int64
+		if args[2] != nil {
+			arg2 = args[2].(int64)
+		}
+		var arg3 int64
+		if args[3] != nil {
+			arg3 = args[3].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_MergeAccount_Call) Return(err error) *MockAccountServiceInterface_MergeAccount_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_MergeAccount_Call) RunAndReturn(run func(ctx context.Context, userID int64, sourceID int64, destinationID int64) error) *MockAccountServiceInterface_MergeAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RebuildSnapshotsForUser provides a mock function for the type MockAccountServiceInterface
 func (_mock *MockAccountServiceInterface) RebuildSnapshotsForUser(ctx context.Context, userID int64) error {
 	ret := _mock.Called(ctx, userID)

@@ -101,5 +101,12 @@ export const useAccountStore = defineStore("account", {
     async syncBalances() {
       await apiClient.post(`${this.apiPrefix}/sync/balances`);
     },
+    async mergeAccounts(sourceID: number, destinationID: number) {
+      const response = await apiClient.post(`${this.apiPrefix}/merge`, {
+        source_id: sourceID,
+        destination_id: destinationID,
+      });
+      return response.data;
+    },
   },
 });

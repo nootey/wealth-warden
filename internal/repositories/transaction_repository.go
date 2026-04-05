@@ -81,6 +81,9 @@ type TransactionRepositoryInterface interface {
 	GetActiveTemplates(ctx context.Context, tx *gorm.DB, userID int64) ([]models.TransactionTemplate, error)
 	GetActiveTemplatesForUser(ctx context.Context, userID int64) ([]models.TransactionTemplate, error)
 	BulkUpdateTemplateTimezone(ctx context.Context, updates []models.TemplateTimezoneUpdate) error
+	FindTransfersBetweenAccounts(ctx context.Context, tx *gorm.DB, accountAID, accountBID, userID int64) ([]models.Transfer, error)
+	BulkUpdateTransactionAccountID(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error
+	BulkUpdateTemplateAccountIDs(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error
 }
 
 type TransactionRepository struct {
@@ -1442,4 +1445,59 @@ func (r *TransactionRepository) BulkUpdateTemplateTimezone(ctx context.Context, 
 		}
 		return nil
 	})
+}
+
+func (r *TransactionRepository) FindTransfersBetweenAccounts(ctx context.Context, tx *gorm.DB, accountAID, accountBID, userID int64) ([]models.Transfer, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.Transfer
+	err := db.
+		Joins("JOIN transactions AS ti ON transfers.transaction_inflow_id = ti.id").
+		Joins("JOIN transactions AS to2 ON transfers.transaction_outflow_id = to2.id").
+		Where("transfers.user_id = ? AND transfers.deleted_at IS NULL", userID).
+		Where(
+			"(ti.account_id = ? AND to2.account_id = ?) OR (ti.account_id = ? AND to2.account_id = ?)",
+			accountAID, accountBID, accountBID, accountAID,
+		).
+		Preload("TransactionInflow").
+		Preload("TransactionOutflow").
+		Find(&records).Error
+	return records, err
+}
+
+func (r *TransactionRepository) BulkUpdateTransactionAccountID(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	return db.Model(&models.Transaction{}).
+		Where("account_id = ? AND user_id = ? AND deleted_at IS NULL", fromAccountID, userID).
+		Updates(map[string]any{
+			"account_id": toAccountID,
+			"updated_at": time.Now().UTC(),
+		}).Error
+}
+
+func (r *TransactionRepository) BulkUpdateTemplateAccountIDs(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	if err := db.Model(&models.TransactionTemplate{}).
+		Where("account_id = ? AND user_id = ?", fromAccountID, userID).
+		Update("account_id", toAccountID).Error; err != nil {
+		return err
+	}
+
+	return db.Model(&models.TransactionTemplate{}).
+		Where("to_account_id = ? AND user_id = ?", fromAccountID, userID).
+		Update("to_account_id", toAccountID).Error
 }
