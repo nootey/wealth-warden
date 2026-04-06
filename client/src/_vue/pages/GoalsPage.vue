@@ -1,32 +1,23 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useSavingsStore } from "../../services/stores/savings_store.ts";
 import { useAccountStore } from "../../services/stores/account_store.ts";
-import { useSettingsStore } from "../../services/stores/settings_store.ts";
 import { usePermissions } from "../../utils/use_permissions.ts";
-import { useConfirm } from "primevue/useconfirm";
 import SavingGoalForm from "../components/forms/SavingGoalForm.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
 import vueHelper from "../../utils/vue_helper.ts";
-import currencyHelper from "../../utils/currency_helper.ts";
 import dateHelper from "../../utils/date_helper.ts";
-import { required } from "@vuelidate/validators";
-import { decimalMin, decimalValid } from "../../validators/currency.ts";
-import useVuelidate from "@vuelidate/core";
-import ValidationError from "../components/validation/ValidationError.vue";
 import type {
   SavingGoalWithProgress,
   SavingContribution,
-  SavingContributionReq,
 } from "../../models/savings_models.ts";
-import Decimal from "decimal.js";
+import SavingGoalDetails from "../components/data/SavingGoalDetails.vue";
+import savingsHelper from "../../utils/savings_helper.ts";
 
 const toastStore = useToastStore();
 const savingsStore = useSavingsStore();
 const accountStore = useAccountStore();
-const settingsStore = useSettingsStore();
-const confirm = useConfirm();
 const { hasPermission } = usePermissions();
 
 const loading = ref(false);
@@ -40,28 +31,6 @@ const contribModal = ref(false);
 const selectedGoal = ref<SavingGoalWithProgress | null>(null);
 const contributions = ref<SavingContribution[]>([]);
 const contribLoading = ref(false);
-
-const addingContrib = ref(false);
-const contribForm = ref({
-  amount: null as string | null,
-  month: new Date() as Date | null,
-  note: "" as string,
-});
-
-const contribAmountRef = computed({
-  get: () => contribForm.value.amount,
-  set: (v) => (contribForm.value.amount = v),
-});
-const { number: contribAmountNumber } = currencyHelper.useMoneyField(
-  contribAmountRef,
-  2,
-);
-
-const contribRules = computed(() => ({
-  amount: { required, decimalValid, decimalMin: decimalMin("0.01") },
-  month: { required },
-}));
-const cv$ = useVuelidate(contribRules, contribForm);
 
 onMounted(async () => {
   await loadGoals();
@@ -131,91 +100,23 @@ async function handleGoalDeleted() {
   await loadGoals();
 }
 
-async function addContribution() {
-  const valid = await cv$.value.$validate();
-  if (!valid) return;
-
-  addingContrib.value = true;
-  try {
-    const req: SavingContributionReq = {
-      amount: new Decimal(contribForm.value.amount!).toFixed(2),
-      month: dateHelper.formatDate(contribForm.value.month!),
-      note: contribForm.value.note || null,
-    };
-    const res = await savingsStore.insertContribution(
-      selectedGoal.value!.id!,
-      req,
-    );
-    toastStore.successResponseToast(res);
-    contributions.value = await savingsStore.fetchContributions(
-      selectedGoal.value!.id!,
-    );
-    await loadGoals();
-    selectedGoal.value =
-      goals.value.find((g) => g.id === selectedGoal.value!.id) ??
-      selectedGoal.value;
-    contribForm.value = { amount: null, month: new Date(), note: "" };
-    cv$.value.$reset();
-  } catch (err) {
-    toastStore.errorResponseToast(err);
-  } finally {
-    addingContrib.value = false;
+async function handleContribRefresh() {
+  await loadGoals();
+  if (selectedGoal.value) {
+    contribLoading.value = true;
+    try {
+      contributions.value = await savingsStore.fetchContributions(
+        selectedGoal.value.id!,
+      );
+      selectedGoal.value =
+        goals.value.find((g) => g.id === selectedGoal.value!.id) ??
+        selectedGoal.value;
+    } catch (err) {
+      toastStore.errorResponseToast(err);
+    } finally {
+      contribLoading.value = false;
+    }
   }
-}
-
-function confirmDeleteContrib(contrib: SavingContribution) {
-  confirm.require({
-    message: "Remove this contribution?",
-    header: "Confirm",
-    icon: "pi pi-exclamation-triangle",
-    rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
-    acceptProps: { label: "Remove", severity: "danger" },
-    accept: async () => {
-      try {
-        const res = await savingsStore.deleteContribution(
-          selectedGoal.value!.id!,
-          contrib.id!,
-        );
-        contributions.value = await savingsStore.fetchContributions(
-          selectedGoal.value!.id!,
-        );
-        await loadGoals();
-        selectedGoal.value =
-          goals.value.find((g) => g.id === selectedGoal.value!.id) ??
-          selectedGoal.value;
-        toastStore.successResponseToast(res);
-      } catch (err) {
-        toastStore.errorResponseToast(err);
-      }
-    },
-  });
-}
-
-function progressPercent(goal: SavingGoalWithProgress): number {
-  const p = Number(goal.progress_percent);
-  return isNaN(p) ? 0 : Math.min(p, 100);
-}
-
-function trackStatusLabel(status: string): string {
-  const map: Record<string, string> = {
-    on_track: "On track",
-    early: "Ahead",
-    late: "Behind",
-    completed: "Completed",
-    no_target: "No target",
-  };
-  return map[status] ?? status;
-}
-
-function trackStatusSeverity(status: string): string {
-  const map: Record<string, string> = {
-    on_track: "success",
-    early: "info",
-    late: "warn",
-    completed: "success",
-    no_target: "secondary",
-  };
-  return map[status] ?? "secondary";
 }
 
 function accountName(accountID: number): string {
@@ -224,8 +125,6 @@ function accountName(accountID: number): string {
 </script>
 
 <template>
-  <ConfirmDialog />
-
   <Dialog
     v-model:visible="createModal"
     class="rounded-dialog"
@@ -238,7 +137,6 @@ function accountName(accountID: number): string {
     <SavingGoalForm mode="create" @complete-operation="handleGoalCreated" />
   </Dialog>
 
-  <!-- Update goal dialog -->
   <Dialog
     v-model:visible="updateModal"
     class="rounded-dialog"
@@ -256,7 +154,6 @@ function accountName(accountID: number): string {
     />
   </Dialog>
 
-  <!-- Contributions dialog -->
   <Dialog
     v-model:visible="contribModal"
     class="rounded-dialog"
@@ -273,142 +170,12 @@ function accountName(accountID: number): string {
         </div>
       </div>
     </template>
-
-    <div class="flex flex-column gap-4">
-      <!-- Progress summary -->
-      <div
-        class="flex flex-column gap-2 p-3 border-round-xl bordered"
-        style="background: var(--background-primary)"
-      >
-        <div class="flex flex-row justify-content-between align-items-center">
-          <div class="text-sm" style="color: var(--text-secondary)">
-            Progress
-          </div>
-          <Tag
-            :value="trackStatusLabel(selectedGoal?.track_status ?? '')"
-            :severity="
-              trackStatusSeverity(selectedGoal?.track_status ?? '') as any
-            "
-          />
-        </div>
-        <ProgressBar
-          :value="progressPercent(selectedGoal!)"
-          style="height: 8px"
-        />
-        <div class="flex flex-row justify-content-between">
-          <div class="text-sm">
-            <span class="font-bold">{{
-              vueHelper.displayAsCurrency(selectedGoal?.current_amount ?? null)
-            }}</span>
-            <span style="color: var(--text-secondary)"> saved</span>
-          </div>
-          <div class="text-sm" style="color: var(--text-secondary)">
-            {{
-              vueHelper.displayAsCurrency(selectedGoal?.target_amount ?? null)
-            }}
-            target
-          </div>
-        </div>
-        <div
-          v-if="selectedGoal?.monthly_needed"
-          class="text-sm"
-          style="color: var(--text-secondary)"
-        >
-          {{ vueHelper.displayAsCurrency(selectedGoal.monthly_needed) }}/mo
-          needed
-          <span v-if="selectedGoal.months_remaining">
-            &middot; {{ selectedGoal.months_remaining }} months left</span
-          >
-        </div>
-      </div>
-
-      <!-- Add contribution -->
-      <div v-if="hasPermission('manage_data')" class="flex flex-column gap-2">
-        <div class="font-medium text-sm">Add contribution</div>
-        <div class="flex flex-row gap-2 align-items-start">
-          <div class="flex flex-column gap-1 flex-1">
-            <InputNumber
-              v-model="contribAmountNumber"
-              mode="currency"
-              :currency="settingsStore.defaultCurrency"
-              :locale="
-                vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)
-              "
-              :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
-              class="w-full"
-              :class="{ 'p-invalid': cv$.amount.$error }"
-            />
-            <ValidationError :state="cv$.amount" />
-          </div>
-          <div class="flex flex-column gap-1">
-            <DatePicker
-              v-model="contribForm.month"
-              view="month"
-              date-format="mm/yy"
-              placeholder="Month"
-              :class="{ 'p-invalid': cv$.month.$error }"
-            />
-            <ValidationError :state="cv$.month" />
-          </div>
-          <Button
-            icon="pi pi-plus"
-            class="main-button"
-            :loading="addingContrib"
-            @click="addContribution"
-          />
-        </div>
-        <InputText
-          v-model="contribForm.note"
-          placeholder="Note (optional)"
-          class="w-full"
-        />
-      </div>
-
-      <!-- Contributions list -->
-      <div class="flex flex-column gap-1">
-        <div class="font-medium text-sm">History</div>
-
-        <ShowLoading v-if="contribLoading" :num-fields="3" />
-
-        <div
-          v-else-if="contributions.length === 0"
-          class="flex flex-row justify-content-center p-3"
-          style="color: var(--text-secondary)"
-        >
-          <div class="flex flex-column align-items-center gap-2">
-            <i class="pi pi-inbox text-3xl" />
-            <span class="text-sm">No contributions yet</span>
-          </div>
-        </div>
-
-        <div
-          v-for="contrib in contributions"
-          v-else
-          :key="contrib.id"
-          class="flex flex-row align-items-center justify-content-between p-2 border-round-xl bordered"
-          style="background: var(--background-primary)"
-        >
-          <div class="flex flex-column gap-1">
-            <div class="font-medium text-sm">
-              {{ vueHelper.displayAsCurrency(contrib.amount) }}
-            </div>
-            <div class="text-sm" style="color: var(--text-secondary)">
-              {{ dateHelper.formatDate(contrib.month, false, "MMM YYYY") }}
-              <span v-if="contrib.note"> &middot; {{ contrib.note }}</span>
-            </div>
-          </div>
-          <div class="flex flex-row align-items-center gap-2">
-            <Tag :value="contrib.source" severity="secondary" />
-            <i
-              v-if="hasPermission('manage_data')"
-              class="pi pi-trash hover-icon text-sm"
-              style="color: var(--text-secondary)"
-              @click="confirmDeleteContrib(contrib)"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
+    <SavingGoalDetails
+      :goal="selectedGoal!"
+      :contributions="contributions"
+      :contrib-loading="contribLoading"
+      @refresh="handleContribRefresh"
+    />
   </Dialog>
 
   <main class="flex flex-column w-full align-items-center">
@@ -416,7 +183,6 @@ function accountName(accountID: number): string {
       id="mobile-container"
       class="flex flex-column justify-content-center w-full gap-3 border-round-xl"
     >
-      <!-- Header row -->
       <div
         class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
       >
@@ -435,13 +201,17 @@ function accountName(accountID: number): string {
         </Button>
       </div>
 
-      <!-- Goals panel -->
-      <Panel :collapsed="false" header="Savings goals">
-        <ShowLoading v-if="loading" :num-fields="4" />
+      <div
+        class="flex-1 w-full border-round-xl overflow-y-auto"
+        :style="{ maxWidth: '1000px' }"
+      >
+        <template v-if="loading">
+          <ShowLoading :num-fields="5" />
+        </template>
 
         <div
           v-else-if="goals.length === 0"
-          class="flex flex-row p-4 w-full justify-content-center"
+          class="flex flex-row p-2 w-full justify-content-center"
         >
           <div
             class="flex flex-column gap-2 justify-content-center align-items-center"
@@ -454,15 +224,20 @@ function accountName(accountID: number): string {
           </div>
         </div>
 
-        <div v-else class="flex flex-column gap-2">
+        <div
+          v-for="goal in goals"
+          v-else
+          :key="goal.id"
+          class="flex flex-column gap-1 p-1"
+          style="background: var(--background-primary)"
+        >
           <div
-            v-for="goal in goals"
-            :key="goal.id"
-            class="flex flex-column gap-2 p-3 border-round-xl bordered"
-            style="background: var(--background-primary); cursor: pointer"
-            @click="openContributions(goal)"
+            class="flex flex-column p-3 gap-3 border-round-xl mt-3 bordered"
+            style="
+              border: 1px solid var(--border-color);
+              background: var(--background-secondary);
+            "
           >
-            <!-- Top row: name + badges + edit -->
             <div
               class="flex flex-row align-items-center justify-content-between gap-2"
             >
@@ -475,12 +250,14 @@ function accountName(accountID: number): string {
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
+                    cursor: pointer;
                   "
+                  @click="openContributions(goal)"
                 >
                   {{ goal.name }}
                 </div>
                 <div
-                  class="text-sm"
+                  class="text-xs"
                   style="color: var(--text-secondary); white-space: nowrap"
                 >
                   {{ accountName(goal.account_id) }}
@@ -488,8 +265,10 @@ function accountName(accountID: number): string {
               </div>
               <div class="flex flex-row align-items-center gap-2" @click.stop>
                 <Tag
-                  :value="trackStatusLabel(goal.track_status)"
-                  :severity="trackStatusSeverity(goal.track_status) as any"
+                  :value="savingsHelper.trackStatusLabel(goal.track_status)"
+                  :severity="
+                    savingsHelper.trackStatusSeverity(goal.track_status) as any
+                  "
                 />
                 <i
                   v-if="hasPermission('manage_data')"
@@ -500,10 +279,11 @@ function accountName(accountID: number): string {
               </div>
             </div>
 
-            <!-- Progress bar -->
-            <ProgressBar :value="progressPercent(goal)" style="height: 6px" />
+            <ProgressBar
+              :value="savingsHelper.progressPercent(goal)"
+              style="height: 14px"
+            />
 
-            <!-- Bottom row: amounts + target date -->
             <div
               class="flex flex-row justify-content-between align-items-center"
             >
@@ -525,7 +305,6 @@ function accountName(accountID: number): string {
               </div>
             </div>
 
-            <!-- Monthly needed (if behind or on track with target) -->
             <div
               v-if="goal.monthly_needed && goal.track_status !== 'completed'"
               class="text-sm"
@@ -538,7 +317,7 @@ function accountName(accountID: number): string {
             </div>
           </div>
         </div>
-      </Panel>
+      </div>
     </div>
   </main>
 </template>

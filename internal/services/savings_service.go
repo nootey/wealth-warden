@@ -8,6 +8,7 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
 )
@@ -81,15 +82,29 @@ func (s *SavingsService) InsertGoal(ctx context.Context, userID int64, req *mode
 		}
 	}()
 
+	var targetDate *time.Time
+	if req.TargetDate != nil && *req.TargetDate != "" {
+		parsed, parseErr := time.Parse("2006-01-02", *req.TargetDate)
+		if parseErr != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("invalid target_date: %w", parseErr)
+		}
+		targetDate = &parsed
+	}
+
 	record := models.SavingGoal{
 		UserID:            userID,
 		AccountID:         req.AccountID,
 		Name:              req.Name,
 		TargetAmount:      req.TargetAmount,
-		TargetDate:        req.TargetDate,
+		TargetDate:        targetDate,
 		Status:            models.SavingGoalStatusActive,
 		Priority:          req.Priority,
 		MonthlyAllocation: req.MonthlyAllocation,
+	}
+
+	if req.InitialAmount != nil && req.InitialAmount.IsPositive() {
+		record.CurrentAmount = *req.InitialAmount
 	}
 
 	id, err := s.repo.InsertGoal(ctx, tx, &record)
@@ -98,18 +113,41 @@ func (s *SavingsService) InsertGoal(ctx context.Context, userID int64, req *mode
 		return 0, err
 	}
 
+	if req.InitialAmount != nil && req.InitialAmount.IsPositive() {
+		now := time.Now().UTC()
+		monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		contrib := models.SavingContribution{
+			UserID: userID,
+			GoalID: id,
+			Amount: *req.InitialAmount,
+			Month:  monthStart,
+			Source: models.SavingContributionSourceManual,
+		}
+		if _, err := s.repo.InsertContribution(ctx, tx, &contrib); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return 0, err
 	}
 
-	_ = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	changes := utils.InitChanges()
+	utils.CompareChanges("", record.Name, changes, "name")
+	utils.CompareDecimalChange(nil, &record.TargetAmount, changes, "target_amount", 2)
+	utils.CompareDecimalChange(nil, record.MonthlyAllocation, changes, "monthly_allocation", 2)
+	utils.CompareDateChange(nil, record.TargetDate, changes, "target_date")
+	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "saving_goal",
 		Description: nil,
-		Payload:     nil,
+		Payload:     changes,
 		Causer:      &userID,
-	})
+	}); err != nil {
+		return 0, err
+	}
 
 	return id, nil
 }
@@ -133,9 +171,26 @@ func (s *SavingsService) UpdateGoal(ctx context.Context, userID, id int64, req *
 		return 0, fmt.Errorf("goal not found: %w", err)
 	}
 
+	var targetDate *time.Time
+	if req.TargetDate != nil && *req.TargetDate != "" {
+		parsed, parseErr := time.Parse("2006-01-02", *req.TargetDate)
+		if parseErr != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("invalid target_date: %w", parseErr)
+		}
+		targetDate = &parsed
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(existing.Name, req.Name, changes, "name")
+	utils.CompareDecimalChange(&existing.TargetAmount, &req.TargetAmount, changes, "target_amount", 2)
+	utils.CompareDecimalChange(existing.MonthlyAllocation, req.MonthlyAllocation, changes, "monthly_allocation", 2)
+	utils.CompareDateChange(existing.TargetDate, targetDate, changes, "target_date")
+	utils.CompareChanges(string(existing.Status), string(req.Status), changes, "status")
+
 	existing.Name = req.Name
 	existing.TargetAmount = req.TargetAmount
-	existing.TargetDate = req.TargetDate
+	existing.TargetDate = targetDate
 	existing.Status = req.Status
 	existing.Priority = req.Priority
 	existing.MonthlyAllocation = req.MonthlyAllocation
@@ -150,14 +205,18 @@ func (s *SavingsService) UpdateGoal(ctx context.Context, userID, id int64, req *
 		return 0, err
 	}
 
-	_ = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
-		Event:       "update",
-		Category:    "saving_goal",
-		Description: nil,
-		Payload:     nil,
-		Causer:      &userID,
-	})
+	if !changes.IsEmpty() {
+		if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
+			Event:       "update",
+			Category:    "saving_goal",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		}); err != nil {
+			return 0, err
+		}
+	}
 
 	return goalID, nil
 }
@@ -175,7 +234,7 @@ func (s *SavingsService) DeleteGoal(ctx context.Context, userID, id int64) error
 		}
 	}()
 
-	_, err = s.repo.FindGoalByID(ctx, tx, id, userID)
+	goal, err := s.repo.FindGoalByID(ctx, tx, id, userID)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("goal not found: %w", err)
@@ -190,14 +249,21 @@ func (s *SavingsService) DeleteGoal(ctx context.Context, userID, id int64) error
 		return err
 	}
 
-	_ = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
-		Event:       "delete",
-		Category:    "saving_goal",
-		Description: nil,
-		Payload:     nil,
-		Causer:      &userID,
-	})
+	changes := utils.InitChanges()
+	utils.CompareChanges(goal.Name, "", changes, "name")
+	utils.CompareDecimalChange(&goal.TargetAmount, nil, changes, "target_amount", 2)
+	if !changes.IsEmpty() {
+		if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
+			Event:       "delete",
+			Category:    "saving_goal",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		}); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -230,11 +296,17 @@ func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID 
 		return 0, fmt.Errorf("goal not found: %w", err)
 	}
 
+	month, err := time.Parse("2006-01-02", req.Month)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("invalid month: %w", err)
+	}
+
 	record := models.SavingContribution{
 		UserID: userID,
 		GoalID: goalID,
 		Amount: req.Amount,
-		Month:  req.Month,
+		Month:  month,
 		Note:   req.Note,
 		Source: models.SavingContributionSourceManual,
 	}
@@ -255,14 +327,20 @@ func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID 
 		return 0, err
 	}
 
-	_ = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	changes := utils.InitChanges()
+	utils.CompareChanges("", goal.Name, changes, "goal")
+	utils.CompareDecimalChange(nil, &req.Amount, changes, "amount", 2)
+	utils.CompareChanges("", record.Month.Format("2006-01-02"), changes, "month")
+	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "saving_contribution",
-		Description: nil,
-		Payload:     nil,
+		Description: req.Note,
+		Payload:     changes,
 		Causer:      &userID,
-	})
+	}); err != nil {
+		return 0, err
+	}
 
 	return id, nil
 }
@@ -310,14 +388,22 @@ func (s *SavingsService) DeleteContribution(ctx context.Context, userID, goalID,
 		return err
 	}
 
-	_ = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
-		Event:       "delete",
-		Category:    "saving_contribution",
-		Description: nil,
-		Payload:     nil,
-		Causer:      &userID,
-	})
+	changes := utils.InitChanges()
+	utils.CompareChanges(goal.Name, "", changes, "goal")
+	utils.CompareDecimalChange(&contrib.Amount, nil, changes, "amount", 2)
+	utils.CompareChanges(contrib.Month.Format("2006-01-02"), "", changes, "month")
+	if !changes.IsEmpty() {
+		if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
+			Event:       "delete",
+			Category:    "saving_contribution",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		}); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

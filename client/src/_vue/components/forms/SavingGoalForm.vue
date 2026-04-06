@@ -4,7 +4,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import { useSavingsStore } from "../../../services/stores/savings_store.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
-import { required } from "@vuelidate/validators";
+import { numeric, required } from "@vuelidate/validators";
 import { decimalMin, decimalValid } from "../../../validators/currency.ts";
 import useVuelidate from "@vuelidate/core";
 import ValidationError from "../validation/ValidationError.vue";
@@ -20,11 +20,13 @@ import type {
 } from "../../../models/savings_models.ts";
 import Decimal from "decimal.js";
 import dateHelper from "../../../utils/date_helper.ts";
+import AuditTrail from "../base/AuditTrail.vue";
 
 interface GoalFormData {
   account_id: number | null;
   name: string;
   target_amount: string | null;
+  initial_amount: string | null;
   target_date: Date | null;
   status: SavingGoalStatus;
   priority: number;
@@ -71,6 +73,15 @@ const { number: monthlyAllocationNumber } = currencyHelper.useMoneyField(
   2,
 );
 
+const initialAmountRef = computed({
+  get: () => record.value.initial_amount,
+  set: (v) => (record.value.initial_amount = v),
+});
+const { number: initialAmountNumber } = currencyHelper.useMoneyField(
+  initialAmountRef,
+  2,
+);
+
 const statusOptions: { label: string; value: SavingGoalStatus }[] = [
   { label: "Active", value: "active" },
   { label: "Paused", value: "paused" },
@@ -82,10 +93,25 @@ const rules = computed(() => ({
   record: {
     account_id: { required, $autoDirty: true },
     name: { required, $autoDirty: true },
+    target_date: { $autoDirty: true },
     target_amount: {
       required,
       decimalValid,
       decimalMin: decimalMin("0.01"),
+      $autoDirty: true,
+    },
+    initial_amount: {
+      $autoDirty: true,
+    },
+    monthly_allocation: {
+      $autoDirty: true,
+    },
+    priority: {
+      numeric,
+      $autoDirty: true,
+    },
+    status: {
+      required,
       $autoDirty: true,
     },
   },
@@ -114,6 +140,7 @@ function initData(): GoalFormData {
     account_id: null,
     name: "",
     target_amount: null,
+    initial_amount: null,
     target_date: null,
     status: "active",
     priority: 0,
@@ -124,6 +151,7 @@ function initData(): GoalFormData {
 async function loadRecord(id: number) {
   const goal = await savingsStore.fetchGoalByID(id);
   record.value = {
+    initial_amount: null,
     account_id: goal.account_id,
     name: goal.name,
     target_amount: goal.target_amount,
@@ -159,6 +187,9 @@ async function manageRecord() {
         account_id: record.value.account_id!,
         name: record.value.name,
         target_amount: new Decimal(record.value.target_amount!).toFixed(2),
+        initial_amount: record.value.initial_amount
+          ? new Decimal(record.value.initial_amount).toFixed(2)
+          : null,
         target_date: targetDate,
         priority: record.value.priority,
         monthly_allocation: record.value.monthly_allocation
@@ -214,8 +245,6 @@ function confirmDelete() {
 </script>
 
 <template>
-  <ConfirmDialog />
-
   <div v-if="!initializing" class="flex flex-column gap-3 p-1">
     <div v-if="mode === 'create'" class="flex flex-column gap-1">
       <ValidationError
@@ -266,8 +295,30 @@ function confirmDelete() {
       />
     </div>
 
+    <div v-if="mode === 'create'" class="flex flex-column gap-1">
+      <ValidationError
+        :is-required="false"
+        :message="v$.record.initial_amount.$errors[0]?.$message"
+      >
+        <label>Initial amount</label>
+      </ValidationError>
+      <InputNumber
+        v-model="initialAmountNumber"
+        size="small"
+        mode="currency"
+        :currency="settingsStore.defaultCurrency"
+        :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
+        :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
+      />
+    </div>
+
     <div class="flex flex-column gap-1">
-      <label>Target date</label>
+      <ValidationError
+        :is-required="false"
+        :message="v$.record.target_date.$errors[0]?.$message"
+      >
+        <label>Target date</label>
+      </ValidationError>
       <DatePicker
         v-model="record.target_date"
         placeholder="Pick a date"
@@ -281,12 +332,12 @@ function confirmDelete() {
     </div>
 
     <div class="flex flex-column gap-1">
-      <label
-        >Priority
-        <span style="color: var(--text-secondary); font-size: 0.8rem"
-          >(lower = higher priority)</span
-        ></label
+      <ValidationError
+        :is-required="false"
+        :message="v$.record.priority.$errors[0]?.$message"
       >
+        <label>Priority</label>
+      </ValidationError>
       <InputNumber
         v-model="record.priority"
         size="small"
@@ -297,12 +348,12 @@ function confirmDelete() {
     </div>
 
     <div class="flex flex-column gap-1">
-      <label
-        >Monthly allocation
-        <span style="color: var(--text-secondary); font-size: 0.8rem"
-          >(optional)</span
-        ></label
+      <ValidationError
+        :is-required="false"
+        :message="v$.record.monthly_allocation.$errors[0]?.$message"
       >
+        <label>Monthly allocation</label>
+      </ValidationError>
       <InputNumber
         v-model="monthlyAllocationNumber"
         size="small"
@@ -314,7 +365,12 @@ function confirmDelete() {
     </div>
 
     <div v-if="mode === 'update'" class="flex flex-column gap-1">
-      <label>Status</label>
+      <ValidationError
+        :is-required="true"
+        :message="v$.record.status.$errors[0]?.$message"
+      >
+        <label>Status</label>
+      </ValidationError>
       <Select
         v-model="record.status"
         :options="statusOptions"
@@ -345,6 +401,14 @@ function confirmDelete() {
           @click="confirmDelete"
         />
       </div>
+    </div>
+
+    <div v-if="mode == 'update'" class="flex flex-row gap-2 w-full">
+      <AuditTrail
+        :record-id="props.recordId!"
+        :events="['create', 'update', 'delete']"
+        category="saving_goal"
+      />
     </div>
   </div>
 

@@ -61,7 +61,8 @@ type SavingGoalReq struct {
 	AccountID         int64            `json:"account_id" validate:"required"`
 	Name              string           `json:"name" validate:"required,min=1,max=150"`
 	TargetAmount      decimal.Decimal  `json:"target_amount" validate:"required"`
-	TargetDate        *time.Time       `json:"target_date,omitempty"`
+	InitialAmount     *decimal.Decimal `json:"initial_amount,omitempty"`
+	TargetDate        *string          `json:"target_date,omitempty"`
 	Priority          int              `json:"priority"`
 	MonthlyAllocation *decimal.Decimal `json:"monthly_allocation,omitempty"`
 }
@@ -69,7 +70,7 @@ type SavingGoalReq struct {
 type SavingGoalUpdateReq struct {
 	Name              string           `json:"name" validate:"required,min=1,max=150"`
 	TargetAmount      decimal.Decimal  `json:"target_amount" validate:"required"`
-	TargetDate        *time.Time       `json:"target_date,omitempty"`
+	TargetDate        *string          `json:"target_date,omitempty"`
 	Status            SavingGoalStatus `json:"status" validate:"required"`
 	Priority          int              `json:"priority"`
 	MonthlyAllocation *decimal.Decimal `json:"monthly_allocation,omitempty"`
@@ -77,6 +78,6 @@ type SavingGoalUpdateReq struct {
 
 type SavingContributionReq struct {
 	Amount decimal.Decimal `json:"amount" validate:"required"`
-	Month  time.Time       `json:"month" validate:"required"`
+	Month  string          `json:"month" validate:"required"`
 	Note   *string         `json:"note,omitempty"`
 }

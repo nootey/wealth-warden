@@ -39,6 +39,7 @@ export interface SavingGoalReq {
   account_id: number;
   name: string;
   target_amount: string;
+  initial_amount?: string | null;
   target_date?: string | null;
   priority: number;
   monthly_allocation?: string | null;
