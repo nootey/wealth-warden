@@ -21,6 +21,7 @@ type SavingsServiceInterface interface {
 	DeleteGoal(ctx context.Context, userID, id int64) error
 
 	FetchContributions(ctx context.Context, userID, goalID int64) ([]models.SavingContribution, error)
+	FetchContributionsPaginated(ctx context.Context, userID, goalID int64, p utils.PaginationParams) ([]models.SavingContribution, *utils.Paginator, error)
 	InsertContribution(ctx context.Context, userID, goalID int64, req *models.SavingContributionReq) (int64, error)
 	DeleteContribution(ctx context.Context, userID, goalID, id int64) error
 }
@@ -277,6 +278,45 @@ func (s *SavingsService) FetchContributions(ctx context.Context, userID, goalID 
 	return s.repo.FindContributions(ctx, nil, goalID)
 }
 
+func (s *SavingsService) FetchContributionsPaginated(ctx context.Context, userID, goalID int64, p utils.PaginationParams) ([]models.SavingContribution, *utils.Paginator, error) {
+	_, err := s.repo.FindGoalByID(ctx, nil, goalID, userID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("goal not found: %w", err)
+	}
+
+	total, err := s.repo.CountContributions(ctx, nil, goalID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	offset := (p.PageNumber - 1) * p.RowsPerPage
+	records, err := s.repo.FindContributionsPaginated(ctx, nil, goalID, offset, p.RowsPerPage)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	from := offset + 1
+	if int(total) == 0 {
+		from = 0
+	} else if from > int(total) {
+		from = int(total)
+	}
+	to := offset + len(records)
+	if to > int(total) {
+		to = int(total)
+	}
+
+	paginator := &utils.Paginator{
+		CurrentPage:  p.PageNumber,
+		RowsPerPage:  p.RowsPerPage,
+		TotalRecords: int(total),
+		From:         from,
+		To:           to,
+	}
+
+	return records, paginator, nil
+}
+
 func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID int64, req *models.SavingContributionReq) (int64, error) {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
@@ -294,6 +334,16 @@ func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID 
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("goal not found: %w", err)
+	}
+
+	uncategorized, err := s.repo.GetUncategorizedBalance(ctx, tx, goal.AccountID, userID)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("failed to compute available balance: %w", err)
+	}
+	if req.Amount.GreaterThan(uncategorized) {
+		tx.Rollback()
+		return 0, fmt.Errorf("contribution of %s exceeds uncategorized balance of %s", req.Amount.StringFixed(2), uncategorized.StringFixed(2))
 	}
 
 	month, err := time.Parse("2006-01-02", req.Month)

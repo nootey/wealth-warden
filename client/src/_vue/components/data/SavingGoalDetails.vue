@@ -12,19 +12,21 @@ import type {
   SavingGoalWithProgress,
 } from "../../../models/savings_models.ts";
 import { useSavingsStore } from "../../../services/stores/savings_store.ts";
+import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import Decimal from "decimal.js";
 import dateHelper from "../../../utils/date_helper.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import { required } from "@vuelidate/validators";
 import { decimalMin, decimalValid } from "../../../validators/currency.ts";
 import useVuelidate from "@vuelidate/core";
+import filterHelper from "../../../utils/filter_helper.ts";
+import type { PaginatorState } from "../../../models/shared_models.ts";
+import CustomPaginator from "../base/CustomPaginator.vue";
 
 const props = defineProps<{
   goal: SavingGoalWithProgress;
-  contributions: SavingContribution[];
-  contribLoading: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -33,12 +35,60 @@ const emit = defineEmits<{
 
 const settingsStore = useSettingsStore();
 const savingsStore = useSavingsStore();
+const sharedStore = useSharedStore();
 const toastStore = useToastStore();
-
 const confirm = useConfirm();
 const { hasPermission } = usePermissions();
 
+const loading = ref(false);
+const contributions = ref<SavingContribution[]>([]);
 const addingContrib = ref(false);
+
+const rows = [5, 10, 25];
+const paginator = ref<PaginatorState>({
+  total: 0,
+  from: 0,
+  to: 0,
+  rowsPerPage: rows[0]!,
+});
+const page = ref(1);
+const sort = ref(filterHelper.initSort("month"));
+
+const apiPrefix = computed(() => `savings/${props.goal.id}/contributions`);
+const params = computed(() => ({
+  rowsPerPage: paginator.value.rowsPerPage,
+  sort: sort.value,
+}));
+
+onMounted(async () => {
+  await getData();
+});
+
+async function getData(new_page: number | null = null) {
+  loading.value = true;
+  if (new_page) page.value = new_page;
+  try {
+    const res = await sharedStore.getRecordsPaginated(
+      apiPrefix.value,
+      params.value,
+      page.value,
+    );
+    contributions.value = res.data;
+    paginator.value.total = res.total_records;
+    paginator.value.from = res.from;
+    paginator.value.to = res.to;
+  } catch (err) {
+    toastStore.errorResponseToast(err);
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function onPage(event: any) {
+  paginator.value.rowsPerPage = event.rows;
+  await getData(event.page + 1);
+}
+
 const contribForm = ref({
   amount: null as string | null,
   month: new Date() as Date | null,
@@ -76,6 +126,7 @@ async function addContribution() {
     emit("refresh");
     contribForm.value = { amount: null, month: new Date(), note: "" };
     cv$.value.$reset();
+    await getData();
   } catch (err) {
     toastStore.errorResponseToast(err);
   } finally {
@@ -98,6 +149,7 @@ function confirmDeleteContrib(contrib: SavingContribution) {
         );
         toastStore.successResponseToast(res);
         emit("refresh");
+        await getData();
       } catch (err) {
         toastStore.errorResponseToast(err);
       }
@@ -133,8 +185,7 @@ function confirmDeleteContrib(contrib: SavingContribution) {
           <span style="color: var(--text-secondary)"> saved</span>
         </div>
         <div class="text-sm" style="color: var(--text-secondary)">
-          {{ vueHelper.displayAsCurrency(goal?.target_amount ?? null) }}
-          target
+          {{ vueHelper.displayAsCurrency(goal?.target_amount ?? null) }} target
         </div>
       </div>
       <div
@@ -143,8 +194,8 @@ function confirmDeleteContrib(contrib: SavingContribution) {
         style="color: var(--text-secondary)"
       >
         {{ vueHelper.displayAsCurrency(goal.monthly_needed) }}/mo needed
-        <span v-if="goal.months_remaining">
-          &middot; {{ goal.months_remaining }} months left</span
+        <span v-if="goal.months_remaining"
+          >&middot; {{ goal.months_remaining }} months left</span
         >
       </div>
     </div>
@@ -200,7 +251,7 @@ function confirmDeleteContrib(contrib: SavingContribution) {
     <div class="flex flex-column gap-2">
       <div class="font-medium text-sm">History</div>
 
-      <ShowLoading v-if="contribLoading" :num-fields="3" />
+      <ShowLoading v-if="loading" :num-fields="3" />
 
       <div
         v-else-if="contributions.length === 0"
@@ -213,32 +264,39 @@ function confirmDeleteContrib(contrib: SavingContribution) {
         </div>
       </div>
 
-      <div
-        v-for="contrib in contributions"
-        v-else
-        :key="contrib.id"
-        class="flex flex-row align-items-center justify-content-between p-3 border-round-xl bordered"
-        style="background: var(--background-primary)"
-      >
-        <div class="flex flex-column gap-1">
-          <div class="font-medium text-sm">
-            {{ vueHelper.displayAsCurrency(contrib.amount) }}
+      <template v-else>
+        <div
+          v-for="contrib in contributions"
+          :key="contrib.id"
+          class="flex flex-row align-items-center justify-content-between p-3 border-round-xl bordered"
+          style="background: var(--background-primary)"
+        >
+          <div class="flex flex-column gap-1">
+            <div class="font-medium text-sm">
+              {{ vueHelper.displayAsCurrency(contrib.amount) }}
+            </div>
+            <div class="text-sm" style="color: var(--text-secondary)">
+              {{ dateHelper.formatDate(contrib.month, false, "MMM YYYY") }}
+              <span v-if="contrib.note"> &middot; {{ contrib.note }}</span>
+            </div>
           </div>
-          <div class="text-sm" style="color: var(--text-secondary)">
-            {{ dateHelper.formatDate(contrib.month, false, "MMM YYYY") }}
-            <span v-if="contrib.note"> &middot; {{ contrib.note }}</span>
+          <div class="flex flex-row align-items-center gap-2">
+            <Tag :value="contrib.source" severity="secondary" />
+            <i
+              v-if="hasPermission('manage_data')"
+              class="pi pi-trash hover-icon text-sm"
+              style="color: var(--p-red-300)"
+              @click="confirmDeleteContrib(contrib)"
+            />
           </div>
         </div>
-        <div class="flex flex-row align-items-center gap-2">
-          <Tag :value="contrib.source" severity="secondary" />
-          <i
-            v-if="hasPermission('manage_data')"
-            class="pi pi-trash hover-icon text-sm"
-            style="color: var(--p-red-300)"
-            @click="confirmDeleteContrib(contrib)"
-          />
-        </div>
-      </div>
+
+        <CustomPaginator
+          :paginator="paginator"
+          :rows="rows"
+          @on-page="onPage"
+        />
+      </template>
     </div>
   </div>
 </template>

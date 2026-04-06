@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useSavingsStore } from "../../services/stores/savings_store.ts";
 import { useAccountStore } from "../../services/stores/account_store.ts";
@@ -8,12 +8,10 @@ import SavingGoalForm from "../components/forms/SavingGoalForm.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
 import vueHelper from "../../utils/vue_helper.ts";
 import dateHelper from "../../utils/date_helper.ts";
-import type {
-  SavingGoalWithProgress,
-  SavingContribution,
-} from "../../models/savings_models.ts";
+import type { SavingGoalWithProgress } from "../../models/savings_models.ts";
 import SavingGoalDetails from "../components/data/SavingGoalDetails.vue";
 import savingsHelper from "../../utils/savings_helper.ts";
+import Decimal from "decimal.js";
 
 const toastStore = useToastStore();
 const savingsStore = useSavingsStore();
@@ -29,12 +27,10 @@ const selectedGoalID = ref<number | null>(null);
 
 const contribModal = ref(false);
 const selectedGoal = ref<SavingGoalWithProgress | null>(null);
-const contributions = ref<SavingContribution[]>([]);
-const contribLoading = ref(false);
 
 onMounted(async () => {
   await loadGoals();
-  await accountStore.getAllAccounts(false, true);
+  await accountStore.getAllAccountsWithBalance();
 });
 
 async function loadGoals() {
@@ -71,17 +67,9 @@ function openUpdate(goal: SavingGoalWithProgress) {
   updateModal.value = true;
 }
 
-async function openContributions(goal: SavingGoalWithProgress) {
+function openContributions(goal: SavingGoalWithProgress) {
   selectedGoal.value = goal;
   contribModal.value = true;
-  contribLoading.value = true;
-  try {
-    contributions.value = await savingsStore.fetchContributions(goal.id!);
-  } catch (err) {
-    toastStore.errorResponseToast(err);
-  } finally {
-    contribLoading.value = false;
-  }
 }
 
 async function handleGoalCreated() {
@@ -102,26 +90,58 @@ async function handleGoalDeleted() {
 
 async function handleContribRefresh() {
   await loadGoals();
-  if (selectedGoal.value) {
-    contribLoading.value = true;
-    try {
-      contributions.value = await savingsStore.fetchContributions(
-        selectedGoal.value.id!,
-      );
-      selectedGoal.value =
-        goals.value.find((g) => g.id === selectedGoal.value!.id) ??
-        selectedGoal.value;
-    } catch (err) {
-      toastStore.errorResponseToast(err);
-    } finally {
-      contribLoading.value = false;
-    }
-  }
+  selectedGoal.value =
+    goals.value.find((g) => g.id === selectedGoal.value!.id) ??
+    selectedGoal.value;
 }
 
 function accountName(accountID: number): string {
   return accountStore.accounts.find((a) => a.id === accountID)?.name ?? "—";
 }
+
+const groupedGoals = computed(() => {
+  const map = new Map<
+    number,
+    {
+      accountID: number;
+      accountName: string;
+      totalBalance: Decimal;
+      allocated: Decimal;
+      goals: SavingGoalWithProgress[];
+    }
+  >();
+
+  for (const goal of goals.value) {
+    if (!map.has(goal.account_id)) {
+      const account = accountStore.accounts.find(
+        (a) => a.id === goal.account_id,
+      );
+      const totalBalance = new Decimal(account?.balance?.end_balance ?? "0");
+      map.set(goal.account_id, {
+        accountID: goal.account_id,
+        accountName: account?.name ?? "—",
+        totalBalance,
+        allocated: new Decimal(0),
+        goals: [],
+      });
+    }
+    const group = map.get(goal.account_id)!;
+    group.allocated = group.allocated.add(
+      new Decimal(goal.current_amount ?? "0"),
+    );
+    group.goals.push(goal);
+  }
+
+  return Array.from(map.values()).map((g) => ({
+    ...g,
+    uncategorized: Decimal.max(g.totalBalance.sub(g.allocated), new Decimal(0)),
+    goals: [...g.goals].sort(
+      (a, b) =>
+        savingsHelper.goalSortOrder(a.status) -
+        savingsHelper.goalSortOrder(b.status),
+    ),
+  }));
+});
 </script>
 
 <template>
@@ -170,12 +190,7 @@ function accountName(accountID: number): string {
         </div>
       </div>
     </template>
-    <SavingGoalDetails
-      :goal="selectedGoal!"
-      :contributions="contributions"
-      :contrib-loading="contribLoading"
-      @refresh="handleContribRefresh"
-    />
+    <SavingGoalDetails :goal="selectedGoal!" @refresh="handleContribRefresh" />
   </Dialog>
 
   <main class="flex flex-column w-full align-items-center">
@@ -224,96 +239,136 @@ function accountName(accountID: number): string {
           </div>
         </div>
 
-        <div
-          v-for="goal in goals"
-          v-else
-          :key="goal.id"
-          class="flex flex-column gap-1 p-1"
-          style="background: var(--background-primary)"
-        >
+        <div v-else class="flex flex-column gap-4">
           <div
-            class="flex flex-column p-3 gap-3 border-round-xl mt-3 bordered"
-            style="
-              border: 1px solid var(--border-color);
-              background: var(--background-secondary);
-            "
+            v-for="group in groupedGoals"
+            :key="group.accountID"
+            class="flex flex-column gap-2"
           >
+            <!-- Account header -->
             <div
-              class="flex flex-row align-items-center justify-content-between gap-2"
+              class="flex flex-row align-items-center justify-content-between gap-2 px-1"
+            >
+              <div class="font-bold">{{ group.accountName }}</div>
+              <div
+                class="flex flex-row gap-3 text-sm"
+                style="color: var(--text-secondary)"
+              >
+                <span>
+                  <span
+                    class="font-medium"
+                    style="color: var(--text-primary)"
+                    >{{
+                      vueHelper.displayAsCurrency(group.allocated.toString())
+                    }}</span
+                  >
+                  allocated
+                </span>
+                <span>
+                  <span
+                    class="font-medium"
+                    style="color: var(--text-primary)"
+                    >{{
+                      vueHelper.displayAsCurrency(
+                        group.uncategorized.toString(),
+                      )
+                    }}</span
+                  >
+                  free
+                </span>
+              </div>
+            </div>
+
+            <!-- Goals -->
+            <div
+              v-for="goal in group.goals"
+              :key="goal.id"
+              class="flex flex-column p-3 gap-3 border-round-xl bordered"
+              :style="{
+                background: 'var(--background-secondary)',
+                opacity: savingsHelper.isGoalDimmed(goal.status) ? '0.55' : '1',
+              }"
             >
               <div
-                class="flex flex-row align-items-center gap-2 flex-1 min-w-0"
+                class="flex flex-row align-items-center justify-content-between gap-2"
               >
                 <div
-                  class="font-bold"
-                  style="
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    cursor: pointer;
-                  "
-                  @click="openContributions(goal)"
+                  class="flex flex-row align-items-center gap-2 flex-1 min-w-0"
                 >
-                  {{ goal.name }}
+                  <div
+                    class="font-bold"
+                    style="
+                      white-space: nowrap;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      cursor: pointer;
+                    "
+                    @click="openContributions(goal)"
+                  >
+                    {{ goal.name }}
+                  </div>
                 </div>
-                <div
-                  class="text-xs"
-                  style="color: var(--text-secondary); white-space: nowrap"
-                >
-                  {{ accountName(goal.account_id) }}
+                <div class="flex flex-row align-items-center gap-2">
+                  <Tag
+                    v-if="goal.status !== 'active'"
+                    :value="savingsHelper.goalStatusLabel(goal.status)"
+                    :severity="
+                      savingsHelper.goalStatusSeverity(goal.status) as any
+                    "
+                  />
+                  <Tag
+                    v-else
+                    :value="savingsHelper.trackStatusLabel(goal.track_status)"
+                    :severity="
+                      savingsHelper.trackStatusSeverity(
+                        goal.track_status,
+                      ) as any
+                    "
+                  />
+                  <i
+                    v-if="hasPermission('manage_data')"
+                    class="pi pi-pencil hover-icon text-sm"
+                    style="color: var(--text-secondary)"
+                    @click="openUpdate(goal)"
+                  />
                 </div>
               </div>
-              <div class="flex flex-row align-items-center gap-2" @click.stop>
-                <Tag
-                  :value="savingsHelper.trackStatusLabel(goal.track_status)"
-                  :severity="
-                    savingsHelper.trackStatusSeverity(goal.track_status) as any
-                  "
-                />
-                <i
-                  v-if="hasPermission('manage_data')"
-                  class="pi pi-pencil hover-icon text-sm"
-                  style="color: var(--text-secondary)"
-                  @click="openUpdate(goal)"
-                />
-              </div>
-            </div>
 
-            <ProgressBar
-              :value="savingsHelper.progressPercent(goal)"
-              style="height: 14px"
-            />
+              <ProgressBar
+                :value="savingsHelper.progressPercent(goal)"
+                style="height: 14px"
+              />
 
-            <div
-              class="flex flex-row justify-content-between align-items-center"
-            >
-              <div class="text-sm">
-                <span class="font-bold">{{
-                  vueHelper.displayAsCurrency(goal.current_amount)
-                }}</span>
-                <span style="color: var(--text-secondary)">
-                  / {{ vueHelper.displayAsCurrency(goal.target_amount) }}</span
-                >
-              </div>
-              <div class="text-sm" style="color: var(--text-secondary)">
-                <span v-if="goal.target_date">
-                  {{
+              <div
+                class="flex flex-row justify-content-between align-items-center"
+              >
+                <div class="text-sm">
+                  <span class="font-bold">{{
+                    vueHelper.displayAsCurrency(goal.current_amount)
+                  }}</span>
+                  <span style="color: var(--text-secondary)">
+                    /
+                    {{ vueHelper.displayAsCurrency(goal.target_amount) }}</span
+                  >
+                </div>
+                <div class="text-sm" style="color: var(--text-secondary)">
+                  <span v-if="goal.target_date">{{
                     dateHelper.formatDate(goal.target_date, false, "MMM YYYY")
-                  }}
-                </span>
-                <span v-else>No deadline</span>
+                  }}</span>
+                  <span v-else>No deadline</span>
+                </div>
               </div>
-            </div>
 
-            <div
-              v-if="goal.monthly_needed && goal.track_status !== 'completed'"
-              class="text-sm"
-              style="color: var(--text-secondary)"
-            >
-              {{ vueHelper.displayAsCurrency(goal.monthly_needed) }}/mo
-              <span v-if="goal.months_remaining"
-                >&middot; {{ goal.months_remaining }} months left</span
+              <div
+                v-if="goal.monthly_needed && goal.track_status !== 'completed'"
+                class="text-sm"
+                style="color: var(--text-secondary)"
               >
+                {{ vueHelper.displayAsCurrency(goal.monthly_needed) }}/mo
+                <span v-if="goal.months_remaining"
+                  >&middot; {{ goal.months_remaining }} months left</span
+                >
+              </div>
             </div>
           </div>
         </div>

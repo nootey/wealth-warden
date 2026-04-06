@@ -154,13 +154,22 @@ func (h *SavingsHandler) GetContributions(c *gin.Context) {
 		return
 	}
 
-	records, err := h.service.FetchContributions(ctx, userID, goalID)
+	p := utils.GetPaginationParams(c.Request.URL.Query())
+
+	records, paginator, err := h.service.FetchContributionsPaginated(ctx, userID, goalID, p)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, records)
+	c.JSON(http.StatusOK, gin.H{
+		"current_page":  paginator.CurrentPage,
+		"rows_per_page": paginator.RowsPerPage,
+		"from":          paginator.From,
+		"to":            paginator.To,
+		"total_records": paginator.TotalRecords,
+		"data":          records,
+	})
 }
 
 func (h *SavingsHandler) InsertContribution(c *gin.Context) {

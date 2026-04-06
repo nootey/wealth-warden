@@ -22,6 +22,17 @@ export const useAccountStore = defineStore("account", {
         this.accounts = response.data;
       }
     },
+    async getAllAccountsWithBalance() {
+      const response = await apiClient.get(this.apiPrefix, {
+        params: {
+          rowsPerPage: 25,
+          page: 1,
+          inactive: false,
+          sort: { order: -1, field: "opened_at" },
+        },
+      });
+      this.accounts = response.data.data;
+    },
     async getAccountTypes() {
       const response = await apiClient.get(`${this.apiPrefix}/types`);
       this.accountTypes = response.data;

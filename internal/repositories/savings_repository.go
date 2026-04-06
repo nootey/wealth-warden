@@ -5,6 +5,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -17,7 +18,10 @@ type SavingsRepositoryInterface interface {
 	DeleteGoal(ctx context.Context, tx *gorm.DB, id int64) error
 	UpdateCurrentAmount(ctx context.Context, tx *gorm.DB, goalID int64, amount models.SavingGoal) error
 
+	GetUncategorizedBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error)
+	CountContributions(ctx context.Context, tx *gorm.DB, goalID int64) (int64, error)
 	FindContributions(ctx context.Context, tx *gorm.DB, goalID int64) ([]models.SavingContribution, error)
+	FindContributionsPaginated(ctx context.Context, tx *gorm.DB, goalID int64, offset, limit int) ([]models.SavingContribution, error)
 	FindContributionByID(ctx context.Context, tx *gorm.DB, id, userID int64) (models.SavingContribution, error)
 	InsertContribution(ctx context.Context, tx *gorm.DB, record *models.SavingContribution) (int64, error)
 	DeleteContribution(ctx context.Context, tx *gorm.DB, id int64) error
@@ -129,6 +133,66 @@ func (r *SavingsRepository) UpdateCurrentAmount(ctx context.Context, tx *gorm.DB
 			"current_amount": record.CurrentAmount,
 			"updated_at":     time.Now().UTC(),
 		}).Error
+}
+
+func (r *SavingsRepository) GetUncategorizedBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var endBalance decimal.Decimal
+	err := db.Raw(
+		`SELECT COALESCE(end_balance, 0) FROM balances WHERE account_id = ? ORDER BY as_of DESC LIMIT 1`,
+		accountID,
+	).Scan(&endBalance).Error
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	var allocated decimal.Decimal
+	err = db.Raw(
+		`SELECT COALESCE(SUM(current_amount), 0) FROM saving_goals WHERE account_id = ? AND user_id = ?`,
+		accountID, userID,
+	).Scan(&allocated).Error
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	uncategorized := endBalance.Sub(allocated)
+	if uncategorized.IsNegative() {
+		return decimal.Zero, nil
+	}
+	return uncategorized, nil
+}
+
+func (r *SavingsRepository) CountContributions(ctx context.Context, tx *gorm.DB, goalID int64) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var count int64
+	err := db.Model(&models.SavingContribution{}).Where("goal_id = ?", goalID).Count(&count).Error
+	return count, err
+}
+
+func (r *SavingsRepository) FindContributionsPaginated(ctx context.Context, tx *gorm.DB, goalID int64, offset, limit int) ([]models.SavingContribution, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.SavingContribution
+	err := db.Model(&models.SavingContribution{}).
+		Where("goal_id = ?", goalID).
+		Order("month DESC, created_at DESC").
+		Offset(offset).Limit(limit).
+		Find(&records).Error
+	return records, err
 }
 
 func (r *SavingsRepository) FindContributions(ctx context.Context, tx *gorm.DB, goalID int64) ([]models.SavingContribution, error) {
