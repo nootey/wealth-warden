@@ -346,6 +346,7 @@ const groupedGoals = computed(() => {
               <ProgressBar
                 :value="savingsHelper.progressPercent(goal)"
                 style="height: 14px"
+                :pt="{ label: { style: 'color: white' } }"
               />
 
               <div

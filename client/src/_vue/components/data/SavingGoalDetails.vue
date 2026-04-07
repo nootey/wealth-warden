@@ -176,6 +176,7 @@ function confirmDeleteContrib(contrib: SavingContribution) {
       <ProgressBar
         :value="savingsHelper.progressPercent(goal)"
         style="height: 8px"
+        :pt="{ label: { style: 'color: white' } }"
       />
       <div class="flex flex-row justify-content-between">
         <div class="text-sm">

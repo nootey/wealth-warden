@@ -57,7 +57,7 @@ const savingsHelper = {
   },
   progressPercent(goal: SavingGoalWithProgress): number {
     const p = Number(goal.progress_percent);
-    return isNaN(p) ? 0 : Math.min(p, 100);
+    return isNaN(p) ? 0 : parseFloat(Math.min(p, 100).toFixed(2));
   },
 };
 
