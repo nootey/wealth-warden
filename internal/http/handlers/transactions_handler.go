@@ -670,7 +670,7 @@ func (h *TransactionHandler) UpdateTransactionTemplate(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
 }
 
 func (h *TransactionHandler) RenameTransactionTemplate(c *gin.Context) {
@@ -696,7 +696,7 @@ func (h *TransactionHandler) RenameTransactionTemplate(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Record renamed", "Success", http.StatusOK)
 }
 
 func (h *TransactionHandler) ToggleTransactionTemplateActiveState(c *gin.Context) {

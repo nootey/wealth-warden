@@ -3,10 +3,12 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 	"wealth-warden/internal/models"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/shopspring/decimal"
 )
 
 func ValidateAccount(acc *models.Account, role string) error {
@@ -22,7 +24,7 @@ func ValidateAccount(acc *models.Account, role string) error {
 func LocalMidnightUTC(t time.Time, loc *time.Location) time.Time {
 	local := t.In(loc)
 	y, m, d := local.Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, loc).UTC()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
 func CalculateNextRun(current time.Time, frequency string, dayOfMonth int, loc *time.Location) time.Time {
@@ -103,6 +105,19 @@ func AdjustToWeekday(date time.Time) time.Time {
 	default:
 		return date
 	}
+}
+
+// CheckGoalAllocation returns an error if amountBeingRemoved would eat into
+// goal-allocated balance. Pass the uncategorizedBalance from GetUncategorizedBalance.
+func CheckGoalAllocation(amountBeingRemoved, uncategorizedBalance decimal.Decimal, classification string) error {
+	if strings.EqualFold(classification, "liability") {
+		return nil
+	}
+	if amountBeingRemoved.GreaterThan(uncategorizedBalance) {
+		return fmt.Errorf("insufficient free balance: %s available - archive goals or remove contributions to proceed",
+			uncategorizedBalance.StringFixed(2))
+	}
+	return nil
 }
 
 func IsUniqueViolation(err error) bool {

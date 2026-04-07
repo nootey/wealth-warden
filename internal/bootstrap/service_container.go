@@ -31,6 +31,7 @@ type ServiceContainer struct {
 	InvestmentService  *services.InvestmentService
 	NotesService       *services.NotesService
 	AnalyticsService   *services.AnalyticsService
+	SavingsService     *services.SavingsService
 }
 
 // NewServiceContainer initialises the application service layer.
@@ -64,14 +65,15 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	investmentRepo := repositories.NewInvestmentRepository(db)
 	notesRepo := repositories.NewNotesRepository(db)
 	analyticsRepo := repositories.NewAnalyticsRepository(db)
+	savingsRepo := repositories.NewSavingsRepository(db)
 
 	// Initialize services
 	loggingService := services.NewLoggingService(loggingRepo)
 	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, loggingRepo, jobDispatcher, mail)
 	roleService := services.NewRolePermissionService(roleRepo, loggingRepo, jobDispatcher)
 	userService := services.NewUserService(userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
-	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, transactionRepo, settingsRepo, loggingRepo, investmentRepo, jobDispatcher)
-	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
+	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, transactionRepo, settingsRepo, loggingRepo, savingsRepo, investmentRepo, jobDispatcher)
+	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, savingsRepo, jobDispatcher)
 	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, loggingRepo, transactionRepo, jobDispatcher)
 	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, investmentRepo, settingsRepo, loggingRepo, jobDispatcher)
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
@@ -79,6 +81,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	notesService := services.NewNotesService(notesRepo, loggingRepo, jobDispatcher)
 	analyticsService := services.NewAnalyticsService(analyticsRepo, accountRepo, transactionRepo, settingsRepo)
 	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService, accountService, userService)
+	savingsService := services.NewSavingsService(savingsRepo, accountRepo, loggingRepo, jobDispatcher)
 
 	return &ServiceContainer{
 		Config:             cfg,
@@ -97,5 +100,6 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 		InvestmentService:  investmentService,
 		NotesService:       notesService,
 		AnalyticsService:   analyticsService,
+		SavingsService:     savingsService,
 	}, nil
 }

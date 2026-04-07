@@ -50,6 +50,7 @@ type AccountServiceInterface interface {
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
 	SyncAssetPnL(ctx context.Context, userID, assetID int64) error
 	SyncAccountPnL(ctx context.Context, userID, accountID int64) error
+	MergeAccount(ctx context.Context, userID, sourceID, destinationID int64) error
 }
 
 type AccountService struct {
@@ -57,6 +58,7 @@ type AccountService struct {
 	txnRepo        repositories.TransactionRepositoryInterface
 	settingsRepo   repositories.SettingsRepositoryInterface
 	loggingRepo    repositories.LoggingRepositoryInterface
+	savingsRepo    repositories.SavingsRepositoryInterface
 	investmentRepo repositories.InvestmentRepositoryInterface
 	jobDispatcher  queue.JobDispatcher
 	logger         *zap.Logger
@@ -68,6 +70,7 @@ func NewAccountService(
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
+	savingsRepo *repositories.SavingsRepository,
 	investmentRepo *repositories.InvestmentRepository,
 	jobDispatcher queue.JobDispatcher,
 ) *AccountService {
@@ -76,6 +79,7 @@ func NewAccountService(
 		txnRepo:        txnRepo,
 		settingsRepo:   settingsRepo,
 		loggingRepo:    loggingRepo,
+		savingsRepo:    savingsRepo,
 		investmentRepo: investmentRepo,
 		jobDispatcher:  jobDispatcher,
 		logger:         logger,
@@ -506,6 +510,18 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		}
 
 		delta = desired.Sub(latestBalance.EndBalance)
+
+		if delta.IsNegative() {
+			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, exAcc.ID, userID)
+			if err != nil {
+				tx.Rollback()
+				return 0, err
+			}
+			if err := utils.CheckGoalAllocation(delta.Neg(), uncategorized, newAccType.Classification); err != nil {
+				tx.Rollback()
+				return 0, err
+			}
+		}
 		signed := delta
 
 		if !signed.IsZero() {
@@ -1230,4 +1246,215 @@ func (s *AccountService) SyncAccountPnL(ctx context.Context, userID, accountID i
 		s.logger.Named("pnl_sync"),
 		s, userID, nil, &accountID,
 	))
+}
+
+func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, destinationID int64) error {
+	if sourceID == destinationID {
+		return errors.New("source and destination accounts must be different")
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	srcAcc, err := s.repo.FindAccountByID(ctx, tx, sourceID, userID, false, true)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("source account not found: %w", err)
+	}
+	dstAcc, err := s.repo.FindAccountByID(ctx, tx, destinationID, userID, false, true)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("destination account not found: %w", err)
+	}
+
+	// Guard: investment and crypto accounts require the same type and sub-type (no cross-merging)
+	srcType := strings.ToLower(srcAcc.AccountType.Type)
+	if srcType == "investment" || srcType == "crypto" {
+		if srcAcc.AccountType.Type != dstAcc.AccountType.Type || srcAcc.AccountType.Subtype != dstAcc.AccountType.Subtype {
+			tx.Rollback()
+			return fmt.Errorf(
+				"investment/crypto accounts can only be merged into an account with the same type and sub-type (%s / %s)",
+				srcAcc.AccountType.Type, srcAcc.AccountType.Subtype,
+			)
+		}
+	}
+
+	// Guard: liability accounts can only be merged into other liability accounts
+	srcIsLiability := strings.ToLower(srcAcc.AccountType.Classification) == "liability"
+	dstIsLiability := strings.ToLower(dstAcc.AccountType.Classification) == "liability"
+	if srcIsLiability != dstIsLiability {
+		tx.Rollback()
+		return fmt.Errorf("liability accounts can only be merged into other liability accounts")
+	}
+
+	// Count transactions being moved before the bulk update
+	txnCount, err := s.txnRepo.CountTransactions(ctx, tx, userID, []utils.Filter{}, false, &sourceID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Resolve the earliest source transaction date for the balance rebuild
+	earliestTxnDate, err := s.repo.FindEarliestTransactionDate(ctx, tx, sourceID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Soft-delete transfers between the two accounts and flag their transactions as adjustments
+	transfers, err := s.txnRepo.FindTransfersBetweenAccounts(ctx, tx, sourceID, destinationID, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	now := time.Now().UTC()
+	for _, t := range transfers {
+		txnIDs := []int64{t.TransactionInflowID, t.TransactionOutflowID}
+		if err := tx.Model(&models.Transaction{}).
+			Where("id IN ?", txnIDs).
+			Updates(map[string]any{
+				"is_adjustment": true,
+				"updated_at":    now,
+			}).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := tx.Model(&models.Transfer{}).Where("id = ?", t.ID).Updates(map[string]any{
+			"deleted_at": now,
+			"updated_at": now,
+		}).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// Reassign transactions from source to destination
+	if err := s.txnRepo.BulkUpdateTransactionAccountID(ctx, tx, sourceID, destinationID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Reassign templates from source to destination
+	if err := s.txnRepo.BulkUpdateTemplateAccountIDs(ctx, tx, sourceID, destinationID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Reassign investment assets from source to destination (investment and crypto only)
+	if srcType == "investment" || srcType == "crypto" {
+		if err := s.investmentRepo.BulkUpdateAssetAccountID(ctx, tx, sourceID, destinationID, userID); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	dstOpeningDay := dstAcc.OpenedAt.UTC().Truncate(24 * time.Hour)
+
+	// If source transactions predate the destination's opening date, push opened_at back
+	// to one day before the earliest transaction so the validator is satisfied.
+	if earliestTxnDate != nil && earliestTxnDate.Before(dstOpeningDay) {
+		dstOpeningDay = earliestTxnDate.AddDate(0, 0, -1)
+		if err := tx.WithContext(ctx).Model(&models.Account{}).
+			Where("id = ? AND user_id = ?", destinationID, userID).
+			Update("opened_at", dstOpeningDay).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// Rebuild cash flows for both accounts from their respective opening dates.
+	// Source will have 0 transactions after the bulk move, zeroing all its cash flow rows.
+	// Dest gets new rows created and flows recomputed to include the moved transactions.
+	srcOpeningDate := srcAcc.OpenedAt.UTC().Truncate(24 * time.Hour)
+	if err := s.repo.RebuildCashFlowsForAccount(ctx, tx, sourceID, srcAcc.Currency, srcOpeningDate); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if earliestTxnDate != nil {
+		if err := s.repo.RebuildCashFlowsForAccount(ctx, tx, destinationID, dstAcc.Currency, *earliestTxnDate); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// Transfer the source's opening start_balance to the destination, and zero it on source.
+	// This value is stored as start_balance on the opening balance row, not as a transaction,
+	// so it is not picked up by RebuildCashFlowsForAccount.
+	var srcOpeningBal models.Balance
+	if err := tx.WithContext(ctx).Where("account_id = ?", sourceID).Order("as_of ASC").First(&srcOpeningBal).Error; err == nil {
+		if !srcOpeningBal.StartBalance.IsZero() {
+			if err := tx.WithContext(ctx).Model(&models.Balance{}).
+				Where("account_id = ? AND as_of = ?", destinationID, dstOpeningDay).
+				Update("start_balance", gorm.Expr("start_balance + ?", srcOpeningBal.StartBalance)).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+			if err := tx.WithContext(ctx).Model(&models.Balance{}).
+				Where("account_id = ? AND as_of = ?", sourceID, srcOpeningBal.AsOf).
+				Update("start_balance", decimal.Zero).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	}
+
+	// Propagate the updated chains for both accounts.
+	if err := s.repo.FrontfillBalances(ctx, tx, sourceID, srcAcc.Currency, srcOpeningDate); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := s.repo.FrontfillBalances(ctx, tx, destinationID, dstAcc.Currency, dstOpeningDay); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Close the source account
+	if err := s.repo.CloseAccount(ctx, tx, sourceID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Rebuild snapshots for source and dest inside the same transaction.
+	for _, pair := range []struct {
+		id       int64
+		currency string
+		from     time.Time
+	}{
+		{sourceID, srcAcc.Currency, srcOpeningDate},
+		{destinationID, dstAcc.Currency, dstOpeningDay},
+	} {
+		if err := s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, pair.id, pair.currency, pair.from, now.Truncate(24*time.Hour)); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(srcAcc.Name, "", changes, "source_account")
+	utils.CompareChanges("", dstAcc.Name, changes, "destination_account")
+	utils.CompareChanges("", strconv.FormatInt(txnCount, 10), changes, "transactions_moved")
+	utils.CompareChanges("", strconv.FormatInt(int64(len(transfers)), 10), changes, "transfers_removed")
+
+	return s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
+		Event:       "merge",
+		Category:    "account",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	})
 }

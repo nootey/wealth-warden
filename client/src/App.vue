@@ -10,6 +10,7 @@ import vueHelper from "./utils/vue_helper.ts";
 import router from "./services/router/main.ts";
 import AppFooter from "./AppFooter.vue";
 import AppNotesBar from "./AppNotesBar.vue";
+import AccountSideBar from "./AccountSideBar.vue";
 
 const authStore = useAuthStore();
 const themeStore = useThemeStore();
@@ -26,7 +27,8 @@ const hideNavigation = computed<boolean>(() =>
   route.matched.some((r) => r.meta.hideNavigation),
 );
 
-const sidebarRef = ref<InstanceType<typeof AppSideBar> | null>(null);
+const appSidebarRef = ref<InstanceType<typeof AppSideBar> | null>(null);
+const accSidebarRef = ref<InstanceType<typeof AccountSideBar> | null>(null);
 const notesRef = ref<InstanceType<typeof AppNotesBar> | null>(null);
 
 onMounted(async () => {
@@ -106,6 +108,11 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
   <div id="app">
     <AppNavBar v-if="isAuthenticated && isInitialized && !hideNavigation" />
 
+    <AccountSideBar
+      v-if="isAuthenticated && isInitialized && !hideNavigation"
+      ref="accSidebarRef"
+    />
+
     <div
       class="flex-1 app-content"
       :style="{
@@ -132,6 +139,10 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
           style="max-width: 1000px; margin: 0 auto; padding: 1rem 0.5rem 0 0"
         >
           <div id="crumbs" class="flex gap-1 text-center align-items-center">
+            <i
+              class="pi pi-wallet hover-icon mr-1"
+              @click="accSidebarRef?.toggle && accSidebarRef.toggle()"
+            />
             <i class="pi pi-ellipsis-v mobile-only text-xs hover-icon" />
             <template v-for="(part, index) in pageTitle" :key="index">
               <span
@@ -164,7 +175,7 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
             <i
               class="pi pi-book hover-icon"
               style="margin-left: 0"
-              @click="sidebarRef?.toggle && sidebarRef.toggle()"
+              @click="appSidebarRef?.toggle && appSidebarRef.toggle()"
             />
           </div>
         </div>
@@ -176,7 +187,7 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
 
     <AppSideBar
       v-if="isAuthenticated && isInitialized && !hideNavigation"
-      ref="sidebarRef"
+      ref="appSidebarRef"
     />
 
     <AppNotesBar

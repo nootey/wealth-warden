@@ -34,7 +34,8 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 	jobDispatcher := &queue.InMemoryDispatcher{Queue: jobQueue}
 
 	investmentRepo := repositories.NewInvestmentRepository(db)
-	accService := services.NewAccountService(zap.NewNop(), accRepo, txnRepo, settingsRepo, loggingRepo, investmentRepo, jobDispatcher)
+	savingsRepo := repositories.NewSavingsRepository(db)
+	accService := services.NewAccountService(zap.NewNop(), accRepo, txnRepo, settingsRepo, loggingRepo, savingsRepo, investmentRepo, jobDispatcher)
 
 	var incCats, expCats []models.Category
 	_ = db.WithContext(ctx).Where("classification = ?", "income").Find(&incCats).Error

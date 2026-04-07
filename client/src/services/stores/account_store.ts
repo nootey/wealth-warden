@@ -22,6 +22,17 @@ export const useAccountStore = defineStore("account", {
         this.accounts = response.data;
       }
     },
+    async getAllAccountsWithBalance() {
+      const response = await apiClient.get(this.apiPrefix, {
+        params: {
+          rowsPerPage: 25,
+          page: 1,
+          inactive: false,
+          sort: { order: -1, field: "opened_at" },
+        },
+      });
+      this.accounts = response.data.data;
+    },
     async getAccountTypes() {
       const response = await apiClient.get(`${this.apiPrefix}/types`);
       this.accountTypes = response.data;
@@ -100,6 +111,13 @@ export const useAccountStore = defineStore("account", {
     },
     async syncBalances() {
       await apiClient.post(`${this.apiPrefix}/sync/balances`);
+    },
+    async mergeAccounts(sourceID: number, destinationID: number) {
+      const response = await apiClient.post(`${this.apiPrefix}/merge`, {
+        source_id: sourceID,
+        destination_id: destinationID,
+      });
+      return response.data;
     },
   },
 });

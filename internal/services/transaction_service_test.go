@@ -2956,6 +2956,109 @@ func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedByInvestment
 	s.Assert().NotNil(txn.DeletedAt, "transaction should still be deleted")
 }
 
+func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByGoalAllocation() {
+	accSvc := s.TC.App.AccountService
+	savSvc := s.TC.App.SavingsService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(1000)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Savings Account",
+		AccountTypeID: 2,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	alloc := decimal.NewFromInt(500)
+	goalID, err := savSvc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:         accID,
+		Name:              "Holiday Fund",
+		TargetAmount:      decimal.NewFromInt(5000),
+		MonthlyAllocation: &alloc,
+	})
+	s.Require().NoError(err)
+
+	goalWithProgress, err := savSvc.FetchGoalByID(s.Ctx, userID, goalID)
+	s.Require().NoError(err)
+
+	// Fund goal so $500 is allocated — uncategorized balance = $500
+	_, _, err = savSvc.AutoFundGoal(s.Ctx, goalWithProgress.SavingGoal, time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC))
+	s.Require().NoError(err)
+
+	// Expense of $600 should be blocked — only $500 is free
+	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:       accID,
+		TransactionType: "expense",
+		Amount:          decimal.NewFromInt(600),
+		TxnDate:         today,
+	})
+	s.Require().Error(err, "should block expense that would eat into goal allocations")
+
+	var txnCount int64
+	err = s.TC.DB.WithContext(s.Ctx).
+		Model(&models.Transaction{}).
+		Where("account_id = ?", accID).
+		Count(&txnCount).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
+}
+
+func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByGoalAllocation() {
+	accSvc := s.TC.App.AccountService
+	savSvc := s.TC.App.SavingsService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Savings Account",
+		AccountTypeID: 2,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	goalID, err := savSvc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:    accID,
+		Name:         "Emergency Fund",
+		TargetAmount: decimal.NewFromInt(5000),
+	})
+	s.Require().NoError(err)
+
+	// Simulate past contributions: set current_amount to $200 directly.
+	// This represents previously accumulated allocations exceeding the opening balance,
+	// which is the state that makes deleting income dangerous.
+	err = s.TC.DB.WithContext(s.Ctx).
+		Exec("UPDATE saving_goals SET current_amount = 200 WHERE id = ?", goalID).Error
+	s.Require().NoError(err)
+
+	// Add $150 income — balance becomes $250, uncategorized = $250 - $200 = $50
+	income, err := txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:       accID,
+		TransactionType: "income",
+		Amount:          decimal.NewFromInt(150),
+		TxnDate:         today,
+	})
+	s.Require().NoError(err)
+
+	// Deleting $150 income: check is $150 > uncategorized ($50) — should be blocked
+	err = txnSvc.DeleteTransaction(s.Ctx, userID, income.ID)
+	s.Require().Error(err, "should block deleting income that would eat into goal allocations")
+
+	var txn models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("id = ?", income.ID).
+		First(&txn).Error
+	s.Require().NoError(err)
+	s.Assert().True(decimal.NewFromInt(150).Equal(txn.Amount), "income transaction should still exist")
+}
+
 func (s *TransactionServiceTestSuite) TestInsertTransaction_IdempotencyKey_DeduplicatesOnRetry() {
 	svc := s.TC.App.TransactionService
 	accSvc := s.TC.App.AccountService

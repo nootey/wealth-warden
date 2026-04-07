@@ -234,6 +234,7 @@ defineExpose({ refresh: getData });
 
   <div class="flex flex-column w-full gap-3">
     <div
+      v-if="advanced"
       id="balance-row"
       class="flex w-full p-3 gap-2 border-round-xl bordered justify-content-between align-items-center"
       style="max-width: 1000px"

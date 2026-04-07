@@ -59,6 +59,7 @@ type TransactionService struct {
 	accRepo       repositories.AccountRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
+	savingsRepo   repositories.SavingsRepositoryInterface
 	jobDispatcher queue.JobDispatcher
 }
 
@@ -67,6 +68,7 @@ func NewTransactionService(
 	accRepo *repositories.AccountRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
+	savingsRepo *repositories.SavingsRepository,
 	jobDispatcher queue.JobDispatcher,
 ) *TransactionService {
 	return &TransactionService{
@@ -74,6 +76,7 @@ func NewTransactionService(
 		accRepo:       accRepo,
 		settingsRepo:  settingsRepo,
 		loggingRepo:   loggingRepo,
+		savingsRepo:   savingsRepo,
 		jobDispatcher: jobDispatcher,
 	}
 }
@@ -265,6 +268,16 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 			return models.InsertResult{}, fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
 				resultingBalance.StringFixed(2))
 		}
+
+		uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return models.InsertResult{}, err
+		}
+		if err := utils.CheckGoalAllocation(req.Amount, uncategorized, account.AccountType.Classification); err != nil {
+			tx.Rollback()
+			return models.InsertResult{}, err
+		}
 	}
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
@@ -438,6 +451,16 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 				fromAcc.Name,
 				fromAcc.Balance.EndBalance.StringFixed(2),
 				req.Amount.StringFixed(2))
+		}
+
+		uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, fromAcc.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return models.InsertResult{}, err
+		}
+		if err := utils.CheckGoalAllocation(req.Amount, uncategorized, fromAcc.AccountType.Classification); err != nil {
+			tx.Rollback()
+			return models.InsertResult{}, err
 		}
 	}
 
@@ -721,6 +744,16 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 			return 0, fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
 				resultingBalance.StringFixed(2))
 		}
+
+		uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, newAccount.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+		if err := utils.CheckGoalAllocation(netChange.Neg(), uncategorized, newAccount.AccountType.Classification); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
 	}
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
@@ -977,6 +1010,16 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 			return fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
 				resultingBalance.StringFixed(2))
 		}
+
+		uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := utils.CheckGoalAllocation(tr.Amount, uncategorized, account.AccountType.Classification); err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	// Delete transaction
@@ -1121,6 +1164,16 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 				fromAcc.Name,
 				fromAcc.Balance.EndBalance.StringFixed(2),
 				netChange.StringFixed(2))
+		}
+
+		uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, fromAcc.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := utils.CheckGoalAllocation(netChange, uncategorized, fromAcc.AccountType.Classification); err != nil {
+			tx.Rollback()
+			return err
 		}
 	}
 

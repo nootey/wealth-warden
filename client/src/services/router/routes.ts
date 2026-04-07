@@ -6,7 +6,7 @@ import SignUp from "../../_vue/features/auth/SignUp.vue";
 import ConfirmEmail from "../../_vue/features/auth/ConfirmEmail.vue";
 import ForgotPassword from "../../_vue/features/auth/ForgotPassword.vue";
 import TransactionsPage from "../../_vue/pages/TransactionsPage.vue";
-import AccountsPage from "../../_vue/pages/AccountsPage.vue";
+import GoalsPage from "../../_vue/pages/GoalsPage.vue";
 import SettingsPage from "../../_vue/pages/SettingsPage.vue";
 import ResetPassword from "../../_vue/features/auth/ResetPassword.vue";
 import UsersPage from "../../_vue/pages/UsersPage.vue";
@@ -95,10 +95,10 @@ const routes: RouteRecordRaw[] = [
     component: ResetPassword,
   },
   {
-    path: "/accounts",
-    name: "accounts",
-    meta: { title: "Accounts", requiresAuth: true },
-    component: AccountsPage,
+    path: "/goals",
+    name: "goals",
+    meta: { title: "Goals", requiresAuth: true },
+    component: GoalsPage,
   },
   {
     path: "/transactions",
