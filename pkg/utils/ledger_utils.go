@@ -24,7 +24,7 @@ func ValidateAccount(acc *models.Account, role string) error {
 func LocalMidnightUTC(t time.Time, loc *time.Location) time.Time {
 	local := t.In(loc)
 	y, m, d := local.Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, loc).UTC()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
 func CalculateNextRun(current time.Time, frequency string, dayOfMonth int, loc *time.Location) time.Time {
