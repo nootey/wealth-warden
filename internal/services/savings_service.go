@@ -32,17 +32,20 @@ type SavingsServiceInterface interface {
 
 type SavingsService struct {
 	repo          repositories.SavingsRepositoryInterface
+	accountRepo   repositories.AccountRepositoryInterface
 	loggingRepo   repositories.LoggingRepositoryInterface
 	jobDispatcher queue.JobDispatcher
 }
 
 func NewSavingsService(
 	repo *repositories.SavingsRepository,
+	accountRepo *repositories.AccountRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher queue.JobDispatcher,
 ) *SavingsService {
 	return &SavingsService{
 		repo:          repo,
+		accountRepo:   accountRepo,
 		loggingRepo:   loggingRepo,
 		jobDispatcher: jobDispatcher,
 	}
@@ -86,6 +89,16 @@ func (s *SavingsService) InsertGoal(ctx context.Context, userID int64, req *mode
 			panic(p)
 		}
 	}()
+
+	accType, err := s.accountRepo.FindAccountTypeByAccID(ctx, tx, req.AccountID, userID)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("account not found: %w", err)
+	}
+	if accType.Type != "cash" {
+		tx.Rollback()
+		return 0, fmt.Errorf("goals can be linked only to cash accounts")
+	}
 
 	var targetDate *time.Time
 	if req.TargetDate != nil && *req.TargetDate != "" {

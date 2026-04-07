@@ -58,6 +58,7 @@ type AccountService struct {
 	txnRepo        repositories.TransactionRepositoryInterface
 	settingsRepo   repositories.SettingsRepositoryInterface
 	loggingRepo    repositories.LoggingRepositoryInterface
+	savingsRepo    repositories.SavingsRepositoryInterface
 	investmentRepo repositories.InvestmentRepositoryInterface
 	jobDispatcher  queue.JobDispatcher
 	logger         *zap.Logger
@@ -69,6 +70,7 @@ func NewAccountService(
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
+	savingsRepo *repositories.SavingsRepository,
 	investmentRepo *repositories.InvestmentRepository,
 	jobDispatcher queue.JobDispatcher,
 ) *AccountService {
@@ -77,6 +79,7 @@ func NewAccountService(
 		txnRepo:        txnRepo,
 		settingsRepo:   settingsRepo,
 		loggingRepo:    loggingRepo,
+		savingsRepo:    savingsRepo,
 		investmentRepo: investmentRepo,
 		jobDispatcher:  jobDispatcher,
 		logger:         logger,
@@ -507,6 +510,18 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		}
 
 		delta = desired.Sub(latestBalance.EndBalance)
+
+		if delta.IsNegative() {
+			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, exAcc.ID, userID)
+			if err != nil {
+				tx.Rollback()
+				return 0, err
+			}
+			if err := utils.CheckGoalAllocation(delta.Neg(), uncategorized, newAccType.Classification); err != nil {
+				tx.Rollback()
+				return 0, err
+			}
+		}
 		signed := delta
 
 		if !signed.IsZero() {

@@ -749,6 +749,60 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByInvestmentValue() {
 		expectedBalance.String(), latestBalance.EndBalance.String())
 }
 
+// Tests that manual balance adjustment is blocked if it would drop available balance below goal allocations.
+func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByGoalAllocation() {
+	accSvc := s.TC.App.AccountService
+	savSvc := s.TC.App.SavingsService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(1000)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Savings Account",
+		AccountTypeID: 2,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	alloc := decimal.NewFromInt(500)
+	goalID, err := savSvc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:         accID,
+		Name:              "Holiday Fund",
+		TargetAmount:      decimal.NewFromInt(5000),
+		MonthlyAllocation: &alloc,
+	})
+	s.Require().NoError(err)
+
+	goalWithProgress, err := savSvc.FetchGoalByID(s.Ctx, userID, goalID)
+	s.Require().NoError(err)
+
+	// Fund goal so $500 is allocated — uncategorized balance = $500
+	_, _, err = savSvc.AutoFundGoal(s.Ctx, goalWithProgress.SavingGoal, time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC))
+	s.Require().NoError(err)
+
+	// Try to adjust balance down to $200 — removes $800, but only $500 is free
+	newBalance := decimal.NewFromInt(200)
+	_, err = accSvc.UpdateAccount(s.Ctx, userID, accID, &models.AccountReq{
+		Name:          "Savings Account",
+		AccountTypeID: 2,
+		Balance:       &newBalance,
+	})
+	s.Require().Error(err, "should block balance adjustment that eats into goal allocations")
+
+	// Balance must remain at $1000
+	var latestBalance models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ?", accID).
+		Order("as_of DESC").
+		First(&latestBalance).Error
+	s.Require().NoError(err)
+	s.Assert().True(initialBalance.Equal(latestBalance.EndBalance),
+		"balance should remain at %s, got %s",
+		initialBalance.String(), latestBalance.EndBalance.String())
+}
+
 // Merging two cash accounts moves all transactions to the destination
 // and closes the source account
 func (s *AccountServiceTestSuite) TestMergeAccount_Success() {
