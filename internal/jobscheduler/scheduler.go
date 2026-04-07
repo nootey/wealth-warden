@@ -25,6 +25,7 @@ type SchedulerFlags struct {
 	StartTemplatesImmediately            bool
 	StartAssetPriceSyncImmediately       bool
 	StartAssetHistoryBackfillImmediately bool
+	StartSavingsGoalFundImmediately      bool
 }
 
 func FlagsFromConfig(cfg config.SchedulerConfig) SchedulerFlags {
@@ -39,6 +40,8 @@ func FlagsFromConfig(cfg config.SchedulerConfig) SchedulerFlags {
 			flags.StartAssetPriceSyncImmediately = true
 		case "asset_history_backfill":
 			flags.StartAssetHistoryBackfillImmediately = true
+		case "savings_goal_fund":
+			flags.StartSavingsGoalFundImmediately = true
 		}
 	}
 	return flags
@@ -107,6 +110,11 @@ func (s *Scheduler) registerJobs() error {
 	}
 
 	err = s.registerTemplatesJob()
+	if err != nil {
+		return err
+	}
+
+	err = s.registerSavingsGoalFundJob()
 	if err != nil {
 		return err
 	}
@@ -203,6 +211,34 @@ func (s *Scheduler) registerAssetPriceSyncJob() error {
 				logger.Error("Price sync failed", zap.Error(err))
 			} else {
 				logger.Info("Price sync completed")
+			}
+		}),
+		opts...,
+	)
+	return err
+}
+
+func (s *Scheduler) registerSavingsGoalFundJob() error {
+
+	logger := s.logger.Named("savings-goal-fund-job")
+	job := NewAutoFundGoalsJob(logger, s.container, s.concurrentWorkers)
+
+	var opts []gocron.JobOption
+	if s.flags.StartSavingsGoalFundImmediately {
+		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
+	}
+
+	_, err := s.scheduler.NewJob(
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 40, 0))),
+		gocron.NewTask(func() {
+			logger.Info("Starting savings goal auto-fund job...")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+
+			if err := job.Run(ctx); err != nil {
+				logger.Error("Savings goal auto-fund failed", zap.Error(err))
+			} else {
+				logger.Info("Savings goal auto-fund completed successfully")
 			}
 		}),
 		opts...,

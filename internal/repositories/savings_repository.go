@@ -12,6 +12,7 @@ import (
 type SavingsRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
 	FindGoals(ctx context.Context, tx *gorm.DB, userID int64) ([]models.SavingGoal, error)
+	FindActiveGoalsWithAllocation(ctx context.Context, tx *gorm.DB, dayOfMonth int) ([]models.SavingGoal, error)
 	FindGoalByID(ctx context.Context, tx *gorm.DB, id, userID int64) (models.SavingGoal, error)
 	InsertGoal(ctx context.Context, tx *gorm.DB, record *models.SavingGoal) (int64, error)
 	UpdateGoal(ctx context.Context, tx *gorm.DB, record models.SavingGoal) (int64, error)
@@ -19,6 +20,7 @@ type SavingsRepositoryInterface interface {
 	UpdateCurrentAmount(ctx context.Context, tx *gorm.DB, goalID int64, amount models.SavingGoal) error
 
 	GetUncategorizedBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error)
+	HasContributionForMonth(ctx context.Context, tx *gorm.DB, goalID int64, month time.Time) (bool, error)
 	CountContributions(ctx context.Context, tx *gorm.DB, goalID int64) (int64, error)
 	FindContributions(ctx context.Context, tx *gorm.DB, goalID int64) ([]models.SavingContribution, error)
 	FindContributionsPaginated(ctx context.Context, tx *gorm.DB, goalID int64, offset, limit int) ([]models.SavingContribution, error)
@@ -59,6 +61,41 @@ func (r *SavingsRepository) FindGoals(ctx context.Context, tx *gorm.DB, userID i
 	}
 
 	return records, nil
+}
+
+func (r *SavingsRepository) FindActiveGoalsWithAllocation(ctx context.Context, tx *gorm.DB, dayOfMonth int) ([]models.SavingGoal, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.SavingGoal
+	err := db.Model(&models.SavingGoal{}).
+		Where(
+			"status = ? AND monthly_allocation IS NOT NULL AND monthly_allocation > 0 AND (fund_day_of_month IS NULL OR fund_day_of_month <= ?)",
+			models.SavingGoalStatusActive, dayOfMonth,
+		).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (r *SavingsRepository) HasContributionForMonth(ctx context.Context, tx *gorm.DB, goalID int64, month time.Time) (bool, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	monthStart := time.Date(month.Year(), month.Month(), 1, 0, 0, 0, 0, time.UTC)
+	var count int64
+	err := db.Model(&models.SavingContribution{}).
+		Where("goal_id = ? AND month = ? AND source = ?", goalID, monthStart, models.SavingContributionSourceAuto).
+		Count(&count).Error
+	return count > 0, err
 }
 
 func (r *SavingsRepository) FindGoalByID(ctx context.Context, tx *gorm.DB, id, userID int64) (models.SavingGoal, error) {
@@ -102,6 +139,7 @@ func (r *SavingsRepository) UpdateGoal(ctx context.Context, tx *gorm.DB, record 
 			"status":             record.Status,
 			"priority":           record.Priority,
 			"monthly_allocation": record.MonthlyAllocation,
+			"fund_day_of_month":  record.FundDayOfMonth,
 			"updated_at":         time.Now().UTC(),
 		}).Error; err != nil {
 		return 0, err

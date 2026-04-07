@@ -12,6 +12,7 @@ export interface SavingGoal {
   status: SavingGoalStatus;
   priority: number;
   monthly_allocation?: string | null;
+  fund_day_of_month?: number | null;
   created_at: string;
   updated_at?: string;
 }
@@ -43,6 +44,7 @@ export interface SavingGoalReq {
   target_date?: string | null;
   priority: number;
   monthly_allocation?: string | null;
+  fund_day_of_month?: number | null;
 }
 
 export interface SavingGoalUpdateReq {
@@ -52,6 +54,7 @@ export interface SavingGoalUpdateReq {
   status: SavingGoalStatus;
   priority: number;
   monthly_allocation?: string | null;
+  fund_day_of_month?: number | null;
 }
 
 export interface SavingContributionReq {

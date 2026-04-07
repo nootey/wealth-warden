@@ -31,6 +31,7 @@ interface GoalFormData {
   status: SavingGoalStatus;
   priority: number;
   monthly_allocation: string | null;
+  fund_day_of_month: number | null;
 }
 
 const props = defineProps<{
@@ -106,6 +107,9 @@ const rules = computed(() => ({
     monthly_allocation: {
       $autoDirty: true,
     },
+    fund_day_of_month: {
+      $autoDirty: true,
+    },
     priority: {
       numeric,
       $autoDirty: true,
@@ -145,6 +149,7 @@ function initData(): GoalFormData {
     status: "active",
     priority: 0,
     monthly_allocation: null,
+    fund_day_of_month: null,
   };
 }
 
@@ -159,6 +164,7 @@ async function loadRecord(id: number) {
     status: goal.status,
     priority: goal.priority,
     monthly_allocation: goal.monthly_allocation ?? null,
+    fund_day_of_month: goal.fund_day_of_month ?? null,
   };
 }
 
@@ -195,6 +201,7 @@ async function manageRecord() {
         monthly_allocation: record.value.monthly_allocation
           ? new Decimal(record.value.monthly_allocation).toFixed(2)
           : null,
+        fund_day_of_month: record.value.fund_day_of_month ?? null,
       };
       response = await savingsStore.insertGoal(req);
     } else {
@@ -207,6 +214,7 @@ async function manageRecord() {
         monthly_allocation: record.value.monthly_allocation
           ? new Decimal(record.value.monthly_allocation).toFixed(2)
           : null,
+        fund_day_of_month: record.value.fund_day_of_month ?? null,
       };
       response = await savingsStore.updateGoal(props.recordId!, req);
     }
@@ -361,6 +369,22 @@ function confirmDelete() {
         :currency="settingsStore.defaultCurrency"
         :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
         :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
+      />
+    </div>
+
+    <div v-if="record.monthly_allocation" class="flex flex-column gap-1">
+      <ValidationError
+        :is-required="false"
+        :message="v$.record.fund_day_of_month.$errors[0]?.$message"
+      >
+        <label>Fund day</label>
+      </ValidationError>
+      <InputNumber
+        v-model="record.fund_day_of_month"
+        size="small"
+        :min="1"
+        :max="31"
+        placeholder="Any day"
       />
     </div>
 

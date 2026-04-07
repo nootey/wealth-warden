@@ -33,6 +33,7 @@ type SavingGoal struct {
 	Status            SavingGoalStatus `gorm:"type:saving_goal_status;not null;default:active" json:"status"`
 	Priority          int              `gorm:"not null;default:0" json:"priority"`
 	MonthlyAllocation *decimal.Decimal `gorm:"type:decimal(19,4)" json:"monthly_allocation,omitempty"`
+	FundDayOfMonth    *int             `gorm:"type:smallint"     json:"fund_day_of_month,omitempty"`
 	CreatedAt     time.Time        `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt     time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -65,6 +66,7 @@ type SavingGoalReq struct {
 	TargetDate        *string          `json:"target_date,omitempty"`
 	Priority          int              `json:"priority"`
 	MonthlyAllocation *decimal.Decimal `json:"monthly_allocation,omitempty"`
+	FundDayOfMonth    *int             `json:"fund_day_of_month,omitempty"`
 }
 
 type SavingGoalUpdateReq struct {
@@ -74,6 +76,7 @@ type SavingGoalUpdateReq struct {
 	Status            SavingGoalStatus `json:"status" validate:"required"`
 	Priority          int              `json:"priority"`
 	MonthlyAllocation *decimal.Decimal `json:"monthly_allocation,omitempty"`
+	FundDayOfMonth    *int             `json:"fund_day_of_month,omitempty"`
 }
 
 type SavingContributionReq struct {

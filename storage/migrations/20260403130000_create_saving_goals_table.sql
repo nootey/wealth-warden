@@ -13,6 +13,7 @@ CREATE TABLE saving_goals (
     status             saving_goal_status NOT NULL DEFAULT 'active',
     priority           INT NOT NULL DEFAULT 0,
     monthly_allocation NUMERIC(19,4) NULL CHECK (monthly_allocation IS NULL OR monthly_allocation > 0),
+    fund_day_of_month  SMALLINT NULL CHECK (fund_day_of_month IS NULL OR (fund_day_of_month >= 1 AND fund_day_of_month <= 31)),
 
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

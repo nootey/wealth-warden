@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue"
@@ -24,6 +25,9 @@ type SavingsServiceInterface interface {
 	FetchContributionsPaginated(ctx context.Context, userID, goalID int64, p utils.PaginationParams) ([]models.SavingContribution, *utils.Paginator, error)
 	InsertContribution(ctx context.Context, userID, goalID int64, req *models.SavingContributionReq) (int64, error)
 	DeleteContribution(ctx context.Context, userID, goalID, id int64) error
+
+	AutoFundGoal(ctx context.Context, goal models.SavingGoal, month time.Time) (funded bool, skipReason string, err error)
+	FetchActiveGoalsWithAllocation(ctx context.Context, dayOfMonth int) ([]models.SavingGoal, error)
 }
 
 type SavingsService struct {
@@ -102,6 +106,7 @@ func (s *SavingsService) InsertGoal(ctx context.Context, userID int64, req *mode
 		Status:            models.SavingGoalStatusActive,
 		Priority:          req.Priority,
 		MonthlyAllocation: req.MonthlyAllocation,
+		FundDayOfMonth:    req.FundDayOfMonth,
 	}
 
 	if req.InitialAmount != nil && req.InitialAmount.IsPositive() {
@@ -135,6 +140,7 @@ func (s *SavingsService) InsertGoal(ctx context.Context, userID int64, req *mode
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(id, 10), changes, "id")
 	utils.CompareChanges("", record.Name, changes, "name")
 	utils.CompareDecimalChange(nil, &record.TargetAmount, changes, "target_amount", 2)
 	utils.CompareDecimalChange(nil, record.MonthlyAllocation, changes, "monthly_allocation", 2)
@@ -183,6 +189,7 @@ func (s *SavingsService) UpdateGoal(ctx context.Context, userID, id int64, req *
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(existing.ID, 10), changes, "id")
 	utils.CompareChanges(existing.Name, req.Name, changes, "name")
 	utils.CompareDecimalChange(&existing.TargetAmount, &req.TargetAmount, changes, "target_amount", 2)
 	utils.CompareDecimalChange(existing.MonthlyAllocation, req.MonthlyAllocation, changes, "monthly_allocation", 2)
@@ -195,6 +202,7 @@ func (s *SavingsService) UpdateGoal(ctx context.Context, userID, id int64, req *
 	existing.Status = req.Status
 	existing.Priority = req.Priority
 	existing.MonthlyAllocation = req.MonthlyAllocation
+	existing.FundDayOfMonth = req.FundDayOfMonth
 
 	goalID, err := s.repo.UpdateGoal(ctx, tx, existing)
 	if err != nil {
@@ -251,6 +259,7 @@ func (s *SavingsService) DeleteGoal(ctx context.Context, userID, id int64) error
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(goal.ID, 10), changes, "id")
 	utils.CompareChanges(goal.Name, "", changes, "name")
 	utils.CompareDecimalChange(&goal.TargetAmount, nil, changes, "target_amount", 2)
 	if !changes.IsEmpty() {
@@ -378,6 +387,7 @@ func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID 
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(id, 10), changes, "id")
 	utils.CompareChanges("", goal.Name, changes, "goal")
 	utils.CompareDecimalChange(nil, &req.Amount, changes, "amount", 2)
 	utils.CompareChanges("", record.Month.Format("2006-01-02"), changes, "month")
@@ -439,6 +449,7 @@ func (s *SavingsService) DeleteContribution(ctx context.Context, userID, goalID,
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(contrib.ID, 10), changes, "id")
 	utils.CompareChanges(goal.Name, "", changes, "goal")
 	utils.CompareDecimalChange(&contrib.Amount, nil, changes, "amount", 2)
 	utils.CompareChanges(contrib.Month.Format("2006-01-02"), "", changes, "month")
@@ -456,6 +467,83 @@ func (s *SavingsService) DeleteContribution(ctx context.Context, userID, goalID,
 	}
 
 	return nil
+}
+
+func (s *SavingsService) FetchActiveGoalsWithAllocation(ctx context.Context, dayOfMonth int) ([]models.SavingGoal, error) {
+	return s.repo.FindActiveGoalsWithAllocation(ctx, nil, dayOfMonth)
+}
+
+func (s *SavingsService) AutoFundGoal(ctx context.Context, goal models.SavingGoal, month time.Time) (bool, string, error) {
+	monthStart := time.Date(month.Year(), month.Month(), 1, 0, 0, 0, 0, time.UTC)
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return false, "", err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	alreadyFunded, err := s.repo.HasContributionForMonth(ctx, tx, goal.ID, monthStart)
+	if err != nil {
+		tx.Rollback()
+		return false, "", err
+	}
+	if alreadyFunded {
+		tx.Rollback()
+		return false, "already_funded", nil
+	}
+
+	uncategorized, err := s.repo.GetUncategorizedBalance(ctx, tx, goal.AccountID, goal.UserID)
+	if err != nil {
+		tx.Rollback()
+		return false, "", fmt.Errorf("failed to compute available balance: %w", err)
+	}
+	if uncategorized.LessThan(*goal.MonthlyAllocation) {
+		tx.Rollback()
+		return false, "insufficient_balance", nil
+	}
+
+	record := models.SavingContribution{
+		UserID: goal.UserID,
+		GoalID: goal.ID,
+		Amount: *goal.MonthlyAllocation,
+		Month:  monthStart,
+		Source: models.SavingContributionSourceAuto,
+	}
+	cID, err := s.repo.InsertContribution(ctx, tx, &record)
+	if err != nil {
+		tx.Rollback()
+		return false, "", err
+	}
+
+	goal.CurrentAmount = goal.CurrentAmount.Add(*goal.MonthlyAllocation)
+	if err := s.repo.UpdateCurrentAmount(ctx, tx, goal.ID, goal); err != nil {
+		tx.Rollback()
+		return false, "", err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return false, "", err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(cID, 10), changes, "id")
+	utils.CompareChanges("", goal.Name, changes, "goal")
+	utils.CompareDecimalChange(nil, goal.MonthlyAllocation, changes, "amount", 2)
+	utils.CompareChanges("", monthStart.Format("2006-01-02"), changes, "month")
+	_ = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
+		Event:       "create",
+		Category:    "saving_contribution",
+		Payload:     changes,
+	})
+
+	return true, "", nil
 }
 
 func computeProgress(g models.SavingGoal) models.SavingGoalWithProgress {
