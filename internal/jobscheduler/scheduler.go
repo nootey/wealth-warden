@@ -99,7 +99,7 @@ func (s *Scheduler) Shutdown() error {
 
 func (s *Scheduler) registerJobs() error {
 
-	err := s.registerAssetPriceSyncJob()
+	err := s.registerAssetPriceHistoryBackfillJob()
 	if err != nil {
 		return err
 	}
@@ -109,22 +109,45 @@ func (s *Scheduler) registerJobs() error {
 		return err
 	}
 
-	err = s.registerTemplatesJob()
+	err = s.registerTemplateAndFundSavingsJobs()
 	if err != nil {
 		return err
 	}
 
-	err = s.registerSavingsGoalFundJob()
-	if err != nil {
-		return err
-	}
-
-	err = s.registerAssetPriceHistoryBackfillJob()
+	err = s.registerAssetPriceSyncJob()
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (s *Scheduler) registerAssetPriceHistoryBackfillJob() error {
+
+	logger := s.logger.Named("asset-history-backfill-job")
+	job := NewAssetPriceHistoryBackfillJob(logger, s.container.InvestmentService, s.container.DB)
+
+	var opts []gocron.JobOption
+	if s.flags.StartAssetHistoryBackfillImmediately {
+		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
+	}
+
+	_, err := s.scheduler.NewJob(
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 0, 0))),
+		gocron.NewTask(func() {
+			logger.Info("Starting asset price history backfill ...")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+
+			if err := job.Run(ctx); err != nil {
+				logger.Error("Price history backfill failed", zap.Error(err))
+			} else {
+				logger.Info("Price history backfill completed")
+			}
+		}),
+		opts...,
+	)
+	return err
 }
 
 func (s *Scheduler) registerBackfillJob() error {
@@ -138,7 +161,7 @@ func (s *Scheduler) registerBackfillJob() error {
 	}
 
 	_, err := s.scheduler.NewJob(
-		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 5, 0))),
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 6, 0))),
 		gocron.NewTask(func() {
 			logger.Info("Starting scheduled backfill job...")
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -155,27 +178,37 @@ func (s *Scheduler) registerBackfillJob() error {
 	return err
 }
 
-func (s *Scheduler) registerTemplatesJob() error {
+func (s *Scheduler) registerTemplateAndFundSavingsJobs() error {
 
-	logger := s.logger.Named("templates-job")
-	job := NewAutomateTemplateJob(logger, s.container, s.concurrentWorkers)
+	tLogger := s.logger.Named("templates-job")
+	templateJob := NewAutomateTemplateJob(tLogger, s.container, s.concurrentWorkers)
+
+	sLogger := s.logger.Named("savings-goal-fund-job")
+	savingsJob := NewAutoFundGoalsJob(sLogger, s.container, s.concurrentWorkers)
 
 	var opts []gocron.JobOption
-	if s.flags.StartTemplatesImmediately {
+	if s.flags.StartTemplatesImmediately || s.flags.StartSavingsGoalFundImmediately {
 		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 	}
 
 	_, err := s.scheduler.NewJob(
-		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 30, 0))),
+		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 10, 0))),
 		gocron.NewTask(func() {
-			logger.Info("Starting scheduled template processing job...")
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 			defer cancel()
 
-			if err := job.Run(ctx); err != nil {
-				logger.Error("Template processing failed", zap.Error(err))
+			tLogger.Info("Starting scheduled template processing job...")
+			if err := templateJob.Run(ctx); err != nil {
+				tLogger.Error("Template processing failed", zap.Error(err))
 			} else {
-				logger.Info("Template processing completed successfully")
+				tLogger.Info("Template processing completed successfully")
+			}
+
+			sLogger.Info("Starting savings goal auto-fund job...")
+			if err := savingsJob.Run(ctx); err != nil {
+				sLogger.Error("Savings goal auto-fund failed", zap.Error(err))
+			} else {
+				sLogger.Info("Savings goal auto-fund completed successfully")
 			}
 		}),
 		opts...,
@@ -204,69 +237,13 @@ func (s *Scheduler) registerAssetPriceSyncJob() error {
 		gocron.DurationJob(8*time.Hour),
 		gocron.NewTask(func() {
 			logger.Info("Starting asset price sync ...")
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
 
 			if err := job.Run(ctx); err != nil {
 				logger.Error("Price sync failed", zap.Error(err))
 			} else {
 				logger.Info("Price sync completed")
-			}
-		}),
-		opts...,
-	)
-	return err
-}
-
-func (s *Scheduler) registerSavingsGoalFundJob() error {
-
-	logger := s.logger.Named("savings-goal-fund-job")
-	job := NewAutoFundGoalsJob(logger, s.container, s.concurrentWorkers)
-
-	var opts []gocron.JobOption
-	if s.flags.StartSavingsGoalFundImmediately {
-		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
-	}
-
-	_, err := s.scheduler.NewJob(
-		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 40, 0))),
-		gocron.NewTask(func() {
-			logger.Info("Starting savings goal auto-fund job...")
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-			defer cancel()
-
-			if err := job.Run(ctx); err != nil {
-				logger.Error("Savings goal auto-fund failed", zap.Error(err))
-			} else {
-				logger.Info("Savings goal auto-fund completed successfully")
-			}
-		}),
-		opts...,
-	)
-	return err
-}
-
-func (s *Scheduler) registerAssetPriceHistoryBackfillJob() error {
-
-	logger := s.logger.Named("asset-history-backfill-job")
-	job := NewAssetPriceHistoryBackfillJob(logger, s.container.InvestmentService, s.container.DB)
-
-	var opts []gocron.JobOption
-	if s.flags.StartAssetHistoryBackfillImmediately {
-		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
-	}
-
-	_, err := s.scheduler.NewJob(
-		gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 0, 0))),
-		gocron.NewTask(func() {
-			logger.Info("Starting asset price history backfill ...")
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-			defer cancel()
-
-			if err := job.Run(ctx); err != nil {
-				logger.Error("Price history backfill failed", zap.Error(err))
-			} else {
-				logger.Info("Price history backfill completed")
 			}
 		}),
 		opts...,
