@@ -217,6 +217,17 @@ const groupedGoals = computed(() => {
       </div>
 
       <div
+        class="w-full flex flex-row justify-content-between p-1 align-items-center text-sm"
+      >
+        <i class="pi pi-info-circle" style="flex-shrink: 0" />
+        <div style="color: var(--text-secondary)">
+          Goals with a monthly allocation are funded automatically each day.
+          Ensure your account has enough uncategorized balance before the
+          configured fund day.
+        </div>
+      </div>
+
+      <div
         class="flex-1 w-full border-round-xl overflow-y-auto"
         :style="{ maxWidth: '1000px' }"
       >
@@ -245,7 +256,6 @@ const groupedGoals = computed(() => {
             :key="group.accountID"
             class="flex flex-column gap-2"
           >
-            <!-- Account header -->
             <div
               class="flex flex-row align-items-center justify-content-between gap-2 px-1"
             >
@@ -279,7 +289,6 @@ const groupedGoals = computed(() => {
               </div>
             </div>
 
-            <!-- Goals -->
             <div
               v-for="goal in group.goals"
               :key="goal.id"

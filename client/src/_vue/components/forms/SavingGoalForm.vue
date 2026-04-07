@@ -254,6 +254,47 @@ function confirmDelete() {
 
 <template>
   <div v-if="!initializing" class="flex flex-column gap-3 p-1">
+    <div
+      v-if="record.monthly_allocation"
+      class="flex flex-column gap-2 p-3 border-round-xl text-sm"
+      style="
+        background: var(--background-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+      "
+    >
+      <div class="flex flex-row gap-2 align-items-center">
+        <i class="pi pi-info-circle" style="flex-shrink: 0" />
+        <div class="flex flex-column gap-1 text-xs">
+          <span
+            >Auto-contributions run daily. The full allocation must be available
+            as uncategorized balance - if not, the goal is skipped until the
+            next run.</span
+          >
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="record.monthly_allocation"
+      class="flex flex-column gap-2 p-3 border-round-xl text-sm"
+      style="
+        background: var(--background-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+      "
+    >
+      <div class="flex flex-row gap-2 align-items-center">
+        <i class="pi pi-info-circle" style="flex-shrink: 0" />
+        <div class="flex flex-column gap-1 text-xs">
+          <span
+            >If a higher priority goal on the same account cannot be funded, all
+            lower priority goals are skipped too.</span
+          >
+        </div>
+      </div>
+    </div>
+
     <div v-if="mode === 'create'" class="flex flex-column gap-1">
       <ValidationError
         :is-required="true"
