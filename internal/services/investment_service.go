@@ -1188,7 +1188,7 @@ func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, asset
 
 		priceData, err := s.priceFetchClient.GetAssetPriceOnDate(ctx, ticker, investmentType, current)
 		if err != nil {
-			s.logger.Info("Failed to fetch historical price", zap.String("ticker", ticker), zap.String("date", dateKey), zap.Error(err))
+			s.logger.Debug("Failed to fetch historical price", zap.String("ticker", ticker), zap.String("date", dateKey), zap.Error(err))
 			current = current.AddDate(0, 0, 1)
 			requestCount++
 			continue
