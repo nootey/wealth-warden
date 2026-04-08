@@ -179,6 +179,7 @@ defineExpose({ refresh });
                   data.average_buy_price,
                   data.investment_type,
                   data.currency,
+                  true,
                 )
               }}</span>
             </div>
