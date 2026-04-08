@@ -49,6 +49,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	notesHandler := httpHandlers.NewNotesHandler(r.Container.NotesService, validator)
 	analyticsHandler := httpHandlers.NewAnalyticsHandler(r.Container.AnalyticsService, validator)
 	savingsHandler := httpHandlers.NewSavingsHandler(r.Container.SavingsService, validator)
+	notificationHandler := httpHandlers.NewNotificationHandler(r.Container.NotificationService)
 
 	// Register routes
 
@@ -81,6 +82,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	roleHandler.Routes(protected.Group("/users/roles"))
 	settingsHandler.Routes(protected.Group("/settings"))
 	savingsHandler.Routes(protected.Group("/savings"))
+	notificationHandler.Routes(protected.Group("/notifications"))
 	transactionHandler.Routes(protected.Group("/transactions"))
 	userHandler.Routes(protected.Group("/users"))
 

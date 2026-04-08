@@ -100,12 +100,17 @@ const vueHelper = {
     amount: Decimal | number | string | null,
     investmentType?: string,
     currency?: string,
+    forceDoubleDigitDecimal?: boolean,
   ) => {
     if (amount === null || amount === undefined) return null;
     const num = Number(amount);
     if (isNaN(num)) return "Invalid Amount";
 
-    const decimals = investmentType === "crypto" ? 4 : 2;
+    const decimals = forceDoubleDigitDecimal
+      ? 2
+      : investmentType === "crypto"
+        ? 4
+        : 2;
     const cur = (
       currency ||
       useSettingsStore().defaultCurrency ||

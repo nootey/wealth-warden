@@ -87,7 +87,7 @@ func (s *AutoFundGoalsJobTestSuite) countContributions(goalID int64) int64 {
 
 func (s *AutoFundGoalsJobTestSuite) runJob() {
 	logger := zaptest.NewLogger(s.T())
-	job := jobscheduler.NewAutoFundGoalsJob(logger, s.TC.App, 2)
+	job := jobscheduler.NewAutoFundGoalsJob(logger, s.TC.App, nil, 2)
 	s.Require().NoError(job.Run(s.Ctx))
 }
 

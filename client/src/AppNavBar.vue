@@ -5,6 +5,7 @@ import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { usePermissions } from "./utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
+import NotesSideBar from "./_vue/features/NotesSideBar.vue";
 
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
@@ -12,6 +13,8 @@ const { hasPermission } = usePermissions();
 
 const router = useRouter();
 const confirm = useConfirm();
+
+const notesRef = ref<InstanceType<typeof NotesSideBar> | null>(null);
 
 interface MenuItem {
   to: string;
@@ -41,6 +44,7 @@ interface ProfileMenuItem {
 }
 
 const profileMenuItems: ProfileMenuItem[] = [
+  { icon: "pi-cog", text: "Settings", action: () => router.push("/settings") },
   {
     icon: "pi-briefcase",
     text: "Backoffice",
@@ -53,7 +57,11 @@ const profileMenuItems: ProfileMenuItem[] = [
     permission: "manage_users",
     action: () => router.push("/users"),
   },
-  { icon: "pi-cog", text: "Settings", action: () => router.push("/settings") },
+  {
+    icon: "pi-bookmark",
+    text: "Notes",
+    action: () => notesRef.value?.toggle(),
+  },
   {
     icon: "pi-sign-out",
     text: "Sign out",
@@ -90,6 +98,7 @@ function handleMenuClick(item: ProfileMenuItem) {
 </script>
 
 <template>
+  <NotesSideBar ref="notesRef" />
   <aside
     v-if="authStore.authenticated && authStore.isValidated"
     class="flex flex-column overflow-hidden h-screen fixed left-0 top-0"
@@ -201,13 +210,13 @@ function handleMenuClick(item: ProfileMenuItem) {
             <div class="font-bold mb-1" style="color: var(--text-primary)">
               {{ user?.display_name }}
             </div>
-            <div class="text-sm" style="color: var(--text-secondary)">
+            <div class="text-sm mb-2" style="color: var(--text-secondary)">
               {{ user?.email }}
             </div>
           </div>
         </div>
 
-        <div class="flex flex-column gap-2 p-1">
+        <div class="flex flex-column gap-1 p-1">
           <div
             v-for="item in visibleProfileMenuItems"
             id="profileMenuItem"

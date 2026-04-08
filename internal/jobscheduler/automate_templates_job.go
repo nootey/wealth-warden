@@ -3,9 +3,11 @@ package jobscheduler
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/queue"
 
 	"go.uber.org/zap"
 )
@@ -13,13 +15,15 @@ import (
 type AutomateTemplateJob struct {
 	logger            *zap.Logger
 	container         *bootstrap.ServiceContainer
+	notifDispatcher   queue.NotificationDispatcher
 	concurrentWorkers int
 }
 
-func NewAutomateTemplateJob(logger *zap.Logger, container *bootstrap.ServiceContainer, concurrentWorkers int) *AutomateTemplateJob {
+func NewAutomateTemplateJob(logger *zap.Logger, container *bootstrap.ServiceContainer, notifDispatcher queue.NotificationDispatcher, concurrentWorkers int) *AutomateTemplateJob {
 	return &AutomateTemplateJob{
 		logger:            logger,
 		container:         container,
+		notifDispatcher:   notifDispatcher,
 		concurrentWorkers: concurrentWorkers,
 	}
 }
@@ -70,16 +74,30 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 	wg.Wait()
 	close(results)
 
+	type userSummary struct {
+		succeeded []string
+		failed    []string
+	}
+
 	successCount := 0
 	failCount := 0
+	userResults := make(map[int64]*userSummary)
+
 	for r := range results {
+		s, ok := userResults[r.template.UserID]
+		if !ok {
+			s = &userSummary{}
+			userResults[r.template.UserID] = s
+		}
 		if r.err != nil {
 			j.logger.Error("Failed to process template",
 				zap.Int64("templateID", r.template.ID),
 				zap.String("templateName", r.template.Name),
 				zap.Error(r.err))
+			s.failed = append(s.failed, r.template.Name)
 			failCount++
 		} else {
+			s.succeeded = append(s.succeeded, r.template.Name)
 			successCount++
 		}
 	}
@@ -87,6 +105,21 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 	j.logger.Info("Template processing completed",
 		zap.Int("success", successCount),
 		zap.Int("failed", failCount))
+
+	if j.notifDispatcher != nil {
+		for userID, s := range userResults {
+			if len(s.failed) > 0 {
+				title := fmt.Sprintf("%d template(s) failed", len(s.failed))
+				msg := strings.Join(s.failed, ",\n")
+				_ = j.notifDispatcher.Dispatch(userID, title, msg, models.NotificationTypeError)
+			}
+			if len(s.succeeded) > 0 {
+				title := fmt.Sprintf("%d template(s) executed", len(s.succeeded))
+				msg := strings.Join(s.succeeded, ",\n")
+				_ = j.notifDispatcher.Dispatch(userID, title, msg, models.NotificationTypeSuccess)
+			}
+		}
+	}
 
 	return nil
 }

@@ -25,7 +25,7 @@ func TestAssetPriceSyncJobSuite(t *testing.T) {
 // Test that job runs with no assets
 func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_Success() {
 	logger := zaptest.NewLogger(s.T())
-	job := jobscheduler.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.App.AccountService, s.TC.DB, &tests.MockPriceFetcher{}, 0)
+	job := jobscheduler.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.App.AccountService, s.TC.DB, &tests.MockPriceFetcher{}, nil, 0)
 
 	err := job.Run(s.Ctx)
 	s.NoError(err)
@@ -65,7 +65,7 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_SkipsExtremePriceDrop
 	s.Require().NoError(err)
 
 	logger := zaptest.NewLogger(s.T())
-	job := jobscheduler.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.App.AccountService, s.TC.DB, &tests.MockPriceFetcher{}, 0)
+	job := jobscheduler.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.App.AccountService, s.TC.DB, &tests.MockPriceFetcher{}, nil, 0)
 
 	err = job.Run(s.Ctx)
 	s.Require().NoError(err)
@@ -144,7 +144,7 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalan
 
 	// Run price sync job
 	logger := zaptest.NewLogger(s.T())
-	job := jobscheduler.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.App.AccountService, s.TC.DB, &tests.MockPriceFetcher{}, 0)
+	job := jobscheduler.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.App.AccountService, s.TC.DB, &tests.MockPriceFetcher{}, nil, 0)
 
 	ctx3, cancel3 := context.WithTimeout(s.Ctx, 30*time.Second)
 	defer cancel3()
