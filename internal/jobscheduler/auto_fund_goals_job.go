@@ -2,11 +2,14 @@ package jobscheduler
 
 import (
 	"context"
+	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/queue"
 
 	"go.uber.org/zap"
 )
@@ -14,13 +17,15 @@ import (
 type AutoFundGoalsJob struct {
 	logger            *zap.Logger
 	container         *bootstrap.ServiceContainer
+	notifDispatcher   queue.NotificationDispatcher
 	concurrentWorkers int
 }
 
-func NewAutoFundGoalsJob(logger *zap.Logger, container *bootstrap.ServiceContainer, concurrentWorkers int) *AutoFundGoalsJob {
+func NewAutoFundGoalsJob(logger *zap.Logger, container *bootstrap.ServiceContainer, notifDispatcher queue.NotificationDispatcher, concurrentWorkers int) *AutoFundGoalsJob {
 	return &AutoFundGoalsJob{
 		logger:            logger,
 		container:         container,
+		notifDispatcher:   notifDispatcher,
 		concurrentWorkers: concurrentWorkers,
 	}
 }
@@ -65,6 +70,7 @@ func (j *AutoFundGoalsJob) Run(ctx context.Context) error {
 	type result struct {
 		goalID     int64
 		goalName   string
+		userID     int64
 		accountID  int64
 		funded     bool
 		skipReason string
@@ -102,6 +108,7 @@ func (j *AutoFundGoalsJob) Run(ctx context.Context) error {
 					results <- result{
 						goalID:     goal.ID,
 						goalName:   goal.Name,
+						userID:     goal.UserID,
 						accountID:  goal.AccountID,
 						funded:     funded,
 						skipReason: skipReason,
@@ -123,8 +130,21 @@ func (j *AutoFundGoalsJob) Run(ctx context.Context) error {
 	wg.Wait()
 	close(results)
 
+	type userSummary struct {
+		funded              []string
+		insufficientBalance []string
+		failed              []string
+	}
+
 	funded, skipped, failed := 0, 0, 0
+	userResults := make(map[int64]*userSummary)
+
 	for r := range results {
+		s, ok := userResults[r.userID]
+		if !ok {
+			s = &userSummary{}
+			userResults[r.userID] = s
+		}
 		switch {
 		case r.err != nil:
 			j.logger.Error("Failed to auto-fund goal",
@@ -132,17 +152,20 @@ func (j *AutoFundGoalsJob) Run(ctx context.Context) error {
 				zap.String("goalName", r.goalName),
 				zap.Int64("accountID", r.accountID),
 				zap.Error(r.err))
+			s.failed = append(s.failed, r.goalName)
 			failed++
 		case r.funded:
 			j.logger.Info("Auto-funded goal",
 				zap.Int64("goalID", r.goalID),
 				zap.String("goalName", r.goalName))
+			s.funded = append(s.funded, r.goalName)
 			funded++
 		case r.skipReason == "insufficient_balance":
 			j.logger.Warn("Skipped goal - insufficient uncategorized balance",
 				zap.Int64("goalID", r.goalID),
 				zap.String("goalName", r.goalName),
 				zap.Int64("accountID", r.accountID))
+			s.insufficientBalance = append(s.insufficientBalance, r.goalName)
 			skipped++
 		default:
 			j.logger.Debug("Skipped goal - already funded this month",
@@ -156,6 +179,23 @@ func (j *AutoFundGoalsJob) Run(ctx context.Context) error {
 		zap.Int("funded", funded),
 		zap.Int("skipped", skipped),
 		zap.Int("failed", failed))
+
+	if j.notifDispatcher != nil {
+		for userID, s := range userResults {
+			if len(s.failed) > 0 {
+				title := fmt.Sprintf("%d goal(s) failed to fund", len(s.failed))
+				_ = j.notifDispatcher.Dispatch(userID, title, strings.Join(s.failed, ",\n"), models.NotificationTypeError)
+			}
+			if len(s.insufficientBalance) > 0 {
+				title := fmt.Sprintf("%d goal(s) skipped - insufficient balance", len(s.insufficientBalance))
+				_ = j.notifDispatcher.Dispatch(userID, title, strings.Join(s.insufficientBalance, ",\n"), models.NotificationTypeWarning)
+			}
+			if len(s.funded) > 0 {
+				title := fmt.Sprintf("%d goal(s) funded", len(s.funded))
+				_ = j.notifDispatcher.Dispatch(userID, title, strings.Join(s.funded, ",\n"), models.NotificationTypeSuccess)
+			}
+		}
+	}
 
 	return nil
 }

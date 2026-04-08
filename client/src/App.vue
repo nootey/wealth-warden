@@ -5,14 +5,16 @@ import { useThemeStore } from "./services/stores/theme_store.ts";
 import AppNavBar from "./AppNavBar.vue";
 import { storeToRefs } from "pinia";
 import { useRoute } from "vue-router";
-import AppSideBar from "./AppSideBar.vue";
+import AppSideBar from "./_vue/features/AppSideBar.vue";
 import vueHelper from "./utils/vue_helper.ts";
 import router from "./services/router/main.ts";
 import AppFooter from "./AppFooter.vue";
-import AppNotesBar from "./AppNotesBar.vue";
 import AccountSideBar from "./AccountSideBar.vue";
+import NotificationSideBar from "./_vue/features/NotificationSideBar.vue";
+import { useNotificationStore } from "./services/stores/notification_store.ts";
 
 const authStore = useAuthStore();
+const notificationStore = useNotificationStore();
 const themeStore = useThemeStore();
 const route = useRoute();
 
@@ -29,7 +31,9 @@ const hideNavigation = computed<boolean>(() =>
 
 const appSidebarRef = ref<InstanceType<typeof AppSideBar> | null>(null);
 const accSidebarRef = ref<InstanceType<typeof AccountSideBar> | null>(null);
-const notesRef = ref<InstanceType<typeof AppNotesBar> | null>(null);
+const notifSidebarRef = ref<InstanceType<typeof NotificationSideBar> | null>(
+  null,
+);
 
 onMounted(async () => {
   if (isAuthenticated.value) {
@@ -166,11 +170,32 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
           </div>
 
           <div id="sidebar-icon" class="flex flex-row gap-3">
-            <i
-              class="pi pi-bookmark hover-icon"
-              style="margin-left: 0; color: var(--text-secondary)"
-              @click="notesRef?.toggle && notesRef.toggle()"
-            />
+            <span
+              style="
+                position: relative;
+                display: inline-flex;
+                align-items: center;
+              "
+            >
+              <i
+                class="pi pi-bell hover-icon"
+                style="margin-left: 0; color: var(--text-secondary)"
+                @click="notifSidebarRef?.toggle && notifSidebarRef.toggle()"
+              />
+              <span
+                v-if="notificationStore.hasUnread"
+                style="
+                  position: absolute;
+                  top: -2px;
+                  right: -2px;
+                  width: 7px;
+                  height: 7px;
+                  border-radius: 50%;
+                  background: var(--p-red-400);
+                  pointer-events: none;
+                "
+              />
+            </span>
 
             <i
               class="pi pi-book hover-icon"
@@ -190,9 +215,9 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
       ref="appSidebarRef"
     />
 
-    <AppNotesBar
+    <NotificationSideBar
       v-if="isAuthenticated && isInitialized && !hideNavigation"
-      ref="notesRef"
+      ref="notifSidebarRef"
     />
   </div>
 </template>

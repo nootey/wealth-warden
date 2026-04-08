@@ -33,8 +33,8 @@
 
 <script setup lang="ts">
 import { ref, defineExpose } from "vue";
-import MonthlyStats from "./_vue/components/data/MonthlyStats.vue";
-import DailyStats from "./_vue/components/data/DailyStats.vue";
+import MonthlyStats from "../components/data/MonthlyStats.vue";
+import DailyStats from "../components/data/DailyStats.vue";
 
 const open = ref(false);
 

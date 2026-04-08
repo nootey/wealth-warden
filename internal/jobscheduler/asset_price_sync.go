@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/queue"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/finance"
 
@@ -18,12 +19,15 @@ type accService interface {
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
 }
 
+const priceSurgeThreshold = 0.10
+
 type AssetPriceSyncJob struct {
 	logger            *zap.Logger
 	investmentSvc     services.InvestmentServiceInterface
 	accService        accService
 	db                *gorm.DB
 	priceFetchClient  finance.PriceFetcher
+	notifDispatcher   queue.NotificationDispatcher
 	concurrentWorkers int
 }
 
@@ -33,6 +37,7 @@ func NewAssetPriceSyncJob(
 	accService accService,
 	db *gorm.DB,
 	priceFetchClient finance.PriceFetcher,
+	notifDispatcher queue.NotificationDispatcher,
 	concurrentWorkers int,
 ) *AssetPriceSyncJob {
 	return &AssetPriceSyncJob{
@@ -41,6 +46,7 @@ func NewAssetPriceSyncJob(
 		accService:        accService,
 		db:                db,
 		priceFetchClient:  priceFetchClient,
+		notifDispatcher:   notifDispatcher,
 		concurrentWorkers: concurrentWorkers,
 	}
 }
@@ -315,6 +321,17 @@ func (j *AssetPriceSyncJob) updateAsset(tx *gorm.DB, asset models.InvestmentAsse
 				zap.String("new_price", price.String()),
 				zap.String("change_percent", changePercent.Mul(decimal.NewFromInt(100)).StringFixed(2)+"%"))
 			return nil
+		}
+
+		if j.notifDispatcher != nil && changePercent.GreaterThanOrEqual(decimal.NewFromFloat(priceSurgeThreshold)) {
+			direction := "surged"
+			if price.LessThan(*asset.CurrentPrice) {
+				direction = "dropped"
+			}
+			pct := changePercent.Mul(decimal.NewFromInt(100)).StringFixed(1)
+			title := fmt.Sprintf("%s %s %s%%", asset.Ticker, direction, pct)
+			msg := fmt.Sprintf("%s has %s by %s%% (from %s to %s).", asset.Ticker, direction, pct, asset.CurrentPrice.StringFixed(2), price.StringFixed(2))
+			_ = j.notifDispatcher.Dispatch(asset.UserID, title, msg, models.NotificationTypeWarning)
 		}
 	}
 

@@ -15,23 +15,25 @@ import (
 )
 
 type ServiceContainer struct {
-	Config             *config.Config
-	DB                 *gorm.DB
-	AuthzService       *authz.Service
-	BackofficeService  *services.BackofficeService
-	AuthService        *services.AuthService
-	UserService        *services.UserService
-	LoggingService     *services.LoggingService
-	AccountService     *services.AccountService
-	TransactionService *services.TransactionService
-	SettingsService    *services.SettingsService
-	RoleService        *services.RolePermissionService
-	ImportService      *services.ImportService
-	ExportService      *services.ExportService
-	InvestmentService  *services.InvestmentService
-	NotesService       *services.NotesService
-	AnalyticsService   *services.AnalyticsService
-	SavingsService     *services.SavingsService
+	Config              *config.Config
+	DB                  *gorm.DB
+	AuthzService        *authz.Service
+	BackofficeService   *services.BackofficeService
+	AuthService         *services.AuthService
+	UserService         *services.UserService
+	LoggingService      *services.LoggingService
+	AccountService      *services.AccountService
+	TransactionService  *services.TransactionService
+	SettingsService     *services.SettingsService
+	RoleService         *services.RolePermissionService
+	ImportService       *services.ImportService
+	ExportService       *services.ExportService
+	InvestmentService   *services.InvestmentService
+	NotesService        *services.NotesService
+	AnalyticsService    *services.AnalyticsService
+	SavingsService      *services.SavingsService
+	NotificationService *services.NotificationService
+	NotifDispatcher     queue.NotificationDispatcher
 }
 
 // NewServiceContainer initialises the application service layer.
@@ -66,6 +68,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	notesRepo := repositories.NewNotesRepository(db)
 	analyticsRepo := repositories.NewAnalyticsRepository(db)
 	savingsRepo := repositories.NewSavingsRepository(db)
+	notificationRepo := repositories.NewNotificationRepository(db)
 
 	// Initialize services
 	loggingService := services.NewLoggingService(loggingRepo)
@@ -82,24 +85,28 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	analyticsService := services.NewAnalyticsService(analyticsRepo, accountRepo, transactionRepo, settingsRepo)
 	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService, accountService, userService)
 	savingsService := services.NewSavingsService(savingsRepo, accountRepo, loggingRepo, jobDispatcher)
+	notificationService := services.NewNotificationService(notificationRepo)
+	notifDispatcher := queue.NewNotificationDispatcher(notificationRepo, jobDispatcher)
 
 	return &ServiceContainer{
-		Config:             cfg,
-		DB:                 db,
-		BackofficeService:  backOfficeService,
-		AuthzService:       authzSvc,
-		AuthService:        authService,
-		UserService:        userService,
-		LoggingService:     loggingService,
-		AccountService:     accountService,
-		TransactionService: transactionService,
-		SettingsService:    settingsService,
-		RoleService:        roleService,
-		ImportService:      importService,
-		ExportService:      exportService,
-		InvestmentService:  investmentService,
-		NotesService:       notesService,
-		AnalyticsService:   analyticsService,
-		SavingsService:     savingsService,
+		Config:              cfg,
+		DB:                  db,
+		BackofficeService:   backOfficeService,
+		AuthzService:        authzSvc,
+		AuthService:         authService,
+		UserService:         userService,
+		LoggingService:      loggingService,
+		AccountService:      accountService,
+		TransactionService:  transactionService,
+		SettingsService:     settingsService,
+		RoleService:         roleService,
+		ImportService:       importService,
+		ExportService:       exportService,
+		InvestmentService:   investmentService,
+		NotesService:        notesService,
+		AnalyticsService:    analyticsService,
+		SavingsService:      savingsService,
+		NotificationService: notificationService,
+		NotifDispatcher:     notifDispatcher,
 	}, nil
 }

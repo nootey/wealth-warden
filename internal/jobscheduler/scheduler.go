@@ -181,10 +181,10 @@ func (s *Scheduler) registerBackfillJob() error {
 func (s *Scheduler) registerTemplateAndFundSavingsJobs() error {
 
 	tLogger := s.logger.Named("templates-job")
-	templateJob := NewAutomateTemplateJob(tLogger, s.container, s.concurrentWorkers)
+	templateJob := NewAutomateTemplateJob(tLogger, s.container, s.container.NotifDispatcher, s.concurrentWorkers)
 
 	sLogger := s.logger.Named("savings-goal-fund-job")
-	savingsJob := NewAutoFundGoalsJob(sLogger, s.container, s.concurrentWorkers)
+	savingsJob := NewAutoFundGoalsJob(sLogger, s.container, s.container.NotifDispatcher, s.concurrentWorkers)
 
 	var opts []gocron.JobOption
 	if s.flags.StartTemplatesImmediately || s.flags.StartSavingsGoalFundImmediately {
@@ -224,7 +224,7 @@ func (s *Scheduler) registerAssetPriceSyncJob() error {
 		logger.Warn("Failed to create price fetch client", zap.Error(err))
 	}
 
-	job := NewAssetPriceSyncJob(logger, s.container.InvestmentService, s.container.AccountService, s.container.DB, client, s.concurrentWorkers)
+	job := NewAssetPriceSyncJob(logger, s.container.InvestmentService, s.container.AccountService, s.container.DB, client, s.container.NotifDispatcher, s.concurrentWorkers)
 
 	var opts []gocron.JobOption
 	if s.flags.StartAssetPriceSyncImmediately {

@@ -126,13 +126,13 @@
 
 <script setup lang="ts">
 import { ref, defineExpose } from "vue";
-import { useNotesStore } from "./services/stores/notes_store.ts";
-import { useSharedStore } from "./services/stores/shared_store.ts";
-import type { Note } from "./models/notes_models.ts";
-import dateHelper from "./utils/date_helper.ts";
-import { useToastStore } from "./services/stores/toast_store.ts";
-import SimplePaginator from "./_vue/components/base/SimplePaginator.vue";
-import type { PaginatorState } from "./models/shared_models.ts";
+import { useNotesStore } from "../../services/stores/notes_store.ts";
+import { useSharedStore } from "../../services/stores/shared_store.ts";
+import type { Note } from "../../models/notes_models.ts";
+import dateHelper from "../../utils/date_helper.ts";
+import { useToastStore } from "../../services/stores/toast_store.ts";
+import SimplePaginator from "../components/base/SimplePaginator.vue";
+import type { PaginatorState } from "../../models/shared_models.ts";
 
 const notesStore = useNotesStore();
 const sharedStore = useSharedStore();
