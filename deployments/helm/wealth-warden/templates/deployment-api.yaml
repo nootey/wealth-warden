@@ -1,0 +1,321 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wealth-warden.api.name" . }}
+  labels:
+    {{- include "wealth-warden.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  {{- if not .Values.api.autoscaling.enabled }}
+  replicas: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "wealth-warden.api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include "wealth-warden.api.configChecksum" . }}
+        {{- if .Values.secrets.create }}
+        checksum/secret: {{ include "wealth-warden.secretChecksum" . }}
+        {{- end }}
+        {{- with .Values.api.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "wealth-warden.api.selectorLabels" . | nindent 8 }}
+        helm.sh/chart: {{ include "wealth-warden.chart" . }}
+        {{- if .Chart.AppVersion }}
+        app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+        {{- end }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "wealth-warden.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.api.podSecurityContext | nindent 8 }}
+      initContainers:
+        # 1. migrate (runs database migrations)
+        # 2. seed (seeds initial data - runs after migrations complete)
+        {{- if .Values.api.initContainers.migrate.enabled }}
+        - name: migrate
+          securityContext:
+            {{- toYaml .Values.api.initContainers.migrate.securityContext | nindent 12 }}
+          image: "{{ .Values.api.initContainers.migrate.image.repository }}:{{ .Values.api.initContainers.migrate.image.tag | default .Values.api.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.api.initContainers.migrate.image.pullPolicy | default .Values.api.image.pullPolicy }}
+          command: [ "server", "migrate", "--dir", "/app/migrations", "up" ]
+          env:
+            - name: POSTGRES_HOST
+              value: {{ include "wealth-warden.postgresHost" . | quote }}
+            - name: POSTGRES_USER
+              value: {{ include "wealth-warden.postgresUser" . | quote }}
+            - name: POSTGRES_DB
+              value: {{ include "wealth-warden.postgresDatabase" . | quote }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.config.postgres.port | quote }}
+            - name: POSTGRES_PASSWORD
+              {{- if .Values.postgresql.enabled }}
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: postgres-password
+              {{- else }}
+              value: {{ .Values.postgresql.auth.postgresPassword | default "" | quote }}
+              {{- end }}
+              {{- else }}
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: postgres-password
+              {{- else }}
+              value: {{ .Values.config.postgres.password | quote }}
+              {{- end }}
+              {{- end }}
+            {{- if .Values.api.initContainers.migrate.directory }}
+            - name: MIGRATION_DIRECTORY
+              value: {{ .Values.api.initContainers.migrate.directory | quote }}
+            {{- end }}
+            {{- with .Values.api.initContainers.migrate.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.api.initContainers.migrate.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/pkg/config/override
+              readOnly: true
+        {{- end }}
+        {{- if .Values.api.initContainers.seed.enabled }}
+        - name: seed
+          securityContext:
+            {{- toYaml .Values.api.initContainers.seed.securityContext | nindent 12 }}
+          image: "{{ .Values.api.initContainers.seed.image.repository }}:{{ .Values.api.initContainers.seed.image.tag | default .Values.api.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.api.initContainers.seed.image.pullPolicy | default .Values.api.image.pullPolicy }}
+          command: [ "server","seed", "basic" ]
+          env:
+            - name: POSTGRES_HOST
+              value: {{ include "wealth-warden.postgresHost" . | quote }}
+            - name: POSTGRES_USER
+              value: {{ include "wealth-warden.postgresUser" . | quote }}
+            - name: POSTGRES_DB
+              value: {{ include "wealth-warden.postgresDatabase" . | quote }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.config.postgres.port | quote }}
+            - name: POSTGRES_PASSWORD
+              {{- if .Values.postgresql.enabled }}
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: postgres-password
+              {{- else }}
+              value: {{ .Values.postgresql.auth.postgresPassword | default "" | quote }}
+              {{- end }}
+              {{- else }}
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: postgres-password
+              {{- else }}
+              value: {{ .Values.config.postgres.password | quote }}
+              {{- end }}
+              {{- end }}
+            - name: JWT_WEB_CLIENT_ACCESS
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: jwt-web-client-access
+              {{- else }}
+              value: {{ .Values.config.jwt.webClientAccess | quote }}
+              {{- end }}
+            - name: JWT_WEB_CLIENT_REFRESH
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: jwt-web-client-refresh
+              {{- else }}
+              value: {{ .Values.config.jwt.webClientRefresh | quote }}
+              {{- end }}
+            - name: JWT_WEB_CLIENT_ENCODE_ID
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: jwt-web-client-encode-id
+              {{- else }}
+              value: {{ .Values.config.jwt.webClientEncodeId | quote }}
+              {{- end }}
+            - name: MAILER_PASSWORD
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: mailer-password
+              {{- else }}
+              value: {{ .Values.config.mailer.password | quote }}
+              {{- end }}
+            - name: SEED_SUPER_ADMIN_PASSWORD
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: super-admin-password
+              {{- else }}
+              value: {{ .Values.config.seed.superAdminPassword | quote }}
+              {{- end }}
+            {{- with .Values.api.initContainers.seed.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.api.initContainers.seed.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/pkg/config/override
+              readOnly: true
+        {{- end }}
+      containers:
+        - name: api
+          securityContext:
+            {{- toYaml .Values.api.securityContext | nindent 12 }}
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          command: [ "server", "http" ]
+          ports:
+            - name: http
+              containerPort: {{ .Values.config.httpServer.port }}
+              protocol: TCP
+          {{- if .Values.api.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.api.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.api.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.api.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.api.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.api.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.api.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.api.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.api.readinessProbe.failureThreshold }}
+          {{- end }}
+          env:
+            # PostgreSQL connection settings
+            - name: POSTGRES_HOST
+              value: {{ include "wealth-warden.postgresHost" . | quote }}
+            - name: POSTGRES_USER
+              value: {{ include "wealth-warden.postgresUser" . | quote }}
+            - name: POSTGRES_DB
+              value: {{ include "wealth-warden.postgresDatabase" . | quote }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.config.postgres.port | quote }}
+            # Sensitive values from secrets
+            - name: POSTGRES_PASSWORD
+              {{- if .Values.postgresql.enabled }}
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: postgres-password
+              {{- else }}
+              value: {{ .Values.postgresql.auth.postgresPassword | default "" | quote }}
+              {{- end }}
+              {{- else }}
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: postgres-password
+              {{- else }}
+              value: {{ .Values.config.postgres.password | quote }}
+              {{- end }}
+              {{- end }}
+            - name: JWT_WEB_CLIENT_ACCESS
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: jwt-web-client-access
+              {{- else }}
+              value: {{ .Values.config.jwt.webClientAccess | quote }}
+              {{- end }}
+            - name: JWT_WEB_CLIENT_REFRESH
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: jwt-web-client-refresh
+              {{- else }}
+              value: {{ .Values.config.jwt.webClientRefresh | quote }}
+              {{- end }}
+            - name: JWT_WEB_CLIENT_ENCODE_ID
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: jwt-web-client-encode-id
+              {{- else }}
+              value: {{ .Values.config.jwt.webClientEncodeId | quote }}
+              {{- end }}
+            - name: MAILER_PASSWORD
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: mailer-password
+              {{- else }}
+              value: {{ .Values.config.mailer.password | quote }}
+              {{- end }}
+            - name: SEED_SUPER_ADMIN_PASSWORD
+              {{- if .Values.secrets.create }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wealth-warden.secretName" . }}
+                  key: super-admin-password
+              {{- else }}
+              value: {{ .Values.config.seed.superAdminPassword | quote }}
+              {{- end }}
+            {{- with .Values.api.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/pkg/config/override
+              readOnly: true
+            {{- with .Values.api.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "wealth-warden.api.name" . }}-config
+        {{- with .Values.api.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.api.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
