@@ -471,21 +471,22 @@ defineExpose({ refresh });
             <template v-else-if="col.field === 'amount'">
               <div class="flex flex-row gap-2 align-items-center">
                 <i
+                  v-if="activeTab !== 'transfer'"
                   class="text-xs"
                   :class="
                     (data.transaction_type === 'expense'
                       ? data.amount * -1
                       : data.amount) >= 0
-                      ? 'pi pi-angle-down'
-                      : 'pi pi-angle-up'
+                      ? 'pi pi-angle-up'
+                      : 'pi pi-angle-down'
                   "
                   :style="{
                     color:
                       (data.transaction_type === 'expense'
                         ? data.amount * -1
                         : data.amount) >= 0
-                        ? colors.neg
-                        : colors.pos,
+                        ? colors.pos
+                        : colors.neg,
                   }"
                 />
                 <span>
