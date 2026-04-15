@@ -41,37 +41,53 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 
 	j.logger.Info("Processing templates", zap.Int("count", len(templates)))
 
+	// Split into two phases: inflows first, then expenses and transfers.
+	// This ensures funds are available before withdrawals on the same day.
+	var inflows, rest []*models.TransactionTemplate
+	for _, tmpl := range templates {
+		if tmpl.TemplateType == "transaction" && tmpl.TransactionType != nil && *tmpl.TransactionType == "income" {
+			inflows = append(inflows, tmpl)
+		} else {
+			rest = append(rest, tmpl)
+		}
+	}
+
 	type result struct {
 		template *models.TransactionTemplate
 		err      error
 	}
 
-	jobs := make(chan *models.TransactionTemplate, len(templates))
-	results := make(chan result, len(templates))
-
-	var wg sync.WaitGroup
-	for i := 0; i < j.concurrentWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for tmpl := range jobs {
-				select {
-				case <-ctx.Done():
-					return
-				default:
+	runPhase := func(phase []*models.TransactionTemplate, out chan<- result) {
+		if len(phase) == 0 {
+			return
+		}
+		jobs := make(chan *models.TransactionTemplate, len(phase))
+		var wg sync.WaitGroup
+		for i := 0; i < j.concurrentWorkers; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for tmpl := range jobs {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+					}
+					err := j.container.TransactionService.ProcessTemplate(ctx, tmpl)
+					out <- result{template: tmpl, err: err}
 				}
-				err := j.container.TransactionService.ProcessTemplate(ctx, tmpl)
-				results <- result{template: tmpl, err: err}
-			}
-		}()
+			}()
+		}
+		for _, tmpl := range phase {
+			jobs <- tmpl
+		}
+		close(jobs)
+		wg.Wait()
 	}
 
-	for _, tmpl := range templates {
-		jobs <- tmpl
-	}
-	close(jobs)
-
-	wg.Wait()
+	results := make(chan result, len(templates))
+	runPhase(inflows, results)
+	runPhase(rest, results)
 	close(results)
 
 	type userSummary struct {
