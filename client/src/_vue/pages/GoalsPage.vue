@@ -107,6 +107,7 @@ const groupedGoals = computed(() => {
       accountName: string;
       totalBalance: Decimal;
       allocated: Decimal;
+      monthlyAutoFund: Decimal;
       goals: SavingGoalWithProgress[];
     }
   >();
@@ -122,6 +123,7 @@ const groupedGoals = computed(() => {
         accountName: account?.name ?? "—",
         totalBalance,
         allocated: new Decimal(0),
+        monthlyAutoFund: new Decimal(0),
         goals: [],
       });
     }
@@ -129,6 +131,11 @@ const groupedGoals = computed(() => {
     group.allocated = group.allocated.add(
       new Decimal(goal.current_amount ?? "0"),
     );
+    if (goal.status === "active" && goal.monthly_allocation) {
+      group.monthlyAutoFund = group.monthlyAutoFund.add(
+        new Decimal(goal.monthly_allocation),
+      );
+    }
     group.goals.push(goal);
   }
 
@@ -285,6 +292,18 @@ const groupedGoals = computed(() => {
                     }}</span
                   >
                   free
+                </span>
+                <span v-if="group.monthlyAutoFund.gt(0)">
+                  <span
+                    class="font-medium"
+                    style="color: var(--text-primary)"
+                    >{{
+                      vueHelper.displayAsCurrency(
+                        group.monthlyAutoFund.toString(),
+                      ) + "/mo"
+                    }}</span
+                  >
+                  auto
                 </span>
               </div>
             </div>
