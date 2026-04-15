@@ -61,6 +61,13 @@ func (j *BalanceBackfillJob) Run(ctx context.Context) error {
 				default:
 				}
 				err := j.container.AccountService.BackfillBalancesForUser(ctx, uid, from, to)
+				if err == nil {
+					if mvErr := j.container.AccountService.UpdateSnapshotMarketValues(ctx, uid); mvErr != nil {
+						j.logger.Warn("Failed to update snapshot market values after backfill",
+							zap.Int64("userID", uid),
+							zap.Error(mvErr))
+					}
+				}
 				results <- result{userID: uid, err: err}
 			}
 		}()
