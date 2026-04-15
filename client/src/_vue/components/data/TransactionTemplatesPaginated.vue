@@ -476,16 +476,16 @@ defineExpose({ refresh });
                     (data.transaction_type === 'expense'
                       ? data.amount * -1
                       : data.amount) >= 0
-                      ? 'pi pi-angle-up'
-                      : 'pi pi-angle-down'
+                      ? 'pi pi-angle-down'
+                      : 'pi pi-angle-up'
                   "
                   :style="{
                     color:
                       (data.transaction_type === 'expense'
                         ? data.amount * -1
                         : data.amount) >= 0
-                        ? colors.pos
-                        : colors.neg,
+                        ? colors.neg
+                        : colors.pos,
                   }"
                 />
                 <span>
