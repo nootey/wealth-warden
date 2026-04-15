@@ -471,6 +471,7 @@ defineExpose({ refresh });
             <template v-else-if="col.field === 'amount'">
               <div class="flex flex-row gap-2 align-items-center">
                 <i
+                  v-if="activeTab !== 'transfer'"
                   class="text-xs"
                   :class="
                     (data.transaction_type === 'expense'
