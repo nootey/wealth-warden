@@ -7,8 +7,15 @@ import type { User } from "../../../models/user_models.ts";
 import { useConfirm } from "primevue/useconfirm";
 import ShowLoading from "../../components/base/ShowLoading.vue";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
-import { email, required } from "@vuelidate/validators";
+import { email, required, helpers } from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
+import {
+  passwordMinLength,
+  noSpaces,
+  hasNumber,
+  hasUppercase,
+  hasSpecialChar,
+} from "../../../utils/password_validators.ts";
 import ValidationError from "../../components/validation/ValidationError.vue";
 
 const authStore = useAuthStore();
@@ -22,17 +29,39 @@ const currentUser = ref<User>();
 const emailUpdated = ref(false);
 const loading = ref(true);
 
+const password = ref("");
+const passwordConfirmation = ref("");
+
 const rules = computed(() => ({
   currentUser: {
     display_name: { required, $autoDirty: true },
     email: { required, email, $autoDirty: true },
   },
+  password: password.value
+    ? {
+        minLength: passwordMinLength,
+        noSpaces,
+        hasNumber,
+        hasUppercase,
+        hasSpecialChar,
+        $autoDirty: true,
+      }
+    : {},
+  passwordConfirmation: password.value
+    ? {
+        repeatPassword: helpers.withMessage(
+          ": must match password",
+          (value: string) => value === password.value,
+        ),
+        $autoDirty: true,
+      }
+    : {},
 }));
 
-const v$ = useVuelidate(rules, { currentUser });
+const v$ = useVuelidate(rules, { currentUser, password, passwordConfirmation });
 
 async function isRecordValid() {
-  const isValid = await v$.value.currentUser.$validate();
+  const isValid = await v$.value.$validate();
   if (!isValid) return false;
   return true;
 }
@@ -53,10 +82,18 @@ async function initUser() {
 }
 
 async function confirmUpdateSettings() {
-  if (emailUpdated.value) {
+  const changingEmail = emailUpdated.value;
+  const changingPassword = !!password.value;
+
+  if (changingEmail || changingPassword) {
+    const parts = [];
+    if (changingEmail) parts.push("your email address");
+    if (changingPassword) parts.push("your password");
+    const what = parts.join(" and ");
+
     confirm.require({
       header: "Confirm operation",
-      message: `You're about to change your email address. This will log you out.`,
+      message: `You're about to change ${what}. This will log you out.`,
       rejectProps: { label: "Cancel" },
       acceptProps: { label: "Continue" },
       accept: async () => await updateSettings(),
@@ -74,12 +111,14 @@ async function updateSettings() {
     display_name: currentUser.value?.display_name,
     email_updated: emailUpdated.value,
     email: currentUser.value?.email,
+    password: password.value || null,
+    password_confirmation: passwordConfirmation.value || null,
   };
 
   try {
     let response = await settingsStore.updateProfileSettings(rec);
     toastStore.successResponseToast(response);
-    if (rec.email_updated) {
+    if (rec.email_updated || rec.password) {
       authStore.logout();
     }
   } catch (error) {
@@ -153,6 +192,34 @@ async function updateSettings() {
               <InputText
                 id="in_label"
                 v-model="currentUser.display_name"
+                class="w-full"
+              />
+            </div>
+          </div>
+          <div class="flex flex-row w-full">
+            <div class="flex flex-column gap-1 w-full">
+              <ValidationError :message="v$.password.$errors[0]?.$message">
+                <label>New password</label>
+              </ValidationError>
+              <InputText
+                v-model="password"
+                type="password"
+                placeholder="Password (leave blank to keep)"
+                class="w-full"
+              />
+            </div>
+          </div>
+          <div class="flex flex-row w-full">
+            <div class="flex flex-column gap-1 w-full">
+              <ValidationError
+                :message="v$.passwordConfirmation.$errors[0]?.$message"
+              >
+                <label>Confirm new password</label>
+              </ValidationError>
+              <InputText
+                v-model="passwordConfirmation"
+                type="password"
+                placeholder="Confirm new password"
                 class="w-full"
               />
             </div>

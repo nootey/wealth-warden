@@ -463,8 +463,12 @@ func (s *AnalyticsService) GetCategoryUsageForYears(ctx context.Context, userID 
 		}
 
 		var monthlyAvg = decimal.NewFromInt(0)
-		if len(monthsWithData) > 0 {
-			monthlyAvg = yearTotal.Div(decimal.NewFromInt(int64(len(monthsWithData))))
+		if yearTotal.GreaterThan(decimal.Zero) {
+			divisor := 12
+			if result.year == time.Now().Year() {
+				divisor = int(time.Now().Month())
+			}
+			monthlyAvg = yearTotal.Div(decimal.NewFromInt(int64(divisor)))
 		}
 
 		yearStats[result.year] = models.YearStat{
@@ -1234,16 +1238,18 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 	avgTakeHome := takeHomeYear.Div(decimal.NewFromInt(12))
 	avgOverflow := overflowYear.Div(decimal.NewFromInt(12))
 
-	activeMonths := tot.ActiveMonths
-	if activeMonths < 1 {
-		activeMonths = 0
+	divisor := int64(12)
+	if year == time.Now().Year() {
+		divisor = int64(time.Now().Month())
 	}
 
 	avgIn := decimal.Zero
 	avgOut := decimal.Zero
-	if activeMonths > 0 {
-		avgIn = inflow.Div(decimal.NewFromInt(int64(activeMonths)))
-		avgOut = outflow.Div(decimal.NewFromInt(int64(activeMonths)))
+	if inflow.GreaterThan(decimal.Zero) {
+		avgIn = inflow.Div(decimal.NewFromInt(divisor))
+	}
+	if outflow.GreaterThan(decimal.Zero) {
+		avgOut = outflow.Div(decimal.NewFromInt(divisor))
 	}
 
 	if err := tx.Commit().Error; err != nil {

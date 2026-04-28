@@ -138,6 +138,10 @@ const calcDiff = (current: string, comparison: string) => {
   return curr - comp;
 };
 
+const calcOutflowDiff = (current: string, comparison: string) => {
+  return -calcDiff(current, comparison);
+};
+
 const calcPctDiff = (current: number, comparison: number) => {
   return current - comparison;
 };
@@ -296,7 +300,9 @@ const getDiffColor = (diff: number) => {
             <span>Total Outflows:</span>
             <div class="flex flex-row gap-2 align-items-center">
               <b>{{
-                vueHelper.displayAsCurrency(breakdownStats.current_year.outflow)
+                vueHelper.displayAsCurrency(
+                  Math.abs(Number(breakdownStats.current_year.outflow)),
+                )
               }}</b>
               <span
                 v-if="breakdownStats.comparison_year"
@@ -311,7 +317,7 @@ const getDiffColor = (diff: number) => {
                 }"
               >
                 ({{
-                  calcDiff(
+                  calcOutflowDiff(
                     breakdownStats.current_year.outflow,
                     breakdownStats.comparison_year.outflow,
                   ) >= 0
@@ -319,7 +325,7 @@ const getDiffColor = (diff: number) => {
                     : ""
                 }}{{
                   vueHelper.displayAsCurrency(
-                    calcDiff(
+                    calcOutflowDiff(
                       breakdownStats.current_year.outflow,
                       breakdownStats.comparison_year.outflow,
                     ),
@@ -373,7 +379,9 @@ const getDiffColor = (diff: number) => {
             <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
-                  breakdownStats.current_year.avg_monthly_outflow,
+                  Math.abs(
+                    Number(breakdownStats.current_year.avg_monthly_outflow),
+                  ),
                 )
               }}</b>
               <span
@@ -389,7 +397,7 @@ const getDiffColor = (diff: number) => {
                 }"
               >
                 ({{
-                  calcDiff(
+                  calcOutflowDiff(
                     breakdownStats.current_year.avg_monthly_outflow,
                     breakdownStats.comparison_year.avg_monthly_outflow,
                   ) >= 0
@@ -397,7 +405,7 @@ const getDiffColor = (diff: number) => {
                     : ""
                 }}{{
                   vueHelper.displayAsCurrency(
-                    calcDiff(
+                    calcOutflowDiff(
                       breakdownStats.current_year.avg_monthly_outflow,
                       breakdownStats.comparison_year.avg_monthly_outflow,
                     ),
@@ -599,7 +607,7 @@ const getDiffColor = (diff: number) => {
             <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
-                  breakdownStats.current_year.overflow,
+                  Math.abs(Number(breakdownStats.current_year.overflow)),
                 )
               }}</b>
               <span
@@ -615,7 +623,7 @@ const getDiffColor = (diff: number) => {
                 }"
               >
                 ({{
-                  calcDiff(
+                  calcOutflowDiff(
                     breakdownStats.current_year.overflow,
                     breakdownStats.comparison_year.overflow,
                   ) >= 0
@@ -623,7 +631,7 @@ const getDiffColor = (diff: number) => {
                     : ""
                 }}{{
                   vueHelper.displayAsCurrency(
-                    calcDiff(
+                    calcOutflowDiff(
                       breakdownStats.current_year.overflow,
                       breakdownStats.comparison_year.overflow,
                     ),
@@ -677,7 +685,9 @@ const getDiffColor = (diff: number) => {
             <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
-                  breakdownStats.current_year.avg_monthly_overflow,
+                  Math.abs(
+                    Number(breakdownStats.current_year.avg_monthly_overflow),
+                  ),
                 )
               }}</b>
               <span
@@ -693,7 +703,7 @@ const getDiffColor = (diff: number) => {
                 }"
               >
                 ({{
-                  calcDiff(
+                  calcOutflowDiff(
                     breakdownStats.current_year.avg_monthly_overflow,
                     breakdownStats.comparison_year.avg_monthly_overflow,
                   ) >= 0
@@ -701,7 +711,7 @@ const getDiffColor = (diff: number) => {
                     : ""
                 }}{{
                   vueHelper.displayAsCurrency(
-                    calcDiff(
+                    calcOutflowDiff(
                       breakdownStats.current_year.avg_monthly_overflow,
                       breakdownStats.comparison_year.avg_monthly_overflow,
                     ),
@@ -778,7 +788,7 @@ const getDiffColor = (diff: number) => {
             <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
-                  breakdownStats.comparison_year.outflow,
+                  Math.abs(Number(breakdownStats.comparison_year.outflow)),
                 )
               }}</b>
               <span
@@ -793,7 +803,7 @@ const getDiffColor = (diff: number) => {
                 }"
               >
                 ({{
-                  calcDiff(
+                  calcOutflowDiff(
                     breakdownStats.current_year.outflow,
                     breakdownStats.comparison_year.outflow,
                   ) >= 0
@@ -801,7 +811,7 @@ const getDiffColor = (diff: number) => {
                     : ""
                 }}{{
                   vueHelper.displayAsCurrency(
-                    calcDiff(
+                    calcOutflowDiff(
                       breakdownStats.current_year.outflow,
                       breakdownStats.comparison_year.outflow,
                     ),
@@ -854,7 +864,9 @@ const getDiffColor = (diff: number) => {
             <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
-                  breakdownStats.comparison_year.avg_monthly_outflow,
+                  Math.abs(
+                    Number(breakdownStats.comparison_year.avg_monthly_outflow),
+                  ),
                 )
               }}</b>
               <span
@@ -869,7 +881,7 @@ const getDiffColor = (diff: number) => {
                 }"
               >
                 ({{
-                  calcDiff(
+                  calcOutflowDiff(
                     breakdownStats.current_year.avg_monthly_outflow,
                     breakdownStats.comparison_year.avg_monthly_outflow,
                   ) >= 0
@@ -877,7 +889,7 @@ const getDiffColor = (diff: number) => {
                     : ""
                 }}{{
                   vueHelper.displayAsCurrency(
-                    calcDiff(
+                    calcOutflowDiff(
                       breakdownStats.current_year.avg_monthly_outflow,
                       breakdownStats.comparison_year.avg_monthly_outflow,
                     ),
@@ -1075,7 +1087,7 @@ const getDiffColor = (diff: number) => {
             <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
-                  breakdownStats.comparison_year.overflow,
+                  Math.abs(Number(breakdownStats.comparison_year.overflow)),
                 )
               }}</b>
               <span
@@ -1090,7 +1102,7 @@ const getDiffColor = (diff: number) => {
                 }"
               >
                 ({{
-                  calcDiff(
+                  calcOutflowDiff(
                     breakdownStats.current_year.overflow,
                     breakdownStats.comparison_year.overflow,
                   ) >= 0
@@ -1098,7 +1110,7 @@ const getDiffColor = (diff: number) => {
                     : ""
                 }}{{
                   vueHelper.displayAsCurrency(
-                    calcDiff(
+                    calcOutflowDiff(
                       breakdownStats.current_year.overflow,
                       breakdownStats.comparison_year.overflow,
                     ),
@@ -1151,7 +1163,9 @@ const getDiffColor = (diff: number) => {
             <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
-                  breakdownStats.comparison_year.avg_monthly_overflow,
+                  Math.abs(
+                    Number(breakdownStats.comparison_year.avg_monthly_overflow),
+                  ),
                 )
               }}</b>
               <span
@@ -1166,7 +1180,7 @@ const getDiffColor = (diff: number) => {
                 }"
               >
                 ({{
-                  calcDiff(
+                  calcOutflowDiff(
                     breakdownStats.current_year.avg_monthly_overflow,
                     breakdownStats.comparison_year.avg_monthly_overflow,
                   ) >= 0
@@ -1174,7 +1188,7 @@ const getDiffColor = (diff: number) => {
                     : ""
                 }}{{
                   vueHelper.displayAsCurrency(
-                    calcDiff(
+                    calcOutflowDiff(
                       breakdownStats.current_year.avg_monthly_overflow,
                       breakdownStats.comparison_year.avg_monthly_overflow,
                     ),
