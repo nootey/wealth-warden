@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { required, email, minLength, helpers } from "@vuelidate/validators";
+import { required, email, helpers } from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
+import {
+  passwordMinLength,
+  noSpaces,
+  hasNumber,
+  hasUppercase,
+  hasSpecialChar,
+} from "../../../utils/password_validators.ts";
 import { useRouter } from "vue-router";
 import ValidationError from "../../components/validation/ValidationError.vue";
 import AuthSkeleton from "../../components/layout/AuthSkeleton.vue";
@@ -26,26 +33,6 @@ const form = ref<AuthForm>({
   password_confirmation: "",
 });
 
-const noSpaces = helpers.withMessage(
-  "Password cannot contain spaces",
-  (value: string) => !/\s/.test(value ?? ""),
-);
-
-const hasNumber = helpers.withMessage(
-  "Password must contain at least one number",
-  helpers.regex(/\d/),
-);
-
-const hasUppercase = helpers.withMessage(
-  "Password must contain at least one uppercase letter",
-  helpers.regex(/[A-Z]/),
-);
-
-const hasSpecialChar = helpers.withMessage(
-  "Password must contain at least one special character",
-  helpers.regex(/[!@#$%^&*(),.?":{}|<>]/),
-);
-
 const rules = {
   form: {
     email: {
@@ -56,7 +43,7 @@ const rules = {
     password: {
       required,
       $autoDirty: true,
-      minLength: minLength(6),
+      minLength: passwordMinLength,
       noSpaces,
       hasNumber,
       hasUppercase,

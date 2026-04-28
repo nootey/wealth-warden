@@ -34,7 +34,7 @@ func (h *SettingsHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.GET("/timezones", authz.RequireAllMW("view_data"), h.GetAvailableTimezones)
 	apiGroup.GET("/currencies", authz.RequireAllMW("view_data"), h.GetAvailableCurrencies)
 	apiGroup.PUT("/users/preferences", authz.RequireAllMW("manage_data"), h.UpdatePreferenceSettings)
-	apiGroup.PUT("/users/profile", authz.RequireAllMW("manage_data"), h.UpdateProfileSettings)
+	apiGroup.PUT("/users/profile", authz.RequireAllMW(), h.UpdateProfileSettings)
 }
 
 func (h *SettingsHandler) GetGeneralSettings(c *gin.Context) {

@@ -61,9 +61,11 @@ type CompleteSetupReq struct {
 }
 
 type ProfileSettingsReq struct {
-	DisplayName  string `json:"display_name" validate:"required"`
-	Email        string `json:"email" validate:"required"`
-	EmailUpdated bool   `json:"email_updated"`
+	DisplayName          string  `json:"display_name" validate:"required"`
+	Email                string  `json:"email" validate:"required"`
+	EmailUpdated         bool    `json:"email_updated"`
+	Password             *string `json:"password"`
+	PasswordConfirmation *string `json:"password_confirmation"`
 }
 
 type BackupInfo struct {

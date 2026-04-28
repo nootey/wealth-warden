@@ -260,6 +260,22 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 		return err
 	}
 
+	if req.Password != nil && *req.Password != "" {
+		if req.PasswordConfirmation == nil || *req.Password != *req.PasswordConfirmation {
+			tx.Rollback()
+			return fmt.Errorf("password confirmation must match provided password")
+		}
+		hashed, err := utils.HashAndSaltPassword(*req.Password)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to hash password: %w", err)
+		}
+		if err := s.userRepo.UpdateUserPassword(ctx, tx, existingUser.ID, hashed); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
@@ -270,11 +286,17 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 	utils.CompareChanges(existingUser.Email, u.Email, changes, "email")
 	utils.CompareChanges(existingUser.DisplayName, u.DisplayName, changes, "display_name")
 
+	var description *string
+	if req.Password != nil && *req.Password != "" {
+		d := "Password changed"
+		description = &d
+	}
+
 	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "update",
 		Category:    "user",
-		Description: nil,
+		Description: description,
 		Payload:     changes,
 		Causer:      &userID,
 	})
