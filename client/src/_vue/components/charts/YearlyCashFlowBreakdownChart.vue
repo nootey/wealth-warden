@@ -27,9 +27,11 @@ const props = withDefaults(
   defineProps<{
     isMobile?: boolean;
     data: YearlyCashFlowResponse;
+    selectedSeries?: string | null;
   }>(),
   {
     isMobile: false,
+    selectedSeries: null,
   },
 );
 
@@ -77,47 +79,44 @@ const hasAnyData = computed(() => {
   return totalIn !== 0 || totalOut !== 0;
 });
 
+const allDatasets = computed(() => [
+  {
+    label: "Inflows",
+    data: inflowsArr.value,
+    backgroundColor: "#3b82f6",
+    stack: "stack0",
+  },
+  {
+    label: "Outflows",
+    data: outflowsArr.value.map((v) => Math.abs(v)),
+    backgroundColor: "#8b5cf6",
+    stack: "stack0",
+  },
+  {
+    label: "Investments",
+    data: investmentsArr.value,
+    backgroundColor: "#ec4899",
+    stack: "stack0",
+  },
+  {
+    label: "Savings",
+    data: savingsArr.value,
+    backgroundColor: "#eab308",
+    stack: "stack0",
+  },
+  {
+    label: "Debt Repayments",
+    data: debtArr.value,
+    backgroundColor: "#06b6d4",
+    stack: "stack0",
+  },
+]);
+
 const chartData = computed(() => ({
   labels: labels.value,
-  datasets: [
-    {
-      label: "Inflows",
-      data: inflowsArr.value,
-      backgroundColor: "#3b82f6",
-      stack: "stack0",
-    },
-    {
-      label: "Outflows",
-      data: outflowsArr.value.map((v) => Math.abs(v)),
-      backgroundColor: "#8b5cf6",
-      stack: "stack0",
-    },
-    {
-      label: "Investments",
-      data: investmentsArr.value,
-      backgroundColor: "#ec4899",
-      stack: "stack0",
-    },
-    {
-      label: "Savings",
-      data: savingsArr.value,
-      backgroundColor: "#eab308",
-      stack: "stack0",
-    },
-    {
-      label: "Debt Repayments",
-      data: debtArr.value,
-      backgroundColor: "#06b6d4",
-      stack: "stack0",
-    },
-    // Display only overflow on the chart, so that we can see when we went into negative for the month
-    {
-      label: "Overflow",
-      data: overflowArr.value.map((v) => -Math.abs(v)),
-      backgroundColor: colors.value.neg,
-      stack: "stack0",
-    },
-  ],
+  datasets: props.selectedSeries
+    ? allDatasets.value.filter((d) => d.label === props.selectedSeries)
+    : allDatasets.value,
 }));
 
 const chartOptions = computed(() => ({
@@ -155,17 +154,10 @@ const chartOptions = computed(() => ({
 
       callbacks: {
         title: (items: any[]) => items?.[0]?.label ?? "",
-        label: (ctx: any) => {
-          if (
-            ctx.dataset.label === "Take Home" ||
-            ctx.dataset.label === "Overflow"
-          ) {
-            return null;
-          }
-          return `${ctx.dataset.label}: ${vueHelper.displayAsCurrency(Math.abs(ctx.parsed?.y))}`;
-        },
+        label: (ctx: any) =>
+          `${ctx.dataset.label}: ${vueHelper.displayAsCurrency(Math.abs(ctx.parsed?.y))}`,
         footer: (items: any[]) => {
-          if (!items?.length) return "";
+          if (!items?.length || props.selectedSeries) return "";
           const i = items[0].dataIndex;
           const takeHome = takeHomeArr.value[i] ?? 0;
           const overflow = overflowArr.value[i] ?? 0;

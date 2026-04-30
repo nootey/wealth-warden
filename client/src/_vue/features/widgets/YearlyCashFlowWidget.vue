@@ -27,6 +27,15 @@ const selectedYear = ref<number>(new Date().getFullYear());
 const cashFlow = ref<YearlyCashFlowResponse>({ year: 0, months: [] });
 const accounts = ref<Account[]>([]);
 const selectedAccountID = ref<number | null>(null);
+const selectedSeries = ref<string | null>(null);
+
+const seriesOptions = [
+  { label: "Inflows", value: "Inflows" },
+  { label: "Outflows", value: "Outflows" },
+  { label: "Investments", value: "Investments" },
+  { label: "Savings", value: "Savings" },
+  { label: "Debt Repayments", value: "Debt Repayments" },
+];
 
 const isLoadingStats = ref(false);
 
@@ -102,41 +111,24 @@ watch(
   <div class="flex flex-column w-full p-2 gap-3">
     <div
       v-if="years.length > 0"
-      id="mobile-row"
       class="flex flex-row gap-2 w-full justify-content-between align-items-center"
     >
-      <div class="flex flex-column gap-1">
-        <div class="flex flex-row">
-          <span class="text-sm" style="color: var(--text-secondary)">
-            Select which year you want to display statistics for. Current year
-            will be used as a default.
-          </span>
-        </div>
+      <div class="mobile-hide flex flex-column gap-1">
+        <span class="text-sm" style="color: var(--text-secondary)">
+          Select a year, account, and cash flow category to filter the chart.
+        </span>
       </div>
 
-      <div class="flex flex-column gap-2">
+      <div
+        id="selects-row"
+        class="flex flex-row flex-wrap gap-2 justify-content-end"
+      >
         <Select
           v-model="selectedYear"
           size="small"
           style="width: 150px"
           :options="years"
         />
-      </div>
-    </div>
-
-    <div
-      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
-    >
-      <div class="flex flex-column gap-2">
-        <div class="flex flex-row">
-          <span class="text-sm" style="color: var(--text-secondary)">
-            A default checking account was found. The stats are representative
-            of the cash flow to this account.
-          </span>
-        </div>
-      </div>
-
-      <div class="flex flex-column gap-2">
         <Select
           v-model="selectedAccountID"
           size="small"
@@ -165,6 +157,16 @@ watch(
             </div>
           </template>
         </Select>
+        <Select
+          v-model="selectedSeries"
+          size="small"
+          style="width: 150px"
+          :options="seriesOptions"
+          option-label="label"
+          option-value="value"
+          placeholder="All"
+          show-clear
+        />
       </div>
     </div>
 
@@ -174,8 +176,20 @@ watch(
       :key="`chart-${selectedYear}-${selectedAccountID ?? 'all'}-${cashFlow.months.length}`"
       :is-mobile="isMobile"
       :data="cashFlow"
+      :selected-series="selectedSeries"
     />
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+@media (max-width: 768px) {
+  #selects-row {
+    width: 100%;
+  }
+
+  #selects-row > * {
+    flex: 1 1 calc(50% - 4px);
+    width: auto !important;
+  }
+}
+</style>
