@@ -2,7 +2,7 @@
 
 ## Project context
 
-Ledger based personal finance manager with an included web based client.
+Ledger based personal finance manager with an included web based client (separate CLAUDE.md file).
 
 - Jobs: `internal/jobscheduler` for scheduled/recurring jobs, `internal/queue` for async HTTP-triggered jobs
 - Exchange rates: `GetExchangeRate` with a date caches to `exchange_rate_history`; without a date it's a live rate and never cached
@@ -18,7 +18,7 @@ Ledger based personal finance manager with an included web based client.
 - Write clean, self-documenting code
 - Minimize comments unless essential for clarity
 
-## Typography - ASCII Only
+## Typography
 - Do not use em dashes. Use hyphens instead. 
 - Do not use smart or curly quotes. Use straight quotes instead. 
 - Do not use the ellipsis character. Use three plain dots instead. 
@@ -26,13 +26,12 @@ Ledger based personal finance manager with an included web based client.
 - Do not use non-breaking spaces. 
 - Do not modify content inside backticks. Treat it as a literal example.
 
-## Accuracy and Speculation Control
+## Accuracy
 
 - Ask clarifying questions when requirements are unclear
 - Present options when multiple approaches exist
 - Never speculate about code, files, or APIs you have not read.
 - If unsure: say "I don't know." Never guess confidently.
-- Do not create new files unless strictly necessary.
 
 ## Git
 
@@ -47,8 +46,7 @@ Ledger based personal finance manager with an included web based client.
 ## Development Guidelines
 
 - Follow existing code patterns and conventions
-- DO NOT suggest service to service injections, unless absolutely necessary
-- For the client, do NOT write custom css classes, use inline primeflex classes where possible
+- DO NOT suggest service to service injections, unless absolutely necessary - present your reasoning if so
 - Consider security and performance implications
 - Use make build and make lint to verify new code
 - Test changes when possible
