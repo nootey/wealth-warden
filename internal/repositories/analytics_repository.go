@@ -23,6 +23,10 @@ type AnalyticsRepositoryInterface interface {
 	FetchMonthlyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year int) ([]models.MonthlyTotalsRow, error)
 	FetchMonthlyCategoryTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, year, month int) ([]models.YearlyCategoryRow, error)
 	GetAvailableStatsYears(ctx context.Context, tx *gorm.DB, accID *int64, userID int64, includeMonths bool) ([]models.AvailableStatsYear, error)
+	CountReports(ctx context.Context, tx *gorm.DB, userID int64) (int64, error)
+	FindReports(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int) ([]models.Report, error)
+	InsertReport(ctx context.Context, tx *gorm.DB, record *models.Report) error
+	UpdateReport(ctx context.Context, tx *gorm.DB, id int64, fields map[string]interface{}) error
 }
 type AnalyticsRepository struct {
 	db *gorm.DB
@@ -677,4 +681,56 @@ func (r *AnalyticsRepository) FetchDailyTotalsCheckingOnly(ctx context.Context, 
 
 	err := db.Raw(query, userID, date, accountIDs).Scan(&row).Error
 	return &row, err
+}
+
+func (r *AnalyticsRepository) CountReports(ctx context.Context, tx *gorm.DB, userID int64) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var total int64
+	if err := db.Model(&models.Report{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+func (r *AnalyticsRepository) FindReports(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int) ([]models.Report, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.Report
+	err := db.Model(&models.Report{}).
+		Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (r *AnalyticsRepository) InsertReport(ctx context.Context, tx *gorm.DB, record *models.Report) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+	return db.Create(record).Error
+}
+
+func (r *AnalyticsRepository) UpdateReport(ctx context.Context, tx *gorm.DB, id int64, fields map[string]interface{}) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+	return db.Model(&models.Report{}).Where("id = ?", id).Updates(fields).Error
 }

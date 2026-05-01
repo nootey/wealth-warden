@@ -7,6 +7,12 @@ import ReportsPaginated from "../components/reports/ReportsPaginated.vue";
 import { ref } from "vue";
 
 const newReportModal = ref(false);
+const reportsPaginated = ref<InstanceType<typeof ReportsPaginated>>();
+
+function onReportComplete() {
+  newReportModal.value = false;
+  reportsPaginated.value?.refresh();
+}
 
 const activeTab = ref("overview");
 </script>
@@ -20,7 +26,7 @@ const activeTab = ref("overview");
     :style="{ width: '750px' }"
     header="New Report"
   >
-    <NewReportModule @complete="newReportModal = false" />
+    <NewReportModule @complete="onReportComplete" />
   </Dialog>
 
   <main
@@ -93,7 +99,16 @@ const activeTab = ref("overview");
               </div>
             </Button>
           </div>
-          <ReportsPaginated />
+          <div
+            class="flex flex-column w-full p-3 gap-3 border-round-2xl"
+            style="
+              background-color: var(--background-secondary);
+              border: 1px solid var(--border-color);
+            "
+          >
+            <span class="font-bold">Reports</span>
+            <ReportsPaginated ref="reportsPaginated" />
+          </div>
         </div>
       </Transition>
     </div>

@@ -147,6 +147,19 @@ export interface CategoryFlow {
   percentage: string;
 }
 
+export interface Report {
+  id: number;
+  user_id: number;
+  name: string;
+  type: string;
+  status: string;
+  metadata?: unknown;
+  error?: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string | null;
+}
+
 export interface YearlySankeyData {
   year: number;
   currency: string;

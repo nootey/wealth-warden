@@ -24,7 +24,8 @@ type AnalyticsServiceInterface interface {
 	GetAvailableStatsYears(ctx context.Context, accID *int64, userID int64, includeMonths bool) ([]models.AvailableStatsYear, error)
 	GetMonthlyStats(ctx context.Context, userID int64, accountID *int64, year, month int) (*models.MonthlyStats, error)
 	GetYearlyAverageForCategory(ctx context.Context, userID int64, accountID int64, categoryID int64, isGroup bool) (float64, error)
-	GetCategoryReport(ctx context.Context, userID int64, params models.CategoryReportParams) (*models.CategoryReport, error)
+	GetCategoryReport(ctx context.Context, userID int64, params models.CategoryReportParams) (*models.Report, error)
+	ListReportsPaginated(ctx context.Context, userID int64, p utils.PaginationParams) ([]models.Report, *utils.Paginator, error)
 }
 type AnalyticsService struct {
 	repo         repositories.AnalyticsRepositoryInterface
@@ -1281,8 +1282,47 @@ func (s *AnalyticsService) GetCategoryReport(
 	ctx context.Context,
 	userID int64,
 	params models.CategoryReportParams,
-) (*models.CategoryReport, error) {
-	return &models.CategoryReport{
-		GeneratedAt: time.Now(),
-	}, nil
+) (*models.Report, error) {
+	record := &models.Report{
+		UserID: userID,
+		Name:   "Category Report",
+		Type:   "category",
+		Status: "pending",
+	}
+	if err := s.repo.InsertReport(ctx, nil, record); err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (s *AnalyticsService) ListReportsPaginated(ctx context.Context, userID int64, p utils.PaginationParams) ([]models.Report, *utils.Paginator, error) {
+	total, err := s.repo.CountReports(ctx, nil, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	offset := (p.PageNumber - 1) * p.RowsPerPage
+	records, err := s.repo.FindReports(ctx, nil, userID, offset, p.RowsPerPage)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	from := offset + 1
+	if from > int(total) {
+		from = int(total)
+	}
+	to := offset + len(records)
+	if to > int(total) {
+		to = int(total)
+	}
+
+	paginator := &utils.Paginator{
+		CurrentPage:  p.PageNumber,
+		RowsPerPage:  p.RowsPerPage,
+		TotalRecords: int(total),
+		From:         from,
+		To:           to,
+	}
+
+	return records, paginator, nil
 }

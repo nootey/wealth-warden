@@ -40,6 +40,7 @@ func (h *AnalyticsHandler) Routes(ap *gin.RouterGroup) {
 	ap.GET("/month", authz.RequireAllMW("view_basic_statistics"), h.GetMonthlyStats)
 	ap.GET("/today", authz.RequireAllMW("view_basic_statistics"), h.GetTodayStats)
 	ap.GET("/categories/:id/average", authz.RequireAllMW("view_basic_statistics"), h.GetYearlyAverageForCategory)
+	ap.GET("/reports", authz.RequireAllMW("view_basic_statistics"), h.ListReports)
 	ap.POST("/reports/category", authz.RequireAllMW("view_basic_statistics"), h.GetCategoryReport)
 }
 
@@ -498,4 +499,26 @@ func (h *AnalyticsHandler) GetYearlyBreakdownStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
+}
+
+func (h *AnalyticsHandler) ListReports(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	p := utils.GetPaginationParams(c.Request.URL.Query())
+
+	records, paginator, err := h.Service.ListReportsPaginated(ctx, userID, p)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"current_page":  paginator.CurrentPage,
+		"rows_per_page": paginator.RowsPerPage,
+		"from":          paginator.From,
+		"to":            paginator.To,
+		"total_records": paginator.TotalRecords,
+		"data":          gin.H{"records": records},
+	})
 }

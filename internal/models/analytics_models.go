@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -246,4 +247,17 @@ type CategoryReport struct {
 	AllTimeNet  decimal.Decimal      `json:"all_time_net"`
 	AllTimeAvg  decimal.Decimal      `json:"all_time_avg"`
 	GeneratedAt time.Time            `json:"generated_at"`
+}
+
+type Report struct {
+	ID          int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID      int64           `gorm:"not null;index" json:"user_id"`
+	Name        string          `gorm:"size:255;not null" json:"name"`
+	Type        string          `gorm:"size:128;not null" json:"type"`
+	Status      string          `gorm:"not null;default:'pending'" json:"status"`
+	Metadata    json.RawMessage `gorm:"type:jsonb" json:"metadata,omitempty"`
+	Error       *string         `gorm:"type:text" json:"error,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+	CompletedAt *time.Time      `json:"completed_at,omitempty"`
 }
