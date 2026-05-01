@@ -166,5 +166,25 @@ export const useAnalyticsStore = defineStore("analytics", {
       });
       return response.data;
     },
+
+    async getCategoryReport(params: {
+      inflowCategoryIDs: number[];
+      outflowCategoryIDs: number[];
+      years: number[];
+      description?: string;
+      allTime?: boolean;
+    }) {
+      const response = await apiClient.post(
+        `${this.apiPrefix}/reports/category`,
+        {
+          inflow_category_ids: params.inflowCategoryIDs,
+          outflow_category_ids: params.outflowCategoryIDs,
+          years: params.years,
+          description: params.description?.trim() ?? "",
+          all_time: params.allTime ?? false,
+        },
+      );
+      return response.data;
+    },
   },
 });

@@ -223,3 +223,27 @@ type YearStatsWithAllocations struct {
 	InvestmentPct float64 `json:"investment_pct"`
 	DebtPct       float64 `json:"debt_pct"`
 }
+
+type CategoryReportParams struct {
+	InflowCategoryIDs  []int64
+	OutflowCategoryIDs []int64
+	Years              []int
+	Description        string
+	AllTime            bool
+}
+
+type CategoryReportYear struct {
+	Year         int             `json:"year"`
+	Inflow       decimal.Decimal `json:"inflow"`
+	Outflow      decimal.Decimal `json:"outflow"`
+	Net          decimal.Decimal `json:"net"`
+	MonthlyAvg   decimal.Decimal `json:"monthly_avg"`
+	ActiveMonths int             `json:"active_months"`
+}
+
+type CategoryReport struct {
+	Years       []CategoryReportYear `json:"years"`
+	AllTimeNet  decimal.Decimal      `json:"all_time_net"`
+	AllTimeAvg  decimal.Decimal      `json:"all_time_avg"`
+	GeneratedAt time.Time            `json:"generated_at"`
+}

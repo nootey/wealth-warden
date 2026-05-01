@@ -24,6 +24,7 @@ type AnalyticsServiceInterface interface {
 	GetAvailableStatsYears(ctx context.Context, accID *int64, userID int64, includeMonths bool) ([]models.AvailableStatsYear, error)
 	GetMonthlyStats(ctx context.Context, userID int64, accountID *int64, year, month int) (*models.MonthlyStats, error)
 	GetYearlyAverageForCategory(ctx context.Context, userID int64, accountID int64, categoryID int64, isGroup bool) (float64, error)
+	GetCategoryReport(ctx context.Context, userID int64, params models.CategoryReportParams) (*models.CategoryReport, error)
 }
 type AnalyticsService struct {
 	repo         repositories.AnalyticsRepositoryInterface
@@ -1273,5 +1274,15 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 		SavingsPct:          savingsPct,
 		InvestmentPct:       investmentPct,
 		DebtPct:             debtPct,
+	}, nil
+}
+
+func (s *AnalyticsService) GetCategoryReport(
+	ctx context.Context,
+	userID int64,
+	params models.CategoryReportParams,
+) (*models.CategoryReport, error) {
+	return &models.CategoryReport{
+		GeneratedAt: time.Now(),
 	}, nil
 }

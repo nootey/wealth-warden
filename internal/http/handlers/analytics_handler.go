@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
@@ -39,6 +40,7 @@ func (h *AnalyticsHandler) Routes(ap *gin.RouterGroup) {
 	ap.GET("/month", authz.RequireAllMW("view_basic_statistics"), h.GetMonthlyStats)
 	ap.GET("/today", authz.RequireAllMW("view_basic_statistics"), h.GetTodayStats)
 	ap.GET("/categories/:id/average", authz.RequireAllMW("view_basic_statistics"), h.GetYearlyAverageForCategory)
+	ap.POST("/reports/category", authz.RequireAllMW("view_basic_statistics"), h.GetCategoryReport)
 }
 
 func (h *AnalyticsHandler) NetWorthChart(c *gin.Context) {
@@ -403,6 +405,52 @@ func (h *AnalyticsHandler) GetYearlyAverageForCategory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"average": average})
+}
+
+func (h *AnalyticsHandler) GetCategoryReport(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var req struct {
+		InflowCategoryIDs  []int64 `json:"inflow_category_ids"`
+		OutflowCategoryIDs []int64 `json:"outflow_category_ids"`
+		Years              []int   `json:"years"`
+		Description        string  `json:"description"`
+		AllTime            bool    `json:"all_time"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if !req.AllTime && len(req.Years) == 0 {
+		utils.ErrorMessage(c, "param error", "years is required", http.StatusBadRequest, nil)
+		return
+	}
+	if len(req.Years) > 3 {
+		utils.ErrorMessage(c, "param error", "a maximum of 3 years is supported", http.StatusBadRequest, nil)
+		return
+	}
+	if len(req.InflowCategoryIDs) == 0 && len(req.OutflowCategoryIDs) == 0 {
+		utils.ErrorMessage(c, "param error", "at least one inflow or outflow category is required", http.StatusBadRequest, nil)
+		return
+	}
+
+	params := models.CategoryReportParams{
+		InflowCategoryIDs:  req.InflowCategoryIDs,
+		OutflowCategoryIDs: req.OutflowCategoryIDs,
+		Years:              req.Years,
+		Description:        strings.TrimSpace(req.Description),
+		AllTime:            req.AllTime,
+	}
+
+	report, err := h.Service.GetCategoryReport(ctx, userID, params)
+	if err != nil {
+		utils.ErrorMessage(c, "Failed to generate report", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, report)
 }
 
 func (h *AnalyticsHandler) GetYearlyBreakdownStats(c *gin.Context) {
