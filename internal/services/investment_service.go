@@ -456,18 +456,11 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	}
 
 	if req.TradeType == models.InvestmentBuy {
-		// Cash outflow is qty*price for stocks/ETFs — the raw trade cost.
-		// valueAtBuy (qty*price-fee) is a separate concept tracking cost basis for PnL;
-		// the fee reduces asset value, not the cash paid.
-		var cashOut decimal.Decimal
-		if asset.InvestmentType == models.InvestmentStock || asset.InvestmentType == models.InvestmentETF {
-			cashOut = req.Quantity.Mul(req.PricePerUnit)
-		} else {
-			cashOut = valueAtBuy
-		}
-		purchaseCostInAccountCurrency := cashOut
+		// valueAtBuy includes the fee in the cost basis (qty*price+fee for stocks/ETFs),
+		// so using it as the cash outflow correctly deducts the fee from the balance.
+		purchaseCostInAccountCurrency := valueAtBuy
 		if req.Currency != asset.Account.Currency {
-			purchaseCostInAccountCurrency = cashOut.Mul(exchangeRate)
+			purchaseCostInAccountCurrency = valueAtBuy.Mul(exchangeRate)
 		}
 		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", purchaseCostInAccountCurrency); err != nil {
 			tx.Rollback()
@@ -608,19 +601,11 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		}
 
 		if trade.TradeType == models.InvestmentBuy {
-			// For stocks/ETFs the original raw qty/price/fee are no longer available here,
-			// only the stored ValueAtBuy (qty*price-fee). The true cash outflow is qty*price
-			// (the raw trade cost), which equals ValueAtBuy + Fee (adding back the fee that was
-			// subtracted for cost-basis purposes). Fee reduces asset value, not cash paid.
-			var rawCashOut decimal.Decimal
-			if trade.Asset.InvestmentType == models.InvestmentStock || trade.Asset.InvestmentType == models.InvestmentETF {
-				rawCashOut = trade.ValueAtBuy.Add(trade.Fee)
-			} else {
-				rawCashOut = trade.ValueAtBuy
-			}
-			purchaseCost := rawCashOut
+			// ValueAtBuy includes the fee in the cost basis (qty*price+fee for stocks/ETFs),
+			// so it equals the true cash outflow directly.
+			purchaseCost := trade.ValueAtBuy
 			if trade.Currency != trade.Asset.Account.Currency {
-				purchaseCost = rawCashOut.Mul(exchangeRate)
+				purchaseCost = trade.ValueAtBuy.Mul(exchangeRate)
 			}
 			if err := s.accRepo.AddToDailyBalance(ctx, tx, trade.Asset.AccountID, txnDate, "cash_outflows", purchaseCost); err != nil {
 				tx.Rollback()
@@ -717,8 +702,8 @@ func (s *InvestmentService) calculateTradeValue(req *models.InvestmentTradeReq, 
 		effectiveQuantity = req.Quantity.Sub(fee)
 		valueAtBuy = effectiveQuantity.Mul(req.PricePerUnit)
 	} else {
-		// Stock/ETF: (quantity * price_per_unit) - fee
-		valueAtBuy = req.Quantity.Mul(req.PricePerUnit).Sub(fee)
+		// Stock/ETF: (quantity * price_per_unit) + fee — fee is part of acquisition cost
+		valueAtBuy = req.Quantity.Mul(req.PricePerUnit).Add(fee)
 	}
 
 	return effectiveQuantity, valueAtBuy
