@@ -490,6 +490,21 @@ async function syncAssetAccountBalance(acc_id: number | null) {
 
       <div class="flex flex-row w-full gap-3">
         <div class="flex flex-column gap-1 w-6">
+          <label class="text-sm">Total fees</label>
+          <span class="text-sm" style="color: var(--text-secondary)">{{
+            record.total_fees
+          }}</span>
+        </div>
+        <div class="flex flex-column gap-1 w-6">
+          <label class="text-sm">Fee value</label>
+          <span class="text-sm" style="color: var(--text-secondary)">{{
+            vueHelper.displayAsCurrency(record.total_fees!, record.currency)
+          }}</span>
+        </div>
+      </div>
+
+      <div class="flex flex-row w-full gap-3">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">P&L Raw</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             vueHelper.displayAsCurrency(record.profit_loss!, record.currency)

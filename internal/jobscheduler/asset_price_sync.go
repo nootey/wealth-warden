@@ -336,10 +336,14 @@ func (j *AssetPriceSyncJob) updateAsset(tx *gorm.DB, asset models.InvestmentAsse
 	}
 
 	newCurrentValue := asset.Quantity.Mul(price)
-	newProfitLoss := newCurrentValue.Sub(asset.ValueAtBuy)
+	costBasis := asset.ValueAtBuy
+	if asset.InvestmentType != models.InvestmentCrypto {
+		costBasis = asset.ValueAtBuy.Add(asset.TotalFees)
+	}
+	newProfitLoss := newCurrentValue.Sub(costBasis)
 	var newProfitLossPercent decimal.Decimal
-	if !asset.ValueAtBuy.IsZero() {
-		newProfitLossPercent = newProfitLoss.Div(asset.ValueAtBuy)
+	if !costBasis.IsZero() {
+		newProfitLossPercent = newProfitLoss.Div(costBasis)
 	}
 
 	err := tx.Model(&models.InvestmentAsset{}).

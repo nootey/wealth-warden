@@ -26,10 +26,11 @@ type InvestmentRepositoryInterface interface {
 	FindInvestmentAssetsByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentAsset, error)
 	InsertAsset(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentAsset) (int64, error)
 	InsertInvestmentTrade(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTrade) (int64, error)
-	UpdateAssetAfterTrade(ctx context.Context, tx *gorm.DB, assetID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, TradeType models.TradeType, TradeValueAtBuy decimal.Decimal) error
+	UpdateAssetAfterTrade(ctx context.Context, tx *gorm.DB, assetID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, TradeType models.TradeType, TradeValueAtBuy decimal.Decimal, tradeFee decimal.Decimal) error
 	FindTotalInvestmentValue(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error)
 	UpdateInvestmentAsset(ctx context.Context, tx *gorm.DB, record models.InvestmentAsset) (int64, error)
 	UpdateInvestmentTrade(ctx context.Context, tx *gorm.DB, record models.InvestmentTrade) (int64, error)
+	CorrectTradeValueAtBuy(ctx context.Context, tx *gorm.DB, tradeID int64, valueAtBuy decimal.Decimal) error
 	RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error
 	DeleteInvestmentTrade(ctx context.Context, tx *gorm.DB, id int64) error
 	GetEarliestTradeDate(ctx context.Context, tx *gorm.DB, assetID, userID int64) (time.Time, error)
@@ -363,7 +364,7 @@ func (r *InvestmentRepository) InsertInvestmentTrade(ctx context.Context, tx *go
 	return newRecord.ID, nil
 }
 
-func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *gorm.DB, assetID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, tradeType models.TradeType, tradeValueAtBuy decimal.Decimal) error {
+func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *gorm.DB, assetID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, tradeType models.TradeType, tradeValueAtBuy decimal.Decimal, tradeFee decimal.Decimal) error {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -379,25 +380,23 @@ func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *go
 	var newQuantity decimal.Decimal
 	var newAverageBuyPrice decimal.Decimal
 	var newTotalValueAtBuy decimal.Decimal
+	var newTotalFees decimal.Decimal
 
 	if tradeType == models.InvestmentBuy {
 		newQuantity = asset.Quantity.Add(quantity)
 
-		// Use total value at buy
-		oldTotalValue := asset.ValueAtBuy
-		newTotalValue := oldTotalValue.Add(tradeValueAtBuy)
+		newTotalValue := asset.ValueAtBuy.Add(tradeValueAtBuy)
 		newAverageBuyPrice = newTotalValue.Div(newQuantity)
-
 		newTotalValueAtBuy = newTotalValue
+		newTotalFees = asset.TotalFees.Add(tradeFee)
 	} else {
 		// Sell: decrease quantity and value at buy proportionally
 		newQuantity = asset.Quantity.Sub(quantity)
 		newAverageBuyPrice = asset.AverageBuyPrice
 
-		// Reduce total value at buy proportionally
 		soldProportion := quantity.Div(asset.Quantity)
-		valueAtBuyReduction := asset.ValueAtBuy.Mul(soldProportion)
-		newTotalValueAtBuy = asset.ValueAtBuy.Sub(valueAtBuyReduction)
+		newTotalValueAtBuy = asset.ValueAtBuy.Sub(asset.ValueAtBuy.Mul(soldProportion))
+		newTotalFees = asset.TotalFees.Sub(asset.TotalFees.Mul(soldProportion))
 	}
 
 	// Calculate current value
@@ -405,12 +404,17 @@ func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *go
 	var newProfitLoss decimal.Decimal
 	var newProfitLossPercent decimal.Decimal
 
+	costBasis := newTotalValueAtBuy
+	if asset.InvestmentType != models.InvestmentCrypto {
+		costBasis = newTotalValueAtBuy.Add(newTotalFees)
+	}
+
 	if currentPrice != nil && !currentPrice.IsZero() {
 		newCurrentValue = newQuantity.Mul(*currentPrice)
-		newProfitLoss = newCurrentValue.Sub(newTotalValueAtBuy)
+		newProfitLoss = newCurrentValue.Sub(costBasis)
 
-		if !newTotalValueAtBuy.IsZero() {
-			newProfitLossPercent = newProfitLoss.Div(newTotalValueAtBuy)
+		if !costBasis.IsZero() {
+			newProfitLossPercent = newProfitLoss.Div(costBasis)
 		}
 	} else {
 		newCurrentValue = decimal.Zero
@@ -422,6 +426,7 @@ func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *go
 		"quantity":            newQuantity,
 		"average_buy_price":   newAverageBuyPrice,
 		"value_at_buy":        newTotalValueAtBuy,
+		"total_fees":          newTotalFees,
 		"current_value":       newCurrentValue,
 		"profit_loss":         newProfitLoss,
 		"profit_loss_percent": newProfitLossPercent,
@@ -511,6 +516,19 @@ func (r *InvestmentRepository) UpdateInvestmentTrade(ctx context.Context, tx *go
 	return record.ID, nil
 }
 
+func (r *InvestmentRepository) CorrectTradeValueAtBuy(ctx context.Context, tx *gorm.DB, tradeID int64, valueAtBuy decimal.Decimal) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).Model(&models.InvestmentTrade{}).
+		Where("id = ?", tradeID).
+		Updates(map[string]interface{}{
+			"value_at_buy": valueAtBuy,
+			"updated_at":   time.Now().UTC(),
+		}).Error
+}
+
 func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error {
 	db := tx
 	if db == nil {
@@ -534,43 +552,44 @@ func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, t
 	// Start fresh
 	totalQuantity := decimal.Zero
 	totalValueAtBuy := decimal.Zero
-	totalCostForAverage := decimal.Zero
+	totalFees := decimal.Zero
 
 	for _, txn := range trades {
 		if txn.TradeType == models.InvestmentBuy {
 			totalQuantity = totalQuantity.Add(txn.Quantity)
 			totalValueAtBuy = totalValueAtBuy.Add(txn.ValueAtBuy)
-			// For average: use quantity * price_per_unit
-			totalCostForAverage = totalCostForAverage.Add(txn.Quantity.Mul(txn.PricePerUnit))
+			totalFees = totalFees.Add(txn.Fee)
 		} else {
 			// Sell: reduce proportionally
 			totalQuantity = totalQuantity.Sub(txn.Quantity)
 			if totalQuantity.GreaterThan(decimal.Zero) {
 				soldProportion := txn.Quantity.Div(totalQuantity.Add(txn.Quantity))
 				totalValueAtBuy = totalValueAtBuy.Mul(decimal.NewFromInt(1).Sub(soldProportion))
-				totalCostForAverage = totalCostForAverage.Mul(decimal.NewFromInt(1).Sub(soldProportion))
+				totalFees = totalFees.Mul(decimal.NewFromInt(1).Sub(soldProportion))
 			} else {
 				totalValueAtBuy = decimal.Zero
-				totalCostForAverage = decimal.Zero
+				totalFees = decimal.Zero
 			}
 		}
 	}
 
-	// Calculate average buy price
 	var avgBuyPrice decimal.Decimal
 	if totalQuantity.GreaterThan(decimal.Zero) {
-		avgBuyPrice = totalCostForAverage.Div(totalQuantity)
-	} else {
-		avgBuyPrice = decimal.Zero
+		avgBuyPrice = totalValueAtBuy.Div(totalQuantity)
 	}
 
 	// Calculate current values
+	costBasis := totalValueAtBuy
+	if asset.InvestmentType != models.InvestmentCrypto {
+		costBasis = totalValueAtBuy.Add(totalFees)
+	}
+
 	var currentValue, profitLoss, profitLossPercent decimal.Decimal
 	if asset.CurrentPrice != nil && !asset.CurrentPrice.IsZero() && totalQuantity.GreaterThan(decimal.Zero) {
 		currentValue = totalQuantity.Mul(*asset.CurrentPrice)
-		profitLoss = currentValue.Sub(totalValueAtBuy)
-		if !totalValueAtBuy.IsZero() {
-			profitLossPercent = profitLoss.Div(totalValueAtBuy)
+		profitLoss = currentValue.Sub(costBasis)
+		if !costBasis.IsZero() {
+			profitLossPercent = profitLoss.Div(costBasis)
 		}
 	}
 
@@ -581,6 +600,7 @@ func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, t
 			"quantity":            totalQuantity,
 			"average_buy_price":   avgBuyPrice,
 			"value_at_buy":        totalValueAtBuy,
+			"total_fees":          totalFees,
 			"current_value":       currentValue,
 			"profit_loss":         profitLoss,
 			"profit_loss_percent": profitLossPercent,

@@ -74,6 +74,7 @@ type JSONTxn struct {
 	Category        string    `json:"category"`
 	Description     string    `json:"description"`
 	Fee             *string   `json:"fee,omitempty"`
+	TradePrice      *string   `json:"trade_price,omitempty"`
 }
 
 type CategoryMapping struct {

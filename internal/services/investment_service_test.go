@@ -563,7 +563,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 	s.Assert().True(decimal.NewFromFloat(49500).Equal(balanceAfterCrypto.CashOutflows),
 		"cash outflows should be 49500, got %s", balanceAfterCrypto.CashOutflows.String())
 
-	// Buy 5 IWDA at 100 EUR with 3 EUR fee = value 497 EUR
+	// Buy 5 IWDA at 100 EUR with 3 EUR fee = value 500 EUR, cash out 503 EUR
 	stockAssetReq := &models.InvestmentAssetReq{
 		AccountID:      accID,
 		InvestmentType: models.InvestmentStock,
@@ -589,26 +589,26 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 	s.Require().NoError(err)
 	s.Assert().Greater(stockTradeID, int64(0))
 
-	// Verify stock asset: quantity = 5, value = 500 - 3 = 497
+	// Verify stock asset: quantity = 5, value = 5 * 100 = 500 (pure trade value, fee separate)
 	var stockAsset models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", stockAssetID).First(&stockAsset).Error
 	s.Require().NoError(err)
 
 	s.Assert().True(decimal.NewFromInt(5).Equal(stockAsset.Quantity),
 		"stock quantity should be 5, got %s", stockAsset.Quantity.String())
-	s.Assert().True(decimal.NewFromInt(497).Equal(stockAsset.ValueAtBuy),
-		"stock value at buy should be 497, got %s", stockAsset.ValueAtBuy.String())
-	s.Assert().True(decimal.NewFromFloat(99.4).Equal(stockAsset.AverageBuyPrice),
-		"stock avg buy price should be 99.4, got %s", stockAsset.AverageBuyPrice.String())
+	s.Assert().True(decimal.NewFromInt(500).Equal(stockAsset.ValueAtBuy),
+		"stock value at buy should be 500, got %s", stockAsset.ValueAtBuy.String())
+	s.Assert().True(decimal.NewFromFloat(100).Equal(stockAsset.AverageBuyPrice),
+		"stock avg buy price should be 100, got %s", stockAsset.AverageBuyPrice.String())
 
-	// Verify total cash outflows = 49500 (crypto) + 500 (stock qty*price, fee reduces valueAtBuy not cash) = 50000
+	// Verify total cash outflows = 49500 (crypto) + 503 (stock qty*price+fee) = 50003
 	var finalBalance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, today).
 		First(&finalBalance).Error
 	s.Require().NoError(err)
 
-	expectedTotalOutflows := decimal.NewFromFloat(50000)
+	expectedTotalOutflows := decimal.NewFromFloat(50003)
 	s.Assert().True(expectedTotalOutflows.Equal(finalBalance.CashOutflows),
 		"total cash outflows should be %s, got %s",
 		expectedTotalOutflows.String(), finalBalance.CashOutflows.String())
@@ -644,7 +644,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	stockAssetID, err := svc.InsertAsset(s.Ctx, userID, stockAssetReq)
 	s.Require().NoError(err)
 
-	// Buy 10 shares at 100 EUR with 5 EUR fee = value 995
+	// Buy 10 shares at 100 EUR with 5 EUR fee = value 1005 (fee included in cost basis)
 	buyFee := decimal.NewFromInt(5)
 	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      stockAssetID,
@@ -659,8 +659,8 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 
 	// Sell 5 shares at 120 EUR with 3 EUR fee
 	// Proceeds = (5 * 120) - 3 = 597
-	// Cost basis = 5 * 99.5 = 497.5
-	// Realized P&L = 597 - 497.5 = 99.5
+	// Cost basis = 5 * 100.5 = 502.5
+	// Realized P&L = 597 - 502.5 = 94.5
 	sellFee := decimal.NewFromInt(3)
 	sellTradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      stockAssetID,
@@ -680,14 +680,14 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	s.Assert().True(decimal.NewFromInt(597).Equal(stockSellTrade.RealizedValue),
 		"stock realized value should be 597 (proceeds after fee)")
 
-	// Verify balance: buy wrote 1000 outflows (qty*price, fee reduces valueAtBuy not cash), sell wrote 597 inflows
+	// Verify balance: buy wrote 1005 outflows (qty*price+fee), sell wrote 597 inflows
 	var balance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, today).
 		First(&balance).Error
 	s.Require().NoError(err)
 
-	expectedOutflows := decimal.NewFromFloat(1000)
+	expectedOutflows := decimal.NewFromFloat(1005)
 	s.Assert().True(expectedOutflows.Equal(balance.CashOutflows),
 		"cash outflows should be %s, got %s", expectedOutflows.String(), balance.CashOutflows.String())
 
