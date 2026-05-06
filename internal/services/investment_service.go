@@ -415,7 +415,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 			txnProfitLossPercent = txnProfitLoss.Div(costBasis)
 		}
 	} else {
-		txnCurrentValue, txnProfitLoss, txnProfitLossPercent = s.calculateTradePnL(req.Quantity, currentPrice, valueAtBuy)
+		txnCurrentValue, txnProfitLoss, txnProfitLossPercent = s.calculateTradePnL(effectiveQuantity, currentPrice, valueAtBuy)
 	}
 
 	txnValueAtBuy := valueAtBuy
@@ -487,7 +487,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, err
 	}
 
-	if err := s.repo.UpdateAssetAfterTrade(ctx, tx, asset.ID, effectiveQuantity, req.PricePerUnit, currentPrice, lastPriceUpdate, req.TradeType, valueAtBuy); err != nil {
+	if err := s.repo.UpdateAssetAfterTrade(ctx, tx, asset.ID, effectiveQuantity, req.PricePerUnit, currentPrice, lastPriceUpdate, req.TradeType, valueAtBuy, fee); err != nil {
 		tx.Rollback()
 		return 0, err
 	}

@@ -26,6 +26,7 @@ type InvestmentAsset struct {
 	ValueAtBuy        decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
 	CurrentValue      decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"current_value"`
 	CurrentPrice      *decimal.Decimal `gorm:"type:decimal(19,4)" json:"current_price"`
+	TotalFees         decimal.Decimal  `gorm:"type:decimal(19,6);not null;default:0" json:"total_fees"`
 	ProfitLoss        decimal.Decimal  `gorm:"type:decimal(19,4);not null;default:0" json:"profit_loss"`
 	ProfitLossPercent decimal.Decimal  `gorm:"type:decimal(10,2);not null;default:0" json:"profit_loss_percent"`
 	LastPriceUpdate   *time.Time       `json:"last_price_update"`

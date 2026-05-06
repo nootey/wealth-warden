@@ -28,6 +28,7 @@ export interface InvestmentAsset {
   currency: string;
   created_at?: Date;
   updated_at?: Date;
+  total_fees?: string;
 }
 
 export interface InvestmentTrade {
