@@ -64,7 +64,7 @@ func cleanString(s string) string {
 func SanitizeStruct(s interface{}) error {
 	v := reflect.ValueOf(s)
 
-	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Struct {
+	if v.Kind() != reflect.Pointer || v.Elem().Kind() != reflect.Struct {
 		return errors.New("SanitizeStruct expects a pointer to a struct")
 	}
 
@@ -82,7 +82,7 @@ func SanitizeStruct(s interface{}) error {
 			trimmed := cleanString(field.String())
 			field.SetString(trimmed)
 
-		case reflect.Ptr:
+		case reflect.Pointer:
 			if field.Type().Elem().Kind() == reflect.String && !field.IsNil() {
 				trimmed := cleanString(field.Elem().String())
 				field.Elem().SetString(trimmed)
