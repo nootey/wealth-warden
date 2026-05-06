@@ -13,5 +13,11 @@ export const useBackofficeStore = defineStore("backoffice", {
       );
       return response.data;
     },
+    async correctFeeAccounting() {
+      const response = await apiClient.post(
+        `${this.apiPrefix}/correct/fee-accounting`,
+      );
+      return response.data;
+    },
   },
 });

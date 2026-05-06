@@ -21,6 +21,7 @@ import (
 
 type InvestmentServiceInterface interface {
 	BackfillInvestmentCashFlows(ctx context.Context, userID int64) error
+	CorrectTradeFeeAccounting(ctx context.Context, userID int64) error
 	FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error)
 	FetchAllInvestmentAssets(ctx context.Context, userID int64) ([]models.InvestmentAsset, error)
 	FetchInvestmentAssetByID(ctx context.Context, userID int64, id int64) (*models.InvestmentAsset, error)
@@ -456,11 +457,13 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	}
 
 	if req.TradeType == models.InvestmentBuy {
-		// valueAtBuy includes the fee in the cost basis (qty*price+fee for stocks/ETFs),
-		// so using it as the cash outflow correctly deducts the fee from the balance.
-		purchaseCostInAccountCurrency := valueAtBuy
+		grossCost := valueAtBuy
+		if asset.InvestmentType != models.InvestmentCrypto {
+			grossCost = grossCost.Add(fee)
+		}
+		purchaseCostInAccountCurrency := grossCost
 		if req.Currency != asset.Account.Currency {
-			purchaseCostInAccountCurrency = valueAtBuy.Mul(exchangeRate)
+			purchaseCostInAccountCurrency = grossCost.Mul(exchangeRate)
 		}
 		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", purchaseCostInAccountCurrency); err != nil {
 			tx.Rollback()
@@ -601,11 +604,13 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		}
 
 		if trade.TradeType == models.InvestmentBuy {
-			// ValueAtBuy includes the fee in the cost basis (qty*price+fee for stocks/ETFs),
-			// so it equals the true cash outflow directly.
-			purchaseCost := trade.ValueAtBuy
+			grossCost := trade.Quantity.Mul(trade.PricePerUnit)
+			if trade.Asset.InvestmentType != models.InvestmentCrypto {
+				grossCost = grossCost.Add(trade.Fee)
+			}
+			purchaseCost := grossCost
 			if trade.Currency != trade.Asset.Account.Currency {
-				purchaseCost = trade.ValueAtBuy.Mul(exchangeRate)
+				purchaseCost = grossCost.Mul(exchangeRate)
 			}
 			if err := s.accRepo.AddToDailyBalance(ctx, tx, trade.Asset.AccountID, txnDate, "cash_outflows", purchaseCost); err != nil {
 				tx.Rollback()
@@ -639,6 +644,58 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		}
 
 		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accountID, currency, earliestDate, today); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit().Error
+}
+
+// CorrectTradeFeeAccounting fixes stock/ETF buy trades that were not stored with
+// value_at_buy = qty*price (pure trade value). Updates them and recalculates each
+// affected asset's aggregates from the corrected trades.
+func (s *InvestmentService) CorrectTradeFeeAccounting(ctx context.Context, userID int64) error {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	trades, err := s.repo.FindAllTradesByUserID(ctx, tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	affectedAssetIDs := map[int64]bool{}
+
+	for _, trade := range trades {
+		if trade.TradeType != models.InvestmentBuy {
+			continue
+		}
+		if trade.Asset.InvestmentType != models.InvestmentStock && trade.Asset.InvestmentType != models.InvestmentETF {
+			continue
+		}
+		if !trade.Fee.IsPositive() {
+			continue
+		}
+
+		corrected := trade.Quantity.Mul(trade.PricePerUnit)
+		if err := s.repo.CorrectTradeValueAtBuy(ctx, tx, trade.ID, corrected); err != nil {
+			tx.Rollback()
+			return err
+		}
+		affectedAssetIDs[trade.AssetID] = true
+	}
+
+	for assetID := range affectedAssetIDs {
+		if err := s.repo.RecalculateAssetFromTrades(ctx, tx, assetID, userID); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -702,8 +759,8 @@ func (s *InvestmentService) calculateTradeValue(req *models.InvestmentTradeReq, 
 		effectiveQuantity = req.Quantity.Sub(fee)
 		valueAtBuy = effectiveQuantity.Mul(req.PricePerUnit)
 	} else {
-		// Stock/ETF: (quantity * price_per_unit) + fee — fee is part of acquisition cost
-		valueAtBuy = req.Quantity.Mul(req.PricePerUnit).Add(fee)
+		// Stock/ETF: pure trade value; fee is accounted for separately in cash outflows
+		valueAtBuy = req.Quantity.Mul(req.PricePerUnit)
 	}
 
 	return effectiveQuantity, valueAtBuy

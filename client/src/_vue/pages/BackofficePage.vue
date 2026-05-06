@@ -28,6 +28,15 @@ async function triggerAssetCashFlowSync() {
     toastStore.errorResponseToast(err);
   }
 }
+
+async function triggerCorrectFeeAccounting() {
+  try {
+    const res = await backofficeStore.correctFeeAccounting();
+    toastStore.successResponseToast(res);
+  } catch (err) {
+    toastStore.errorResponseToast(err);
+  }
+}
 </script>
 
 <template>
@@ -99,6 +108,27 @@ async function triggerAssetCashFlowSync() {
                 label="Run backfill"
                 severity="danger"
                 @click="triggerAssetCashFlowSync"
+              />
+            </div>
+          </div>
+
+          <div
+            class="flex flex-column gap-1 p-3 border-1 border-round-md surface-border"
+          >
+            <div style="font-weight: bold">Correct Fee Accounting</div>
+            <div class="text-sm text-color-secondary">
+              One-time correction for stock/ETF buy trades. Fixes
+              <code>value_at_buy</code> from <code>qty*price-fee</code> to
+              <code>qty*price+fee</code>, recalculates asset aggregates and
+              average buy prices, then rebuilds all cash flows and snapshots.
+              Run once after the fee accounting fix. Safe to re-run - idempotent
+              on already-corrected trades.
+            </div>
+            <div class="mt-2">
+              <Button
+                label="Run correction"
+                severity="danger"
+                @click="triggerCorrectFeeAccounting"
               />
             </div>
           </div>

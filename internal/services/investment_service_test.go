@@ -563,7 +563,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 	s.Assert().True(decimal.NewFromFloat(49500).Equal(balanceAfterCrypto.CashOutflows),
 		"cash outflows should be 49500, got %s", balanceAfterCrypto.CashOutflows.String())
 
-	// Buy 5 IWDA at 100 EUR with 3 EUR fee = value 503 EUR (fee included in cost basis)
+	// Buy 5 IWDA at 100 EUR with 3 EUR fee = value 500 EUR, cash out 503 EUR
 	stockAssetReq := &models.InvestmentAssetReq{
 		AccountID:      accID,
 		InvestmentType: models.InvestmentStock,
@@ -589,17 +589,17 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 	s.Require().NoError(err)
 	s.Assert().Greater(stockTradeID, int64(0))
 
-	// Verify stock asset: quantity = 5, value = 500 - 3 = 497
+	// Verify stock asset: quantity = 5, value = 5 * 100 = 500 (pure trade value, fee separate)
 	var stockAsset models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", stockAssetID).First(&stockAsset).Error
 	s.Require().NoError(err)
 
 	s.Assert().True(decimal.NewFromInt(5).Equal(stockAsset.Quantity),
 		"stock quantity should be 5, got %s", stockAsset.Quantity.String())
-	s.Assert().True(decimal.NewFromInt(503).Equal(stockAsset.ValueAtBuy),
-		"stock value at buy should be 503, got %s", stockAsset.ValueAtBuy.String())
-	s.Assert().True(decimal.NewFromFloat(100.6).Equal(stockAsset.AverageBuyPrice),
-		"stock avg buy price should be 100.6, got %s", stockAsset.AverageBuyPrice.String())
+	s.Assert().True(decimal.NewFromInt(500).Equal(stockAsset.ValueAtBuy),
+		"stock value at buy should be 500, got %s", stockAsset.ValueAtBuy.String())
+	s.Assert().True(decimal.NewFromFloat(100).Equal(stockAsset.AverageBuyPrice),
+		"stock avg buy price should be 100, got %s", stockAsset.AverageBuyPrice.String())
 
 	// Verify total cash outflows = 49500 (crypto) + 503 (stock qty*price+fee) = 50003
 	var finalBalance models.Balance

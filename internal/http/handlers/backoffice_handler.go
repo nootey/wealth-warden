@@ -25,6 +25,7 @@ func NewBackofficeHandler(
 
 func (h *BackofficeHandler) Routes(ap *gin.RouterGroup) {
 	ap.POST("/backfill/asset-cash-flows", authz.RequireAllMW("access_backoffice"), h.BackfillAssetCashFlows)
+	ap.POST("/correct/fee-accounting", authz.RequireAllMW("access_backoffice"), h.CorrectFeeAccounting)
 }
 
 func (h *BackofficeHandler) BackfillAssetCashFlows(c *gin.Context) {
@@ -34,4 +35,13 @@ func (h *BackofficeHandler) BackfillAssetCashFlows(c *gin.Context) {
 	}
 
 	c.JSON(202, gin.H{"message": "backfill job queued"})
+}
+
+func (h *BackofficeHandler) CorrectFeeAccounting(c *gin.Context) {
+	if err := h.service.CorrectFeeAccounting(c.Request.Context()); err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(202, gin.H{"message": "fee accounting correction job queued"})
 }

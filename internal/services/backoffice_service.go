@@ -10,6 +10,7 @@ import (
 
 type BackofficeServiceInterface interface {
 	BackfillAssetCashFlows(ctx context.Context) error
+	CorrectFeeAccounting(ctx context.Context) error
 }
 
 type BackofficeService struct {
@@ -44,6 +45,15 @@ var _ BackofficeServiceInterface = (*BackofficeService)(nil)
 func (s *BackofficeService) BackfillAssetCashFlows(ctx context.Context) error {
 	return s.jobDispatcher.Dispatch(queue.NewBackfillAssetCashFlowsJob(
 		s.logger.Named("backfill_asset_cash_flows"),
+		s.investmentService,
+		s.accountService,
+		s.userService,
+	))
+}
+
+func (s *BackofficeService) CorrectFeeAccounting(ctx context.Context) error {
+	return s.jobDispatcher.Dispatch(queue.NewCorrectFeeAccountingJob(
+		s.logger.Named("correct_fee_accounting"),
 		s.investmentService,
 		s.accountService,
 		s.userService,

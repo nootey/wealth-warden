@@ -30,6 +30,7 @@ type InvestmentRepositoryInterface interface {
 	FindTotalInvestmentValue(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error)
 	UpdateInvestmentAsset(ctx context.Context, tx *gorm.DB, record models.InvestmentAsset) (int64, error)
 	UpdateInvestmentTrade(ctx context.Context, tx *gorm.DB, record models.InvestmentTrade) (int64, error)
+	CorrectTradeValueAtBuy(ctx context.Context, tx *gorm.DB, tradeID int64, valueAtBuy decimal.Decimal) error
 	RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error
 	DeleteInvestmentTrade(ctx context.Context, tx *gorm.DB, id int64) error
 	GetEarliestTradeDate(ctx context.Context, tx *gorm.DB, assetID, userID int64) (time.Time, error)
@@ -511,6 +512,19 @@ func (r *InvestmentRepository) UpdateInvestmentTrade(ctx context.Context, tx *go
 	return record.ID, nil
 }
 
+func (r *InvestmentRepository) CorrectTradeValueAtBuy(ctx context.Context, tx *gorm.DB, tradeID int64, valueAtBuy decimal.Decimal) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).Model(&models.InvestmentTrade{}).
+		Where("id = ?", tradeID).
+		Updates(map[string]interface{}{
+			"value_at_buy": valueAtBuy,
+			"updated_at":   time.Now().UTC(),
+		}).Error
+}
+
 func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error {
 	db := tx
 	if db == nil {
@@ -534,34 +548,27 @@ func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, t
 	// Start fresh
 	totalQuantity := decimal.Zero
 	totalValueAtBuy := decimal.Zero
-	totalCostForAverage := decimal.Zero
 
 	for _, txn := range trades {
 		if txn.TradeType == models.InvestmentBuy {
 			totalQuantity = totalQuantity.Add(txn.Quantity)
 			totalValueAtBuy = totalValueAtBuy.Add(txn.ValueAtBuy)
-			// For average: use quantity * price_per_unit
-			totalCostForAverage = totalCostForAverage.Add(txn.Quantity.Mul(txn.PricePerUnit))
 		} else {
 			// Sell: reduce proportionally
 			totalQuantity = totalQuantity.Sub(txn.Quantity)
 			if totalQuantity.GreaterThan(decimal.Zero) {
 				soldProportion := txn.Quantity.Div(totalQuantity.Add(txn.Quantity))
 				totalValueAtBuy = totalValueAtBuy.Mul(decimal.NewFromInt(1).Sub(soldProportion))
-				totalCostForAverage = totalCostForAverage.Mul(decimal.NewFromInt(1).Sub(soldProportion))
 			} else {
 				totalValueAtBuy = decimal.Zero
-				totalCostForAverage = decimal.Zero
 			}
 		}
 	}
 
-	// Calculate average buy price
+	// avgBuyPrice mirrors UpdateAssetAfterTrade: totalValueAtBuy / qty (fees included in cost basis)
 	var avgBuyPrice decimal.Decimal
 	if totalQuantity.GreaterThan(decimal.Zero) {
-		avgBuyPrice = totalCostForAverage.Div(totalQuantity)
-	} else {
-		avgBuyPrice = decimal.Zero
+		avgBuyPrice = totalValueAtBuy.Div(totalQuantity)
 	}
 
 	// Calculate current values
