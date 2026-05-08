@@ -186,5 +186,23 @@ export const useAnalyticsStore = defineStore("analytics", {
       );
       return response.data;
     },
+
+    async downloadReport(id: number, name: string) {
+      const res = await apiClient.get(
+        `${this.apiPrefix}/reports/${id}/download`,
+        { responseType: "blob" },
+      );
+      const mime =
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      const blob = new Blob([res.data], { type: mime });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${name}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    },
   },
 });

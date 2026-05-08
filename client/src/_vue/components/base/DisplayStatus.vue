@@ -14,6 +14,8 @@ const props = defineProps<Props>();
 
 const statusConfig: Record<string, { label: string; class: string }> = {
   pending: { label: "Pending", class: "status-pending" },
+  processing: { label: "Processing", class: "status-processing" },
+  completed: { label: "Completed", class: "status-success" },
   success: { label: "Success", class: "status-success" },
   failed: { label: "Failed", class: "status-fail" },
 };
@@ -37,6 +39,11 @@ const chipClass = computed(() => {
 .status-pending {
   background-color: #fef3c7;
   color: #92400e;
+}
+
+.status-processing {
+  background-color: #dbeafe;
+  color: #1e40af;
 }
 
 .status-success {

@@ -2,6 +2,7 @@
 import { onMounted, computed, ref } from "vue";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
+import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 import filterHelper from "../../../utils/filter_helper.ts";
 import CustomPaginator from "../base/CustomPaginator.vue";
@@ -9,11 +10,17 @@ import LoadingSpinner from "../base/LoadingSpinner.vue";
 import DisplayStatus from "../base/DisplayStatus.vue";
 import type { PaginatorState } from "../../../models/shared_models.ts";
 import type { Report } from "../../../models/analytics_models.ts";
+import { useConfirm } from "primevue/useconfirm";
+import { usePermissions } from "../../../utils/use_permissions.ts";
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
+const analyticsStore = useAnalyticsStore();
 
 const apiPrefix = "analytics/reports";
+
+const confirm = useConfirm();
+const { hasPermission } = usePermissions();
 
 const loading = ref(false);
 const records = ref<Report[]>([]);
@@ -64,6 +71,42 @@ async function onPage(event: any) {
   await getData();
 }
 
+async function downloadReport(id: number, name: string) {
+  try {
+    await analyticsStore.downloadReport(id, name);
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+  }
+}
+
+async function deleteConfirmation(id: number, name: string) {
+  confirm.require({
+    header: "Delete record?",
+    message: `This will delete report: "${id} - ${name}".`,
+    rejectProps: { label: "Cancel" },
+    acceptProps: { label: "Delete", severity: "danger" },
+    accept: () => deleteReport(id),
+  });
+}
+
+async function deleteReport(id: number) {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
+
+  try {
+    let response = await sharedStore.deleteRecord(apiPrefix, id);
+    toastStore.successResponseToast(response);
+    await getData();
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+  }
+}
+
 function refresh() {
   getData(1);
 }
@@ -101,6 +144,23 @@ defineExpose({ refresh });
           />
         </template>
 
+        <Column header="Actions">
+          <template #body="{ data }">
+            <div class="flex flex-row gap-2 align-items-center">
+              <i
+                v-if="data.status === 'completed'"
+                class="pi pi-download hover-icon text-sm"
+                @click="downloadReport(data.id, data.name)"
+              />
+              <i
+                v-if="data.status === 'completed' || data.status === 'failed'"
+                class="pi pi-trash hover-icon text-sm"
+                style="color: var(--p-red-300)"
+                @click="deleteConfirmation(data.id, data.name)"
+              />
+            </div>
+          </template>
+        </Column>
         <Column field="name" header="Name" />
         <Column field="type" header="Type" />
         <Column field="status" header="Status">

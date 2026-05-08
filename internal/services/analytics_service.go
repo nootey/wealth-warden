@@ -3,15 +3,20 @@ package services
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
+	"strings"
 	"time"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
 type AnalyticsServiceInterface interface {
@@ -24,27 +29,36 @@ type AnalyticsServiceInterface interface {
 	GetAvailableStatsYears(ctx context.Context, accID *int64, userID int64, includeMonths bool) ([]models.AvailableStatsYear, error)
 	GetMonthlyStats(ctx context.Context, userID int64, accountID *int64, year, month int) (*models.MonthlyStats, error)
 	GetYearlyAverageForCategory(ctx context.Context, userID int64, accountID int64, categoryID int64, isGroup bool) (float64, error)
-	GetCategoryReport(ctx context.Context, userID int64, params models.CategoryReportParams) (*models.Report, error)
+	GenerateCategoryReport(ctx context.Context, userID int64, params models.CategoryReportParams) (*models.Report, error)
+	FindReportByID(ctx context.Context, id, userID int64) (*models.Report, error)
+	DownloadReport(ctx context.Context, id, userID int64) ([]byte, string, error)
 	ListReportsPaginated(ctx context.Context, userID int64, p utils.PaginationParams) ([]models.Report, *utils.Paginator, error)
+	DeleteReport(ctx context.Context, userID, id int64) error
 }
 type AnalyticsService struct {
-	repo         repositories.AnalyticsRepositoryInterface
-	accRepo      repositories.AccountRepositoryInterface
-	txnRepo      repositories.TransactionRepositoryInterface
-	settingsRepo repositories.SettingsRepositoryInterface
+	logger        *zap.Logger
+	repo          repositories.AnalyticsRepositoryInterface
+	accRepo       repositories.AccountRepositoryInterface
+	txnRepo       repositories.TransactionRepositoryInterface
+	settingsRepo  repositories.SettingsRepositoryInterface
+	jobDispatcher queue.JobDispatcher
 }
 
 func NewAnalyticsService(
+	logger *zap.Logger,
 	repo *repositories.AnalyticsRepository,
 	accRepo *repositories.AccountRepository,
 	txRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
+	jobDispatcher queue.JobDispatcher,
 ) *AnalyticsService {
 	return &AnalyticsService{
-		repo:         repo,
-		accRepo:      accRepo,
-		txnRepo:      txRepo,
-		settingsRepo: settingsRepo,
+		logger:        logger,
+		repo:          repo,
+		accRepo:       accRepo,
+		txnRepo:       txRepo,
+		settingsRepo:  settingsRepo,
+		jobDispatcher: jobDispatcher,
 	}
 }
 
@@ -1278,23 +1292,6 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 	}, nil
 }
 
-func (s *AnalyticsService) GetCategoryReport(
-	ctx context.Context,
-	userID int64,
-	params models.CategoryReportParams,
-) (*models.Report, error) {
-	record := &models.Report{
-		UserID: userID,
-		Name:   "Category Report",
-		Type:   "category",
-		Status: "pending",
-	}
-	if err := s.repo.InsertReport(ctx, nil, record); err != nil {
-		return nil, err
-	}
-	return record, nil
-}
-
 func (s *AnalyticsService) ListReportsPaginated(ctx context.Context, userID int64, p utils.PaginationParams) ([]models.Report, *utils.Paginator, error) {
 	total, err := s.repo.CountReports(ctx, nil, userID)
 	if err != nil {
@@ -1325,4 +1322,122 @@ func (s *AnalyticsService) ListReportsPaginated(ctx context.Context, userID int6
 	}
 
 	return records, paginator, nil
+}
+
+func (s *AnalyticsService) FindReportByID(ctx context.Context, id, userID int64) (*models.Report, error) {
+	return s.repo.FindReportByID(ctx, nil, id, userID)
+}
+
+func (s *AnalyticsService) GenerateCategoryReport(
+	ctx context.Context,
+	userID int64,
+	params models.CategoryReportParams,
+) (*models.Report, error) {
+	if len(params.OutflowCategoryIDs) > 0 && len(params.InflowCategoryIDs) == 0 {
+		return nil, errors.New("at least one primary category is required when secondary categories are selected")
+	}
+
+	var name string
+	if params.Description != "" {
+		name = params.Description
+	} else if params.AllTime {
+		name = "Category Report - All Time"
+	} else {
+		yearStrs := make([]string, len(params.Years))
+		for i, y := range params.Years {
+			yearStrs[i] = fmt.Sprintf("%d", y)
+		}
+		name = "Category Report - " + strings.Join(yearStrs, ", ")
+	}
+
+	metadata, err := json.Marshal(params)
+	if err != nil {
+		return nil, err
+	}
+
+	record := &models.Report{
+		UserID:   userID,
+		Name:     name,
+		Type:     "category",
+		Status:   "pending",
+		Metadata: metadata,
+	}
+	if err := s.repo.InsertReport(ctx, nil, record); err != nil {
+		return nil, err
+	}
+
+	job := queue.NewGenerateCategoryReportJob(s.logger, s.repo, record.ID, userID, params)
+	if err := s.jobDispatcher.Dispatch(job); err != nil {
+		return nil, err
+	}
+
+	return record, nil
+}
+
+func (s *AnalyticsService) DownloadReport(ctx context.Context, id, userID int64) ([]byte, string, error) {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	report, err := s.repo.FindReportByID(ctx, tx, id, userID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if report.Status != "completed" || report.FilePath == nil {
+		return nil, "", fmt.Errorf("report is not ready for download")
+	}
+
+	data, err := os.ReadFile(*report.FilePath)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, "", err
+	}
+
+	return data, report.Name, nil
+}
+
+func (s *AnalyticsService) DeleteReport(ctx context.Context, userID, id int64) error {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	report, err := s.repo.FindReportByID(ctx, tx, id, userID)
+	if err != nil {
+		return err
+	}
+
+	if report.FilePath != nil && *report.FilePath != "" {
+		_ = os.Remove(*report.FilePath)
+	}
+
+	err = s.repo.DeleteReport(ctx, nil, id, userID)
+	if err != nil {
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
 }

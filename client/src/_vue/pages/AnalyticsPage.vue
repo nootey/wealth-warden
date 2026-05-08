@@ -3,7 +3,7 @@ import AccountBasicStats from "../features/AccountBasicStats.vue";
 import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
 import YearlyBreakdownStats from "../features/YearlyBreakdownStats.vue";
 import NewReportModule from "../features/reports/NewReportModule.vue";
-import ReportsPaginated from "../components/reports/ReportsPaginated.vue";
+import ReportsPaginated from "../components/data/ReportsPaginated.vue";
 import { ref } from "vue";
 
 const newReportModal = ref(false);

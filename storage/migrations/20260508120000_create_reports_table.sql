@@ -10,6 +10,8 @@ CREATE TABLE reports (
     status report_status_enum NOT NULL DEFAULT 'pending',
     metadata JSONB,
     error TEXT,
+    file_path TEXT,
+    file_size BIGINT,
 
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,

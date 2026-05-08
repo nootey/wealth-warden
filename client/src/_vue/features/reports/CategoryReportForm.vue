@@ -40,9 +40,14 @@ const rules = {
     },
     inflowCategories: {
       atLeastOne: helpers.withMessage(
-        "Select at least one primary or secondary category",
-        () =>
-          form.inflowCategories.length > 0 || form.outflowCategories.length > 0,
+        "Select at least one primary category",
+        () => form.inflowCategories.length > 0,
+      ),
+    },
+    outflowCategories: {
+      atLeastOne: helpers.withMessage(
+        "Must have a primary category selected",
+        () => form.inflowCategories.length > 0,
       ),
     },
   },
@@ -167,11 +172,15 @@ async function generate() {
       </div>
 
       <div class="flex flex-column gap-1" style="flex: 1; max-width: 280px">
-        <ValidationError :is-required="false" :message="undefined">
+        <ValidationError
+          :is-required="false"
+          :message="v$.form.outflowCategories.$errors[0]?.$message"
+        >
           <label>Secondary categories</label>
         </ValidationError>
         <MultiSelect
           v-model="form.outflowCategories"
+          :disabled="form.inflowCategories.length < 1"
           :options="groupedCategories"
           option-group-label="label"
           option-group-children="items"

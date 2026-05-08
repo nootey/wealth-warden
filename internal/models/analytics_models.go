@@ -257,7 +257,17 @@ type Report struct {
 	Status      string          `gorm:"not null;default:'pending'" json:"status"`
 	Metadata    json.RawMessage `gorm:"type:jsonb" json:"metadata,omitempty"`
 	Error       *string         `gorm:"type:text" json:"error,omitempty"`
+	FilePath    *string         `gorm:"type:text" json:"file_path,omitempty"`
+	FileSize    *int64          `json:"file_size,omitempty"`
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
 	CompletedAt *time.Time      `json:"completed_at,omitempty"`
+}
+
+type CategoryReportDataRow struct {
+	Year           int
+	Month          int
+	CategoryName   string
+	Classification string
+	Total          decimal.Decimal
 }
