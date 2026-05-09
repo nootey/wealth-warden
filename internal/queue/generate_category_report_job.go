@@ -79,7 +79,7 @@ func (j *GenerateCategoryReportJob) Process(ctx context.Context) error {
 		return j.fail(ctx, err)
 	}
 
-	filePath, err := j.saveFile(data, categoryLabel)
+	filePath, err := j.saveFile(data)
 	if err != nil {
 		return j.fail(ctx, err)
 	}
@@ -770,23 +770,12 @@ func (j *GenerateCategoryReportJob) reportName(categoryLabel string) string {
 	return fmt.Sprintf("Category Report - %s - %s", categoryLabel, yearPart)
 }
 
-func (j *GenerateCategoryReportJob) saveFile(data []byte, categoryLabel string) (string, error) {
+func (j *GenerateCategoryReportJob) saveFile(data []byte) (string, error) {
 	dir := filepath.Join("storage", "reports", fmt.Sprintf("%d", j.userID))
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
-	var yearPart string
-	if j.params.AllTime {
-		yearPart = "all-time"
-	} else {
-		parts := make([]string, len(j.params.Years))
-		for i, y := range j.params.Years {
-			parts[i] = fmt.Sprintf("%d", y)
-		}
-		yearPart = strings.Join(parts, "-")
-	}
-	name := utils.NormalizeName(fmt.Sprintf("category-report_%s_%s", categoryLabel, yearPart))
-	filePath := filepath.Join(dir, name+".xlsx")
+	filePath := filepath.Join(dir, fmt.Sprintf("%d.xlsx", j.reportID))
 	if err := os.WriteFile(filePath, data, 0644); err != nil {
 		return "", err
 	}
@@ -809,12 +798,15 @@ func deriveCategoryLabel(rows []models.CategoryReportDataRow) string {
 			seen[r.CategoryName] = struct{}{}
 		}
 	}
-	if len(seen) == 1 {
-		for name := range seen {
-			return name
-		}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
 	}
-	return "Multiple"
+	sort.Strings(names)
+	if len(names) > 0 {
+		return names[0]
+	}
+	return "Unknown"
 }
 
 func xlsxTitle(f *excelize.File, sheet string, row int, title string, styleID int) int {
