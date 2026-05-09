@@ -113,7 +113,12 @@ func (j *GenerateCategoryReportJob) buildXLSX(rows []models.CategoryReportDataRo
 	years := sortedYears(byYear)
 
 	f := excelize.NewFile()
-	defer f.Close()
+	defer func(f *excelize.File) {
+		err := f.Close()
+		if err != nil {
+			fmt.Printf("Error closing file: %s\n", err)
+		}
+	}(f)
 
 	styles := j.makeStyles(f)
 
@@ -254,8 +259,12 @@ func (j *GenerateCategoryReportJob) writeSummarySheet(f *excelize.File, sheet st
 		_ = xlsxDataRow(f, sheet, cur, []string{"Effective change per year", fmt.Sprintf("%s (%s)", utils.SignedFixed(slope), utils.TrendDirection(slope))}, 1, styles)
 	}
 
-	if err := f.SetColWidth(sheet, "A", "A", 24); err != nil { return }
-	if err := f.SetColWidth(sheet, "B", "H", 22); err != nil { return }
+	if err := f.SetColWidth(sheet, "A", "A", 24); err != nil {
+		return
+	}
+	if err := f.SetColWidth(sheet, "B", "H", 22); err != nil {
+		return
+	}
 }
 
 func (j *GenerateCategoryReportJob) writeYearSheet(f *excelize.File, sheet string, styles xlsxStyles, year int, rows []models.CategoryReportDataRow) {
@@ -459,18 +468,30 @@ func (j *GenerateCategoryReportJob) writeYearSheet(f *excelize.File, sheet strin
 	}
 	j.addYearCharts(f, sheet, months, sumHeaderRow, primarySumRow, secondarySumRow, effectiveSumRow, statsStartRow, len(outflows) > 0, primaryLabel)
 
-	if err := f.SetColWidth(sheet, "A", "A", 32); err != nil { return }
-	if err := f.SetColWidth(sheet, "B", "B", 16); err != nil { return }
+	if err := f.SetColWidth(sheet, "A", "A", 32); err != nil {
+		return
+	}
+	if err := f.SetColWidth(sheet, "B", "B", 16); err != nil {
+		return
+	}
 	for i := range months {
 		col, _ := excelize.ColumnNumberToName(i + 3)
-		if err := f.SetColWidth(sheet, col, col, 11); err != nil { return }
+		if err := f.SetColWidth(sheet, col, col, 11); err != nil {
+			return
+		}
 	}
 	totalCol, _ := excelize.ColumnNumberToName(len(months) + 3)
 	activeAvgCol, _ := excelize.ColumnNumberToName(len(months) + 4)
 	calAvgCol, _ := excelize.ColumnNumberToName(len(months) + 5)
-	if err := f.SetColWidth(sheet, totalCol, totalCol, 14); err != nil { return }
-	if err := f.SetColWidth(sheet, activeAvgCol, activeAvgCol, 22); err != nil { return }
-	if err := f.SetColWidth(sheet, calAvgCol, calAvgCol, 24); err != nil { return }
+	if err := f.SetColWidth(sheet, totalCol, totalCol, 14); err != nil {
+		return
+	}
+	if err := f.SetColWidth(sheet, activeAvgCol, activeAvgCol, 22); err != nil {
+		return
+	}
+	if err := f.SetColWidth(sheet, calAvgCol, calAvgCol, 24); err != nil {
+		return
+	}
 }
 
 func (j *GenerateCategoryReportJob) writeAllTimeSheet(f *excelize.File, sheet string, styles xlsxStyles, rows []models.CategoryReportDataRow, years []int) {
@@ -621,16 +642,26 @@ func (j *GenerateCategoryReportJob) writeAllTimeSheet(f *excelize.File, sheet st
 	}
 	j.addAllTimeChart(f, sheet, years, annualHeaderRow, effectiveYearRow, allTimeStatsRow, primaryLabel)
 
-	if err := f.SetColWidth(sheet, "A", "A", 30); err != nil { return }
-	if err := f.SetColWidth(sheet, "B", "B", 16); err != nil { return }
+	if err := f.SetColWidth(sheet, "A", "A", 30); err != nil {
+		return
+	}
+	if err := f.SetColWidth(sheet, "B", "B", 16); err != nil {
+		return
+	}
 	for i := range years {
 		col, _ := excelize.ColumnNumberToName(i + 3)
-		if err := f.SetColWidth(sheet, col, col, 14); err != nil { return }
+		if err := f.SetColWidth(sheet, col, col, 14); err != nil {
+			return
+		}
 	}
 	totalCol, _ := excelize.ColumnNumberToName(len(years) + 3)
 	avgCol, _ := excelize.ColumnNumberToName(len(years) + 4)
-	if err := f.SetColWidth(sheet, totalCol, totalCol, 14); err != nil { return }
-	if err := f.SetColWidth(sheet, avgCol, avgCol, 14); err != nil { return }
+	if err := f.SetColWidth(sheet, totalCol, totalCol, 14); err != nil {
+		return
+	}
+	if err := f.SetColWidth(sheet, avgCol, avgCol, 14); err != nil {
+		return
+	}
 }
 
 func (j *GenerateCategoryReportJob) addYearCharts(
