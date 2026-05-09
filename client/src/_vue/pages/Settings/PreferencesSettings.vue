@@ -38,6 +38,23 @@ const themeOptions = ref([
 
 const accentOptions = ref([{ value: "blurple", label: "Blurple" }]);
 
+const separatorOptions = ref([
+  { value: ";", label: "Semicolon ( ; )" },
+  { value: ",", label: "Comma ( , )" },
+]);
+
+const selectedSeparator = computed({
+  get: () =>
+    separatorOptions.value.find(
+      (s) => s.value === userSettings.value?.default_sheet_separator,
+    ),
+  set: (newValue: { value: string; label: string } | null) => {
+    if (userSettings.value && newValue) {
+      userSettings.value.default_sheet_separator = newValue.value;
+    }
+  },
+});
+
 const selectedCurrency = computed({
   get: () =>
     currencies.value.find(
@@ -196,6 +213,7 @@ async function updateSettings() {
     theme: userSettings.value?.theme as "system" | "dark" | "light",
     accent: userSettings.value?.accent,
     default_currency: userSettings.value?.default_currency,
+    default_sheet_separator: userSettings.value?.default_sheet_separator,
   };
   try {
     let response = await settingsStore.updatePreferenceSettings(settings);
@@ -291,6 +309,24 @@ async function updateSettings() {
             >
               Active templates will be rescheduled to match the same dates in
               the new timezone.
+            </span>
+          </div>
+
+          <div class="w-full flex flex-column gap-1">
+            <IftaLabel class="w-full" variant="in">
+              <Select
+                id="sheet_separator_input"
+                v-model="selectedSeparator"
+                :options="separatorOptions"
+                option-label="label"
+                class="w-full"
+                placeholder="Select separator..."
+              />
+              <label for="sheet_separator_input">Sheet Separator</label>
+            </IftaLabel>
+            <span class="text-xs" style="color: var(--text-secondary)">
+              Column separator used when exporting spreadsheet files. (Currently
+              unused)
             </span>
           </div>
         </div>

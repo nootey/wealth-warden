@@ -119,6 +119,10 @@ func (r *SettingsRepository) UpdateUserSettings(ctx context.Context, tx *gorm.DB
 		updates["default_currency"] = record.DefaultCurrency
 	}
 
+	if record.DefaultSheetSeparator != "" {
+		updates["default_sheet_separator"] = record.DefaultSheetSeparator
+	}
+
 	res := db.Model(&models.SettingsUser{}).
 		Where("user_id = ?", userID).
 		Updates(updates)

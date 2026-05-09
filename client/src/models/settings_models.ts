@@ -4,6 +4,7 @@ export type UserSettings = {
   theme: string;
   accent: string;
   default_currency: string;
+  default_sheet_separator: string;
 };
 
 export type GeneralSettings = {

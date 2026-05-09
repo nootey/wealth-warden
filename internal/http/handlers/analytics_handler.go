@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
@@ -39,6 +42,10 @@ func (h *AnalyticsHandler) Routes(ap *gin.RouterGroup) {
 	ap.GET("/month", authz.RequireAllMW("view_basic_statistics"), h.GetMonthlyStats)
 	ap.GET("/today", authz.RequireAllMW("view_basic_statistics"), h.GetTodayStats)
 	ap.GET("/categories/:id/average", authz.RequireAllMW("view_basic_statistics"), h.GetYearlyAverageForCategory)
+	ap.GET("/reports", authz.RequireAllMW("view_basic_statistics"), h.ListReports)
+	ap.POST("/reports/category", authz.RequireAllMW("view_basic_statistics"), h.GenerateCategoryReport)
+	ap.GET("/reports/:id/download", authz.RequireAllMW("view_basic_statistics"), h.DownloadReport)
+	ap.DELETE("/reports/:id", authz.RequireAllMW("manage_data"), h.DeleteReport)
 }
 
 func (h *AnalyticsHandler) NetWorthChart(c *gin.Context) {
@@ -450,4 +457,121 @@ func (h *AnalyticsHandler) GetYearlyBreakdownStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
+}
+
+func (h *AnalyticsHandler) ListReports(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	p := utils.GetPaginationParams(c.Request.URL.Query())
+
+	records, paginator, err := h.Service.ListReportsPaginated(ctx, userID, p)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"current_page":  paginator.CurrentPage,
+		"rows_per_page": paginator.RowsPerPage,
+		"from":          paginator.From,
+		"to":            paginator.To,
+		"total_records": paginator.TotalRecords,
+		"data":          gin.H{"records": records},
+	})
+}
+
+func (h *AnalyticsHandler) GenerateCategoryReport(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var req struct {
+		InflowCategoryIDs  []int64 `json:"inflow_category_ids"`
+		OutflowCategoryIDs []int64 `json:"outflow_category_ids"`
+		Years              []int   `json:"years"`
+		Description        string  `json:"description"`
+		AllTime            bool    `json:"all_time"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if !req.AllTime && len(req.Years) == 0 {
+		utils.ErrorMessage(c, "param error", "years is required", http.StatusBadRequest, nil)
+		return
+	}
+	if len(req.Years) > 3 {
+		utils.ErrorMessage(c, "param error", "a maximum of 3 years is supported", http.StatusBadRequest, nil)
+		return
+	}
+	if len(req.InflowCategoryIDs) == 0 && len(req.OutflowCategoryIDs) == 0 {
+		utils.ErrorMessage(c, "param error", "at least one inflow or outflow category is required", http.StatusBadRequest, nil)
+		return
+	}
+
+	params := models.CategoryReportParams{
+		InflowCategoryIDs:  req.InflowCategoryIDs,
+		OutflowCategoryIDs: req.OutflowCategoryIDs,
+		Years:              req.Years,
+		Description:        strings.TrimSpace(req.Description),
+		AllTime:            req.AllTime,
+	}
+
+	report, err := h.Service.GenerateCategoryReport(ctx, userID, params)
+	if err != nil {
+		utils.ErrorMessage(c, "Failed to generate report", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, report)
+}
+
+func (h *AnalyticsHandler) DownloadReport(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Invalid id", "id must be a valid integer", http.StatusBadRequest, nil)
+		return
+	}
+
+	data, name, err := h.Service.DownloadReport(ctx, id, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Download error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	filename := fmt.Sprintf("%s.xlsx", name)
+	mime := "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	c.Header("Content-Type", mime)
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	c.Data(http.StatusOK, mime, data)
+}
+
+func (h *AnalyticsHandler) DeleteReport(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.DeleteReport(ctx, userID, id); err != nil {
+		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
 }

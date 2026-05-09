@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -222,4 +223,51 @@ type YearStatsWithAllocations struct {
 	SavingsPct    float64 `json:"savings_pct"`
 	InvestmentPct float64 `json:"investment_pct"`
 	DebtPct       float64 `json:"debt_pct"`
+}
+
+type CategoryReportParams struct {
+	InflowCategoryIDs  []int64
+	OutflowCategoryIDs []int64
+	Years              []int
+	Description        string
+	AllTime            bool
+}
+
+type CategoryReportYear struct {
+	Year         int             `json:"year"`
+	Inflow       decimal.Decimal `json:"inflow"`
+	Outflow      decimal.Decimal `json:"outflow"`
+	Net          decimal.Decimal `json:"net"`
+	MonthlyAvg   decimal.Decimal `json:"monthly_avg"`
+	ActiveMonths int             `json:"active_months"`
+}
+
+type CategoryReport struct {
+	Years       []CategoryReportYear `json:"years"`
+	AllTimeNet  decimal.Decimal      `json:"all_time_net"`
+	AllTimeAvg  decimal.Decimal      `json:"all_time_avg"`
+	GeneratedAt time.Time            `json:"generated_at"`
+}
+
+type Report struct {
+	ID          int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID      int64           `gorm:"not null;index" json:"user_id"`
+	Name        string          `gorm:"size:255;not null" json:"name"`
+	Type        string          `gorm:"size:128;not null" json:"type"`
+	Status      string          `gorm:"not null;default:'pending'" json:"status"`
+	Metadata    json.RawMessage `gorm:"type:jsonb" json:"metadata,omitempty"`
+	Error       *string         `gorm:"type:text" json:"error,omitempty"`
+	FilePath    *string         `gorm:"type:text" json:"file_path,omitempty"`
+	FileSize    *int64          `json:"file_size,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+	CompletedAt *time.Time      `json:"completed_at,omitempty"`
+}
+
+type CategoryReportDataRow struct {
+	Year           int
+	Month          int
+	CategoryName   string
+	Classification string
+	Total          decimal.Decimal
 }

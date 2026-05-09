@@ -2,12 +2,33 @@
 import AccountBasicStats from "../features/AccountBasicStats.vue";
 import SlotSkeleton from "../components/layout/SlotSkeleton.vue";
 import YearlyBreakdownStats from "../features/YearlyBreakdownStats.vue";
+import NewReportModule from "../features/reports/NewReportModule.vue";
+import ReportsPaginated from "../components/data/ReportsPaginated.vue";
 import { ref } from "vue";
+
+const newReportModal = ref(false);
+const reportsPaginated = ref<InstanceType<typeof ReportsPaginated>>();
+
+function onReportComplete() {
+  newReportModal.value = false;
+  reportsPaginated.value?.refresh();
+}
 
 const activeTab = ref("overview");
 </script>
 
 <template>
+  <Dialog
+    v-model:visible="newReportModal"
+    class="rounded-dialog"
+    :breakpoints="{ '751px': '90vw' }"
+    :modal="true"
+    :style="{ width: '750px' }"
+    header="New Report"
+  >
+    <NewReportModule @complete="onReportComplete" />
+  </Dialog>
+
   <main
     class="flex flex-column w-full align-items-center"
     style="padding: 0 0.5rem 0 0.5rem"
@@ -69,12 +90,25 @@ const activeTab = ref("overview");
             </SlotSkeleton>
           </Panel>
         </div>
-        <div v-else key="reports" class="w-full">
-          <Panel :collapsed="false" header="Reports" toggleable>
-            <SlotSkeleton bg="transparent">
-              <span>Coming soon ...</span>
-            </SlotSkeleton>
-          </Panel>
+        <div v-else key="reports" class="w-full flex flex-column gap-3">
+          <div class="flex flex-row justify-content-start">
+            <Button class="main-button" @click="newReportModal = true">
+              <div class="flex flex-row gap-1 align-items-center">
+                <i class="pi pi-plus" />
+                <span>New Report</span>
+              </div>
+            </Button>
+          </div>
+          <div
+            class="flex flex-column w-full p-3 gap-3 border-round-2xl"
+            style="
+              background-color: var(--background-secondary);
+              border: 1px solid var(--border-color);
+            "
+          >
+            <span class="font-bold">Reports</span>
+            <ReportsPaginated ref="reportsPaginated" />
+          </div>
         </div>
       </Transition>
     </div>

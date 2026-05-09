@@ -168,12 +168,13 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 	}
 
 	settings := models.SettingsUser{
-		UserID:          userID,
-		Theme:           req.Theme,
-		Accent:          req.Accent,
-		Timezone:        req.Timezone,
-		Language:        req.Language,
-		DefaultCurrency: existingSettings.DefaultCurrency,
+		UserID:                userID,
+		Theme:                 req.Theme,
+		Accent:                req.Accent,
+		Timezone:              req.Timezone,
+		Language:              req.Language,
+		DefaultCurrency:       existingSettings.DefaultCurrency,
+		DefaultSheetSeparator: req.DefaultSheetSeparator,
 	}
 
 	err = s.repo.UpdateUserSettings(ctx, tx, userID, settings)
@@ -194,6 +195,7 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 	utils.CompareChanges(existingSettings.Language, settings.Language, changes, "language")
 	utils.CompareChanges(existingSettings.Timezone, settings.Timezone, changes, "timezone")
 	utils.CompareChanges(existingSettings.DefaultCurrency, settings.DefaultCurrency, changes, "default_currency")
+	utils.CompareChanges(existingSettings.DefaultSheetSeparator, settings.DefaultSheetSeparator, changes, "default_sheet_separator")
 
 	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
