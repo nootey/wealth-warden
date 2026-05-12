@@ -14,9 +14,9 @@ import (
 )
 
 type mockTemplateRescheduler struct {
-	templates    []models.TransactionTemplate
-	getErr       error
-	updateErr    error
+	templates       []models.TransactionTemplate
+	getErr          error
+	updateErr       error
 	capturedUpdates []models.TemplateTimezoneUpdate
 }
 

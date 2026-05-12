@@ -41,16 +41,17 @@ func (s *AnalyticsServiceTestSuite) TestGenerateCategoryReport_CreatesReportWith
 	s.Positive(report.ID)
 }
 
-func (s *AnalyticsServiceTestSuite) TestGenerateCategoryReport_NameFromDescription() {
+func (s *AnalyticsServiceTestSuite) TestGenerateCategoryReport_DescriptionDoesNotOverrideName() {
 	svc := s.TC.App.AnalyticsService
 	params := models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		Years:             []int{2024},
-		Description:       "My Custom Report",
+		Description:       "monster",
 	}
 	report, err := svc.GenerateCategoryReport(s.Ctx, 1, params)
 	s.Require().NoError(err)
-	s.Equal("My Custom Report", report.Name)
+	s.Contains(report.Name, "2024")
+	s.NotEqual("monster", report.Name)
 }
 
 func (s *AnalyticsServiceTestSuite) TestGenerateCategoryReport_NameFromYears() {

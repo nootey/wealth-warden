@@ -23,19 +23,19 @@ const (
 )
 
 type SavingGoal struct {
-	ID            int64            `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID        int64            `gorm:"not null" json:"user_id"`
-	AccountID     int64            `gorm:"not null" json:"account_id"`
-	Name          string           `gorm:"type:varchar(150);not null" json:"name"`
-	TargetAmount  decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"target_amount"`
-	CurrentAmount decimal.Decimal  `gorm:"type:decimal(19,4);not null;default:0" json:"current_amount"`
+	ID                int64            `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID            int64            `gorm:"not null" json:"user_id"`
+	AccountID         int64            `gorm:"not null" json:"account_id"`
+	Name              string           `gorm:"type:varchar(150);not null" json:"name"`
+	TargetAmount      decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"target_amount"`
+	CurrentAmount     decimal.Decimal  `gorm:"type:decimal(19,4);not null;default:0" json:"current_amount"`
 	TargetDate        *time.Time       `gorm:"type:date" json:"target_date,omitempty"`
 	Status            SavingGoalStatus `gorm:"type:saving_goal_status;not null;default:active" json:"status"`
 	Priority          int              `gorm:"not null;default:0" json:"priority"`
 	MonthlyAllocation *decimal.Decimal `gorm:"type:decimal(19,4)" json:"monthly_allocation,omitempty"`
 	FundDayOfMonth    *int             `gorm:"type:smallint"     json:"fund_day_of_month,omitempty"`
-	CreatedAt     time.Time        `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt     time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
+	CreatedAt         time.Time        `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt         time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type SavingContribution struct {

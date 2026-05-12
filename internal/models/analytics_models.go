@@ -265,9 +265,11 @@ type Report struct {
 }
 
 type CategoryReportDataRow struct {
-	Year           int
-	Month          int
-	CategoryName   string
-	Classification string
-	Total          decimal.Decimal
+	Year                   int
+	Month                  int
+	CategoryName           string
+	Classification         string // "inflow" or "outflow" — slot-based grouping (primary vs secondary)
+	CategoryClassification string // actual classification from the categories table
+	Total                  decimal.Decimal
+	TxnCount               int
 }

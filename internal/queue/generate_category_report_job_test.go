@@ -34,7 +34,7 @@ func (m *mockAnalyticsRepo) UpdateReport(_ context.Context, _ *gorm.DB, _ int64,
 	return nil
 }
 
-func (m *mockAnalyticsRepo) FetchCategoryReportData(_ context.Context, _ *gorm.DB, _ int64, _, _ []int64, _ []int, _ bool) ([]models.CategoryReportDataRow, error) {
+func (m *mockAnalyticsRepo) FetchCategoryReportData(_ context.Context, _ *gorm.DB, _ int64, _, _ []int64, _ []int, _ bool, _ string) ([]models.CategoryReportDataRow, error) {
 	return m.fetchRows, m.fetchErr
 }
 
