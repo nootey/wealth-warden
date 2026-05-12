@@ -29,7 +29,7 @@ type AnalyticsRepositoryInterface interface {
 	InsertReport(ctx context.Context, tx *gorm.DB, record *models.Report) error
 	UpdateReport(ctx context.Context, tx *gorm.DB, id int64, fields map[string]interface{}) error
 	DeleteReport(ctx context.Context, tx *gorm.DB, id, userID int64) error
-	FetchCategoryReportData(ctx context.Context, tx *gorm.DB, userID int64, inflowCatIDs, outflowCatIDs []int64, years []int, allTime bool) ([]models.CategoryReportDataRow, error)
+	FetchCategoryReportData(ctx context.Context, tx *gorm.DB, userID int64, inflowCatIDs, outflowCatIDs []int64, years []int, allTime bool, description string) ([]models.CategoryReportDataRow, error)
 }
 type AnalyticsRepository struct {
 	db *gorm.DB
@@ -763,7 +763,7 @@ func (r *AnalyticsRepository) DeleteReport(ctx context.Context, tx *gorm.DB, id,
 	return db.WithContext(ctx).Where("id = ? AND user_id = ?", id, userID).Delete(&models.Report{}).Error
 }
 
-func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *gorm.DB, userID int64, inflowCatIDs, outflowCatIDs []int64, years []int, allTime bool) ([]models.CategoryReportDataRow, error) {
+func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *gorm.DB, userID int64, inflowCatIDs, outflowCatIDs []int64, years []int, allTime bool, description string) ([]models.CategoryReportDataRow, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -776,18 +776,24 @@ func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *g
 	}
 
 	type scanRow struct {
-		Year         int    `gorm:"column:year"`
-		Month        int    `gorm:"column:month"`
-		CategoryID   int64  `gorm:"column:category_id"`
-		CategoryName string `gorm:"column:category_name"`
-		TotalText    string `gorm:"column:total_text"`
+		Year                   int    `gorm:"column:year"`
+		Month                  int    `gorm:"column:month"`
+		CategoryID             int64  `gorm:"column:category_id"`
+		CategoryName           string `gorm:"column:category_name"`
+		CategoryClassification string `gorm:"column:category_classification"`
+		TotalText              string `gorm:"column:total_text"`
 	}
 
 	yearClause := ""
+	descClause := ""
 	args := []interface{}{userID, allCatIDs}
 	if !allTime && len(years) > 0 {
 		yearClause = "AND EXTRACT(YEAR FROM t.txn_date)::int IN ?"
 		args = append(args, years)
+	}
+	if description != "" {
+		descClause = "AND t.description ILIKE '%' || ? || '%'"
+		args = append(args, description)
 	}
 
 	query := fmt.Sprintf(`
@@ -796,6 +802,7 @@ func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *g
 			EXTRACT(MONTH FROM t.txn_date)::int AS month,
 			t.category_id,
 			COALESCE(NULLIF(c.display_name, ''), c.name, 'Uncategorized') AS category_name,
+			COALESCE(c.classification, 'uncategorized') AS category_classification,
 			SUM(t.amount)::text AS total_text
 		FROM transactions t
 		LEFT JOIN categories c ON c.id = t.category_id
@@ -805,9 +812,10 @@ func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *g
 			AND t.is_transfer = false
 			AND t.deleted_at IS NULL
 			%s
-		GROUP BY 1, 2, 3, 4
+			%s
+		GROUP BY 1, 2, 3, 4, 5
 		ORDER BY 1, 2, 4
-	`, yearClause)
+	`, yearClause, descClause)
 
 	var scanned []scanRow
 	if err := db.Raw(query, args...).Scan(&scanned).Error; err != nil {
@@ -827,11 +835,12 @@ func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *g
 			classification = "inflow"
 		}
 		rows = append(rows, models.CategoryReportDataRow{
-			Year:           s.Year,
-			Month:          s.Month,
-			CategoryName:   s.CategoryName,
-			Classification: classification,
-			Total:          total,
+			Year:                   s.Year,
+			Month:                  s.Month,
+			CategoryName:           s.CategoryName,
+			Classification:         classification,
+			CategoryClassification: s.CategoryClassification,
+			Total:                  total,
 		})
 	}
 	return rows, nil

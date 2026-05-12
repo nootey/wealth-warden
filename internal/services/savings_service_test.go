@@ -26,13 +26,13 @@ func (s *SavingsServiceTestSuite) TestAutoFundGoal_SkipReason_AlreadyFunded() {
 
 	balance := decimal.NewFromInt(500)
 	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
-		Name:          "Test Savings",
-		AccountTypeID: 2,
-		Type:          "cash",
-		Subtype:       "savings",
+		Name:           "Test Savings",
+		AccountTypeID:  2,
+		Type:           "cash",
+		Subtype:        "savings",
 		Classification: "asset",
-		Balance:       &balance,
-		OpenedAt:      time.Now(),
+		Balance:        &balance,
+		OpenedAt:       time.Now(),
 	})
 	s.Require().NoError(err)
 
@@ -74,13 +74,13 @@ func (s *SavingsServiceTestSuite) TestAutoFundGoal_SkipReason_InsufficientBalanc
 
 	balance := decimal.NewFromInt(50)
 	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
-		Name:          "Test Savings",
-		AccountTypeID: 2,
-		Type:          "cash",
-		Subtype:       "savings",
+		Name:           "Test Savings",
+		AccountTypeID:  2,
+		Type:           "cash",
+		Subtype:        "savings",
 		Classification: "asset",
-		Balance:       &balance,
-		OpenedAt:      time.Now(),
+		Balance:        &balance,
+		OpenedAt:       time.Now(),
 	})
 	s.Require().NoError(err)
 
@@ -110,13 +110,13 @@ func (s *SavingsServiceTestSuite) TestAutoFundGoal_MissedMonthStaysMissed() {
 
 	balance := decimal.NewFromInt(0)
 	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
-		Name:          "Test Savings",
-		AccountTypeID: 2,
-		Type:          "cash",
-		Subtype:       "savings",
+		Name:           "Test Savings",
+		AccountTypeID:  2,
+		Type:           "cash",
+		Subtype:        "savings",
 		Classification: "asset",
-		Balance:       &balance,
-		OpenedAt:      time.Now(),
+		Balance:        &balance,
+		OpenedAt:       time.Now(),
 	})
 	s.Require().NoError(err)
 
@@ -184,13 +184,13 @@ func (s *SavingsServiceTestSuite) TestFetchActiveGoalsWithAllocation_DayFilter()
 
 	balance := decimal.NewFromInt(1000)
 	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
-		Name:          "Test Savings",
-		AccountTypeID: 2,
-		Type:          "cash",
-		Subtype:       "savings",
+		Name:           "Test Savings",
+		AccountTypeID:  2,
+		Type:           "cash",
+		Subtype:        "savings",
 		Classification: "asset",
-		Balance:       &balance,
-		OpenedAt:      time.Now(),
+		Balance:        &balance,
+		OpenedAt:       time.Now(),
 	})
 	s.Require().NoError(err)
 

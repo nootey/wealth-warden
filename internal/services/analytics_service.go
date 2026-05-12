@@ -1338,9 +1338,7 @@ func (s *AnalyticsService) GenerateCategoryReport(
 	}
 
 	var name string
-	if params.Description != "" {
-		name = params.Description
-	} else if params.AllTime {
+	if params.AllTime {
 		name = "Category Report - All Time"
 	} else {
 		yearStrs := make([]string, len(params.Years))

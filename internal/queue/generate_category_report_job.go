@@ -67,6 +67,7 @@ func (j *GenerateCategoryReportJob) Process(ctx context.Context) error {
 		j.params.OutflowCategoryIDs,
 		j.params.Years,
 		j.params.AllTime,
+		j.params.Description,
 	)
 	if err != nil {
 		return j.fail(ctx, err)
@@ -270,6 +271,7 @@ func (j *GenerateCategoryReportJob) writeSummarySheet(f *excelize.File, sheet st
 func (j *GenerateCategoryReportJob) writeYearSheet(f *excelize.File, sheet string, styles xlsxStyles, year int, rows []models.CategoryReportDataRow) {
 	monthSet := make(map[int]struct{})
 	catMonthly := make(map[catKey]map[int]decimal.Decimal)
+	catDisplayClass := make(map[catKey]string)
 	for _, r := range rows {
 		monthSet[r.Month] = struct{}{}
 		k := catKey{r.CategoryName, r.Classification}
@@ -277,6 +279,7 @@ func (j *GenerateCategoryReportJob) writeYearSheet(f *excelize.File, sheet strin
 			catMonthly[k] = make(map[int]decimal.Decimal)
 		}
 		catMonthly[k][r.Month] = catMonthly[k][r.Month].Add(r.Total)
+		catDisplayClass[k] = r.CategoryClassification
 	}
 	months := utils.SortedInts(monthSet)
 
@@ -299,7 +302,7 @@ func (j *GenerateCategoryReportJob) writeYearSheet(f *excelize.File, sheet strin
 	calM := utils.CalendarMonths(year)
 
 	buildCatRow := func(k catKey) []string {
-		vals := []string{k.name, k.classification}
+		vals := []string{k.name, catDisplayClass[k]}
 		var total decimal.Decimal
 		activeM := 0
 		for _, m := range months {
@@ -496,12 +499,14 @@ func (j *GenerateCategoryReportJob) writeYearSheet(f *excelize.File, sheet strin
 
 func (j *GenerateCategoryReportJob) writeAllTimeSheet(f *excelize.File, sheet string, styles xlsxStyles, rows []models.CategoryReportDataRow, years []int) {
 	catYearly := make(map[catKey]map[int]decimal.Decimal)
+	catDisplayClass := make(map[catKey]string)
 	for _, r := range rows {
 		k := catKey{r.CategoryName, r.Classification}
 		if catYearly[k] == nil {
 			catYearly[k] = make(map[int]decimal.Decimal)
 		}
 		catYearly[k][r.Year] = catYearly[k][r.Year].Add(r.Total)
+		catDisplayClass[k] = r.CategoryClassification
 	}
 
 	var inflows, outflows []catKey
@@ -519,7 +524,7 @@ func (j *GenerateCategoryReportJob) writeAllTimeSheet(f *excelize.File, sheet st
 	catHeaders := append(append([]string{"Category", "Classification"}, yearStrs...), "Total", "Avg/Year")
 
 	buildCatRow := func(k catKey) []string {
-		vals := []string{k.name, k.classification}
+		vals := []string{k.name, catDisplayClass[k]}
 		var total decimal.Decimal
 		for _, y := range years {
 			v := catYearly[k][y]
@@ -767,7 +772,11 @@ func (j *GenerateCategoryReportJob) reportName(categoryLabel string) string {
 		}
 		yearPart = strings.Join(parts, ", ")
 	}
-	return fmt.Sprintf("Category Report - %s - %s", categoryLabel, yearPart)
+	name := fmt.Sprintf("Category Report - %s - %s", categoryLabel, yearPart)
+	if j.params.Description != "" {
+		name += fmt.Sprintf(" (%s)", j.params.Description)
+	}
+	return name
 }
 
 func (j *GenerateCategoryReportJob) saveFile(data []byte) (string, error) {
