@@ -271,4 +271,5 @@ type CategoryReportDataRow struct {
 	Classification         string // "inflow" or "outflow" — slot-based grouping (primary vs secondary)
 	CategoryClassification string // actual classification from the categories table
 	Total                  decimal.Decimal
+	TxnCount               int
 }

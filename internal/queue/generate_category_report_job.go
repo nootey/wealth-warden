@@ -271,14 +271,17 @@ func (j *GenerateCategoryReportJob) writeSummarySheet(f *excelize.File, sheet st
 func (j *GenerateCategoryReportJob) writeYearSheet(f *excelize.File, sheet string, styles xlsxStyles, year int, rows []models.CategoryReportDataRow) {
 	monthSet := make(map[int]struct{})
 	catMonthly := make(map[catKey]map[int]decimal.Decimal)
+	catMonthlyCount := make(map[catKey]map[int]int)
 	catDisplayClass := make(map[catKey]string)
 	for _, r := range rows {
 		monthSet[r.Month] = struct{}{}
 		k := catKey{r.CategoryName, r.Classification}
 		if catMonthly[k] == nil {
 			catMonthly[k] = make(map[int]decimal.Decimal)
+			catMonthlyCount[k] = make(map[int]int)
 		}
 		catMonthly[k][r.Month] = catMonthly[k][r.Month].Add(r.Total)
+		catMonthlyCount[k][r.Month] += r.TxnCount
 		catDisplayClass[k] = r.CategoryClassification
 	}
 	months := utils.SortedInts(monthSet)
@@ -421,16 +424,34 @@ func (j *GenerateCategoryReportJob) writeYearSheet(f *excelize.File, sheet strin
 	for i, m := range months {
 		effSlice[i] = effectiveByMonth[m]
 	}
+	// Flip best/worst when only expense categories are selected in the primary slot
+	// (no secondary): lower spending = better outcome.
+	expenseOnly := len(outflows) == 0 && len(inflows) > 0
+	for _, k := range inflows {
+		if catDisplayClass[k] != "expense" {
+			expenseOnly = false
+			break
+		}
+	}
 	bestVal, bestMonth := effSlice[0], months[0]
 	worstVal, worstMonth := effSlice[0], months[0]
 	var totalEff, totalPrimary, totalSecondary decimal.Decimal
 	for i, v := range effSlice {
 		totalEff = totalEff.Add(v)
-		if v.GreaterThan(bestVal) {
-			bestVal, bestMonth = v, months[i]
-		}
-		if v.LessThan(worstVal) {
-			worstVal, worstMonth = v, months[i]
+		if expenseOnly {
+			if v.LessThan(bestVal) {
+				bestVal, bestMonth = v, months[i]
+			}
+			if v.GreaterThan(worstVal) {
+				worstVal, worstMonth = v, months[i]
+			}
+		} else {
+			if v.GreaterThan(bestVal) {
+				bestVal, bestMonth = v, months[i]
+			}
+			if v.LessThan(worstVal) {
+				worstVal, worstMonth = v, months[i]
+			}
 		}
 	}
 	for _, m := range months {
@@ -443,6 +464,22 @@ func (j *GenerateCategoryReportJob) writeYearSheet(f *excelize.File, sheet strin
 	}
 	slope := utils.LinearTrend(effSlice)
 
+	var totalTxnCount int
+	for _, k := range inflows {
+		for _, m := range months {
+			totalTxnCount += catMonthlyCount[k][m]
+		}
+	}
+	for _, k := range outflows {
+		for _, m := range months {
+			totalTxnCount += catMonthlyCount[k][m]
+		}
+	}
+	avgTxnPerMonth := 0.0
+	if len(months) > 0 {
+		avgTxnPerMonth = float64(totalTxnCount) / float64(len(months))
+	}
+
 	cur++
 	statsStartRow := cur
 	cur = xlsxTitle(f, sheet, cur, "Statistics", styles.SectionTitle)
@@ -453,12 +490,15 @@ func (j *GenerateCategoryReportJob) writeYearSheet(f *excelize.File, sheet strin
 	for _, sr := range [][]string{
 		{"Best Month", fmt.Sprintf("%s (%s)", monthAbbr[bestMonth-1], bestVal.StringFixed(2))},
 		{"Worst Month", fmt.Sprintf("%s (%s)", monthAbbr[worstMonth-1], worstVal.StringFixed(2))},
+		{"Median Month (Effective)", medianDecimal(effSlice).StringFixed(2)},
 		{"Avg Effective / Active Month", avgEff.StringFixed(2)},
 		{"Avg Effective / Calendar Month", calAvgEff.StringFixed(2)},
 		{"Monthly Trend", fmt.Sprintf("%s per month (%s)", utils.SignedFixed(slope), utils.TrendDirection(slope))},
 		{"Total Primary", totalPrimary.StringFixed(2)},
 		{"Total Secondary", totalSecondary.StringFixed(2)},
 		{"Total Effective", totalEff.StringFixed(2)},
+		{"Total Transactions", fmt.Sprintf("%d", totalTxnCount)},
+		{"Avg Transactions / Active Month", fmt.Sprintf("%.1f", avgTxnPerMonth)},
 		{"Active Months", fmt.Sprintf("%d", len(months))},
 		{"Calendar Months", fmt.Sprintf("%d", calM)},
 	} {
@@ -499,13 +539,16 @@ func (j *GenerateCategoryReportJob) writeYearSheet(f *excelize.File, sheet strin
 
 func (j *GenerateCategoryReportJob) writeAllTimeSheet(f *excelize.File, sheet string, styles xlsxStyles, rows []models.CategoryReportDataRow, years []int) {
 	catYearly := make(map[catKey]map[int]decimal.Decimal)
+	catYearlyCount := make(map[catKey]map[int]int)
 	catDisplayClass := make(map[catKey]string)
 	for _, r := range rows {
 		k := catKey{r.CategoryName, r.Classification}
 		if catYearly[k] == nil {
 			catYearly[k] = make(map[int]decimal.Decimal)
+			catYearlyCount[k] = make(map[int]int)
 		}
 		catYearly[k][r.Year] = catYearly[k][r.Year].Add(r.Total)
+		catYearlyCount[k][r.Year] += r.TxnCount
 		catDisplayClass[k] = r.CategoryClassification
 	}
 
@@ -611,20 +654,49 @@ func (j *GenerateCategoryReportJob) writeAllTimeSheet(f *excelize.File, sheet st
 	cur = xlsxDataRow(f, sheet, cur, yoyRow, 2, styles)
 	cur = xlsxDataRow(f, sheet, cur, yoyPctRow, 2, styles)
 
+	expenseOnly := len(outflows) == 0 && len(inflows) > 0
+	for _, k := range inflows {
+		if catDisplayClass[k] != "expense" {
+			expenseOnly = false
+			break
+		}
+	}
 	bestVal, bestYear := effSlice[0], years[0]
 	worstVal, worstYear := effSlice[0], years[0]
 	var totalEff decimal.Decimal
 	for i, v := range effSlice {
 		totalEff = totalEff.Add(v)
-		if v.GreaterThan(bestVal) {
-			bestVal, bestYear = v, years[i]
-		}
-		if v.LessThan(worstVal) {
-			worstVal, worstYear = v, years[i]
+		if expenseOnly {
+			if v.LessThan(bestVal) {
+				bestVal, bestYear = v, years[i]
+			}
+			if v.GreaterThan(worstVal) {
+				worstVal, worstYear = v, years[i]
+			}
+		} else {
+			if v.GreaterThan(bestVal) {
+				bestVal, bestYear = v, years[i]
+			}
+			if v.LessThan(worstVal) {
+				worstVal, worstYear = v, years[i]
+			}
 		}
 	}
 	avgEff := totalEff.Div(decimal.NewFromInt(int64(len(years))))
 	slope := utils.LinearTrend(effSlice)
+
+	var totalTxnCount int
+	for _, k := range inflows {
+		for _, y := range years {
+			totalTxnCount += catYearlyCount[k][y]
+		}
+	}
+	for _, k := range outflows {
+		for _, y := range years {
+			totalTxnCount += catYearlyCount[k][y]
+		}
+	}
+	avgTxnPerYear := float64(totalTxnCount) / float64(len(years))
 
 	cur++
 	allTimeStatsRow := cur
@@ -634,8 +706,11 @@ func (j *GenerateCategoryReportJob) writeAllTimeSheet(f *excelize.File, sheet st
 	for _, sr := range [][]string{
 		{"Best Year", fmt.Sprintf("%d (%s)", bestYear, bestVal.StringFixed(2))},
 		{"Worst Year", fmt.Sprintf("%d (%s)", worstYear, worstVal.StringFixed(2))},
+		{"Median Year (Effective)", medianDecimal(effSlice).StringFixed(2)},
 		{"Avg Annual Effective", avgEff.StringFixed(2)},
 		{"Annual Trend", fmt.Sprintf("%s per year (%s)", utils.SignedFixed(slope), utils.TrendDirection(slope))},
+		{"Total Transactions", fmt.Sprintf("%d", totalTxnCount)},
+		{"Avg Transactions / Year", fmt.Sprintf("%.1f", avgTxnPerYear)},
 		{"Years Covered", fmt.Sprintf("%d", len(years))},
 	} {
 		cur = xlsxDataRow(f, sheet, cur, sr, 1, styles)
@@ -840,6 +915,20 @@ func xlsxHeaderRow(f *excelize.File, sheet string, row int, headers []string, st
 		}
 	}
 	return row + 1
+}
+
+func medianDecimal(vals []decimal.Decimal) decimal.Decimal {
+	if len(vals) == 0 {
+		return decimal.Zero
+	}
+	sorted := make([]decimal.Decimal, len(vals))
+	copy(sorted, vals)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].LessThan(sorted[j]) })
+	n := len(sorted)
+	if n%2 == 0 {
+		return sorted[n/2-1].Add(sorted[n/2]).Div(decimal.NewFromInt(2))
+	}
+	return sorted[n/2]
 }
 
 // xlsxDataRow writes values; first labelCols use label style, rest use data style.

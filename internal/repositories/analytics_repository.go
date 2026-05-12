@@ -782,6 +782,7 @@ func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *g
 		CategoryName           string `gorm:"column:category_name"`
 		CategoryClassification string `gorm:"column:category_classification"`
 		TotalText              string `gorm:"column:total_text"`
+		TxnCount               int    `gorm:"column:txn_count"`
 	}
 
 	yearClause := ""
@@ -803,14 +804,19 @@ func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *g
 			t.category_id,
 			COALESCE(NULLIF(c.display_name, ''), c.name, 'Uncategorized') AS category_name,
 			COALESCE(c.classification, 'uncategorized') AS category_classification,
-			SUM(t.amount)::text AS total_text
+			SUM(t.amount)::text AS total_text,
+			COUNT(*) AS txn_count
 		FROM transactions t
 		LEFT JOIN categories c ON c.id = t.category_id
+		JOIN accounts a ON a.id = t.account_id
+		JOIN account_types at ON at.id = a.account_type_id
 		WHERE t.user_id = ?
 			AND t.category_id IN ?
 			AND t.is_adjustment = false
 			AND t.is_transfer = false
 			AND t.deleted_at IS NULL
+			AND at.type = 'cash'
+			AND at.sub_type = 'checking'
 			%s
 			%s
 		GROUP BY 1, 2, 3, 4, 5
@@ -841,6 +847,7 @@ func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *g
 			Classification:         classification,
 			CategoryClassification: s.CategoryClassification,
 			Total:                  total,
+			TxnCount:               s.TxnCount,
 		})
 	}
 	return rows, nil
