@@ -45,6 +45,9 @@ docker-up:
 docker-down:
 	docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden down
 
+docker-restart:
+	docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden restart
+
 docker-migrate:
 	docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden run --rm --build migrate $(type)
 
@@ -53,6 +56,9 @@ docker-rpi-up:
 
 docker-rpi-down:
 	docker compose -f ./deployments/docker/docker-compose.rpi.yaml -p wealth-warden down
+
+docker-rpi-restart:
+	docker compose -f ./deployments/docker/docker-compose.rpi.yaml -p wealth-warden restart
 
 docker-rpi-migrate:
 	docker compose -f ./deployments/docker/docker-compose.rpi.yaml -p wealth-warden run --rm --build migrate $(type)
