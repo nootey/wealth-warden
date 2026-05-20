@@ -47,6 +47,8 @@ type InvestmentRepositoryInterface interface {
 	UpsertExchangeRate(ctx context.Context, tx *gorm.DB, entry models.ExchangeRateHistory) error
 	GetCachedExchangeRate(ctx context.Context, tx *gorm.DB, from, to string, asOf time.Time) (decimal.Decimal, bool, error)
 	BulkUpdateAssetAccountID(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error
+	UpdateAssetCurrentPrice(ctx context.Context, tx *gorm.DB, assetID int64, price decimal.Decimal, now time.Time) error
+	UpdateTradesPnLForAsset(ctx context.Context, tx *gorm.DB, assetID int64, price decimal.Decimal, investmentType models.InvestmentType, now time.Time) error
 }
 
 type InvestmentRepository struct {
@@ -606,6 +608,41 @@ func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, t
 			"profit_loss_percent": profitLossPercent,
 			"updated_at":          time.Now().UTC(),
 		}).Error
+}
+
+func (r *InvestmentRepository) UpdateAssetCurrentPrice(ctx context.Context, tx *gorm.DB, assetID int64, price decimal.Decimal, now time.Time) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).Model(&models.InvestmentAsset{}).
+		Where("id = ?", assetID).
+		Updates(map[string]interface{}{
+			"current_price":     price,
+			"last_price_update": now,
+			"updated_at":        now,
+		}).Error
+}
+
+func (r *InvestmentRepository) UpdateTradesPnLForAsset(ctx context.Context, tx *gorm.DB, assetID int64, price decimal.Decimal, investmentType models.InvestmentType, now time.Time) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	includeFees := investmentType != models.InvestmentCrypto
+	return db.WithContext(ctx).Exec(`
+		UPDATE investment_trades
+		SET
+			current_value = quantity * ?,
+			profit_loss = (quantity * ?) - (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END),
+			profit_loss_percent = CASE
+				WHEN (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END) > 0
+				THEN ((quantity * ?) - (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END)) / (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END)
+				ELSE 0
+			END,
+			updated_at = ?
+		WHERE asset_id = ? AND trade_type = 'buy'
+	`, price, price, includeFees, includeFees, price, includeFees, includeFees, now, assetID).Error
 }
 
 func (r *InvestmentRepository) DeleteInvestmentTrade(ctx context.Context, tx *gorm.DB, id int64) error {

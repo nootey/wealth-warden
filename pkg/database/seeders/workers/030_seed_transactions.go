@@ -35,7 +35,7 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 
 	investmentRepo := repositories.NewInvestmentRepository(db)
 	savingsRepo := repositories.NewSavingsRepository(db)
-	accService := services.NewAccountService(zap.NewNop(), accRepo, txnRepo, settingsRepo, loggingRepo, savingsRepo, investmentRepo, jobDispatcher)
+	accService := services.NewAccountService(zap.NewNop(), accRepo, txnRepo, settingsRepo, loggingRepo, savingsRepo, investmentRepo, jobDispatcher, nil)
 
 	var incCats, expCats []models.Category
 	_ = db.WithContext(ctx).Where("classification = ?", "income").Find(&incCats).Error

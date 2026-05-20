@@ -411,10 +411,10 @@ async function syncAssetAccountBalance(acc_id: number | null) {
         class="flex flex-row w-full text-center align-items-center gap-1"
       >
         <span class="text-sm" style="color: var(--text-secondary)"
-          >Re-calculate asset price and PNL:
+          >Fetch latest price and recalculate PnL:
         </span>
         <i
-          v-tooltip="'Sync asset price details.'"
+          v-tooltip="'Fetch latest price from Yahoo and recalculate PnL.'"
           class="hover-icon pi pi-sync text-sm"
           @click="syncAssetPrice(record?.id!)"
         ></i>
@@ -424,10 +424,12 @@ async function syncAssetAccountBalance(acc_id: number | null) {
         class="flex flex-row w-full text-center align-items-center gap-1"
       >
         <span class="text-sm" style="color: var(--text-secondary)"
-          >Re-calculate asset account balances:
+          >Recalculate PnL for all assets in account:
         </span>
         <i
-          v-tooltip="'Sync asset account balance.'"
+          v-tooltip="
+            'Fetch latest prices and recalculate PnL for all assets in this account.'
+          "
           class="hover-icon pi pi-sync text-sm"
           @click="syncAssetAccountBalance(record?.account?.id!)"
         ></i>

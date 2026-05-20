@@ -10,6 +10,7 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -54,14 +55,15 @@ type AccountServiceInterface interface {
 }
 
 type AccountService struct {
-	repo           repositories.AccountRepositoryInterface
-	txnRepo        repositories.TransactionRepositoryInterface
-	settingsRepo   repositories.SettingsRepositoryInterface
-	loggingRepo    repositories.LoggingRepositoryInterface
-	savingsRepo    repositories.SavingsRepositoryInterface
-	investmentRepo repositories.InvestmentRepositoryInterface
-	jobDispatcher  queue.JobDispatcher
-	logger         *zap.Logger
+	repo             repositories.AccountRepositoryInterface
+	txnRepo          repositories.TransactionRepositoryInterface
+	settingsRepo     repositories.SettingsRepositoryInterface
+	loggingRepo      repositories.LoggingRepositoryInterface
+	savingsRepo      repositories.SavingsRepositoryInterface
+	investmentRepo   repositories.InvestmentRepositoryInterface
+	jobDispatcher    queue.JobDispatcher
+	priceFetchClient finance.PriceFetcher
+	logger           *zap.Logger
 }
 
 func NewAccountService(
@@ -73,16 +75,18 @@ func NewAccountService(
 	savingsRepo *repositories.SavingsRepository,
 	investmentRepo *repositories.InvestmentRepository,
 	jobDispatcher queue.JobDispatcher,
+	priceFetchClient finance.PriceFetcher,
 ) *AccountService {
 	return &AccountService{
-		repo:           repo,
-		txnRepo:        txnRepo,
-		settingsRepo:   settingsRepo,
-		loggingRepo:    loggingRepo,
-		savingsRepo:    savingsRepo,
-		investmentRepo: investmentRepo,
-		jobDispatcher:  jobDispatcher,
-		logger:         logger,
+		repo:             repo,
+		txnRepo:          txnRepo,
+		settingsRepo:     settingsRepo,
+		loggingRepo:      loggingRepo,
+		savingsRepo:      savingsRepo,
+		investmentRepo:   investmentRepo,
+		jobDispatcher:    jobDispatcher,
+		priceFetchClient: priceFetchClient,
+		logger:           logger,
 	}
 }
 
@@ -1227,6 +1231,23 @@ func (s *AccountService) SyncForUser(ctx context.Context, userID int64) error {
 }
 
 func (s *AccountService) RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error {
+	if s.priceFetchClient != nil {
+		asset, err := s.investmentRepo.FindInvestmentAssetByID(ctx, nil, assetID, userID)
+		if err != nil {
+			return err
+		}
+		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
+		if err == nil && priceData != nil && priceData.Price > 0 {
+			now := time.Now().UTC()
+			price := decimal.NewFromFloat(priceData.Price)
+			if err := s.investmentRepo.UpdateAssetCurrentPrice(ctx, nil, assetID, price, now); err != nil {
+				return err
+			}
+			if err := s.investmentRepo.UpdateTradesPnLForAsset(ctx, nil, assetID, price, asset.InvestmentType, now); err != nil {
+				return err
+			}
+		}
+	}
 	return s.investmentRepo.RecalculateAssetFromTrades(ctx, nil, assetID, userID)
 }
 
