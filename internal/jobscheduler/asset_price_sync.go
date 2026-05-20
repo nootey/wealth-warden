@@ -285,7 +285,7 @@ func (j *AssetPriceSyncJob) updateAssetsByTicker(ctx context.Context, tx *gorm.D
 			return 0, err
 		}
 
-		if err := j.updateTrades(tx, asset.ID, priceDecimal, now); err != nil {
+		if err := j.updateTrades(tx, asset.ID, priceDecimal, now, asset.InvestmentType); err != nil {
 			return 0, err
 		}
 
@@ -367,19 +367,21 @@ func (j *AssetPriceSyncJob) updateAsset(tx *gorm.DB, asset models.InvestmentAsse
 	return nil
 }
 
-func (j *AssetPriceSyncJob) updateTrades(tx *gorm.DB, assetID int64, price decimal.Decimal, now time.Time) error {
+func (j *AssetPriceSyncJob) updateTrades(tx *gorm.DB, assetID int64, price decimal.Decimal, now time.Time, investmentType models.InvestmentType) error {
+	includeFees := investmentType != models.InvestmentCrypto
 	err := tx.Exec(`
         UPDATE investment_trades
-        SET 
+        SET
             current_value = quantity * ?,
-            profit_loss = (quantity * ?) - value_at_buy,
-            profit_loss_percent = CASE 
-                WHEN value_at_buy > 0 THEN ((quantity * ?) - value_at_buy) / value_at_buy
-                ELSE 0 
+            profit_loss = (quantity * ?) - (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END),
+            profit_loss_percent = CASE
+                WHEN (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END) > 0
+                THEN ((quantity * ?) - (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END)) / (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END)
+                ELSE 0
             END,
             updated_at = ?
         WHERE asset_id = ? AND trade_type = 'buy'
-    `, price, price, price, now, assetID).Error
+    `, price, price, includeFees, includeFees, price, includeFees, includeFees, now, assetID).Error
 
 	if err != nil {
 		j.logger.Error("Failed to update trades",

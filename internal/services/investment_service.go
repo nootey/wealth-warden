@@ -415,7 +415,11 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 			txnProfitLossPercent = txnProfitLoss.Div(costBasis)
 		}
 	} else {
-		txnCurrentValue, txnProfitLoss, txnProfitLossPercent = s.calculateTradePnL(effectiveQuantity, currentPrice, valueAtBuy)
+		basis := valueAtBuy
+		if asset.InvestmentType != models.InvestmentCrypto {
+			basis = valueAtBuy.Add(fee)
+		}
+		txnCurrentValue, txnProfitLoss, txnProfitLossPercent = s.calculateTradePnL(effectiveQuantity, currentPrice, basis)
 	}
 
 	txnValueAtBuy := valueAtBuy
