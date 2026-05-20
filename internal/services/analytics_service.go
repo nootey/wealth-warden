@@ -1264,7 +1264,7 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 	if inflow.GreaterThan(decimal.Zero) {
 		avgIn = inflow.Div(decimal.NewFromInt(divisor))
 	}
-	if outflow.GreaterThan(decimal.Zero) {
+	if !outflow.IsZero() {
 		avgOut = outflow.Div(decimal.NewFromInt(divisor))
 	}
 
