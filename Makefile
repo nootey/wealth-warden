@@ -76,7 +76,7 @@ pre-push:
 	@go test -count=1 ./... && echo "tests successful" || (echo "tests failed" && exit 1)
 	@echo ""
 	@echo "--- Client ---"
-	@cd client && npm run build && echo "build successful" || (echo "build failed" && exit 1)
-	@cd client && npm run format && echo "format successful" || (echo "format failed" && exit 1)
-	@cd client && npm run lint && echo "lint successful" || (echo "lint failed" && exit 1)
-	@cd client && npm run test && echo "tests successful" || (echo "tests failed" && exit 1)
+	@cd client && pnpm run build && echo "build successful" || (echo "build failed" && exit 1)
+	@cd client && pnpm run format && echo "format successful" || (echo "format failed" && exit 1)
+	@cd client && pnpm run lint && echo "lint successful" || (echo "lint failed" && exit 1)
+	@cd client && pnpm run test && echo "tests successful" || (echo "tests failed" && exit 1)
