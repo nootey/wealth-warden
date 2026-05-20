@@ -75,7 +75,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, loggingRepo, jobDispatcher, mail)
 	roleService := services.NewRolePermissionService(roleRepo, loggingRepo, jobDispatcher)
 	userService := services.NewUserService(userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
-	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, transactionRepo, settingsRepo, loggingRepo, savingsRepo, investmentRepo, jobDispatcher)
+	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, transactionRepo, settingsRepo, loggingRepo, savingsRepo, investmentRepo, jobDispatcher, priceFetcher)
 	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, savingsRepo, jobDispatcher)
 	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, loggingRepo, transactionRepo, jobDispatcher)
 	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, investmentRepo, settingsRepo, loggingRepo, jobDispatcher)
