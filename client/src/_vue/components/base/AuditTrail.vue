@@ -2,7 +2,6 @@
 import type { ActivityLog } from "../../../models/logging_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import dateHelper from "../../../utils/date_helper.ts";
-import { toUpperCase } from "uri-js/dist/esnext/util";
 import { useLoggingStore } from "../../../services/stores/logging_store.ts";
 import { onMounted, ref } from "vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
@@ -80,7 +79,7 @@ onMounted(async () => {
             <div class="text-sm">
               Timestamp: {{ dateHelper.formatDate(log.created_at, true) }}
             </div>
-            <div class="text-sm">Event: {{ toUpperCase(log.event!) }}</div>
+            <div class="text-sm">Event: {{ log.event!.toUpperCase() }}</div>
             <div class="text-sm">Payload:</div>
             <div
               v-if="log?.metadata"
