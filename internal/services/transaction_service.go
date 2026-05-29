@@ -2310,7 +2310,30 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 
 		isOneOff := t.MaxRuns != nil && *t.MaxRuns == 1
 
-		if !isOneOff {
+		isWindingDown := false
+		if !isOneOff && t.Frequency == "monthly" {
+			remaining := -1
+			if t.MaxRuns != nil {
+				r := *t.MaxRuns - t.RunCount
+				if remaining == -1 || r < remaining {
+					remaining = r
+				}
+			}
+			if t.EndDate != nil {
+				months := int(t.EndDate.Year()-now.Year())*12 + int(t.EndDate.Month()-now.Month())
+				if months < 0 {
+					months = 0
+				}
+				if remaining == -1 || months < remaining {
+					remaining = months
+				}
+			}
+			if remaining != -1 && remaining < 6 {
+				isWindingDown = true
+			}
+		}
+
+		if !isOneOff && !isWindingDown {
 			if multiplier, ok := baseMultipliers[t.Frequency]; ok {
 				monthlyAmount := t.Amount.Mul(multiplier)
 				if isTransfer {
@@ -2324,7 +2347,7 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 			}
 		}
 
-		if isOneOff || periodicFrequencies[t.Frequency] {
+		if isOneOff || isWindingDown || periodicFrequencies[t.Frequency] {
 			if !t.NextRunAt.Before(monthStart) && t.NextRunAt.Before(monthEnd) {
 				if isTransfer {
 					summary.ThisMonthTransfer = summary.ThisMonthTransfer.Add(t.Amount)

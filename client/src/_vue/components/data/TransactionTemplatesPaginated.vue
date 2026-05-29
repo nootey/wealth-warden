@@ -410,6 +410,17 @@ defineExpose({ refresh });
       </div>
     </div>
 
+    <div
+      class="flex align-items-center gap-2 px-2"
+      style="color: var(--text-secondary)"
+    >
+      <i class="pi pi-info-circle text-xs" />
+      <span class="text-xs">
+        Monthly templates with fewer than 6 remaining occurrences are treated as
+        one-time projections.
+      </span>
+    </div>
+
     <div class="flex flex-row gap-2 w-full">
       <DataTable
         class="w-full enhanced-table"
