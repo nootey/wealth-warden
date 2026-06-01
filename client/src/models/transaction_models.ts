@@ -14,6 +14,7 @@ export interface Transaction {
   created_at?: Date;
   updated_at?: Date;
   is_adjustment: boolean;
+  is_system: boolean;
 }
 
 export interface Transfer {

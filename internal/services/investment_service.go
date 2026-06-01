@@ -39,12 +39,16 @@ type InvestmentServiceInterface interface {
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
 	BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, investmentType models.InvestmentType, from, to time.Time) error
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	CreateInvestmentIncome(ctx context.Context, userID int64, req *models.InvestmentIncomeReq) (int64, error)
+	DeleteInvestmentIncome(ctx context.Context, userID int64, id int64) error
+	FetchInvestmentIncomeByAsset(ctx context.Context, userID int64, assetID int64, p utils.PaginationParams) ([]models.InvestmentIncome, *utils.Paginator, error)
 }
 
 type InvestmentService struct {
 	logger           *zap.Logger
 	repo             repositories.InvestmentRepositoryInterface
 	accRepo          repositories.AccountRepositoryInterface
+	txnRepo          repositories.TransactionRepositoryInterface
 	settingsRepo     *repositories.SettingsRepository
 	loggingRepo      repositories.LoggingRepositoryInterface
 	jobDispatcher    queue.JobDispatcher
@@ -55,6 +59,7 @@ func NewInvestmentService(
 	logger *zap.Logger,
 	repo *repositories.InvestmentRepository,
 	accRepo *repositories.AccountRepository,
+	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher queue.JobDispatcher,
@@ -64,6 +69,7 @@ func NewInvestmentService(
 		logger:           logger,
 		repo:             repo,
 		accRepo:          accRepo,
+		txnRepo:          txnRepo,
 		settingsRepo:     settingsRepo,
 		jobDispatcher:    jobDispatcher,
 		loggingRepo:      loggingRepo,
@@ -1187,6 +1193,224 @@ func (s *InvestmentService) GetAssetIDsForAccount(ctx context.Context, userID, a
 
 func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
 	return s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID, nil)
+}
+
+func (s *InvestmentService) FetchInvestmentIncomeByAsset(ctx context.Context, userID int64, assetID int64, p utils.PaginationParams) ([]models.InvestmentIncome, *utils.Paginator, error) {
+	totalRecords, err := s.repo.CountInvestmentIncome(ctx, nil, assetID, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	offset := (p.PageNumber - 1) * p.RowsPerPage
+	records, err := s.repo.GetInvestmentIncomeByAsset(ctx, nil, assetID, userID, offset, p.RowsPerPage, p.SortField, p.SortOrder)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	from := offset + 1
+	if from > int(totalRecords) {
+		from = int(totalRecords)
+	}
+	to := offset + len(records)
+	if to > int(totalRecords) {
+		to = int(totalRecords)
+	}
+
+	paginator := &utils.Paginator{
+		CurrentPage:  p.PageNumber,
+		RowsPerPage:  p.RowsPerPage,
+		TotalRecords: int(totalRecords),
+		From:         from,
+		To:           to,
+	}
+
+	return records, paginator, nil
+}
+
+func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID int64, req *models.InvestmentIncomeReq) (int64, error) {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, req.AssetID, userID)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("can't find asset: %w", err)
+	}
+
+	if req.IncomeType == models.IncomeTypeStaking {
+		if req.Quantity == nil || !req.Quantity.IsPositive() {
+			tx.Rollback()
+			return 0, fmt.Errorf("quantity is required and must be positive for staking rewards")
+		}
+	} else {
+		if req.Amount == nil || !req.Amount.IsPositive() {
+			tx.Rollback()
+			return 0, fmt.Errorf("amount is required and must be positive for dividend income")
+		}
+	}
+
+	// For staking, calculate fair market value from price at income date
+	incomeAmount := decimal.Zero
+	if req.IncomeType == models.IncomeTypeStaking {
+		priceData, err := s.priceFetchClient.GetAssetPriceOnDate(ctx, asset.Ticker, asset.InvestmentType, req.TxnDate)
+		if err == nil && priceData != nil && priceData.Price > 0 {
+			incomeAmount = req.Quantity.Mul(decimal.NewFromFloat(priceData.Price))
+		}
+	} else {
+		incomeAmount = *req.Amount
+	}
+
+	record := models.InvestmentIncome{
+		UserID:      userID,
+		AssetID:     asset.ID,
+		TxnDate:     req.TxnDate.UTC().Truncate(24 * time.Hour),
+		IncomeType:  req.IncomeType,
+		Quantity:    req.Quantity,
+		Amount:      incomeAmount,
+		TaxWithheld: req.TaxWithheld,
+		Currency:    req.Currency,
+		Notes:       req.Notes,
+	}
+
+	id, err := s.repo.CreateInvestmentIncome(ctx, tx, &record)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	if req.IncomeType == models.IncomeTypeStaking {
+		if err := s.repo.RecalculateAssetFromTrades(ctx, tx, asset.ID, userID); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+	}
+
+	if req.IncomeType == models.IncomeTypeDividend {
+		category, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to find uncategorized category: %w", err)
+		}
+		grossAmount := *req.Amount
+		if req.TaxWithheld != nil {
+			grossAmount = grossAmount.Sub(*req.TaxWithheld)
+		}
+		dividendAmount := grossAmount
+		if req.Currency != asset.Account.Currency {
+			rate, err := s.GetExchangeRate(ctx, req.Currency, asset.Account.Currency, &req.TxnDate)
+			if err != nil {
+				tx.Rollback()
+				return 0, fmt.Errorf("failed to get exchange rate for dividend: %w", err)
+			}
+			dividendAmount = grossAmount.Mul(rate)
+		}
+		desc := "Dividend: " + asset.Ticker
+		txn := &models.Transaction{
+			UserID:          userID,
+			AccountID:       asset.AccountID,
+			CategoryID:      &category.ID,
+			TransactionType: "income",
+			Amount:          dividendAmount,
+			Currency:        asset.Account.Currency,
+			TxnDate:         record.TxnDate,
+			Description:     &desc,
+			IsSystem:        true,
+		}
+		txnID, err := s.txnRepo.InsertTransaction(ctx, tx, txn)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to create linked dividend transaction: %w", err)
+		}
+		if err := tx.Model(&models.InvestmentIncome{}).Where("id = ?", id).Update("linked_transaction_id", txnID).Error; err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to link dividend transaction: %w", err)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+
+	if req.IncomeType == models.IncomeTypeStaking {
+		txnDate := req.TxnDate.UTC().Truncate(24 * time.Hour)
+		if err := s.jobDispatcher.Dispatch(queue.NewSyncAssetAfterTradeJob(
+			s.logger.Named("sync_after_income"),
+			s,
+			userID,
+			asset.ID,
+			asset.Ticker,
+			asset.InvestmentType,
+			txnDate,
+		)); err != nil {
+			s.logger.Warn("Failed to dispatch post-income sync job", zap.Error(err))
+		}
+	}
+
+	return id, nil
+}
+
+func (s *InvestmentService) DeleteInvestmentIncome(ctx context.Context, userID int64, id int64) error {
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	income, err := s.repo.FindInvestmentIncomeByID(ctx, tx, id, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find investment income record: %w", err)
+	}
+
+	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, income.AssetID, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("can't find asset: %w", err)
+	}
+
+	if income.LinkedTransactionID != nil {
+		if err := s.txnRepo.DeleteTransaction(ctx, tx, *income.LinkedTransactionID, userID); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to delete linked dividend transaction: %w", err)
+		}
+	}
+
+	if err := s.repo.DeleteInvestmentIncome(ctx, tx, id, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if income.IncomeType == models.IncomeTypeStaking {
+		if err := s.repo.RecalculateAssetFromTrades(ctx, tx, asset.ID, userID); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	if income.IncomeType == models.IncomeTypeStaking {
+		if err := s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID, nil); err != nil {
+			s.logger.Warn("Failed to update snapshot market values after income delete", zap.Error(err))
+		}
+	}
+
+	return nil
 }
 
 func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, investmentType models.InvestmentType, from, to time.Time) error {

@@ -31,6 +31,23 @@ export interface InvestmentAsset {
   total_fees?: string;
 }
 
+export type IncomeType = "staking_reward" | "dividend";
+
+export interface InvestmentIncome {
+  id?: number;
+  asset_id: number;
+  user_id?: number;
+  txn_date: Date;
+  income_type: IncomeType;
+  quantity?: string | null;
+  amount: string;
+  tax_withheld?: string | null;
+  currency: string;
+  notes?: string | null;
+  created_at?: Date;
+  updated_at?: Date;
+}
+
 export interface InvestmentTrade {
   id?: number | null;
   user_id?: number;

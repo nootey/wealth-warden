@@ -1268,11 +1268,19 @@ func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *
 				LIMIT 1
 			) ph_latest ON true
 			JOIN LATERAL (
-				SELECT COALESCE(SUM(
-					CASE WHEN it.trade_type = 'buy'  THEN  it.quantity
-					     WHEN it.trade_type = 'sell' THEN -it.quantity
-					END
-				), 0) AS held
+				SELECT
+					COALESCE(SUM(
+						CASE WHEN it.trade_type = 'buy'  THEN  it.quantity
+						     WHEN it.trade_type = 'sell' THEN -it.quantity
+						END
+					), 0)
+					+ COALESCE((
+						SELECT SUM(ii.quantity)
+						FROM investment_income ii
+						WHERE ii.asset_id    = ia.id
+						  AND ii.income_type = 'staking_reward'
+						  AND ii.txn_date   <= s.as_of
+					), 0) AS held
 				FROM investment_trades it
 				WHERE it.asset_id  = ia.id
 				  AND it.txn_date <= s.as_of

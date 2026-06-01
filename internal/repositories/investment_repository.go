@@ -49,6 +49,11 @@ type InvestmentRepositoryInterface interface {
 	BulkUpdateAssetAccountID(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error
 	UpdateAssetCurrentPrice(ctx context.Context, tx *gorm.DB, assetID int64, price decimal.Decimal, now time.Time) error
 	UpdateTradesPnLForAsset(ctx context.Context, tx *gorm.DB, assetID int64, price decimal.Decimal, investmentType models.InvestmentType, now time.Time) error
+	CreateInvestmentIncome(ctx context.Context, tx *gorm.DB, record *models.InvestmentIncome) (int64, error)
+	FindInvestmentIncomeByID(ctx context.Context, tx *gorm.DB, id, userID int64) (models.InvestmentIncome, error)
+	CountInvestmentIncome(ctx context.Context, tx *gorm.DB, assetID, userID int64) (int64, error)
+	GetInvestmentIncomeByAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64, offset, limit int, sortField, sortOrder string) ([]models.InvestmentIncome, error)
+	DeleteInvestmentIncome(ctx context.Context, tx *gorm.DB, id, userID int64) error
 }
 
 type InvestmentRepository struct {
@@ -387,8 +392,18 @@ func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *go
 	if tradeType == models.InvestmentBuy {
 		newQuantity = asset.Quantity.Add(quantity)
 
+		// Exclude staking income from avg buy price denominator — asset.Quantity includes staking units
+		var stakingQty decimal.Decimal
+		db.Model(&models.InvestmentIncome{}).
+			Select("COALESCE(SUM(quantity), 0)").
+			Where("asset_id = ? AND income_type = ?", assetID, models.IncomeTypeStaking).
+			Scan(&stakingQty)
+		tradeOnlyQuantity := newQuantity.Sub(stakingQty)
+
 		newTotalValue := asset.ValueAtBuy.Add(tradeValueAtBuy)
-		newAverageBuyPrice = newTotalValue.Div(newQuantity)
+		if tradeOnlyQuantity.GreaterThan(decimal.Zero) {
+			newAverageBuyPrice = newTotalValue.Div(tradeOnlyQuantity)
+		}
 		newTotalValueAtBuy = newTotalValue
 		newTotalFees = asset.TotalFees.Add(tradeFee)
 	} else {
@@ -575,9 +590,23 @@ func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, t
 		}
 	}
 
+	// Snapshot trade-only quantity before adding staking — avgBuyPrice must reflect only purchased units
+	tradeQuantity := totalQuantity
+
+	var stakingIncome []models.InvestmentIncome
+	if err := db.Where("asset_id = ? AND user_id = ? AND income_type = ?", assetID, userID, models.IncomeTypeStaking).
+		Find(&stakingIncome).Error; err != nil {
+		return err
+	}
+	for _, inc := range stakingIncome {
+		if inc.Quantity != nil {
+			totalQuantity = totalQuantity.Add(*inc.Quantity)
+		}
+	}
+
 	var avgBuyPrice decimal.Decimal
-	if totalQuantity.GreaterThan(decimal.Zero) {
-		avgBuyPrice = totalValueAtBuy.Div(totalQuantity)
+	if tradeQuantity.GreaterThan(decimal.Zero) {
+		avgBuyPrice = totalValueAtBuy.Div(tradeQuantity)
 	}
 
 	// Calculate current values
@@ -852,4 +881,65 @@ func (r *InvestmentRepository) GetCachedExchangeRate(ctx context.Context, tx *go
 		return decimal.Zero, false, err
 	}
 	return entry.Rate, true, nil
+}
+
+func (r *InvestmentRepository) FindInvestmentIncomeByID(ctx context.Context, tx *gorm.DB, id, userID int64) (models.InvestmentIncome, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var record models.InvestmentIncome
+	err := db.WithContext(ctx).
+		Where("id = ? AND user_id = ?", id, userID).
+		First(&record).Error
+	return record, err
+}
+
+func (r *InvestmentRepository) CreateInvestmentIncome(ctx context.Context, tx *gorm.DB, record *models.InvestmentIncome) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	if err := db.WithContext(ctx).Create(record).Error; err != nil {
+		return 0, err
+	}
+	return record.ID, nil
+}
+
+func (r *InvestmentRepository) CountInvestmentIncome(ctx context.Context, tx *gorm.DB, assetID, userID int64) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var total int64
+	err := db.WithContext(ctx).Model(&models.InvestmentIncome{}).
+		Where("asset_id = ? AND user_id = ?", assetID, userID).
+		Count(&total).Error
+	return total, err
+}
+
+func (r *InvestmentRepository) GetInvestmentIncomeByAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64, offset, limit int, sortField, sortOrder string) ([]models.InvestmentIncome, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var records []models.InvestmentIncome
+	orderBy := utils.ConstructOrderByClause(nil, "investment_income", sortField, sortOrder)
+	err := db.WithContext(ctx).
+		Where("asset_id = ? AND user_id = ?", assetID, userID).
+		Order(orderBy).
+		Limit(limit).
+		Offset(offset).
+		Find(&records).Error
+	return records, err
+}
+
+func (r *InvestmentRepository) DeleteInvestmentIncome(ctx context.Context, tx *gorm.DB, id, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).
+		Where("id = ? AND user_id = ?", id, userID).
+		Delete(&models.InvestmentIncome{}).Error
 }

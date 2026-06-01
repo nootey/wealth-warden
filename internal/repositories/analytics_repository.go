@@ -211,6 +211,7 @@ func (r *AnalyticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.DB
 		  WHERE user_id = $1
 		    AND account_id = $2
 		    AND is_adjustment = false
+		    AND is_system = false
 		    AND is_transfer = false
 		    AND txn_date >= make_date($3,1,1) AND txn_date < make_date($3+1,1,1)
 		    AND deleted_at IS NULL
@@ -235,6 +236,7 @@ func (r *AnalyticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.DB
 		  FROM transactions
 		  WHERE user_id = $1
 		    AND is_adjustment = false
+		    AND is_system = false
 		    AND is_transfer = false
 		    AND txn_date >= make_date($2,1,1) AND txn_date < make_date($2+1,1,1)
 		    AND deleted_at IS NULL
@@ -275,6 +277,7 @@ func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx 
 		  WHERE t.user_id = $1
 		    AND t.account_id = $2
 		    AND t.is_adjustment = false
+		    AND t.is_system = false
 		    AND t.is_transfer = false
 		    AND t.txn_date >= make_date($3,1,1) AND t.txn_date < make_date($3+1,1,1)
 		    AND t.deleted_at IS NULL
@@ -303,6 +306,7 @@ func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx 
 		  LEFT JOIN categories c ON c.id = t.category_id
 		  WHERE t.user_id = $1
 		    AND t.is_adjustment = false
+		    AND t.is_system = false
 		    AND t.is_transfer = false
 		    AND t.txn_date >= make_date($2,1,1) AND t.txn_date < make_date($2+1,1,1)
 		    AND t.deleted_at IS NULL
@@ -345,6 +349,7 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, tx
          WHERE t.user_id = $1
            AND t.account_id = $2
            AND t.is_adjustment = false
+           AND t.is_system = false
            AND t.is_transfer = false
            AND t.txn_date >= make_date($3, $4, 1) 
            AND t.txn_date < make_date($3, $4, 1) + interval '1 month'
@@ -374,6 +379,7 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, tx
          LEFT JOIN categories c ON c.id = t.category_id
          WHERE t.user_id = $1
            AND t.is_adjustment = false
+           AND t.is_system = false
            AND t.is_transfer = false
            AND t.txn_date >= make_date($2, $3, 1) 
            AND t.txn_date < make_date($2, $3, 1) + interval '1 month'
@@ -420,6 +426,7 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotalsCheckingOnly(ctx context
       WHERE t.user_id = ?
         AND t.account_id IN ?
         AND t.is_adjustment = false
+        AND t.is_system = false
         AND t.is_transfer = false
         AND t.txn_date >= make_date(?, ?, 1) 
         AND t.txn_date < make_date(?, ?, 1) + interval '1 month'
@@ -460,6 +467,7 @@ func (r *AnalyticsRepository) FetchMonthlyTotals(ctx context.Context, tx *gorm.D
 	  FROM transactions
 	  WHERE user_id = ? %s
 	    AND is_adjustment = false
+	    AND is_system = false
 	    AND is_transfer = false
 	    AND txn_date >= make_date(?,1,1) AND txn_date < make_date(?+1,1,1)
 	    AND deleted_at IS NULL
@@ -510,6 +518,7 @@ func (r *AnalyticsRepository) FetchMonthlyTotalsCheckingOnly(ctx context.Context
 	  FROM transactions
 	  WHERE user_id = ?
 	    AND is_adjustment = false
+	    AND is_system = false
 	    AND is_transfer = false
 	    AND txn_date >= make_date(?,1,1)
 	    AND txn_date < make_date(?+1,1,1)
@@ -630,6 +639,7 @@ func (r *AnalyticsRepository) FetchDailyTotals(ctx context.Context, tx *gorm.DB,
         FROM transactions
         WHERE user_id = ? %s
             AND is_adjustment = false
+            AND is_system = false
             AND is_transfer = false
             AND txn_date = ?
         	AND deleted_at IS NULL
@@ -676,6 +686,7 @@ func (r *AnalyticsRepository) FetchDailyTotalsCheckingOnly(ctx context.Context, 
         FROM transactions
         WHERE user_id = ?
             AND is_adjustment = false
+            AND is_system = false
             AND is_transfer = false
             AND txn_date = ?
             AND account_id IN ?
@@ -813,6 +824,7 @@ func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *g
 		WHERE t.user_id = ?
 			AND t.category_id IN ?
 			AND t.is_adjustment = false
+			AND t.is_system = false
 			AND t.is_transfer = false
 			AND t.deleted_at IS NULL
 			AND at.type = 'cash'

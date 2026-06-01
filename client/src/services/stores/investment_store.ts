@@ -11,5 +11,13 @@ export const useInvestmentStore = defineStore("investment", {
       const response = await apiClient.get(`${this.apiPrefix}/all`);
       return response.data;
     },
+    async createIncome(req: object) {
+      const response = await apiClient.put(`${this.apiPrefix}/income`, req);
+      return response.data;
+    },
+    async deleteIncome(id: number) {
+      const response = await apiClient.delete(`${this.apiPrefix}/income/${id}`);
+      return response.data;
+    },
   },
 });
