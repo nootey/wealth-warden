@@ -109,6 +109,12 @@ export type NetworthResponse = {
   asset_type?: string;
 };
 
+export type AssetChartResponse = {
+  currency: string;
+  market_value_points: ChartPoint[];
+  cost_basis_points: ChartPoint[];
+};
+
 export type YearlyCashFlowResponse = {
   year: number;
   months: MonthData[];

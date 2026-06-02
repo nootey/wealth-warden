@@ -13,6 +13,7 @@ import (
 type AnalyticsRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
 	FetchNetWorthSeries(ctx context.Context, tx *gorm.DB, userID int64, currency string, from, to time.Time, gran string, accountID *int64) ([]models.ChartPoint, error)
+	FetchAssetChartSeries(ctx context.Context, tx *gorm.DB, userID, assetID int64, from, to time.Time, gran string) (currency string, marketValue []models.ChartPoint, costBasis []models.ChartPoint, err error)
 	FetchLatestNetWorth(ctx context.Context, tx *gorm.DB, userID int64, currency string, accountID *int64) (time.Time, string, error)
 	FetchDailyTotals(ctx context.Context, tx *gorm.DB, userID int64, accountID *int64, date time.Time) (*models.MonthlyTotalsRow, error)
 	FetchDailyTotalsCheckingOnly(ctx context.Context, tx *gorm.DB, userID int64, accountIDs []int64, date time.Time) (*models.MonthlyTotalsRow, error)
@@ -863,4 +864,157 @@ func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *g
 		})
 	}
 	return rows, nil
+}
+
+
+func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gorm.DB, userID, assetID int64, from, to time.Time, gran string) (string, []models.ChartPoint, []models.ChartPoint, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var currency string
+	if err := db.Raw(`SELECT currency FROM investment_assets WHERE id = ? AND user_id = ?`, assetID, userID).Scan(&currency).Error; err != nil || currency == "" {
+		if err != nil {
+			return "", nil, nil, err
+		}
+		return "", nil, nil, fmt.Errorf("asset not found")
+	}
+
+	type row struct {
+		Date  time.Time
+		Value string
+	}
+
+	// Market value: price × cumulative quantity held as of each price history date
+	mvRows := []row{}
+	switch gran {
+	case "week":
+		mvSQL := `
+		  WITH s AS (
+		    SELECT ph.as_of,
+		           (ph.price * COALESCE((
+		             SELECT SUM(CASE WHEN it.trade_type = 'buy'  THEN it.quantity
+		                            WHEN it.trade_type = 'sell' THEN -it.quantity END)
+		             FROM investment_trades it
+		             WHERE it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
+		           ), 0)) AS value
+		    FROM asset_price_history ph
+		    WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
+		  ),
+		  b AS (SELECT date_trunc('week', as_of)::date AS bucket, as_of, value FROM s)
+		  SELECT DISTINCT ON (bucket) as_of::date AS date, value::text AS value
+		  FROM b ORDER BY bucket, as_of DESC`
+		if err := db.Raw(mvSQL, assetID, from, to).Scan(&mvRows).Error; err != nil {
+			return "", nil, nil, err
+		}
+	case "month":
+		mvSQL := `
+		  WITH s AS (
+		    SELECT ph.as_of,
+		           (ph.price * COALESCE((
+		             SELECT SUM(CASE WHEN it.trade_type = 'buy'  THEN it.quantity
+		                            WHEN it.trade_type = 'sell' THEN -it.quantity END)
+		             FROM investment_trades it
+		             WHERE it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
+		           ), 0)) AS value
+		    FROM asset_price_history ph
+		    WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
+		  ),
+		  b AS (SELECT date_trunc('month', as_of)::date AS bucket, as_of, value FROM s)
+		  SELECT DISTINCT ON (bucket) as_of::date AS date, value::text AS value
+		  FROM b ORDER BY bucket, as_of DESC`
+		if err := db.Raw(mvSQL, assetID, from, to).Scan(&mvRows).Error; err != nil {
+			return "", nil, nil, err
+		}
+	default:
+		mvSQL := `
+		  SELECT ph.as_of::date AS date,
+		         (ph.price * COALESCE((
+		           SELECT SUM(CASE WHEN it.trade_type = 'buy'  THEN it.quantity
+		                          WHEN it.trade_type = 'sell' THEN -it.quantity END)
+		           FROM investment_trades it
+		           WHERE it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
+		         ), 0))::text AS value
+		  FROM asset_price_history ph
+		  WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
+		  ORDER BY ph.as_of`
+		if err := db.Raw(mvSQL, assetID, from, to).Scan(&mvRows).Error; err != nil {
+			return "", nil, nil, err
+		}
+	}
+
+	// Cost basis at every price-history date so it's index-aligned with the market value series.
+	// Uses the same bucketing as the market value query to keep both series in sync.
+	cbRows := []row{}
+	switch gran {
+	case "week":
+		cbSQL := `
+		  WITH s AS (
+		    SELECT ph.as_of,
+		           COALESCE(SUM(
+		             CASE WHEN it.trade_type = 'buy'  THEN it.value_at_buy
+		                  WHEN it.trade_type = 'sell' THEN -it.value_at_buy END
+		           ), 0) AS value
+		    FROM asset_price_history ph
+		    LEFT JOIN investment_trades it
+		      ON it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
+		    WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
+		    GROUP BY ph.as_of
+		  ),
+		  b AS (SELECT date_trunc('week', as_of)::date AS bucket, as_of, value FROM s)
+		  SELECT DISTINCT ON (bucket) as_of::date AS date, value::text AS value
+		  FROM b ORDER BY bucket, as_of DESC`
+		if err := db.Raw(cbSQL, assetID, from, to).Scan(&cbRows).Error; err != nil {
+			return "", nil, nil, err
+		}
+	case "month":
+		cbSQL := `
+		  WITH s AS (
+		    SELECT ph.as_of,
+		           COALESCE(SUM(
+		             CASE WHEN it.trade_type = 'buy'  THEN it.value_at_buy
+		                  WHEN it.trade_type = 'sell' THEN -it.value_at_buy END
+		           ), 0) AS value
+		    FROM asset_price_history ph
+		    LEFT JOIN investment_trades it
+		      ON it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
+		    WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
+		    GROUP BY ph.as_of
+		  ),
+		  b AS (SELECT date_trunc('month', as_of)::date AS bucket, as_of, value FROM s)
+		  SELECT DISTINCT ON (bucket) as_of::date AS date, value::text AS value
+		  FROM b ORDER BY bucket, as_of DESC`
+		if err := db.Raw(cbSQL, assetID, from, to).Scan(&cbRows).Error; err != nil {
+			return "", nil, nil, err
+		}
+	default:
+		cbSQL := `
+		  SELECT ph.as_of::date AS date,
+		         COALESCE(SUM(
+		           CASE WHEN it.trade_type = 'buy'  THEN it.value_at_buy
+		                WHEN it.trade_type = 'sell' THEN -it.value_at_buy END
+		         ), 0)::text AS value
+		  FROM asset_price_history ph
+		  LEFT JOIN investment_trades it
+		    ON it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
+		  WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
+		  GROUP BY ph.as_of
+		  ORDER BY ph.as_of`
+		if err := db.Raw(cbSQL, assetID, from, to).Scan(&cbRows).Error; err != nil {
+			return "", nil, nil, err
+		}
+	}
+
+	toPoints := func(rows []row) []models.ChartPoint {
+		out := make([]models.ChartPoint, 0, len(rows))
+		for _, r := range rows {
+			v, _ := decimal.NewFromString(r.Value)
+			out = append(out, models.ChartPoint{Date: r.Date, Value: v})
+		}
+		return out
+	}
+
+	return currency, toPoints(mvRows), toPoints(cbRows), nil
 }

@@ -33,6 +33,7 @@ func NewAnalyticsHandler(
 
 func (h *AnalyticsHandler) Routes(ap *gin.RouterGroup) {
 	ap.GET("/networth", authz.RequireAllMW("view_basic_statistics"), h.NetWorthChart)
+	ap.GET("/asset/:id/chart", authz.RequireAllMW("view_basic_statistics"), h.AssetChart)
 	ap.GET("/monthly-category-breakdown", authz.RequireAllMW("view_basic_statistics"), h.GetMonthlyCategoryBreakdown)
 	ap.GET("/yearly-cash-flow-breakdown", authz.RequireAllMW("view_basic_statistics"), h.GetYearlyCashFlowBreakdown)
 	ap.GET("/sankey", authz.RequireAllMW("view_basic_statistics"), h.GetYearlySankeyData)
@@ -574,4 +575,29 @@ func (h *AnalyticsHandler) DeleteReport(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
+}
+
+func (h *AnalyticsHandler) AssetChart(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	idStr := c.Param("id")
+	assetID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "param error", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	rangeKey := strings.ToLower(strings.TrimSpace(c.Query("range")))
+	if rangeKey == "" {
+		rangeKey = "ytd"
+	}
+
+	res, err := h.Service.FetchAssetChart(ctx, userID, assetID, rangeKey)
+	if err != nil {
+		utils.ErrorMessage(c, "Failed to load asset chart", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, res)
 }

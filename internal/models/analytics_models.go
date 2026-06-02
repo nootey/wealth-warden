@@ -29,6 +29,12 @@ type NetWorthResponse struct {
 	AssetType *string      `json:"asset_type"`
 }
 
+type AssetChartResponse struct {
+	Currency          string       `json:"currency"`
+	MarketValuePoints []ChartPoint `json:"market_value_points"`
+	CostBasisPoints   []ChartPoint `json:"cost_basis_points"`
+}
+
 type MonthlyCategoryUsage struct {
 	Month      int              `json:"month"`
 	CategoryID int64            `json:"category_id"`

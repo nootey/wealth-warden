@@ -37,6 +37,8 @@ const hoverXByChart = new WeakMap<any, number | null>();
 const props = withDefaults(
   defineProps<{
     dataPoints?: ChartPoint[];
+    secondaryPoints?: ChartPoint[];
+    secondaryLabel?: string;
     currency?: string;
     activeColor?: string;
     height?: number;
@@ -44,6 +46,8 @@ const props = withDefaults(
   }>(),
   {
     dataPoints: () => [],
+    secondaryPoints: () => [],
+    secondaryLabel: "Cost basis",
     currency: "EUR",
     activeColor: "#ef4444",
     height: 300,
@@ -162,35 +166,54 @@ function hexToRgba(hex: string, alpha = 0.15) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-const data = computed(() => {
-  const d = {
-    datasets: [
-      {
-        label: "Net worth",
-        data: props.dataPoints.map((p) => ({
-          date: p.date,
-          value: Number(p.value),
-        })),
-        borderWidth: 3,
-        pointRadius: 0,
-        tension: 0.35,
-        cubicInterpolationMode: "monotone",
-        spanGaps: true,
-        borderColor: props.activeColor,
-        backgroundColor: hexToRgba(props.activeColor, 0.12),
+const secondaryColor = "rgba(148, 163, 184, 0.55)";
 
-        segment: {
-          borderColor: (ctx: any) => {
-            const hv = hoverXByChart.get(ctx.chart) ?? null;
-            if (hv == null) return props.activeColor;
-            const x0 = ctx.p0?.parsed?.x;
-            return x0 >= hv ? colors.value.dim : props.activeColor;
-          },
+const data = computed(() => {
+  const datasets: any[] = [
+    {
+      label: "Market value",
+      data: props.dataPoints.map((p) => ({
+        date: p.date,
+        value: Number(p.value),
+      })),
+      borderWidth: 3,
+      pointRadius: 0,
+      tension: 0.35,
+      cubicInterpolationMode: "monotone",
+      spanGaps: true,
+      borderColor: props.activeColor,
+      backgroundColor: hexToRgba(props.activeColor, 0.12),
+
+      segment: {
+        borderColor: (ctx: any) => {
+          const hv = hoverXByChart.get(ctx.chart) ?? null;
+          if (hv == null) return props.activeColor;
+          const x0 = ctx.p0?.parsed?.x;
+          return x0 >= hv ? colors.value.dim : props.activeColor;
         },
       },
-    ],
-  };
-  return markRaw(d);
+    },
+  ];
+
+  if (props.secondaryPoints.length > 0) {
+    datasets.push({
+      label: props.secondaryLabel,
+      data: props.secondaryPoints.map((p) => ({
+        date: p.date,
+        value: Number(p.value),
+      })),
+      borderWidth: 1.5,
+      pointRadius: 0,
+      tension: 0,
+      spanGaps: true,
+      borderDash: [5, 4],
+      borderColor: secondaryColor,
+      backgroundColor: "transparent",
+      fill: false,
+    });
+  }
+
+  return markRaw({ datasets });
 });
 
 const options = computed(() => {
@@ -230,16 +253,22 @@ const options = computed(() => {
             return dateHelper.formatDate(ms, false, "MMM D, YYYY", true);
           },
 
-          // current value
           label: (ctx: any) => {
             const y = Number(ctx.parsed?.y ?? ctx.raw?.value);
             const displayY = props.isLiability ? -Math.abs(y) : y;
-            return vueHelper.displayAsCurrency(displayY);
+            const valueStr = vueHelper.displayAsCurrency(displayY);
+            if (props.secondaryPoints.length > 0) {
+              const label =
+                ctx.datasetIndex === 0 ? "Market value" : props.secondaryLabel;
+              return `${label}: ${valueStr}`;
+            }
+            return valueStr;
           },
 
-          // change vs previous point
+          // change vs previous point (primary dataset only)
           footer: (items: any[]) => {
-            const it = items?.[0];
+            const it =
+              items?.find((i: any) => i.datasetIndex === 0) ?? items?.[0];
             if (!it) return "";
             const i = it.dataIndex;
             const data = it.dataset?.data || [];
@@ -263,7 +292,8 @@ const options = computed(() => {
         },
 
         footerColor: (ctx: any) => {
-          const it = ctx?.tooltip?.dataPoints?.[0];
+          const pts = ctx?.tooltip?.dataPoints ?? [];
+          const it = pts.find((p: any) => p.datasetIndex === 0) ?? pts[0];
           if (!it) return colors.value.axisText;
           const i = it.dataIndex;
           const data = it.dataset?.data || [];

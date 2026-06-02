@@ -57,6 +57,9 @@ func (m *mockAnalyticsRepo) DeleteReport(_ context.Context, _ *gorm.DB, _, _ int
 func (m *mockAnalyticsRepo) FetchNetWorthSeries(_ context.Context, _ *gorm.DB, _ int64, _ string, _, _ time.Time, _ string, _ *int64) ([]models.ChartPoint, error) {
 	return nil, nil
 }
+func (m *mockAnalyticsRepo) FetchAssetChartSeries(_ context.Context, _ *gorm.DB, _, _ int64, _, _ time.Time, _ string) (string, []models.ChartPoint, []models.ChartPoint, error) {
+	return "", nil, nil, nil
+}
 func (m *mockAnalyticsRepo) FetchLatestNetWorth(_ context.Context, _ *gorm.DB, _ int64, _ string, _ *int64) (time.Time, string, error) {
 	return time.Time{}, "", nil
 }
