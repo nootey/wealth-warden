@@ -42,6 +42,7 @@ type InvestmentServiceInterface interface {
 	CreateInvestmentIncome(ctx context.Context, userID int64, req *models.InvestmentIncomeReq) (int64, error)
 	DeleteInvestmentIncome(ctx context.Context, userID int64, id int64) error
 	FetchInvestmentIncomeByAsset(ctx context.Context, userID int64, assetID int64, p utils.PaginationParams) ([]models.InvestmentIncome, *utils.Paginator, error)
+	MigrateZeroCostTradesForAsset(ctx context.Context, userID, assetID int64, trades []models.InvestmentTrade) error
 }
 
 type InvestmentService struct {
@@ -1398,19 +1399,27 @@ func (s *InvestmentService) DeleteInvestmentIncome(ctx context.Context, userID i
 			tx.Rollback()
 			return err
 		}
-	}
 
-	if err := tx.Commit().Error; err != nil {
-		return err
-	}
+		incomeDate := income.TxnDate.UTC().Truncate(24 * time.Hour)
+		today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	if income.IncomeType == models.IncomeTypeStaking {
-		if err := s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID, nil); err != nil {
-			s.logger.Warn("Failed to update snapshot market values after income delete", zap.Error(err))
+		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, incomeDate, asset.Account.Currency); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if err := s.accRepo.FrontfillBalances(ctx, tx, asset.AccountID, asset.Account.Currency, incomeDate); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, incomeDate, today); err != nil {
+			tx.Rollback()
+			return err
 		}
 	}
 
-	return nil
+	return tx.Commit().Error
 }
 
 func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, investmentType models.InvestmentType, from, to time.Time) error {
@@ -1486,4 +1495,137 @@ func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, asset
 		return s.repo.UpsertAssetPrice(ctx, nil, batch)
 	}
 	return nil
+}
+
+func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, userID, assetID int64, trades []models.InvestmentTrade) error {
+	if len(trades) == 0 {
+		return nil
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	asset, err := s.repo.FindInvestmentAssetByID(ctx, tx, assetID, userID)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("asset %d not found: %w", assetID, err)
+	}
+
+	incomeType := models.IncomeTypeStaking
+	if asset.InvestmentType != models.InvestmentCrypto {
+		incomeType = models.IncomeTypeDividend
+	}
+
+	var uncategorizedCatID *int64
+	if incomeType == models.IncomeTypeDividend {
+		cat, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to find uncategorized category: %w", err)
+		}
+		uncategorizedCatID = &cat.ID
+	}
+
+	earliestDate := trades[0].TxnDate.UTC().Truncate(24 * time.Hour)
+
+	for _, trade := range trades {
+		txnDate := trade.TxnDate.UTC().Truncate(24 * time.Hour)
+		if txnDate.Before(earliestDate) {
+			earliestDate = txnDate
+		}
+
+		var amount decimal.Decimal
+		priceData, err := s.priceFetchClient.GetAssetPriceOnDate(ctx, asset.Ticker, asset.InvestmentType, txnDate)
+		if err == nil && priceData != nil && priceData.Price > 0 {
+			amount = trade.Quantity.Mul(decimal.NewFromFloat(priceData.Price))
+		}
+
+		record := models.InvestmentIncome{
+			UserID:     userID,
+			AssetID:    assetID,
+			TxnDate:    txnDate,
+			IncomeType: incomeType,
+			Currency:   trade.Currency,
+			Amount:     amount,
+		}
+		if incomeType == models.IncomeTypeStaking {
+			record.Quantity = &trade.Quantity
+		}
+
+		incomeID, err := s.repo.CreateInvestmentIncome(ctx, tx, &record)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to create income record for trade %d: %w", trade.ID, err)
+		}
+
+		if incomeType == models.IncomeTypeDividend && amount.IsPositive() {
+			dividendAmount := amount
+			if trade.Currency != asset.Account.Currency {
+				rate, err := s.GetExchangeRate(ctx, trade.Currency, asset.Account.Currency, &txnDate)
+				if err != nil {
+					tx.Rollback()
+					return fmt.Errorf("exchange rate error for trade %d: %w", trade.ID, err)
+				}
+				dividendAmount = amount.Mul(rate)
+			}
+			desc := "Dividend: " + asset.Ticker
+			txn := &models.Transaction{
+				UserID:          userID,
+				AccountID:       asset.AccountID,
+				CategoryID:      uncategorizedCatID,
+				TransactionType: "income",
+				Amount:          dividendAmount,
+				Currency:        asset.Account.Currency,
+				TxnDate:         txnDate,
+				Description:     &desc,
+				IsSystem:        true,
+			}
+			txnID, err := s.txnRepo.InsertTransaction(ctx, tx, txn)
+			if err != nil {
+				tx.Rollback()
+				return fmt.Errorf("failed to create dividend transaction for trade %d: %w", trade.ID, err)
+			}
+			if err := tx.Model(&models.InvestmentIncome{}).Where("id = ?", incomeID).Update("linked_transaction_id", txnID).Error; err != nil {
+				tx.Rollback()
+				return fmt.Errorf("failed to link dividend transaction for trade %d: %w", trade.ID, err)
+			}
+		}
+
+		if err := s.repo.DeleteInvestmentTrade(ctx, tx, trade.ID); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to delete trade %d: %w", trade.ID, err)
+		}
+	}
+
+	if err := s.repo.RecalculateAssetFromTrades(ctx, tx, assetID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, earliestDate, asset.Account.Currency); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.accRepo.FrontfillBalances(ctx, tx, asset.AccountID, asset.Account.Currency, earliestDate); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestDate, today); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }

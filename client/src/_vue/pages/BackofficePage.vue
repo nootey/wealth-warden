@@ -5,6 +5,42 @@ import { useToastStore } from "../../services/stores/toast_store.ts";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import ActivityLogsPage from "./ActivityLogsPage.vue";
 
+type ZeroCostTradePreview = {
+  id: number;
+  txn_date: string;
+  quantity: string;
+  currency: string;
+};
+
+type ZeroCostTradeAssetGroup = {
+  asset_id: number;
+  ticker: string;
+  asset_name: string;
+  investment_type: string;
+  income_type: string;
+  trade_count: number;
+  trades: ZeroCostTradePreview[];
+};
+
+type ZeroCostTradeMigrationPreview = {
+  total_trades: number;
+  asset_count: number;
+  assets: ZeroCostTradeAssetGroup[];
+};
+
+type ZeroCostMigrationError = {
+  asset_id: number;
+  ticker: string;
+  error: string;
+};
+
+type ZeroCostMigrationResult = {
+  total_processed: number;
+  assets_processed: number;
+  assets_failed: number;
+  errors?: ZeroCostMigrationError[];
+};
+
 const backofficeStore = useBackofficeStore();
 const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
@@ -33,6 +69,29 @@ async function triggerCorrectFeeAccounting() {
   try {
     const res = await backofficeStore.correctFeeAccounting();
     toastStore.successResponseToast(res);
+  } catch (err) {
+    toastStore.errorResponseToast(err);
+  }
+}
+
+const zeroCostPreview = ref<ZeroCostTradeMigrationPreview | null>(null);
+const zeroCostMigrationResult = ref<ZeroCostMigrationResult | null>(null);
+
+async function previewZeroCostTrades() {
+  try {
+    zeroCostPreview.value =
+      await backofficeStore.previewZeroCostTradeMigration();
+    zeroCostMigrationResult.value = null;
+  } catch (err) {
+    toastStore.errorResponseToast(err);
+  }
+}
+
+async function runZeroCostMigration() {
+  try {
+    zeroCostMigrationResult.value =
+      await backofficeStore.migrateZeroCostTrades();
+    zeroCostPreview.value = null;
   } catch (err) {
     toastStore.errorResponseToast(err);
   }
@@ -130,6 +189,96 @@ async function triggerCorrectFeeAccounting() {
                 severity="danger"
                 @click="triggerCorrectFeeAccounting"
               />
+            </div>
+          </div>
+
+          <div
+            class="flex flex-column gap-1 p-3 border-1 border-round-md surface-border"
+          >
+            <div style="font-weight: bold">
+              Zero-Cost Trade Migration Preview
+            </div>
+            <div class="text-sm text-color-secondary">
+              Finds all buy trades with a zero price per unit and groups them by
+              asset. Crypto assets will be classified as staking rewards;
+              stocks/ETFs as dividends. Results are printed to the server
+              terminal. Run this before executing the actual migration.
+            </div>
+            <div class="mt-2 flex flex-row gap-2">
+              <Button
+                label="Preview"
+                severity="secondary"
+                @click="previewZeroCostTrades"
+              />
+              <Button
+                label="Run migration"
+                severity="danger"
+                @click="runZeroCostMigration"
+              />
+            </div>
+            <div
+              v-if="zeroCostPreview"
+              class="flex flex-column gap-2 mt-2 text-sm"
+            >
+              <div>
+                Found
+                <strong>{{ zeroCostPreview.total_trades }}</strong> trade(s)
+                across
+                <strong>{{ zeroCostPreview.asset_count }}</strong> asset(s).
+              </div>
+              <div
+                v-for="asset in zeroCostPreview.assets"
+                :key="asset.asset_id"
+                class="flex flex-column gap-1 p-2 border-1 border-round surface-border"
+              >
+                <div class="flex flex-row gap-2 align-items-center">
+                  <strong>{{ asset.ticker }}</strong>
+                  <span class="text-color-secondary">{{
+                    asset.asset_name
+                  }}</span>
+                  <span
+                    class="text-xs px-1 border-round"
+                    style="background: var(--surface-200)"
+                  >
+                    {{ asset.income_type }}
+                  </span>
+                </div>
+                <div
+                  v-for="trade in asset.trades"
+                  :key="trade.id"
+                  class="flex flex-row gap-3 text-color-secondary"
+                >
+                  <span>#{{ trade.id }}</span>
+                  <span>{{ trade.txn_date.slice(0, 10) }}</span>
+                  <span>{{ trade.quantity }} {{ asset.ticker }}</span>
+                  <span>{{ trade.currency }}</span>
+                </div>
+              </div>
+            </div>
+            <div
+              v-if="zeroCostMigrationResult"
+              class="flex flex-column gap-1 mt-2 text-sm"
+            >
+              <div>
+                Migrated
+                <strong>{{ zeroCostMigrationResult.total_processed }}</strong>
+                trade(s) across
+                <strong>{{ zeroCostMigrationResult.assets_processed }}</strong>
+                asset(s).
+                <span
+                  v-if="zeroCostMigrationResult.assets_failed > 0"
+                  style="color: var(--red-500)"
+                >
+                  {{ zeroCostMigrationResult.assets_failed }} asset(s) failed.
+                </span>
+              </div>
+              <div
+                v-for="e in zeroCostMigrationResult.errors"
+                :key="e.asset_id"
+                class="text-color-secondary"
+              >
+                {{ e.ticker }}: {{ e.error }}
+              </div>
             </div>
           </div>
         </div>
