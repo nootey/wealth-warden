@@ -21,6 +21,7 @@ import (
 
 type AnalyticsServiceInterface interface {
 	GetNetWorthSeries(ctx context.Context, userID int64, currency, rangeKey, from, to string, accountID *int64) (*models.NetWorthResponse, error)
+	FetchAssetChart(ctx context.Context, userID, assetID int64, rangeKey string) (*models.AssetChartResponse, error)
 	GetCategoryUsageForYear(ctx context.Context, userID int64, year int, class string, accID, catID *int64, asPercent bool) (*models.CategoryUsageResponse, error)
 	GetCategoryUsageForYears(ctx context.Context, userID int64, years []int, class string, accID, catID *int64, asPercent bool) (*models.MultiYearCategoryUsageResponse, error)
 	GetYearlyCashFlowBreakdown(ctx context.Context, userID int64, year int, accountID *int64) (*models.YearlyCashflowBreakdown, error)
@@ -1438,4 +1439,47 @@ func (s *AnalyticsService) DeleteReport(ctx context.Context, userID, id int64) e
 	}
 
 	return nil
+}
+
+func (s *AnalyticsService) FetchAssetChart(ctx context.Context, userID, assetID int64, rangeKey string) (*models.AssetChartResponse, error) {
+	dto := time.Now().UTC().Truncate(24 * time.Hour)
+	var dfrom time.Time
+	switch rangeKey {
+	case "1w":
+		dfrom = dto.AddDate(0, 0, -7)
+	case "1m":
+		dfrom = dto.AddDate(0, -1, 0)
+	case "3m":
+		dfrom = dto.AddDate(0, -3, 0)
+	case "6m":
+		dfrom = dto.AddDate(0, -6, 0)
+	case "ytd":
+		dfrom = time.Date(dto.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
+	case "1y":
+		dfrom = dto.AddDate(-1, 0, 0)
+	case "5y":
+		dfrom = dto.AddDate(-5, 0, 0)
+	default:
+		dfrom = dto.AddDate(0, -1, 0)
+	}
+
+	days := int(dto.Sub(dfrom).Hours()/24) + 1
+	gran := "day"
+	if days > 90 && days <= 370 {
+		gran = "week"
+	}
+	if days > 370 {
+		gran = "month"
+	}
+
+	currency, mv, cb, err := s.repo.FetchAssetChartSeries(ctx, nil, userID, assetID, dfrom, dto, gran)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.AssetChartResponse{
+		Currency:          currency,
+		MarketValuePoints: mv,
+		CostBasisPoints:   cb,
+	}, nil
 }

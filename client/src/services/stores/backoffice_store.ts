@@ -19,5 +19,11 @@ export const useBackofficeStore = defineStore("backoffice", {
       );
       return response.data;
     },
+    async migrateZeroCostTrades() {
+      const response = await apiClient.post(
+        `${this.apiPrefix}/migrate/zero-cost-trades`,
+      );
+      return response.data;
+    },
   },
 });

@@ -23,7 +23,9 @@ import ShowLoading from "../base/ShowLoading.vue";
 import { useConfirm } from "primevue/useconfirm";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import AuditTrail from "../base/AuditTrail.vue";
-import NetworthWidget from "../../features/widgets/NetworthWidget.vue";
+import InvestmentAssetWidget from "../../features/widgets/InvestmentAssetWidget.vue";
+import InvestmentIncomeForm from "./InvestmentIncomeForm.vue";
+import InvestmentIncomePaginated from "../data/InvestmentIncomePaginated.vue";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -46,6 +48,10 @@ const { hasPermission } = usePermissions();
 
 const loading = ref(false);
 const isReadOnly = computed(() => props.mode === "update");
+const showIncomeForm = ref(false);
+const incomeListRef = ref<InstanceType<
+  typeof InvestmentIncomePaginated
+> | null>(null);
 
 const accounts = ref<Account[]>([]);
 const record = ref<InvestmentAsset>(initData());
@@ -300,6 +306,11 @@ async function syncAssetPrice(id: number | null) {
   }
 }
 
+function onIncomeAdded(): void {
+  showIncomeForm.value = false;
+  incomeListRef.value?.refresh();
+}
+
 async function syncAssetAccountBalance(acc_id: number | null) {
   if (!acc_id) return;
 
@@ -437,7 +448,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
     </div>
 
     <div
-      v-if="isReadOnly"
+      v-if="isReadOnly && parseFloat(record.quantity) > 0"
       class="flex flex-column gap-2 w-full justify-content-between"
     >
       <h4>Financial details</h4>
@@ -521,16 +532,43 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       </div>
     </div>
 
-    <h4 v-if="isReadOnly && record.account">Chart</h4>
+    <h4 v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0">
+      Chart
+    </h4>
     <div
-      v-if="isReadOnly && record.account"
+      v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0"
       class="flex flex-column w-full border-round-2xl"
       style="background-color: var(--background-alt)"
     >
-      <NetworthWidget
-        ref="nWidgetRef"
-        :account-id="record.account.id"
-        :chart-height="200"
+      <InvestmentAssetWidget :asset-id="record.id" :chart-height="200" />
+    </div>
+
+    <div
+      v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0"
+      class="flex flex-column gap-2"
+    >
+      <div class="flex flex-row justify-content-between align-items-center">
+        <h4>Income</h4>
+        <Button
+          v-if="hasPermission('manage_data')"
+          :label="showIncomeForm ? 'Cancel' : 'Add income'"
+          size="small"
+          :class="showIncomeForm ? 'delete-button' : 'main-button'"
+          @click="showIncomeForm = !showIncomeForm"
+        />
+      </div>
+      <InvestmentIncomeForm
+        v-if="showIncomeForm"
+        :asset-id="record.id!"
+        :asset-currency="record.currency"
+        :investment-type="record.investment_type"
+        @complete-operation="onIncomeAdded"
+      />
+      <InvestmentIncomePaginated
+        ref="incomeListRef"
+        :asset-id="record.id!"
+        :asset-currency="record.currency"
+        :investment-type="record.investment_type"
       />
     </div>
 

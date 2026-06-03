@@ -37,6 +37,15 @@ async function triggerCorrectFeeAccounting() {
     toastStore.errorResponseToast(err);
   }
 }
+
+async function runZeroCostMigration() {
+  try {
+    const res = await backofficeStore.migrateZeroCostTrades();
+    toastStore.successResponseToast(res);
+  } catch (err) {
+    toastStore.errorResponseToast(err);
+  }
+}
 </script>
 
 <template>
@@ -129,6 +138,24 @@ async function triggerCorrectFeeAccounting() {
                 label="Run correction"
                 severity="danger"
                 @click="triggerCorrectFeeAccounting"
+              />
+            </div>
+          </div>
+
+          <div
+            class="flex flex-column gap-1 p-3 border-1 border-round-md surface-border"
+          >
+            <div style="font-weight: bold">Zero-Cost Trade Migration</div>
+            <div class="text-sm text-color-secondary">
+              Migrates all buy trades with a zero price per unit to investment
+              income. Crypto assets are classified as staking rewards;
+              stocks/ETFs as dividends.
+            </div>
+            <div class="mt-2">
+              <Button
+                label="Run migration"
+                severity="danger"
+                @click="runZeroCostMigration"
               />
             </div>
           </div>

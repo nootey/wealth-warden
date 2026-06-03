@@ -80,7 +80,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, loggingRepo, transactionRepo, jobDispatcher)
 	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, investmentRepo, settingsRepo, loggingRepo, jobDispatcher)
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
-	investmentService := services.NewInvestmentService(logger.Named("investment_sev"), investmentRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetcher)
+	investmentService := services.NewInvestmentService(logger.Named("investment_sev"), investmentRepo, accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetcher)
 	notesService := services.NewNotesService(notesRepo, loggingRepo, jobDispatcher)
 	analyticsService := services.NewAnalyticsService(logger.Named("analytics_svc"), analyticsRepo, accountRepo, transactionRepo, settingsRepo, jobDispatcher)
 	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService, accountService, userService)

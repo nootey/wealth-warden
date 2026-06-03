@@ -46,7 +46,7 @@ onMounted(async () => {
 
 watch(activeTab, async () => {
   page.value = 1;
-  sort.value = filterHelper.initSort();
+  sort.value = filterHelper.initSort("next_run_at");
   await getData();
 });
 
@@ -75,7 +75,7 @@ const paginator = ref<PaginatorState>({
   rowsPerPage: default_rows.value!,
 });
 const page = ref(1);
-const sort = ref(filterHelper.initSort());
+const sort = ref(filterHelper.initSort("next_run_at"));
 
 const activeColumns = computed<Column[]>(() => {
   if (activeTab.value === "transfer") {

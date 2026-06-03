@@ -91,6 +91,45 @@ func (ExchangeRateHistory) TableName() string {
 	return "exchange_rate_history"
 }
 
+func (InvestmentIncome) TableName() string {
+	return "investment_income"
+}
+
+type IncomeType string
+
+const (
+	IncomeTypeStaking  IncomeType = "staking_reward"
+	IncomeTypeDividend IncomeType = "dividend"
+)
+
+type InvestmentIncome struct {
+	ID                  int64            `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID              int64            `gorm:"not null;index:idx_inv_income_user" json:"user_id"`
+	AssetID             int64            `gorm:"not null;index:idx_inv_income_asset" json:"asset_id"`
+	TxnDate             time.Time        `gorm:"type:date;not null;index:idx_inv_income_date" json:"txn_date"`
+	IncomeType          IncomeType       `gorm:"type:income_type;not null" json:"income_type"`
+	Quantity            *decimal.Decimal `gorm:"type:decimal(19,8)" json:"quantity"`
+	Amount              decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"amount"`
+	TaxWithheld         *decimal.Decimal `gorm:"type:decimal(19,4)" json:"tax_withheld"`
+	Currency            string           `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
+	Notes               *string          `gorm:"type:varchar(255)" json:"notes"`
+	LinkedTransactionID *int64           `gorm:"index" json:"linked_transaction_id,omitempty"`
+	Asset               InvestmentAsset  `json:"asset"`
+	CreatedAt           time.Time        `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt           time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+type InvestmentIncomeReq struct {
+	AssetID     int64            `json:"asset_id" validate:"required"`
+	TxnDate     time.Time        `json:"txn_date" validate:"required"`
+	IncomeType  IncomeType       `json:"income_type" validate:"required"`
+	Quantity    *decimal.Decimal `json:"quantity"`
+	Amount      *decimal.Decimal `json:"amount,omitempty"`
+	TaxWithheld *decimal.Decimal `json:"tax_withheld,omitempty"`
+	Currency    string           `json:"currency" validate:"required"`
+	Notes       *string          `json:"notes,omitempty"`
+}
+
 type InvestmentAssetReq struct {
 	AccountID      int64           `json:"account_id" validate:"required"`
 	InvestmentType InvestmentType  `json:"investment_type" validate:"required"`

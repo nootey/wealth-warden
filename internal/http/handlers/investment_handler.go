@@ -34,12 +34,15 @@ func (h *InvestmentHandler) Routes(ap *gin.RouterGroup) {
 	ap.GET(":id", authz.RequireAllMW("view_data"), h.GetInvestmentAssetByID)
 	ap.GET("trades", authz.RequireAllMW("view_data"), h.GetInvestmentTradesPaginated)
 	ap.GET("trades/:id", authz.RequireAllMW("view_data"), h.GetInvestmentTradeByID)
+	ap.GET("assets/:id/income", authz.RequireAllMW("view_data"), h.GetInvestmentIncomeByAsset)
 	ap.PUT("", authz.RequireAllMW("manage_data"), h.InsertInvestmentAsset)
 	ap.PUT("trades", authz.RequireAllMW("manage_data"), h.InsertInvestmentTrade)
 	ap.PUT(":id", authz.RequireAllMW("manage_data"), h.UpdateInvestmentAsset)
 	ap.PUT("trades/:id", authz.RequireAllMW("manage_data"), h.UpdateInvestmentTrade)
+	ap.PUT("income", authz.RequireAllMW("manage_data"), h.CreateInvestmentIncome)
 	ap.DELETE(":id", authz.RequireAllMW("manage_data"), h.DeleteInvestmentAsset)
 	ap.DELETE("trades/:id", authz.RequireAllMW("manage_data"), h.DeleteInvestmentTrade)
+	ap.DELETE("income/:id", authz.RequireAllMW("manage_data"), h.DeleteInvestmentIncome)
 }
 
 func (h *InvestmentHandler) GetInvestmentAssetsPaginated(c *gin.Context) {
@@ -365,6 +368,76 @@ func (h *InvestmentHandler) DeleteInvestmentTrade(c *gin.Context) {
 	}
 
 	if err := h.Service.DeleteInvestmentTrade(ctx, userID, id); err != nil {
+		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
+}
+
+func (h *InvestmentHandler) GetInvestmentIncomeByAsset(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	p := utils.GetPaginationParams(c.Request.URL.Query())
+
+	records, paginator, err := h.Service.FetchInvestmentIncomeByAsset(ctx, userID, id, p)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"current_page":  paginator.CurrentPage,
+		"rows_per_page": paginator.RowsPerPage,
+		"from":          paginator.From,
+		"to":            paginator.To,
+		"total_records": paginator.TotalRecords,
+		"data":          records,
+	})
+}
+
+func (h *InvestmentHandler) CreateInvestmentIncome(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var req models.InvestmentIncomeReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	_, err := h.Service.CreateInvestmentIncome(ctx, userID, &req)
+	if err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
+}
+
+func (h *InvestmentHandler) DeleteInvestmentIncome(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.DeleteInvestmentIncome(ctx, userID, id); err != nil {
 		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

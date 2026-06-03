@@ -62,7 +62,10 @@ const userSettings = ref<UserSettings>();
 const idempotencyKey = ref(crypto.randomUUID());
 
 const isGlobalReadOnly = computed(
-  () => !!record.value.deleted_at || !!record.value.is_adjustment,
+  () =>
+    !!record.value.deleted_at ||
+    !!record.value.is_adjustment ||
+    !!record.value.is_system,
 );
 
 const isAccountRestricted = computed<boolean>(() => {
@@ -260,6 +263,7 @@ function initData(): Transaction {
     description: null,
     deleted_at: null,
     is_adjustment: false,
+    is_system: false,
   };
 }
 

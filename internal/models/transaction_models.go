@@ -18,6 +18,7 @@ type Transaction struct {
 	TxnDate         time.Time       `gorm:"not null;index" json:"txn_date"`
 	Description     *string         `gorm:"type:varchar(255)" json:"description,omitempty"`
 	IsAdjustment    bool            `gorm:"not null;type:boolean" json:"is_adjustment"`
+	IsSystem        bool            `gorm:"not null;type:boolean" json:"is_system"`
 	IsTransfer      bool            `gorm:"not null;type:boolean" json:"is_transfer"`
 	IdempotencyKey  *string         `gorm:"type:varchar(64)" json:"idempotency_key,omitempty"`
 	Account         Account         `json:"account"`

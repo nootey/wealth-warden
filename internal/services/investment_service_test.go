@@ -1281,3 +1281,456 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_HistoricalTrade_R
 		"snapshot at today should also be recalculated: expected %s, got %s",
 		initialBalance.String(), snapToday.EndBalance.String())
 }
+
+// Tests that a staking reward increases asset quantity but leaves average buy price (cost basis) unchanged.
+func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_StakingIncreasesQuantityNotCostBasis() {
+	svc := s.TC.App.InvestmentService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentCrypto,
+		Name:           "Bitcoin",
+		Ticker:         "BTC-EUR",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+
+	// Buy 1 BTC at 45000 EUR → avg_buy_price = 45000
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      today,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(1),
+		PricePerUnit: decimal.NewFromInt(45000),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	stakingQty := decimal.NewFromFloat(0.5)
+	incomeID, err := svc.CreateInvestmentIncome(s.Ctx, userID, &models.InvestmentIncomeReq{
+		AssetID:    assetID,
+		TxnDate:    today,
+		IncomeType: models.IncomeTypeStaking,
+		Quantity:   &stakingQty,
+		Currency:   "EUR",
+	})
+	s.Require().NoError(err)
+	s.Assert().Greater(incomeID, int64(0))
+
+	var asset models.InvestmentAsset
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
+	s.Require().NoError(err)
+
+	s.Assert().True(decimal.NewFromFloat(1.5).Equal(asset.Quantity),
+		"quantity should be buy qty 1 + staking 0.5 = 1.5, got %s", asset.Quantity.String())
+	s.Assert().True(decimal.NewFromInt(45000).Equal(asset.AverageBuyPrice),
+		"staking should not affect average buy price: expected 45000, got %s", asset.AverageBuyPrice.String())
+
+	// Income FMV: 0.5 BTC * 45000 EUR (mock price for BTC-EUR)
+	var income models.InvestmentIncome
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", incomeID).First(&income).Error
+	s.Require().NoError(err)
+	s.Assert().True(decimal.NewFromInt(22500).Equal(income.Amount),
+		"staking income amount should be FMV 0.5*45000=22500, got %s", income.Amount.String())
+}
+
+// Tests that dividend income creates a linked is_system transaction with the net-of-tax amount.
+func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendCreatesLinkedIsSystemTransaction() {
+	svc := s.TC.App.InvestmentService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentStock,
+		Name:           "iShares Core MSCI World",
+		Ticker:         "IWDA.AS",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+
+	amount := decimal.NewFromInt(50)
+	taxWithheld := decimal.NewFromInt(10)
+	incomeID, err := svc.CreateInvestmentIncome(s.Ctx, userID, &models.InvestmentIncomeReq{
+		AssetID:     assetID,
+		TxnDate:     today,
+		IncomeType:  models.IncomeTypeDividend,
+		Amount:      &amount,
+		TaxWithheld: &taxWithheld,
+		Currency:    "EUR",
+	})
+	s.Require().NoError(err)
+	s.Assert().Greater(incomeID, int64(0))
+
+	var income models.InvestmentIncome
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", incomeID).First(&income).Error
+	s.Require().NoError(err)
+	s.Require().NotNil(income.LinkedTransactionID, "dividend income should have a linked transaction ID")
+
+	var txn models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", *income.LinkedTransactionID).First(&txn).Error
+	s.Require().NoError(err)
+
+	// net amount = 50 - 10 tax withheld = 40 EUR
+	s.Assert().True(decimal.NewFromInt(40).Equal(txn.Amount),
+		"linked transaction amount should be 40 (50 gross - 10 tax withheld), got %s", txn.Amount.String())
+	s.Assert().True(txn.IsSystem, "linked dividend transaction must be marked is_system=true")
+	s.Assert().Equal(accID, txn.AccountID, "linked transaction should be in the asset's account")
+	s.Assert().Equal("income", txn.TransactionType)
+}
+
+// Tests that deleting a staking income record reverses the quantity increment on the asset.
+func (s *InvestmentServiceTestSuite) TestDeleteInvestmentIncome_StakingReversesQuantity() {
+	svc := s.TC.App.InvestmentService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentCrypto,
+		Name:           "Bitcoin",
+		Ticker:         "BTC-EUR",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      today,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(1),
+		PricePerUnit: decimal.NewFromInt(45000),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	stakingQty := decimal.NewFromFloat(0.5)
+	incomeID, err := svc.CreateInvestmentIncome(s.Ctx, userID, &models.InvestmentIncomeReq{
+		AssetID:    assetID,
+		TxnDate:    today,
+		IncomeType: models.IncomeTypeStaking,
+		Quantity:   &stakingQty,
+		Currency:   "EUR",
+	})
+	s.Require().NoError(err)
+
+	var assetBefore models.InvestmentAsset
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&assetBefore).Error
+	s.Require().NoError(err)
+	s.Require().True(decimal.NewFromFloat(1.5).Equal(assetBefore.Quantity), "pre-condition: quantity should be 1.5")
+
+	err = svc.DeleteInvestmentIncome(s.Ctx, userID, incomeID)
+	s.Require().NoError(err)
+
+	var assetAfter models.InvestmentAsset
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&assetAfter).Error
+	s.Require().NoError(err)
+
+	s.Assert().True(decimal.NewFromInt(1).Equal(assetAfter.Quantity),
+		"quantity should revert to trade-only quantity of 1 after deleting staking, got %s", assetAfter.Quantity.String())
+	s.Assert().True(decimal.NewFromInt(45000).Equal(assetAfter.AverageBuyPrice),
+		"average buy price should remain 45000, got %s", assetAfter.AverageBuyPrice.String())
+
+	var count int64
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentIncome{}).Where("id = ?", incomeID).Count(&count).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(0), count, "staking income record should be deleted")
+}
+
+// Tests that deleting a dividend income record cascades to the linked is_system transaction.
+func (s *InvestmentServiceTestSuite) TestDeleteInvestmentIncome_DividendDeletesLinkedTransaction() {
+	svc := s.TC.App.InvestmentService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentStock,
+		Name:           "iShares Core MSCI World",
+		Ticker:         "IWDA.AS",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+
+	amount := decimal.NewFromInt(100)
+	incomeID, err := svc.CreateInvestmentIncome(s.Ctx, userID, &models.InvestmentIncomeReq{
+		AssetID:    assetID,
+		TxnDate:    today,
+		IncomeType: models.IncomeTypeDividend,
+		Amount:     &amount,
+		Currency:   "EUR",
+	})
+	s.Require().NoError(err)
+
+	var income models.InvestmentIncome
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", incomeID).First(&income).Error
+	s.Require().NoError(err)
+	s.Require().NotNil(income.LinkedTransactionID)
+	linkedTxnID := *income.LinkedTransactionID
+
+	err = svc.DeleteInvestmentIncome(s.Ctx, userID, incomeID)
+	s.Require().NoError(err)
+
+	var incomeCount int64
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentIncome{}).Where("id = ?", incomeID).Count(&incomeCount).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(0), incomeCount, "dividend income record should be deleted")
+
+	// Transaction is soft-deleted (deleted_at set)
+	var txnCount int64
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("id = ? AND deleted_at IS NULL", linkedTxnID).
+		Count(&txnCount).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(0), txnCount, "linked is_system transaction should be soft-deleted")
+}
+
+// Tests that dividend transactions are excluded from analytics via the is_system=false filter.
+// A non-system income transaction in the same account should be counted; the dividend should not.
+func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendExcludedFromAnalytics() {
+	invSvc := s.TC.App.InvestmentService
+	anaSvc := s.TC.App.AnalyticsService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	now := time.Now().UTC()
+	today := now.Truncate(24 * time.Hour)
+	year := now.Year()
+	month := int(now.Month())
+
+	initialBalance := decimal.NewFromInt(100000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := invSvc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentStock,
+		Name:           "iShares Core MSCI World",
+		Ticker:         "IWDA.AS",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+
+	// Find the seeded income category
+	var incomeCat models.Category
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("classification = ? AND user_id IS NULL AND parent_id IS NULL", "income").
+		First(&incomeCat).Error
+	s.Require().NoError(err)
+
+	// Insert a regular (non-system) income transaction of 200 EUR
+	regularAmount := decimal.NewFromInt(200)
+	desc := "Salary"
+	err = s.TC.DB.WithContext(s.Ctx).Create(&models.Transaction{
+		UserID:          userID,
+		AccountID:       accID,
+		CategoryID:      &incomeCat.ID,
+		TransactionType: "income",
+		Amount:          regularAmount,
+		Currency:        "EUR",
+		TxnDate:         today,
+		Description:     &desc,
+		IsSystem:        false,
+	}).Error
+	s.Require().NoError(err)
+
+	// Record a dividend of 50 EUR → creates is_system=true transaction
+	dividendAmount := decimal.NewFromInt(50)
+	_, err = invSvc.CreateInvestmentIncome(s.Ctx, userID, &models.InvestmentIncomeReq{
+		AssetID:    assetID,
+		TxnDate:    today,
+		IncomeType: models.IncomeTypeDividend,
+		Amount:     &dividendAmount,
+		Currency:   "EUR",
+	})
+	s.Require().NoError(err)
+
+	stats, err := anaSvc.GetMonthlyStats(s.Ctx, userID, &accID, year, month)
+	s.Require().NoError(err)
+	s.Require().NotNil(stats)
+
+	s.Assert().True(regularAmount.Equal(stats.Inflow),
+		"only the non-system income (200) should appear in analytics; dividend (is_system=true) must be excluded, got inflow=%s",
+		stats.Inflow.String())
+}
+
+// Tests that a dividend in a foreign currency is converted to the account's currency.
+func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendWithCurrencyConversion() {
+	svc := s.TC.App.InvestmentService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+	// Account is in EUR
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account EUR",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentStock,
+		Name:           "iShares Core MSCI World",
+		Ticker:         "IWDA.AS",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+
+	// Dividend of 110 USD; mock rate USD→EUR = 1/1.1 → expected linked txn = 100 EUR
+	amount := decimal.NewFromInt(110)
+	incomeID, err := svc.CreateInvestmentIncome(s.Ctx, userID, &models.InvestmentIncomeReq{
+		AssetID:    assetID,
+		TxnDate:    today,
+		IncomeType: models.IncomeTypeDividend,
+		Amount:     &amount,
+		Currency:   "USD",
+	})
+	s.Require().NoError(err)
+
+	var income models.InvestmentIncome
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", incomeID).First(&income).Error
+	s.Require().NoError(err)
+	s.Require().NotNil(income.LinkedTransactionID)
+
+	var txn models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", *income.LinkedTransactionID).First(&txn).Error
+	s.Require().NoError(err)
+
+	// 110 USD × (1/1.1) = 100 EUR
+	s.Assert().True(decimal.NewFromInt(100).Equal(txn.Amount),
+		"110 USD dividend at mock rate 1/1.1 should convert to 100 EUR, got %s", txn.Amount.String())
+	s.Assert().Equal("EUR", txn.Currency, "linked transaction currency should be the account currency")
+}
+
+// Tests that staking income creation fails when quantity is missing.
+func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_Staking_MissingQuantityReturnsError() {
+	svc := s.TC.App.InvestmentService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentCrypto,
+		Name:           "Bitcoin",
+		Ticker:         "BTC-USD",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+
+	_, err = svc.CreateInvestmentIncome(s.Ctx, userID, &models.InvestmentIncomeReq{
+		AssetID:    assetID,
+		TxnDate:    today,
+		IncomeType: models.IncomeTypeStaking,
+		Quantity:   nil,
+		Currency:   "USD",
+	})
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "quantity")
+
+	var count int64
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentIncome{}).Where("asset_id = ?", assetID).Count(&count).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(0), count, "no income record should be created on validation failure")
+}
+
+// Tests that dividend income creation fails when amount is missing.
+func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_Dividend_MissingAmountReturnsError() {
+	svc := s.TC.App.InvestmentService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentStock,
+		Name:           "iShares Core MSCI World",
+		Ticker:         "IWDA.AS",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+
+	_, err = svc.CreateInvestmentIncome(s.Ctx, userID, &models.InvestmentIncomeReq{
+		AssetID:    assetID,
+		TxnDate:    today,
+		IncomeType: models.IncomeTypeDividend,
+		Amount:     nil,
+		Currency:   "EUR",
+	})
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "amount")
+
+	var count int64
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentIncome{}).Where("asset_id = ?", assetID).Count(&count).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(0), count, "no income record should be created on validation failure")
+}

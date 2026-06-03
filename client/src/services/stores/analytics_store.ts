@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import apiClient from "../api/api_client.ts";
 import type {
+  AssetChartResponse,
   AvailableStatsYear,
   BasicAccountStats,
   DailyStats,
@@ -113,6 +114,17 @@ export const useAnalyticsStore = defineStore("analytics", {
       const response = await apiClient.get(`${this.apiPrefix}/networth`, {
         params: q,
       });
+      return response.data;
+    },
+
+    async getAssetChart(
+      assetId: number,
+      range: string,
+    ): Promise<AssetChartResponse> {
+      const response = await apiClient.get<AssetChartResponse>(
+        `${this.apiPrefix}/asset/${assetId}/chart`,
+        { params: { range } },
+      );
       return response.data;
     },
 
