@@ -12,7 +12,6 @@ import (
 type BackofficeServiceInterface interface {
 	BackfillAssetCashFlows(ctx context.Context) error
 	CorrectFeeAccounting(ctx context.Context) error
-	PreviewZeroCostTradeMigration(ctx context.Context) (*models.ZeroCostTradeMigrationPreview, error)
 	MigrateZeroCostTrades(ctx context.Context) (*models.ZeroCostMigrationResult, error)
 }
 
@@ -61,70 +60,6 @@ func (s *BackofficeService) CorrectFeeAccounting(ctx context.Context) error {
 		s.accountService,
 		s.userService,
 	))
-}
-
-func (s *BackofficeService) PreviewZeroCostTradeMigration(ctx context.Context) (*models.ZeroCostTradeMigrationPreview, error) {
-	trades, err := s.repo.GetZeroCostBuyTrades(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	assetGroups := make(map[int64]*models.ZeroCostTradeAssetGroup)
-	assetOrder := []int64{}
-
-	for _, trade := range trades {
-		if _, ok := assetGroups[trade.AssetID]; !ok {
-			incomeType := models.IncomeTypeStaking
-			if trade.Asset.InvestmentType != models.InvestmentCrypto {
-				incomeType = models.IncomeTypeDividend
-			}
-			assetGroups[trade.AssetID] = &models.ZeroCostTradeAssetGroup{
-				AssetID:        trade.AssetID,
-				Ticker:         trade.Asset.Ticker,
-				AssetName:      trade.Asset.Name,
-				InvestmentType: trade.Asset.InvestmentType,
-				IncomeType:     incomeType,
-			}
-			assetOrder = append(assetOrder, trade.AssetID)
-		}
-		group := assetGroups[trade.AssetID]
-		group.Trades = append(group.Trades, models.ZeroCostTradePreview{
-			ID:       trade.ID,
-			TxnDate:  trade.TxnDate,
-			Quantity: trade.Quantity,
-			Currency: trade.Currency,
-		})
-		group.TradeCount++
-	}
-
-	for _, assetID := range assetOrder {
-		group := assetGroups[assetID]
-		s.logger.Info("zero-cost trade migration preview",
-			zap.Int64("asset_id", group.AssetID),
-			zap.String("ticker", group.Ticker),
-			zap.String("investment_type", string(group.InvestmentType)),
-			zap.String("income_type", string(group.IncomeType)),
-			zap.Int("trade_count", group.TradeCount),
-		)
-		for _, t := range group.Trades {
-			s.logger.Info("  trade",
-				zap.Int64("id", t.ID),
-				zap.String("date", t.TxnDate.Format("2006-01-02")),
-				zap.String("quantity", t.Quantity.String()),
-				zap.String("currency", t.Currency),
-			)
-		}
-	}
-
-	result := &models.ZeroCostTradeMigrationPreview{
-		TotalTrades: len(trades),
-		AssetCount:  len(assetGroups),
-	}
-	for _, assetID := range assetOrder {
-		result.Assets = append(result.Assets, *assetGroups[assetID])
-	}
-
-	return result, nil
 }
 
 func (s *BackofficeService) MigrateZeroCostTrades(ctx context.Context) (*models.ZeroCostMigrationResult, error) {
