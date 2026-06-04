@@ -1171,6 +1171,141 @@ func (s *AccountServiceTestSuite) TestMergeAccount_SourceNoTransactions_InitialB
 		"source opening start_balance should be 0, got %s", srcOpeningBal.StartBalance)
 }
 
+// Tests creating an asset account with a credit limit and a negative initial balance
+func (s *AccountServiceTestSuite) TestInsertAccount_WithCreditLimit_NegativeInitialBalance() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+
+	creditLimit := decimal.NewFromInt(1000)
+	initialBalance := decimal.NewFromInt(-500)
+	accReq := &models.AccountReq{
+		Name:           "Overdraft Account",
+		AccountTypeID:  1,
+		Classification: "asset",
+		CreditLimit:    &creditLimit,
+		Balance:        &initialBalance,
+		OpenedAt:       time.Now(),
+	}
+	accID, err := svc.InsertAccount(s.Ctx, userID, accReq)
+	s.Require().NoError(err)
+
+	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
+	var snapshot models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
+		First(&snapshot).Error
+	s.Require().NoError(err)
+	s.Assert().True(initialBalance.Equal(snapshot.EndBalance),
+		"snapshot should be %s, got %s", initialBalance.String(), snapshot.EndBalance.String())
+}
+
+// Tests that creating an account with initial balance below the credit limit is rejected
+func (s *AccountServiceTestSuite) TestInsertAccount_WithCreditLimit_BelowLimit() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+
+	creditLimit := decimal.NewFromInt(1000)
+	initialBalance := decimal.NewFromInt(-1500)
+	accReq := &models.AccountReq{
+		Name:           "Overdraft Account",
+		AccountTypeID:  1,
+		Classification: "asset",
+		CreditLimit:    &creditLimit,
+		Balance:        &initialBalance,
+		OpenedAt:       time.Now(),
+	}
+	_, err := svc.InsertAccount(s.Ctx, userID, accReq)
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "cannot be below credit limit")
+}
+
+// Tests that removing a credit limit is rejected when the account balance is negative
+func (s *AccountServiceTestSuite) TestUpdateAccount_RemoveCreditLimit_WithNegativeBalance() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+
+	creditLimit := decimal.NewFromInt(1000)
+	initialBalance := decimal.NewFromInt(-500)
+	accID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Overdraft Account",
+		AccountTypeID:  1,
+		Classification: "asset",
+		CreditLimit:    &creditLimit,
+		Balance:        &initialBalance,
+		OpenedAt:       time.Now(),
+	})
+	s.Require().NoError(err)
+
+	// Update without credit limit (removing it)
+	_, err = svc.UpdateAccount(s.Ctx, userID, accID, &models.AccountReq{
+		Name:          "Overdraft Account",
+		AccountTypeID: 1,
+		Balance:       &initialBalance,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "cannot remove credit limit")
+}
+
+// Tests that reducing a credit limit below the current negative balance is rejected
+func (s *AccountServiceTestSuite) TestUpdateAccount_ReduceCreditLimit_BelowCurrentBalance() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+
+	creditLimit := decimal.NewFromInt(1000)
+	initialBalance := decimal.NewFromInt(-800)
+	accID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Overdraft Account",
+		AccountTypeID:  1,
+		Classification: "asset",
+		CreditLimit:    &creditLimit,
+		Balance:        &initialBalance,
+		OpenedAt:       time.Now(),
+	})
+	s.Require().NoError(err)
+
+	// Try to lower credit limit to 500 while balance is -800
+	newCreditLimit := decimal.NewFromInt(500)
+	_, err = svc.UpdateAccount(s.Ctx, userID, accID, &models.AccountReq{
+		Name:          "Overdraft Account",
+		AccountTypeID: 1,
+		CreditLimit:   &newCreditLimit,
+		Balance:       &initialBalance,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "credit limit must exceed current negative balance")
+}
+
+// Tests that a balance adjustment below the credit limit floor is rejected
+func (s *AccountServiceTestSuite) TestUpdateAccount_SetBalance_BelowCreditLimit() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+
+	creditLimit := decimal.NewFromInt(500)
+	zero := decimal.Zero
+	accID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Overdraft Account",
+		AccountTypeID: 1,
+		CreditLimit:   &creditLimit,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	// Try to adjust balance to -600, which is below the -500 floor
+	newBalance := decimal.NewFromInt(-600)
+	_, err = svc.UpdateAccount(s.Ctx, userID, accID, &models.AccountReq{
+		Name:          "Overdraft Account",
+		AccountTypeID: 1,
+		CreditLimit:   &creditLimit,
+		Balance:       &newBalance,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "insufficient funds")
+}
+
 // Two liability accounts of different sub-types can be merged
 func (s *AccountServiceTestSuite) TestMergeAccount_LiabilityToLiability_OK() {
 	svc := s.TC.App.AccountService

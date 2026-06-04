@@ -3414,3 +3414,163 @@ func (s *TransactionServiceTestSuite) TestUpdateTransfer_InsufficientFunds() {
 	// Source balance must be unchanged: 100 - 50 = 50
 	s.assertSnapshot(srcID, today, srcBal.Sub(original), "source")
 }
+
+// Tests that an expense bringing balance into negative territory within the credit limit succeeds
+func (s *TransactionServiceTestSuite) TestInsertTransaction_Expense_WithinCreditLimit() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	creditLimit := decimal.NewFromInt(1000)
+	zero := decimal.Zero
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Overdraft Account",
+		AccountTypeID: 1,
+		CreditLimit:   &creditLimit,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	amount := decimal.NewFromInt(500)
+	txn, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:       accID,
+		TransactionType: "expense",
+		Amount:          amount,
+		TxnDate:         time.Now(),
+	})
+	s.Require().NoError(err)
+	s.Assert().Greater(txn.ID, int64(0))
+
+	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
+	var snapshot models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
+		First(&snapshot).Error
+	s.Require().NoError(err)
+	expected := decimal.NewFromInt(-500)
+	s.Assert().True(expected.Equal(snapshot.EndBalance),
+		"balance should be %s, got %s", expected.String(), snapshot.EndBalance.String())
+}
+
+// Tests that an expense exceeding the credit limit is rejected
+func (s *TransactionServiceTestSuite) TestInsertTransaction_Expense_ExceedsCreditLimit() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	creditLimit := decimal.NewFromInt(1000)
+	zero := decimal.Zero
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Overdraft Account",
+		AccountTypeID: 1,
+		CreditLimit:   &creditLimit,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	amount := decimal.NewFromInt(1500)
+	_, err = svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:       accID,
+		TransactionType: "expense",
+		Amount:          amount,
+		TxnDate:         time.Now(),
+	})
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "insufficient funds")
+
+	var txnCount int64
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("account_id = ?", accID).Count(&txnCount).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
+}
+
+// Tests that a transfer from an account within its credit limit succeeds
+func (s *TransactionServiceTestSuite) TestInsertTransfer_Source_WithinCreditLimit() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	creditLimit := decimal.NewFromInt(1000)
+	zero := decimal.Zero
+	srcID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Overdraft Source",
+		AccountTypeID: 1,
+		CreditLimit:   &creditLimit,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	dstID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Destination",
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	amount := decimal.NewFromInt(500)
+	tr, err := svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID:      srcID,
+		DestinationID: dstID,
+		Amount:        amount,
+		CreatedAt:     time.Now(),
+	})
+	s.Require().NoError(err)
+	s.Assert().Greater(tr.ID, int64(0))
+
+	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
+	var srcSnap models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", srcID, todayMidnight).
+		First(&srcSnap).Error
+	s.Require().NoError(err)
+	expected := decimal.NewFromInt(-500)
+	s.Assert().True(expected.Equal(srcSnap.EndBalance),
+		"source balance should be %s, got %s", expected.String(), srcSnap.EndBalance.String())
+}
+
+// Tests that a transfer from an account exceeding its credit limit is rejected
+func (s *TransactionServiceTestSuite) TestInsertTransfer_Source_ExceedsCreditLimit() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	creditLimit := decimal.NewFromInt(1000)
+	zero := decimal.Zero
+	srcID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Overdraft Source",
+		AccountTypeID: 1,
+		CreditLimit:   &creditLimit,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	dstID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Destination",
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	amount := decimal.NewFromInt(1500)
+	_, err = svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID:      srcID,
+		DestinationID: dstID,
+		Amount:        amount,
+		CreatedAt:     time.Now(),
+	})
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "insufficient funds")
+
+	var txnCount int64
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("account_id = ? AND is_transfer = true", srcID).Count(&txnCount).Error
+	s.Require().NoError(err)
+	s.Assert().Equal(int64(0), txnCount, "no transfer transaction should be created on source account")
+}
