@@ -541,6 +541,35 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       style="background-color: var(--background-alt)"
     >
       <InvestmentAssetWidget :asset-id="record.id" :chart-height="200" />
+      <div class="flex flex-column gap-2 p-3 text-xs">
+        <div class="flex flex-row gap-3 align-items-center text-center">
+          <div
+            class="flex flex-row align-items-center gap-1"
+            style="color: var(--text-secondary)"
+          >
+            <small>—</small> Market value
+          </div>
+          <div
+            class="flex flex-row align-items-center gap-1"
+            style="color: var(--text-secondary)"
+          >
+            <small>· · ·</small> Cost basis (total paid)
+          </div>
+        </div>
+        <span
+          >P&amp;L:
+          <span style="color: var(--text-secondary)"
+            >gain/loss vs. total cost basis (all-time)</span
+          ></span
+        >
+        <span
+          >Period change:
+          <span style="color: var(--text-secondary)">
+            total value moved in the selected window - includes new
+            purchases</span
+          ></span
+        >
+      </div>
     </div>
 
     <div
