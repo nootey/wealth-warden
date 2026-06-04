@@ -13,6 +13,7 @@ Vue 3 + TypeScript, PrimeVue 4 components, PrimeFlex utility classes.
 ## Components
 
 - Use PrimeVue components where one exists for the use case before writing a custom component.
+- Check related existing pages/components for examples.
 - Always wrap form field labels with the `ValidationError` component - never use plain labels with inline hint text.
 
 ## Validation
@@ -24,6 +25,4 @@ Vue 3 + TypeScript, PrimeVue 4 components, PrimeFlex utility classes.
 
 - TypeScript: Strict type checking, ES modules, explicit return types
 - Use relative paths only - no aliases like `@/` or `~/`
-- Always include file extensions in import paths (`.ts`, `.vue`)
 - Use `import type` for type-only imports; group them at the end of the import block
-- Use `npm format` to format changed files to desired formatting

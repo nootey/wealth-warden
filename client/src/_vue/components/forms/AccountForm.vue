@@ -72,7 +72,19 @@ const balanceNumber = currencyHelper.useMoneyField(balanceFieldRef, 2).number;
 const balanceAdjusted = ref(false);
 const asOfAdjusted = ref(false);
 
+const creditLimitRef = computed({
+  get: () => record.value.credit_limit ?? null,
+  set: (val: string | null) => {
+    record.value.credit_limit = val;
+  },
+});
+const creditLimitNumber = currencyHelper.useMoneyField(
+  creditLimitRef,
+  2,
+).number;
+
 const selectedClassification = ref<"Asset" | "Liability">("Asset");
+const originalCreditLimit = ref<string | null>(null);
 const selectedType = ref<string>("");
 const selectedSubtype = ref<string>("");
 
@@ -148,13 +160,20 @@ const rules = computed(() => ({
           ? {
               required,
               decimalValid,
-              ...(selectedClassification.value === "Asset"
+              ...(selectedClassification.value === "Asset" &&
+              record.value.credit_limit == null &&
+              originalCreditLimit.value == null
                 ? { decimalMin: decimalMin(0) }
                 : {}),
               decimalMax: decimalMax(1_000_000_000),
               $autoDirty: true,
             }
           : {},
+    },
+    credit_limit: {
+      decimalMin: decimalMin(0),
+      decimalMax: decimalMax(1_000_000_000),
+      $autoDirty: true,
     },
   },
 }));
@@ -255,6 +274,7 @@ function initData(): Account {
       total_balance: null,
       market_value: null,
     },
+    credit_limit: null,
   };
 }
 
@@ -281,6 +301,7 @@ async function loadRecord(id: number) {
         ? dayjs(data.opened_at).toDate()
         : dayjs().toDate(),
     };
+    originalCreditLimit.value = data.credit_limit ?? null;
 
     selectedClassification.value = vueHelper.capitalize(
       data.account_type.classification,
@@ -397,8 +418,11 @@ async function manageRecord() {
   if (props.mode === "create") {
     recordData.balance = balanceToSend;
   } else if (props.mode === "update" && balanceAdjusted.value) {
-    // only send on update if the user actually edited it
     recordData.balance = balanceToSend;
+  }
+
+  if (selectedClassification.value === "Asset") {
+    recordData.credit_limit = record.value.credit_limit ?? null;
   }
 
   try {
@@ -483,11 +507,42 @@ async function manageRecord() {
         mode="currency"
         :currency="settingsStore.defaultCurrency"
         :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
-        :min="selectedClassification === 'Asset' ? 0 : -999999999999999"
+        :min="
+          selectedClassification === 'Asset' &&
+          record.credit_limit == null &&
+          originalCreditLimit == null
+            ? 0
+            : -999999999999999
+        "
         :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
         :min-fraction-digits="2"
         :max-fraction-digits="2"
         @update:model-value="balanceAdjusted = true"
+      />
+    </div>
+
+    <div
+      v-if="selectedClassification === 'Asset'"
+      class="flex flex-column gap-1"
+    >
+      <ValidationError
+        :is-required="false"
+        :message="v$.record.credit_limit.$errors[0]?.$message"
+      >
+        <label>Credit limit</label>
+      </ValidationError>
+      <InputNumber
+        v-model="creditLimitNumber"
+        :readonly="readOnly"
+        :disabled="readOnly"
+        size="small"
+        mode="currency"
+        :currency="settingsStore.defaultCurrency"
+        :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
+        :min="0"
+        :placeholder="'None'"
+        :min-fraction-digits="2"
+        :max-fraction-digits="2"
       />
     </div>
 

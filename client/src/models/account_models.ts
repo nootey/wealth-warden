@@ -27,4 +27,5 @@ export interface Account {
   opened_at?: Date | null;
   closed_at: Date | null;
   is_default?: boolean;
+  credit_limit?: string | null;
 }

@@ -567,6 +567,7 @@ func (r *AccountRepository) UpdateAccount(ctx context.Context, tx *gorm.DB, reco
 	if !record.OpenedAt.IsZero() {
 		updates["opened_at"] = record.OpenedAt
 	}
+	updates["credit_limit"] = record.CreditLimit
 	updates["is_active"] = record.IsActive
 	updates["updated_at"] = time.Now().UTC()
 

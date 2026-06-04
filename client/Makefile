@@ -3,9 +3,9 @@ default: dev
 
 # Run dev mode
 dev:
-	npm run dev
+	pnpm run dev
 
 # Run production build
 prod:
-	npm run build
-	npm run preview
+	pnpm run build
+	pnpm run preview

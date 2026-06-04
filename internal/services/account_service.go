@@ -217,8 +217,14 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 
 	changes := utils.InitChanges()
 
-	if req.Classification == "asset" && req.Balance.LessThan(decimal.NewFromInt(0)) {
-		return 0, errors.New("provided initial balance cannot be negative")
+	if req.Classification == "asset" {
+		if req.CreditLimit != nil {
+			if req.Balance.LessThan(req.CreditLimit.Neg()) {
+				return 0, errors.New("provided initial balance cannot be below credit limit")
+			}
+		} else if req.Balance.LessThan(decimal.NewFromInt(0)) {
+			return 0, errors.New("provided initial balance cannot be negative")
+		}
 	}
 
 	accCount, err := s.repo.CountAccounts(ctx, nil, userID, nil, false, nil)
@@ -276,6 +282,9 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 		UserID:            userID,
 		OpenedAt:          openedDay,
 		BalanceProjection: "fixed",
+	}
+	if accType.Classification != "liability" {
+		account.CreditLimit = req.CreditLimit
 	}
 
 	balanceAmountString := req.Balance.StringFixed(2)
@@ -465,6 +474,25 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		}
 	}
 
+	if req.CreditLimit != nil && req.CreditLimit.IsZero() {
+		req.CreditLimit = nil
+	}
+
+	if (exAcc.CreditLimit != nil && req.CreditLimit == nil) || req.CreditLimit != nil {
+		latestBal, err := s.repo.FindLatestBalance(ctx, tx, exAcc.ID, userID)
+		if err != nil {
+			tx.Rollback()
+			return 0, err
+		}
+		if req.CreditLimit == nil && !latestBal.EndBalance.IsPositive() {
+			tx.Rollback()
+			return 0, errors.New("cannot remove credit limit while account balance is not positive")
+		} else if req.CreditLimit != nil && latestBal.EndBalance.IsNegative() && req.CreditLimit.LessThanOrEqual(latestBal.EndBalance.Neg()) {
+			tx.Rollback()
+			return 0, errors.New("credit limit must exceed current negative balance")
+		}
+	}
+
 	acc := &models.Account{
 		ID:            id,
 		Name:          req.Name,
@@ -473,6 +501,9 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		IsActive:      exAcc.IsActive,
 		UserID:        userID,
 		OpenedAt:      newOpenedAt,
+	}
+	if newAccType.Classification != "liability" {
+		acc.CreditLimit = req.CreditLimit
 	}
 
 	changes := utils.InitChanges()
@@ -507,10 +538,18 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		// Match sign conventions
 		isLiability := strings.EqualFold(newAccType.Classification, "liability")
 
-		// Validate asset accounts cannot go negative
-		if !isLiability && desired.IsNegative() {
-			tx.Rollback()
-			return 0, fmt.Errorf("asset account balance cannot be negative")
+		if !isLiability {
+			floor := decimal.Zero
+			if req.CreditLimit != nil {
+				floor = req.CreditLimit.Neg()
+			}
+			if desired.LessThan(floor) {
+				tx.Rollback()
+				return 0, utils.AccountLimitError(desired, &models.Account{
+					AccountType: models.AccountType{Classification: "asset"},
+					CreditLimit: req.CreditLimit,
+				})
+			}
 		}
 
 		delta = desired.Sub(latestBalance.EndBalance)

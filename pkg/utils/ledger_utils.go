@@ -120,6 +120,25 @@ func CheckGoalAllocation(amountBeingRemoved, uncategorizedBalance decimal.Decima
 	return nil
 }
 
+func AccountBelowLimit(balance decimal.Decimal, acc *models.Account) bool {
+	if acc.AccountType.Classification == "liability" {
+		return false
+	}
+	floor := decimal.Zero
+	if acc.CreditLimit != nil {
+		floor = acc.CreditLimit.Neg()
+	}
+	return balance.LessThan(floor)
+}
+
+func AccountLimitError(balance decimal.Decimal, acc *models.Account) error {
+	if acc.CreditLimit != nil {
+		over := balance.Neg().Sub(*acc.CreditLimit)
+		return fmt.Errorf("insufficient funds: %s over credit limit", over.StringFixed(2))
+	}
+	return fmt.Errorf("insufficient funds: resulting balance (%s) would be negative", balance.StringFixed(2))
+}
+
 func IsUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"

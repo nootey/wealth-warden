@@ -16,8 +16,9 @@ type Account struct {
 	Currency          string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	IsActive          bool            `gorm:"type:boolean;not null;default:true" json:"is_active"`
 	IsDefault         bool            `gorm:"type:boolean;not null;default:false" json:"is_default"`
-	IncludeInNetWorth bool            `gorm:"type:boolean;not null;default:true" json:"include_in_net_worth"`
-	ImportID          *int64          `json:"import_id,omitempty"`
+	IncludeInNetWorth bool             `gorm:"type:boolean;not null;default:true" json:"include_in_net_worth"`
+	CreditLimit       *decimal.Decimal `gorm:"type:decimal(19,4)" json:"credit_limit,omitempty"`
+	ImportID          *int64           `json:"import_id,omitempty"`
 	ExpectedBalance   decimal.Decimal `gorm:"type:decimal(19,4);not null;default:0" json:"expected_balance"`
 	BalanceProjection string          `gorm:"not null;enum(fixed,multiplier,percentage)" json:"balance_projection"`
 	OpenedAt          time.Time       `gorm:"not null" json:"opened_at"`
@@ -67,6 +68,7 @@ type AccountReq struct {
 	Subtype        string           `json:"sub_type" validate:"required"`
 	Classification string           `json:"classification" validate:"required"`
 	Balance        *decimal.Decimal `json:"balance"`
+	CreditLimit    *decimal.Decimal `json:"credit_limit"`
 	OpenedAt       time.Time        `json:"opened_at"`
 }
 

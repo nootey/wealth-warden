@@ -263,20 +263,21 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		}
 
 		resultingBalance := latestBalance.EndBalance.Sub(req.Amount)
-		if resultingBalance.LessThan(decimal.Zero) && account.AccountType.Classification != "liability" {
+		if utils.AccountBelowLimit(resultingBalance, account) {
 			tx.Rollback()
-			return models.InsertResult{}, fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
-				resultingBalance.StringFixed(2))
+			return models.InsertResult{}, utils.AccountLimitError(resultingBalance, account)
 		}
 
-		uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
-		if err != nil {
-			tx.Rollback()
-			return models.InsertResult{}, err
-		}
-		if err := utils.CheckGoalAllocation(req.Amount, uncategorized, account.AccountType.Classification); err != nil {
-			tx.Rollback()
-			return models.InsertResult{}, err
+		if !resultingBalance.IsNegative() {
+			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
+			if err != nil {
+				tx.Rollback()
+				return models.InsertResult{}, err
+			}
+			if err := utils.CheckGoalAllocation(req.Amount, uncategorized, account.AccountType.Classification); err != nil {
+				tx.Rollback()
+				return models.InsertResult{}, err
+			}
 		}
 	}
 
@@ -445,22 +446,21 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 
 	if fromAcc.AccountType.Classification == "asset" {
 		resultingBalance := fromAcc.Balance.EndBalance.Sub(req.Amount)
-		if resultingBalance.LessThan(decimal.Zero) {
+		if utils.AccountBelowLimit(resultingBalance, fromAcc) {
 			tx.Rollback()
-			return models.InsertResult{}, fmt.Errorf("insufficient funds: account %s balance=%s, requested=%s",
-				fromAcc.Name,
-				fromAcc.Balance.EndBalance.StringFixed(2),
-				req.Amount.StringFixed(2))
+			return models.InsertResult{}, utils.AccountLimitError(resultingBalance, fromAcc)
 		}
 
-		uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, fromAcc.ID, userID)
-		if err != nil {
-			tx.Rollback()
-			return models.InsertResult{}, err
-		}
-		if err := utils.CheckGoalAllocation(req.Amount, uncategorized, fromAcc.AccountType.Classification); err != nil {
-			tx.Rollback()
-			return models.InsertResult{}, err
+		if !resultingBalance.IsNegative() {
+			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, fromAcc.ID, userID)
+			if err != nil {
+				tx.Rollback()
+				return models.InsertResult{}, err
+			}
+			if err := utils.CheckGoalAllocation(req.Amount, uncategorized, fromAcc.AccountType.Classification); err != nil {
+				tx.Rollback()
+				return models.InsertResult{}, err
+			}
 		}
 	}
 
@@ -739,20 +739,21 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		}
 
 		resultingBalance := latestBalance.EndBalance.Add(netChange)
-		if resultingBalance.LessThan(decimal.Zero) && newAccount.AccountType.Classification != "liability" {
+		if utils.AccountBelowLimit(resultingBalance, newAccount) {
 			tx.Rollback()
-			return 0, fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
-				resultingBalance.StringFixed(2))
+			return 0, utils.AccountLimitError(resultingBalance, newAccount)
 		}
 
-		uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, newAccount.ID, userID)
-		if err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-		if err := utils.CheckGoalAllocation(netChange.Neg(), uncategorized, newAccount.AccountType.Classification); err != nil {
-			tx.Rollback()
-			return 0, err
+		if !resultingBalance.IsNegative() {
+			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, newAccount.ID, userID)
+			if err != nil {
+				tx.Rollback()
+				return 0, err
+			}
+			if err := utils.CheckGoalAllocation(netChange.Neg(), uncategorized, newAccount.AccountType.Classification); err != nil {
+				tx.Rollback()
+				return 0, err
+			}
 		}
 	}
 
@@ -1005,20 +1006,21 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 		}
 
 		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
-		if resultingBalance.LessThan(decimal.Zero) && account.AccountType.Classification != "liability" {
+		if utils.AccountBelowLimit(resultingBalance, account) {
 			tx.Rollback()
-			return fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
-				resultingBalance.StringFixed(2))
+			return utils.AccountLimitError(resultingBalance, account)
 		}
 
-		uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-		if err := utils.CheckGoalAllocation(tr.Amount, uncategorized, account.AccountType.Classification); err != nil {
-			tx.Rollback()
-			return err
+		if !resultingBalance.IsNegative() {
+			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, account.ID, userID)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+			if err := utils.CheckGoalAllocation(tr.Amount, uncategorized, account.AccountType.Classification); err != nil {
+				tx.Rollback()
+				return err
+			}
 		}
 	}
 
@@ -1158,22 +1160,22 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 	// Sufficient funds check: only when the outflow increases
 	netChange := req.Amount.Sub(oldAmount)
 	if netChange.GreaterThan(decimal.Zero) && fromAcc.AccountType.Classification == "asset" {
-		if fromAcc.Balance.EndBalance.Sub(netChange).LessThan(decimal.Zero) {
+		resultingBalance := fromAcc.Balance.EndBalance.Sub(netChange)
+		if utils.AccountBelowLimit(resultingBalance, fromAcc) {
 			tx.Rollback()
-			return fmt.Errorf("insufficient funds: account %s balance=%s, additional required=%s",
-				fromAcc.Name,
-				fromAcc.Balance.EndBalance.StringFixed(2),
-				netChange.StringFixed(2))
+			return utils.AccountLimitError(resultingBalance, fromAcc)
 		}
 
-		uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, fromAcc.ID, userID)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-		if err := utils.CheckGoalAllocation(netChange, uncategorized, fromAcc.AccountType.Classification); err != nil {
-			tx.Rollback()
-			return err
+		if !resultingBalance.IsNegative() {
+			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, fromAcc.ID, userID)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+			if err := utils.CheckGoalAllocation(netChange, uncategorized, fromAcc.AccountType.Classification); err != nil {
+				tx.Rollback()
+				return err
+			}
 		}
 	}
 
@@ -1336,10 +1338,9 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 	}
 
 	resultingBalance := latestToBalance.EndBalance.Sub(inflow.Amount)
-	if resultingBalance.LessThan(decimal.Zero) && toAcc.AccountType.Classification != "liability" {
+	if utils.AccountBelowLimit(resultingBalance, toAcc) {
 		tx.Rollback()
-		return fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
-			resultingBalance.StringFixed(2))
+		return utils.AccountLimitError(resultingBalance, toAcc)
 	}
 
 	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
@@ -1549,10 +1550,9 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 		}
 
 		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
-		if resultingBalance.LessThan(decimal.Zero) && acc.AccountType.Classification != "liability" {
+		if utils.AccountBelowLimit(resultingBalance, acc) {
 			tx.Rollback()
-			return fmt.Errorf("insufficient funds: resulting balance (%s) would be negative",
-				resultingBalance.StringFixed(2))
+			return utils.AccountLimitError(resultingBalance, acc)
 		}
 	}
 
