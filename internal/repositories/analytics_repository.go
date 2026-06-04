@@ -894,12 +894,21 @@ func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gor
 		mvSQL := `
 		  WITH s AS (
 		    SELECT ph.as_of,
-		           (ph.price * COALESCE((
-		             SELECT SUM(CASE WHEN it.trade_type = 'buy'  THEN it.quantity
-		                            WHEN it.trade_type = 'sell' THEN -it.quantity END)
-		             FROM investment_trades it
-		             WHERE it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
-		           ), 0)) AS value
+		           (ph.price * (
+		             COALESCE((
+		               SELECT SUM(CASE WHEN it.trade_type = 'buy'  THEN it.quantity
+		                              WHEN it.trade_type = 'sell' THEN -it.quantity END)
+		               FROM investment_trades it
+		               WHERE it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
+		             ), 0)
+		             +
+		             COALESCE((
+		               SELECT SUM(ii.quantity)
+		               FROM investment_income ii
+		               WHERE ii.asset_id = ph.asset_id AND ii.txn_date <= ph.as_of
+		                 AND ii.income_type = 'staking_reward' AND ii.quantity IS NOT NULL
+		             ), 0)
+		           )) AS value
 		    FROM asset_price_history ph
 		    WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
 		  ),
@@ -913,12 +922,21 @@ func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gor
 		mvSQL := `
 		  WITH s AS (
 		    SELECT ph.as_of,
-		           (ph.price * COALESCE((
-		             SELECT SUM(CASE WHEN it.trade_type = 'buy'  THEN it.quantity
-		                            WHEN it.trade_type = 'sell' THEN -it.quantity END)
-		             FROM investment_trades it
-		             WHERE it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
-		           ), 0)) AS value
+		           (ph.price * (
+		             COALESCE((
+		               SELECT SUM(CASE WHEN it.trade_type = 'buy'  THEN it.quantity
+		                              WHEN it.trade_type = 'sell' THEN -it.quantity END)
+		               FROM investment_trades it
+		               WHERE it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
+		             ), 0)
+		             +
+		             COALESCE((
+		               SELECT SUM(ii.quantity)
+		               FROM investment_income ii
+		               WHERE ii.asset_id = ph.asset_id AND ii.txn_date <= ph.as_of
+		                 AND ii.income_type = 'staking_reward' AND ii.quantity IS NOT NULL
+		             ), 0)
+		           )) AS value
 		    FROM asset_price_history ph
 		    WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
 		  ),
@@ -931,12 +949,21 @@ func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gor
 	default:
 		mvSQL := `
 		  SELECT ph.as_of::date AS date,
-		         (ph.price * COALESCE((
-		           SELECT SUM(CASE WHEN it.trade_type = 'buy'  THEN it.quantity
-		                          WHEN it.trade_type = 'sell' THEN -it.quantity END)
-		           FROM investment_trades it
-		           WHERE it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
-		         ), 0))::text AS value
+		         (ph.price * (
+		           COALESCE((
+		             SELECT SUM(CASE WHEN it.trade_type = 'buy'  THEN it.quantity
+		                            WHEN it.trade_type = 'sell' THEN -it.quantity END)
+		             FROM investment_trades it
+		             WHERE it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
+		           ), 0)
+		           +
+		           COALESCE((
+		             SELECT SUM(ii.quantity)
+		             FROM investment_income ii
+		             WHERE ii.asset_id = ph.asset_id AND ii.txn_date <= ph.as_of
+		               AND ii.income_type = 'staking_reward' AND ii.quantity IS NOT NULL
+		           ), 0)
+		         ))::text AS value
 		  FROM asset_price_history ph
 		  WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
 		  ORDER BY ph.as_of`

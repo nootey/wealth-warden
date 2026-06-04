@@ -82,14 +82,14 @@ const periodLabels: Record<RangeKey, string> = {
   "5y": "5 years",
 };
 
-const activeColor = computed(() => {
+const isProfit = computed(() => {
   const cb = costBasisPoints.value;
   const mv = marketValuePoints.value;
-  if (cb.length === 0 || mv.length === 0) return "#22c55e";
-  const latestCb = Number(cb[cb.length - 1]!.value);
-  const latestMv = Number(mv[mv.length - 1]!.value);
-  return latestMv >= latestCb ? "#22c55e" : "#ef4444";
+  if (cb.length === 0 || mv.length === 0) return true;
+  return Number(mv[mv.length - 1]!.value) >= Number(cb[cb.length - 1]!.value);
 });
+
+const activeColor = computed(() => (isProfit.value ? "#22c55e" : "#ef4444"));
 
 async function getData() {
   const lastKey = localStorage.getItem(storageKey.value);
@@ -130,14 +130,19 @@ onMounted(getData);
   >
     <div class="flex flex-row gap-2 w-full justify-content-between">
       <div class="flex flex-column gap-1">
-        <strong>{{ vueHelper.displayAsCurrency(currentValue) }}</strong>
+        <strong>{{
+          vueHelper.displayAsCurrency(currentValue, payload.currency)
+        }}</strong>
         <div
           v-if="periodChange && hasSeries"
           class="flex flex-row gap-2 align-items-center"
-          :style="{ color: activeColor }"
+          :style="{ color: periodChange.abs >= 0 ? '#22c55e' : '#ef4444' }"
         >
           <span>{{
-            vueHelper.displayAsCurrency(Math.abs(periodChange.abs))
+            vueHelper.displayAsCurrency(
+              Math.abs(periodChange.abs),
+              payload.currency,
+            )
           }}</span>
           <div class="flex flex-row gap-1 align-items-center">
             <i
