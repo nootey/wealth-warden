@@ -91,6 +91,17 @@ const isProfit = computed(() => {
 
 const activeColor = computed(() => (isProfit.value ? "#22c55e" : "#ef4444"));
 
+const unrealizedPnL = computed(() => {
+  const mv = marketValuePoints.value;
+  const cb = costBasisPoints.value;
+  if (mv.length === 0 || cb.length === 0) return null;
+  const marketVal = Number(mv[mv.length - 1]!.value);
+  const costVal = Number(cb[cb.length - 1]!.value);
+  const abs = marketVal - costVal;
+  const pct = costVal !== 0 ? (abs / Math.abs(costVal)) * 100 : null;
+  return { abs, pct };
+});
+
 async function getData() {
   const lastKey = localStorage.getItem(storageKey.value);
   if (lastKey) {
@@ -129,13 +140,39 @@ onMounted(getData);
     class="w-full flex flex-column justify-content-center p-2 gap-1"
   >
     <div class="flex flex-row gap-2 w-full justify-content-between">
-      <div class="flex flex-column gap-1">
+      <div class="flex flex-column gap-1 p-1">
         <strong>{{
           vueHelper.displayAsCurrency(currentValue, payload.currency)
         }}</strong>
         <div
-          v-if="periodChange && hasSeries"
+          v-if="unrealizedPnL"
           class="flex flex-row gap-2 align-items-center"
+          :style="{ color: activeColor }"
+        >
+          <span class="text-sm">{{
+            vueHelper.displayAsCurrency(
+              Math.abs(unrealizedPnL.abs),
+              payload.currency,
+            )
+          }}</span>
+          <div class="flex flex-row gap-1 align-items-center text-xs">
+            <i
+              class="text-xs"
+              :class="
+                unrealizedPnL.abs >= 0
+                  ? 'pi pi-angle-double-up'
+                  : 'pi pi-angle-double-down'
+              "
+            />
+            <span v-if="unrealizedPnL.pct !== null"
+              >({{ Math.abs(unrealizedPnL.pct).toFixed(1) }}%)</span
+            >
+          </div>
+          <span class="text-xs" style="color: var(--text-secondary)">P&L</span>
+        </div>
+        <div
+          v-if="periodChange && hasSeries"
+          class="flex flex-row gap-2 align-items-center text-xs"
           :style="{ color: periodChange.abs >= 0 ? '#22c55e' : '#ef4444' }"
         >
           <span>{{
@@ -146,7 +183,7 @@ onMounted(getData);
           }}</span>
           <div class="flex flex-row gap-1 align-items-center">
             <i
-              class="text-sm"
+              class="text-xs"
               :class="
                 periodChange.abs >= 0
                   ? 'pi pi-angle-double-up'
@@ -157,7 +194,7 @@ onMounted(getData);
               >({{ Math.abs(periodChange.pct).toFixed(1) }}%)</span
             >
           </div>
-          <span class="text-sm" style="color: var(--text-secondary)">
+          <span style="color: var(--text-secondary)">
             {{
               selectedKey === "ytd"
                 ? "year to date"
@@ -166,13 +203,15 @@ onMounted(getData);
           </span>
         </div>
       </div>
-      <Select
-        v-model="selectedDTO"
-        size="small"
-        style="width: 90px"
-        :options="dateRanges"
-        option-label="name"
-      />
+      <div class="flex flex-column p-1">
+        <Select
+          v-model="selectedDTO"
+          size="small"
+          style="width: 90px"
+          :options="dateRanges"
+          option-label="name"
+        />
+      </div>
     </div>
 
     <NetworthChart
