@@ -147,6 +147,23 @@ func (s *InvestmentService) FetchInvestmentAssetByID(ctx context.Context, userID
 		return nil, err
 	}
 
+	brackets, err := s.repo.FindTaxBracketsByUserAndType(ctx, nil, userID, record.InvestmentType)
+	if err != nil {
+		return nil, err
+	}
+	if len(brackets) > 0 {
+		settings, err := s.repo.FindTaxSettings(ctx, nil, userID)
+		if err != nil {
+			return nil, err
+		}
+		trades, err := s.repo.FindAllTradesByAssetID(ctx, nil, record.ID, userID)
+		if err != nil {
+			return nil, err
+		}
+		summary := utils.ComputeAssetTaxSummary(record, trades, brackets, settings, time.Now().UTC())
+		record.TaxSummary = &summary
+	}
+
 	return &record, nil
 }
 
@@ -190,6 +207,24 @@ func (s *InvestmentService) FetchInvestmentTradeByID(ctx context.Context, userID
 	record, err := s.repo.FindInvestmentTradeByID(ctx, nil, id, userID)
 	if err != nil {
 		return nil, err
+	}
+
+	brackets, err := s.repo.FindTaxBracketsByUserAndType(ctx, nil, userID, record.Asset.InvestmentType)
+	if err != nil {
+		return nil, err
+	}
+	if len(brackets) > 0 {
+		if record.TradeType == models.InvestmentBuy {
+			info := utils.ComputeBuyTradeTaxInfo(record, brackets, time.Now().UTC())
+			record.TaxInfo = &info
+		} else {
+			allTrades, err := s.repo.FindAllTradesByAssetID(ctx, nil, record.AssetID, userID)
+			if err != nil {
+				return nil, err
+			}
+			info := utils.ComputeSellTradeTaxInfo(record, allTrades, brackets)
+			record.TaxInfo = &info
+		}
 	}
 
 	return &record, nil
@@ -1192,6 +1227,23 @@ func (s *InvestmentService) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, e
 }
 
 func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error {
+	if s.priceFetchClient != nil {
+		asset, err := s.repo.FindInvestmentAssetByID(ctx, nil, assetID, userID)
+		if err != nil {
+			return err
+		}
+		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
+		if err == nil && priceData != nil && priceData.Price > 0 {
+			now := time.Now().UTC()
+			price := decimal.NewFromFloat(priceData.Price)
+			if err := s.repo.UpdateAssetCurrentPrice(ctx, nil, assetID, price, now); err != nil {
+				return err
+			}
+			if err := s.repo.UpdateTradesPnLForAsset(ctx, nil, assetID, price, asset.InvestmentType, now); err != nil {
+				return err
+			}
+		}
+	}
 	return s.repo.RecalculateAssetFromTrades(ctx, nil, assetID, userID)
 }
 
@@ -1609,7 +1661,6 @@ func (s *InvestmentService) CopyTaxBrackets(ctx context.Context, userID int64, f
 	}
 	return nil
 }
-
 
 func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, userID, assetID int64, trades []models.InvestmentTrade) error {
 	if len(trades) == 0 {

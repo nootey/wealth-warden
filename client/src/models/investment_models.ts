@@ -29,6 +29,7 @@ export interface InvestmentAsset {
   created_at?: Date;
   updated_at?: Date;
   total_fees?: string;
+  tax_summary?: AssetTaxSummary | null;
 }
 
 export type IncomeType = "staking_reward" | "dividend";
@@ -67,6 +68,7 @@ export interface InvestmentTrade {
   description: string | null;
   created_at?: Date;
   updated_at?: Date;
+  tax_info?: TradeTaxInfo | null;
 }
 
 export interface InvestmentTaxBracket {
@@ -85,4 +87,17 @@ export interface InvestmentTaxSettings {
   id?: number;
   user_id?: number;
   loss_offsetting_enabled: boolean;
+}
+
+export interface TradeTaxInfo {
+  days_held: number;
+  taxable_percent: string | null;
+  taxable_profit: string;
+  days_until_next_bracket: number | null;
+  days_until_tax_free: number | null;
+}
+
+export interface AssetTaxSummary {
+  estimated_tax_due: string;
+  after_tax_pnl: string;
 }

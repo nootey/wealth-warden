@@ -158,14 +158,15 @@ func TestComputeBuyTradeTaxInfo_PositivePnL(t *testing.T) {
 	assert.Equal(t, 500, info.DaysHeld)
 	assert.NotNil(t, info.TaxablePercent)
 	assert.True(t, df(27.5).Equal(*info.TaxablePercent))
-	// taxable profit = 80 * 27.5 / 100 = 22
-	assert.True(t, df(22).Equal(info.TaxableProfit))
+	// after-tax profit = 80 - (80 * 27.5 / 100) = 80 - 22 = 58
+	assert.True(t, df(58).Equal(info.TaxableProfit))
 }
 
 func TestComputeBuyTradeTaxInfo_NegativePnLNotTaxed(t *testing.T) {
 	trade := buyTrade(1, 500, 10, 200, 0, -50)
 	info := utils.ComputeBuyTradeTaxInfo(trade, sloETFBrackets, taxToday)
-	assert.True(t, info.TaxableProfit.IsZero())
+	// no tax on losses → after-tax profit equals raw pnl
+	assert.True(t, df(-50).Equal(info.TaxableProfit))
 }
 
 func TestComputeBuyTradeTaxInfo_DaysUntilNextBracket(t *testing.T) {
@@ -181,7 +182,8 @@ func TestComputeBuyTradeTaxInfo_AlreadyAtTaxFreeBracket(t *testing.T) {
 
 	assert.NotNil(t, info.TaxablePercent)
 	assert.True(t, info.TaxablePercent.IsZero())
-	assert.True(t, info.TaxableProfit.IsZero())
+	// 0% bracket → no tax, after-tax profit equals full pnl
+	assert.True(t, df(50).Equal(info.TaxableProfit))
 	assert.NotNil(t, info.DaysUntilTaxFree)
 	assert.Equal(t, 0, *info.DaysUntilTaxFree)
 	assert.Nil(t, info.DaysUntilNextBracket)
@@ -221,8 +223,8 @@ func TestComputeSellTradeTaxInfo_SingleLot(t *testing.T) {
 	assert.Equal(t, 200, info.DaysHeld)
 	assert.NotNil(t, info.TaxablePercent)
 	assert.True(t, df(27.5).Equal(*info.TaxablePercent))
-	// taxable profit = 50 * 27.5 / 100 = 13.75
-	assert.True(t, df(13.75).Equal(info.TaxableProfit))
+	// after-tax profit = 50 - (50 * 27.5 / 100) = 50 - 13.75 = 36.25
+	assert.True(t, df(36.25).Equal(info.TaxableProfit))
 }
 
 func TestComputeSellTradeTaxInfo_WeightedAvgDaysHeld(t *testing.T) {

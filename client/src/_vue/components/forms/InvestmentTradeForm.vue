@@ -324,11 +324,8 @@ async function deleteRecord(id: number) {
     <div v-if="isReadOnly" class="flex flex-column gap-2">
       <h4>Info</h4>
       <span class="text-sm" style="color: var(--text-secondary)">
-        This is a read only view. Due to the complexity of re-calculating the
-        financial impact of the trade, most fields can not be updated.
-      </span>
-      <span class="text-sm" style="color: var(--text-secondary)">
-        If you wish to make changes, delete the trade and create a new one.
+        Due to the complexity of re-calculations, this is mostly read only. If
+        you wish to make changes, delete the trade and create a new one.
       </span>
     </div>
 
@@ -405,6 +402,50 @@ async function deleteRecord(id: number) {
           }}</span>
         </div>
       </div>
+
+      <template v-if="record.tax_info">
+        <div class="flex flex-row w-full gap-3">
+          <div class="flex flex-column gap-1 w-6">
+            <label class="text-sm">P&L Taxed</label>
+            <span class="text-sm" style="color: var(--text-secondary)">{{
+              vueHelper.displayAsCurrency(
+                record.tax_info.taxable_profit,
+                record.currency,
+              )
+            }}</span>
+          </div>
+          <div class="flex flex-column gap-1 w-6">
+            <label class="text-sm">Tax bracket</label>
+            <span class="text-sm" style="color: var(--text-secondary)">
+              {{
+                record.tax_info.taxable_percent != null
+                  ? record.tax_info.taxable_percent + "%"
+                  : "—"
+              }}
+            </span>
+          </div>
+        </div>
+        <div class="flex flex-row w-full gap-3">
+          <div class="flex flex-column gap-1 w-6">
+            <label class="text-sm">Days held</label>
+            <span class="text-sm" style="color: var(--text-secondary)">{{
+              record.tax_info.days_held
+            }}</span>
+          </div>
+          <div class="flex flex-column gap-1 w-6">
+            <label class="text-sm">Tax-free in</label>
+            <span class="text-sm" style="color: var(--text-secondary)">
+              <template v-if="record.tax_info.days_until_tax_free === 0"
+                >Tax-free now</template
+              >
+              <template v-else-if="record.tax_info.days_until_tax_free != null"
+                >{{ record.tax_info.days_until_tax_free }} days</template
+              >
+              <template v-else>—</template>
+            </span>
+          </div>
+        </div>
+      </template>
     </div>
 
     <h4 v-if="isReadOnly">Trade details</h4>

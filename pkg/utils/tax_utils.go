@@ -75,9 +75,11 @@ func ComputeBuyTradeTaxInfo(trade models.InvestmentTrade, brackets []models.Inve
 	if bracket != nil {
 		p := bracket.TaxablePercent
 		info.TaxablePercent = &p
+		taxDue := decimal.Zero
 		if trade.ProfitLoss.IsPositive() {
-			info.TaxableProfit = trade.ProfitLoss.Mul(bracket.TaxablePercent).Div(decimal.NewFromInt(100))
+			taxDue = trade.ProfitLoss.Mul(bracket.TaxablePercent).Div(decimal.NewFromInt(100))
 		}
+		info.TaxableProfit = trade.ProfitLoss.Sub(taxDue)
 	}
 
 	for _, b := range brackets {
@@ -135,9 +137,11 @@ func ComputeSellTradeTaxInfo(sell models.InvestmentTrade, allAssetTrades []model
 	if bracket != nil {
 		p := bracket.TaxablePercent
 		info.TaxablePercent = &p
+		taxDue := decimal.Zero
 		if sell.ProfitLoss.IsPositive() {
-			info.TaxableProfit = sell.ProfitLoss.Mul(bracket.TaxablePercent).Div(decimal.NewFromInt(100))
+			taxDue = sell.ProfitLoss.Mul(bracket.TaxablePercent).Div(decimal.NewFromInt(100))
 		}
+		info.TaxableProfit = sell.ProfitLoss.Sub(taxDue)
 	}
 
 	return info
