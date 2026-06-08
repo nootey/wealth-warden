@@ -43,6 +43,13 @@ func (h *InvestmentHandler) Routes(ap *gin.RouterGroup) {
 	ap.DELETE(":id", authz.RequireAllMW("manage_data"), h.DeleteInvestmentAsset)
 	ap.DELETE("trades/:id", authz.RequireAllMW("manage_data"), h.DeleteInvestmentTrade)
 	ap.DELETE("income/:id", authz.RequireAllMW("manage_data"), h.DeleteInvestmentIncome)
+	ap.GET("tax-brackets", authz.RequireAllMW("view_data"), h.GetTaxBrackets)
+	ap.PUT("tax-brackets", authz.RequireAllMW("manage_data"), h.InsertTaxBracket)
+	ap.PUT("tax-brackets/:id", authz.RequireAllMW("manage_data"), h.UpdateTaxBracket)
+	ap.DELETE("tax-brackets/:id", authz.RequireAllMW("manage_data"), h.DeleteTaxBracket)
+	ap.POST("tax-brackets/copy", authz.RequireAllMW("manage_data"), h.CopyTaxBrackets)
+	ap.GET("tax-settings", authz.RequireAllMW("view_data"), h.GetTaxSettings)
+	ap.PUT("tax-settings", authz.RequireAllMW("manage_data"), h.SaveTaxSettings)
 }
 
 func (h *InvestmentHandler) GetInvestmentAssetsPaginated(c *gin.Context) {
@@ -443,4 +450,142 @@ func (h *InvestmentHandler) DeleteInvestmentIncome(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
+}
+
+func (h *InvestmentHandler) CopyTaxBrackets(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var req models.InvestmentTaxBracketsCopyReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.Service.CopyTaxBrackets(ctx, userID, req.FromType, req.ToType); err != nil {
+		utils.ErrorMessage(c, "Copy error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Brackets copied", "Success", http.StatusOK)
+}
+
+func (h *InvestmentHandler) GetTaxBrackets(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	records, err := h.Service.FetchTaxBrackets(ctx, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, records)
+}
+
+func (h *InvestmentHandler) InsertTaxBracket(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var req models.InvestmentTaxBracketReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	_, err := h.Service.InsertTaxBracket(ctx, userID, &req)
+	if err != nil {
+		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record created", "Success", http.StatusOK)
+}
+
+func (h *InvestmentHandler) UpdateTaxBracket(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	var req models.InvestmentTaxBracketReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.Service.UpdateTaxBracket(ctx, userID, id, &req); err != nil {
+		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record updated", "Success", http.StatusOK)
+}
+
+func (h *InvestmentHandler) DeleteTaxBracket(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.DeleteTaxBracket(ctx, userID, id); err != nil {
+		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
+}
+
+func (h *InvestmentHandler) GetTaxSettings(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	record, err := h.Service.FetchTaxSettings(ctx, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, record)
+}
+
+func (h *InvestmentHandler) SaveTaxSettings(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var req models.InvestmentTaxSettingsReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.SaveTaxSettings(ctx, userID, &req); err != nil {
+		utils.ErrorMessage(c, "Save error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Settings saved", "Success", http.StatusOK)
 }

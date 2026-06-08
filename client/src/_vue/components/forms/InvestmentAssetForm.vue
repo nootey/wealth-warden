@@ -401,12 +401,8 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       <h4>Info</h4>
 
       <span class="text-sm" style="color: var(--text-secondary)">
-        This is a read only view. Due to the complexity of re-calculating the
-        financial impact of this record, most fields can not be updated.
-      </span>
-
-      <span class="text-sm" style="color: var(--text-secondary)">
-        If you wish to make changes, delete the asset and create a new one. That
+        Due to the complexity of re-calculations, this is mostly read only. If
+        you wish to make changes, delete the asset and create a new one. That
         will also delete all related trades, and reverse their effects.
       </span>
     </div>
@@ -530,6 +526,29 @@ async function syncAssetAccountBalance(acc_id: number | null) {
           }}</span>
         </div>
       </div>
+
+      <template v-if="record.tax_summary">
+        <div class="flex flex-row w-full gap-3">
+          <div class="flex flex-column gap-1 w-6">
+            <label class="text-sm">After-tax P&L</label>
+            <span class="text-sm" style="color: var(--text-secondary)">{{
+              vueHelper.displayAsCurrency(
+                record.tax_summary.after_tax_pnl,
+                record.currency,
+              )
+            }}</span>
+          </div>
+          <div class="flex flex-column gap-1 w-6">
+            <label class="text-sm">Est. tax due</label>
+            <span class="text-sm" style="color: var(--text-secondary)">{{
+              vueHelper.displayAsCurrency(
+                record.tax_summary.estimated_tax_due,
+                record.currency,
+              )
+            }}</span>
+          </div>
+        </div>
+      </template>
     </div>
 
     <h4 v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0">

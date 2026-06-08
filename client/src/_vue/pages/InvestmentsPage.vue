@@ -6,6 +6,7 @@ import InvestmentAssetForm from "../components/forms/InvestmentAssetForm.vue";
 import InvestmentAssetsPaginated from "../components/data/InvestmentAssetsPaginated.vue";
 import InvestmentTradeForm from "../components/forms/InvestmentTradeForm.vue";
 import InvestmentTradesPaginated from "../components/data/InvestmentTradesPaginated.vue";
+import InvestmentTaxBracketsPanel from "../components/InvestmentTaxBracketsPanel.vue";
 
 const toastStore = useToastStore();
 
@@ -228,6 +229,18 @@ async function handleEmit(emitType: any) {
         >
           Trades
         </div>
+        <div
+          class="cursor-pointer pb-1"
+          style="color: var(--text-secondary)"
+          :style="
+            activeTab === 'tax'
+              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
+              : ''
+          "
+          @click="activeTab = 'tax'"
+        >
+          Tax
+        </div>
       </div>
 
       <Transition name="fade" mode="out-in">
@@ -250,7 +263,7 @@ async function handleEmit(emitType: any) {
             />
           </div>
         </div>
-        <div v-else key="trades" class="w-full">
+        <div v-else-if="activeTab === 'trades'" key="trades" class="w-full">
           <div
             class="flex flex-column w-full p-3 gap-3 border-round-2xl"
             style="
@@ -264,6 +277,9 @@ async function handleEmit(emitType: any) {
               @update-trade="(id) => manipulateDialog('updateTrade', id)"
             />
           </div>
+        </div>
+        <div v-else key="tax" class="w-full">
+          <InvestmentTaxBracketsPanel />
         </div>
       </Transition>
     </div>

@@ -43,6 +43,13 @@ type InvestmentServiceInterface interface {
 	DeleteInvestmentIncome(ctx context.Context, userID int64, id int64) error
 	FetchInvestmentIncomeByAsset(ctx context.Context, userID int64, assetID int64, p utils.PaginationParams) ([]models.InvestmentIncome, *utils.Paginator, error)
 	MigrateZeroCostTradesForAsset(ctx context.Context, userID, assetID int64, trades []models.InvestmentTrade) error
+	FetchTaxBrackets(ctx context.Context, userID int64) ([]models.InvestmentTaxBracket, error)
+	InsertTaxBracket(ctx context.Context, userID int64, req *models.InvestmentTaxBracketReq) (int64, error)
+	UpdateTaxBracket(ctx context.Context, userID int64, id int64, req *models.InvestmentTaxBracketReq) error
+	DeleteTaxBracket(ctx context.Context, userID int64, id int64) error
+	FetchTaxSettings(ctx context.Context, userID int64) (models.InvestmentTaxSettings, error)
+	SaveTaxSettings(ctx context.Context, userID int64, req *models.InvestmentTaxSettingsReq) error
+	CopyTaxBrackets(ctx context.Context, userID int64, fromType, toType models.InvestmentType) error
 }
 
 type InvestmentService struct {
@@ -140,6 +147,23 @@ func (s *InvestmentService) FetchInvestmentAssetByID(ctx context.Context, userID
 		return nil, err
 	}
 
+	brackets, err := s.repo.FindTaxBracketsByUserAndType(ctx, nil, userID, record.InvestmentType)
+	if err != nil {
+		return nil, err
+	}
+	if len(brackets) > 0 {
+		settings, err := s.repo.FindTaxSettings(ctx, nil, userID)
+		if err != nil {
+			return nil, err
+		}
+		trades, err := s.repo.FindAllTradesByAssetID(ctx, nil, record.ID, userID)
+		if err != nil {
+			return nil, err
+		}
+		summary := utils.ComputeAssetTaxSummary(record, trades, brackets, settings, time.Now().UTC())
+		record.TaxSummary = &summary
+	}
+
 	return &record, nil
 }
 
@@ -183,6 +207,24 @@ func (s *InvestmentService) FetchInvestmentTradeByID(ctx context.Context, userID
 	record, err := s.repo.FindInvestmentTradeByID(ctx, nil, id, userID)
 	if err != nil {
 		return nil, err
+	}
+
+	brackets, err := s.repo.FindTaxBracketsByUserAndType(ctx, nil, userID, record.Asset.InvestmentType)
+	if err != nil {
+		return nil, err
+	}
+	if len(brackets) > 0 {
+		if record.TradeType == models.InvestmentBuy {
+			info := utils.ComputeBuyTradeTaxInfo(record, brackets, time.Now().UTC())
+			record.TaxInfo = &info
+		} else {
+			allTrades, err := s.repo.FindAllTradesByAssetID(ctx, nil, record.AssetID, userID)
+			if err != nil {
+				return nil, err
+			}
+			info := utils.ComputeSellTradeTaxInfo(record, allTrades, brackets)
+			record.TaxInfo = &info
+		}
 	}
 
 	return &record, nil
@@ -1185,6 +1227,23 @@ func (s *InvestmentService) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, e
 }
 
 func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error {
+	if s.priceFetchClient != nil {
+		asset, err := s.repo.FindInvestmentAssetByID(ctx, nil, assetID, userID)
+		if err != nil {
+			return err
+		}
+		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
+		if err == nil && priceData != nil && priceData.Price > 0 {
+			now := time.Now().UTC()
+			price := decimal.NewFromFloat(priceData.Price)
+			if err := s.repo.UpdateAssetCurrentPrice(ctx, nil, assetID, price, now); err != nil {
+				return err
+			}
+			if err := s.repo.UpdateTradesPnLForAsset(ctx, nil, assetID, price, asset.InvestmentType, now); err != nil {
+				return err
+			}
+		}
+	}
 	return s.repo.RecalculateAssetFromTrades(ctx, nil, assetID, userID)
 }
 
@@ -1493,6 +1552,112 @@ func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, asset
 
 	if len(batch) > 0 {
 		return s.repo.UpsertAssetPrice(ctx, nil, batch)
+	}
+	return nil
+}
+
+func (s *InvestmentService) FetchTaxBrackets(ctx context.Context, userID int64) ([]models.InvestmentTaxBracket, error) {
+	return s.repo.FindTaxBracketsByUser(ctx, nil, userID)
+}
+
+func (s *InvestmentService) InsertTaxBracket(ctx context.Context, userID int64, req *models.InvestmentTaxBracketReq) (int64, error) {
+	existing, err := s.repo.FindTaxBracketsByUserAndType(ctx, nil, userID, req.InvestmentType)
+	if err != nil {
+		return 0, err
+	}
+	for _, b := range existing {
+		newCoversExisting := req.ToDays == nil || *req.ToDays >= b.MinDaysHeld
+		existingCoversNew := b.ToDays == nil || *b.ToDays >= req.MinDaysHeld
+		if newCoversExisting && existingCoversNew {
+			toDays := "∞"
+			if b.ToDays != nil {
+				toDays = strconv.Itoa(*b.ToDays)
+			}
+			return 0, fmt.Errorf("bracket overlaps with existing bracket (days %d–%s)", b.MinDaysHeld, toDays)
+		}
+	}
+	record := models.InvestmentTaxBracket{
+		UserID:         userID,
+		InvestmentType: req.InvestmentType,
+		MinDaysHeld:    req.MinDaysHeld,
+		ToDays:         req.ToDays,
+		TaxablePercent: req.TaxablePercent,
+		Label:          req.Label,
+	}
+	return s.repo.InsertTaxBracket(ctx, nil, &record)
+}
+
+func (s *InvestmentService) UpdateTaxBracket(ctx context.Context, userID int64, id int64, req *models.InvestmentTaxBracketReq) error {
+	return s.repo.UpdateTaxBracket(ctx, nil, models.InvestmentTaxBracket{
+		ID:             id,
+		UserID:         userID,
+		TaxablePercent: req.TaxablePercent,
+		ToDays:         req.ToDays,
+		Label:          req.Label,
+	})
+}
+
+func (s *InvestmentService) DeleteTaxBracket(ctx context.Context, userID int64, id int64) error {
+	return s.repo.DeleteTaxBracket(ctx, nil, id, userID)
+}
+
+func (s *InvestmentService) FetchTaxSettings(ctx context.Context, userID int64) (models.InvestmentTaxSettings, error) {
+	return s.repo.FindTaxSettings(ctx, nil, userID)
+}
+
+func (s *InvestmentService) SaveTaxSettings(ctx context.Context, userID int64, req *models.InvestmentTaxSettingsReq) error {
+	return s.repo.UpsertTaxSettings(ctx, nil, models.InvestmentTaxSettings{
+		UserID:                userID,
+		LossOffsettingEnabled: req.LossOffsettingEnabled,
+	})
+}
+
+func (s *InvestmentService) CopyTaxBrackets(ctx context.Context, userID int64, fromType, toType models.InvestmentType) error {
+	target, err := s.repo.FindTaxBracketsByUserAndType(ctx, nil, userID, toType)
+	if err != nil {
+		return err
+	}
+	if len(target) > 0 {
+		return fmt.Errorf("%s already has brackets configured", toType)
+	}
+
+	source, err := s.repo.FindTaxBracketsByUserAndType(ctx, nil, userID, fromType)
+	if err != nil {
+		return err
+	}
+	if len(source) == 0 {
+		return fmt.Errorf("%s has no brackets to copy", fromType)
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	for _, b := range source {
+		record := models.InvestmentTaxBracket{
+			UserID:         userID,
+			InvestmentType: toType,
+			MinDaysHeld:    b.MinDaysHeld,
+			ToDays:         b.ToDays,
+			TaxablePercent: b.TaxablePercent,
+			Label:          b.Label,
+		}
+		if _, err := s.repo.InsertTaxBracket(ctx, tx, &record); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
 	}
 	return nil
 }
