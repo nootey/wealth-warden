@@ -43,6 +43,13 @@ type InvestmentServiceInterface interface {
 	DeleteInvestmentIncome(ctx context.Context, userID int64, id int64) error
 	FetchInvestmentIncomeByAsset(ctx context.Context, userID int64, assetID int64, p utils.PaginationParams) ([]models.InvestmentIncome, *utils.Paginator, error)
 	MigrateZeroCostTradesForAsset(ctx context.Context, userID, assetID int64, trades []models.InvestmentTrade) error
+	FetchTaxBrackets(ctx context.Context, userID int64) ([]models.InvestmentTaxBracket, error)
+	InsertTaxBracket(ctx context.Context, userID int64, req *models.InvestmentTaxBracketReq) (int64, error)
+	UpdateTaxBracket(ctx context.Context, userID int64, id int64, req *models.InvestmentTaxBracketReq) error
+	DeleteTaxBracket(ctx context.Context, userID int64, id int64) error
+	FetchTaxSettings(ctx context.Context, userID int64) (models.InvestmentTaxSettings, error)
+	SaveTaxSettings(ctx context.Context, userID int64, req *models.InvestmentTaxSettingsReq) error
+	CopyTaxBrackets(ctx context.Context, userID int64, fromType, toType models.InvestmentType) error
 }
 
 type InvestmentService struct {
@@ -1496,6 +1503,113 @@ func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, asset
 	}
 	return nil
 }
+
+func (s *InvestmentService) FetchTaxBrackets(ctx context.Context, userID int64) ([]models.InvestmentTaxBracket, error) {
+	return s.repo.FindTaxBracketsByUser(ctx, nil, userID)
+}
+
+func (s *InvestmentService) InsertTaxBracket(ctx context.Context, userID int64, req *models.InvestmentTaxBracketReq) (int64, error) {
+	existing, err := s.repo.FindTaxBracketsByUserAndType(ctx, nil, userID, req.InvestmentType)
+	if err != nil {
+		return 0, err
+	}
+	for _, b := range existing {
+		newCoversExisting := req.ToDays == nil || *req.ToDays >= b.MinDaysHeld
+		existingCoversNew := b.ToDays == nil || *b.ToDays >= req.MinDaysHeld
+		if newCoversExisting && existingCoversNew {
+			toDays := "∞"
+			if b.ToDays != nil {
+				toDays = strconv.Itoa(*b.ToDays)
+			}
+			return 0, fmt.Errorf("bracket overlaps with existing bracket (days %d–%s)", b.MinDaysHeld, toDays)
+		}
+	}
+	record := models.InvestmentTaxBracket{
+		UserID:         userID,
+		InvestmentType: req.InvestmentType,
+		MinDaysHeld:    req.MinDaysHeld,
+		ToDays:         req.ToDays,
+		TaxablePercent: req.TaxablePercent,
+		Label:          req.Label,
+	}
+	return s.repo.InsertTaxBracket(ctx, nil, &record)
+}
+
+func (s *InvestmentService) UpdateTaxBracket(ctx context.Context, userID int64, id int64, req *models.InvestmentTaxBracketReq) error {
+	return s.repo.UpdateTaxBracket(ctx, nil, models.InvestmentTaxBracket{
+		ID:             id,
+		UserID:         userID,
+		TaxablePercent: req.TaxablePercent,
+		ToDays:         req.ToDays,
+		Label:          req.Label,
+	})
+}
+
+func (s *InvestmentService) DeleteTaxBracket(ctx context.Context, userID int64, id int64) error {
+	return s.repo.DeleteTaxBracket(ctx, nil, id, userID)
+}
+
+func (s *InvestmentService) FetchTaxSettings(ctx context.Context, userID int64) (models.InvestmentTaxSettings, error) {
+	return s.repo.FindTaxSettings(ctx, nil, userID)
+}
+
+func (s *InvestmentService) SaveTaxSettings(ctx context.Context, userID int64, req *models.InvestmentTaxSettingsReq) error {
+	return s.repo.UpsertTaxSettings(ctx, nil, models.InvestmentTaxSettings{
+		UserID:                userID,
+		LossOffsettingEnabled: req.LossOffsettingEnabled,
+	})
+}
+
+func (s *InvestmentService) CopyTaxBrackets(ctx context.Context, userID int64, fromType, toType models.InvestmentType) error {
+	target, err := s.repo.FindTaxBracketsByUserAndType(ctx, nil, userID, toType)
+	if err != nil {
+		return err
+	}
+	if len(target) > 0 {
+		return fmt.Errorf("%s already has brackets configured", toType)
+	}
+
+	source, err := s.repo.FindTaxBracketsByUserAndType(ctx, nil, userID, fromType)
+	if err != nil {
+		return err
+	}
+	if len(source) == 0 {
+		return fmt.Errorf("%s has no brackets to copy", fromType)
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	for _, b := range source {
+		record := models.InvestmentTaxBracket{
+			UserID:         userID,
+			InvestmentType: toType,
+			MinDaysHeld:    b.MinDaysHeld,
+			ToDays:         b.ToDays,
+			TaxablePercent: b.TaxablePercent,
+			Label:          b.Label,
+		}
+		if _, err := s.repo.InsertTaxBracket(ctx, tx, &record); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	return nil
+}
+
 
 func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, userID, assetID int64, trades []models.InvestmentTrade) error {
 	if len(trades) == 0 {

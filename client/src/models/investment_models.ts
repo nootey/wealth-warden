@@ -68,3 +68,21 @@ export interface InvestmentTrade {
   created_at?: Date;
   updated_at?: Date;
 }
+
+export interface InvestmentTaxBracket {
+  id: number;
+  user_id: number;
+  investment_type: InvestmentType;
+  min_days_held: number;
+  to_days: number | null;
+  taxable_percent: string;
+  label: string | null;
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export interface InvestmentTaxSettings {
+  id?: number;
+  user_id?: number;
+  loss_offsetting_enabled: boolean;
+}

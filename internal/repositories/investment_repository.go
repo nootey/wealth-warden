@@ -54,6 +54,14 @@ type InvestmentRepositoryInterface interface {
 	CountInvestmentIncome(ctx context.Context, tx *gorm.DB, assetID, userID int64) (int64, error)
 	GetInvestmentIncomeByAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64, offset, limit int, sortField, sortOrder string) ([]models.InvestmentIncome, error)
 	DeleteInvestmentIncome(ctx context.Context, tx *gorm.DB, id, userID int64) error
+	FindTaxBracketsByUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTaxBracket, error)
+	FindTaxBracketsByUserAndType(ctx context.Context, tx *gorm.DB, userID int64, investmentType models.InvestmentType) ([]models.InvestmentTaxBracket, error)
+	CountTaxBracketsByUserAndType(ctx context.Context, tx *gorm.DB, userID int64, investmentType models.InvestmentType) (int64, error)
+	InsertTaxBracket(ctx context.Context, tx *gorm.DB, record *models.InvestmentTaxBracket) (int64, error)
+	UpdateTaxBracket(ctx context.Context, tx *gorm.DB, record models.InvestmentTaxBracket) error
+	DeleteTaxBracket(ctx context.Context, tx *gorm.DB, id, userID int64) error
+	FindTaxSettings(ctx context.Context, tx *gorm.DB, userID int64) (models.InvestmentTaxSettings, error)
+	UpsertTaxSettings(ctx context.Context, tx *gorm.DB, record models.InvestmentTaxSettings) error
 }
 
 type InvestmentRepository struct {
@@ -712,7 +720,7 @@ func (r *InvestmentRepository) FindAllTradesByAssetID(ctx context.Context, tx *g
 
 	var trades []models.InvestmentTrade
 	err := db.Where("asset_id = ? AND user_id = ?", assetID, userID).
-		Order("txn_date ASC").
+		Order("txn_date ASC, id ASC").
 		Find(&trades).Error
 
 	return trades, err
@@ -942,4 +950,107 @@ func (r *InvestmentRepository) DeleteInvestmentIncome(ctx context.Context, tx *g
 	return db.WithContext(ctx).
 		Where("id = ? AND user_id = ?", id, userID).
 		Delete(&models.InvestmentIncome{}).Error
+}
+
+func (r *InvestmentRepository) FindTaxBracketsByUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTaxBracket, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var records []models.InvestmentTaxBracket
+	err := db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Order("investment_type ASC, min_days_held ASC").
+		Find(&records).Error
+	return records, err
+}
+
+func (r *InvestmentRepository) FindTaxBracketsByUserAndType(ctx context.Context, tx *gorm.DB, userID int64, investmentType models.InvestmentType) ([]models.InvestmentTaxBracket, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var records []models.InvestmentTaxBracket
+	err := db.WithContext(ctx).
+		Where("user_id = ? AND investment_type = ?", userID, investmentType).
+		Order("min_days_held ASC").
+		Find(&records).Error
+	return records, err
+}
+
+func (r *InvestmentRepository) CountTaxBracketsByUserAndType(ctx context.Context, tx *gorm.DB, userID int64, investmentType models.InvestmentType) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var count int64
+	err := db.WithContext(ctx).
+		Model(&models.InvestmentTaxBracket{}).
+		Where("user_id = ? AND investment_type = ?", userID, investmentType).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *InvestmentRepository) InsertTaxBracket(ctx context.Context, tx *gorm.DB, record *models.InvestmentTaxBracket) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	if err := db.WithContext(ctx).Create(record).Error; err != nil {
+		return 0, err
+	}
+	return record.ID, nil
+}
+
+func (r *InvestmentRepository) UpdateTaxBracket(ctx context.Context, tx *gorm.DB, record models.InvestmentTaxBracket) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).
+		Model(&models.InvestmentTaxBracket{}).
+		Where("id = ? AND user_id = ?", record.ID, record.UserID).
+		Updates(map[string]interface{}{
+			"to_days":         record.ToDays,
+			"taxable_percent": record.TaxablePercent,
+			"label":           record.Label,
+		}).Error
+}
+
+func (r *InvestmentRepository) DeleteTaxBracket(ctx context.Context, tx *gorm.DB, id, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).
+		Where("id = ? AND user_id = ?", id, userID).
+		Delete(&models.InvestmentTaxBracket{}).Error
+}
+
+func (r *InvestmentRepository) FindTaxSettings(ctx context.Context, tx *gorm.DB, userID int64) (models.InvestmentTaxSettings, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var record models.InvestmentTaxSettings
+	err := db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		First(&record).Error
+	if err == gorm.ErrRecordNotFound {
+		return models.InvestmentTaxSettings{UserID: userID}, nil
+	}
+	return record, err
+}
+
+func (r *InvestmentRepository) UpsertTaxSettings(ctx context.Context, tx *gorm.DB, record models.InvestmentTaxSettings) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "user_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"loss_offsetting_enabled", "updated_at"}),
+		}).
+		Create(&record).Error
 }

@@ -33,6 +33,7 @@ type InvestmentAsset struct {
 	Currency          string           `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
 	Account           Account          `json:"account"`
 	ImportID          *int64           `json:"import_id,omitempty"`
+	TaxSummary        *AssetTaxSummary `gorm:"-" json:"tax_summary,omitempty"`
 	CreatedAt         time.Time        `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -63,6 +64,7 @@ type InvestmentTrade struct {
 	Description       *string         `gorm:"type:varchar(255)" json:"description"`
 	Asset             InvestmentAsset `json:"asset"`
 	ImportID          *int64          `json:"import_id,omitempty"`
+	TaxInfo           *TradeTaxInfo   `gorm:"-" json:"tax_info,omitempty"`
 	CreatedAt         time.Time       `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -117,6 +119,56 @@ type InvestmentIncome struct {
 	Asset               InvestmentAsset  `json:"asset"`
 	CreatedAt           time.Time        `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt           time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+type TradeTaxInfo struct {
+	DaysHeld             int              `json:"days_held"`
+	TaxablePercent       *decimal.Decimal `json:"taxable_percent"`
+	TaxableProfit        decimal.Decimal  `json:"taxable_profit"`
+	DaysUntilNextBracket *int             `json:"days_until_next_bracket"`
+	DaysUntilTaxFree     *int             `json:"days_until_tax_free"`
+}
+
+type AssetTaxSummary struct {
+	EstimatedTaxDue decimal.Decimal `json:"estimated_tax_due"`
+	AfterTaxPnL     decimal.Decimal `json:"after_tax_pnl"`
+}
+
+type InvestmentTaxBracket struct {
+	ID             int64          `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID         int64          `gorm:"not null;index:idx_tax_brackets_user" json:"user_id"`
+	InvestmentType InvestmentType `gorm:"type:investment_type;not null" json:"investment_type"`
+	MinDaysHeld    int            `gorm:"not null" json:"min_days_held"`
+	ToDays         *int           `json:"to_days"`
+	TaxablePercent decimal.Decimal `gorm:"type:decimal(5,2);not null" json:"taxable_percent"`
+	Label          *string        `gorm:"type:varchar(100)" json:"label"`
+	CreatedAt      time.Time      `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt      time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+type InvestmentTaxSettings struct {
+	ID                    int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID                int64     `gorm:"not null;uniqueIndex" json:"user_id"`
+	LossOffsettingEnabled bool      `gorm:"not null;default:false" json:"loss_offsetting_enabled"`
+	CreatedAt             time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt             time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+type InvestmentTaxBracketReq struct {
+	InvestmentType InvestmentType  `json:"investment_type" validate:"required"`
+	MinDaysHeld    int             `json:"min_days_held" validate:"min=0"`
+	ToDays         *int            `json:"to_days,omitempty"`
+	TaxablePercent decimal.Decimal `json:"taxable_percent" validate:"required"`
+	Label          *string         `json:"label,omitempty"`
+}
+
+type InvestmentTaxSettingsReq struct {
+	LossOffsettingEnabled bool `json:"loss_offsetting_enabled"`
+}
+
+type InvestmentTaxBracketsCopyReq struct {
+	FromType InvestmentType `json:"from_type" validate:"required"`
+	ToType   InvestmentType `json:"to_type" validate:"required"`
 }
 
 type InvestmentIncomeReq struct {
