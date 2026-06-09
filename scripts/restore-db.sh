@@ -68,6 +68,10 @@ if [ -z "$CONTAINER_ID" ]; then
 fi
 
 if [ -z "$CONTAINER_ID" ]; then
+    CONTAINER_ID=$(docker ps --filter "name=postgres" --format "{{.ID}}" | head -1)
+fi
+
+if [ -z "$CONTAINER_ID" ]; then
     echo "Error: no running PostgreSQL container found" >&2
     exit 1
 fi
