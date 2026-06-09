@@ -18,9 +18,6 @@ import (
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	healthcheck "github.com/tavsec/gin-healthcheck"
-	"github.com/tavsec/gin-healthcheck/checks"
-	"github.com/tavsec/gin-healthcheck/config"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 )
@@ -31,9 +28,9 @@ type HttpServer struct {
 	logger *zap.Logger
 }
 
-func NewServer(container *bootstrap.ServiceContainer, logger *zap.Logger) *HttpServer {
+func NewServer(container *bootstrap.ServiceContainer, logger *zap.Logger, healthHandler http.Handler) *HttpServer {
 
-	router := NewRouter(container, logger)
+	router := NewRouter(container, logger, healthHandler)
 
 	addr := net.JoinHostPort(container.Config.Host, container.Config.HttpServer.Port)
 
@@ -82,7 +79,7 @@ func (s *HttpServer) Shutdown() error {
 	return nil
 }
 
-func NewRouter(container *bootstrap.ServiceContainer, logger *zap.Logger) *gin.Engine {
+func NewRouter(container *bootstrap.ServiceContainer, logger *zap.Logger, healthHandler http.Handler) *gin.Engine {
 
 	var r *gin.Engine
 	if container.Config.Release {
@@ -114,17 +111,7 @@ func NewRouter(container *bootstrap.ServiceContainer, logger *zap.Logger) *gin.E
 		timeout.WithResponse(timeoutResponse),
 	))
 
-	// Health check (DB)
-	sqlDB, err := container.DB.DB()
-	if err != nil {
-		panic(err)
-	}
-
-	sqlCheck := checks.SqlCheck{Sql: sqlDB}
-	err = healthcheck.New(r, config.DefaultConfig(), []checks.Check{sqlCheck})
-	if err != nil {
-		return nil
-	}
+	r.GET("/health", gin.WrapH(healthHandler))
 
 	// CORS
 	if container.Config.Release {

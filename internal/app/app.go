@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 	"wealth-warden/internal/bootstrap"
+	"wealth-warden/internal/health"
 	"wealth-warden/internal/http"
 	"wealth-warden/internal/jobscheduler"
 	"wealth-warden/internal/queue"
@@ -17,11 +18,12 @@ import (
 )
 
 type App struct {
-	logger       *zap.Logger
-	http         *http.HttpServer
-	scheduler    *jobscheduler.Scheduler
-	jobQueue     *queue.JobQueue
-	telemetry    *telemetry.Provider
+	logger    *zap.Logger
+	http      *http.HttpServer
+	scheduler *jobscheduler.Scheduler
+	jobQueue  *queue.JobQueue
+	telemetry *telemetry.Provider
+	health    *health.Service
 }
 
 func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
@@ -51,12 +53,23 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		return nil, fmt.Errorf("telemetry initialization failed: %w", err)
 	}
 
+	healthSvc, err := health.New(logger.Named("health"))
+	if err != nil {
+		return nil, fmt.Errorf("health service initialization failed: %w", err)
+	}
+	sqlDB, err := dbClient.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sql.DB for health check: %w", err)
+	}
+	healthSvc.Add(health.NewDBChecker(sqlDB))
+
 	return &App{
 		logger:    logger,
-		http:      http.NewServer(container, logger.Named("http")),
+		http:      http.NewServer(container, logger.Named("http"), healthSvc.Handler()),
 		scheduler: scheduler,
 		jobQueue:  jobQueue,
 		telemetry: tel,
+		health:    healthSvc,
 	}, nil
 }
 
@@ -99,6 +112,8 @@ func (a *App) Run(ctx context.Context) error {
 			cancel()
 		}
 	}))
+
+	supervisor.Add(worker.NewService("health", a.health.Run))
 
 	supervisor.Run(ctx)
 	return nil
