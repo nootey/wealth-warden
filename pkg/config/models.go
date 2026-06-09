@@ -12,6 +12,7 @@ type Config struct {
 	Seed              SeedConfig       `mapstructure:"seed"`
 	Mailer            MailerConfig     `mapstructure:"mailer"`
 	Scheduler         SchedulerConfig  `mapstructure:"scheduler"`
+	Otel              OtelConfig       `mapstructure:"otel"`
 }
 
 type WebClientConfig struct {
@@ -61,4 +62,8 @@ type MailerConfig struct {
 type SchedulerConfig struct {
 	ImmediateJobs     []string `mapstructure:"immediate_jobs"`
 	ConcurrentWorkers int      `mapstructure:"concurrent_workers"`
+}
+
+type OtelConfig struct {
+	OTLPEndpoint string `mapstructure:"otlp_endpoint"`
 }
