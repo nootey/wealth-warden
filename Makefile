@@ -1,14 +1,16 @@
-.PHONY: default run migrate seed mock build test test-coverage lint lint-fix docker-up docker-down docker-migrate docker-rpi-up docker-rpi-down docker-rpi-migrate tidy pre-push
+.PHONY: default run migrate seed mock build test test-coverage lint lint-fix docker-up docker-down docker-migrate docker-rpi-up docker-rpi-down docker-rpi-migrate tidy pre-push observe observe-local
 
-COMPOSE_OBS     := -f ./deployments/docker/docker-compose.observability.yaml
-COMPOSE_MAIN    := -f ./deployments/docker/docker-compose.yaml
-COMPOSE_RPI     := -f ./deployments/docker/docker-compose.rpi.yaml
-COMPOSE_RPI_OBS := -f ./deployments/docker/docker-compose.rpi.observability.yaml
+COMPOSE_OBS       := -f ./deployments/docker/docker-compose.observability.yaml
+COMPOSE_OBS_LOCAL := -f ./deployments/docker/docker-compose.observability.local.yaml
+COMPOSE_MAIN      := -f ./deployments/docker/docker-compose.yaml
+COMPOSE_RPI       := -f ./deployments/docker/docker-compose.rpi.yaml
+COMPOSE_RPI_OBS   := -f ./deployments/docker/docker-compose.rpi.observability.yaml
 
 # Default target runs the app
 default: run
 
 run:
+	docker compose $(COMPOSE_OBS) $(COMPOSE_OBS_LOCAL) up -d
 	go run ./cmd app
 
 migrate:
@@ -43,6 +45,9 @@ lint:
 lint-fix:
 	gofmt -w .
 	golangci-lint run --fix
+
+observe:
+	docker compose $(COMPOSE_OBS) $(COMPOSE_OBS_LOCAL) up -d
 
 docker-up:
 	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) -p wealth-warden up -d --build

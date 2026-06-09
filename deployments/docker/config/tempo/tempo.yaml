@@ -11,10 +11,6 @@ distributor:
         http:
           endpoint: 0.0.0.0:4318
 
-compactor:
-  compaction:
-    block_retention: 168h  # 7 days
-
 storage:
   trace:
     backend: local
