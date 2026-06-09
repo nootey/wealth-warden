@@ -17,9 +17,11 @@ import (
 	"github.com/gin-contrib/timeout"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	healthcheck "github.com/tavsec/gin-healthcheck"
 	"github.com/tavsec/gin-healthcheck/checks"
 	"github.com/tavsec/gin-healthcheck/config"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 )
 
@@ -89,6 +91,10 @@ func NewRouter(container *bootstrap.ServiceContainer, logger *zap.Logger) *gin.E
 	} else {
 		r = gin.Default()
 	}
+
+	// Observability
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	r.Use(otelgin.Middleware("wealth-warden"))
 
 	// Logging & recovery
 	wm := middleware.NewWebClientMiddleware(

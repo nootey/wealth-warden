@@ -54,6 +54,9 @@ func setDefaults() *Config {
 			ConcurrentWorkers: 5,
 			ImmediateJobs:     []string{},
 		},
+		Otel: OtelConfig{
+			OTLPEndpoint: "tempo:4317",
+		},
 	}
 }
 
@@ -69,6 +72,7 @@ func LoadConfig(configPath *string, configName ...string) (*Config, error) {
 	v.AutomaticEnv()
 
 	// Bind environment variables for nested postgres config
+	_ = v.BindEnv("otel.otlp_endpoint", "OTEL_EXPORTER_OTLP_ENDPOINT")
 	_ = v.BindEnv("postgres.host", "POSTGRES_HOST")
 	_ = v.BindEnv("postgres.user", "POSTGRES_USER")
 	_ = v.BindEnv("postgres.db", "POSTGRES_DB")
@@ -111,6 +115,9 @@ func LoadConfig(configPath *string, configName ...string) (*Config, error) {
 	}
 	if password := os.Getenv("POSTGRES_PASSWORD"); password != "" {
 		cfg.Postgres.Password = password
+	}
+	if endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); endpoint != "" {
+		cfg.Otel.OTLPEndpoint = endpoint
 	}
 
 	if err := ValidateConfig(cfg); err != nil {

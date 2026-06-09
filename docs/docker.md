@@ -14,7 +14,7 @@ Follow the guide below to get your app running.
 
 ### Configure your Docker Compose file and environment variables
 
-By default, the app will run with defaults, and does not require any environment variables.
+By default, the app will run and does not require any environment variables.
 
 > ⚠️ **Warning:** This makes the app very unsecure, since it uses default credentials and can be easily exploited.
 
@@ -39,8 +39,12 @@ For the first time setup, you must run migrations!
 docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden run --rm --build migrate
 ```
 
-To run the app, which will run all docker services, use:
+To run the app, which will run all docker services including the observability stack, use:
 
 ```sh
-docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden up -d
+docker compose -f ./deployments/docker/docker-compose.observability.yaml -f ./deployments/docker/docker-compose.yaml -p wealth-warden up -d
 ```
+
+The observability stack (Prometheus, Tempo, Grafana) is included by default. 
+Grafana is available at `https://grafana.<your-domain>`. 
+Make sure to set `GRAFANA_PASSWORD` in your `.env` file before deploying publicly.

@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-wealth_warden}
     volumes:
-      - db:/var/lib/postgresql/data
+      - db:/var/lib/postgresql
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-wealth_warden}" ]
       interval: 10s
@@ -60,6 +60,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-wealth_warden}
       - POSTGRES_PORT=5432
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-tempo:4317}
     volumes:
       - ../../logs:/app/logs
       - ../../pkg/config/override:/app/pkg/config/override:ro

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/http"
 	"wealth-warden/internal/jobscheduler"
@@ -10,15 +11,17 @@ import (
 	"wealth-warden/internal/worker"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
+	"wealth-warden/pkg/telemetry"
 
 	"go.uber.org/zap"
 )
 
 type App struct {
-	logger    *zap.Logger
-	http      *http.HttpServer
-	scheduler *jobscheduler.Scheduler
-	jobQueue  *queue.JobQueue
+	logger       *zap.Logger
+	http         *http.HttpServer
+	scheduler    *jobscheduler.Scheduler
+	jobQueue     *queue.JobQueue
+	telemetry    *telemetry.Provider
 }
 
 func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
@@ -43,11 +46,17 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)
 	}
 
+	tel, err := telemetry.New(context.Background(), cfg.Otel, logger.Named("telemetry"))
+	if err != nil {
+		return nil, fmt.Errorf("telemetry initialization failed: %w", err)
+	}
+
 	return &App{
 		logger:    logger,
 		http:      http.NewServer(container, logger.Named("http")),
 		scheduler: scheduler,
 		jobQueue:  jobQueue,
+		telemetry: tel,
 	}, nil
 }
 
@@ -56,6 +65,13 @@ func (a *App) Run(ctx context.Context) error {
 	defer cancel()
 	defer func() {
 		_ = database.DisconnectPostgres()
+	}()
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		if err := a.telemetry.Shutdown(shutdownCtx); err != nil {
+			a.logger.Error("telemetry shutdown failed", zap.Error(err))
+		}
 	}()
 
 	supervisor := worker.NewSupervisor(a.logger.Named("supervisor"))

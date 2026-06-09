@@ -49,3 +49,6 @@ scheduler:
 #    - balance_backfill
 #    - templates
 #    - savings_goal_fund
+
+# otel:
+#   otlp_endpoint: "tempo:4317"

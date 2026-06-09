@@ -1,5 +1,10 @@
 .PHONY: default run migrate seed mock build test test-coverage lint lint-fix docker-up docker-down docker-migrate docker-rpi-up docker-rpi-down docker-rpi-migrate tidy pre-push
 
+COMPOSE_OBS     := -f ./deployments/docker/docker-compose.observability.yaml
+COMPOSE_MAIN    := -f ./deployments/docker/docker-compose.yaml
+COMPOSE_RPI     := -f ./deployments/docker/docker-compose.rpi.yaml
+COMPOSE_RPI_OBS := -f ./deployments/docker/docker-compose.rpi.observability.yaml
+
 # Default target runs the app
 default: run
 
@@ -40,28 +45,28 @@ lint-fix:
 	golangci-lint run --fix
 
 docker-up:
-	docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden up -d --build
+	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) -p wealth-warden up -d --build
 
 docker-down:
-	docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden down
+	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) -p wealth-warden down
 
 docker-restart:
-	docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden restart
+	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) -p wealth-warden restart
 
 docker-migrate:
-	docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden run --rm --build migrate $(type)
+	docker compose $(COMPOSE_MAIN) -p wealth-warden run --rm --build migrate migrate $(or $(type),up)
 
 docker-rpi-up:
-	docker compose -f ./deployments/docker/docker-compose.rpi.yaml -p wealth-warden up -d --build
+	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_RPI) -p wealth-warden up -d --build
 
 docker-rpi-down:
-	docker compose -f ./deployments/docker/docker-compose.rpi.yaml -p wealth-warden down
+	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_RPI) -p wealth-warden down
 
 docker-rpi-restart:
-	docker compose -f ./deployments/docker/docker-compose.rpi.yaml -p wealth-warden restart
+	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_RPI) -p wealth-warden restart
 
 docker-rpi-migrate:
-	docker compose -f ./deployments/docker/docker-compose.rpi.yaml -p wealth-warden run --rm --build migrate $(type)
+	docker compose $(COMPOSE_RPI) -p wealth-warden run --rm --build migrate migrate $(or $(type),up)
 
 tidy:
 	go mod tidy
