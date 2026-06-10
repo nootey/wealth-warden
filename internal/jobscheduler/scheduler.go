@@ -9,7 +9,20 @@ import (
 	"wealth-warden/pkg/finance"
 
 	"github.com/go-co-op/gocron/v2"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+)
+
+const (
+	jobNameAssetHistoryBackfill = "asset-history-backfill-job"
+	jobNameBalanceBackfill      = "balance-backfill-job"
+	jobNameTemplates            = "templates-job"
+	jobNameSavingsGoalFund      = "savings-goal-fund-job"
+	jobNameAssetPriceSync       = "asset-price-sync-job"
 )
 
 type Scheduler struct {
@@ -18,6 +31,9 @@ type Scheduler struct {
 	scheduler         gocron.Scheduler
 	flags             SchedulerFlags
 	concurrentWorkers int
+	tracer            trace.Tracer
+	jobDuration       metric.Float64Histogram
+	jobRuns           metric.Int64Counter
 }
 
 type SchedulerFlags struct {
@@ -66,12 +82,34 @@ func NewScheduler(logger *zap.Logger, container *bootstrap.ServiceContainer, fla
 		concurrentWorkers = 5
 	}
 
+	meter := otel.GetMeterProvider().Meter("wealth-warden")
+
+	jobDuration, err := meter.Float64Histogram(
+		"scheduler_job_duration_seconds",
+		metric.WithDescription("Scheduler job execution duration in seconds"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	jobRuns, err := meter.Int64Counter(
+		"scheduler_job_runs_total",
+		metric.WithDescription("Total number of scheduler job executions"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Scheduler{
 		logger:            logger,
 		container:         container,
 		scheduler:         s,
 		flags:             flags,
 		concurrentWorkers: concurrentWorkers,
+		tracer:            otel.GetTracerProvider().Tracer("wealth-warden"),
+		jobDuration:       jobDuration,
+		jobRuns:           jobRuns,
 	}, nil
 }
 
@@ -95,6 +133,30 @@ func (s *Scheduler) Start(ctx context.Context) error {
 func (s *Scheduler) Shutdown() error {
 	s.logger.Info("Scheduler shutting down")
 	return s.scheduler.Shutdown()
+}
+
+func (s *Scheduler) runJob(ctx context.Context, name string, fn func(context.Context) error) error {
+	ctx, span := s.tracer.Start(ctx, "scheduler."+name)
+	defer span.End()
+
+	start := time.Now()
+	err := fn(ctx)
+	duration := time.Since(start).Seconds()
+
+	status := "success"
+	if err != nil {
+		status = "failure"
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	} else {
+		span.SetStatus(codes.Ok, "")
+	}
+
+	attrs := attribute.String("job_name", name)
+	s.jobDuration.Record(ctx, duration, metric.WithAttributes(attrs))
+	s.jobRuns.Add(ctx, 1, metric.WithAttributes(attrs, attribute.String("status", status)))
+
+	return err
 }
 
 func (s *Scheduler) registerJobs() error {
@@ -124,7 +186,7 @@ func (s *Scheduler) registerJobs() error {
 
 func (s *Scheduler) registerAssetPriceHistoryBackfillJob() error {
 
-	logger := s.logger.Named("asset-history-backfill-job")
+	logger := s.logger.Named(jobNameAssetHistoryBackfill)
 	job := NewAssetPriceHistoryBackfillJob(logger, s.container.InvestmentService, s.container.DB)
 
 	var opts []gocron.JobOption
@@ -139,7 +201,7 @@ func (s *Scheduler) registerAssetPriceHistoryBackfillJob() error {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
 
-			if err := job.Run(ctx); err != nil {
+			if err := s.runJob(ctx, jobNameAssetHistoryBackfill, job.Run); err != nil {
 				logger.Error("Price history backfill failed", zap.Error(err))
 			} else {
 				logger.Info("Price history backfill completed")
@@ -152,7 +214,7 @@ func (s *Scheduler) registerAssetPriceHistoryBackfillJob() error {
 
 func (s *Scheduler) registerBackfillJob() error {
 
-	logger := s.logger.Named("balance-backfill-job")
+	logger := s.logger.Named(jobNameBalanceBackfill)
 	job := NewBalanceBackfillJob(logger, s.container, s.concurrentWorkers)
 
 	var opts []gocron.JobOption
@@ -167,7 +229,7 @@ func (s *Scheduler) registerBackfillJob() error {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 			defer cancel()
 
-			if err := job.Run(ctx); err != nil {
+			if err := s.runJob(ctx, jobNameBalanceBackfill, job.Run); err != nil {
 				logger.Error("Backfill failed", zap.Error(err))
 			} else {
 				logger.Info("Backfill completed successfully")
@@ -180,10 +242,10 @@ func (s *Scheduler) registerBackfillJob() error {
 
 func (s *Scheduler) registerTemplateAndFundSavingsJobs() error {
 
-	tLogger := s.logger.Named("templates-job")
+	tLogger := s.logger.Named(jobNameTemplates)
 	templateJob := NewAutomateTemplateJob(tLogger, s.container, s.container.NotifDispatcher, s.concurrentWorkers)
 
-	sLogger := s.logger.Named("savings-goal-fund-job")
+	sLogger := s.logger.Named(jobNameSavingsGoalFund)
 	savingsJob := NewAutoFundGoalsJob(sLogger, s.container, s.container.NotifDispatcher, s.concurrentWorkers)
 
 	var opts []gocron.JobOption
@@ -198,14 +260,14 @@ func (s *Scheduler) registerTemplateAndFundSavingsJobs() error {
 			defer cancel()
 
 			tLogger.Info("Starting scheduled template processing job...")
-			if err := templateJob.Run(ctx); err != nil {
+			if err := s.runJob(ctx, jobNameTemplates, templateJob.Run); err != nil {
 				tLogger.Error("Template processing failed", zap.Error(err))
 			} else {
 				tLogger.Info("Template processing completed successfully")
 			}
 
 			sLogger.Info("Starting savings goal auto-fund job...")
-			if err := savingsJob.Run(ctx); err != nil {
+			if err := s.runJob(ctx, jobNameSavingsGoalFund, savingsJob.Run); err != nil {
 				sLogger.Error("Savings goal auto-fund failed", zap.Error(err))
 			} else {
 				sLogger.Info("Savings goal auto-fund completed successfully")
@@ -218,7 +280,7 @@ func (s *Scheduler) registerTemplateAndFundSavingsJobs() error {
 
 func (s *Scheduler) registerAssetPriceSyncJob() error {
 
-	logger := s.logger.Named("asset-price-sync-job")
+	logger := s.logger.Named(jobNameAssetPriceSync)
 	client, err := finance.NewPriceFetchClient(s.container.Config.FinanceAPIBaseURL)
 	if err != nil {
 		logger.Warn("Failed to create price fetch client", zap.Error(err))
@@ -240,7 +302,7 @@ func (s *Scheduler) registerAssetPriceSyncJob() error {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
 
-			if err := job.Run(ctx); err != nil {
+			if err := s.runJob(ctx, jobNameAssetPriceSync, job.Run); err != nil {
 				logger.Error("Price sync failed", zap.Error(err))
 			} else {
 				logger.Info("Price sync completed")
