@@ -54,3 +54,11 @@ scheduler:
     service_name: "wealth-warden"
     otlp_endpoint: "localhost:4317"  # local dev (tempo port mapped to host)
 #   otlp_endpoint: "tempo:4317"      # prod / in-Docker (resolve via Docker network)
+
+queue:
+  workers: 1                          # concurrent claim-loop workers
+  max_attempts: 5
+  poll_interval_ms: 1000
+  retry_initial_backoff_sec: 60
+  retry_subsequent_backoff_sec: 120
+  visibility_timeout_sec: 900         # reclaim jobs stuck in 'processing' after a crash (> longest job runtime)

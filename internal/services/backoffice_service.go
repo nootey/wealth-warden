@@ -45,7 +45,7 @@ func NewBackofficeService(
 var _ BackofficeServiceInterface = (*BackofficeService)(nil)
 
 func (s *BackofficeService) BackfillAssetCashFlows(ctx context.Context) error {
-	return s.jobDispatcher.Dispatch(queue.NewBackfillAssetCashFlowsJob(
+	return s.jobDispatcher.Dispatch(ctx, queue.NewBackfillAssetCashFlowsJob(
 		s.logger.Named("backfill_asset_cash_flows"),
 		s.investmentService,
 		s.accountService,
@@ -54,7 +54,7 @@ func (s *BackofficeService) BackfillAssetCashFlows(ctx context.Context) error {
 }
 
 func (s *BackofficeService) CorrectFeeAccounting(ctx context.Context) error {
-	return s.jobDispatcher.Dispatch(queue.NewCorrectFeeAccountingJob(
+	return s.jobDispatcher.Dispatch(ctx, queue.NewCorrectFeeAccountingJob(
 		s.logger.Named("correct_fee_accounting"),
 		s.investmentService,
 		s.accountService,

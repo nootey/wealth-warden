@@ -127,12 +127,12 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 			if len(s.failed) > 0 {
 				title := fmt.Sprintf("%d template(s) failed", len(s.failed))
 				msg := strings.Join(s.failed, ",\n")
-				_ = j.notifDispatcher.Dispatch(userID, title, msg, models.NotificationTypeError)
+				_ = j.notifDispatcher.Dispatch(ctx, userID, title, msg, models.NotificationTypeError)
 			}
 			if len(s.succeeded) > 0 {
 				title := fmt.Sprintf("%d template(s) executed", len(s.succeeded))
 				msg := strings.Join(s.succeeded, ",\n")
-				_ = j.notifDispatcher.Dispatch(userID, title, msg, models.NotificationTypeSuccess)
+				_ = j.notifDispatcher.Dispatch(ctx, userID, title, msg, models.NotificationTypeSuccess)
 			}
 		}
 	}

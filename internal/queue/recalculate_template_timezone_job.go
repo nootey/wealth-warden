@@ -21,6 +21,8 @@ type RecalculateTemplateTimezoneJob struct {
 	NewTimezone string
 }
 
+func (j *RecalculateTemplateTimezoneJob) Type() string { return TypeRecalculateTemplateTZ }
+
 func NewRecalculateTemplateTimezoneJob(
 	logger *zap.Logger,
 	repo templateRescheduler,

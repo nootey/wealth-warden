@@ -33,10 +33,12 @@ type xlsxStyles struct {
 type GenerateCategoryReportJob struct {
 	logger        *zap.Logger
 	analyticsRepo repositories.AnalyticsRepositoryInterface
-	reportID      int64
-	userID        int64
-	params        models.CategoryReportParams
+	ReportID      int64
+	UserID        int64
+	Params        models.CategoryReportParams
 }
+
+func (j *GenerateCategoryReportJob) Type() string { return TypeGenerateCategoryReport }
 
 func NewGenerateCategoryReportJob(
 	logger *zap.Logger,
@@ -47,14 +49,14 @@ func NewGenerateCategoryReportJob(
 	return &GenerateCategoryReportJob{
 		logger:        logger,
 		analyticsRepo: analyticsRepo,
-		reportID:      reportID,
-		userID:        userID,
-		params:        params,
+		ReportID:      reportID,
+		UserID:        userID,
+		Params:        params,
 	}
 }
 
 func (j *GenerateCategoryReportJob) Process(ctx context.Context) error {
-	if err := j.analyticsRepo.UpdateReport(ctx, nil, j.reportID, map[string]interface{}{
+	if err := j.analyticsRepo.UpdateReport(ctx, nil, j.ReportID, map[string]interface{}{
 		"status": "processing",
 	}); err != nil {
 		return err
@@ -62,12 +64,12 @@ func (j *GenerateCategoryReportJob) Process(ctx context.Context) error {
 
 	rows, err := j.analyticsRepo.FetchCategoryReportData(
 		ctx, nil,
-		j.userID,
-		j.params.InflowCategoryIDs,
-		j.params.OutflowCategoryIDs,
-		j.params.Years,
-		j.params.AllTime,
-		j.params.Description,
+		j.UserID,
+		j.Params.InflowCategoryIDs,
+		j.Params.OutflowCategoryIDs,
+		j.Params.Years,
+		j.Params.AllTime,
+		j.Params.Description,
 	)
 	if err != nil {
 		return j.fail(ctx, err)
@@ -87,7 +89,7 @@ func (j *GenerateCategoryReportJob) Process(ctx context.Context) error {
 
 	now := time.Now().UTC()
 	fileSize := int64(len(data))
-	return j.analyticsRepo.UpdateReport(ctx, nil, j.reportID, map[string]interface{}{
+	return j.analyticsRepo.UpdateReport(ctx, nil, j.ReportID, map[string]interface{}{
 		"status":       "completed",
 		"name":         j.reportName(categoryLabel),
 		"file_path":    filePath,
@@ -97,9 +99,9 @@ func (j *GenerateCategoryReportJob) Process(ctx context.Context) error {
 }
 
 func (j *GenerateCategoryReportJob) fail(ctx context.Context, err error) error {
-	j.logger.Error("category report generation failed", zap.Int64("reportID", j.reportID), zap.Error(err))
+	j.logger.Error("category report generation failed", zap.Int64("reportID", j.ReportID), zap.Error(err))
 	msg := err.Error()
-	_ = j.analyticsRepo.UpdateReport(ctx, nil, j.reportID, map[string]interface{}{
+	_ = j.analyticsRepo.UpdateReport(ctx, nil, j.ReportID, map[string]interface{}{
 		"status": "failed",
 		"error":  msg,
 	})
@@ -129,7 +131,7 @@ func (j *GenerateCategoryReportJob) buildXLSX(rows []models.CategoryReportDataRo
 	}
 	j.writeSummarySheet(f, "Summary", styles, rows, years)
 
-	if j.params.AllTime && len(years) > 1 {
+	if j.Params.AllTime && len(years) > 1 {
 		if _, err := f.NewSheet("All Time"); err != nil {
 			return nil, err
 		}
@@ -838,28 +840,28 @@ func (j *GenerateCategoryReportJob) addAllTimeChart(
 
 func (j *GenerateCategoryReportJob) reportName(categoryLabel string) string {
 	var yearPart string
-	if j.params.AllTime {
+	if j.Params.AllTime {
 		yearPart = "All Time"
 	} else {
-		parts := make([]string, len(j.params.Years))
-		for i, y := range j.params.Years {
+		parts := make([]string, len(j.Params.Years))
+		for i, y := range j.Params.Years {
 			parts[i] = fmt.Sprintf("%d", y)
 		}
 		yearPart = strings.Join(parts, ", ")
 	}
 	name := fmt.Sprintf("Category Report - %s - %s", categoryLabel, yearPart)
-	if j.params.Description != "" {
-		name += fmt.Sprintf(" (%s)", j.params.Description)
+	if j.Params.Description != "" {
+		name += fmt.Sprintf(" (%s)", j.Params.Description)
 	}
 	return name
 }
 
 func (j *GenerateCategoryReportJob) saveFile(data []byte) (string, error) {
-	dir := filepath.Join("storage", "reports", fmt.Sprintf("%d", j.userID))
+	dir := filepath.Join("storage", "reports", fmt.Sprintf("%d", j.UserID))
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
-	filePath := filepath.Join(dir, fmt.Sprintf("%d.xlsx", j.reportID))
+	filePath := filepath.Join(dir, fmt.Sprintf("%d.xlsx", j.ReportID))
 	if err := os.WriteFile(filePath, data, 0644); err != nil {
 		return "", err
 	}

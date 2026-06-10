@@ -8,12 +8,14 @@ import (
 	"wealth-warden/internal/health"
 	"wealth-warden/internal/http"
 	"wealth-warden/internal/jobscheduler"
+	"wealth-warden/internal/jobworker"
 	"wealth-warden/internal/queue"
 	"wealth-warden/internal/worker"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
 	"wealth-warden/pkg/telemetry"
 
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
 
@@ -21,7 +23,7 @@ type App struct {
 	logger    *zap.Logger
 	http      *http.HttpServer
 	scheduler *jobscheduler.Scheduler
-	jobQueue  *queue.JobQueue
+	consumer  *jobworker.Consumer
 	telemetry *telemetry.Provider
 	health    *health.Service
 }
@@ -34,9 +36,17 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		return nil, fmt.Errorf("database connection failed: %w", err)
 	}
 
-	// In memory job queue
-	jobQueue := queue.NewJobQueue(1, 25)
-	jobDispatcher := &queue.InMemoryDispatcher{Queue: jobQueue}
+	// Telemetry: the dispatcher and consumer register OTEL instruments against the global providers set here.
+	tel, err := telemetry.New(context.Background(), cfg.Otel, logger.Named("telemetry"))
+	if err != nil {
+		return nil, fmt.Errorf("telemetry initialization failed: %w", err)
+	}
+
+	// DB-backed job queue
+	jobDispatcher, err := queue.NewDBDispatcher(dbClient, otel.GetMeterProvider().Meter(cfg.Otel.ServiceName))
+	if err != nil {
+		return nil, fmt.Errorf("job dispatcher initialization failed: %w", err)
+	}
 
 	container, err := bootstrap.NewServiceContainer(cfg, dbClient, logger.Named("container"), jobDispatcher, nil)
 	if err != nil {
@@ -48,9 +58,9 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)
 	}
 
-	tel, err := telemetry.New(context.Background(), cfg.Otel, logger.Named("telemetry"))
+	consumer, err := jobworker.NewConsumer(container, logger.Named("job-consumer"), cfg.Queue)
 	if err != nil {
-		return nil, fmt.Errorf("telemetry initialization failed: %w", err)
+		return nil, fmt.Errorf("failed to create job consumer: %w", err)
 	}
 
 	healthSvc, err := health.New(logger.Named("health"))
@@ -67,7 +77,7 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		logger:    logger,
 		http:      http.NewServer(container, logger.Named("http"), healthSvc.Handler()),
 		scheduler: scheduler,
-		jobQueue:  jobQueue,
+		consumer:  consumer,
 		telemetry: tel,
 		health:    healthSvc,
 	}, nil
@@ -105,13 +115,7 @@ func (a *App) Run(ctx context.Context) error {
 		_ = a.scheduler.Shutdown()
 	}))
 
-	supervisor.Add(worker.NewService("job-queue", func(ctx context.Context) {
-		a.jobQueue.Run(ctx)
-		if err := a.jobQueue.Shutdown(); err != nil {
-			a.logger.Error("job queue shutdown failed", zap.Error(err))
-			cancel()
-		}
-	}))
+	supervisor.Add(worker.NewService("job-consumer", a.consumer.Run))
 
 	supervisor.Add(worker.NewService("health", a.health.Run))
 

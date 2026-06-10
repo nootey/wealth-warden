@@ -15,11 +15,13 @@ type pnlSvc interface {
 
 type RecalculateAssetPnLJob struct {
 	logger            *zap.Logger
-	InvestmentService pnlSvc
+	InvestmentService pnlSvc `json:"-"`
 	UserID            int64
 	AssetID           *int64 // nil = all assets for the account
 	AccountID         *int64 // nil = single asset mode
 }
+
+func (j *RecalculateAssetPnLJob) Type() string { return TypeRecalculateAssetPnL }
 
 func NewRecalculateAssetPnLJob(
 	logger *zap.Logger,

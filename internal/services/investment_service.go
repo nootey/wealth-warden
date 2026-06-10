@@ -334,7 +334,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	utils.CompareChanges("", string(hold.InvestmentType), changes, "type")
 	utils.CompareChanges("", quantityString, changes, "quantity")
 
-	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "investment",
@@ -563,7 +563,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		utils.CompareChanges("", *txn.Description, changes, "description")
 	}
 
-	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "investment_trade",
@@ -575,7 +575,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, err
 	}
 
-	if err := s.jobDispatcher.Dispatch(queue.NewSyncAssetAfterTradeJob(
+	if err := s.jobDispatcher.Dispatch(ctx, queue.NewSyncAssetAfterTradeJob(
 		s.logger.Named("sync_after_trade"),
 		s,
 		userID,
@@ -878,7 +878,7 @@ func (s *InvestmentService) UpdateInvestmentAsset(ctx context.Context, userID in
 	utils.CompareChanges(exHold.Name, hold.Name, changes, "name")
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "investment",
@@ -956,7 +956,7 @@ func (s *InvestmentService) UpdateInvestmentTrade(ctx context.Context, userID in
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "investment_trade",
@@ -1076,7 +1076,7 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 	utils.CompareChanges(asset.Ticker, "", changes, "ticker")
 	utils.CompareChanges(asset.Name, "", changes, "name")
 
-	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "delete",
 		Category:    "investment",
@@ -1207,7 +1207,7 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 	utils.CompareChanges(exTxn.PricePerUnit.StringFixed(2), "", changes, "price_per_unit")
 	utils.CompareChanges(string(exTxn.TradeType), "", changes, "type")
 
-	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "delete",
 		Category:    "investment_trade",
@@ -1401,7 +1401,7 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 
 	if req.IncomeType == models.IncomeTypeStaking {
 		txnDate := req.TxnDate.UTC().Truncate(24 * time.Hour)
-		if err := s.jobDispatcher.Dispatch(queue.NewSyncAssetAfterTradeJob(
+		if err := s.jobDispatcher.Dispatch(ctx, queue.NewSyncAssetAfterTradeJob(
 			s.logger.Named("sync_after_income"),
 			s,
 			userID,

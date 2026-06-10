@@ -23,10 +23,12 @@ type userBackfillSvc interface {
 
 type BackfillAssetCashFlowsJob struct {
 	logger            *zap.Logger
-	InvestmentService investmentBackfillSvc
-	AccountService    accountBackfillSvc
-	UserService       userBackfillSvc
+	InvestmentService investmentBackfillSvc `json:"-"`
+	AccountService    accountBackfillSvc    `json:"-"`
+	UserService       userBackfillSvc       `json:"-"`
 }
+
+func (j *BackfillAssetCashFlowsJob) Type() string { return TypeBackfillAssetCashFlows }
 
 func NewBackfillAssetCashFlowsJob(
 	logger *zap.Logger,
