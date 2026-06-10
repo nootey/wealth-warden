@@ -233,7 +233,7 @@ func (j *AssetPriceSyncJob) fetchPrices(ctx context.Context, assets []struct {
 }
 
 func (j *AssetPriceSyncJob) updateAssetsAndTrades(ctx context.Context, priceData map[string]*finance.PriceData) (int, error) {
-	tx := j.db.Begin()
+	tx := j.db.WithContext(ctx).Begin()
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
@@ -266,7 +266,7 @@ func (j *AssetPriceSyncJob) updateAssetsAndTrades(ctx context.Context, priceData
 
 func (j *AssetPriceSyncJob) updateAssetsByTicker(ctx context.Context, tx *gorm.DB, ticker string, price *finance.PriceData, now time.Time, today time.Time) (int, error) {
 	var assets []models.InvestmentAsset
-	err := tx.WithContext(ctx).
+	err := tx.
 		Preload("Account").
 		Joins("JOIN accounts ON accounts.id = investment_assets.account_id").
 		Where("investment_assets.ticker = ? AND investment_assets.quantity > 0", ticker).

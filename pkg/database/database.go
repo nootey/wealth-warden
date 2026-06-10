@@ -12,6 +12,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"gorm.io/plugin/opentelemetry/tracing"
 )
 
 var (
@@ -46,6 +47,14 @@ func ConnectToDatabase(cfg *config.Config, targetDB string, zapLogger *zap.Logge
 			zap.Error(err))
 		return nil, err
 	}
+
+	// WithoutQueryVariables keeps raw bound values (amounts, balances — PII) out of trace spans;
+	// metrics are left on to expose go.sql.connections_* pool stats.
+	if err := db.Use(tracing.NewPlugin(tracing.WithoutQueryVariables())); err != nil {
+		zapLogger.Error("Failed to register GORM OTEL plugin", zap.Error(err))
+		return nil, err
+	}
+	zapLogger.Info("Registered GORM OTEL plugin", zap.String("database", targetDB))
 
 	sqlDB, err := db.DB()
 	if err != nil {

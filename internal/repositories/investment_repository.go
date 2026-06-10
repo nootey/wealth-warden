@@ -774,8 +774,8 @@ func (r *InvestmentRepository) GetInvestmentTotalsUpToDate(ctx context.Context, 
 		Spent    decimal.Decimal
 	}
 
-	err := db.Raw(`
-        SELECT 
+	err := db.WithContext(ctx).Raw(`
+        SELECT
             COALESCE(SUM(CASE WHEN trade_type = 'buy' THEN quantity ELSE -quantity END), 0) as quantity,
             COALESCE(SUM(CASE WHEN trade_type = 'buy' THEN value_at_buy ELSE 0 END), 0) as spent
         FROM investment_trades
