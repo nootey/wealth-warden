@@ -56,6 +56,7 @@ func setDefaults() *Config {
 		},
 		Otel: OtelConfig{
 			OTLPEndpoint: "tempo:4317",
+			ServiceName:  "wealth-warden",
 		},
 	}
 }

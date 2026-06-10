@@ -82,7 +82,7 @@ func NewScheduler(logger *zap.Logger, container *bootstrap.ServiceContainer, fla
 		concurrentWorkers = 5
 	}
 
-	meter := otel.GetMeterProvider().Meter("wealth-warden")
+	meter := otel.GetMeterProvider().Meter(container.Config.Otel.ServiceName)
 
 	jobDuration, err := meter.Float64Histogram(
 		"scheduler_job_duration_seconds",
@@ -107,7 +107,7 @@ func NewScheduler(logger *zap.Logger, container *bootstrap.ServiceContainer, fla
 		scheduler:         s,
 		flags:             flags,
 		concurrentWorkers: concurrentWorkers,
-		tracer:            otel.GetTracerProvider().Tracer("wealth-warden"),
+		tracer:            otel.GetTracerProvider().Tracer(container.Config.Otel.ServiceName),
 		jobDuration:       jobDuration,
 		jobRuns:           jobRuns,
 	}, nil

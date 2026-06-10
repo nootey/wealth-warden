@@ -28,8 +28,10 @@ type Provider struct {
 
 func New(ctx context.Context, cfg config.OtelConfig, logger *zap.Logger) (*Provider, error) {
 	res := resource.NewWithAttributes("",
-		attribute.String("service.name", "wealth-warden"),
+		attribute.String("service.name", cfg.ServiceName),
 	)
+
+	logger.Info("connecting to Tempo", zap.String("otlp_endpoint", cfg.OTLPEndpoint), zap.String("service_name", cfg.ServiceName))
 
 	conn, err := grpc.NewClient(
 		cfg.OTLPEndpoint,
@@ -67,7 +69,7 @@ func New(ctx context.Context, cfg config.OtelConfig, logger *zap.Logger) (*Provi
 		propagation.Baggage{},
 	))
 
-	logger.Info("OpenTelemetry initialized", zap.String("otlp_endpoint", cfg.OTLPEndpoint))
+	logger.Info("OpenTelemetry initialized")
 
 	return &Provider{
 		tracerProvider: tracerProvider,

@@ -50,5 +50,7 @@ scheduler:
 #    - templates
 #    - savings_goal_fund
 
-# otel:
-#   otlp_endpoint: "tempo:4317"
+  otel:
+    service_name: "wealth-warden"
+    otlp_endpoint: "localhost:4317"  # local dev (tempo port mapped to host)
+#   otlp_endpoint: "tempo:4317"      # prod / in-Docker (resolve via Docker network)

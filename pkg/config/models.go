@@ -66,4 +66,5 @@ type SchedulerConfig struct {
 
 type OtelConfig struct {
 	OTLPEndpoint string `mapstructure:"otlp_endpoint"`
+	ServiceName  string `mapstructure:"service_name"`
 }
