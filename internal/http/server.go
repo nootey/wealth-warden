@@ -86,6 +86,8 @@ func NewRouter(container *bootstrap.ServiceContainer, logger *zap.Logger, health
 		gin.SetMode(gin.ReleaseMode)
 		r = gin.New()
 	} else {
+		// Skip the per-route dump; too many routes.
+		gin.DebugPrintRouteFunc = func(httpMethod, absolutePath, handlerName string, nuHandlers int) {}
 		r = gin.Default()
 	}
 
