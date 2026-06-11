@@ -448,6 +448,13 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	effectiveQuantity, valueAtBuy := s.calculateTradeValue(req, asset.InvestmentType, fee)
 	currentPrice, lastPriceUpdate := s.fetchCurrentPrice(ctx, tx, asset)
 
+	// The full req.Quantity leaves holdings on a sell; the fee (in coin units for
+	// crypto) only reduces cash proceeds, it does not stay in the position.
+	holdingsQuantity := effectiveQuantity
+	if req.TradeType == models.InvestmentSell {
+		holdingsQuantity = req.Quantity
+	}
+
 	// Calculate trade PnL
 	var txnCurrentValue, txnProfitLoss, txnProfitLossPercent, txnRealizedValue decimal.Decimal
 
@@ -481,7 +488,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		AssetID:           req.AssetID,
 		TxnDate:           req.TxnDate,
 		TradeType:         req.TradeType,
-		Quantity:          effectiveQuantity,
+		Quantity:          holdingsQuantity,
 		PricePerUnit:      req.PricePerUnit,
 		Fee:               fee,
 		ValueAtBuy:        txnValueAtBuy,
@@ -540,7 +547,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, err
 	}
 
-	if err := s.repo.UpdateAssetAfterTrade(ctx, tx, asset.ID, effectiveQuantity, req.PricePerUnit, currentPrice, lastPriceUpdate, req.TradeType, valueAtBuy, fee); err != nil {
+	if err := s.repo.UpdateAssetAfterTrade(ctx, tx, asset.ID, holdingsQuantity, req.PricePerUnit, currentPrice, lastPriceUpdate, req.TradeType, valueAtBuy, fee); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
