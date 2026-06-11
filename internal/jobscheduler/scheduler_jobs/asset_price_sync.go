@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
+	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/finance"
 
@@ -27,7 +27,7 @@ type AssetPriceSyncJob struct {
 	accService        accService
 	db                *gorm.DB
 	priceFetchClient  finance.PriceFetcher
-	notifDispatcher   queue.NotificationDispatcher
+	notifDispatcher   queue_jobs.NotificationDispatcher
 	concurrentWorkers int
 }
 
@@ -37,7 +37,7 @@ func NewAssetPriceSyncJob(
 	accService accService,
 	db *gorm.DB,
 	priceFetchClient finance.PriceFetcher,
-	notifDispatcher queue.NotificationDispatcher,
+	notifDispatcher queue_jobs.NotificationDispatcher,
 	concurrentWorkers int,
 ) *AssetPriceSyncJob {
 	return &AssetPriceSyncJob{

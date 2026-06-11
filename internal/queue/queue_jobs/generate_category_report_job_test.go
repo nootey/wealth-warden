@@ -1,15 +1,13 @@
-package queue_test
+package queue_jobs_test
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
+	"wealth-warden/internal/queue/queue_jobs"
 
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap/zaptest"
@@ -97,23 +95,20 @@ var sampleRows = []models.CategoryReportDataRow{
 	{Year: 2024, Month: 3, CategoryName: "Salary", Classification: "inflow", Total: decimal.NewFromInt(5100)},
 }
 
-func cleanupReportFiles(t *testing.T, userID string) {
-	t.Helper()
-	t.Cleanup(func() {
-		err := os.RemoveAll(filepath.Join("storage", "reports", userID))
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-	})
+func TestMain(m *testing.M) {
+	code := m.Run()
+	// The report job writes xlsx files under storage/reports relative to this
+	// package dir; drop the whole tree so no empty storage/ dir is left behind.
+	_ = os.RemoveAll("storage")
+	os.Exit(code)
 }
 
 func TestGenerateCategoryReportJob_HappyPath(t *testing.T) {
 	repo := &mockAnalyticsRepo{fetchRows: sampleRows}
-	job := queue.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, 1, 1, models.CategoryReportParams{
+	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, 1, 1, models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		Years:             []int{2024},
 	})
-	cleanupReportFiles(t, "1")
 
 	if err := job.Process(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -135,7 +130,7 @@ func TestGenerateCategoryReportJob_HappyPath(t *testing.T) {
 
 func TestGenerateCategoryReportJob_FetchError_SetsFailedStatus(t *testing.T) {
 	repo := &mockAnalyticsRepo{fetchErr: errors.New("db unavailable")}
-	job := queue.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, 42, 1, models.CategoryReportParams{
+	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, 42, 1, models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		Years:             []int{2024},
 	})
@@ -153,7 +148,7 @@ func TestGenerateCategoryReportJob_FetchError_SetsFailedStatus(t *testing.T) {
 
 func TestGenerateCategoryReportJob_InitialUpdateError_ReturnsImmediately(t *testing.T) {
 	repo := &mockAnalyticsRepo{updateErr: errors.New("write failed"), updateErrOn: 1}
-	job := queue.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, 1, 1, models.CategoryReportParams{
+	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, 1, 1, models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		Years:             []int{2024},
 	})
@@ -173,11 +168,10 @@ func TestGenerateCategoryReportJob_AllTime_MultipleYears(t *testing.T) {
 		{Year: 2024, Month: 1, CategoryName: "Salary", Classification: "inflow", Total: decimal.NewFromInt(5000)},
 	}
 	repo := &mockAnalyticsRepo{fetchRows: rows}
-	job := queue.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, 2, 1, models.CategoryReportParams{
+	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, 2, 1, models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		AllTime:           true,
 	})
-	cleanupReportFiles(t, "1")
 
 	if err := job.Process(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)

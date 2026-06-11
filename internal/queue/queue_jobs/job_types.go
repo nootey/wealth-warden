@@ -1,4 +1,4 @@
-package queue
+package queue_jobs
 
 const (
 	TypeActivityLog            = "activity_log"

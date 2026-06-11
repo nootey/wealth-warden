@@ -7,7 +7,7 @@ import (
 	"sync"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
+	"wealth-warden/internal/queue/queue_jobs"
 
 	"go.uber.org/zap"
 )
@@ -15,11 +15,11 @@ import (
 type AutomateTemplateJob struct {
 	logger            *zap.Logger
 	container         *bootstrap.ServiceContainer
-	notifDispatcher   queue.NotificationDispatcher
+	notifDispatcher   queue_jobs.NotificationDispatcher
 	concurrentWorkers int
 }
 
-func NewAutomateTemplateJob(logger *zap.Logger, container *bootstrap.ServiceContainer, notifDispatcher queue.NotificationDispatcher, concurrentWorkers int) *AutomateTemplateJob {
+func NewAutomateTemplateJob(logger *zap.Logger, container *bootstrap.ServiceContainer, notifDispatcher queue_jobs.NotificationDispatcher, concurrentWorkers int) *AutomateTemplateJob {
 	return &AutomateTemplateJob{
 		logger:            logger,
 		container:         container,

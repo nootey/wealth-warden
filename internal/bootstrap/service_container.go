@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"time"
 	"wealth-warden/internal/queue"
+	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -33,7 +34,7 @@ type ServiceContainer struct {
 	AnalyticsService    *services.AnalyticsService
 	SavingsService      *services.SavingsService
 	NotificationService *services.NotificationService
-	NotifDispatcher     queue.NotificationDispatcher
+	NotifDispatcher     queue_jobs.NotificationDispatcher
 }
 
 // NewServiceContainer initialises the application service layer.
@@ -86,7 +87,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService, accountService, userService)
 	savingsService := services.NewSavingsService(savingsRepo, accountRepo, loggingRepo, jobDispatcher)
 	notificationService := services.NewNotificationService(notificationRepo)
-	notifDispatcher := queue.NewNotificationDispatcher(notificationRepo, jobDispatcher)
+	notifDispatcher := queue_jobs.NewNotificationDispatcher(notificationRepo, jobDispatcher)
 
 	return &ServiceContainer{
 		Config:              cfg,

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue"
+	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
 )
@@ -117,7 +118,7 @@ func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, re
 
 	utils.CompareChanges("", permString, changes, "permissions")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "role",
@@ -205,7 +206,7 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 	}
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "role",
@@ -269,7 +270,7 @@ func (s *RolePermissionService) DeleteRole(ctx context.Context, userID, id int64
 	utils.CompareChanges(utils.SafeString(role.Description), "", changes, "description")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "delete",
 			Category:    "user",

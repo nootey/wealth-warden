@@ -8,6 +8,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue"
+	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
@@ -68,7 +69,7 @@ func (s *AuthService) log(ctx context.Context, event, email, userAgent, ip, stat
 	utils.CompareChanges("", utils.SafeString(&ip), changes, "ip_address")
 	utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
 
-	err := s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
+	err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       event,
 		Category:    "auth",

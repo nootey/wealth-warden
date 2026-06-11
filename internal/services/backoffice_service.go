@@ -4,6 +4,7 @@ import (
 	"context"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue"
+	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 
 	"go.uber.org/zap"
@@ -45,7 +46,7 @@ func NewBackofficeService(
 var _ BackofficeServiceInterface = (*BackofficeService)(nil)
 
 func (s *BackofficeService) BackfillAssetCashFlows(ctx context.Context) error {
-	return s.jobDispatcher.Dispatch(ctx, queue.NewBackfillAssetCashFlowsJob(
+	return s.jobDispatcher.Dispatch(ctx, queue_jobs.NewBackfillAssetCashFlowsJob(
 		s.logger.Named("backfill_asset_cash_flows"),
 		s.investmentService,
 		s.accountService,
@@ -54,7 +55,7 @@ func (s *BackofficeService) BackfillAssetCashFlows(ctx context.Context) error {
 }
 
 func (s *BackofficeService) CorrectFeeAccounting(ctx context.Context) error {
-	return s.jobDispatcher.Dispatch(ctx, queue.NewCorrectFeeAccountingJob(
+	return s.jobDispatcher.Dispatch(ctx, queue_jobs.NewCorrectFeeAccountingJob(
 		s.logger.Named("correct_fee_accounting"),
 		s.investmentService,
 		s.accountService,

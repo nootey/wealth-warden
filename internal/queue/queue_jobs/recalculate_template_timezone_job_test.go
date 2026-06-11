@@ -1,4 +1,4 @@
-package queue_test
+package queue_jobs_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
+	"wealth-warden/internal/queue/queue_jobs"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +30,7 @@ func (m *mockTemplateRescheduler) BulkUpdateTemplateTimezone(_ context.Context, 
 }
 
 func TestRecalculateTemplateTimezoneJob_InvalidTimezone(t *testing.T) {
-	job := queue.NewRecalculateTemplateTimezoneJob(
+	job := queue_jobs.NewRecalculateTemplateTimezoneJob(
 		zaptest.NewLogger(t),
 		&mockTemplateRescheduler{},
 		1, "UTC", "Not/ATimezone",
@@ -42,7 +42,7 @@ func TestRecalculateTemplateTimezoneJob_InvalidTimezone(t *testing.T) {
 
 func TestRecalculateTemplateTimezoneJob_GetTemplatesError(t *testing.T) {
 	repo := &mockTemplateRescheduler{getErr: errors.New("db error")}
-	job := queue.NewRecalculateTemplateTimezoneJob(
+	job := queue_jobs.NewRecalculateTemplateTimezoneJob(
 		zaptest.NewLogger(t),
 		repo,
 		1, "UTC", "Europe/Ljubljana",
@@ -54,7 +54,7 @@ func TestRecalculateTemplateTimezoneJob_GetTemplatesError(t *testing.T) {
 
 func TestRecalculateTemplateTimezoneJob_NoTemplates(t *testing.T) {
 	repo := &mockTemplateRescheduler{templates: []models.TransactionTemplate{}}
-	job := queue.NewRecalculateTemplateTimezoneJob(
+	job := queue_jobs.NewRecalculateTemplateTimezoneJob(
 		zaptest.NewLogger(t),
 		repo,
 		1, "UTC", "Europe/Ljubljana",
@@ -72,7 +72,7 @@ func TestRecalculateTemplateTimezoneJob_BulkUpdateError(t *testing.T) {
 		},
 		updateErr: errors.New("update failed"),
 	}
-	job := queue.NewRecalculateTemplateTimezoneJob(
+	job := queue_jobs.NewRecalculateTemplateTimezoneJob(
 		zaptest.NewLogger(t),
 		repo,
 		1, "UTC", "Europe/Ljubljana",
@@ -92,7 +92,7 @@ func TestRecalculateTemplateTimezoneJob_ReanchorsToSameLocalDate(t *testing.T) {
 			{ID: 1, NextRunAt: utcMidnight, DayOfMonth: 15},
 		},
 	}
-	job := queue.NewRecalculateTemplateTimezoneJob(
+	job := queue_jobs.NewRecalculateTemplateTimezoneJob(
 		zaptest.NewLogger(t),
 		repo,
 		1, "UTC", "Europe/Ljubljana",
@@ -127,7 +127,7 @@ func TestRecalculateTemplateTimezoneJob_MultipleTemplates(t *testing.T) {
 			{ID: 2, NextRunAt: t2, DayOfMonth: 20},
 		},
 	}
-	job := queue.NewRecalculateTemplateTimezoneJob(
+	job := queue_jobs.NewRecalculateTemplateTimezoneJob(
 		zaptest.NewLogger(t),
 		repo,
 		1, "UTC", "Europe/Paris",
