@@ -1,8 +1,8 @@
-package jobscheduler_test
+package scheduler_jobs_test
 
 import (
 	"testing"
-	"wealth-warden/internal/jobscheduler"
+	"wealth-warden/internal/jobscheduler/scheduler_jobs"
 	"wealth-warden/internal/tests"
 
 	"github.com/stretchr/testify/suite"
@@ -20,7 +20,7 @@ func TestAutomateTemplateJobSuite(t *testing.T) {
 // Test that automate template job runs
 func (s *AutomateTemplateJobTestSuite) TestAutomateTemplateJob_Success() {
 	logger := zaptest.NewLogger(s.T())
-	job := jobscheduler.NewAutomateTemplateJob(logger, s.TC.App, nil, 0)
+	job := scheduler_jobs.NewAutomateTemplateJob(logger, s.TC.App, nil, 0)
 
 	err := job.Run(s.Ctx)
 	s.NoError(err)

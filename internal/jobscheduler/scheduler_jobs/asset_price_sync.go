@@ -1,4 +1,4 @@
-package jobscheduler
+package scheduler_jobs
 
 import (
 	"context"

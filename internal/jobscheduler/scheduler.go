@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 	"wealth-warden/internal/bootstrap"
+	"wealth-warden/internal/jobscheduler/scheduler_jobs"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/finance"
 
@@ -187,7 +188,7 @@ func (s *Scheduler) registerJobs() error {
 func (s *Scheduler) registerAssetPriceHistoryBackfillJob() error {
 
 	logger := s.logger.Named(jobNameAssetHistoryBackfill)
-	job := NewAssetPriceHistoryBackfillJob(logger, s.container.InvestmentService, s.container.DB)
+	job := scheduler_jobs.NewAssetPriceHistoryBackfillJob(logger, s.container.InvestmentService, s.container.DB)
 
 	var opts []gocron.JobOption
 	if s.flags.StartAssetHistoryBackfillImmediately {
@@ -215,7 +216,7 @@ func (s *Scheduler) registerAssetPriceHistoryBackfillJob() error {
 func (s *Scheduler) registerBackfillJob() error {
 
 	logger := s.logger.Named(jobNameBalanceBackfill)
-	job := NewBalanceBackfillJob(logger, s.container, s.concurrentWorkers)
+	job := scheduler_jobs.NewBalanceBackfillJob(logger, s.container, s.concurrentWorkers)
 
 	var opts []gocron.JobOption
 	if s.flags.StartBalanceBackfillImmediately {
@@ -243,10 +244,10 @@ func (s *Scheduler) registerBackfillJob() error {
 func (s *Scheduler) registerTemplateAndFundSavingsJobs() error {
 
 	tLogger := s.logger.Named(jobNameTemplates)
-	templateJob := NewAutomateTemplateJob(tLogger, s.container, s.container.NotifDispatcher, s.concurrentWorkers)
+	templateJob := scheduler_jobs.NewAutomateTemplateJob(tLogger, s.container, s.container.NotifDispatcher, s.concurrentWorkers)
 
 	sLogger := s.logger.Named(jobNameSavingsGoalFund)
-	savingsJob := NewAutoFundGoalsJob(sLogger, s.container, s.container.NotifDispatcher, s.concurrentWorkers)
+	savingsJob := scheduler_jobs.NewAutoFundGoalsJob(sLogger, s.container, s.container.NotifDispatcher, s.concurrentWorkers)
 
 	var opts []gocron.JobOption
 	if s.flags.StartTemplatesImmediately || s.flags.StartSavingsGoalFundImmediately {
@@ -286,7 +287,7 @@ func (s *Scheduler) registerAssetPriceSyncJob() error {
 		logger.Warn("Failed to create price fetch client", zap.Error(err))
 	}
 
-	job := NewAssetPriceSyncJob(logger, s.container.InvestmentService, s.container.AccountService, s.container.DB, client, s.container.NotifDispatcher, s.concurrentWorkers)
+	job := scheduler_jobs.NewAssetPriceSyncJob(logger, s.container.InvestmentService, s.container.AccountService, s.container.DB, client, s.container.NotifDispatcher, s.concurrentWorkers)
 
 	var opts []gocron.JobOption
 	if s.flags.StartAssetPriceSyncImmediately {
