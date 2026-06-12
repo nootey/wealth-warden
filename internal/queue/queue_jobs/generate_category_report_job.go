@@ -1,4 +1,4 @@
-package queue
+package queue_jobs
 
 import (
 	"bytes"

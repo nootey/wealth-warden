@@ -12,6 +12,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue"
+	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
 
@@ -1365,7 +1366,7 @@ func (s *AnalyticsService) GenerateCategoryReport(
 		return nil, err
 	}
 
-	job := queue.NewGenerateCategoryReportJob(s.logger, s.repo, record.ID, userID, params)
+	job := queue_jobs.NewGenerateCategoryReportJob(s.logger, s.repo, record.ID, userID, params)
 	if err := s.jobDispatcher.Dispatch(ctx, job); err != nil {
 		return nil, err
 	}

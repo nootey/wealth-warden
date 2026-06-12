@@ -1,4 +1,4 @@
-package queue_test
+package queue_jobs_test
 
 import (
 	"encoding/json"
@@ -8,6 +8,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue"
+	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/pkg/utils"
 )
 
@@ -52,7 +53,7 @@ func TestPayloadContract(t *testing.T) {
 	assetID := int64(12)
 	accountID := int64(3)
 
-	assertKeys(t, &queue.ActivityLogJob{
+	assertKeys(t, &queue_jobs.ActivityLogJob{
 		Event:       "account.update",
 		Category:    "account",
 		Description: &desc,
@@ -60,13 +61,13 @@ func TestPayloadContract(t *testing.T) {
 		Causer:      &causer,
 	}, "Event", "Category", "Description", "Payload", "Causer")
 
-	assertKeys(t, &queue.RecalculateAssetPnLJob{
+	assertKeys(t, &queue_jobs.RecalculateAssetPnLJob{
 		UserID:    1,
 		AssetID:   &assetID,
 		AccountID: &accountID,
 	}, "UserID", "AssetID", "AccountID")
 
-	assertKeys(t, &queue.SyncAssetAfterTradeJob{
+	assertKeys(t, &queue_jobs.SyncAssetAfterTradeJob{
 		UserID:         1,
 		AssetID:        12,
 		Ticker:         "AAPL",
@@ -74,32 +75,32 @@ func TestPayloadContract(t *testing.T) {
 		TradeDate:      time.Now(),
 	}, "UserID", "AssetID", "Ticker", "InvestmentType", "TradeDate")
 
-	assertKeys(t, &queue.RecalculateTemplateTimezoneJob{
+	assertKeys(t, &queue_jobs.RecalculateTemplateTimezoneJob{
 		UserID:      1,
 		OldTimezone: "Europe/Paris",
 		NewTimezone: "America/New_York",
 	}, "UserID", "OldTimezone", "NewTimezone")
 
-	assertKeys(t, &queue.NotificationJob{
+	assertKeys(t, &queue_jobs.NotificationJob{
 		Payload: models.Notification{UserID: 1, Title: "hi"},
 	}, "Payload")
 
-	assertKeys(t, &queue.GenerateCategoryReportJob{
+	assertKeys(t, &queue_jobs.GenerateCategoryReportJob{
 		ReportID: 9,
 		UserID:   1,
 		Params:   models.CategoryReportParams{Years: []int{2026}, Description: "d"},
 	}, "ReportID", "UserID", "Params")
 
 	// Payload-less maintenance jobs serialize to an empty object — deps dropped.
-	assertKeys(t, &queue.BackfillAssetCashFlowsJob{})
-	assertKeys(t, &queue.CorrectFeeAccountingJob{})
+	assertKeys(t, &queue_jobs.BackfillAssetCashFlowsJob{})
+	assertKeys(t, &queue_jobs.CorrectFeeAccountingJob{})
 }
 
 // TestPayloadRoundTrip confirms data survives marshal → unmarshal unchanged, the
 // path the consumer's registry relies on to rebuild jobs.
 func TestPayloadRoundTrip(t *testing.T) {
 	assetID := int64(12)
-	orig := &queue.GenerateCategoryReportJob{
+	orig := &queue_jobs.GenerateCategoryReportJob{
 		ReportID: 9,
 		UserID:   1,
 		Params: models.CategoryReportParams{
@@ -114,7 +115,7 @@ func TestPayloadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	var got queue.GenerateCategoryReportJob
+	var got queue_jobs.GenerateCategoryReportJob
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
@@ -122,9 +123,9 @@ func TestPayloadRoundTrip(t *testing.T) {
 		t.Errorf("round-trip mismatch: got %+v, want %+v", got, *orig)
 	}
 
-	sync := &queue.SyncAssetAfterTradeJob{UserID: 1, AssetID: assetID, Ticker: "AAPL", InvestmentType: models.InvestmentStock, TradeDate: time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)}
+	sync := &queue_jobs.SyncAssetAfterTradeJob{UserID: 1, AssetID: assetID, Ticker: "AAPL", InvestmentType: models.InvestmentStock, TradeDate: time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)}
 	raw, _ = json.Marshal(sync)
-	var gotSync queue.SyncAssetAfterTradeJob
+	var gotSync queue_jobs.SyncAssetAfterTradeJob
 	if err := json.Unmarshal(raw, &gotSync); err != nil {
 		t.Fatalf("unmarshal sync: %v", err)
 	}
@@ -137,14 +138,14 @@ func TestPayloadRoundTrip(t *testing.T) {
 // would orphan in-flight jobs.
 func TestJobTypeTags(t *testing.T) {
 	cases := map[queue.Job]string{
-		&queue.ActivityLogJob{}:                 queue.TypeActivityLog,
-		&queue.RecalculateAssetPnLJob{}:         queue.TypeRecalculateAssetPnL,
-		&queue.BackfillAssetCashFlowsJob{}:      queue.TypeBackfillAssetCashFlows,
-		&queue.SyncAssetAfterTradeJob{}:         queue.TypeSyncAssetAfterTrade,
-		&queue.RecalculateTemplateTimezoneJob{}: queue.TypeRecalculateTemplateTZ,
-		&queue.NotificationJob{}:                queue.TypeNotification,
-		&queue.CorrectFeeAccountingJob{}:        queue.TypeCorrectFeeAccounting,
-		&queue.GenerateCategoryReportJob{}:      queue.TypeGenerateCategoryReport,
+		&queue_jobs.ActivityLogJob{}:                 queue_jobs.TypeActivityLog,
+		&queue_jobs.RecalculateAssetPnLJob{}:         queue_jobs.TypeRecalculateAssetPnL,
+		&queue_jobs.BackfillAssetCashFlowsJob{}:      queue_jobs.TypeBackfillAssetCashFlows,
+		&queue_jobs.SyncAssetAfterTradeJob{}:         queue_jobs.TypeSyncAssetAfterTrade,
+		&queue_jobs.RecalculateTemplateTimezoneJob{}: queue_jobs.TypeRecalculateTemplateTZ,
+		&queue_jobs.NotificationJob{}:                queue_jobs.TypeNotification,
+		&queue_jobs.CorrectFeeAccountingJob{}:        queue_jobs.TypeCorrectFeeAccounting,
+		&queue_jobs.GenerateCategoryReportJob{}:      queue_jobs.TypeGenerateCategoryReport,
 	}
 	for job, want := range cases {
 		if got := job.Type(); got != want {

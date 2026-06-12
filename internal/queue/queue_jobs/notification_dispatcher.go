@@ -1,8 +1,9 @@
-package queue
+package queue_jobs
 
 import (
 	"context"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
 )
 
@@ -12,10 +13,10 @@ type NotificationDispatcher interface {
 
 type notificationDispatcher struct {
 	repo          repositories.NotificationRepositoryInterface
-	jobDispatcher JobDispatcher
+	jobDispatcher queue.JobDispatcher
 }
 
-func NewNotificationDispatcher(repo repositories.NotificationRepositoryInterface, jobDispatcher JobDispatcher) NotificationDispatcher {
+func NewNotificationDispatcher(repo repositories.NotificationRepositoryInterface, jobDispatcher queue.JobDispatcher) NotificationDispatcher {
 	return &notificationDispatcher{repo: repo, jobDispatcher: jobDispatcher}
 }
 

@@ -1,10 +1,10 @@
-package queue_test
+package queue_jobs_test
 
 import (
 	"context"
 	"errors"
 	"testing"
-	"wealth-warden/internal/queue"
+	"wealth-warden/internal/queue/queue_jobs"
 
 	"go.uber.org/zap/zaptest"
 )
@@ -65,7 +65,7 @@ func (m *mockInvestmentBackfillSvc) BackfillInvestmentCashFlows(_ context.Contex
 }
 
 func TestBackfillAssetCashFlowsJob_NoUsers(t *testing.T) {
-	job := queue.NewBackfillAssetCashFlowsJob(
+	job := queue_jobs.NewBackfillAssetCashFlowsJob(
 		zaptest.NewLogger(t),
 		&mockInvestmentBackfillSvc{},
 		&mockAccountBackfillSvc{},
@@ -78,7 +78,7 @@ func TestBackfillAssetCashFlowsJob_NoUsers(t *testing.T) {
 }
 
 func TestBackfillAssetCashFlowsJob_GetUserIDsError(t *testing.T) {
-	job := queue.NewBackfillAssetCashFlowsJob(
+	job := queue_jobs.NewBackfillAssetCashFlowsJob(
 		zaptest.NewLogger(t),
 		&mockInvestmentBackfillSvc{},
 		&mockAccountBackfillSvc{},
@@ -93,7 +93,7 @@ func TestBackfillAssetCashFlowsJob_GetUserIDsError(t *testing.T) {
 func TestBackfillAssetCashFlowsJob_Success(t *testing.T) {
 	accSvc := &mockAccountBackfillSvc{}
 	invSvc := &mockInvestmentBackfillSvc{}
-	job := queue.NewBackfillAssetCashFlowsJob(
+	job := queue_jobs.NewBackfillAssetCashFlowsJob(
 		zaptest.NewLogger(t),
 		invSvc,
 		accSvc,
@@ -118,7 +118,7 @@ func TestBackfillAssetCashFlowsJob_ContinuesOnError(t *testing.T) {
 		clearCashFlowsErr: map[int64]error{2: errors.New("clear failed")},
 	}
 	invSvc := &mockInvestmentBackfillSvc{}
-	job := queue.NewBackfillAssetCashFlowsJob(
+	job := queue_jobs.NewBackfillAssetCashFlowsJob(
 		zaptest.NewLogger(t),
 		invSvc,
 		accSvc,
@@ -144,7 +144,7 @@ func TestBackfillAssetCashFlowsJob_SkipsRemainingStepsOnUserError(t *testing.T) 
 	invSvc := &mockInvestmentBackfillSvc{
 		backfillErr: map[int64]error{2: errors.New("backfill failed")},
 	}
-	job := queue.NewBackfillAssetCashFlowsJob(
+	job := queue_jobs.NewBackfillAssetCashFlowsJob(
 		zaptest.NewLogger(t),
 		invSvc,
 		accSvc,

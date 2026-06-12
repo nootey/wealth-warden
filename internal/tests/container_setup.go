@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"path/filepath"
+	"runtime"
 	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/queue"
@@ -72,7 +73,9 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 	err = goose.SetDialect("postgres")
 	s.Require().NoError(err, "failed to set goose dialect")
 
-	migrationsPath := filepath.Join("..", "..", "storage", "migrations")
+	_, thisFile, _, _ := runtime.Caller(0)
+	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(thisFile)))
+	migrationsPath := filepath.Join(projectRoot, "storage", "migrations")
 	err = goose.Up(sqlDB, migrationsPath)
 	s.Require().NoError(err, "migrations failed")
 

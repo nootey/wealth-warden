@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/queue"
+	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 
 	"go.uber.org/zap"
@@ -29,16 +30,16 @@ func newRegistry(c *bootstrap.ServiceContainer, logger *zap.Logger) *registry {
 
 	factories := map[string]jobFactory{
 		// Struct-literal jobs: exported deps re-attached after unmarshal.
-		queue.TypeActivityLog: func(data []byte) (queue.Job, error) {
-			var j queue.ActivityLogJob
+		queue_jobs.TypeActivityLog: func(data []byte) (queue.Job, error) {
+			var j queue_jobs.ActivityLogJob
 			if err := json.Unmarshal(data, &j); err != nil {
 				return nil, err
 			}
 			j.LoggingRepo = loggingRepo
 			return &j, nil
 		},
-		queue.TypeNotification: func(data []byte) (queue.Job, error) {
-			var j queue.NotificationJob
+		queue_jobs.TypeNotification: func(data []byte) (queue.Job, error) {
+			var j queue_jobs.NotificationJob
 			if err := json.Unmarshal(data, &j); err != nil {
 				return nil, err
 			}
@@ -48,41 +49,41 @@ func newRegistry(c *bootstrap.ServiceContainer, logger *zap.Logger) *registry {
 
 		// Constructor jobs: unmarshal data fields, then rebuild via the public
 		// constructor (deps are unexported, so they can only be set there).
-		queue.TypeRecalculateAssetPnL: func(data []byte) (queue.Job, error) {
-			var j queue.RecalculateAssetPnLJob
+		queue_jobs.TypeRecalculateAssetPnL: func(data []byte) (queue.Job, error) {
+			var j queue_jobs.RecalculateAssetPnLJob
 			if err := json.Unmarshal(data, &j); err != nil {
 				return nil, err
 			}
-			return queue.NewRecalculateAssetPnLJob(logger.Named("pnl_sync"), c.InvestmentService, j.UserID, j.AssetID, j.AccountID), nil
+			return queue_jobs.NewRecalculateAssetPnLJob(logger.Named("pnl_sync"), c.InvestmentService, j.UserID, j.AssetID, j.AccountID), nil
 		},
-		queue.TypeSyncAssetAfterTrade: func(data []byte) (queue.Job, error) {
-			var j queue.SyncAssetAfterTradeJob
+		queue_jobs.TypeSyncAssetAfterTrade: func(data []byte) (queue.Job, error) {
+			var j queue_jobs.SyncAssetAfterTradeJob
 			if err := json.Unmarshal(data, &j); err != nil {
 				return nil, err
 			}
-			return queue.NewSyncAssetAfterTradeJob(logger.Named("asset_sync"), c.InvestmentService, j.UserID, j.AssetID, j.Ticker, j.InvestmentType, j.TradeDate), nil
+			return queue_jobs.NewSyncAssetAfterTradeJob(logger.Named("asset_sync"), c.InvestmentService, j.UserID, j.AssetID, j.Ticker, j.InvestmentType, j.TradeDate), nil
 		},
-		queue.TypeRecalculateTemplateTZ: func(data []byte) (queue.Job, error) {
-			var j queue.RecalculateTemplateTimezoneJob
+		queue_jobs.TypeRecalculateTemplateTZ: func(data []byte) (queue.Job, error) {
+			var j queue_jobs.RecalculateTemplateTimezoneJob
 			if err := json.Unmarshal(data, &j); err != nil {
 				return nil, err
 			}
-			return queue.NewRecalculateTemplateTimezoneJob(logger.Named("template_tz"), transactionRepo, j.UserID, j.OldTimezone, j.NewTimezone), nil
+			return queue_jobs.NewRecalculateTemplateTimezoneJob(logger.Named("template_tz"), transactionRepo, j.UserID, j.OldTimezone, j.NewTimezone), nil
 		},
-		queue.TypeGenerateCategoryReport: func(data []byte) (queue.Job, error) {
-			var j queue.GenerateCategoryReportJob
+		queue_jobs.TypeGenerateCategoryReport: func(data []byte) (queue.Job, error) {
+			var j queue_jobs.GenerateCategoryReportJob
 			if err := json.Unmarshal(data, &j); err != nil {
 				return nil, err
 			}
-			return queue.NewGenerateCategoryReportJob(logger.Named("category_report"), analyticsRepo, j.ReportID, j.UserID, j.Params), nil
+			return queue_jobs.NewGenerateCategoryReportJob(logger.Named("category_report"), analyticsRepo, j.ReportID, j.UserID, j.Params), nil
 		},
 
 		// Payload-less maintenance jobs: deps only.
-		queue.TypeBackfillAssetCashFlows: func([]byte) (queue.Job, error) {
-			return queue.NewBackfillAssetCashFlowsJob(logger.Named("cashflow_backfill"), c.InvestmentService, c.AccountService, c.UserService), nil
+		queue_jobs.TypeBackfillAssetCashFlows: func([]byte) (queue.Job, error) {
+			return queue_jobs.NewBackfillAssetCashFlowsJob(logger.Named("cashflow_backfill"), c.InvestmentService, c.AccountService, c.UserService), nil
 		},
-		queue.TypeCorrectFeeAccounting: func([]byte) (queue.Job, error) {
-			return queue.NewCorrectFeeAccountingJob(logger.Named("fee_correction"), c.InvestmentService, c.AccountService, c.UserService), nil
+		queue_jobs.TypeCorrectFeeAccounting: func([]byte) (queue.Job, error) {
+			return queue_jobs.NewCorrectFeeAccountingJob(logger.Named("fee_correction"), c.InvestmentService, c.AccountService, c.UserService), nil
 		},
 	}
 

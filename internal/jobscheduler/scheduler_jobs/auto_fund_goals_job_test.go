@@ -1,9 +1,9 @@
-package jobscheduler_test
+package scheduler_jobs_test
 
 import (
 	"testing"
 	"time"
-	"wealth-warden/internal/jobscheduler"
+	"wealth-warden/internal/jobscheduler/scheduler_jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/tests"
 
@@ -87,7 +87,7 @@ func (s *AutoFundGoalsJobTestSuite) countContributions(goalID int64) int64 {
 
 func (s *AutoFundGoalsJobTestSuite) runJob() {
 	logger := zaptest.NewLogger(s.T())
-	job := jobscheduler.NewAutoFundGoalsJob(logger, s.TC.App, nil, 2)
+	job := scheduler_jobs.NewAutoFundGoalsJob(logger, s.TC.App, nil, 2)
 	s.Require().NoError(job.Run(s.Ctx))
 }
 

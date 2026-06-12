@@ -1,4 +1,4 @@
-package jobscheduler
+package scheduler_jobs
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
+	"wealth-warden/internal/queue/queue_jobs"
 
 	"go.uber.org/zap"
 )
@@ -17,11 +17,11 @@ import (
 type AutoFundGoalsJob struct {
 	logger            *zap.Logger
 	container         *bootstrap.ServiceContainer
-	notifDispatcher   queue.NotificationDispatcher
+	notifDispatcher   queue_jobs.NotificationDispatcher
 	concurrentWorkers int
 }
 
-func NewAutoFundGoalsJob(logger *zap.Logger, container *bootstrap.ServiceContainer, notifDispatcher queue.NotificationDispatcher, concurrentWorkers int) *AutoFundGoalsJob {
+func NewAutoFundGoalsJob(logger *zap.Logger, container *bootstrap.ServiceContainer, notifDispatcher queue_jobs.NotificationDispatcher, concurrentWorkers int) *AutoFundGoalsJob {
 	return &AutoFundGoalsJob{
 		logger:            logger,
 		container:         container,
