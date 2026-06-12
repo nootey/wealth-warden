@@ -15,13 +15,15 @@ type postTradeSyncSvc interface {
 
 type SyncAssetAfterTradeJob struct {
 	logger            *zap.Logger
-	InvestmentService postTradeSyncSvc
+	InvestmentService postTradeSyncSvc `json:"-"`
 	UserID            int64
 	AssetID           int64
 	Ticker            string
 	InvestmentType    models.InvestmentType
 	TradeDate         time.Time
 }
+
+func (j *SyncAssetAfterTradeJob) Type() string { return TypeSyncAssetAfterTrade }
 
 func NewSyncAssetAfterTradeJob(
 	logger *zap.Logger,

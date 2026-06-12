@@ -115,7 +115,7 @@ func (s *NotesService) InsertNote(ctx context.Context, userID int64, req *models
 	utils.CompareChanges("", strconv.FormatInt(noteID, 10), changes, "id")
 	utils.CompareChanges("", req.Content, changes, "content")
 
-	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "note",
@@ -170,7 +170,7 @@ func (s *NotesService) UpdateNote(ctx context.Context, userID, id int64, req *mo
 	utils.CompareChanges(exNote.Content, req.Content, changes, "content")
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "note",
@@ -246,7 +246,7 @@ func (s *NotesService) ToggleResolveState(ctx context.Context, userID int64, id 
 	utils.CompareChanges(exResolvedStr, resolvedStr, changes, "resolved_at")
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+		err = s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "note",
@@ -295,7 +295,7 @@ func (s *NotesService) DeleteNote(ctx context.Context, userID int64, id int64) e
 	changes := utils.InitChanges()
 	utils.CompareChanges(note.Content, "", changes, "content")
 
-	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "delete",
 		Category:    "note",

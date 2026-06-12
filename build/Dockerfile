@@ -48,7 +48,7 @@ COPY storage/migrations /app/migrations
 RUN chmod +x /usr/local/bin/server
 ENV PATH="/usr/local/bin/server:${PATH}"
 
-HEALTHCHECK --interval=10s --timeout=5s CMD curl --fail http://localhost:2000/healthz || exit 1
+HEALTHCHECK --interval=10s --timeout=5s CMD curl --fail http://localhost:2000/health || exit 1
 
 ENTRYPOINT ["server"]
 CMD ["app"]

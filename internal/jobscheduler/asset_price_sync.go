@@ -233,7 +233,7 @@ func (j *AssetPriceSyncJob) fetchPrices(ctx context.Context, assets []struct {
 }
 
 func (j *AssetPriceSyncJob) updateAssetsAndTrades(ctx context.Context, priceData map[string]*finance.PriceData) (int, error) {
-	tx := j.db.Begin()
+	tx := j.db.WithContext(ctx).Begin()
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
@@ -266,7 +266,7 @@ func (j *AssetPriceSyncJob) updateAssetsAndTrades(ctx context.Context, priceData
 
 func (j *AssetPriceSyncJob) updateAssetsByTicker(ctx context.Context, tx *gorm.DB, ticker string, price *finance.PriceData, now time.Time, today time.Time) (int, error) {
 	var assets []models.InvestmentAsset
-	err := tx.WithContext(ctx).
+	err := tx.
 		Preload("Account").
 		Joins("JOIN accounts ON accounts.id = investment_assets.account_id").
 		Where("investment_assets.ticker = ? AND investment_assets.quantity > 0", ticker).
@@ -281,7 +281,7 @@ func (j *AssetPriceSyncJob) updateAssetsByTicker(ctx context.Context, tx *gorm.D
 	priceDecimal := decimal.NewFromFloat(price.Price)
 
 	for _, asset := range assets {
-		if err := j.updateAsset(tx, asset, priceDecimal, now); err != nil {
+		if err := j.updateAsset(ctx, tx, asset, priceDecimal, now); err != nil {
 			return 0, err
 		}
 
@@ -301,7 +301,7 @@ func (j *AssetPriceSyncJob) updateAssetsByTicker(ctx context.Context, tx *gorm.D
 	return len(assets), nil
 }
 
-func (j *AssetPriceSyncJob) updateAsset(tx *gorm.DB, asset models.InvestmentAsset, price decimal.Decimal, now time.Time) error {
+func (j *AssetPriceSyncJob) updateAsset(ctx context.Context, tx *gorm.DB, asset models.InvestmentAsset, price decimal.Decimal, now time.Time) error {
 
 	if price.IsZero() || price.IsNegative() {
 		j.logger.Error("Refusing to update asset with invalid price",
@@ -331,7 +331,7 @@ func (j *AssetPriceSyncJob) updateAsset(tx *gorm.DB, asset models.InvestmentAsse
 			pct := changePercent.Mul(decimal.NewFromInt(100)).StringFixed(1)
 			title := fmt.Sprintf("%s %s %s%%", asset.Ticker, direction, pct)
 			msg := fmt.Sprintf("%s has %s by %s%% (from %s to %s).", asset.Ticker, direction, pct, asset.CurrentPrice.StringFixed(2), price.StringFixed(2))
-			_ = j.notifDispatcher.Dispatch(asset.UserID, title, msg, models.NotificationTypeWarning)
+			_ = j.notifDispatcher.Dispatch(ctx, asset.UserID, title, msg, models.NotificationTypeWarning)
 		}
 	}
 

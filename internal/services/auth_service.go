@@ -57,7 +57,7 @@ func NewAuthService(
 
 var _ AuthServiceInterface = (*AuthService)(nil)
 
-func (s *AuthService) log(event, email, userAgent, ip, status string, description *string, userID *int64) error {
+func (s *AuthService) log(ctx context.Context, event, email, userAgent, ip, status string, description *string, userID *int64) error {
 
 	changes := utils.InitChanges()
 	service := utils.DetermineServiceSource(userAgent)
@@ -68,7 +68,7 @@ func (s *AuthService) log(event, email, userAgent, ip, status string, descriptio
 	utils.CompareChanges("", utils.SafeString(&ip), changes, "ip_address")
 	utils.CompareChanges("", utils.SafeString(&userAgent), changes, "user_agent")
 
-	err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	err := s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       event,
 		Category:    "auth",
@@ -156,7 +156,7 @@ func (s *AuthService) ValidateLogin(ctx context.Context, email, password, userAg
 	userPassword, _ := s.userRepo.GetPasswordByEmail(ctx, nil, email)
 	if userPassword == "" {
 		desc := "user does not exist"
-		logErr := s.log("login", email, userAgent, ip, "fail", &desc, nil)
+		logErr := s.log(ctx, "login", email, userAgent, ip, "fail", &desc, nil)
 		if logErr != nil {
 			return nil, logErr
 		}
@@ -166,7 +166,7 @@ func (s *AuthService) ValidateLogin(ctx context.Context, email, password, userAg
 	err := bcrypt.CompareHashAndPassword([]byte(userPassword), []byte(password))
 	if err != nil {
 		desc := "incorrect_password"
-		logErr := s.log("login", email, userAgent, ip, "fail", &desc, nil)
+		logErr := s.log(ctx, "login", email, userAgent, ip, "fail", &desc, nil)
 		if logErr != nil {
 			return nil, logErr
 		}
@@ -178,7 +178,7 @@ func (s *AuthService) ValidateLogin(ctx context.Context, email, password, userAg
 		return nil, errors.New("user data unavailable")
 	}
 
-	logErr := s.log("login", email, userAgent, ip, "success", nil, &user.ID)
+	logErr := s.log(ctx, "login", email, userAgent, ip, "success", nil, &user.ID)
 	if logErr != nil {
 		return nil, logErr
 	}
@@ -367,7 +367,7 @@ func (s *AuthService) SignUp(ctx context.Context, form models.RegisterForm, user
 		if invitation != nil {
 			desc = "Via invitation"
 		}
-		logErr := s.log("register", user.Email, userAgent, ip, "success", &desc, &user.ID)
+		logErr := s.log(ctx, "register", user.Email, userAgent, ip, "success", &desc, &user.ID)
 		if logErr != nil {
 			return 0, logErr
 		}
@@ -399,7 +399,7 @@ func (s *AuthService) ResendConfirmationEmail(ctx context.Context, email, userAg
 	}
 
 	desc := "Requested a resend"
-	logErr := s.log("confirm-email", user.Email, userAgent, ip, "success", &desc, &user.ID)
+	logErr := s.log(ctx, "confirm-email", user.Email, userAgent, ip, "success", &desc, &user.ID)
 	if logErr != nil {
 		return logErr
 	}
@@ -459,7 +459,7 @@ func (s *AuthService) ConfirmEmail(ctx context.Context, tokenValue, userAgent, i
 		return err
 	}
 
-	logErr := s.log("confirm-email", user.Email, userAgent, ip, "success", nil, &user.ID)
+	logErr := s.log(ctx, "confirm-email", user.Email, userAgent, ip, "success", nil, &user.ID)
 	if logErr != nil {
 		return logErr
 	}
@@ -484,7 +484,7 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, email, userAgent
 	}
 
 	desc := "Requested a password reset"
-	logErr := s.log("password-reset", user.Email, userAgent, ip, "success", &desc, &user.ID)
+	logErr := s.log(ctx, "password-reset", user.Email, userAgent, ip, "success", &desc, &user.ID)
 	if logErr != nil {
 		return logErr
 	}
@@ -569,7 +569,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, form models.ResetPasswo
 	}
 
 	desc := "Reset password successfully"
-	logErr := s.log("password-reset", user.Email, userAgent, ip, "success", &desc, &user.ID)
+	logErr := s.log(ctx, "password-reset", user.Email, userAgent, ip, "success", &desc, &user.ID)
 	if logErr != nil {
 		return logErr
 	}

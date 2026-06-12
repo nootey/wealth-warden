@@ -14,10 +14,12 @@ type feeAccountingCorrectionSvc interface {
 
 type CorrectFeeAccountingJob struct {
 	logger            *zap.Logger
-	InvestmentService feeAccountingCorrectionSvc
-	AccountService    accountBackfillSvc
-	UserService       userBackfillSvc
+	InvestmentService feeAccountingCorrectionSvc `json:"-"`
+	AccountService    accountBackfillSvc         `json:"-"`
+	UserService       userBackfillSvc            `json:"-"`
 }
+
+func (j *CorrectFeeAccountingJob) Type() string { return TypeCorrectFeeAccounting }
 
 func NewCorrectFeeAccountingJob(
 	logger *zap.Logger,

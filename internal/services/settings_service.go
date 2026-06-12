@@ -197,7 +197,7 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 	utils.CompareChanges(existingSettings.DefaultCurrency, settings.DefaultCurrency, changes, "default_currency")
 	utils.CompareChanges(existingSettings.DefaultSheetSeparator, settings.DefaultSheetSeparator, changes, "default_sheet_separator")
 
-	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "update",
 		Category:    "user_settings",
@@ -210,7 +210,7 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 	}
 
 	if req.Timezone != "" && req.Timezone != existingSettings.Timezone {
-		err = s.jobDispatcher.Dispatch(queue.NewRecalculateTemplateTimezoneJob(
+		err = s.jobDispatcher.Dispatch(ctx, queue.NewRecalculateTemplateTimezoneJob(
 			s.logger,
 			s.transactionRepo,
 			userID,
@@ -294,7 +294,7 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 		description = &d
 	}
 
-	err = s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	err = s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "update",
 		Category:    "user",

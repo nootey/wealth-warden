@@ -222,7 +222,7 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 		return 0, err
 	}
 
-	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "invitation",
@@ -322,7 +322,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 	utils.CompareChanges(exUsr.DisplayName, usr.DisplayName, changes, "display_name")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
 			Category:    "user",
@@ -380,7 +380,7 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 	utils.CompareChanges(usr.Email, "", changes, "email")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "delete",
 			Category:    "user",
@@ -461,7 +461,7 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) (i
 		}
 	}
 
-	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "resend",
 		Category:    "invitation",
@@ -515,7 +515,7 @@ func (s *UserService) DeleteInvitation(ctx context.Context, userID, id int64) er
 	utils.CompareChanges(role.Name, "", changes, "role")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+		if err := s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "delete",
 			Category:    "invitation",

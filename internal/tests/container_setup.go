@@ -34,7 +34,7 @@ type ServiceIntegrationSuite struct {
 
 type NoOpDispatcher struct{}
 
-func (d *NoOpDispatcher) Dispatch(job queue.Job) error {
+func (d *NoOpDispatcher) Dispatch(_ context.Context, _ queue.Job) error {
 	return nil
 }
 

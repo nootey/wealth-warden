@@ -1,0 +1,36 @@
+local.file_match "app" {
+  path_targets = [{
+    __path__ = "/app/logs/app.log",
+    job      = "wealth-warden",
+  }]
+}
+
+loki.source.file "app" {
+  targets    = local.file_match.app.targets
+  forward_to = [loki.process.app.receiver]
+}
+
+// Parse the zap JSON (release mode) to surface the log level as a label.
+// In dev mode logs are console-formatted; the line is still shipped, only
+// the level label stays empty.
+loki.process "app" {
+  stage.json {
+    expressions = {
+      level = "level",
+    }
+  }
+
+  stage.labels {
+    values = {
+      level = "",
+    }
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

@@ -56,6 +56,15 @@ func setDefaults() *Config {
 		},
 		Otel: OtelConfig{
 			OTLPEndpoint: "tempo:4317",
+			ServiceName:  "wealth-warden",
+		},
+		Queue: QueueConfig{
+			Workers:                   1,
+			MaxAttempts:               5,
+			PollIntervalMs:            1000,
+			RetryInitialBackoffSec:    60,
+			RetrySubsequentBackoffSec: 120,
+			VisibilityTimeoutSec:      900,
 		},
 	}
 }

@@ -7,9 +7,11 @@ import (
 )
 
 type NotificationJob struct {
-	Repo    repositories.NotificationRepositoryInterface
+	Repo    repositories.NotificationRepositoryInterface `json:"-"`
 	Payload models.Notification
 }
+
+func (j *NotificationJob) Type() string { return TypeNotification }
 
 func (j *NotificationJob) Process(ctx context.Context) error {
 	return j.Repo.Insert(ctx, &j.Payload)

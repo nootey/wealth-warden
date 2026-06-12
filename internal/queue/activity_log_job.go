@@ -7,13 +7,15 @@ import (
 )
 
 type ActivityLogJob struct {
-	LoggingRepo repositories.LoggingRepositoryInterface
+	LoggingRepo repositories.LoggingRepositoryInterface `json:"-"`
 	Event       string
 	Category    string
 	Description *string
 	Payload     *utils.Changes
 	Causer      *int64
 }
+
+func (j *ActivityLogJob) Type() string { return TypeActivityLog }
 
 func (j *ActivityLogJob) Process(ctx context.Context) error {
 	return j.LoggingRepo.InsertActivityLog(

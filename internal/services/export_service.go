@@ -380,7 +380,7 @@ func (s *ExportService) CreateExport(ctx context.Context, userID int64) (*models
 	utils.CompareChanges("", fmt.Sprintf("%d", len(txns)), changes, "transactions_count")
 	utils.CompareChanges("", fmt.Sprintf("%d", len(transfers)), changes, "transfers_count")
 
-	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
 		Category:    "export",
@@ -498,7 +498,7 @@ func (s *ExportService) DeleteExport(ctx context.Context, userID, id int64) erro
 	changes := utils.InitChanges()
 	utils.CompareChanges(ex.Name, "", changes, "export_name")
 
-	if err := s.jobDispatcher.Dispatch(&queue.ActivityLogJob{
+	if err := s.jobDispatcher.Dispatch(ctx, &queue.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "delete",
 		Category:    "export",

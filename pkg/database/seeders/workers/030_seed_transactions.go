@@ -30,8 +30,7 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 	txnRepo := repositories.NewTransactionRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
 	loggingRepo := repositories.NewLoggingRepository(db)
-	jobQueue := queue.NewJobQueue(1, 25)
-	jobDispatcher := &queue.InMemoryDispatcher{Queue: jobQueue}
+	jobDispatcher := queue.NoopDispatcher{}
 
 	investmentRepo := repositories.NewInvestmentRepository(db)
 	savingsRepo := repositories.NewSavingsRepository(db)

@@ -184,15 +184,15 @@ func (j *AutoFundGoalsJob) Run(ctx context.Context) error {
 		for userID, s := range userResults {
 			if len(s.failed) > 0 {
 				title := fmt.Sprintf("%d goal(s) failed to fund", len(s.failed))
-				_ = j.notifDispatcher.Dispatch(userID, title, strings.Join(s.failed, ",\n"), models.NotificationTypeError)
+				_ = j.notifDispatcher.Dispatch(ctx, userID, title, strings.Join(s.failed, ",\n"), models.NotificationTypeError)
 			}
 			if len(s.insufficientBalance) > 0 {
 				title := fmt.Sprintf("%d goal(s) skipped - insufficient balance", len(s.insufficientBalance))
-				_ = j.notifDispatcher.Dispatch(userID, title, strings.Join(s.insufficientBalance, ",\n"), models.NotificationTypeWarning)
+				_ = j.notifDispatcher.Dispatch(ctx, userID, title, strings.Join(s.insufficientBalance, ",\n"), models.NotificationTypeWarning)
 			}
 			if len(s.funded) > 0 {
 				title := fmt.Sprintf("%d goal(s) funded", len(s.funded))
-				_ = j.notifDispatcher.Dispatch(userID, title, strings.Join(s.funded, ",\n"), models.NotificationTypeSuccess)
+				_ = j.notifDispatcher.Dispatch(ctx, userID, title, strings.Join(s.funded, ",\n"), models.NotificationTypeSuccess)
 			}
 		}
 	}

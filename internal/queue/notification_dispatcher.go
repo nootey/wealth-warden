@@ -1,12 +1,13 @@
 package queue
 
 import (
+	"context"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 )
 
 type NotificationDispatcher interface {
-	Dispatch(userID int64, title, message string, notifType models.NotificationType) error
+	Dispatch(ctx context.Context, userID int64, title, message string, notifType models.NotificationType) error
 }
 
 type notificationDispatcher struct {
@@ -18,8 +19,8 @@ func NewNotificationDispatcher(repo repositories.NotificationRepositoryInterface
 	return &notificationDispatcher{repo: repo, jobDispatcher: jobDispatcher}
 }
 
-func (d *notificationDispatcher) Dispatch(userID int64, title, message string, notifType models.NotificationType) error {
-	return d.jobDispatcher.Dispatch(&NotificationJob{
+func (d *notificationDispatcher) Dispatch(ctx context.Context, userID int64, title, message string, notifType models.NotificationType) error {
+	return d.jobDispatcher.Dispatch(ctx, &NotificationJob{
 		Repo: d.repo,
 		Payload: models.Notification{
 			UserID:  userID,

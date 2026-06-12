@@ -722,8 +722,8 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	s.Require().NoError(err)
 
 	// Sell 0.5 BTC at 90k with 0.005 BTC fee
-	// Effective sell qty = 0.5 - 0.005 = 0.495
-	// Realized value = 0.495 * 90k = 44,550
+	// Full 0.5 BTC leaves holdings; the fee only reduces cash proceeds
+	// Realized value = (0.5 - 0.005) * 90k = 0.495 * 90k = 44,550
 	cryptoSellFee := decimal.NewFromFloat(0.005)
 	cryptoSellTradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
 		AssetID:      cryptoAssetID,
@@ -749,8 +749,85 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", cryptoAssetID).First(&cryptoAssetAfterSell).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.NewFromFloat(0.495).Equal(cryptoAssetAfterSell.Quantity),
-		"remaining crypto quantity should be 0.495, got %s", cryptoAssetAfterSell.Quantity.String())
+	// Bought 0.99, sold the full 0.5 (fee does not stay in the position): 0.99 - 0.5 = 0.49
+	s.Assert().True(decimal.NewFromFloat(0.49).Equal(cryptoAssetAfterSell.Quantity),
+		"remaining crypto quantity should be 0.49, got %s", cryptoAssetAfterSell.Quantity.String())
+}
+
+// Regression: selling a crypto position with a fee must remove the full sold quantity
+// from holdings — the fee (in coin units) only reduces cash proceeds, it must not be
+// left behind in the position.
+func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFee_RemovesFullQuantity() {
+	svc := s.TC.App.InvestmentService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentCrypto,
+		Name:           "Bitcoin",
+		Ticker:         "BTC-EUR",
+		Currency:       "EUR",
+		Quantity:       decimal.NewFromInt(0),
+	})
+	s.Require().NoError(err)
+
+	// Buy 100 units at 1 EUR, no fee -> holdings = 100
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      today,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(100),
+		PricePerUnit: decimal.NewFromInt(1),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	// Sell the entire 100 units at 1 EUR with a 2-unit fee
+	sellFee := decimal.NewFromInt(2)
+	sellTradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      today,
+		TradeType:    models.InvestmentSell,
+		Quantity:     decimal.NewFromInt(100),
+		PricePerUnit: decimal.NewFromInt(1),
+		Fee:          &sellFee,
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	// Holdings must be fully cleared — the 2 USDC fee is not left behind
+	var asset models.InvestmentAsset
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
+	s.Require().NoError(err)
+	s.Assert().True(decimal.Zero.Equal(asset.Quantity),
+		"holdings should be fully cleared after selling the entire position; the fee must not be left behind, got %s", asset.Quantity.String())
+
+	// The sell trade records the full quantity sold (not quantity - fee)
+	var sellTrade models.InvestmentTrade
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", sellTradeID).First(&sellTrade).Error
+	s.Require().NoError(err)
+	s.Assert().True(decimal.NewFromInt(100).Equal(sellTrade.Quantity),
+		"sell trade quantity should be the full 100, got %s", sellTrade.Quantity.String())
+
+	// Cash proceeds account for the fee: (100 - 2) * 1 = 98
+	var balance models.Balance
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", accID, today).
+		First(&balance).Error
+	s.Require().NoError(err)
+	s.Assert().True(decimal.NewFromInt(98).Equal(balance.CashInflows),
+		"cash inflows should be proceeds after fee (98), got %s", balance.CashInflows.String())
 }
 
 // Tests that deleting a sell trade reverses the realized P&L and recalculates the asset correctly

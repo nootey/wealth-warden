@@ -22,6 +22,32 @@ services:
     networks:
       - wealth-warden
 
+  loki:
+    image: grafana/loki:latest
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    volumes:
+      - ./config/loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki_data:/loki
+    networks:
+      - wealth-warden
+
+  alloy:
+    image: grafana/alloy:latest
+    restart: unless-stopped
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+    volumes:
+      - ./config/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../../logs:/app/logs:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      - loki
+    networks:
+      - wealth-warden
+
   grafana:
     image: grafana/grafana:latest
     restart: unless-stopped
@@ -34,6 +60,13 @@ services:
     depends_on:
       - prometheus
       - tempo
+      - loki
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.grafana.rule=Host(`grafana.${HOST:-localhost}`)
+      - traefik.http.routers.grafana.entrypoints=websecure
+      - traefik.http.routers.grafana.tls.certresolver=le
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
     networks:
       - wealth-warden
 
@@ -41,6 +74,8 @@ volumes:
   prometheus_data:
   tempo_data:
   grafana_data:
+  loki_data:
+  alloy_data:
 
 networks:
   wealth-warden:

@@ -152,7 +152,7 @@ func (r *LoggingRepository) FindActivityLogFilterData(ctx context.Context, activ
 		var causers []map[string]interface{}
 		if len(causerIDs) > 0 {
 			var users []models.User
-			if err := r.db.Where("id IN ? AND deleted_at IS NULL", causerIDs).Find(&users).Error; err == nil {
+			if err := r.db.WithContext(ctx).Where("id IN ? AND deleted_at IS NULL", causerIDs).Find(&users).Error; err == nil {
 				for _, u := range users {
 					causers = append(causers, map[string]interface{}{
 						"id":   u.ID,

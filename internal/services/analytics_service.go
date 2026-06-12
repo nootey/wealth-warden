@@ -1366,7 +1366,7 @@ func (s *AnalyticsService) GenerateCategoryReport(
 	}
 
 	job := queue.NewGenerateCategoryReportJob(s.logger, s.repo, record.ID, userID, params)
-	if err := s.jobDispatcher.Dispatch(job); err != nil {
+	if err := s.jobDispatcher.Dispatch(ctx, job); err != nil {
 		return nil, err
 	}
 
