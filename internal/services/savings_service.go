@@ -313,7 +313,7 @@ func (s *SavingsService) FetchContributionsPaginated(ctx context.Context, userID
 	}
 
 	offset := (p.PageNumber - 1) * p.RowsPerPage
-	records, err := s.repo.FindContributionsPaginated(ctx, nil, goalID, offset, p.RowsPerPage)
+	records, err := s.repo.FindContributionsPaginated(ctx, nil, goalID, offset, p.RowsPerPage, p.SortField, p.SortOrder)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -361,6 +361,11 @@ func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID 
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("goal not found: %w", err)
+	}
+
+	if goal.Status != models.SavingGoalStatusActive {
+		tx.Rollback()
+		return 0, fmt.Errorf("cannot add contributions to a %s goal", goal.Status)
 	}
 
 	if req.Amount.IsNegative() {

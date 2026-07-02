@@ -5,6 +5,7 @@ import { useSavingsStore } from "../../services/stores/savings_store.ts";
 import { useAccountStore } from "../../services/stores/account_store.ts";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import SavingGoalForm from "../components/forms/SavingGoalForm.vue";
+import SavingContributionForm from "../components/forms/SavingContributionForm.vue";
 import ShowLoading from "../components/base/ShowLoading.vue";
 import vueHelper from "../../utils/vue_helper.ts";
 import dateHelper from "../../utils/date_helper.ts";
@@ -26,6 +27,7 @@ const updateModal = ref(false);
 const selectedGoalID = ref<number | null>(null);
 
 const contribModal = ref(false);
+const addContribModal = ref(false);
 const selectedGoal = ref<SavingGoalWithProgress | null>(null);
 
 onMounted(async () => {
@@ -70,6 +72,23 @@ function openUpdate(goal: SavingGoalWithProgress) {
 function openContributions(goal: SavingGoalWithProgress) {
   selectedGoal.value = goal;
   contribModal.value = true;
+}
+
+function openAddContribution(goal: SavingGoalWithProgress) {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
+  selectedGoal.value = goal;
+  addContribModal.value = true;
+}
+
+async function handleContribAdded() {
+  addContribModal.value = false;
+  await loadGoals();
 }
 
 async function handleGoalCreated() {
@@ -200,6 +219,28 @@ const groupedGoals = computed(() => {
     <SavingGoalDetails :goal="selectedGoal!" @refresh="handleContribRefresh" />
   </Dialog>
 
+  <Dialog
+    v-model:visible="addContribModal"
+    class="rounded-dialog"
+    :breakpoints="{ '501px': '90vw' }"
+    :modal="true"
+    :style="{ width: '460px' }"
+    position="right"
+  >
+    <template #header>
+      <div class="flex flex-column gap-1">
+        <div class="font-bold">New contribution</div>
+        <div class="text-sm" style="color: var(--text-secondary)">
+          {{ selectedGoal?.name }}
+        </div>
+      </div>
+    </template>
+    <SavingContributionForm
+      :goal-id="selectedGoal!.id!"
+      @complete-operation="handleContribAdded"
+    />
+  </Dialog>
+
   <main class="flex flex-column w-full align-items-center">
     <div
       id="mobile-container"
@@ -261,7 +302,7 @@ const groupedGoals = computed(() => {
           <div
             v-for="group in groupedGoals"
             :key="group.accountID"
-            class="flex flex-column gap-2"
+            class="flex flex-column gap-3"
           >
             <div
               class="flex flex-row align-items-center justify-content-between gap-2 px-1"
@@ -358,6 +399,14 @@ const groupedGoals = computed(() => {
                     class="pi pi-pencil hover-icon text-sm"
                     style="color: var(--text-secondary)"
                     @click="openUpdate(goal)"
+                  />
+                  <i
+                    v-if="
+                      hasPermission('manage_data') && goal.status === 'active'
+                    "
+                    class="pi pi-plus hover-icon text-sm"
+                    style="color: var(--text-secondary)"
+                    @click="openAddContribution(goal)"
                   />
                 </div>
               </div>

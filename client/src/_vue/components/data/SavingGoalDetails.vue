@@ -1,28 +1,24 @@
 <script setup lang="ts">
-import ValidationError from "../validation/ValidationError.vue";
-import ShowLoading from "../base/ShowLoading.vue";
+import LoadingSpinner from "../base/LoadingSpinner.vue";
+import ColumnHeader from "../base/ColumnHeader.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import savingsHelper from "../../../utils/savings_helper.ts";
-import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 import { useConfirm } from "primevue/useconfirm";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import type {
   SavingContribution,
-  SavingContributionReq,
   SavingGoalWithProgress,
 } from "../../../models/savings_models.ts";
 import { useSavingsStore } from "../../../services/stores/savings_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
-import Decimal from "decimal.js";
 import dateHelper from "../../../utils/date_helper.ts";
+import dayjs from "dayjs";
+import Decimal from "decimal.js";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import { computed, onMounted, ref } from "vue";
-import currencyHelper from "../../../utils/currency_helper.ts";
-import { required } from "@vuelidate/validators";
-import { decimalNonZero, decimalValid } from "../../../validators/currency.ts";
-import useVuelidate from "@vuelidate/core";
+import { computed, onMounted, provide, ref } from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
 import type { PaginatorState } from "../../../models/shared_models.ts";
+import type { Column } from "../../../services/filter_registry.ts";
 import CustomPaginator from "../base/CustomPaginator.vue";
 
 const props = defineProps<{
@@ -33,7 +29,6 @@ const emit = defineEmits<{
   refresh: [];
 }>();
 
-const settingsStore = useSettingsStore();
 const savingsStore = useSavingsStore();
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
@@ -42,7 +37,6 @@ const { hasPermission } = usePermissions();
 
 const loading = ref(false);
 const contributions = ref<SavingContribution[]>([]);
-const addingContrib = ref(false);
 
 const rows = [5, 10, 25];
 const paginator = ref<PaginatorState>({
@@ -53,6 +47,46 @@ const paginator = ref<PaginatorState>({
 });
 const page = ref(1);
 const sort = ref(filterHelper.initSort("month"));
+
+const columns: Column[] = [
+  { field: "amount", header: "Amount", type: "number" },
+  { field: "month", header: "Month", type: "date" },
+  { field: "source", header: "Source" },
+  { field: "note", header: "Note", hideOnMobile: true },
+];
+
+const remaining = computed(() =>
+  Decimal.max(
+    new Decimal(props.goal.target_amount ?? "0").sub(
+      new Decimal(props.goal.current_amount ?? "0"),
+    ),
+    new Decimal(0),
+  ),
+);
+
+const monthlyPace = computed(() => {
+  const months = Math.max(
+    dayjs().diff(dayjs(props.goal.created_at), "month"),
+    1,
+  );
+  return new Decimal(props.goal.current_amount ?? "0").div(months);
+});
+
+const projectedFinish = computed(() => {
+  if (remaining.value.lte(0) || monthlyPace.value.lte(0)) return null;
+  const months = remaining.value.div(monthlyPace.value).ceil().toNumber();
+  return dayjs().add(months, "month").format("MMM YYYY");
+});
+
+const allocationShortfall = computed(() => {
+  if (props.goal.status !== "active" || props.goal.track_status === "completed")
+    return false;
+  if (!props.goal.monthly_allocation || !props.goal.monthly_needed)
+    return false;
+  return new Decimal(props.goal.monthly_allocation).lt(
+    new Decimal(props.goal.monthly_needed),
+  );
+});
 
 const apiPrefix = computed(() => `savings/${props.goal.id}/contributions`);
 const params = computed(() => ({
@@ -89,50 +123,17 @@ async function onPage(event: any) {
   await getData(event.page + 1);
 }
 
-const contribForm = ref({
-  amount: null as string | null,
-  month: new Date() as Date | null,
-  note: "" as string,
-});
-
-const contribAmountRef = computed({
-  get: () => contribForm.value.amount,
-  set: (v) => (contribForm.value.amount = v),
-});
-const { number: contribAmountNumber } = currencyHelper.useMoneyField(
-  contribAmountRef,
-  2,
-);
-
-const contribRules = computed(() => ({
-  amount: { required, decimalValid, decimalNonZero },
-  month: { required },
-}));
-const cv$ = useVuelidate(contribRules, contribForm);
-
-async function addContribution() {
-  const valid = await cv$.value.$validate();
-  if (!valid) return;
-
-  addingContrib.value = true;
-  try {
-    const req: SavingContributionReq = {
-      amount: new Decimal(contribForm.value.amount!).toFixed(2),
-      month: dateHelper.formatDate(contribForm.value.month!),
-      note: contribForm.value.note || null,
-    };
-    const res = await savingsStore.insertContribution(props.goal.id!, req);
-    toastStore.successResponseToast(res);
-    emit("refresh");
-    contribForm.value = { amount: null, month: new Date(), note: "" };
-    cv$.value.$reset();
-    await getData();
-  } catch (err) {
-    toastStore.errorResponseToast(err);
-  } finally {
-    addingContrib.value = false;
+async function switchSort(column: string) {
+  if (sort.value.field === column) {
+    sort.value.order = filterHelper.toggleSort(sort.value.order);
+  } else {
+    sort.value.order = 1;
   }
+  sort.value.field = column;
+  await getData();
 }
+
+provide("switchSort", switchSort);
 
 function confirmDeleteContrib(contrib: SavingContribution) {
   confirm.require({
@@ -201,103 +202,138 @@ function confirmDeleteContrib(contrib: SavingContribution) {
       </div>
     </div>
 
-    <div class="flex flex-column gap-2 w-full">
-      <div class="flex flex-row w-full text-center align-items-center">
-        <div class="font-medium text-sm">Add contribution</div>
-        <Button
-          size="small"
-          icon="pi pi-plus"
-          class="main-button ml-auto"
-          :loading="addingContrib"
-          @click="addContribution"
-        />
+    <div
+      v-if="remaining.gt(0)"
+      class="flex flex-column gap-2 p-3 border-round-xl w-full"
+      style="background: var(--background-primary)"
+    >
+      <div class="text-sm" style="color: var(--text-secondary)">Insights</div>
+      <div class="text-sm">
+        {{ vueHelper.displayAsCurrency(remaining.toString()) }} to go
+        <span v-if="monthlyPace.gt(0)">
+          &middot; averaging
+          {{ vueHelper.displayAsCurrency(monthlyPace.toFixed(2)) }}/mo since
+          {{ dateHelper.formatDate(goal.created_at, false, "MMM YYYY") }}
+        </span>
+        <span v-if="projectedFinish">
+          &middot; at this pace, done around {{ projectedFinish }}
+        </span>
       </div>
-      <div class="flex flex-row gap-2 w-full">
-        <div class="flex flex-column w-6">
-          <InputNumber
-            v-model="contribAmountNumber"
-            fluid
-            mode="currency"
-            size="small"
-            :currency="settingsStore.defaultCurrency"
-            :locale="vueHelper.getCurrencyLocale(settingsStore.defaultCurrency)"
-            :placeholder="vueHelper.displayAsCurrency(0) ?? '0.00'"
-            :class="{ 'p-invalid': cv$.amount.$error }"
-          />
-          <ValidationError :state="cv$.amount" />
+    </div>
+
+    <div
+      v-if="allocationShortfall"
+      class="flex flex-column gap-2 p-3 border-round-xl text-sm"
+      style="
+        background: var(--background-primary);
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+      "
+    >
+      <div class="flex flex-row gap-2 align-items-center">
+        <i class="pi pi-exclamation-triangle" style="flex-shrink: 0" />
+        <div class="flex flex-column gap-1 text-xs">
+          <span
+            >Your {{ vueHelper.displayAsCurrency(goal.monthly_allocation!) }}/mo
+            allocation is below the
+            {{ vueHelper.displayAsCurrency(goal.monthly_needed!) }}/mo needed to
+            reach the target on time.</span
+          >
         </div>
-        <div class="flex flex-column w-6">
-          <DatePicker
-            v-model="contribForm.month"
-            size="small"
-            fluid
-            view="month"
-            date-format="mm/yy"
-            placeholder="Month"
-            :class="{ 'p-invalid': cv$.month.$error }"
-          />
-          <ValidationError :state="cv$.month" />
-        </div>
-      </div>
-      <div class="flex flex-row w-full">
-        <InputText
-          v-model="contribForm.note"
-          placeholder="Note"
-          class="w-full"
-          size="small"
-        />
       </div>
     </div>
 
     <div class="flex flex-column gap-2">
-      <div class="font-medium text-sm">History</div>
-
-      <ShowLoading v-if="loading" :num-fields="3" />
-
-      <div
-        v-else-if="contributions.length === 0"
-        class="flex flex-row justify-content-center p-3"
-        style="color: var(--text-secondary)"
-      >
-        <div class="flex flex-column align-items-center gap-2">
-          <i class="pi pi-inbox text-3xl" />
-          <span class="text-sm">No contributions yet</span>
+      <div class="flex flex-row align-items-center justify-content-between">
+        <div class="font-medium text-sm">History</div>
+        <div
+          v-if="paginator.total > 0"
+          class="text-sm"
+          style="color: var(--text-secondary)"
+        >
+          {{ paginator.total }}
+          {{ paginator.total === 1 ? "contribution" : "contributions" }}
         </div>
       </div>
 
-      <template v-else>
-        <div
-          v-for="contrib in contributions"
-          :key="contrib.id"
-          class="flex flex-row align-items-center justify-content-between p-3 border-round-xl bordered"
-          style="background: var(--background-primary)"
+      <div
+        class="flex flex-column w-full border-round-2xl"
+        style="
+          padding: 0.25rem 0.25rem 0 0.25rem;
+          border: 1px solid var(--border-color);
+        "
+      >
+        <DataTable
+          data-key="id"
+          class="w-full enhanced-table"
+          :loading="loading"
+          :value="contributions"
+          scrollable
+          scroll-height="30vh"
+          column-resize-mode="fit"
+          scroll-direction="both"
         >
-          <div class="flex flex-column gap-1">
-            <div class="font-medium text-sm">
-              {{ vueHelper.displayAsCurrency(contrib.amount) }}
-            </div>
-            <div class="text-sm" style="color: var(--text-secondary)">
-              {{ dateHelper.formatDate(contrib.month, false, "MMM YYYY") }}
-              <span v-if="contrib.note"> &middot; {{ contrib.note }}</span>
-            </div>
-          </div>
-          <div class="flex flex-row align-items-center gap-2">
-            <Tag :value="contrib.source" severity="secondary" />
-            <i
-              v-if="hasPermission('manage_data')"
-              class="pi pi-trash hover-icon text-sm"
-              style="color: var(--p-red-300)"
-              @click="confirmDeleteContrib(contrib)"
+          <template #empty>
+            <div style="padding: 10px">No contributions yet.</div>
+          </template>
+          <template #loading>
+            <LoadingSpinner />
+          </template>
+          <template #footer>
+            <CustomPaginator
+              :paginator="paginator"
+              :rows="rows"
+              @on-page="onPage"
             />
-          </div>
-        </div>
+          </template>
 
-        <CustomPaginator
-          :paginator="paginator"
-          :rows="rows"
-          @on-page="onPage"
-        />
-      </template>
+          <Column
+            v-for="col of columns"
+            :key="col.field"
+            :field="col.field"
+            :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+            :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+          >
+            <template #header>
+              <ColumnHeader
+                :header="col.header"
+                :field="col.field"
+                :sort="sort"
+                :sortable="true"
+              />
+            </template>
+            <template #body="{ data }">
+              <template v-if="col.field === 'amount'">
+                {{ vueHelper.displayAsCurrency(data.amount) }}
+              </template>
+              <template v-else-if="col.field === 'month'">
+                {{ dateHelper.formatDate(data.month, false, "MMM YYYY") }}
+              </template>
+              <template v-else-if="col.field === 'source'">
+                <Tag :value="data.source" severity="secondary" />
+              </template>
+              <template v-else-if="col.field === 'note'">
+                <span v-tooltip.top="data.note" class="truncate-text">
+                  {{ data.note ?? "" }}
+                </span>
+              </template>
+              <template v-else>
+                {{ data[col.field] ?? "" }}
+              </template>
+            </template>
+          </Column>
+
+          <Column v-if="hasPermission('manage_data')" header="">
+            <template #body="{ data }">
+              <i
+                class="pi pi-trash hover-icon text-sm"
+                style="color: var(--p-red-300)"
+                @click="confirmDeleteContrib(data)"
+              />
+            </template>
+          </Column>
+        </DataTable>
+      </div>
     </div>
   </div>
 </template>
