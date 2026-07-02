@@ -341,6 +341,10 @@ func (s *SavingsService) FetchContributionsPaginated(ctx context.Context, userID
 }
 
 func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID int64, req *models.SavingContributionReq) (int64, error) {
+	if req.Amount.IsZero() {
+		return 0, fmt.Errorf("contribution amount cannot be zero")
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -359,14 +363,21 @@ func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID 
 		return 0, fmt.Errorf("goal not found: %w", err)
 	}
 
-	uncategorized, err := s.repo.GetUncategorizedBalance(ctx, tx, goal.AccountID, userID)
-	if err != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("failed to compute available balance: %w", err)
-	}
-	if req.Amount.GreaterThan(uncategorized) {
-		tx.Rollback()
-		return 0, fmt.Errorf("contribution of %s exceeds uncategorized balance of %s", req.Amount.StringFixed(2), uncategorized.StringFixed(2))
+	if req.Amount.IsNegative() {
+		if req.Amount.Abs().GreaterThan(goal.CurrentAmount) {
+			tx.Rollback()
+			return 0, fmt.Errorf("withdrawal of %s exceeds allocated amount of %s", req.Amount.Abs().StringFixed(2), goal.CurrentAmount.StringFixed(2))
+		}
+	} else {
+		uncategorized, err := s.repo.GetUncategorizedBalance(ctx, tx, goal.AccountID, userID)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to compute available balance: %w", err)
+		}
+		if req.Amount.GreaterThan(uncategorized) {
+			tx.Rollback()
+			return 0, fmt.Errorf("contribution of %s exceeds uncategorized balance of %s", req.Amount.StringFixed(2), uncategorized.StringFixed(2))
+		}
 	}
 
 	month, err := time.Parse("2006-01-02", req.Month)

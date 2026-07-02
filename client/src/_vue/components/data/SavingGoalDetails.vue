@@ -19,7 +19,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { computed, onMounted, ref } from "vue";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import { required } from "@vuelidate/validators";
-import { decimalMin, decimalValid } from "../../../validators/currency.ts";
+import { decimalNonZero, decimalValid } from "../../../validators/currency.ts";
 import useVuelidate from "@vuelidate/core";
 import filterHelper from "../../../utils/filter_helper.ts";
 import type { PaginatorState } from "../../../models/shared_models.ts";
@@ -105,7 +105,7 @@ const { number: contribAmountNumber } = currencyHelper.useMoneyField(
 );
 
 const contribRules = computed(() => ({
-  amount: { required, decimalValid, decimalMin: decimalMin("0.01") },
+  amount: { required, decimalValid, decimalNonZero },
   month: { required },
 }));
 const cv$ = useVuelidate(contribRules, contribForm);

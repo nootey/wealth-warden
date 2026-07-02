@@ -26,6 +26,18 @@ export const decimalMin = (min: string | number) =>
     }
   });
 
+export const decimalNonZero = helpers.withMessage(
+  "Must not be zero",
+  (v: unknown) => {
+    if (isEmpty(v)) return true;
+    try {
+      return !new Decimal(v as string).isZero();
+    } catch {
+      return false;
+    }
+  },
+);
+
 export const decimalMax = (max: string | number) =>
   helpers.withMessage(`Must be ≤ ${max}`, (v: unknown) => {
     if (isEmpty(v)) return true;
