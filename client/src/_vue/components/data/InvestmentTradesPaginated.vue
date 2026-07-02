@@ -246,7 +246,6 @@ defineExpose({ refresh });
         :loading="loading"
         :value="records"
         scrollable
-        scroll-height="50vh"
         :row-class="vueHelper.deletedRowClass"
         column-resize-mode="fit"
         scroll-direction="both"

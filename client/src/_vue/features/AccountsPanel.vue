@@ -104,18 +104,26 @@ accountStore.accountTypes.forEach((t) => {
 
 const groupedAccounts = computed(() => {
   const groups = new Map<string, typeof accounts.value>();
+  const inactive: typeof accounts.value = [];
   for (const acc of accounts.value) {
+    if (!acc.is_active) {
+      inactive.push(acc);
+      continue;
+    }
     const t = acc.account_type?.type || "other_asset";
     if (!groups.has(t)) groups.set(t, []);
     groups.get(t)!.push(acc);
   }
 
-  return Array.from(groups.entries()).sort(([typeA], [typeB]) => {
+  const sorted = Array.from(groups.entries()).sort(([typeA], [typeB]) => {
     const ca = typeMap[typeA] ?? "asset";
     const cb = typeMap[typeB] ?? "asset";
     if (ca !== cb) return ca === "asset" ? -1 : 1;
     return typeA.localeCompare(typeB);
   });
+
+  if (inactive.length > 0) sorted.push(["inactive", inactive]);
+  return sorted;
 });
 
 const groupTotal = (group: Account[]) =>
@@ -288,90 +296,96 @@ defineExpose({ refresh: getData });
         </div>
       </div>
 
-      <div
-        v-for="[type, group] in groupedAccounts"
-        v-else
-        :key="type"
-        class="w-full mb-3 border-round-xl p-3"
-        style="background: var(--background-primary)"
-      >
-        <div class="flex ml-1 mr-1 align-items-center justify-content-between">
-          <div class="text-sm" style="color: var(--text-secondary)">
-            {{ vueHelper.formatString(type) }} · {{ group.length }}
-          </div>
-          <div class="font-bold text-sm" style="color: var(--text-secondary)">
-            {{ vueHelper.displayAsCurrency(groupTotal(group)) }}
-          </div>
-        </div>
-
+      <TransitionGroup v-else name="list-anim" tag="div" class="relative">
         <div
-          v-for="(account, i) in group"
-          :key="account.id ?? i"
-          class="account-row flex align-items-center justify-content-between p-2 border-round-xl mt-3 bordered"
-          :class="{ advanced, inactive: !account.is_active }"
+          v-for="[type, group] in groupedAccounts"
+          :key="type"
+          class="w-full mb-3 border-round-xl p-3"
+          style="background: var(--background-primary)"
         >
-          <div class="flex align-items-center">
-            <!-- Avatar -->
+          <div
+            class="flex ml-1 mr-1 align-items-center justify-content-between"
+          >
+            <div class="text-sm" style="color: var(--text-secondary)">
+              {{ vueHelper.formatString(type) }} · {{ group.length }}
+            </div>
+            <div class="font-bold text-sm" style="color: var(--text-secondary)">
+              {{ vueHelper.displayAsCurrency(groupTotal(group)) }}
+            </div>
+          </div>
+
+          <TransitionGroup name="list-anim" tag="div" class="relative">
             <div
-              class="flex align-items-center justify-content-center font-bold"
-              :style="{
-                width: '32px',
-                height: '32px',
-                border: '1px solid',
-                borderColor: logoColor(account.account_type?.type).border,
-                borderRadius: '50%',
-                background: logoColor(account.account_type.type).bg,
-                color: logoColor(account.account_type.type).fg,
-              }"
+              v-for="(account, i) in group"
+              :key="account.id ?? i"
+              class="account-row flex align-items-center justify-content-between p-2 border-round-xl mt-3 bordered"
+              :class="{ advanced, inactive: !account.is_active }"
             >
-              {{ account.name.charAt(0).toUpperCase() }}
-            </div>
+              <div class="flex align-items-center">
+                <!-- Avatar -->
+                <div
+                  class="flex align-items-center justify-content-center font-bold"
+                  :style="{
+                    width: '32px',
+                    height: '32px',
+                    border: '1px solid',
+                    borderColor: logoColor(account.account_type?.type).border,
+                    borderRadius: '50%',
+                    background: logoColor(account.account_type.type).bg,
+                    color: logoColor(account.account_type.type).fg,
+                  }"
+                >
+                  {{ account.name.charAt(0).toUpperCase() }}
+                </div>
 
-            <!-- Name + subtype -->
-            <div class="ml-2">
-              <div
-                class="font-bold clickable"
-                @click="openModal('details', account)"
-              >
-                {{ account.name }}
+                <!-- Name + subtype -->
+                <div class="ml-2">
+                  <div
+                    class="font-bold clickable"
+                    @click="openModal('details', account)"
+                  >
+                    {{ account.name }}
+                  </div>
+
+                  <div class="text-sm" style="color: var(--text-secondary)">
+                    {{ vueHelper.formatString(account.account_type?.sub_type) }}
+                    {{ !account.is_active ? " - Inactive" : "" }}
+                  </div>
+                </div>
+
+                <!-- Edit icon -->
+                <i
+                  v-if="hasPermission('manage_data') && account.is_active"
+                  v-tooltip="'Edit account'"
+                  class="ml-3 pi pi-pen-to-square text-xs hover-icon edit-icon"
+                  style="color: var(--text-secondary)"
+                  @click="openModal('update', account.id!)"
+                />
               </div>
 
-              <div class="text-sm" style="color: var(--text-secondary)">
-                {{ vueHelper.formatString(account.account_type?.sub_type) }}
-                {{ !account.is_active ? " - Inactive" : "" }}
+              <div class="flex align-items-center gap-2">
+                <div class="font-bold mr-1">
+                  {{
+                    vueHelper.displayAsCurrency(
+                      account.balance.total_balance ??
+                        account.balance.end_balance,
+                    )
+                  }}
+                </div>
+
+                <template v-if="advanced">
+                  <ToggleSwitch
+                    v-if="hasPermission('manage_data')"
+                    v-model="account.is_active"
+                    style="transform: scale(0.675)"
+                    @update:model-value="(v) => onToggleEnabled(account, v)"
+                  />
+                </template>
               </div>
             </div>
-
-            <!-- Edit icon -->
-            <i
-              v-if="hasPermission('manage_data') && account.is_active"
-              v-tooltip="'Edit account'"
-              class="ml-3 pi pi-pen-to-square text-xs hover-icon edit-icon"
-              style="color: var(--text-secondary)"
-              @click="openModal('update', account.id!)"
-            />
-          </div>
-
-          <div class="flex align-items-center gap-2">
-            <div class="font-bold mr-1">
-              {{
-                vueHelper.displayAsCurrency(
-                  account.balance.total_balance ?? account.balance.end_balance,
-                )
-              }}
-            </div>
-
-            <template v-if="advanced">
-              <ToggleSwitch
-                v-if="hasPermission('manage_data')"
-                v-model="account.is_active"
-                style="transform: scale(0.675)"
-                @update:model-value="(v) => onToggleEnabled(account, v)"
-              />
-            </template>
-          </div>
+          </TransitionGroup>
         </div>
-      </div>
+      </TransitionGroup>
     </div>
   </div>
 </template>
@@ -404,6 +418,24 @@ defineExpose({ refresh: getData });
 .account-row.inactive {
   filter: grayscale(100%);
   opacity: 0.6;
+}
+
+.list-anim-move,
+.list-anim-enter-active,
+.list-anim-leave-active {
+  transition: all 0.35s ease;
+}
+
+.list-anim-enter-from,
+.list-anim-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.list-anim-leave-active {
+  position: absolute;
+  left: 0;
+  right: 0;
 }
 
 @media (max-width: 768px) {

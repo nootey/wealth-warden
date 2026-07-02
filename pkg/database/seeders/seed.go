@@ -23,6 +23,7 @@ type SeederWorkers struct {
 	Func  SeederFunc
 	Basic bool
 	Full  bool
+	NoTx  bool // seeder drives services that begin their own transactions; must run on a raw DB handle
 }
 
 func clearStorage() error {
@@ -58,7 +59,7 @@ func clearStorage() error {
 }
 
 func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *config.Config, seederType string, seederName ...string) error {
-	var seeders []SeederFunc
+	var seeders []SeederWorkers
 
 	// Order matters — dependencies must run before dependants
 	allSeeders := []SeederWorkers{
@@ -70,6 +71,8 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 		{Name: "SeedAccounts", Func: workers.SeedAccounts, Basic: false, Full: true},
 		{Name: "SeedCategories", Func: workers.SeedCategories, Basic: true, Full: true},
 		{Name: "SeedTransactions", Func: workers.SeedTransactions, Basic: false, Full: true},
+		{Name: "SeedSavingGoals", Func: workers.SeedSavingGoals, Basic: false, Full: true},
+		{Name: "SeedInvestments", Func: workers.SeedInvestments, Basic: false, Full: true, NoTx: true},
 	}
 
 	switch seederType {
@@ -79,7 +82,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 		}
 		for _, worker := range allSeeders {
 			if worker.Full {
-				seeders = append(seeders, worker.Func)
+				seeders = append(seeders, worker)
 			}
 		}
 	case "basic":
@@ -88,7 +91,7 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 		}
 		for _, worker := range allSeeders {
 			if worker.Basic {
-				seeders = append(seeders, worker.Func)
+				seeders = append(seeders, worker)
 			}
 		}
 	case "individual":
@@ -105,35 +108,56 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 		if found == nil {
 			return fmt.Errorf("unknown seeder: %s", seederName[0])
 		}
-		seeders = []SeederFunc{found.Func}
+		seeders = []SeederWorkers{*found}
 	default:
 		return fmt.Errorf("unknown seeder type: %s", seederType)
 	}
 
-	// Execute all seeders within a transaction
+	runSeeder := func(tx *gorm.DB, worker SeederWorkers) error {
+		// Get the function name using reflection
+		seederName := getFunctionName(worker.Func)
+
+		// Run the seeder
+		if err := worker.Func(ctx, tx, cfg); err != nil {
+			return fmt.Errorf("seeder %s failed: %w", seederName, err)
+		}
+
+		// Print status
+		logger.Info("Seeder completed",
+			zap.String("timestamp", time.Now().Format("2006/01/02 15:04:05")),
+			zap.String("status", "OK"),
+			zap.String("seeder", seederName),
+		)
+
+		return nil
+	}
+
+	// Execute seeders within a transaction
 	err := db.Transaction(func(tx *gorm.DB) error {
-		for _, seeder := range seeders {
-			// Get the function name using reflection
-			seederName := getFunctionName(seeder)
-
-			// Run the seeder
-			if err := seeder(ctx, tx, cfg); err != nil {
-				return fmt.Errorf("seeder %s failed: %w", seederName, err)
+		for _, worker := range seeders {
+			if worker.NoTx {
+				continue
 			}
-
-			// Print status
-			logger.Info("Seeder completed",
-				zap.String("timestamp", time.Now().Format("2006/01/02 15:04:05")),
-				zap.String("status", "OK"),
-				zap.String("seeder", seederName),
-			)
-
+			if err := runSeeder(tx, worker); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
 
 	if err != nil {
 		return fmt.Errorf("failed to run seeders: %w", err)
+	}
+
+	// NoTx seeders begin their own transactions internally, which fails inside
+	// an already-open transaction — run them after the main batch commits
+	for _, worker := range seeders {
+		if !worker.NoTx {
+			continue
+		}
+		if err := runSeeder(db, worker); err != nil {
+			return fmt.Errorf("failed to run seeders: %w", err)
+		}
 	}
 
 	logger.Info("Database seeding completed successfully.")

@@ -171,6 +171,83 @@ func (s *SavingsServiceTestSuite) TestAutoFundGoal_MissedMonthStaysMissed() {
 	s.Equal(int64(1), countB)
 }
 
+// InsertContribution rejects contributions (positive and negative) for non-active goals.
+func (s *SavingsServiceTestSuite) TestInsertContribution_NonActiveGoalRejected() {
+	svc := s.TC.App.SavingsService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	balance := decimal.NewFromInt(500)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Test Savings",
+		AccountTypeID:  2,
+		Type:           "cash",
+		Subtype:        "savings",
+		Classification: "asset",
+		Balance:        &balance,
+		OpenedAt:       time.Now(),
+	})
+	s.Require().NoError(err)
+
+	goalID, err := svc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:    accID,
+		Name:         "Test Goal",
+		TargetAmount: decimal.NewFromInt(1000),
+	})
+	s.Require().NoError(err)
+
+	nonActiveStatuses := []models.SavingGoalStatus{
+		models.SavingGoalStatusPaused,
+		models.SavingGoalStatusCompleted,
+		models.SavingGoalStatusArchived,
+	}
+
+	for _, status := range nonActiveStatuses {
+		_, err = svc.UpdateGoal(s.Ctx, userID, goalID, &models.SavingGoalUpdateReq{
+			Name:         "Test Goal",
+			TargetAmount: decimal.NewFromInt(1000),
+			Status:       status,
+		})
+		s.Require().NoError(err)
+
+		_, err = svc.InsertContribution(s.Ctx, userID, goalID, &models.SavingContributionReq{
+			Amount: decimal.NewFromInt(50),
+			Month:  "2026-04-01",
+		})
+		s.Require().Error(err)
+		s.Contains(err.Error(), "cannot add contributions")
+
+		_, err = svc.InsertContribution(s.Ctx, userID, goalID, &models.SavingContributionReq{
+			Amount: decimal.NewFromInt(-50),
+			Month:  "2026-04-01",
+		})
+		s.Require().Error(err)
+		s.Contains(err.Error(), "cannot add contributions")
+	}
+
+	var count int64
+	s.Require().NoError(
+		s.TC.DB.Model(&models.SavingContribution{}).
+			Where("goal_id = ?", goalID).
+			Count(&count).Error,
+	)
+	s.Equal(int64(0), count)
+
+	// Reactivated goal accepts contributions again
+	_, err = svc.UpdateGoal(s.Ctx, userID, goalID, &models.SavingGoalUpdateReq{
+		Name:         "Test Goal",
+		TargetAmount: decimal.NewFromInt(1000),
+		Status:       models.SavingGoalStatusActive,
+	})
+	s.Require().NoError(err)
+
+	_, err = svc.InsertContribution(s.Ctx, userID, goalID, &models.SavingContributionReq{
+		Amount: decimal.NewFromInt(50),
+		Month:  "2026-04-01",
+	})
+	s.Require().NoError(err)
+}
+
 // FetchActiveGoalsWithAllocation excludes goals whose fund_day_of_month is in the future.
 func (s *SavingsServiceTestSuite) TestFetchActiveGoalsWithAllocation_DayFilter() {
 	svc := s.TC.App.SavingsService

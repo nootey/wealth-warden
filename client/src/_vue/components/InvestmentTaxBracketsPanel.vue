@@ -285,7 +285,7 @@ async function saveSettings(): Promise<void> {
         border: 1px solid var(--border-color);
       "
     >
-      <div class="flex flex-column gap-1 w-full p-2 gap-3">
+      <div class="flex flex-column w-full gap-3">
         <div class="flex flex-row align-items-center text-center gap-2 w-full">
           <h4>Settings</h4>
         </div>
@@ -306,7 +306,7 @@ async function saveSettings(): Promise<void> {
           />
         </div>
 
-        <div class="flex flex-row align-items-center mt-2">
+        <div class="flex flex-row align-items-center">
           <Button
             label="Save"
             class="main-button ml-auto"
