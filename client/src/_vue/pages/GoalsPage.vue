@@ -168,6 +168,68 @@ const groupedGoals = computed(() => {
     ),
   }));
 });
+
+const filterOptions = ["All", "On track", "Behind", "Paused", "Completed"];
+const activeFilter = ref("All");
+
+function matchesFilter(goal: SavingGoalWithProgress): boolean {
+  switch (activeFilter.value) {
+    case "On track":
+      return (
+        goal.status === "active" &&
+        (goal.track_status === "on_track" || goal.track_status === "early")
+      );
+    case "Behind":
+      return goal.status === "active" && goal.track_status === "late";
+    case "Paused":
+      return goal.status === "paused";
+    case "Completed":
+      return goal.status === "completed" || goal.track_status === "completed";
+    default:
+      return true;
+  }
+}
+
+const filteredGroups = computed(() =>
+  groupedGoals.value
+    .map((group) => ({ ...group, goals: group.goals.filter(matchesFilter) }))
+    .filter((group) => group.goals.length > 0),
+);
+
+const goalStats = computed(() => {
+  const active = goals.value.filter((g) => g.status === "active");
+  let needsThisMonth = new Decimal(0);
+  for (const g of active) {
+    if (g.monthly_needed && g.track_status !== "completed") {
+      needsThisMonth = needsThisMonth.add(new Decimal(g.monthly_needed));
+    }
+  }
+  return {
+    needsThisMonth,
+    behind: active.filter((g) => g.track_status === "late").length,
+    onTrack: active.filter((g) =>
+      ["on_track", "early", "completed"].includes(g.track_status),
+    ).length,
+    activeCount: active.length,
+    noTarget: active.filter((g) => g.track_status === "no_target").length,
+    paused: goals.value.filter((g) => g.status === "paused").length,
+    allocated: goals.value.reduce(
+      (sum, g) => sum.add(new Decimal(g.current_amount ?? "0")),
+      new Decimal(0),
+    ),
+  };
+});
+
+const onTrackBreakdown = computed(() => {
+  const parts: string[] = [];
+  if (goalStats.value.behind > 0)
+    parts.push(`${goalStats.value.behind} behind`);
+  if (goalStats.value.noTarget > 0)
+    parts.push(`${goalStats.value.noTarget} without a deadline`);
+  if (goalStats.value.paused > 0)
+    parts.push(`${goalStats.value.paused} paused`);
+  return parts.join(" · ");
+});
 </script>
 
 <template>
@@ -265,6 +327,67 @@ const groupedGoals = computed(() => {
       </div>
 
       <div
+        v-if="!loading && goals.length > 0"
+        id="goal-stats"
+        class="w-full flex flex-row gap-3 p-1"
+      >
+        <div
+          class="flex-1 flex flex-column gap-1 p-3 border-round-xl bordered"
+          :style="{ background: 'var(--background-secondary)' }"
+        >
+          <div class="text-xs uppercase" style="color: var(--text-secondary)">
+            Needs this month
+          </div>
+          <div class="text-xl font-bold">
+            {{
+              vueHelper.displayAsCurrency(goalStats.needsThisMonth.toString())
+            }}
+          </div>
+          <div class="text-sm" style="color: var(--text-secondary)">
+            {{
+              goalStats.behind > 0
+                ? `${goalStats.behind} goal${goalStats.behind === 1 ? "" : "s"} behind pace`
+                : "All goals on pace"
+            }}
+          </div>
+        </div>
+        <div
+          class="flex-1 flex flex-column gap-1 p-3 border-round-xl bordered"
+          :style="{ background: 'var(--background-secondary)' }"
+        >
+          <div class="text-xs uppercase" style="color: var(--text-secondary)">
+            Goals on track
+          </div>
+          <div class="text-xl font-bold">
+            {{ goalStats.onTrack }} of {{ goalStats.activeCount }}
+          </div>
+          <div
+            v-if="onTrackBreakdown"
+            class="text-sm"
+            style="color: var(--text-secondary)"
+          >
+            {{ onTrackBreakdown }}
+          </div>
+        </div>
+        <div
+          class="flex-1 flex flex-column gap-1 p-3 border-round-xl bordered"
+          :style="{ background: 'var(--background-secondary)' }"
+        >
+          <div class="text-xs uppercase" style="color: var(--text-secondary)">
+            Total allocated
+          </div>
+          <div class="text-xl font-bold">
+            {{ vueHelper.displayAsCurrency(goalStats.allocated.toString()) }}
+          </div>
+          <div class="text-sm" style="color: var(--text-secondary)">
+            across
+            {{ groupedGoals.length }}
+            account{{ groupedGoals.length === 1 ? "" : "s" }}
+          </div>
+        </div>
+      </div>
+
+      <div
         class="w-full flex flex-row justify-content-between p-1 align-items-center text-sm"
       >
         <i class="pi pi-info-circle" style="flex-shrink: 0" />
@@ -273,6 +396,16 @@ const groupedGoals = computed(() => {
           Ensure your account has enough uncategorized balance before the
           configured fund day.
         </div>
+      </div>
+
+      <div v-if="!loading && goals.length > 0" class="w-full flex flex-row p-1">
+        <SelectButton
+          v-model="activeFilter"
+          size="small"
+          style="font-size: 0.875rem"
+          :options="filterOptions"
+          :allow-empty="false"
+        />
       </div>
 
       <div
@@ -298,9 +431,18 @@ const groupedGoals = computed(() => {
           </div>
         </div>
 
+        <div
+          v-else-if="filteredGroups.length === 0"
+          class="flex flex-row p-2 w-full justify-content-center"
+        >
+          <span style="color: var(--text-secondary)"
+            >No goals match this filter</span
+          >
+        </div>
+
         <div v-else class="flex flex-column gap-4">
           <div
-            v-for="group in groupedGoals"
+            v-for="group in filteredGroups"
             :key="group.accountID"
             class="flex flex-column gap-3"
           >
@@ -378,6 +520,17 @@ const groupedGoals = computed(() => {
                   </div>
                 </div>
                 <div class="flex flex-row align-items-center gap-2">
+                  <span
+                    v-if="
+                      goal.status === 'active' &&
+                      goal.months_remaining &&
+                      goal.track_status !== 'completed'
+                    "
+                    class="text-sm"
+                    style="color: var(--text-secondary); white-space: nowrap"
+                  >
+                    {{ goal.months_remaining }} mo left
+                  </span>
                   <Tag
                     v-if="goal.status !== 'active'"
                     :value="savingsHelper.goalStatusLabel(goal.status)"
@@ -442,10 +595,10 @@ const groupedGoals = computed(() => {
                 class="text-sm"
                 style="color: var(--text-secondary)"
               >
+                {{
+                  vueHelper.displayAsCurrency(goal.monthly_allocation ?? "0")
+                }}/mo &middot; target
                 {{ vueHelper.displayAsCurrency(goal.monthly_needed) }}/mo
-                <span v-if="goal.months_remaining"
-                  >&middot; {{ goal.months_remaining }} months left</span
-                >
               </div>
             </div>
           </div>
@@ -459,6 +612,9 @@ const groupedGoals = computed(() => {
 @media (max-width: 768px) {
   #mobile-container {
     padding: 0.5rem;
+  }
+  #goal-stats {
+    flex-direction: column;
   }
 }
 </style>
