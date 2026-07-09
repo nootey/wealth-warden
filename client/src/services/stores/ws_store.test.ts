@@ -164,9 +164,7 @@ describe("wsStore", () => {
       store.on("report.completed", handler);
       store.connect();
 
-      expect(() =>
-        socket().fireMessage(encode("report.failed")),
-      ).not.toThrow();
+      expect(() => socket().fireMessage(encode("report.failed"))).not.toThrow();
       expect(handler).not.toHaveBeenCalled();
     });
   });
