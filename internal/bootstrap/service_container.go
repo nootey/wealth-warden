@@ -6,6 +6,7 @@ import (
 	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
+	"wealth-warden/internal/ws"
 	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/finance"
@@ -35,6 +36,7 @@ type ServiceContainer struct {
 	SavingsService      *services.SavingsService
 	NotificationService *services.NotificationService
 	NotifDispatcher     queue_jobs.NotificationDispatcher
+	Hub                 *ws.Hub
 }
 
 // NewServiceContainer initialises the application service layer.
@@ -88,6 +90,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	savingsService := services.NewSavingsService(savingsRepo, accountRepo, loggingRepo, jobDispatcher)
 	notificationService := services.NewNotificationService(notificationRepo)
 	notifDispatcher := queue_jobs.NewNotificationDispatcher(notificationRepo, jobDispatcher)
+	hub := ws.NewHub(logger.Named("ws"))
 
 	return &ServiceContainer{
 		Config:              cfg,
@@ -109,5 +112,6 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 		SavingsService:      savingsService,
 		NotificationService: notificationService,
 		NotifDispatcher:     notifDispatcher,
+		Hub:                 hub,
 	}, nil
 }

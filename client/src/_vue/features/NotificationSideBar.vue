@@ -108,10 +108,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, defineExpose, onMounted } from "vue";
+import { ref, defineExpose, onMounted, onUnmounted } from "vue";
 import { useNotificationStore } from "../../services/stores/notification_store.ts";
 import { useSharedStore } from "../../services/stores/shared_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
+import { useWsStore } from "../../services/stores/ws_store.ts";
 import type {
   Notification,
   NotificationType,
@@ -123,6 +124,7 @@ import SimplePaginator from "../components/base/SimplePaginator.vue";
 const notificationStore = useNotificationStore();
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
+const wsStore = useWsStore();
 
 const open = ref(false);
 const notifications = ref<Notification[]>([]);
@@ -206,7 +208,17 @@ const typeColor = (type: NotificationType) => {
   return colors[type] ?? "var(--text-secondary)";
 };
 
-onMounted(() => notificationStore.checkUnread());
+let unsubscribe: (() => void) | null = null;
+
+onMounted(() => {
+  notificationStore.checkUnread();
+  unsubscribe = wsStore.on("notification.created", () => {
+    notificationStore.checkUnread();
+    if (open.value) loadNotifications(page.value);
+  });
+});
+
+onUnmounted(() => unsubscribe?.());
 
 defineExpose({ open, toggle });
 </script>

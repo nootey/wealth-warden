@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const wsRoutePath = "/api/ws"
+
 type RouteInitializerHTTP struct {
 	Router    *gin.Engine
 	Container *bootstrap.ServiceContainer
@@ -50,6 +52,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	analyticsHandler := httpHandlers.NewAnalyticsHandler(r.Container.AnalyticsService, validator)
 	savingsHandler := httpHandlers.NewSavingsHandler(r.Container.SavingsService, validator)
 	notificationHandler := httpHandlers.NewNotificationHandler(r.Container.NotificationService)
+	websocketHandler := httpHandlers.NewWebsocketHandler(r.Container.Hub, r.Container.Config)
 
 	// Register routes
 
@@ -71,6 +74,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	}
 
 	authHandler.Routes(authenticated.Group("/auth"))
+	websocketHandler.Routes(authenticated.Group("/ws"))
 	backOfficeHandler.Routes(protected.Group("/backoffice"))
 	accountHandler.Routes(protected.Group("/accounts"))
 	analyticsHandler.Routes(protected.Group("/analytics"))

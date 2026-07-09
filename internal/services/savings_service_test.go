@@ -308,3 +308,84 @@ func (s *SavingsServiceTestSuite) TestFetchActiveGoalsWithAllocation_DayFilter()
 		}
 	}
 }
+
+// An initial allocation above the linked account's balance is rejected.
+func (s *SavingsServiceTestSuite) TestInsertGoal_InitialAmountExceedsBalance() {
+	svc := s.TC.App.SavingsService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	balance := decimal.NewFromInt(500)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Test Savings",
+		AccountTypeID:  2,
+		Type:           "cash",
+		Subtype:        "savings",
+		Classification: "asset",
+		Balance:        &balance,
+		OpenedAt:       time.Now(),
+	})
+	s.Require().NoError(err)
+
+	initial := decimal.NewFromInt(600)
+	_, err = svc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:     accID,
+		Name:          "Overfunded Goal",
+		TargetAmount:  decimal.NewFromInt(1000),
+		InitialAmount: &initial,
+	})
+	s.Require().Error(err)
+	s.Contains(err.Error(), "exceeds uncategorized balance")
+
+	goals, err := svc.FetchGoals(s.Ctx, userID)
+	s.Require().NoError(err)
+	s.Empty(goals)
+}
+
+// An initial allocation is measured against the balance left over by goals already on the account.
+func (s *SavingsServiceTestSuite) TestInsertGoal_InitialAmountRespectsSiblingAllocations() {
+	svc := s.TC.App.SavingsService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	balance := decimal.NewFromInt(500)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Test Savings",
+		AccountTypeID:  2,
+		Type:           "cash",
+		Subtype:        "savings",
+		Classification: "asset",
+		Balance:        &balance,
+		OpenedAt:       time.Now(),
+	})
+	s.Require().NoError(err)
+
+	firstInitial := decimal.NewFromInt(400)
+	_, err = svc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:     accID,
+		Name:          "First Goal",
+		TargetAmount:  decimal.NewFromInt(1000),
+		InitialAmount: &firstInitial,
+	})
+	s.Require().NoError(err)
+
+	// Only 100 remains uncategorized on the account.
+	secondInitial := decimal.NewFromInt(150)
+	_, err = svc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:     accID,
+		Name:          "Second Goal",
+		TargetAmount:  decimal.NewFromInt(1000),
+		InitialAmount: &secondInitial,
+	})
+	s.Require().Error(err)
+	s.Contains(err.Error(), "exceeds uncategorized balance")
+
+	withinRemaining := decimal.NewFromInt(100)
+	_, err = svc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:     accID,
+		Name:          "Second Goal",
+		TargetAmount:  decimal.NewFromInt(1000),
+		InitialAmount: &withinRemaining,
+	})
+	s.Require().NoError(err)
+}

@@ -101,6 +101,18 @@ func (s *SavingsService) InsertGoal(ctx context.Context, userID int64, req *mode
 		return 0, fmt.Errorf("goals can be linked only to cash accounts")
 	}
 
+	if req.InitialAmount != nil && req.InitialAmount.IsPositive() {
+		uncategorized, err := s.repo.GetUncategorizedBalance(ctx, tx, req.AccountID, userID)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to compute available balance: %w", err)
+		}
+		if req.InitialAmount.GreaterThan(uncategorized) {
+			tx.Rollback()
+			return 0, fmt.Errorf("initial allocation of %s exceeds uncategorized balance of %s", req.InitialAmount.StringFixed(2), uncategorized.StringFixed(2))
+		}
+	}
+
 	var targetDate *time.Time
 	if req.TargetDate != nil && *req.TargetDate != "" {
 		parsed, parseErr := time.Parse("2006-01-02", *req.TargetDate)

@@ -12,6 +12,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/ws"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -33,6 +34,7 @@ type xlsxStyles struct {
 type GenerateCategoryReportJob struct {
 	logger        *zap.Logger
 	analyticsRepo repositories.AnalyticsRepositoryInterface
+	broadcaster   ws.Broadcaster
 	ReportID      int64
 	UserID        int64
 	Params        models.CategoryReportParams
@@ -43,12 +45,14 @@ func (j *GenerateCategoryReportJob) Type() string { return TypeGenerateCategoryR
 func NewGenerateCategoryReportJob(
 	logger *zap.Logger,
 	analyticsRepo repositories.AnalyticsRepositoryInterface,
+	broadcaster ws.Broadcaster,
 	reportID, userID int64,
 	params models.CategoryReportParams,
 ) *GenerateCategoryReportJob {
 	return &GenerateCategoryReportJob{
 		logger:        logger,
 		analyticsRepo: analyticsRepo,
+		broadcaster:   broadcaster,
 		ReportID:      reportID,
 		UserID:        userID,
 		Params:        params,
@@ -89,13 +93,18 @@ func (j *GenerateCategoryReportJob) Process(ctx context.Context) error {
 
 	now := time.Now().UTC()
 	fileSize := int64(len(data))
-	return j.analyticsRepo.UpdateReport(ctx, nil, j.ReportID, map[string]interface{}{
+	if err := j.analyticsRepo.UpdateReport(ctx, nil, j.ReportID, map[string]interface{}{
 		"status":       "completed",
 		"name":         j.reportName(categoryLabel),
 		"file_path":    filePath,
 		"file_size":    fileSize,
 		"completed_at": now,
-	})
+	}); err != nil {
+		return err
+	}
+
+	j.broadcaster.Send(j.UserID, ws.Event{Type: ws.TypeReportCompleted, Payload: ws.ReportPayload{ReportID: j.ReportID}})
+	return nil
 }
 
 func (j *GenerateCategoryReportJob) fail(ctx context.Context, err error) error {
@@ -105,6 +114,7 @@ func (j *GenerateCategoryReportJob) fail(ctx context.Context, err error) error {
 		"status": "failed",
 		"error":  msg,
 	})
+	j.broadcaster.Send(j.UserID, ws.Event{Type: ws.TypeReportFailed, Payload: ws.ReportPayload{ReportID: j.ReportID}})
 	return err
 }
 

@@ -3,6 +3,7 @@ module wealth-warden
 go 1.26
 
 require (
+	github.com/coder/websocket v1.8.15
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-contrib/timeout v1.1.0
 	github.com/gin-contrib/zap v1.1.6

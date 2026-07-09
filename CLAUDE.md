@@ -20,8 +20,9 @@ Before implementing:
 - For exploration tasks (finding files, grepping), prefer spawning Explore subagents rather than reading into main context
 - DO NOT suggest service to service injections, unless absolutely necessary - present your reasoning if so
 - Match existing code patterns and conventions even if you'd do it differently
+- Build feature by feature, and write tests after each implementation, if applicable
+  - Tests should be high impact only, do not cover everything
 - Minimum code that solves the problem. Nothing speculative.
-- Don't "improve" adjacent code, comments, or formatting
 
 ## General guidelines
 - Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify

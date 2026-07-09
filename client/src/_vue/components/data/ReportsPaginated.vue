@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, computed, ref } from "vue";
+import { onMounted, onUnmounted, computed, ref } from "vue";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
+import { useWsStore } from "../../../services/stores/ws_store.ts";
 import dateHelper from "../../../utils/date_helper.ts";
 import filterHelper from "../../../utils/filter_helper.ts";
 import CustomPaginator from "../base/CustomPaginator.vue";
@@ -16,6 +17,7 @@ import { usePermissions } from "../../../utils/use_permissions.ts";
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const analyticsStore = useAnalyticsStore();
+const wsStore = useWsStore();
 
 const apiPrefix = "analytics/reports";
 
@@ -40,9 +42,21 @@ const params = computed(() => ({
   sort: sort.value,
 }));
 
+const unsubscribers: (() => void)[] = [];
+
 onMounted(async () => {
   await getData();
+
+  unsubscribers.push(
+    wsStore.on("report.completed", () => {
+      toastStore.createInfoToast("Report ready", "Your report has finished.");
+      refresh();
+    }),
+    wsStore.on("report.failed", () => refresh()),
+  );
 });
+
+onUnmounted(() => unsubscribers.forEach((unsubscribe) => unsubscribe()));
 
 async function getData(newPage: number | null = null) {
   loading.value = true;

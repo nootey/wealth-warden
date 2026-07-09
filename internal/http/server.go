@@ -108,10 +108,19 @@ func NewRouter(container *bootstrap.ServiceContainer, logger *zap.Logger, health
 	r.Use(ginzap.RecoveryWithZap(logger, true))
 
 	// Timeout
-	r.Use(timeout.New(
+	reqTimeout := timeout.New(
 		timeout.WithTimeout(time.Duration(container.Config.HttpServer.ReqTimeout)*time.Second),
 		timeout.WithResponse(timeoutResponse),
-	))
+	)
+	r.Use(func(c *gin.Context) {
+		// The websocket hijacks the writer and lives for hours; a request timeout would
+		// fire a 408 into the open connection.
+		if c.FullPath() == wsRoutePath {
+			c.Next()
+			return
+		}
+		reqTimeout(c)
+	})
 
 	r.GET("/health", gin.WrapH(healthHandler))
 

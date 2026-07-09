@@ -44,6 +44,7 @@ func newRegistry(c *bootstrap.ServiceContainer, logger *zap.Logger) *registry {
 				return nil, err
 			}
 			j.Repo = notificationRepo
+			j.Broadcaster = c.Hub
 			return &j, nil
 		},
 
@@ -75,7 +76,7 @@ func newRegistry(c *bootstrap.ServiceContainer, logger *zap.Logger) *registry {
 			if err := json.Unmarshal(data, &j); err != nil {
 				return nil, err
 			}
-			return queue_jobs.NewGenerateCategoryReportJob(logger.Named("category_report"), analyticsRepo, j.ReportID, j.UserID, j.Params), nil
+			return queue_jobs.NewGenerateCategoryReportJob(logger.Named("category_report"), analyticsRepo, c.Hub, j.ReportID, j.UserID, j.Params), nil
 		},
 
 		// Payload-less maintenance jobs: deps only.

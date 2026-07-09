@@ -8,11 +8,23 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue/queue_jobs"
+	"wealth-warden/internal/ws"
 
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap/zaptest"
 	"gorm.io/gorm"
 )
+
+type recordingBroadcaster struct {
+	events map[int64][]ws.Event
+}
+
+func (b *recordingBroadcaster) Send(userID int64, event ws.Event) {
+	if b.events == nil {
+		b.events = make(map[int64][]ws.Event)
+	}
+	b.events[userID] = append(b.events[userID], event)
+}
 
 type mockAnalyticsRepo struct {
 	fetchRows   []models.CategoryReportDataRow
@@ -105,7 +117,7 @@ func TestMain(m *testing.M) {
 
 func TestGenerateCategoryReportJob_HappyPath(t *testing.T) {
 	repo := &mockAnalyticsRepo{fetchRows: sampleRows}
-	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, 1, 1, models.CategoryReportParams{
+	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{}, 1, 1, models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		Years:             []int{2024},
 	})
@@ -130,7 +142,7 @@ func TestGenerateCategoryReportJob_HappyPath(t *testing.T) {
 
 func TestGenerateCategoryReportJob_FetchError_SetsFailedStatus(t *testing.T) {
 	repo := &mockAnalyticsRepo{fetchErr: errors.New("db unavailable")}
-	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, 42, 1, models.CategoryReportParams{
+	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{}, 42, 1, models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		Years:             []int{2024},
 	})
@@ -148,7 +160,7 @@ func TestGenerateCategoryReportJob_FetchError_SetsFailedStatus(t *testing.T) {
 
 func TestGenerateCategoryReportJob_InitialUpdateError_ReturnsImmediately(t *testing.T) {
 	repo := &mockAnalyticsRepo{updateErr: errors.New("write failed"), updateErrOn: 1}
-	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, 1, 1, models.CategoryReportParams{
+	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{}, 1, 1, models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		Years:             []int{2024},
 	})
@@ -161,6 +173,40 @@ func TestGenerateCategoryReportJob_InitialUpdateError_ReturnsImmediately(t *test
 	}
 }
 
+func TestGenerateCategoryReportJob_BroadcastsOutcome(t *testing.T) {
+	cases := []struct {
+		name      string
+		repo      *mockAnalyticsRepo
+		wantEvent string
+	}{
+		{"completed", &mockAnalyticsRepo{fetchRows: sampleRows}, ws.TypeReportCompleted},
+		{"failed", &mockAnalyticsRepo{fetchErr: errors.New("db unavailable")}, ws.TypeReportFailed},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			broadcaster := &recordingBroadcaster{}
+			job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), tc.repo, broadcaster, 9, 3, models.CategoryReportParams{
+				InflowCategoryIDs: []int64{1},
+				Years:             []int{2024},
+			})
+
+			_ = job.Process(context.Background())
+
+			events := broadcaster.events[3]
+			if len(events) != 1 {
+				t.Fatalf("events for user 3 = %d, want 1", len(events))
+			}
+			if events[0].Type != tc.wantEvent {
+				t.Fatalf("event type = %q, want %q", events[0].Type, tc.wantEvent)
+			}
+			if payload, ok := events[0].Payload.(ws.ReportPayload); !ok || payload.ReportID != 9 {
+				t.Fatalf("payload = %#v, want ReportPayload{ReportID: 9}", events[0].Payload)
+			}
+		})
+	}
+}
+
 func TestGenerateCategoryReportJob_AllTime_MultipleYears(t *testing.T) {
 	rows := []models.CategoryReportDataRow{
 		{Year: 2022, Month: 1, CategoryName: "Salary", Classification: "inflow", Total: decimal.NewFromInt(4000)},
@@ -168,7 +214,7 @@ func TestGenerateCategoryReportJob_AllTime_MultipleYears(t *testing.T) {
 		{Year: 2024, Month: 1, CategoryName: "Salary", Classification: "inflow", Total: decimal.NewFromInt(5000)},
 	}
 	repo := &mockAnalyticsRepo{fetchRows: rows}
-	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, 2, 1, models.CategoryReportParams{
+	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{}, 2, 1, models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		AllTime:           true,
 	})

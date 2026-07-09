@@ -129,6 +129,7 @@ export const useDataStore = defineStore("data", {
       document.body.appendChild(a);
       a.click();
       a.remove();
+      window.URL.revokeObjectURL(url);
     },
   },
 });
