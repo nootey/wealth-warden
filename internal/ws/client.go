@@ -38,7 +38,7 @@ func (c *Client) close() {
 }
 
 func (c *Client) serve(ctx context.Context) {
-	defer c.conn.Close(websocket.StatusNormalClosure, "")
+	defer func() { _ = c.conn.Close(websocket.StatusNormalClosure, "") }()
 
 	c.conn.SetReadLimit(readLimit)
 	ctx = c.conn.CloseRead(ctx)

@@ -31,10 +31,10 @@ bench:
 	go test -bench=. -run=Benchmark -timeout=5s ./...
 
 test:
-	go test -count=1 ./...
+	go test -race -count=1 ./...
 
 test-coverage:
-	go test -coverprofile=coverage.out ./...
+	go test -race -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
@@ -83,7 +83,7 @@ pre-push:
 	@echo "--- App ---"
 	@go build ./... && echo "build successful" || (echo "build failed" && exit 1)
 	@golangci-lint run && echo "lint successful" || (echo "lint failed" && exit 1)
-	@go test -count=1 ./... && echo "tests successful" || (echo "tests failed" && exit 1)
+	@go test -race -count=1 ./... && echo "tests successful" || (echo "tests failed" && exit 1)
 	@echo ""
 	@echo "--- Client ---"
 	@cd client && pnpm run build && echo "build successful" || (echo "build failed" && exit 1)

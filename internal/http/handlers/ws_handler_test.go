@@ -39,7 +39,7 @@ func TestWebsocketHandler_PushesEventToConnectedUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
 
 	// Registration completes on the server goroutine after the handshake returns,
 	// so resend until the first frame lands. Events are droppable by design.
