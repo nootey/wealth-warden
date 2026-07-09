@@ -34,7 +34,7 @@ func InitLogger(release bool) *zap.Logger {
 	// Set log level
 	cfg.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
 
-	logger, err := cfg.Build()
+	logger, err := cfg.Build(zap.AddStacktrace(zapcore.ErrorLevel))
 	if err != nil {
 		panic(fmt.Sprintf("failed to build logger: %v", err))
 	}
