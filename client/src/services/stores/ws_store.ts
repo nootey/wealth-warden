@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { useAuthStore } from "./auth_store.ts";
+import { useToastStore } from "./toast_store.ts";
 import type {
   WsEvent,
   WsEventType,
@@ -13,11 +14,15 @@ const MAX_ATTEMPTS = 10;
 
 export const useWsStore = defineStore("ws", () => {
   const connected = ref(false);
+  const attempts = ref(0);
 
   const handlers = new Map<WsEventType, Set<WsHandler>>();
   let socket: WebSocket | null = null;
   let reconnectTimer: number | null = null;
-  let attempt = 0;
+
+  // Only a hand-driven connect from settings toasts its outcome; the login
+  // connect and the backoff loop stay silent.
+  let announce = false;
 
   const endpoint = (): string => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -47,11 +52,14 @@ export const useWsStore = defineStore("ws", () => {
     // The handshake's 401 is invisible to the WebSocket API, so an expired session
     // can only be bounded by the attempt cap.
     const authStore = useAuthStore();
-    if (!authStore.isAuthenticated || attempt >= MAX_ATTEMPTS) return;
+    if (!authStore.isAuthenticated || attempts.value >= MAX_ATTEMPTS) return;
 
-    const backoff = Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** attempt);
+    const backoff = Math.min(
+      MAX_BACKOFF_MS,
+      BASE_BACKOFF_MS * 2 ** attempts.value,
+    );
     const jittered = backoff * (0.5 + Math.random() * 0.5);
-    attempt += 1;
+    attempts.value += 1;
 
     reconnectTimer = window.setTimeout(connect, jittered);
   };
@@ -63,18 +71,34 @@ export const useWsStore = defineStore("ws", () => {
 
     socket.onopen = () => {
       connected.value = true;
-      attempt = 0;
+      attempts.value = 0;
+      if (announce) {
+        announce = false;
+        useToastStore().createInfoToast(
+          "Connected",
+          "Real-time event updates enabled.",
+        );
+      }
     };
     socket.onmessage = (message: MessageEvent<string>) =>
       dispatch(message.data);
     socket.onclose = () => {
       connected.value = false;
       socket = null;
+      if (announce) {
+        announce = false;
+        useToastStore().createWarnToast(
+          "Disconnected",
+          "Real-time event updates disabled.",
+        );
+      }
       scheduleReconnect();
     };
   };
 
-  const disconnect = (): void => {
+  const disconnect = (notify = false): void => {
+    announce = false;
+
     if (reconnectTimer !== null) {
       window.clearTimeout(reconnectTimer);
       reconnectTimer = null;
@@ -88,8 +112,31 @@ export const useWsStore = defineStore("ws", () => {
       socket = null;
     }
     connected.value = false;
-    attempt = 0;
+    attempts.value = 0;
+
+    if (notify) {
+      useToastStore().createWarnToast(
+        "Disconnected",
+        "Real-time event updates disabled.",
+      );
+    }
   };
 
-  return { connected, on, connect, disconnect };
+  // Detaches the dead socket first, so the operator's retry is not swallowed by
+  // `if (socket) return` after the attempt cap stopped the backoff loop.
+  const reconnect = (): void => {
+    disconnect();
+    announce = true;
+    connect();
+  };
+
+  return {
+    connected,
+    attempts,
+    endpoint,
+    on,
+    connect,
+    disconnect,
+    reconnect,
+  };
 });

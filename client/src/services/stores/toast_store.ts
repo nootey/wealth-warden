@@ -94,10 +94,23 @@ export const useToastStore = defineStore("toast", () => {
     }
   };
 
+  const createWarnToast = (title: string, msg: string) => {
+    if (title && msg) {
+      toast.add({
+        severity: "warn",
+        summary: title,
+        detail: msg,
+        life: isMobile ? 1500 : 3000,
+        group,
+      });
+    }
+  };
+
   return {
     errorResponseToast,
     successResponseToast,
     infoResponseToast,
     createInfoToast,
+    createWarnToast,
   };
 });

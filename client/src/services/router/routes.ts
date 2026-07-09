@@ -18,6 +18,7 @@ import AccountsSettings from "../../_vue/pages/Settings/AccountsSettings.vue";
 import CategoriesSettings from "../../_vue/pages/Settings/CategoriesSettings.vue";
 import RolesSettings from "../../_vue/pages/Settings/RolesSettings.vue";
 import DataSettings from "../../_vue/pages/Settings/DataSettings.vue";
+import ConnectionSettings from "../../_vue/pages/Settings/ConnectionSettings.vue";
 import InvestmentsPage from "../../_vue/pages/InvestmentsPage.vue";
 import AnalyticsPage from "../../_vue/pages/AnalyticsPage.vue";
 import BackofficePage from "../../_vue/pages/BackofficePage.vue";
@@ -171,6 +172,12 @@ const routes: RouteRecordRaw[] = [
         name: "settings.data",
         component: DataSettings,
         meta: { title: "Data" },
+      },
+      {
+        path: "connection",
+        name: "settings.connection",
+        component: ConnectionSettings,
+        meta: { title: "Connection" },
       },
     ],
   },

@@ -26,6 +26,7 @@ const items: SettingsMenuItem[] = [
   { name: "settings.profile", label: "Profile", icon: "pi-user" },
   { name: "settings.preferences", label: "Preferences", icon: "pi-cog" },
   { name: "settings.data", label: "Data", icon: "pi-eject" },
+  { name: "settings.connection", label: "Connection", icon: "pi-wifi" },
   {
     name: "",
     label: "Transactions",

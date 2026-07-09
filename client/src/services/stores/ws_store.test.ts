@@ -7,6 +7,14 @@ vi.mock("./auth_store.ts", () => ({
   useAuthStore: () => authState,
 }));
 
+const toasts = vi.hoisted(() => ({
+  createInfoToast: vi.fn(),
+  createWarnToast: vi.fn(),
+}));
+vi.mock("./toast_store.ts", () => ({
+  useToastStore: () => toasts,
+}));
+
 class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
 
@@ -70,6 +78,8 @@ describe("wsStore", () => {
     FakeWebSocket.instances = [];
     setTimeoutSpy.mockClear();
     clearTimeoutSpy.mockClear();
+    toasts.createInfoToast.mockClear();
+    toasts.createWarnToast.mockClear();
 
     authState.isAuthenticated = true;
     location.protocol = "http:";
@@ -346,6 +356,106 @@ describe("wsStore", () => {
       opened.fireOpen();
 
       expect(store.connected).toBe(false);
+    });
+
+    it("stays silent through the login connect and the backoff loop", () => {
+      const store = useWsStore();
+      store.connect();
+
+      socket().fireOpen();
+      socket().fireClose();
+      vi.advanceTimersByTime(500);
+      socket().fireOpen();
+
+      expect(toasts.createInfoToast).not.toHaveBeenCalled();
+      expect(toasts.createWarnToast).not.toHaveBeenCalled();
+    });
+
+    it("announces a hand-driven connect once it opens", () => {
+      const store = useWsStore();
+      store.reconnect();
+
+      expect(toasts.createInfoToast).not.toHaveBeenCalled();
+      socket().fireOpen();
+      expect(toasts.createInfoToast).toHaveBeenCalledTimes(1);
+    });
+
+    it("announces a hand-driven connect that fails to open", () => {
+      const store = useWsStore();
+      store.reconnect();
+
+      socket().fireClose();
+      expect(toasts.createWarnToast).toHaveBeenCalledTimes(1);
+
+      // the silent backoff owns every retry from here on
+      vi.advanceTimersByTime(500);
+      socket().fireOpen();
+      expect(toasts.createInfoToast).not.toHaveBeenCalled();
+    });
+
+    it("announces a hand-driven disconnect", () => {
+      const store = useWsStore();
+      store.connect();
+      socket().fireOpen();
+
+      store.disconnect(true);
+
+      expect(toasts.createWarnToast).toHaveBeenCalledTimes(1);
+    });
+
+    it("stays silent when the user logs out", () => {
+      const store = useWsStore();
+      store.connect();
+      socket().fireOpen();
+
+      store.disconnect();
+
+      expect(toasts.createWarnToast).not.toHaveBeenCalled();
+    });
+
+    it("reconnects on demand after the attempt cap gave up", () => {
+      const store = useWsStore();
+      store.connect();
+
+      for (let i = 0; i < 10; i++) {
+        socket().fireClose();
+        vi.advanceTimersByTime(30000);
+      }
+      socket().fireClose();
+      expect(vi.getTimerCount()).toBe(0);
+
+      const before = FakeWebSocket.instances.length;
+      store.reconnect();
+
+      expect(FakeWebSocket.instances).toHaveLength(before + 1);
+      expect(store.attempts).toBe(0);
+    });
+
+    it("connects again after a manual disconnect", () => {
+      const store = useWsStore();
+      store.connect();
+      socket().fireOpen();
+
+      store.disconnect();
+      expect(store.connected).toBe(false);
+
+      store.reconnect();
+      socket().fireOpen();
+
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      expect(store.connected).toBe(true);
+    });
+
+    it("replaces a socket still mid-handshake rather than no-opping", () => {
+      const store = useWsStore();
+      store.connect();
+      const inFlight = socket();
+
+      // never opened: `connected` is false while `socket` is still held
+      store.reconnect();
+
+      expect(inFlight.closed).toBe(true);
+      expect(FakeWebSocket.instances).toHaveLength(2);
     });
 
     it("ignores a late close from a socket it has already replaced", () => {
