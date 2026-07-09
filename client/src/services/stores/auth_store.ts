@@ -6,6 +6,7 @@ import type { User } from "../../models/user_models.ts";
 import { watch } from "vue";
 import { useSettingsStore } from "./settings_store.ts";
 import { useThemeStore } from "./theme_store.ts";
+import { useWsStore } from "./ws_store.ts";
 
 export const useAuthStore = defineStore("auth", {
   state: () => ({
@@ -84,6 +85,8 @@ export const useAuthStore = defineStore("auth", {
     },
 
     logout() {
+      useWsStore().disconnect();
+
       this.user = null;
       this.setAuthenticated(false);
       this.setInitialized(null);
@@ -112,6 +115,7 @@ export const useAuthStore = defineStore("auth", {
         const user = await this.getAuthUser(true);
         if (user) {
           this.setInitialized(user);
+          useWsStore().connect();
 
           const settingsStore = useSettingsStore();
           const themeStore = useThemeStore();

@@ -14,6 +14,7 @@ import (
 	"wealth-warden/internal/queue"
 	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/ws"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
@@ -1366,7 +1367,8 @@ func (s *AnalyticsService) GenerateCategoryReport(
 		return nil, err
 	}
 
-	job := queue_jobs.NewGenerateCategoryReportJob(s.logger, s.repo, record.ID, userID, params)
+	// Only the serialized fields survive Dispatch; the job registry re-attaches live deps before Process.
+	job := queue_jobs.NewGenerateCategoryReportJob(s.logger, s.repo, ws.NoopBroadcaster{}, record.ID, userID, params)
 	if err := s.jobDispatcher.Dispatch(ctx, job); err != nil {
 		return nil, err
 	}

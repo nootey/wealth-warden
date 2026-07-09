@@ -11,6 +11,7 @@ import (
 	"wealth-warden/internal/jobworker"
 	"wealth-warden/internal/queue"
 	"wealth-warden/internal/worker"
+	"wealth-warden/internal/ws"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
 	"wealth-warden/pkg/telemetry"
@@ -26,6 +27,7 @@ type App struct {
 	consumer  *jobworker.Consumer
 	telemetry *telemetry.Provider
 	health    *health.Service
+	hub       *ws.Hub
 }
 
 func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
@@ -80,6 +82,7 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		consumer:  consumer,
 		telemetry: tel,
 		health:    healthSvc,
+		hub:       container.Hub,
 	}, nil
 }
 
@@ -118,6 +121,8 @@ func (a *App) Run(ctx context.Context) error {
 	supervisor.Add(worker.NewService("job-consumer", a.consumer.Run))
 
 	supervisor.Add(worker.NewService("health", a.health.Run))
+
+	supervisor.Add(worker.NewService("ws-hub", a.hub.Run))
 
 	supervisor.Run(ctx)
 	return nil
