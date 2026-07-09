@@ -237,6 +237,16 @@ type CategoryReportParams struct {
 	Years              []int
 	Description        string
 	AllTime            bool
+	// AccountID nil scopes the report to every account. When set, AccountTypeOnly
+	// widens the scope from that single account to every account sharing its type.
+	AccountID       *int64
+	AccountTypeOnly bool
+}
+
+type ReportAccountScope struct {
+	Name    string `gorm:"column:name"`
+	Type    string `gorm:"column:type"`
+	Subtype string `gorm:"column:sub_type"`
 }
 
 type CategoryReportYear struct {

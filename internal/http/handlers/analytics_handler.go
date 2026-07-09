@@ -492,6 +492,8 @@ func (h *AnalyticsHandler) GenerateCategoryReport(c *gin.Context) {
 		Years              []int   `json:"years"`
 		Description        string  `json:"description"`
 		AllTime            bool    `json:"all_time"`
+		AccountID          *int64  `json:"account_id"`
+		AccountTypeOnly    bool    `json:"account_type_only"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
@@ -510,6 +512,10 @@ func (h *AnalyticsHandler) GenerateCategoryReport(c *gin.Context) {
 		utils.ErrorMessage(c, "param error", "at least one inflow or outflow category is required", http.StatusBadRequest, nil)
 		return
 	}
+	if req.AccountTypeOnly && req.AccountID == nil {
+		utils.ErrorMessage(c, "param error", "an account is required when filtering by account type", http.StatusBadRequest, nil)
+		return
+	}
 
 	params := models.CategoryReportParams{
 		InflowCategoryIDs:  req.InflowCategoryIDs,
@@ -517,6 +523,8 @@ func (h *AnalyticsHandler) GenerateCategoryReport(c *gin.Context) {
 		Years:              req.Years,
 		Description:        strings.TrimSpace(req.Description),
 		AllTime:            req.AllTime,
+		AccountID:          req.AccountID,
+		AccountTypeOnly:    req.AccountTypeOnly,
 	}
 
 	report, err := h.Service.GenerateCategoryReport(ctx, userID, params)
