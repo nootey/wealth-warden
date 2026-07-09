@@ -30,7 +30,8 @@ type AnalyticsRepositoryInterface interface {
 	InsertReport(ctx context.Context, tx *gorm.DB, record *models.Report) error
 	UpdateReport(ctx context.Context, tx *gorm.DB, id int64, fields map[string]interface{}) error
 	DeleteReport(ctx context.Context, tx *gorm.DB, id, userID int64) error
-	FetchCategoryReportData(ctx context.Context, tx *gorm.DB, userID int64, inflowCatIDs, outflowCatIDs []int64, years []int, allTime bool, description string) ([]models.CategoryReportDataRow, error)
+	FetchCategoryReportData(ctx context.Context, tx *gorm.DB, userID int64, params models.CategoryReportParams) ([]models.CategoryReportDataRow, error)
+	FindReportAccountScope(ctx context.Context, tx *gorm.DB, userID, accountID int64) (*models.ReportAccountScope, error)
 }
 type AnalyticsRepository struct {
 	db *gorm.DB
@@ -775,14 +776,15 @@ func (r *AnalyticsRepository) DeleteReport(ctx context.Context, tx *gorm.DB, id,
 	return db.WithContext(ctx).Where("id = ? AND user_id = ?", id, userID).Delete(&models.Report{}).Error
 }
 
-func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *gorm.DB, userID int64, inflowCatIDs, outflowCatIDs []int64, years []int, allTime bool, description string) ([]models.CategoryReportDataRow, error) {
+func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *gorm.DB, userID int64, params models.CategoryReportParams) ([]models.CategoryReportDataRow, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
 	db = db.WithContext(ctx)
 
-	allCatIDs := append(inflowCatIDs, outflowCatIDs...)
+	inflowCatIDs := params.InflowCategoryIDs
+	allCatIDs := append(append([]int64{}, inflowCatIDs...), params.OutflowCategoryIDs...)
 	if len(allCatIDs) == 0 {
 		return nil, nil
 	}
@@ -799,14 +801,25 @@ func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *g
 
 	yearClause := ""
 	descClause := ""
+	accountClause := ""
 	args := []interface{}{userID, allCatIDs}
-	if !allTime && len(years) > 0 {
+	if !params.AllTime && len(params.Years) > 0 {
 		yearClause = "AND EXTRACT(YEAR FROM t.txn_date)::int IN ?"
-		args = append(args, years)
+		args = append(args, params.Years)
 	}
-	if description != "" {
+	if params.Description != "" {
 		descClause = "AND t.description ILIKE '%' || ? || '%'"
-		args = append(args, description)
+		args = append(args, params.Description)
+	}
+	// The account subqueries re-check user_id so a foreign account can never widen the scope.
+	if params.AccountID != nil {
+		if params.AccountTypeOnly {
+			accountClause = "AND a.account_type_id = (SELECT account_type_id FROM accounts WHERE id = ? AND user_id = ?)"
+			args = append(args, *params.AccountID, userID)
+		} else {
+			accountClause = "AND a.id = ? AND a.user_id = ?"
+			args = append(args, *params.AccountID, userID)
+		}
 	}
 
 	query := fmt.Sprintf(`
@@ -821,20 +834,18 @@ func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *g
 		FROM transactions t
 		LEFT JOIN categories c ON c.id = t.category_id
 		JOIN accounts a ON a.id = t.account_id
-		JOIN account_types at ON at.id = a.account_type_id
 		WHERE t.user_id = ?
 			AND t.category_id IN ?
 			AND t.is_adjustment = false
 			AND t.is_system = false
 			AND t.is_transfer = false
 			AND t.deleted_at IS NULL
-			AND at.type = 'cash'
-			AND at.sub_type = 'checking'
+			%s
 			%s
 			%s
 		GROUP BY 1, 2, 3, 4, 5
 		ORDER BY 1, 2, 4
-	`, yearClause, descClause)
+	`, yearClause, descClause, accountClause)
 
 	var scanned []scanRow
 	if err := db.Raw(query, args...).Scan(&scanned).Error; err != nil {
@@ -864,6 +875,28 @@ func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *g
 		})
 	}
 	return rows, nil
+}
+
+func (r *AnalyticsRepository) FindReportAccountScope(ctx context.Context, tx *gorm.DB, userID, accountID int64) (*models.ReportAccountScope, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	var scope models.ReportAccountScope
+	err := db.WithContext(ctx).Raw(`
+		SELECT a.name, at.type, at.sub_type
+		FROM accounts a
+		JOIN account_types at ON at.id = a.account_type_id
+		WHERE a.id = ? AND a.user_id = ?
+	`, accountID, userID).Scan(&scope).Error
+	if err != nil {
+		return nil, err
+	}
+	if scope.Name == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &scope, nil
 }
 
 

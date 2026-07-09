@@ -3,6 +3,7 @@ package queue_jobs
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,6 +22,8 @@ import (
 )
 
 var monthAbbr = [...]string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+
+var ErrNoCategoryData = errors.New("no transactions found for the selected categories")
 
 type catKey struct{ name, classification string }
 
@@ -66,22 +69,23 @@ func (j *GenerateCategoryReportJob) Process(ctx context.Context) error {
 		return err
 	}
 
-	rows, err := j.analyticsRepo.FetchCategoryReportData(
-		ctx, nil,
-		j.UserID,
-		j.Params.InflowCategoryIDs,
-		j.Params.OutflowCategoryIDs,
-		j.Params.Years,
-		j.Params.AllTime,
-		j.Params.Description,
-	)
+	scopeLabel, err := j.accountScopeLabel(ctx)
 	if err != nil {
 		return j.fail(ctx, err)
 	}
 
+	rows, err := j.analyticsRepo.FetchCategoryReportData(ctx, nil, j.UserID, j.Params)
+	if err != nil {
+		return j.fail(ctx, err)
+	}
+
+	if len(rows) == 0 {
+		return j.fail(ctx, ErrNoCategoryData)
+	}
+
 	categoryLabel := deriveCategoryLabel(rows)
 
-	data, err := j.buildXLSX(rows)
+	data, err := j.buildXLSX(rows, scopeLabel)
 	if err != nil {
 		return j.fail(ctx, err)
 	}
@@ -118,7 +122,32 @@ func (j *GenerateCategoryReportJob) fail(ctx context.Context, err error) error {
 	return err
 }
 
-func (j *GenerateCategoryReportJob) buildXLSX(rows []models.CategoryReportDataRow) ([]byte, error) {
+func (j *GenerateCategoryReportJob) accountScopeLabel(ctx context.Context) (string, error) {
+	if j.Params.AccountID == nil {
+		return "All accounts", nil
+	}
+
+	scope, err := j.analyticsRepo.FindReportAccountScope(ctx, nil, j.UserID, *j.Params.AccountID)
+	if err != nil {
+		return "", err
+	}
+	if j.Params.AccountTypeOnly {
+		return fmt.Sprintf("All %s accounts", humanizeSubtype(scope.Subtype)), nil
+	}
+	return scope.Name, nil
+}
+
+func humanizeSubtype(subtype string) string {
+	words := strings.Split(subtype, "_")
+	for i, w := range words {
+		if w != "" {
+			words[i] = strings.ToUpper(w[:1]) + w[1:]
+		}
+	}
+	return strings.Join(words, " ")
+}
+
+func (j *GenerateCategoryReportJob) buildXLSX(rows []models.CategoryReportDataRow, scopeLabel string) ([]byte, error) {
 	byYear := make(map[int][]models.CategoryReportDataRow)
 	for _, r := range rows {
 		byYear[r.Year] = append(byYear[r.Year], r)
@@ -139,7 +168,7 @@ func (j *GenerateCategoryReportJob) buildXLSX(rows []models.CategoryReportDataRo
 	if err != nil {
 		return nil, err
 	}
-	j.writeSummarySheet(f, "Summary", styles, rows, years)
+	j.writeSummarySheet(f, "Summary", styles, rows, years, scopeLabel)
 
 	if j.Params.AllTime && len(years) > 1 {
 		if _, err := f.NewSheet("All Time"); err != nil {
@@ -195,7 +224,7 @@ func (j *GenerateCategoryReportJob) makeStyles(f *excelize.File) xlsxStyles {
 	return xlsxStyles{SectionTitle: titleID, ColHeader: headerID, DataCell: dataID, LabelCell: labelID}
 }
 
-func (j *GenerateCategoryReportJob) writeSummarySheet(f *excelize.File, sheet string, styles xlsxStyles, rows []models.CategoryReportDataRow, years []int) {
+func (j *GenerateCategoryReportJob) writeSummarySheet(f *excelize.File, sheet string, styles xlsxStyles, rows []models.CategoryReportDataRow, years []int, scopeLabel string) {
 	type yearTotals struct {
 		primary   decimal.Decimal
 		secondary decimal.Decimal
@@ -218,6 +247,9 @@ func (j *GenerateCategoryReportJob) writeSummarySheet(f *excelize.File, sheet st
 
 	cur := 1
 	cur = xlsxTitle(f, sheet, cur, "Report Summary", styles.SectionTitle)
+	cur++
+
+	cur = xlsxDataRow(f, sheet, cur, []string{"Accounts", scopeLabel}, 2, styles)
 	cur++
 
 	cur = xlsxHeaderRow(f, sheet, cur, []string{"Year", "Total Primary", "Total Secondary", "Effective", "Avg/Active Month (Eff)", "Avg/Calendar Month (Eff)", "Active Months"}, styles)

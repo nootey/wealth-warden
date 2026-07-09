@@ -29,6 +29,8 @@ func (b *recordingBroadcaster) Send(userID int64, event ws.Event) {
 type mockAnalyticsRepo struct {
 	fetchRows   []models.CategoryReportDataRow
 	fetchErr    error
+	scope       *models.ReportAccountScope
+	scopeErr    error
 	updateErr   error
 	updateErrOn int // which call (1-indexed) should fail; 0 = always fail
 	updateCalls int
@@ -44,8 +46,18 @@ func (m *mockAnalyticsRepo) UpdateReport(_ context.Context, _ *gorm.DB, _ int64,
 	return nil
 }
 
-func (m *mockAnalyticsRepo) FetchCategoryReportData(_ context.Context, _ *gorm.DB, _ int64, _, _ []int64, _ []int, _ bool, _ string) ([]models.CategoryReportDataRow, error) {
+func (m *mockAnalyticsRepo) FetchCategoryReportData(_ context.Context, _ *gorm.DB, _ int64, _ models.CategoryReportParams) ([]models.CategoryReportDataRow, error) {
 	return m.fetchRows, m.fetchErr
+}
+
+func (m *mockAnalyticsRepo) FindReportAccountScope(_ context.Context, _ *gorm.DB, _, _ int64) (*models.ReportAccountScope, error) {
+	if m.scopeErr != nil {
+		return nil, m.scopeErr
+	}
+	if m.scope != nil {
+		return m.scope, nil
+	}
+	return &models.ReportAccountScope{Name: "Main Checking", Type: "cash", Subtype: "checking"}, nil
 }
 
 func (m *mockAnalyticsRepo) BeginTx(_ context.Context) (*gorm.DB, error) { return nil, nil }
@@ -156,6 +168,59 @@ func TestGenerateCategoryReportJob_FetchError_SetsFailedStatus(t *testing.T) {
 		}
 	}
 	t.Error("expected a failed status update")
+}
+
+func TestGenerateCategoryReportJob_NoData_FailsWithoutWritingReport(t *testing.T) {
+	repo := &mockAnalyticsRepo{fetchRows: nil}
+	broadcaster := &recordingBroadcaster{}
+	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, broadcaster, 7, 3, models.CategoryReportParams{
+		InflowCategoryIDs: []int64{1},
+		Years:             []int{2024},
+	})
+
+	err := job.Process(context.Background())
+	if !errors.Is(err, queue_jobs.ErrNoCategoryData) {
+		t.Fatalf("error = %v, want ErrNoCategoryData", err)
+	}
+
+	last := repo.updates[len(repo.updates)-1]
+	if s, _ := last["status"].(string); s != "failed" {
+		t.Errorf("last update status = %q, want \"failed\"", s)
+	}
+	for _, u := range repo.updates {
+		if s, _ := u["status"].(string); s == "completed" {
+			t.Error("report was marked completed despite having no data")
+		}
+		if _, ok := u["name"]; ok {
+			t.Error("report name was written despite having no data")
+		}
+		if _, ok := u["file_path"]; ok {
+			t.Error("report file was written despite having no data")
+		}
+	}
+
+	events := broadcaster.events[3]
+	if len(events) != 1 || events[0].Type != ws.TypeReportFailed {
+		t.Errorf("events = %#v, want a single %q", events, ws.TypeReportFailed)
+	}
+}
+
+func TestGenerateCategoryReportJob_UnknownAccount_Fails(t *testing.T) {
+	accountID := int64(99)
+	repo := &mockAnalyticsRepo{fetchRows: sampleRows, scopeErr: gorm.ErrRecordNotFound}
+	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{}, 1, 1, models.CategoryReportParams{
+		InflowCategoryIDs: []int64{1},
+		Years:             []int{2024},
+		AccountID:         &accountID,
+	})
+
+	if err := job.Process(context.Background()); err == nil {
+		t.Fatal("expected error for an account the user does not own")
+	}
+	last := repo.updates[len(repo.updates)-1]
+	if s, _ := last["status"].(string); s != "failed" {
+		t.Errorf("last update status = %q, want \"failed\"", s)
+	}
 }
 
 func TestGenerateCategoryReportJob_InitialUpdateError_ReturnsImmediately(t *testing.T) {

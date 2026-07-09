@@ -185,6 +185,8 @@ export const useAnalyticsStore = defineStore("analytics", {
       years: number[];
       description?: string;
       allTime?: boolean;
+      accountID?: number | null;
+      accountTypeOnly?: boolean;
     }) {
       const response = await apiClient.post(
         `${this.apiPrefix}/reports/category`,
@@ -194,6 +196,8 @@ export const useAnalyticsStore = defineStore("analytics", {
           years: params.years,
           description: params.description?.trim() ?? "",
           all_time: params.allTime ?? false,
+          account_id: params.accountID ?? null,
+          account_type_only: params.accountTypeOnly ?? false,
         },
       );
       return response.data;

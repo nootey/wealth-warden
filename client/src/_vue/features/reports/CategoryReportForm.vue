@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { requiredIf, helpers } from "@vuelidate/validators";
 import useVuelidate from "@vuelidate/core";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
+import { useAccountStore } from "../../../services/stores/account_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import ValidationError from "../../components/validation/ValidationError.vue";
 import type { Category } from "../../../models/transaction_models.ts";
+import type { Account } from "../../../models/account_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 
 const emit = defineEmits<{ (e: "complete"): void }>();
 
 const transactionStore = useTransactionStore();
 const analyticsStore = useAnalyticsStore();
+const accountStore = useAccountStore();
 const toastStore = useToastStore();
 
 const form = reactive({
@@ -21,13 +24,29 @@ const form = reactive({
   selectedYears: [new Date().getFullYear()] as number[],
   descriptionFilter: "",
   allTime: false,
+  account: null as Account | null,
+  accountTypeOnly: false,
 });
 
 const maxYears = 3;
 const allYears = ref<number[]>([]);
 const isLoadingCategories = ref(false);
 const isLoadingYears = ref(false);
+const isLoadingAccounts = ref(false);
 const isGenerating = ref(false);
+
+const selectedAccountSubtype = computed(() =>
+  form.account
+    ? vueHelper.formatString(form.account.account_type.sub_type)
+    : "",
+);
+
+watch(
+  () => form.account,
+  (account) => {
+    if (!account) form.accountTypeOnly = false;
+  },
+);
 
 const rules = {
   form: {
@@ -81,8 +100,19 @@ onMounted(async () => {
     }
   };
 
+  const accountLoad = async () => {
+    if (!accountStore.accounts.length) {
+      isLoadingAccounts.value = true;
+      try {
+        await accountStore.getAllAccounts(false, true);
+      } finally {
+        isLoadingAccounts.value = false;
+      }
+    }
+  };
+
   try {
-    await Promise.all([categoryLoad(), yearLoad()]);
+    await Promise.all([categoryLoad(), yearLoad(), accountLoad()]);
   } catch (e) {
     toastStore.errorResponseToast(e);
   }
@@ -127,6 +157,8 @@ async function generate() {
       years: form.selectedYears,
       description: form.descriptionFilter,
       allTime: form.allTime,
+      accountID: form.account?.id ?? null,
+      accountTypeOnly: form.accountTypeOnly,
     });
     emit("complete");
   } catch (e) {
@@ -237,6 +269,45 @@ async function generate() {
       </div>
     </div>
 
+    <div id="account-row" class="flex flex-row gap-3 justify-content-center">
+      <div class="flex flex-column gap-1" style="flex: 1; max-width: 280px">
+        <ValidationError :is-required="false" :message="undefined">
+          <label>Account</label>
+        </ValidationError>
+        <Select
+          v-model="form.account"
+          :options="accountStore.accounts"
+          option-label="name"
+          :loading="isLoadingAccounts"
+          placeholder="All accounts"
+          show-clear
+          filter
+          size="small"
+        />
+      </div>
+
+      <div class="flex flex-column gap-1" style="flex: 1; max-width: 280px">
+        <ValidationError :is-required="false" :message="undefined">
+          <label>Scope</label>
+        </ValidationError>
+        <div class="flex flex-row gap-2 align-items-center h-full">
+          <Checkbox
+            v-model="form.accountTypeOnly"
+            :binary="true"
+            :disabled="!form.account"
+            input-id="account-type-only"
+          />
+          <label for="account-type-only" class="text-sm cursor-pointer">
+            {{
+              form.account
+                ? `This type only (${selectedAccountSubtype})`
+                : "This type only"
+            }}
+          </label>
+        </div>
+      </div>
+    </div>
+
     <div class="flex w-full justify-content-center">
       <div class="flex flex-row gap-2 align-items-center">
         <Checkbox v-model="form.allTime" :binary="true" input-id="all-time" />
@@ -260,12 +331,14 @@ async function generate() {
 <style scoped>
 @media (max-width: 768px) {
   #cat-row,
-  #filter-row {
+  #filter-row,
+  #account-row {
     flex-direction: column !important;
   }
 
   #cat-row > div,
-  #filter-row > div {
+  #filter-row > div,
+  #account-row > div {
     width: 100% !important;
     flex: unset !important;
   }
