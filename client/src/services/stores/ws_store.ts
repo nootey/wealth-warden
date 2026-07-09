@@ -18,7 +18,6 @@ export const useWsStore = defineStore("ws", () => {
   let socket: WebSocket | null = null;
   let reconnectTimer: number | null = null;
   let attempt = 0;
-  let intentionalClose = false;
 
   const endpoint = (): string => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -60,7 +59,6 @@ export const useWsStore = defineStore("ws", () => {
   const connect = (): void => {
     if (socket) return;
 
-    intentionalClose = false;
     socket = new WebSocket(endpoint());
 
     socket.onopen = () => {
@@ -72,18 +70,23 @@ export const useWsStore = defineStore("ws", () => {
     socket.onclose = () => {
       connected.value = false;
       socket = null;
-      if (!intentionalClose) scheduleReconnect();
+      scheduleReconnect();
     };
   };
 
   const disconnect = (): void => {
-    intentionalClose = true;
     if (reconnectTimer !== null) {
       window.clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
-    socket?.close();
-    socket = null;
+    if (socket) {
+      // detach first: this socket's close event lands after a later connect() may have replaced it
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onclose = null;
+      socket.close();
+      socket = null;
+    }
     connected.value = false;
     attempt = 0;
   };
