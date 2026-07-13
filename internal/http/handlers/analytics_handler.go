@@ -504,8 +504,8 @@ func (h *AnalyticsHandler) GenerateCategoryReport(c *gin.Context) {
 		utils.ErrorMessage(c, "param error", "years is required", http.StatusBadRequest, nil)
 		return
 	}
-	if len(req.Years) > 3 {
-		utils.ErrorMessage(c, "param error", "a maximum of 3 years is supported", http.StatusBadRequest, nil)
+	if len(req.Years) > 10 {
+		utils.ErrorMessage(c, "param error", "a maximum of 10 years is supported", http.StatusBadRequest, nil)
 		return
 	}
 	if len(req.InflowCategoryIDs) == 0 && len(req.OutflowCategoryIDs) == 0 {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { RouterLink } from "vue-router";
 import MultiSelect from "primevue/multiselect";
 import CategoryBreakdownChart from "../../components/charts/CategoryBreakdownChart.vue";
 
@@ -99,11 +100,16 @@ const hasAnyData = computed(() =>
 );
 
 const loadYears = async () => {
-  const now = new Date().getFullYear();
-  allYears.value = [now, now - 1, now - 2, now - 3, now - 4];
-  selectedYears.value = [now, now - 1, now - 2]
-    .filter((y) => y >= Math.min(...allYears.value))
-    .slice(0, maxYears);
+  try {
+    const result = await analyticsStore.getAvailableStatsYears(null);
+    allYears.value = result.map((y) => y.year).sort((a, b) => b - a);
+  } catch (e) {
+    toastStore.errorResponseToast(e);
+  }
+  if (!allYears.value.length) {
+    allYears.value = [new Date().getFullYear()];
+  }
+  selectedYears.value = allYears.value.slice(0, 3);
 };
 
 const fetchData = async () => {
@@ -206,7 +212,9 @@ watch(
     >
       <div class="mobile-hide flex flex-column gap-1 flex-grow-1">
         <span class="text-sm" style="color: var(--text-secondary)">
-          View and compare category totals by month.
+          View and compare category totals by month. To cover more than
+          {{ maxYears }} years or all time, generate a
+          <RouterLink to="/analytics">category report</RouterLink>.
         </span>
       </div>
 
@@ -241,7 +249,7 @@ watch(
           v-model="selectedYears"
           :options="yearOptions"
           :max-selected-labels="1"
-          :selection-limit="5"
+          :selection-limit="maxYears"
           selected-items-label="{0} years"
           size="small"
           class="select-width"
