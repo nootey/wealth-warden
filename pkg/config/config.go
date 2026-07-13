@@ -1,132 +1,102 @@
 package config
 
 import (
-	"os"
+	"errors"
+	"io/fs"
 	"path/filepath"
-	"strconv"
+	"strings"
 
 	"github.com/spf13/viper"
 )
 
-func setDefaults() *Config {
-	return &Config{
-		Host:              "0.0.0.0",
-		Release:           false,
-		FinanceAPIBaseURL: "",
-		HttpServer: HttpServerConfig{
-			Port:       "2000",
-			ReqTimeout: 60,
-		},
-		WebClient: WebClientConfig{
-			Domain: "localhost",
-			Port:   "5000",
-		},
-		Postgres: PostgresConfig{
-			Host:     "db",
-			User:     "postgres",
-			Password: "postgres",
-			Port:     5432,
-			Database: "wealth_warden",
-		},
-		JWT: JWTConfig{
-			WebClientAccess:   "O7yslMel&nR6",
-			WebClientRefresh:  "M2tb,_R!X4w~",
-			WebClientEncodeID: "Rjy6E*)Dz'UwWLPPk*47c0||o`-Oy<p/",
-		},
-		CORS: CorsConfig{
-			AllowedOrigins:   []string{"http://localhost:5000", "http://app:5000"},
-			WildcardSuffixes: []string{},
-			AllowedSchemes:   []string{"http"},
-		},
-		Mailer: MailerConfig{
-			Host:     "",
-			Port:     587,
-			Username: "",
-			Password: "",
-		},
-		Seed: SeedConfig{
-			SuperAdminEmail:    "admin@wealth.warden",
-			SuperAdminPassword: "password",
-			MemberUserEmail:    "",
-			MemberUserPassword: "",
-		},
-		Scheduler: SchedulerConfig{
-			ConcurrentWorkers: 5,
-			ImmediateJobs:     []string{},
-		},
-		Otel: OtelConfig{
-			OTLPEndpoint: "tempo:4317",
-			ServiceName:  "wealth-warden",
-		},
-		Queue: QueueConfig{
-			Workers:                   1,
-			MaxAttempts:               5,
-			PollIntervalMs:            1000,
-			RetryInitialBackoffSec:    60,
-			RetrySubsequentBackoffSec: 120,
-			VisibilityTimeoutSec:      900,
-		},
-	}
+// Placeholders shared with the release-mode guard in ValidateConfig; encode id must be 32 bytes (AES-256)
+const (
+	defaultJWTAccess   = "dev-only-jwt-access-secret"
+	defaultJWTRefresh  = "dev-only-jwt-refresh-secret"
+	defaultJWTEncodeID = "dev-only-aes-key-32-chars-long!!"
+)
+
+// Defaults double as viper's key registry: AutomaticEnv only resolves keys viper knows about.
+func setDefaults(v *viper.Viper) {
+	v.SetDefault("host", "0.0.0.0")
+	v.SetDefault("release", false)
+	v.SetDefault("finance_api_base_url", "")
+
+	v.SetDefault("http_server.port", "2000")
+	v.SetDefault("http_server.request_timeout", 60)
+
+	v.SetDefault("web_client.domain", "localhost")
+	v.SetDefault("web_client.port", "5000")
+
+	v.SetDefault("postgres.host", "db")
+	v.SetDefault("postgres.user", "postgres")
+	v.SetDefault("postgres.password", "postgres")
+	v.SetDefault("postgres.port", 5432)
+	v.SetDefault("postgres.db", "wealth_warden")
+
+	v.SetDefault("jwt.web_client_access", defaultJWTAccess)
+	v.SetDefault("jwt.web_client_refresh", defaultJWTRefresh)
+	v.SetDefault("jwt.web_client_encode_id", defaultJWTEncodeID)
+
+	v.SetDefault("cors.allowed_origins", []string{"http://localhost:5000", "http://app:5000"})
+	v.SetDefault("cors.wildcard_suffixes", []string{})
+	v.SetDefault("cors.allowed_schemes", []string{"http"})
+
+	v.SetDefault("mailer.host", "")
+	v.SetDefault("mailer.port", 587)
+	v.SetDefault("mailer.username", "")
+	v.SetDefault("mailer.password", "")
+
+	v.SetDefault("seed.super_admin_email", "admin@wealth.warden")
+	v.SetDefault("seed.super_admin_password", "password")
+	v.SetDefault("seed.member_user_email", "")
+	v.SetDefault("seed.member_user_password", "")
+
+	v.SetDefault("scheduler.concurrent_workers", 5)
+	v.SetDefault("scheduler.immediate_jobs", []string{})
+
+	v.SetDefault("otel.otlp_endpoint", "tempo:4317")
+	v.SetDefault("otel.service_name", "wealth-warden")
+
+	v.SetDefault("queue.workers", 1)
+	v.SetDefault("queue.max_attempts", 5)
+	v.SetDefault("queue.poll_interval_ms", 1000)
+	v.SetDefault("queue.retry_initial_backoff_sec", 60)
+	v.SetDefault("queue.retry_subsequent_backoff_sec", 120)
+	v.SetDefault("queue.visibility_timeout_sec", 900)
 }
 
 func LoadConfig(configPath *string, configName ...string) (*Config, error) {
-
-	// Set all defaults first
-	cfg := setDefaults()
-
-	// Try to load override config (optional)
 	v := viper.New()
+	setDefaults(v)
 
-	// Load env variables
+	// Every key is overridable via env: dots become underscores (postgres.host -> POSTGRES_HOST)
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
-
-	// Bind environment variables for nested postgres config
-	_ = v.BindEnv("otel.otlp_endpoint", "OTEL_EXPORTER_OTLP_ENDPOINT")
-	_ = v.BindEnv("postgres.host", "POSTGRES_HOST")
-	_ = v.BindEnv("postgres.user", "POSTGRES_USER")
-	_ = v.BindEnv("postgres.db", "POSTGRES_DB")
-	_ = v.BindEnv("postgres.port", "POSTGRES_PORT")
-	_ = v.BindEnv("postgres.password", "POSTGRES_PASSWORD")
+	_ = v.BindEnv("otel.otlp_endpoint", "OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_OTLP_ENDPOINT")
 
 	cfgName := "dev"
 	if len(configName) > 0 && configName[0] != "" {
 		cfgName = configName[0]
 	}
 
-	if configPath != nil && *configPath != "" {
+	explicitPath := configPath != nil && *configPath != ""
+	if explicitPath {
 		v.SetConfigFile(filepath.Join(*configPath, cfgName+".yaml"))
 	} else {
-		overrideFile := filepath.Join("pkg", "config", "override", cfgName+".yaml")
-		v.SetConfigFile(overrideFile)
+		v.SetConfigFile(filepath.Join("pkg", "config", "override", cfgName+".yaml"))
 	}
 
-	// If config file exists, unmarshal over defaults
-	if err := v.ReadInConfig(); err == nil {
-		if err := v.Unmarshal(cfg); err != nil {
+	if err := v.ReadInConfig(); err != nil {
+		// The default override file is optional, but an explicitly requested or malformed one is not
+		if explicitPath || !errors.Is(err, fs.ErrNotExist) {
 			return nil, err
 		}
 	}
 
-	// Override with environment variables if they exist (env vars take precedence)
-	if host := os.Getenv("POSTGRES_HOST"); host != "" {
-		cfg.Postgres.Host = host
-	}
-	if user := os.Getenv("POSTGRES_USER"); user != "" {
-		cfg.Postgres.User = user
-	}
-	if db := os.Getenv("POSTGRES_DB"); db != "" {
-		cfg.Postgres.Database = db
-	}
-	if portStr := os.Getenv("POSTGRES_PORT"); portStr != "" {
-		if port, err := strconv.Atoi(portStr); err == nil {
-			cfg.Postgres.Port = port
-		}
-	}
-	if password := os.Getenv("POSTGRES_PASSWORD"); password != "" {
-		cfg.Postgres.Password = password
-	}
-	if endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); endpoint != "" {
-		cfg.Otel.OTLPEndpoint = endpoint
+	cfg := &Config{}
+	if err := v.Unmarshal(cfg); err != nil {
+		return nil, err
 	}
 
 	if err := ValidateConfig(cfg); err != nil {

@@ -18,16 +18,16 @@ postgres:
   db: "wealth_warden"
 
 jwt:
-  web_client_access: "18yslKe4&n56"
-  web_client_refresh: "A2tbBCR!X4w3"
-  web_client_encode_id: "k3K6E*)Dz'55WLPPk*47c0||o`20y<p/"
+  web_client_access: "dev-only-jwt-access-secret"
+  web_client_refresh: "dev-only-jwt-refresh-secret"
+  web_client_encode_id: "dev-only-aes-key-32-chars-long!!"  # must be exactly 32 bytes (AES-256)
 
 cors:
-  allowedOrigins:
+  allowed_origins:
     - "http://localhost:5000"
     - "http://app:5000"
-  wildcardSuffixes: []
-  allowedSchemes: ["http"]
+  wildcard_suffixes: []
+  allowed_schemes: ["http"]
 
 mailer:
   host: "smtp.email.com"
@@ -50,10 +50,10 @@ scheduler:
 #    - templates
 #    - savings_goal_fund
 
-  otel:
-    service_name: "wealth-warden"
-    otlp_endpoint: "localhost:4317"  # local dev (tempo port mapped to host)
-#   otlp_endpoint: "tempo:4317"      # prod / in-Docker (resolve via Docker network)
+otel:
+  service_name: "wealth-warden"
+  otlp_endpoint: "localhost:4317"  # local dev (tempo port mapped to host)
+# otlp_endpoint: "tempo:4317"      # prod / in-Docker (resolve via Docker network)
 
 queue:
   workers: 1                          # concurrent claim-loop workers

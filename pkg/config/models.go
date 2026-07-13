@@ -37,13 +37,13 @@ type PostgresConfig struct {
 type JWTConfig struct {
 	WebClientAccess   string `mapstructure:"web_client_access" validate:"required"`
 	WebClientRefresh  string `mapstructure:"web_client_refresh" validate:"required"`
-	WebClientEncodeID string `mapstructure:"web_client_encode_id" validate:"required"`
+	WebClientEncodeID string `mapstructure:"web_client_encode_id" validate:"required,len=32"`
 }
 
 type CorsConfig struct {
-	AllowedOrigins   []string `mapstructure:"allowedOrigins"`
-	WildcardSuffixes []string `mapstructure:"wildcardSuffixes"`
-	AllowedSchemes   []string `mapstructure:"allowedSchemes"`
+	AllowedOrigins   []string `mapstructure:"allowed_origins"`
+	WildcardSuffixes []string `mapstructure:"wildcard_suffixes"`
+	AllowedSchemes   []string `mapstructure:"allowed_schemes"`
 }
 
 type SeedConfig struct {
