@@ -28,7 +28,7 @@ const form = reactive({
   accountTypeOnly: false,
 });
 
-const maxYears = 3;
+const maxYears = 10;
 const allYears = ref<number[]>([]);
 const isLoadingCategories = ref(false);
 const isLoadingYears = ref(false);
