@@ -41,10 +41,15 @@ func acceptOptions(cfg *config.Config) *websocket.AcceptOptions {
 		return &websocket.AcceptOptions{InsecureSkipVerify: true}
 	}
 
-	patterns := make([]string, 0, len(cfg.CORS.AllowedOrigins))
+	patterns := make([]string, 0, len(cfg.CORS.AllowedOrigins)+len(cfg.CORS.WildcardSuffixes))
 	for _, origin := range cfg.CORS.AllowedOrigins {
 		if u, err := url.Parse(strings.TrimSpace(origin)); err == nil && u.Host != "" {
 			patterns = append(patterns, u.Host)
+		}
+	}
+	for _, suffix := range cfg.CORS.WildcardSuffixes {
+		if suffix = strings.TrimSpace(suffix); suffix != "" {
+			patterns = append(patterns, "*"+strings.ToLower(suffix))
 		}
 	}
 	return &websocket.AcceptOptions{OriginPatterns: patterns}
