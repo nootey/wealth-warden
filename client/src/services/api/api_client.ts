@@ -2,17 +2,6 @@ import { useAuthStore } from "../stores/auth_store.ts";
 import { ApiError } from "./api_models.ts";
 import type { RequestOptions } from "./api_models.ts";
 
-let isRefreshing = false;
-let failedQueue: Array<{
-  resolve: () => void;
-  reject: (err: unknown) => void;
-}> = [];
-
-const processQueue = (error: unknown) => {
-  failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve()));
-  failedQueue = [];
-};
-
 function appendParam(
   searchParams: URLSearchParams,
   key: string,
@@ -84,7 +73,6 @@ async function request<T>(
   path: string,
   body: unknown,
   options: RequestOptions,
-  isRetry = false,
 ): Promise<{ data: T }> {
   let response: Response;
 
@@ -92,28 +80,6 @@ async function request<T>(
     response = await doFetch(method, path, body, options);
   } catch {
     throw new ApiError("Network Error", 0, null, true);
-  }
-
-  if (response.status === 401 && !isRetry) {
-    if (isRefreshing) {
-      await new Promise<void>((resolve, reject) =>
-        failedQueue.push({ resolve, reject }),
-      );
-      return request<T>(method, path, body, options, true);
-    }
-
-    isRefreshing = true;
-
-    try {
-      await doFetch(method, path, body, options);
-      processQueue(null);
-      isRefreshing = false;
-      return await request<T>(method, path, body, options, true);
-    } catch (err) {
-      processQueue(err);
-      isRefreshing = false;
-      throw err;
-    }
   }
 
   if (!response.ok) {

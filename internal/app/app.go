@@ -16,6 +16,7 @@ import (
 	"wealth-warden/pkg/database"
 	"wealth-warden/pkg/telemetry"
 
+	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
@@ -28,6 +29,7 @@ type App struct {
 	telemetry *telemetry.Provider
 	health    *health.Service
 	hub       *ws.Hub
+	redis     *redis.Client
 }
 
 func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
@@ -36,6 +38,12 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 	dbClient, err := database.ConnectToPostgres(cfg, logger.Named("database"))
 	if err != nil {
 		return nil, fmt.Errorf("database connection failed: %w", err)
+	}
+
+	// Redis (session store)
+	redisClient, err := database.ConnectToRedis(cfg, logger.Named("redis"))
+	if err != nil {
+		return nil, fmt.Errorf("redis connection failed: %w", err)
 	}
 
 	// Telemetry: the dispatcher and consumer register OTEL instruments against the global providers set here.
@@ -50,7 +58,7 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		return nil, fmt.Errorf("job dispatcher initialization failed: %w", err)
 	}
 
-	container, err := bootstrap.NewServiceContainer(cfg, dbClient, logger.Named("container"), jobDispatcher, nil)
+	container, err := bootstrap.NewServiceContainer(cfg, dbClient, redisClient, logger.Named("container"), jobDispatcher, nil)
 	if err != nil {
 		return nil, fmt.Errorf("container initialization failed: %w", err)
 	}
@@ -74,6 +82,7 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		return nil, fmt.Errorf("failed to get sql.DB for health check: %w", err)
 	}
 	healthSvc.Add(health.NewDBChecker(sqlDB))
+	healthSvc.Add(health.NewRedisChecker(redisClient))
 
 	return &App{
 		logger:    logger,
@@ -83,6 +92,7 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		telemetry: tel,
 		health:    healthSvc,
 		hub:       container.Hub,
+		redis:     redisClient,
 	}, nil
 }
 
@@ -91,6 +101,9 @@ func (a *App) Run(ctx context.Context) error {
 	defer cancel()
 	defer func() {
 		_ = database.DisconnectPostgres()
+	}()
+	defer func() {
+		_ = a.redis.Close()
 	}()
 	defer func() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)

@@ -17,10 +17,16 @@ postgres:
   port: 5432
   db: "wealth_warden"
 
-jwt:
-  web_client_access: "dev-only-jwt-access-secret"
-  web_client_refresh: "dev-only-jwt-refresh-secret"
-  web_client_encode_id: "dev-only-aes-key-32-chars-long!!"  # must be exactly 32 bytes (AES-256)
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+
+session:
+  ttl_hours: 24
+  remember_me_ttl_hours: 720   # 30d
+  max_lifetime_hours: 2160     # 90d absolute cap, checked against created_at
 
 cors:
   allowed_origins:

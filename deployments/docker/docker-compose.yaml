@@ -41,6 +41,20 @@ services:
     networks:
       - wealth-warden
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wealth-warden
+
   migrate:
     profiles: ["migrate"]
     build:
@@ -72,12 +86,19 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - POSTGRES_HOST=db
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-wealth_warden}
       - POSTGRES_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SESSION_TTL_HOURS=${SESSION_TTL_HOURS:-24}
+      - SESSION_REMEMBER_ME_TTL_HOURS=${SESSION_REMEMBER_ME_TTL_HOURS:-720}
+      - SESSION_MAX_LIFETIME_HOURS=${SESSION_MAX_LIFETIME_HOURS:-2160}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-tempo:4317}
     volumes:
       - ../../logs:/app/logs
@@ -112,6 +133,7 @@ services:
 
 volumes:
   db:
+  redis:
   traefik_letsencrypt:
 
 networks:

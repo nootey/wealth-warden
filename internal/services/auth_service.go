@@ -10,6 +10,7 @@ import (
 	"wealth-warden/internal/queue"
 	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/sessions"
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
 
@@ -36,6 +37,7 @@ type AuthService struct {
 	loggingRepo   repositories.LoggingRepositoryInterface
 	jobDispatcher queue.JobDispatcher
 	mailer        *mailer.Mailer
+	sessionStore  *sessions.Store
 }
 
 func NewAuthService(
@@ -45,6 +47,7 @@ func NewAuthService(
 	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher queue.JobDispatcher,
 	mailer *mailer.Mailer,
+	sessionStore *sessions.Store,
 ) *AuthService {
 	return &AuthService{
 		userRepo:      userRepo,
@@ -53,6 +56,7 @@ func NewAuthService(
 		loggingRepo:   loggingRepo,
 		jobDispatcher: jobDispatcher,
 		mailer:        mailer,
+		sessionStore:  sessionStore,
 	}
 }
 
@@ -566,6 +570,10 @@ func (s *AuthService) ResetPassword(ctx context.Context, form models.ResetPasswo
 	}
 
 	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	if err := s.sessionStore.DeleteAllForUser(ctx, user.ID); err != nil {
 		return err
 	}
 
