@@ -65,17 +65,18 @@ const filterOverlayRef = ref<any>(null);
 
 const activeColumns = computed<Column[]>(() => [
   {
-    field: "asset.name",
-    header: "Asset",
-    hideFromFilter: true,
-  },
-  {
     field: "asset.ticker",
     header: "Ticker",
+    hideOnMobile: false,
+  },
+  { field: "trade_type", header: "Type" },
+  { field: "quantity", header: "Quantity", type: "number" },
+  {
+    field: "price_per_unit",
+    header: "Price",
+    type: "number",
     hideOnMobile: true,
   },
-  { field: "quantity", header: "Quantity", type: "number" },
-  { field: "trade_type", header: "Type" },
   { field: "txn_date", header: "Date", type: "date" },
   {
     field: "value_at_buy",
@@ -89,7 +90,7 @@ const activeColumns = computed<Column[]>(() => [
     hideOnMobile: true,
     type: "number",
   },
-  { field: "profit_loss", header: "PNL", type: "number" },
+  { field: "profit_loss", header: "PNL", type: "number", hideOnMobile: true },
 ]);
 
 onMounted(async () => {
@@ -293,9 +294,12 @@ defineExpose({ refresh });
             </template>
             <template
               v-else-if="
-                ['current_price', 'value_at_buy', 'current_value'].includes(
-                  col.field,
-                )
+                [
+                  'current_price',
+                  'value_at_buy',
+                  'current_value',
+                  'price_per_unit',
+                ].includes(col.field)
               "
             >
               <div class="flex flex-row gap-2 align-items-center">
@@ -330,25 +334,17 @@ defineExpose({ refresh });
                 </span>
               </div>
             </template>
-            <template
-              v-else-if="
-                col.field === 'asset.name' || col.field === 'asset.ticker'
-              "
-            >
+            <template v-else-if="col.field === 'asset.ticker'">
               <div class="flex flex-row gap-2 align-items-center">
                 <span
-                  :class="{ hover: col.field === 'asset.name' }"
+                  :class="{ hover: col.field === 'asset.ticker' }"
                   @click="
-                    col.field === 'asset.name'
+                    col.field === 'asset.ticker'
                       ? $emit('updateTrade', data.id)
                       : null
                   "
                 >
-                  {{
-                    col.field === "asset.name"
-                      ? data.asset.name
-                      : data.asset.ticker
-                  }}
+                  {{ data.asset.ticker }}
                 </span>
               </div>
             </template>
