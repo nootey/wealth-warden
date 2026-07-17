@@ -39,6 +39,7 @@ type ServiceContainer struct {
 	SavingsService      *services.SavingsService
 	NotificationService *services.NotificationService
 	NotifDispatcher     queue_jobs.NotificationDispatcher
+	SessionsService     *services.SessionsService
 	Hub                 *ws.Hub
 }
 
@@ -86,7 +87,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 	userService := services.NewUserService(userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
 	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, transactionRepo, settingsRepo, loggingRepo, savingsRepo, investmentRepo, jobDispatcher, priceFetcher)
 	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, savingsRepo, jobDispatcher)
-	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, loggingRepo, transactionRepo, jobDispatcher)
+	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, loggingRepo, transactionRepo, jobDispatcher, sessionStore)
 	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, investmentRepo, settingsRepo, loggingRepo, jobDispatcher)
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
 	investmentService := services.NewInvestmentService(logger.Named("investment_sev"), investmentRepo, accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetcher)
@@ -97,6 +98,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 	notificationService := services.NewNotificationService(notificationRepo)
 	notifDispatcher := queue_jobs.NewNotificationDispatcher(notificationRepo, jobDispatcher)
 	hub := ws.NewHub(logger.Named("ws"))
+	sessionsService := services.NewSessionsService(sessionStore, hub)
 
 	return &ServiceContainer{
 		Config:              cfg,
@@ -119,6 +121,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 		SavingsService:      savingsService,
 		NotificationService: notificationService,
 		NotifDispatcher:     notifDispatcher,
+		SessionsService:     sessionsService,
 		Hub:                 hub,
 	}, nil
 }

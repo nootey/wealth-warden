@@ -90,3 +90,23 @@ session:
 
 	assert.Error(t, err)
 }
+
+func TestLoadConfig_ReleaseRejectsEmptyRedisPassword(t *testing.T) {
+	dir := writeConfig(t, "release: true")
+
+	_, err := config.LoadConfig(&dir, "test")
+
+	assert.ErrorContains(t, err, "redis password")
+}
+
+func TestLoadConfig_ReleaseAcceptsRedisPassword(t *testing.T) {
+	dir := writeConfig(t, `
+release: true
+redis:
+  password: "custom-redis-password"
+`)
+
+	_, err := config.LoadConfig(&dir, "test")
+
+	assert.NoError(t, err)
+}

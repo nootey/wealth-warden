@@ -114,7 +114,7 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 	}
 }
 
-// SetupTest empties mutable tables between tests, ensuring a clean slate
+// SetupTest empties mutable tables and the session store between tests, ensuring a clean slate
 func (s *ServiceIntegrationSuite) SetupTest() {
 
 	const truncateTestTablesSQL = `
@@ -129,6 +129,8 @@ RESTART IDENTITY CASCADE;
 
 	err := s.TC.DB.Exec(truncateTestTablesSQL).Error
 	s.Require().NoError(err, "failed to truncate test tables")
+
+	s.redis.FlushAll()
 }
 
 // TearDownSuite runs once after all tests
