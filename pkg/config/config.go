@@ -9,13 +9,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Placeholders shared with the release-mode guard in ValidateConfig; encode id must be 32 bytes (AES-256)
-const (
-	defaultJWTAccess   = "dev-only-jwt-access-secret"
-	defaultJWTRefresh  = "dev-only-jwt-refresh-secret"
-	defaultJWTEncodeID = "dev-only-aes-key-32-chars-long!!"
-)
-
 // Defaults double as viper's key registry: AutomaticEnv only resolves keys viper knows about.
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("host", "0.0.0.0")
@@ -34,9 +27,14 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("postgres.port", 5432)
 	v.SetDefault("postgres.db", "wealth_warden")
 
-	v.SetDefault("jwt.web_client_access", defaultJWTAccess)
-	v.SetDefault("jwt.web_client_refresh", defaultJWTRefresh)
-	v.SetDefault("jwt.web_client_encode_id", defaultJWTEncodeID)
+	v.SetDefault("redis.host", "redis")
+	v.SetDefault("redis.port", 6379)
+	v.SetDefault("redis.password", "")
+	v.SetDefault("redis.db", 0)
+
+	v.SetDefault("session.ttl_hours", 24)
+	v.SetDefault("session.remember_me_ttl_hours", 720)
+	v.SetDefault("session.max_lifetime_hours", 2160)
 
 	v.SetDefault("cors.allowed_origins", []string{"http://localhost:5000", "http://app:5000"})
 	v.SetDefault("cors.wildcard_suffixes", []string{})

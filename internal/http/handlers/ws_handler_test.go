@@ -87,3 +87,22 @@ func TestWebsocketHandler_RejectsForeignOriginInRelease(t *testing.T) {
 		t.Fatalf("origin patterns = %v, want [app.example.com]", opts.OriginPatterns)
 	}
 }
+
+// Wildcard suffixes allowed by the HTTP CORS layer must also pass the websocket
+// origin check, or browsers on those subdomains lose live updates.
+func TestWebsocketHandler_WildcardSuffixesBecomeOriginPatterns(t *testing.T) {
+	cfg := &config.Config{Release: true}
+	cfg.CORS.AllowedOrigins = []string{"https://app.example.com"}
+	cfg.CORS.WildcardSuffixes = []string{" .Example.com ", ""}
+
+	opts := acceptOptions(cfg)
+	want := []string{"app.example.com", "*.example.com"}
+	if len(opts.OriginPatterns) != len(want) {
+		t.Fatalf("origin patterns = %v, want %v", opts.OriginPatterns, want)
+	}
+	for i, pattern := range want {
+		if opts.OriginPatterns[i] != pattern {
+			t.Fatalf("origin patterns = %v, want %v", opts.OriginPatterns, want)
+		}
+	}
+}

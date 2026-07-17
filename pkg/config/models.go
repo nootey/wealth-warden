@@ -7,7 +7,8 @@ type Config struct {
 	HttpServer        HttpServerConfig `mapstructure:"http_server"`
 	Host              string           `mapstructure:"host"`
 	Postgres          PostgresConfig   `mapstructure:"postgres"`
-	JWT               JWTConfig        `mapstructure:"jwt"`
+	Redis             RedisConfig      `mapstructure:"redis"`
+	Session           SessionConfig    `mapstructure:"session"`
 	CORS              CorsConfig       `mapstructure:"cors"`
 	Seed              SeedConfig       `mapstructure:"seed"`
 	Mailer            MailerConfig     `mapstructure:"mailer"`
@@ -34,10 +35,17 @@ type PostgresConfig struct {
 	Password string `mapstructure:"password" validate:"required"`
 }
 
-type JWTConfig struct {
-	WebClientAccess   string `mapstructure:"web_client_access" validate:"required"`
-	WebClientRefresh  string `mapstructure:"web_client_refresh" validate:"required"`
-	WebClientEncodeID string `mapstructure:"web_client_encode_id" validate:"required,len=32"`
+type RedisConfig struct {
+	Host     string `mapstructure:"host" validate:"required,hostname|ip"`
+	Port     int    `mapstructure:"port" validate:"required"`
+	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"`
+}
+
+type SessionConfig struct {
+	TTLHours           int `mapstructure:"ttl_hours" validate:"required,min=1"`
+	RememberMeTTLHours int `mapstructure:"remember_me_ttl_hours" validate:"required,min=1"`
+	MaxLifetimeHours   int `mapstructure:"max_lifetime_hours" validate:"required,min=1"`
 }
 
 type CorsConfig struct {

@@ -6,8 +6,8 @@ import (
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
+	"wealth-warden/internal/sessions"
 	"wealth-warden/pkg/config"
-	"wealth-warden/pkg/constants"
 	"wealth-warden/pkg/utils"
 
 	"github.com/gin-gonic/gin"
@@ -67,26 +67,16 @@ func (h *AuthHandler) LoginUser(c *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.middleware.GenerateLoginTokens(user.ID, form.RememberMe)
+	sessionID, maxAge, err := h.middleware.CreateLoginSession(ctx, user.ID, form.RememberMe, userAgent, loginIP)
 	if err != nil {
-		utils.ErrorMessage(c, "Failed to generate tokens", err.Error(), http.StatusInternalServerError, err)
+		utils.ErrorMessage(c, "Failed to create session", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	// Calculate expiration
-	var expiresAt int
-	if form.RememberMe {
-		expiresAt = int(constants.RefreshCookieTTLLong.Seconds())
-	} else {
-		expiresAt = int(constants.RefreshCookieTTLShort.Seconds())
-	}
-
-	// Set cookies
 	c.SetSameSite(http.SameSiteLaxMode)
 	domain := h.middleware.CookieDomainForEnv()
 	secure := h.middleware.CookieSecure()
-	c.SetCookie("access", accessToken, int(constants.AccessCookieTTL.Seconds()), "/", domain, secure, true)
-	c.SetCookie("refresh", refreshToken, expiresAt, "/", domain, secure, true)
+	c.SetCookie(sessions.CookieName, sessionID, maxAge, "/", domain, secure, true)
 
 	utils.SuccessMessage(c, "", "Logged in", http.StatusOK)
 }
@@ -106,10 +96,16 @@ func (h *AuthHandler) GetAuthUser(c *gin.Context) {
 }
 
 func (h *AuthHandler) LogoutUser(c *gin.Context) {
+	if sessionID, err := c.Cookie(sessions.CookieName); err == nil && sessionID != "" {
+		if err := h.middleware.DestroySession(c.Request.Context(), sessionID); err != nil {
+			// Cookie clearing below still logs the client out; the session dies at TTL.
+			_ = c.Error(err)
+		}
+	}
+
 	domain := h.middleware.CookieDomainForEnv()
 	secure := h.middleware.CookieSecure()
-	c.SetCookie("access", "", -1, "/", domain, secure, true)
-	c.SetCookie("refresh", "", -1, "/", domain, secure, true)
+	c.SetCookie(sessions.CookieName, "", -1, "/", domain, secure, true)
 	utils.SuccessMessage(c, "", "Logged out", http.StatusOK)
 }
 

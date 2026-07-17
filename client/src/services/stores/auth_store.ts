@@ -84,6 +84,18 @@ export const useAuthStore = defineStore("auth", {
       this.logout();
     },
 
+    async getSessions() {
+      return await apiClient.get(`${this.apiPrefix}/sessions`);
+    },
+
+    async revokeSession(id: string) {
+      return await apiClient.delete(`${this.apiPrefix}/sessions/${id}`);
+    },
+
+    async revokeAllSessions() {
+      return await apiClient.delete(`${this.apiPrefix}/sessions`);
+    },
+
     logout() {
       useWsStore().disconnect();
 

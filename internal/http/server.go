@@ -11,7 +11,6 @@ import (
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/middleware"
 	appConfig "wealth-warden/pkg/config"
-	"wealth-warden/pkg/constants"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/timeout"
@@ -96,13 +95,7 @@ func NewRouter(container *bootstrap.ServiceContainer, logger *zap.Logger, health
 	r.Use(otelgin.Middleware("wealth-warden"))
 
 	// Logging & recovery
-	wm := middleware.NewWebClientMiddleware(
-		container.Config,
-		logger,
-		constants.AccessCookieTTL,
-		constants.RefreshCookieTTLShort,
-		constants.RefreshCookieTTLLong,
-	)
+	wm := middleware.NewWebClientMiddleware(container.Config, logger, container.SessionStore)
 
 	r.Use(wm.ErrorLogger())
 	r.Use(ginzap.RecoveryWithZap(logger, true))

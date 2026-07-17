@@ -5,6 +5,8 @@
 package mocks
 
 import (
+	"context"
+
 	"github.com/gin-gonic/gin"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -124,6 +126,153 @@ func (_c *MockWebClientMiddlewareInterface_CookieSecure_Call) RunAndReturn(run f
 	return _c
 }
 
+// CreateLoginSession provides a mock function for the type MockWebClientMiddlewareInterface
+func (_mock *MockWebClientMiddlewareInterface) CreateLoginSession(ctx context.Context, userID int64, rememberMe bool, userAgent string, ip string) (string, int, error) {
+	ret := _mock.Called(ctx, userID, rememberMe, userAgent, ip)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateLoginSession")
+	}
+
+	var r0 string
+	var r1 int
+	var r2 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, bool, string, string) (string, int, error)); ok {
+		return returnFunc(ctx, userID, rememberMe, userAgent, ip)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, bool, string, string) string); ok {
+		r0 = returnFunc(ctx, userID, rememberMe, userAgent, ip)
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, bool, string, string) int); ok {
+		r1 = returnFunc(ctx, userID, rememberMe, userAgent, ip)
+	} else {
+		r1 = ret.Get(1).(int)
+	}
+	if returnFunc, ok := ret.Get(2).(func(context.Context, int64, bool, string, string) error); ok {
+		r2 = returnFunc(ctx, userID, rememberMe, userAgent, ip)
+	} else {
+		r2 = ret.Error(2)
+	}
+	return r0, r1, r2
+}
+
+// MockWebClientMiddlewareInterface_CreateLoginSession_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateLoginSession'
+type MockWebClientMiddlewareInterface_CreateLoginSession_Call struct {
+	*mock.Call
+}
+
+// CreateLoginSession is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - rememberMe bool
+//   - userAgent string
+//   - ip string
+func (_e *MockWebClientMiddlewareInterface_Expecter) CreateLoginSession(ctx interface{}, userID interface{}, rememberMe interface{}, userAgent interface{}, ip interface{}) *MockWebClientMiddlewareInterface_CreateLoginSession_Call {
+	return &MockWebClientMiddlewareInterface_CreateLoginSession_Call{Call: _e.mock.On("CreateLoginSession", ctx, userID, rememberMe, userAgent, ip)}
+}
+
+func (_c *MockWebClientMiddlewareInterface_CreateLoginSession_Call) Run(run func(ctx context.Context, userID int64, rememberMe bool, userAgent string, ip string)) *MockWebClientMiddlewareInterface_CreateLoginSession_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 bool
+		if args[2] != nil {
+			arg2 = args[2].(bool)
+		}
+		var arg3 string
+		if args[3] != nil {
+			arg3 = args[3].(string)
+		}
+		var arg4 string
+		if args[4] != nil {
+			arg4 = args[4].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+			arg4,
+		)
+	})
+	return _c
+}
+
+func (_c *MockWebClientMiddlewareInterface_CreateLoginSession_Call) Return(s string, n int, err error) *MockWebClientMiddlewareInterface_CreateLoginSession_Call {
+	_c.Call.Return(s, n, err)
+	return _c
+}
+
+func (_c *MockWebClientMiddlewareInterface_CreateLoginSession_Call) RunAndReturn(run func(ctx context.Context, userID int64, rememberMe bool, userAgent string, ip string) (string, int, error)) *MockWebClientMiddlewareInterface_CreateLoginSession_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DestroySession provides a mock function for the type MockWebClientMiddlewareInterface
+func (_mock *MockWebClientMiddlewareInterface) DestroySession(ctx context.Context, sessionID string) error {
+	ret := _mock.Called(ctx, sessionID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DestroySession")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = returnFunc(ctx, sessionID)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockWebClientMiddlewareInterface_DestroySession_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DestroySession'
+type MockWebClientMiddlewareInterface_DestroySession_Call struct {
+	*mock.Call
+}
+
+// DestroySession is a helper method to define mock.On call
+//   - ctx context.Context
+//   - sessionID string
+func (_e *MockWebClientMiddlewareInterface_Expecter) DestroySession(ctx interface{}, sessionID interface{}) *MockWebClientMiddlewareInterface_DestroySession_Call {
+	return &MockWebClientMiddlewareInterface_DestroySession_Call{Call: _e.mock.On("DestroySession", ctx, sessionID)}
+}
+
+func (_c *MockWebClientMiddlewareInterface_DestroySession_Call) Run(run func(ctx context.Context, sessionID string)) *MockWebClientMiddlewareInterface_DestroySession_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockWebClientMiddlewareInterface_DestroySession_Call) Return(err error) *MockWebClientMiddlewareInterface_DestroySession_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockWebClientMiddlewareInterface_DestroySession_Call) RunAndReturn(run func(ctx context.Context, sessionID string) error) *MockWebClientMiddlewareInterface_DestroySession_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ErrorLogger provides a mock function for the type MockWebClientMiddlewareInterface
 func (_mock *MockWebClientMiddlewareInterface) ErrorLogger() gin.HandlerFunc {
 	ret := _mock.Called()
@@ -166,78 +315,6 @@ func (_c *MockWebClientMiddlewareInterface_ErrorLogger_Call) Return(handlerFunc 
 }
 
 func (_c *MockWebClientMiddlewareInterface_ErrorLogger_Call) RunAndReturn(run func() gin.HandlerFunc) *MockWebClientMiddlewareInterface_ErrorLogger_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// GenerateLoginTokens provides a mock function for the type MockWebClientMiddlewareInterface
-func (_mock *MockWebClientMiddlewareInterface) GenerateLoginTokens(userID int64, rememberMe bool) (string, string, error) {
-	ret := _mock.Called(userID, rememberMe)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GenerateLoginTokens")
-	}
-
-	var r0 string
-	var r1 string
-	var r2 error
-	if returnFunc, ok := ret.Get(0).(func(int64, bool) (string, string, error)); ok {
-		return returnFunc(userID, rememberMe)
-	}
-	if returnFunc, ok := ret.Get(0).(func(int64, bool) string); ok {
-		r0 = returnFunc(userID, rememberMe)
-	} else {
-		r0 = ret.Get(0).(string)
-	}
-	if returnFunc, ok := ret.Get(1).(func(int64, bool) string); ok {
-		r1 = returnFunc(userID, rememberMe)
-	} else {
-		r1 = ret.Get(1).(string)
-	}
-	if returnFunc, ok := ret.Get(2).(func(int64, bool) error); ok {
-		r2 = returnFunc(userID, rememberMe)
-	} else {
-		r2 = ret.Error(2)
-	}
-	return r0, r1, r2
-}
-
-// MockWebClientMiddlewareInterface_GenerateLoginTokens_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GenerateLoginTokens'
-type MockWebClientMiddlewareInterface_GenerateLoginTokens_Call struct {
-	*mock.Call
-}
-
-// GenerateLoginTokens is a helper method to define mock.On call
-//   - userID int64
-//   - rememberMe bool
-func (_e *MockWebClientMiddlewareInterface_Expecter) GenerateLoginTokens(userID interface{}, rememberMe interface{}) *MockWebClientMiddlewareInterface_GenerateLoginTokens_Call {
-	return &MockWebClientMiddlewareInterface_GenerateLoginTokens_Call{Call: _e.mock.On("GenerateLoginTokens", userID, rememberMe)}
-}
-
-func (_c *MockWebClientMiddlewareInterface_GenerateLoginTokens_Call) Run(run func(userID int64, rememberMe bool)) *MockWebClientMiddlewareInterface_GenerateLoginTokens_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 int64
-		if args[0] != nil {
-			arg0 = args[0].(int64)
-		}
-		var arg1 bool
-		if args[1] != nil {
-			arg1 = args[1].(bool)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *MockWebClientMiddlewareInterface_GenerateLoginTokens_Call) Return(s string, s1 string, err error) *MockWebClientMiddlewareInterface_GenerateLoginTokens_Call {
-	_c.Call.Return(s, s1, err)
-	return _c
-}
-
-func (_c *MockWebClientMiddlewareInterface_GenerateLoginTokens_Call) RunAndReturn(run func(userID int64, rememberMe bool) (string, string, error)) *MockWebClientMiddlewareInterface_GenerateLoginTokens_Call {
 	_c.Call.Return(run)
 	return _c
 }
