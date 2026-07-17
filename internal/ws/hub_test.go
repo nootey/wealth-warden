@@ -38,14 +38,14 @@ func (h *Hub) userCount() int {
 
 // serveHub exposes Serve over a real upgrade, so tests observe the register ->
 // serve -> unregister lifecycle through an actual connection rather than the map.
-func serveHub(t *testing.T, h *Hub, userID int64) *httptest.Server {
+func serveHub(t *testing.T, h *Hub, userID int64, sessionID string) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
 		if err != nil {
 			return
 		}
-		h.Serve(r.Context(), NewClient(userID, conn))
+		h.Serve(r.Context(), NewClient(userID, sessionID, conn))
 	}))
 	t.Cleanup(srv.Close)
 	return srv
@@ -77,7 +77,7 @@ func waitFor(t *testing.T, cond func() bool, msg string) {
 // never drains must not stall the caller, which is a job goroutine.
 func TestSendDropsWhenBufferFull(t *testing.T) {
 	h := newTestHub()
-	c := NewClient(1, nil)
+	c := NewClient(1, "", nil)
 	h.register(c)
 
 	for range sendBuffer + 5 {
@@ -91,10 +91,10 @@ func TestSendDropsWhenBufferFull(t *testing.T) {
 
 func TestSendReachesAllConnectionsForUser(t *testing.T) {
 	h := newTestHub()
-	first, second := NewClient(1, nil), NewClient(1, nil)
+	first, second := NewClient(1, "", nil), NewClient(1, "", nil)
 	h.register(first)
 	h.register(second)
-	h.register(NewClient(2, nil))
+	h.register(NewClient(2, "", nil))
 
 	h.Send(1, Event{Type: TypeReportCompleted})
 
@@ -103,12 +103,54 @@ func TestSendReachesAllConnectionsForUser(t *testing.T) {
 	}
 }
 
+func TestCloseSessionTargetsOnlyThatSession(t *testing.T) {
+	h := newTestHub()
+	revokedA := NewClient(1, "revoked", nil)
+	revokedB := NewClient(1, "revoked", nil)
+	kept := NewClient(1, "kept", nil)
+	otherUser := NewClient(2, "revoked", nil)
+	for _, c := range []*Client{revokedA, revokedB, kept, otherUser} {
+		h.register(c)
+	}
+
+	h.CloseSession(1, "revoked")
+
+	if !isClosed(revokedA.done) || !isClosed(revokedB.done) {
+		t.Fatal("revoked session's clients were not closed")
+	}
+	if isClosed(kept.done) {
+		t.Fatal("other session's client was closed")
+	}
+	if isClosed(otherUser.done) {
+		t.Fatal("other user's client was closed")
+	}
+}
+
+func TestCloseUserSparesOtherUsers(t *testing.T) {
+	h := newTestHub()
+	first := NewClient(1, "a", nil)
+	second := NewClient(1, "b", nil)
+	otherUser := NewClient(2, "c", nil)
+	for _, c := range []*Client{first, second, otherUser} {
+		h.register(c)
+	}
+
+	h.CloseUser(1)
+
+	if !isClosed(first.done) || !isClosed(second.done) {
+		t.Fatal("user's clients were not closed")
+	}
+	if isClosed(otherUser.done) {
+		t.Fatal("other user's client was closed")
+	}
+}
+
 func TestRegisterEvictsOldestBeyondCap(t *testing.T) {
 	h := newTestHub()
 
 	clients := make([]*Client, 0, maxConnsPerUser+1)
 	for range maxConnsPerUser + 1 {
-		c := NewClient(1, nil)
+		c := NewClient(1, "", nil)
 		clients = append(clients, c)
 		h.register(c)
 	}
@@ -126,7 +168,7 @@ func TestRegisterEvictsOldestBeyondCap(t *testing.T) {
 
 func TestUnregisterLastConnectionDeletesUser(t *testing.T) {
 	h := newTestHub()
-	first, second := NewClient(1, nil), NewClient(1, nil)
+	first, second := NewClient(1, "", nil), NewClient(1, "", nil)
 	h.register(first)
 	h.register(second)
 
@@ -145,7 +187,7 @@ func TestUnregisterLastConnectionDeletesUser(t *testing.T) {
 // leave no entry behind, or the fan-out in Send grows without bound.
 func TestServeUnregistersOnDisconnect(t *testing.T) {
 	h := newTestHub()
-	srv := serveHub(t, h, 1)
+	srv := serveHub(t, h, 1, "")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -164,7 +206,7 @@ func TestServeUnregistersOnDisconnect(t *testing.T) {
 // serve and closes the socket, rather than only flipping a channel.
 func TestEvictedConnectionIsTerminated(t *testing.T) {
 	h := newTestHub()
-	srv := serveHub(t, h, 1)
+	srv := serveHub(t, h, 1, "")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -187,6 +229,28 @@ func TestEvictedConnectionIsTerminated(t *testing.T) {
 	}
 }
 
+// TestCloseSessionSendsRevokedCode pins the wire contract: the web client
+// decides between "log out" and "reconnect" purely from the close code.
+func TestCloseSessionSendsRevokedCode(t *testing.T) {
+	h := newTestHub()
+	srv := serveHub(t, h, 1, "revoked")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	conn := dialHub(t, ctx, srv)
+	waitFor(t, func() bool { return h.connCount(1) == 1 }, "client never registered")
+
+	h.CloseSession(1, "revoked")
+
+	readCtx, readCancel := context.WithTimeout(ctx, 2*time.Second)
+	defer readCancel()
+	_, _, err := conn.Read(readCtx)
+	if websocket.CloseStatus(err) != statusSessionRevoked {
+		t.Fatalf("close status = %v, want %v", websocket.CloseStatus(err), statusSessionRevoked)
+	}
+}
+
 // TestConcurrentSendAndChurn exercises Send against registration churn; meaningful
 // only under -race, where it pins the mutex discipline the non-blocking Send relies on.
 func TestConcurrentSendAndChurn(t *testing.T) {
@@ -203,7 +267,7 @@ func TestConcurrentSendAndChurn(t *testing.T) {
 		go func() {
 			defer churn.Done()
 			for range iterations {
-				c := NewClient(1, nil)
+				c := NewClient(1, "", nil)
 				h.register(c)
 				h.unregister(c)
 			}

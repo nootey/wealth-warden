@@ -151,6 +151,32 @@ func TestDelete(t *testing.T) {
 	require.NoError(t, store.Delete(ctx, id), "deleting a gone session is a no-op")
 }
 
+func TestListForUserPrunesDanglingMembers(t *testing.T) {
+	store, mr, _ := newTestStore(t)
+	ctx := context.Background()
+
+	live, err := store.Create(ctx, 42, false, "live-agent", "10.0.0.1")
+	require.NoError(t, err)
+	dangling, err := store.Create(ctx, 42, false, "", "")
+	require.NoError(t, err)
+	_, err = store.Create(ctx, 7, false, "", "")
+	require.NoError(t, err)
+
+	// expiry removes the hash but leaves the set member behind
+	mr.Del("session:" + dangling)
+
+	list, err := store.ListForUser(ctx, 42)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.Equal(t, live, list[0].ID)
+	assert.Equal(t, "live-agent", list[0].UserAgent)
+	assert.Equal(t, "10.0.0.1", list[0].IP)
+	assert.False(t, list[0].CreatedAt.IsZero())
+	assert.False(t, list[0].LastSeen.IsZero())
+
+	assert.False(t, isMember(t, mr, "user_sessions:42", dangling))
+}
+
 func TestDeleteAllForUser(t *testing.T) {
 	store, mr, _ := newTestStore(t)
 	ctx := context.Background()

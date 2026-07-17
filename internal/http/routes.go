@@ -53,6 +53,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	savingsHandler := httpHandlers.NewSavingsHandler(r.Container.SavingsService, validator)
 	notificationHandler := httpHandlers.NewNotificationHandler(r.Container.NotificationService)
 	websocketHandler := httpHandlers.NewWebsocketHandler(r.Container.Hub, r.Container.Config)
+	sessionsHandler := httpHandlers.NewSessionsHandler(r.Container.SessionStore, r.Container.Hub)
 
 	// Register routes
 
@@ -74,6 +75,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	}
 
 	authHandler.Routes(authenticated.Group("/auth"))
+	sessionsHandler.Routes(authenticated.Group("/auth/sessions"))
 	websocketHandler.Routes(authenticated.Group("/ws"))
 	backOfficeHandler.Routes(protected.Group("/backoffice"))
 	accountHandler.Routes(protected.Group("/accounts"))

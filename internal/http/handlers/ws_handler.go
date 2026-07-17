@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/url"
 	"strings"
+	"wealth-warden/internal/sessions"
 	"wealth-warden/internal/ws"
 	"wealth-warden/pkg/config"
 
@@ -25,6 +26,7 @@ func (h *WebsocketHandler) Routes(rg *gin.RouterGroup) {
 
 func (h *WebsocketHandler) connect(c *gin.Context) {
 	userID := c.GetInt64("user_id")
+	sessionID, _ := c.Cookie(sessions.CookieName)
 
 	conn, err := websocket.Accept(c.Writer, c.Request, h.opts)
 	if err != nil {
@@ -32,7 +34,7 @@ func (h *WebsocketHandler) connect(c *gin.Context) {
 		return
 	}
 
-	h.hub.Serve(c.Request.Context(), ws.NewClient(userID, conn))
+	h.hub.Serve(c.Request.Context(), ws.NewClient(userID, sessionID, conn))
 }
 
 // Websockets bypass CORS, so the origin is checked here instead.

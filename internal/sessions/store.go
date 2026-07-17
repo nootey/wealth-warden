@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+	"wealth-warden/internal/models"
 	"wealth-warden/pkg/config"
 
 	"github.com/redis/go-redis/v9"
@@ -138,6 +139,42 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 	}
 	_, err = pipe.Exec(ctx)
 	return err
+}
+
+func (s *Store) ListForUser(ctx context.Context, userID int64) ([]models.Session, error) {
+	ids, err := s.rdb.SMembers(ctx, userKey(userID)).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	list := make([]models.Session, 0, len(ids))
+	for _, id := range ids {
+		fields, err := s.rdb.HGetAll(ctx, sessionKey(id)).Result()
+		if err != nil {
+			return nil, err
+		}
+		if len(fields) == 0 {
+			// expired sessions leave dangling set members behind
+			_ = s.rdb.SRem(ctx, userKey(userID), id).Err()
+			continue
+		}
+
+		createdAt, createdErr := strconv.ParseInt(fields["created_at"], 10, 64)
+		lastSeen, seenErr := strconv.ParseInt(fields["last_seen"], 10, 64)
+		if createdErr != nil || seenErr != nil {
+			continue
+		}
+
+		list = append(list, models.Session{
+			ID:        id,
+			UserAgent: fields["user_agent"],
+			IP:        fields["ip"],
+			CreatedAt: time.Unix(createdAt, 0),
+			LastSeen:  time.Unix(lastSeen, 0),
+		})
+	}
+
+	return list, nil
 }
 
 func (s *Store) DeleteAllForUser(ctx context.Context, userID int64) error {

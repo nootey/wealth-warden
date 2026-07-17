@@ -13,12 +13,11 @@ import UsersPage from "../../_vue/pages/UsersPage.vue";
 import NotFound from "../../_vue/components/base/NotFound.vue";
 import GeneralSettings from "../../_vue/pages/Settings/GeneralSettings.vue";
 import ProfileSettings from "../../_vue/pages/Settings/ProfileSettings.vue";
-import PreferencesSettings from "../../_vue/pages/Settings/PreferencesSettings.vue";
 import AccountsSettings from "../../_vue/pages/Settings/AccountsSettings.vue";
 import CategoriesSettings from "../../_vue/pages/Settings/CategoriesSettings.vue";
 import RolesSettings from "../../_vue/pages/Settings/RolesSettings.vue";
 import DataSettings from "../../_vue/pages/Settings/DataSettings.vue";
-import ConnectionSettings from "../../_vue/pages/Settings/ConnectionSettings.vue";
+import SecuritySettings from "../../_vue/pages/Settings/SecuritySettings.vue";
 import InvestmentsPage from "../../_vue/pages/InvestmentsPage.vue";
 import AnalyticsPage from "../../_vue/pages/AnalyticsPage.vue";
 import BackofficePage from "../../_vue/pages/BackofficePage.vue";
@@ -144,12 +143,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "Profile" },
       },
       {
-        path: "preferences",
-        name: "settings.preferences",
-        component: PreferencesSettings,
-        meta: { title: "Preferences" },
-      },
-      {
         path: "accounts",
         name: "settings.accounts",
         component: AccountsSettings,
@@ -174,10 +167,10 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "Data" },
       },
       {
-        path: "connection",
-        name: "settings.connection",
-        component: ConnectionSettings,
-        meta: { title: "Connection" },
+        path: "security",
+        name: "settings.security",
+        component: SecuritySettings,
+        meta: { title: "Security" },
       },
     ],
   },

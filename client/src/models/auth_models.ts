@@ -5,3 +5,12 @@ export interface AuthForm {
   password_confirmation?: string;
   remember_me?: boolean;
 }
+
+export interface SessionInfo {
+  id: string;
+  device: string;
+  ip: string;
+  created_at: string;
+  last_seen: string;
+  current: boolean;
+}

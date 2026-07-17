@@ -51,6 +51,42 @@ func DetermineServiceSource(userAgent string) string {
 	}
 }
 
+func DeviceFromUserAgent(ua string) string {
+	browser := "Unknown browser"
+	switch {
+	case strings.Contains(ua, "Edg/"), strings.Contains(ua, "Edge/"):
+		browser = "Edge"
+	case strings.Contains(ua, "OPR/"), strings.Contains(ua, "Opera"):
+		browser = "Opera"
+	case strings.Contains(ua, "Firefox/"):
+		browser = "Firefox"
+	case strings.Contains(ua, "Chrome/"):
+		browser = "Chrome"
+	case strings.Contains(ua, "Safari/"):
+		browser = "Safari"
+	}
+
+	os := ""
+	switch {
+	// order matters: iOS UAs contain "like Mac OS X", Android UAs contain "Linux"
+	case strings.Contains(ua, "Windows"):
+		os = "Windows"
+	case strings.Contains(ua, "iPhone"), strings.Contains(ua, "iPad"):
+		os = "iOS"
+	case strings.Contains(ua, "Mac OS X"):
+		os = "macOS"
+	case strings.Contains(ua, "Android"):
+		os = "Android"
+	case strings.Contains(ua, "Linux"):
+		os = "Linux"
+	}
+
+	if os == "" {
+		return browser
+	}
+	return browser + " on " + os
+}
+
 func cleanString(s string) string {
 	var b strings.Builder
 	for _, r := range s {

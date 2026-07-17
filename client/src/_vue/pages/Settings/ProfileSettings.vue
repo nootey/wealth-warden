@@ -1,79 +1,135 @@
 <script setup lang="ts">
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
-import { useAuthStore } from "../../../services/stores/auth_store.ts";
 import { computed, onMounted, ref } from "vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import type { User } from "../../../models/user_models.ts";
-import { useConfirm } from "primevue/useconfirm";
-import ShowLoading from "../../components/base/ShowLoading.vue";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
-import { email, required, helpers } from "@vuelidate/validators";
-import useVuelidate from "@vuelidate/core";
-import {
-  passwordMinLength,
-  noSpaces,
-  hasNumber,
-  hasUppercase,
-  hasSpecialChar,
-} from "../../../utils/password_validators.ts";
-import ValidationError from "../../components/validation/ValidationError.vue";
+import { useThemeStore } from "../../../services/stores/theme_store.ts";
+import ShowLoading from "../../components/base/ShowLoading.vue";
+import type {
+  CurrencyInfo,
+  LanguageInfo,
+  TimezoneInfo,
+  UserSettings,
+} from "../../../models/settings_models.ts";
 
-const authStore = useAuthStore();
-const toastStore = useToastStore();
 const settingsStore = useSettingsStore();
+const toastStore = useToastStore();
+const themeStore = useThemeStore();
 
-const confirm = useConfirm();
+const userSettings = ref<UserSettings>();
+const originalTimezone = ref<string>("");
 
-const currentUser = ref<User>();
+const loading = ref<boolean>(true);
 
-const emailUpdated = ref(false);
-const loading = ref(true);
+const languages = ref<LanguageInfo[]>([]);
+const filteredLanguages = ref<LanguageInfo[]>([]);
 
-const password = ref("");
-const passwordConfirmation = ref("");
+const timezones = ref<TimezoneInfo[]>([]);
+const filteredTimezones = ref<TimezoneInfo[]>([]);
 
-const rules = computed(() => ({
-  currentUser: {
-    display_name: { required, $autoDirty: true },
-    email: { required, email, $autoDirty: true },
+const currencies = ref<CurrencyInfo[]>([]);
+const filteredCurrencies = ref<CurrencyInfo[]>([]);
+
+const themeOptions = ref([
+  { value: "system", label: "System" },
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+]);
+
+const accentOptions = ref([{ value: "blurple", label: "Blurple" }]);
+
+const separatorOptions = ref([
+  { value: ";", label: "Semicolon ( ; )" },
+  { value: ",", label: "Comma ( , )" },
+]);
+
+const selectedSeparator = computed({
+  get: () =>
+    separatorOptions.value.find(
+      (s) => s.value === userSettings.value?.default_sheet_separator,
+    ),
+  set: (newValue: { value: string; label: string } | null) => {
+    if (userSettings.value && newValue) {
+      userSettings.value.default_sheet_separator = newValue.value;
+    }
   },
-  password: password.value
-    ? {
-        minLength: passwordMinLength,
-        noSpaces,
-        hasNumber,
-        hasUppercase,
-        hasSpecialChar,
-        $autoDirty: true,
-      }
-    : {},
-  passwordConfirmation: password.value
-    ? {
-        repeatPassword: helpers.withMessage(
-          ": must match password",
-          (value: string) => value === password.value,
-        ),
-        $autoDirty: true,
-      }
-    : {},
-}));
-
-const v$ = useVuelidate(rules, { currentUser, password, passwordConfirmation });
-
-async function isRecordValid() {
-  const isValid = await v$.value.$validate();
-  if (!isValid) return false;
-  return true;
-}
-
-onMounted(async () => {
-  await initUser();
 });
 
-async function initUser() {
+const selectedCurrency = computed({
+  get: () =>
+    currencies.value.find(
+      (c) => c.value === userSettings.value?.default_currency,
+    ),
+  set: (newValue: CurrencyInfo | null) => {
+    if (userSettings.value && newValue) {
+      userSettings.value.default_currency = newValue.value;
+    }
+  },
+});
+
+const selectedLanguage = computed({
+  get: () =>
+    languages.value.find((lang) => lang.value === userSettings.value?.language),
+  set: (newValue: LanguageInfo | null) => {
+    if (userSettings.value && newValue) {
+      userSettings.value.language = newValue.value;
+    }
+  },
+});
+
+const selectedTimezone = computed({
+  get: () =>
+    timezones.value.find((tz) => tz.value === userSettings.value?.timezone),
+  set: (newValue: TimezoneInfo | null) => {
+    if (userSettings.value && newValue) {
+      userSettings.value.timezone = newValue.value;
+    }
+  },
+});
+
+const timezoneChanged = computed(
+  () =>
+    originalTimezone.value !== "" &&
+    userSettings.value?.timezone !== originalTimezone.value,
+);
+
+const selectedTheme = computed({
+  get: () =>
+    themeOptions.value.find(
+      (theme) => theme.value === userSettings.value?.theme,
+    ),
+  set: (newValue: { value: string; label: string } | null) => {
+    if (userSettings.value && newValue) {
+      userSettings.value.theme = newValue.value;
+    }
+  },
+});
+
+const selectedAccent = computed({
+  get: () =>
+    accentOptions.value.find(
+      (accent) => accent.value === userSettings.value?.accent,
+    ),
+  set: (newValue: { value: string; label: string } | null) => {
+    if (userSettings.value && newValue) {
+      userSettings.value.accent = newValue.value;
+    }
+  },
+});
+
+onMounted(async () => {
+  await initUserSettings();
+  await getAvailableTimezones();
+  await getAvailableLanguages();
+  await getAvailableCurrencies();
+});
+
+async function initUserSettings() {
   loading.value = true;
   try {
-    currentUser.value = await authStore.getAuthUser(false);
+    let response = await settingsStore.getUserSettings();
+    userSettings.value = response.data;
+    originalTimezone.value = response.data?.timezone ?? "";
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {
@@ -81,46 +137,89 @@ async function initUser() {
   }
 }
 
-async function confirmUpdateSettings() {
-  const changingEmail = emailUpdated.value;
-  const changingPassword = !!password.value;
+async function getAvailableTimezones() {
+  try {
+    let response = await settingsStore.getAvailableTimezones();
+    timezones.value = response.data;
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
 
-  if (changingEmail || changingPassword) {
-    const parts = [];
-    if (changingEmail) parts.push("your email address");
-    if (changingPassword) parts.push("your password");
-    const what = parts.join(" and ");
+async function getAvailableLanguages() {
+  try {
+    languages.value = [{ value: "en", label: "English" }];
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
 
-    confirm.require({
-      header: "Confirm operation",
-      message: `You're about to change ${what}. This will log you out.`,
-      rejectProps: { label: "Cancel" },
-      acceptProps: { label: "Continue" },
-      accept: async () => await updateSettings(),
-    });
+async function getAvailableCurrencies() {
+  try {
+    let response = await settingsStore.getAvailableCurrencies();
+    currencies.value = response.data;
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
+function searchTimezone(event: any) {
+  const query = event.query.toLowerCase();
+
+  if (!query) {
+    filteredTimezones.value = timezones.value;
   } else {
-    await updateSettings();
+    filteredTimezones.value = timezones.value.filter(
+      (tz) =>
+        tz.label.toLowerCase().includes(query) ||
+        tz.value.toLowerCase().includes(query),
+    );
+  }
+}
+
+function searchCurrency(event: { query: string }) {
+  const query = event.query.toLowerCase();
+
+  if (!query) {
+    filteredCurrencies.value = currencies.value;
+  } else {
+    filteredCurrencies.value = currencies.value.filter(
+      (c) =>
+        c.label.toLowerCase().includes(query) ||
+        c.value.toLowerCase().includes(query),
+    );
+  }
+}
+
+function searchLanguage(event: { query: string }) {
+  const query = event.query.toLowerCase();
+
+  if (!query) {
+    filteredLanguages.value = languages.value;
+  } else {
+    filteredLanguages.value = languages.value.filter(
+      (lang) =>
+        lang.label.toLowerCase().includes(query) ||
+        lang.value.toLowerCase().includes(query),
+    );
   }
 }
 
 async function updateSettings() {
-  if (!(await isRecordValid())) return;
-
   loading.value = true;
-  const rec = {
-    display_name: currentUser.value?.display_name,
-    email_updated: emailUpdated.value,
-    email: currentUser.value?.email,
-    password: password.value || null,
-    password_confirmation: passwordConfirmation.value || null,
+  const settings = {
+    language: userSettings.value?.language,
+    timezone: userSettings.value?.timezone,
+    theme: userSettings.value?.theme as "system" | "dark" | "light",
+    accent: userSettings.value?.accent,
+    default_currency: userSettings.value?.default_currency,
+    default_sheet_separator: userSettings.value?.default_sheet_separator,
   };
-
   try {
-    let response = await settingsStore.updateProfileSettings(rec);
+    let response = await settingsStore.updatePreferenceSettings(settings);
+    themeStore.setTheme(settings.theme!, settings.accent);
+    originalTimezone.value = settings.timezone ?? "";
     toastStore.successResponseToast(response);
-    if (rec.email_updated || rec.password) {
-      authStore.logout();
-    }
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {
@@ -134,9 +233,9 @@ async function updateSettings() {
     <SettingsSkeleton class="w-full">
       <div class="w-full flex flex-column gap-3 p-2">
         <div class="w-full flex flex-column gap-2">
-          <h3>Profile</h3>
+          <h3>Avatar</h3>
           <h5 style="color: var(--text-secondary)">
-            Customize how your account details.
+            Customize your profile picture.
           </h5>
         </div>
 
@@ -161,75 +260,107 @@ async function updateSettings() {
             >
           </div>
         </div>
+      </div>
+    </SettingsSkeleton>
 
-        <div
-          v-if="!loading && currentUser"
-          class="w-full flex flex-column gap-2 w-full"
-        >
-          <div class="flex flex-row w-full">
-            <div class="flex flex-column w-full">
-              <ValidationError
-                :is-required="true"
-                :message="v$.currentUser.email.$errors[0]?.$message"
-              >
-                <label>Email</label>
-              </ValidationError>
-              <InputText
-                v-model="currentUser.email"
-                class="w-full"
-                @update:model-value="emailUpdated = true"
-              />
-            </div>
-          </div>
-          <div class="flex flex-row w-full">
-            <div class="flex flex-column w-full">
-              <ValidationError
-                :is-required="true"
-                :message="v$.currentUser.display_name.$errors[0]?.$message"
-              >
-                <label>Display name</label>
-              </ValidationError>
-              <InputText
-                id="in_label"
-                v-model="currentUser.display_name"
-                class="w-full"
-              />
-            </div>
-          </div>
-          <div class="flex flex-row w-full">
-            <div class="flex flex-column gap-1 w-full">
-              <ValidationError :message="v$.password.$errors[0]?.$message">
-                <label>New password</label>
-              </ValidationError>
-              <InputText
-                v-model="password"
-                type="password"
-                placeholder="Password (leave blank to keep)"
-                class="w-full"
-              />
-            </div>
-          </div>
-          <div class="flex flex-row w-full">
-            <div class="flex flex-column gap-1 w-full">
-              <ValidationError
-                :message="v$.passwordConfirmation.$errors[0]?.$message"
-              >
-                <label>Confirm new password</label>
-              </ValidationError>
-              <InputText
-                v-model="passwordConfirmation"
-                type="password"
-                placeholder="Confirm new password"
-                class="w-full"
-              />
-            </div>
-          </div>
+    <SettingsSkeleton class="w-full">
+      <div class="w-full flex flex-column gap-3 p-2">
+        <div class="w-full flex flex-column gap-2">
+          <h3>General</h3>
+          <h5 style="color: var(--text-secondary)">
+            Configure your preferences.
+          </h5>
+        </div>
+
+        <div v-if="!loading" class="w-full flex flex-column gap-2 w-full">
           <div class="w-full flex flex-row gap-2 w-full">
-            <Button
-              class="main-button ml-auto"
-              label="Save"
-              @click="confirmUpdateSettings"
-            />
+            <IftaLabel class="w-full" variant="in">
+              <AutoComplete
+                id="language_input"
+                v-model="selectedLanguage"
+                dropdown
+                size="small"
+                :suggestions="filteredLanguages"
+                option-label="label"
+                option-value="value"
+                class="w-full"
+                :input-class="'w-full'"
+                placeholder="Search language..."
+                force-selection
+                @complete="searchLanguage"
+              />
+              <label for="in_label">Language</label>
+            </IftaLabel>
+          </div>
+
+          <div class="w-full flex flex-column gap-1">
+            <IftaLabel class="w-full" variant="in">
+              <AutoComplete
+                id="currency_input"
+                v-model="selectedCurrency"
+                dropdown
+                size="small"
+                :suggestions="filteredCurrencies"
+                option-label="label"
+                option-value="value"
+                class="w-full"
+                :input-class="'w-full'"
+                placeholder="Search currency..."
+                force-selection
+                disabled
+                @complete="searchCurrency"
+              />
+              <label for="currency_input">Default Currency</label>
+            </IftaLabel>
+            <span class="text-xs" style="color: var(--text-secondary)">
+              Default currency cannot be changed after initial setup.
+            </span>
+          </div>
+
+          <div class="w-full flex flex-column gap-1">
+            <IftaLabel class="w-full" variant="in">
+              <AutoComplete
+                id="in_label"
+                v-model="selectedTimezone"
+                dropdown
+                size="small"
+                :suggestions="filteredTimezones"
+                option-label="label"
+                option-value="value"
+                class="w-full"
+                :input-class="'w-full'"
+                placeholder="Search timezone..."
+                force-selection
+                @complete="searchTimezone"
+              />
+              <label for="in_label">Timezone</label>
+            </IftaLabel>
+            <span
+              v-if="timezoneChanged"
+              class="text-xs"
+              style="color: var(--p-red-300)"
+            >
+              Active templates will be rescheduled to match the same dates in
+              the new timezone.
+            </span>
+          </div>
+
+          <div class="w-full flex flex-column gap-1">
+            <IftaLabel class="w-full" variant="in">
+              <Select
+                id="sheet_separator_input"
+                v-model="selectedSeparator"
+                :options="separatorOptions"
+                option-label="label"
+                class="w-full"
+                placeholder="Select separator..."
+              />
+              <label for="sheet_separator_input">Sheet Separator</label>
+            </IftaLabel>
+            <span class="text-xs" style="color: var(--text-secondary)">
+              Column separator used when exporting spreadsheet files. (Currently
+              unused)
+            </span>
           </div>
         </div>
         <ShowLoading v-else :num-fields="2" />
@@ -239,37 +370,52 @@ async function updateSettings() {
     <SettingsSkeleton class="w-full">
       <div class="w-full flex flex-column gap-3 p-2">
         <div class="w-full flex flex-column gap-2">
-          <h3>Danger zone</h3>
-          <h5 style="color: var(--text-secondary)">Thread carefully.</h5>
+          <h3>Theme</h3>
+          <h5 style="color: var(--text-secondary)">
+            Choose a preferred theme for the app.
+          </h5>
         </div>
 
-        <div class="w-full flex flex-row gap-3 align-items-center">
-          <div class="flex flex-column w-full">
-            <h4>Reset account</h4>
-            <h5 style="color: var(--text-secondary)">
-              Resetting your account will delete all your accounts, categories,
-              and other data, but keep your user account intact.
-            </h5>
+        <div v-if="!loading" class="w-full flex flex-column gap-2 w-full">
+          <div class="w-full flex flex-row gap-2 w-full">
+            <IftaLabel class="w-full" variant="in">
+              <Select
+                id="theme_input"
+                v-model="selectedTheme"
+                :options="themeOptions"
+                option-label="label"
+                class="w-full"
+                placeholder="Select theme..."
+              />
+              <label for="in_label">Theme</label>
+            </IftaLabel>
           </div>
-          <div class="flex flex-column w-3">
-            <Button size="small" label="Reset account" class="delete-button" />
-          </div>
-        </div>
 
-        <div class="w-full flex flex-row gap-3 align-items-center">
-          <div class="flex flex-column w-full">
-            <h4>Delete account</h4>
-            <h5 style="color: var(--text-secondary)">
-              Deleting your account will permanently remove all your data and
-              cannot be undone.
-            </h5>
-          </div>
-          <div class="flex flex-column w-3">
-            <Button size="small" label="Delete account" class="delete-button" />
+          <div class="w-full flex flex-row gap-2 w-full">
+            <IftaLabel class="w-full" variant="in">
+              <Select
+                id="accent_input"
+                v-model="selectedAccent"
+                :options="accentOptions"
+                option-label="label"
+                class="w-full"
+                placeholder="Select accent..."
+              />
+              <label for="in_label">Accent</label>
+            </IftaLabel>
           </div>
         </div>
+        <ShowLoading v-else :num-fields="2" />
       </div>
     </SettingsSkeleton>
+
+    <div class="w-full flex flex-row gap-2 w-full">
+      <Button
+        class="main-button ml-auto"
+        label="Save"
+        @click="updateSettings"
+      />
+    </div>
   </div>
 </template>
 
