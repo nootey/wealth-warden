@@ -819,7 +819,7 @@ func (j *GenerateCategoryReportJob) addYearCharts(
 			PlotArea: excelize.ChartPlotArea{
 				ShowVal: true,
 			},
-			Title: []excelize.RichTextRun{{Text: title}},
+			Title: excelize.ChartTitle{Paragraph: []excelize.RichTextRun{{Text: title}}},
 			Series: []excelize.ChartSeries{{
 				Name:       name,
 				Categories: ref(sumHeaderRow),
@@ -871,7 +871,7 @@ func (j *GenerateCategoryReportJob) addAllTimeChart(
 			ShowVal: true,
 		},
 
-		Title: []excelize.RichTextRun{{Text: fmt.Sprintf("%s per Year", primaryLabel)}},
+		Title: excelize.ChartTitle{Paragraph: []excelize.RichTextRun{{Text: fmt.Sprintf("%s per Year", primaryLabel)}}},
 		Series: []excelize.ChartSeries{{
 			Name:       primaryLabel,
 			Categories: catRef,
