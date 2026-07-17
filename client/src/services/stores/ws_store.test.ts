@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { useWsStore } from "./ws_store.ts";
 
-const authState = vi.hoisted(() => ({ isAuthenticated: true }));
+const authState = vi.hoisted(() => ({
+  isAuthenticated: true,
+  logout: vi.fn(),
+}));
 vi.mock("./auth_store.ts", () => ({
   useAuthStore: () => authState,
 }));
@@ -22,7 +25,7 @@ class FakeWebSocket {
   closed = false;
   onopen: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((event: { code: number }) => void) | null = null;
 
   constructor(url: string) {
     this.url = url;
@@ -42,8 +45,8 @@ class FakeWebSocket {
     this.onmessage?.({ data });
   }
 
-  fireClose(): void {
-    this.onclose?.();
+  fireClose(code = 1006): void {
+    this.onclose?.({ code });
   }
 }
 
@@ -82,6 +85,7 @@ describe("wsStore", () => {
     toasts.createWarnToast.mockClear();
 
     authState.isAuthenticated = true;
+    authState.logout.mockClear();
     location.protocol = "http:";
     location.host = "localhost:5000";
 
@@ -218,6 +222,23 @@ describe("wsStore", () => {
 
       vi.advanceTimersByTime(500);
       expect(FakeWebSocket.instances).toHaveLength(2);
+    });
+
+    it("logs out instead of reconnecting when the server revokes the session", () => {
+      const store = useWsStore();
+      store.connect();
+      socket().fireOpen();
+
+      socket().fireClose(4001);
+
+      expect(store.connected).toBe(false);
+      expect(toasts.createWarnToast).toHaveBeenCalledWith(
+        "Logged out",
+        "This session was revoked.",
+      );
+      expect(authState.logout).toHaveBeenCalledTimes(1);
+      expect(setTimeoutSpy).not.toHaveBeenCalled();
+      expect(FakeWebSocket.instances).toHaveLength(1);
     });
 
     it("backs off exponentially and caps at MAX_BACKOFF_MS", () => {

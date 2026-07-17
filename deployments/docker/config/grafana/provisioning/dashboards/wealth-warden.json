@@ -205,8 +205,8 @@
                       },
                       "spec": {
                         "editorMode": "builder",
-                        "expr": "min by(check) (health_check_up)",
-                        "legendFormat": "{{check}}",
+                        "expr": "min(health_check_up)",
+                        "legendFormat": "app",
                         "range": true
                       }
                     },

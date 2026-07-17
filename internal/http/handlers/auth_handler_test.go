@@ -83,8 +83,8 @@ func (suite *AuthHandlerTestSuite) TestLoginUser_Success() {
 		mock.Anything,
 	).Return(user, nil)
 
-	suite.mockMiddleware.On("GenerateLoginTokens", user.ID, form.RememberMe).
-		Return("access_token", "refresh_token", nil)
+	suite.mockMiddleware.On("CreateLoginSession", mock.Anything, user.ID, form.RememberMe, mock.Anything, mock.Anything).
+		Return("session-id", 86400, nil)
 	suite.mockMiddleware.On("CookieDomainForEnv").Return("localhost")
 	suite.mockMiddleware.On("CookieSecure").Return(false)
 
@@ -111,7 +111,7 @@ func (suite *AuthHandlerTestSuite) TestLoginUser_InvalidJSON() {
 	suite.Equal(http.StatusBadRequest, w.Code)
 }
 
-func (suite *AuthHandlerTestSuite) TestLoginUser_TokenGenerationFails() {
+func (suite *AuthHandlerTestSuite) TestLoginUser_SessionCreationFails() {
 	form := models.LoginForm{
 		AuthForm: models.AuthForm{
 			Email:    "test@example.com",
@@ -133,8 +133,8 @@ func (suite *AuthHandlerTestSuite) TestLoginUser_TokenGenerationFails() {
 		mock.Anything,
 	).Return(user, nil)
 
-	suite.mockMiddleware.On("GenerateLoginTokens", user.ID, form.RememberMe).
-		Return("", "", errors.New("token generation failed"))
+	suite.mockMiddleware.On("CreateLoginSession", mock.Anything, user.ID, form.RememberMe, mock.Anything, mock.Anything).
+		Return("", 0, errors.New("session creation failed"))
 
 	body, _ := json.Marshal(form)
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBuffer(body))
@@ -207,10 +207,28 @@ func (suite *AuthHandlerTestSuite) TestGetAuthUser_ServiceError() {
 
 func (suite *AuthHandlerTestSuite) TestLogoutUser_Success() {
 
+	suite.mockMiddleware.On("DestroySession", mock.Anything, "session-id").Return(nil)
 	suite.mockMiddleware.On("CookieDomainForEnv").Return("localhost")
 	suite.mockMiddleware.On("CookieSecure").Return(false)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: "session-id"})
+	w := httptest.NewRecorder()
+
+	suite.router.ServeHTTP(w, req)
+
+	suite.Equal(http.StatusOK, w.Code)
+}
+
+func (suite *AuthHandlerTestSuite) TestLogoutUser_RedisDownStillLogsOut() {
+
+	suite.mockMiddleware.On("DestroySession", mock.Anything, "session-id").
+		Return(errors.New("redis unavailable"))
+	suite.mockMiddleware.On("CookieDomainForEnv").Return("localhost")
+	suite.mockMiddleware.On("CookieSecure").Return(false)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: "session-id"})
 	w := httptest.NewRecorder()
 
 	suite.router.ServeHTTP(w, req)

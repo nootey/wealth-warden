@@ -13,11 +13,8 @@ func ValidateConfig(cfg *Config) error {
 		return err
 	}
 
-	if cfg.Release &&
-		(cfg.JWT.WebClientAccess == defaultJWTAccess ||
-			cfg.JWT.WebClientRefresh == defaultJWTRefresh ||
-			cfg.JWT.WebClientEncodeID == defaultJWTEncodeID) {
-		return errors.New("release mode requires non-default jwt secrets")
+	if cfg.Release && cfg.Redis.Password == "" {
+		return errors.New("release mode requires a redis password")
 	}
 
 	return nil

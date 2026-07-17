@@ -12,6 +12,9 @@ const BASE_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30000;
 const MAX_ATTEMPTS = 10;
 
+// application close code sent by the server when this session is revoked
+const SESSION_REVOKED_CODE = 4001;
+
 export const useWsStore = defineStore("ws", () => {
   const connected = ref(false);
   const attempts = ref(0);
@@ -82,9 +85,17 @@ export const useWsStore = defineStore("ws", () => {
     };
     socket.onmessage = (message: MessageEvent<string>) =>
       dispatch(message.data);
-    socket.onclose = () => {
+    socket.onclose = (event: CloseEvent) => {
       connected.value = false;
       socket = null;
+      if (event.code === SESSION_REVOKED_CODE) {
+        useToastStore().createWarnToast(
+          "Logged out",
+          "This session was revoked.",
+        );
+        useAuthStore().logout();
+        return;
+      }
       if (announce) {
         announce = false;
         useToastStore().createWarnToast(

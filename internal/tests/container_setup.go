@@ -10,7 +10,9 @@ import (
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database/seeders"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/pressly/goose/v3"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -29,8 +31,9 @@ type TestContainer struct {
 
 type ServiceIntegrationSuite struct {
 	suite.Suite
-	TC  *TestContainer
-	Ctx context.Context
+	TC    *TestContainer
+	Ctx   context.Context
+	redis *miniredis.Miniredis
 }
 
 type NoOpDispatcher struct{}
@@ -93,9 +96,15 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 	err = seeders.SeedDatabase(s.Ctx, db, l, cfg, "basic")
 	s.Require().NoError(err, "seeding failed")
 
+	// In-memory redis for the session store
+	mr := miniredis.NewMiniRedis()
+	s.Require().NoError(mr.Start(), "failed to start miniredis")
+	s.redis = mr
+	redisClient := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+
 	// Build application container
 	jobDispatcher := &NoOpDispatcher{}
-	appContainer, err := bootstrap.NewServiceContainer(cfg, db, l, jobDispatcher, &MockPriceFetcher{})
+	appContainer, err := bootstrap.NewServiceContainer(cfg, db, redisClient, l, jobDispatcher, &MockPriceFetcher{})
 	s.Require().NoError(err, "failed to bootstrap app container")
 
 	s.TC = &TestContainer{
@@ -105,7 +114,7 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 	}
 }
 
-// SetupTest empties mutable tables between tests, ensuring a clean slate
+// SetupTest empties mutable tables and the session store between tests, ensuring a clean slate
 func (s *ServiceIntegrationSuite) SetupTest() {
 
 	const truncateTestTablesSQL = `
@@ -120,6 +129,8 @@ RESTART IDENTITY CASCADE;
 
 	err := s.TC.DB.Exec(truncateTestTablesSQL).Error
 	s.Require().NoError(err, "failed to truncate test tables")
+
+	s.redis.FlushAll()
 }
 
 // TearDownSuite runs once after all tests
@@ -134,5 +145,9 @@ func (s *ServiceIntegrationSuite) TearDownSuite() {
 		if err := s.TC.container.Terminate(s.Ctx); err != nil {
 			s.T().Logf("container cleanup warning: %s", err)
 		}
+	}
+
+	if s.redis != nil {
+		s.redis.Close()
 	}
 }

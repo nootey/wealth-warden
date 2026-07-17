@@ -24,9 +24,8 @@ const items: SettingsMenuItem[] = [
     block: !hasPermission("root_access"),
   },
   { name: "settings.profile", label: "Profile", icon: "pi-user" },
-  { name: "settings.preferences", label: "Preferences", icon: "pi-cog" },
+  { name: "settings.security", label: "Security", icon: "pi-shield" },
   { name: "settings.data", label: "Data", icon: "pi-eject" },
-  { name: "settings.connection", label: "Connection", icon: "pi-wifi" },
   {
     name: "",
     label: "Transactions",

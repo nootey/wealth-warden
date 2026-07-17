@@ -59,6 +59,29 @@ func (h *Hub) Send(userID int64, event Event) {
 	}
 }
 
+// WS auth happens only at upgrade time, so a revoked session's open sockets
+// must be kicked explicitly. Both closers send the revoked close code so the
+// client logs out instead of reconnecting.
+func (h *Hub) CloseSession(userID int64, sessionID string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for _, c := range h.users[userID] {
+		if c.sessionID == sessionID {
+			c.closeWith(statusSessionRevoked, "session revoked")
+		}
+	}
+}
+
+func (h *Hub) CloseUser(userID int64) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for _, c := range h.users[userID] {
+		c.closeWith(statusSessionRevoked, "session revoked")
+	}
+}
+
 func (h *Hub) register(c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()

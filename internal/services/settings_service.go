@@ -16,6 +16,7 @@ import (
 	"wealth-warden/internal/queue"
 	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/sessions"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/version"
@@ -42,6 +43,7 @@ type SettingsService struct {
 	loggingRepo     repositories.LoggingRepositoryInterface
 	transactionRepo repositories.TransactionRepositoryInterface
 	jobDispatcher   queue.JobDispatcher
+	sessionStore    *sessions.Store
 }
 
 func NewSettingsService(
@@ -52,6 +54,7 @@ func NewSettingsService(
 	loggingRepo *repositories.LoggingRepository,
 	transactionRepo *repositories.TransactionRepository,
 	jobDispatcher queue.JobDispatcher,
+	sessionStore *sessions.Store,
 ) *SettingsService {
 	return &SettingsService{
 		cfg:             cfg,
@@ -61,6 +64,7 @@ func NewSettingsService(
 		loggingRepo:     loggingRepo,
 		transactionRepo: transactionRepo,
 		jobDispatcher:   jobDispatcher,
+		sessionStore:    sessionStore,
 	}
 }
 
@@ -281,6 +285,12 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 
 	if err := tx.Commit().Error; err != nil {
 		return err
+	}
+
+	if req.Password != nil && *req.Password != "" {
+		if err := s.sessionStore.DeleteAllForUser(ctx, existingUser.ID); err != nil {
+			return err
+		}
 	}
 
 	// Dispatch activity log

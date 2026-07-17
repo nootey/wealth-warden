@@ -1,5 +1,24 @@
 package models
 
+import "time"
+
+type Session struct {
+	ID        string
+	UserAgent string
+	IP        string
+	CreatedAt time.Time
+	LastSeen  time.Time
+}
+
+type SessionInfo struct {
+	ID        string    `json:"id"`
+	Device    string    `json:"device"`
+	IP        string    `json:"ip"`
+	CreatedAt time.Time `json:"created_at"`
+	LastSeen  time.Time `json:"last_seen"`
+	Current   bool      `json:"current"`
+}
+
 type AuthForm struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`

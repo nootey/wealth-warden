@@ -6,12 +6,14 @@ import (
 	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
+	"wealth-warden/internal/sessions"
 	"wealth-warden/internal/ws"
 	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/mailer"
 
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -19,6 +21,7 @@ import (
 type ServiceContainer struct {
 	Config              *config.Config
 	DB                  *gorm.DB
+	SessionStore        *sessions.Store
 	AuthzService        *authz.Service
 	BackofficeService   *services.BackofficeService
 	AuthService         *services.AuthService
@@ -36,13 +39,14 @@ type ServiceContainer struct {
 	SavingsService      *services.SavingsService
 	NotificationService *services.NotificationService
 	NotifDispatcher     queue_jobs.NotificationDispatcher
+	SessionsService     *services.SessionsService
 	Hub                 *ws.Hub
 }
 
 // NewServiceContainer initialises the application service layer.
 // Pass a non-nil priceFetcher to override the default client (e.g. a mock in tests).
 // Pass nil to have the real Yahoo Finance client created from cfg.FinanceAPIBaseURL.
-func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jobDispatcher queue.JobDispatcher, priceFetcher finance.PriceFetcher) (*ServiceContainer, error) {
+func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *zap.Logger, jobDispatcher queue.JobDispatcher, priceFetcher finance.PriceFetcher) (*ServiceContainer, error) {
 	if priceFetcher == nil {
 		var err error
 		priceFetcher, err = finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
@@ -56,6 +60,9 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 
 	// Initialize permission gating
 	authzSvc := authz.NewService(db, 5*time.Minute)
+
+	// Initialize session store
+	sessionStore := sessions.NewStore(rdb, cfg.Session)
 
 	// Initialize repositories
 	backOfficeRepo := repositories.NewBackofficeRepository(db)
@@ -75,12 +82,12 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 
 	// Initialize services
 	loggingService := services.NewLoggingService(loggingRepo)
-	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, loggingRepo, jobDispatcher, mail)
+	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, loggingRepo, jobDispatcher, mail, sessionStore)
 	roleService := services.NewRolePermissionService(roleRepo, loggingRepo, jobDispatcher)
 	userService := services.NewUserService(userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
 	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, transactionRepo, settingsRepo, loggingRepo, savingsRepo, investmentRepo, jobDispatcher, priceFetcher)
 	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, savingsRepo, jobDispatcher)
-	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, loggingRepo, transactionRepo, jobDispatcher)
+	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, loggingRepo, transactionRepo, jobDispatcher, sessionStore)
 	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, investmentRepo, settingsRepo, loggingRepo, jobDispatcher)
 	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
 	investmentService := services.NewInvestmentService(logger.Named("investment_sev"), investmentRepo, accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetcher)
@@ -91,10 +98,12 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 	notificationService := services.NewNotificationService(notificationRepo)
 	notifDispatcher := queue_jobs.NewNotificationDispatcher(notificationRepo, jobDispatcher)
 	hub := ws.NewHub(logger.Named("ws"))
+	sessionsService := services.NewSessionsService(sessionStore, hub)
 
 	return &ServiceContainer{
 		Config:              cfg,
 		DB:                  db,
+		SessionStore:        sessionStore,
 		BackofficeService:   backOfficeService,
 		AuthzService:        authzSvc,
 		AuthService:         authService,
@@ -112,6 +121,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, logger *zap.Logger, jo
 		SavingsService:      savingsService,
 		NotificationService: notificationService,
 		NotifDispatcher:     notifDispatcher,
+		SessionsService:     sessionsService,
 		Hub:                 hub,
 	}, nil
 }
