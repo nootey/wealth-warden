@@ -18,7 +18,6 @@ const updateModal = ref(false);
 const updateUserID = ref(null);
 
 const usrRef = ref<InstanceType<typeof UsersPaginated> | null>(null);
-const invRef = ref<InstanceType<typeof InvitationsPaginated> | null>(null);
 
 const roles = computed<Role[]>(() => userStore.roles);
 const activeTab = ref("users");
@@ -175,7 +174,7 @@ async function handleEmit(emitType: any) {
         <div v-else key="invitations" class="w-full">
           <Panel :collapsed="false" header="Invitations">
             <div class="flex flex-row gap-2 w-full">
-              <InvitationsPaginated ref="invRef" />
+              <InvitationsPaginated />
             </div>
           </Panel>
         </div>

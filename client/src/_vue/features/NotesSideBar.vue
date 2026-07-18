@@ -123,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, defineExpose } from "vue";
+import { ref } from "vue";
 import { useNotesStore } from "../../services/stores/notes_store.ts";
 import { useSharedStore } from "../../services/stores/shared_store.ts";
 import type { Note } from "../../models/notes_models.ts";

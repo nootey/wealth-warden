@@ -106,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, defineExpose, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { useNotificationStore } from "../../services/stores/notification_store.ts";
 import { useSharedStore } from "../../services/stores/shared_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";

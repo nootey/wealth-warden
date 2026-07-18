@@ -35,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, defineExpose } from "vue";
+import { ref } from "vue";
 import router from "./services/router/main.ts";
 import { usePermissions } from "./utils/use_permissions.ts";
 import AccountsPanel from "./_vue/features/AccountsPanel.vue";

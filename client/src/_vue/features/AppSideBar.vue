@@ -32,7 +32,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, defineExpose } from "vue";
+import { ref } from "vue";
 import MonthlyStats from "../components/data/MonthlyStats.vue";
 import DailyStats from "../components/data/DailyStats.vue";
 

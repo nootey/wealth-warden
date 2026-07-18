@@ -32,7 +32,6 @@ const sharedStore = useSharedStore();
 const accountStore = useAccountStore();
 
 const confirm = useConfirm();
-const nWidgetRef = ref<InstanceType<typeof NetworthWidget> | null>(null);
 const account = ref<Account | null>(null);
 const projectionsModal = ref(false);
 const latestBalance = ref<Balance | null>(null);
@@ -285,11 +284,7 @@ async function handleEmit(type: string) {
     <Divider />
 
     <SlotSkeleton class="w-full">
-      <NetworthWidget
-        ref="nWidgetRef"
-        :account-id="account.id"
-        :chart-height="200"
-      />
+      <NetworthWidget :account-id="account.id" :chart-height="200" />
     </SlotSkeleton>
 
     <div v-if="account.is_active" class="w-full flex flex-col gap-2">
