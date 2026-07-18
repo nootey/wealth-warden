@@ -229,10 +229,10 @@ async function updateSettings() {
 </script>
 
 <template>
-  <div class="flex flex-column w-full gap-3">
+  <div class="flex flex-col w-full gap-4">
     <SettingsSkeleton class="w-full">
-      <div class="w-full flex flex-column gap-3 p-2">
-        <div class="w-full flex flex-column gap-2">
+      <div class="w-full flex flex-col gap-4 p-2">
+        <div class="w-full flex flex-col gap-2">
           <h3>Avatar</h3>
           <h5 style="color: var(--text-secondary)">
             Customize your profile picture.
@@ -240,11 +240,9 @@ async function updateSettings() {
         </div>
 
         <div class="flex flex-row gap-2 w-50" style="margin: 0 auto">
-          <div
-            class="flex flex-column gap-3 justify-content-center align-items-center"
-          >
+          <div class="flex flex-col gap-4 justify-center items-center">
             <div
-              class="w-8rem h-8rem border-circle border-1 surface-border flex align-items-center justify-content-center cursor-pointer"
+              class="w-32 h-32 rounded-full border border-surface flex items-center justify-center cursor-pointer"
             >
               <i class="pi pi-image text-2xl" />
             </div>
@@ -264,15 +262,15 @@ async function updateSettings() {
     </SettingsSkeleton>
 
     <SettingsSkeleton class="w-full">
-      <div class="w-full flex flex-column gap-3 p-2">
-        <div class="w-full flex flex-column gap-2">
+      <div class="w-full flex flex-col gap-4 p-2">
+        <div class="w-full flex flex-col gap-2">
           <h3>General</h3>
           <h5 style="color: var(--text-secondary)">
             Configure your preferences.
           </h5>
         </div>
 
-        <div v-if="!loading" class="w-full flex flex-column gap-2 w-full">
+        <div v-if="!loading" class="w-full flex flex-col gap-2 w-full">
           <div class="w-full flex flex-row gap-2 w-full">
             <IftaLabel class="w-full" variant="in">
               <AutoComplete
@@ -293,7 +291,7 @@ async function updateSettings() {
             </IftaLabel>
           </div>
 
-          <div class="w-full flex flex-column gap-1">
+          <div class="w-full flex flex-col gap-1">
             <IftaLabel class="w-full" variant="in">
               <AutoComplete
                 id="currency_input"
@@ -317,7 +315,7 @@ async function updateSettings() {
             </span>
           </div>
 
-          <div class="w-full flex flex-column gap-1">
+          <div class="w-full flex flex-col gap-1">
             <IftaLabel class="w-full" variant="in">
               <AutoComplete
                 id="in_label"
@@ -345,7 +343,7 @@ async function updateSettings() {
             </span>
           </div>
 
-          <div class="w-full flex flex-column gap-1">
+          <div class="w-full flex flex-col gap-1">
             <IftaLabel class="w-full" variant="in">
               <Select
                 id="sheet_separator_input"
@@ -368,15 +366,15 @@ async function updateSettings() {
     </SettingsSkeleton>
 
     <SettingsSkeleton class="w-full">
-      <div class="w-full flex flex-column gap-3 p-2">
-        <div class="w-full flex flex-column gap-2">
+      <div class="w-full flex flex-col gap-4 p-2">
+        <div class="w-full flex flex-col gap-2">
           <h3>Theme</h3>
           <h5 style="color: var(--text-secondary)">
             Choose a preferred theme for the app.
           </h5>
         </div>
 
-        <div v-if="!loading" class="w-full flex flex-column gap-2 w-full">
+        <div v-if="!loading" class="w-full flex flex-col gap-2 w-full">
           <div class="w-full flex flex-row gap-2 w-full">
             <IftaLabel class="w-full" variant="in">
               <Select

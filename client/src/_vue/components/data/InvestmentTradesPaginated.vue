@@ -207,7 +207,7 @@ defineExpose({ refresh });
     />
   </Popover>
 
-  <div class="flex flex-column w-full">
+  <div class="flex flex-col w-full">
     <div class="flex flex-row w-full">
       <ActionRow>
         <template #activeFilters>
@@ -219,7 +219,7 @@ defineExpose({ refresh });
         </template>
         <template #filterButton>
           <div
-            class="hover-icon flex flex-row align-items-center gap-2"
+            class="hover-icon flex flex-row items-center gap-2"
             style="
               padding: 0.5rem 1rem;
               border-radius: 8px;
@@ -235,7 +235,7 @@ defineExpose({ refresh });
     </div>
 
     <div
-      class="flex flex-column w-full border-round-2xl"
+      class="flex flex-col w-full rounded-2xl"
       style="
         padding: 0.25rem 0.25rem 0 0.25rem;
         border: 1px solid var(--border-color);
@@ -283,7 +283,7 @@ defineExpose({ refresh });
           </template>
           <template #body="{ data }">
             <template v-if="col.field === 'average_buy_price'">
-              <div class="flex flex-row gap-2 align-items-center">
+              <div class="flex flex-row gap-2 items-center">
                 <span>{{
                   vueHelper.displayAssetPrice(
                     data.average_buy_price,
@@ -302,7 +302,7 @@ defineExpose({ refresh });
                 ].includes(col.field)
               "
             >
-              <div class="flex flex-row gap-2 align-items-center">
+              <div class="flex flex-row gap-2 items-center">
                 <span>{{
                   vueHelper.displayAsCurrency(data[col.field], data["currency"])
                 }}</span>
@@ -314,7 +314,7 @@ defineExpose({ refresh });
               }}
             </template>
             <template v-else-if="col.field == 'profit_loss'">
-              <div class="flex flex-row gap-2 align-items-center">
+              <div class="flex flex-row gap-2 items-center">
                 <i
                   class="text-xs"
                   :class="
@@ -335,7 +335,7 @@ defineExpose({ refresh });
               </div>
             </template>
             <template v-else-if="col.field === 'asset.ticker'">
-              <div class="flex flex-row gap-2 align-items-center">
+              <div class="flex flex-row gap-2 items-center">
                 <span
                   :class="{ hover: col.field === 'asset.ticker' }"
                   @click="
@@ -349,7 +349,7 @@ defineExpose({ refresh });
               </div>
             </template>
             <template v-else-if="col.field === 'trade_type'">
-              <div class="flex flex-row gap-2 align-items-center">
+              <div class="flex flex-row gap-2 items-center">
                 <span
                   :style="{
                     color: data[col.field] === 'buy' ? colors.pos : colors.neg,

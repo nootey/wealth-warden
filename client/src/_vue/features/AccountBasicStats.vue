@@ -173,12 +173,12 @@ const pieOptions = computed(() => ({
 </script>
 
 <template>
-  <div v-if="accBasicStats" class="w-full flex flex-column gap-2 p-2">
+  <div v-if="accBasicStats" class="w-full flex flex-col gap-2 p-2">
     <div
       v-if="years.length > 0"
-      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
+      class="flex flex-row gap-2 w-full justify-between items-center"
     >
-      <div class="flex flex-column gap-2">
+      <div class="flex flex-col gap-2">
         <div class="flex flex-row">
           <span class="text-sm" style="color: var(--text-secondary)">
             Select which year you want to display statistics for. Current year
@@ -187,7 +187,7 @@ const pieOptions = computed(() => ({
         </div>
       </div>
 
-      <div class="flex flex-column gap-2">
+      <div class="flex flex-col gap-2">
         <Select
           v-model="selectedYear"
           size="small"
@@ -199,9 +199,9 @@ const pieOptions = computed(() => ({
 
     <div
       v-if="!accID"
-      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
+      class="flex flex-row gap-2 w-full justify-between items-center"
     >
-      <div class="flex flex-column gap-2">
+      <div class="flex flex-col gap-2">
         <div class="flex flex-row">
           <span class="text-sm" style="color: var(--text-secondary)">
             A default checking account was found. The stats are representative
@@ -210,7 +210,7 @@ const pieOptions = computed(() => ({
         </div>
       </div>
 
-      <div class="flex flex-column gap-2">
+      <div class="flex flex-col gap-2">
         <Select
           v-model="selectedAccountID"
           size="small"
@@ -227,7 +227,7 @@ const pieOptions = computed(() => ({
             <span v-else>All accounts</span>
           </template>
           <template #option="slotProps">
-            <div class="flex flex-column">
+            <div class="flex flex-col">
               <span class="font-semibold">{{ slotProps.option.name }}</span>
               <span class="text-xs" style="color: var(--text-secondary)">
                 {{
@@ -242,8 +242,8 @@ const pieOptions = computed(() => ({
       </div>
     </div>
 
-    <div id="stats-row" class="flex flex-row w-full justify-content-center p-1">
-      <div class="flex flex-column w-6 gap-3">
+    <div id="stats-row" class="flex flex-row w-full justify-center p-1">
+      <div class="flex flex-col w-6/12 gap-4">
         <div class="flex flex-row gap-2">
           <span>Total inflows:</span>
           <b>{{ vueHelper.displayAsCurrency(accBasicStats.inflow) }}</b>
@@ -286,10 +286,8 @@ const pieOptions = computed(() => ({
         </div>
       </div>
 
-      <div
-        class="flex flex-column w-6 justify-content-center align-items-center gap-2"
-      >
-        <div class="flex flex-column justify-content-center w-12">
+      <div class="flex flex-col w-6/12 justify-center items-center gap-2">
+        <div class="flex flex-col justify-center w-full">
           <ShowLoading v-if="isLoading" :num-fields="4" />
           <template v-else>
             <Carousel
@@ -300,14 +298,10 @@ const pieOptions = computed(() => ({
               :num-scroll="1"
             >
               <template #item="slotProps">
-                <div
-                  class="flex flex-column justify-content-center align-items-center"
-                >
+                <div class="flex flex-col justify-center items-center">
                   {{ vueHelper.capitalize(slotProps.data.type) }}
                 </div>
-                <div
-                  class="flex flex-column justify-content-center align-items-center"
-                >
+                <div class="flex flex-col justify-center items-center">
                   <ComparativePieChart
                     v-if="slotProps.data.type === 'inflows'"
                     :size="pieChartSize"
@@ -329,7 +323,7 @@ const pieOptions = computed(() => ({
             </Carousel>
             <div
               v-else
-              class="flex flex-column align-items-center justify-content-center p-3"
+              class="flex flex-col items-center justify-center p-4"
               style="
                 border: 1px dashed var(--border-color);
                 border-radius: 16px;
@@ -387,7 +381,7 @@ const pieOptions = computed(() => ({
     display: none !important;
   }
 
-  :deep(#stats-carousel .flex.justify-content-center.align-items-center) {
+  :deep(#stats-carousel .flex.justify-center.items-center) {
     width: 100% !important;
     height: auto !important;
     padding: 0 !important;

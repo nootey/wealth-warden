@@ -90,7 +90,7 @@ async function deleteRecord(id: number) {
 </script>
 
 <template>
-  <div class="w-full flex flex-row gap-2 justify-content-center">
+  <div class="w-full flex flex-row gap-2 justify-center">
     <DataTable
       data-key="id"
       class="w-full enhanced-table"
@@ -109,7 +109,7 @@ async function deleteRecord(id: number) {
       </template>
       <Column header="Actions">
         <template #body="{ data }">
-          <div class="flex flex-row align-items-center gap-2">
+          <div class="flex flex-row items-center gap-2">
             <i
               v-if="hasPermission('manage_data')"
               class="pi pi-download hover-icon"

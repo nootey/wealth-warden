@@ -199,14 +199,14 @@ async function deleteRecord(id: number) {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-column gap-3 p-1">
+  <div v-if="!loading" class="flex flex-col gap-4 p-1">
     <div v-if="readOnly">
       <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
     </div>
 
-    <div class="flex flex-column gap-3">
+    <div class="flex flex-col gap-4">
       <div v-if="mode === 'update'" class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
+        <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.display_name.$errors[0]?.$message"
@@ -223,7 +223,7 @@ async function deleteRecord(id: number) {
       </div>
 
       <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
+        <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.email.$errors[0]?.$message"
@@ -241,7 +241,7 @@ async function deleteRecord(id: number) {
       </div>
 
       <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
+        <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.role.name.$errors[0]?.$message"
@@ -272,7 +272,7 @@ async function deleteRecord(id: number) {
       </div>
 
       <div class="flex flex-row gap-2 w-full">
-        <div class="flex flex-column w-full gap-2">
+        <div class="flex flex-col w-full gap-2">
           <Button
             v-if="!readOnly"
             class="main-button"

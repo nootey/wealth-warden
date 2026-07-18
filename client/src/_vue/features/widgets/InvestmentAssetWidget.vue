@@ -137,16 +137,16 @@ onMounted(getData);
 <template>
   <div
     v-if="payload && !hydrating"
-    class="w-full flex flex-column justify-content-center p-2 gap-1"
+    class="w-full flex flex-col justify-center p-2 gap-1"
   >
-    <div class="flex flex-row gap-2 w-full justify-content-between">
-      <div class="flex flex-column gap-1 p-1">
+    <div class="flex flex-row gap-2 w-full justify-between">
+      <div class="flex flex-col gap-1 p-1">
         <strong>{{
           vueHelper.displayAsCurrency(currentValue, payload.currency)
         }}</strong>
         <div
           v-if="unrealizedPnL"
-          class="flex flex-row gap-2 align-items-center"
+          class="flex flex-row gap-2 items-center"
           :style="{ color: activeColor }"
         >
           <span class="text-sm">{{
@@ -155,7 +155,7 @@ onMounted(getData);
               payload.currency,
             )
           }}</span>
-          <div class="flex flex-row gap-1 align-items-center text-xs">
+          <div class="flex flex-row gap-1 items-center text-xs">
             <i
               class="text-xs"
               :class="
@@ -172,7 +172,7 @@ onMounted(getData);
         </div>
         <div
           v-if="periodChange && hasSeries"
-          class="flex flex-row gap-2 align-items-center text-xs"
+          class="flex flex-row gap-2 items-center text-xs"
           :style="{ color: periodChange.abs >= 0 ? '#22c55e' : '#ef4444' }"
         >
           <span>{{
@@ -181,7 +181,7 @@ onMounted(getData);
               payload.currency,
             )
           }}</span>
-          <div class="flex flex-row gap-1 align-items-center">
+          <div class="flex flex-row gap-1 items-center">
             <i
               class="text-xs"
               :class="
@@ -203,7 +203,7 @@ onMounted(getData);
           </span>
         </div>
       </div>
-      <div class="flex flex-column p-1">
+      <div class="flex flex-col p-1">
         <Select
           v-model="selectedDTO"
           size="small"
@@ -226,7 +226,7 @@ onMounted(getData);
 
     <div
       v-else
-      class="flex flex-column align-items-center justify-content-center border-1 border-dashed border-round-md surface-border"
+      class="flex flex-col items-center justify-center border border-dashed rounded-md border-surface"
       :style="{ height: (chartHeight ?? 200) / 2 + 'px' }"
     >
       <i
@@ -238,5 +238,5 @@ onMounted(getData);
       </span>
     </div>
   </div>
-  <ShowLoading v-else :num-fields="4" class="mb-4" />
+  <ShowLoading v-else :num-fields="4" class="mb-6" />
 </template>

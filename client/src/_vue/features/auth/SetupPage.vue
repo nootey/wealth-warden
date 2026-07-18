@@ -160,8 +160,8 @@ async function completeSetup() {
 
 <template>
   <AuthSkeleton>
-    <div class="w-full mx-auto px-3 sm:px-0" style="max-width: 420px">
-      <div class="text-center mb-4">
+    <div class="w-full mx-auto px-4 sm:px-0" style="max-width: 420px">
+      <div class="text-center mb-6">
         <h2
           class="m-0 text-2xl sm:text-3xl font-bold"
           style="color: var(--text-primary); letter-spacing: -0.025em"
@@ -169,14 +169,14 @@ async function completeSetup() {
           Welcome, {{ authStore.user?.display_name ?? "there" }}
         </h2>
         <p
-          class="mt-2 line-height-3 text-base"
+          class="mt-2 leading-normal text-base"
           style="color: var(--text-secondary)"
         >
           Let's get a few things set up before you dive in.
         </p>
       </div>
 
-      <div v-if="!loading" class="flex flex-column gap-3">
+      <div v-if="!loading" class="flex flex-col gap-4">
         <IftaLabel class="w-full" variant="in">
           <AutoComplete
             id="currency_input"
@@ -261,12 +261,12 @@ async function completeSetup() {
         />
       </div>
 
-      <div v-else class="flex flex-column gap-3">
+      <div v-else class="flex flex-col gap-4">
         <Skeleton v-for="n in 5" :key="n" height="3rem" border-radius="8px" />
       </div>
 
       <div
-        class="flex align-items-center justify-content-center gap-2 mt-4 pt-3"
+        class="flex items-center justify-center gap-2 mt-6 pt-4"
         style="border-top: 1px solid var(--border-color)"
       >
         <span class="text-sm" style="color: var(--text-secondary)">

@@ -514,12 +514,9 @@ async function deleteRecord(id: number, tx_type: string) {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-column gap-3 p-1">
-    <div
-      v-if="!isFormReadOnly"
-      class="flex flex-row w-full justify-content-center"
-    >
-      <div class="flex flex-column w-50">
+  <div v-if="!loading" class="flex flex-col gap-4 p-1">
+    <div v-if="!isFormReadOnly" class="flex flex-row w-full justify-center">
+      <div class="flex flex-col w-50">
         <SelectButton
           v-model="selectedParentCategory"
           style="font-size: 0.875rem"
@@ -541,7 +538,7 @@ async function deleteRecord(id: number, tx_type: string) {
 
     <div
       v-if="isTransferSelected && !isFormReadOnly"
-      class="flex flex-column gap-3"
+      class="flex flex-col gap-4"
     >
       <TransferForm
         ref="transferFormRef"
@@ -550,9 +547,9 @@ async function deleteRecord(id: number, tx_type: string) {
       />
     </div>
 
-    <div v-else class="flex flex-column gap-3">
+    <div v-else class="flex flex-col gap-4">
       <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
+        <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.account.name.$errors[0]?.$message"
@@ -576,7 +573,7 @@ async function deleteRecord(id: number, tx_type: string) {
       </div>
 
       <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
+        <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.amount.$errors[0]?.$message"
@@ -597,7 +594,7 @@ async function deleteRecord(id: number, tx_type: string) {
       </div>
 
       <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
+        <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="false"
             :message="v$.record.category.name.$errors[0]?.$message"
@@ -619,7 +616,7 @@ async function deleteRecord(id: number, tx_type: string) {
       </div>
 
       <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
+        <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.txn_date.$errors[0]?.$message"
@@ -641,7 +638,7 @@ async function deleteRecord(id: number, tx_type: string) {
       </div>
 
       <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
+        <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="false"
             :message="v$.record.description.$errors[0]?.$message"
@@ -659,11 +656,11 @@ async function deleteRecord(id: number, tx_type: string) {
       </div>
 
       <div v-if="mode === 'update'" class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-6">
+        <div class="flex flex-col gap-1 w-6/12">
           <label>Created at</label>
           {{ dateHelper.formatDate(record.created_at!, true) }}
         </div>
-        <div class="flex flex-column gap-1 w-6">
+        <div class="flex flex-col gap-1 w-6/12">
           <label>Updated at</label>
           {{ dateHelper.formatDate(record.updated_at!, true) }}
         </div>
@@ -671,7 +668,7 @@ async function deleteRecord(id: number, tx_type: string) {
     </div>
 
     <div v-if="!record.is_adjustment" class="flex flex-row gap-2 w-full">
-      <div class="flex flex-column w-full gap-2">
+      <div class="flex flex-col w-full gap-2">
         <Button
           v-if="!isFormReadOnly"
           class="main-button"

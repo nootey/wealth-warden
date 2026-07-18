@@ -170,9 +170,9 @@ async function generate() {
 </script>
 
 <template>
-  <div class="w-full flex flex-column gap-3 p-2">
-    <div id="cat-row" class="flex flex-row gap-3 justify-content-center">
-      <div class="flex flex-column gap-1" style="flex: 1; max-width: 280px">
+  <div class="w-full flex flex-col gap-4 p-2">
+    <div id="cat-row" class="flex flex-row gap-4 justify-center">
+      <div class="flex flex-col gap-1" style="flex: 1; max-width: 280px">
         <ValidationError
           :is-required="true"
           :message="v$.form.inflowCategories.$errors[0]?.$message"
@@ -203,7 +203,7 @@ async function generate() {
         </MultiSelect>
       </div>
 
-      <div class="flex flex-column gap-1" style="flex: 1; max-width: 280px">
+      <div class="flex flex-col gap-1" style="flex: 1; max-width: 280px">
         <ValidationError
           :is-required="false"
           :message="v$.form.outflowCategories.$errors[0]?.$message"
@@ -236,8 +236,8 @@ async function generate() {
       </div>
     </div>
 
-    <div id="filter-row" class="flex flex-row gap-3 justify-content-center">
-      <div class="flex flex-column gap-1" style="flex: 1; max-width: 280px">
+    <div id="filter-row" class="flex flex-row gap-4 justify-center">
+      <div class="flex flex-col gap-1" style="flex: 1; max-width: 280px">
         <ValidationError
           :is-required="!form.allTime"
           :message="v$.form.selectedYears.$errors[0]?.$message"
@@ -257,7 +257,7 @@ async function generate() {
         />
       </div>
 
-      <div class="flex flex-column gap-1" style="flex: 1; max-width: 280px">
+      <div class="flex flex-col gap-1" style="flex: 1; max-width: 280px">
         <ValidationError :is-required="false" :message="undefined">
           <label>Description</label>
         </ValidationError>
@@ -269,8 +269,8 @@ async function generate() {
       </div>
     </div>
 
-    <div id="account-row" class="flex flex-row gap-3 justify-content-center">
-      <div class="flex flex-column gap-1" style="flex: 1; max-width: 280px">
+    <div id="account-row" class="flex flex-row gap-4 justify-center">
+      <div class="flex flex-col gap-1" style="flex: 1; max-width: 280px">
         <ValidationError :is-required="false" :message="undefined">
           <label>Account</label>
         </ValidationError>
@@ -286,11 +286,11 @@ async function generate() {
         />
       </div>
 
-      <div class="flex flex-column gap-1" style="flex: 1; max-width: 280px">
+      <div class="flex flex-col gap-1" style="flex: 1; max-width: 280px">
         <ValidationError :is-required="false" :message="undefined">
           <label>Scope</label>
         </ValidationError>
-        <div class="flex flex-row gap-2 align-items-center h-full">
+        <div class="flex flex-row gap-2 items-center h-full">
           <Checkbox
             v-model="form.accountTypeOnly"
             :binary="true"
@@ -308,8 +308,8 @@ async function generate() {
       </div>
     </div>
 
-    <div class="flex w-full justify-content-center">
-      <div class="flex flex-row gap-2 align-items-center">
+    <div class="flex w-full justify-center">
+      <div class="flex flex-row gap-2 items-center">
         <Checkbox v-model="form.allTime" :binary="true" input-id="all-time" />
         <label for="all-time" class="text-sm cursor-pointer">
           All-time comparative
@@ -317,9 +317,9 @@ async function generate() {
       </div>
     </div>
 
-    <div class="flex w-full justify-content-center">
+    <div class="flex w-full justify-center">
       <Button
-        class="main-button w-6"
+        class="main-button w-6/12"
         label="Generate"
         :loading="isGenerating"
         @click="generate"

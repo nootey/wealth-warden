@@ -82,7 +82,7 @@ async function manipulateDialog(modal: string, value: any) {
     <template #footer>
       <Button
         label="Start"
-        class="main-button w-4"
+        class="main-button w-4/12"
         :disabled="importModuleRef?.isDisabled"
         @click="importModuleRef?.startOperation"
       />
@@ -100,11 +100,11 @@ async function manipulateDialog(modal: string, value: any) {
     <ExportModule @complete-export="refreshData('export')" />
   </Dialog>
 
-  <div class="flex flex-column w-full gap-3">
+  <div class="flex flex-col w-full gap-4">
     <SettingsSkeleton class="w-full">
-      <div class="w-full flex flex-column gap-3 p-2">
-        <div class="flex flex-row align-items-center gap-2 w-full">
-          <div class="w-full flex flex-column gap-2">
+      <div class="w-full flex flex-col gap-4 p-2">
+        <div class="flex flex-row items-center gap-2 w-full">
+          <div class="w-full flex flex-col gap-2">
             <h3>Data Import</h3>
             <h5 style="color: var(--text-secondary)">
               Manage your imported data.
@@ -114,7 +114,7 @@ async function manipulateDialog(modal: string, value: any) {
             class="main-button"
             @click="manipulateDialog('addImport', true)"
           >
-            <div class="flex flex-row gap-1 align-items-center">
+            <div class="flex flex-row gap-1 items-center">
               <i class="pi pi-plus" />
               <span> New </span>
               <span class="mobile-hide"> Import </span>
@@ -128,9 +128,9 @@ async function manipulateDialog(modal: string, value: any) {
     </SettingsSkeleton>
 
     <SettingsSkeleton class="w-full">
-      <div class="w-full flex flex-column gap-3 p-2">
-        <div class="flex flex-row align-items-center gap-2 w-full">
-          <div class="w-full flex flex-column gap-2">
+      <div class="w-full flex flex-col gap-4 p-2">
+        <div class="flex flex-row items-center gap-2 w-full">
+          <div class="w-full flex flex-col gap-2">
             <h3>Data Export</h3>
             <h5 style="color: var(--text-secondary)">Export your data.</h5>
           </div>
@@ -138,7 +138,7 @@ async function manipulateDialog(modal: string, value: any) {
             class="main-button"
             @click="manipulateDialog('addExport', true)"
           >
-            <div class="flex flex-row gap-1 align-items-center">
+            <div class="flex flex-row gap-1 items-center">
               <i class="pi pi-plus" />
               <span> New </span>
               <span class="mobile-hide"> Export </span>

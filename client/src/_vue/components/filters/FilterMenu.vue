@@ -130,13 +130,14 @@ function onCommit() {
     class="flex flex-row w-full gap-1 p-2"
     style="height: 250px"
   >
-    <div class="flex flex-column w-4 gap-2 p-1" style="overflow-y: auto">
+    <div class="flex flex-col w-4/12 gap-1" style="overflow-y: auto">
       <button
         v-for="i in items"
         :key="i.key"
-        class="flex align-items-center gap-2 p-2 w-full menu-button"
+        class="flex items-center gap-2 w-full menu-button"
         :class="{ active: i.key === selectedKey }"
         style="
+          padding: 5px;
           background-color: transparent;
           border: 2px solid var(--border-color);
           border-radius: 10px;
@@ -157,7 +158,7 @@ function onCommit() {
         </span>
       </button>
     </div>
-    <div class="flex flex-column w-8">
+    <div class="flex flex-col w-8/12">
       <component
         :is="activeItem.def.component"
         v-if="activeItem"
@@ -172,7 +173,7 @@ function onCommit() {
 
   <div
     id="mobile-row"
-    class="flex flex-row w-full justify-content-end align-items-center gap-3 p-1"
+    class="flex flex-row w-full justify-end items-center gap-4 p-1"
   >
     <div class="hover-icon" style="margin-right: auto" @click="clear">
       Clear filters

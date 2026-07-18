@@ -239,7 +239,7 @@ function toNumber(v: string | string[] | undefined): number {
   />
   <div
     v-else
-    class="flex flex-column align-items-center justify-content-center mt-3 p-3 w-6"
+    class="flex flex-col items-center justify-center mt-4 p-4 w-6/12"
     style="
       border: 1px dashed var(--border-color);
       border-radius: 16px;

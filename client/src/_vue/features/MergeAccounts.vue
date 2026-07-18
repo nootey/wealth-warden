@@ -51,9 +51,9 @@ async function doMerge() {
 </script>
 
 <template>
-  <div class="w-full flex flex-column gap-2">
-    <div class="flex flex-row justify-content-between align-items-center gap-3">
-      <div class="w-full flex flex-column gap-2">
+  <div class="w-full flex flex-col gap-2">
+    <div class="flex flex-row justify-between items-center gap-4">
+      <div class="w-full flex flex-col gap-2">
         <h3>Merge accounts</h3>
         <h5 style="color: var(--text-secondary)">
           Merge one account into another. All transactions and transfers will be
@@ -62,8 +62,8 @@ async function doMerge() {
       </div>
     </div>
 
-    <div class="flex flex-row gap-3 w-full">
-      <div class="flex flex-column gap-1 w-full">
+    <div class="flex flex-row gap-4 w-full">
+      <div class="flex flex-col gap-1 w-full">
         <label>Source account</label>
         <Select
           v-model="sourceAccount"
@@ -75,7 +75,7 @@ async function doMerge() {
           size="small"
         />
       </div>
-      <div class="flex flex-column gap-1 w-full">
+      <div class="flex flex-col gap-1 w-full">
         <label>Destination account</label>
         <Select
           v-model="destinationAccount"
@@ -90,7 +90,7 @@ async function doMerge() {
     </div>
 
     <div class="flex flex-row gap-2 w-full">
-      <div id="expand" class="flex flex-column gap-2 ml-auto">
+      <div id="expand" class="flex flex-col gap-2 ml-auto">
         <Button
           class="main-button"
           label="Merge"

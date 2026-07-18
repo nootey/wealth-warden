@@ -6,17 +6,15 @@
     style="width: 100%; max-width: 468px; overflow-y: auto"
   >
     <template #container="{ closeCallback }">
-      <div class="flex flex-column w-full p-3 gap-3">
-        <div
-          class="flex flex-row justify-content-between align-items-center p-2"
-        >
+      <div class="flex flex-col w-full p-4 gap-4">
+        <div class="flex flex-row justify-between items-center p-2">
           <h3>Notifications</h3>
           <i class="pi pi-times hover-icon" @click="closeCallback" />
         </div>
 
-        <div class="flex flex-row justify-content-between align-items-center">
+        <div class="flex flex-row justify-between items-center">
           <div
-            class="flex flex-row align-items-center gap-2 text-sm"
+            class="flex flex-row items-center gap-2 text-sm"
             style="cursor: pointer; color: var(--text-secondary)"
             @click="toggleUnreadFilter"
           >
@@ -43,7 +41,7 @@
         <div
           v-for="n in notifications"
           :key="n.id"
-          class="p-3 border-round-xl"
+          class="p-4 rounded-xl"
           :style="{
             backgroundColor: n.read_at
               ? 'var(--background-secondary)'
@@ -51,8 +49,8 @@
             border: '1px solid var(--border-color)',
           }"
         >
-          <div class="flex flex-column gap-2">
-            <div class="flex flex-row align-items-center gap-2">
+          <div class="flex flex-col gap-2">
+            <div class="flex flex-row items-center gap-2">
               <i
                 :class="['pi', typeIcon(n.type)]"
                 :style="{ color: typeColor(n.type), fontSize: '0.9rem' }"
@@ -81,7 +79,7 @@
             </p>
 
             <div
-              class="flex flex-row justify-content-between align-items-center text-xs"
+              class="flex flex-row justify-between items-center text-xs"
               style="color: var(--text-secondary)"
             >
               <span>{{ dateHelper.formatDate(n.created_at) }}</span>
@@ -97,7 +95,7 @@
 
         <div
           v-if="notifications.length === 0"
-          class="text-center p-4"
+          class="text-center p-6"
           style="color: var(--text-secondary)"
         >
           {{ onlyUnread ? "No unread notifications" : "No notifications yet" }}
