@@ -90,8 +90,8 @@ async function getData(page = 1) {
 </script>
 
 <template>
-  <div class="flex flex-column gap-2 w-full p-3">
-    <div class="flex align-items-center gap-2">
+  <div class="flex flex-col gap-2 w-full p-4">
+    <div class="flex items-center gap-2">
       <span class="font-semibold">{{ title }}</span>
       <span class="opacity-60">·</span>
       <span class="opacity-90">{{
@@ -135,14 +135,14 @@ async function getData(page = 1) {
       />
     </div>
 
-    <div class="flex align-items-center flex-wrap gap-3 px-0 pt-1">
+    <div class="flex items-center flex-wrap gap-4 px-0 pt-1">
       <span v-if="loading" class="opacity-70 text-sm">Loading…</span>
 
       <template v-else-if="buckets.length">
         <div
           v-for="b in buckets"
           :key="b.key"
-          class="flex align-items-center gap-2 text-sm"
+          class="flex items-center gap-2 text-sm"
         >
           <span
             class="inline-block"

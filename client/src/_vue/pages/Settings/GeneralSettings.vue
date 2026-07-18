@@ -25,17 +25,17 @@ async function initSettings() {
 </script>
 
 <template>
-  <div class="flex flex-column w-full gap-3">
+  <div class="flex flex-col w-full gap-4">
     <SettingsSkeleton class="w-full">
-      <div class="w-full flex flex-column gap-3 p-2">
-        <div class="w-full flex flex-column gap-2">
+      <div class="w-full flex flex-col gap-4 p-2">
+        <div class="w-full flex flex-col gap-2">
           <h3>General</h3>
           <h5 style="color: var(--text-secondary)">
             Configure general app preferences.
           </h5>
         </div>
 
-        <div v-if="settings" class="w-full flex flex-column gap-2 w-full">
+        <div v-if="settings" class="w-full flex flex-col gap-2 w-full">
           <div class="w-full flex flex-row gap-2 w-full">
             <IftaLabel class="w-full" variant="in">
               <InputText
@@ -80,7 +80,7 @@ async function initSettings() {
             </IftaLabel>
           </div>
 
-          <div class="w-full flex flex-row gap-2 w-full align-items-center">
+          <div class="w-full flex flex-row gap-2 w-full items-center">
             <label for="in_label">Allow signups</label>
             <ToggleSwitch
               v-model="settings.allow_signups"

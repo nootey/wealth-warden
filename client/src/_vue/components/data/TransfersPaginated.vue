@@ -203,7 +203,7 @@ defineExpose({ refresh });
     :style="{ width: '500px' }"
     header="Edit transfer"
   >
-    <div v-if="selectedTransfer" class="flex flex-column gap-3 p-1">
+    <div v-if="selectedTransfer" class="flex flex-col gap-4 p-1">
       <TransferForm
         ref="transferFormRef"
         :accounts="[]"
@@ -221,9 +221,9 @@ defineExpose({ refresh });
     </div>
   </Dialog>
 
-  <div class="flex flex-column w-full gap-3">
+  <div class="flex flex-col w-full gap-4">
     <div
-      class="flex flex-column w-full border-round-2xl"
+      class="flex flex-col w-full rounded-2xl"
       style="
         padding: 0.25rem 0.25rem 0 0.25rem;
         border: 1px solid var(--border-color);

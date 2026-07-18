@@ -295,10 +295,10 @@ async function revertProjection() {
 </script>
 
 <template>
-  <div v-if="account" class="flex flex-column w-full gap-3">
+  <div v-if="account" class="flex flex-col w-full gap-4">
     <SlotSkeleton class="w-full" bg="opt">
-      <div class="flex flex-column gap-2 p-3 w-full">
-        <div class="flex flex-column gap-1">
+      <div class="flex flex-col gap-2 p-4 w-full">
+        <div class="flex flex-col gap-1">
           <label>Preview</label>
           <span
             v-if="loadingAverage"
@@ -312,7 +312,7 @@ async function revertProjection() {
         </div>
 
         <div class="flex flex-row w-full">
-          <div class="flex flex-column w-full gap-1">
+          <div class="flex flex-col w-full gap-1">
             <ValidationError
               :is-required="true"
               :message="v$.record.balance_projection.$errors[0]?.$message"
@@ -333,7 +333,7 @@ async function revertProjection() {
         <!-- Fixed projection -->
         <div
           v-if="record.balance_projection === 'fixed'"
-          class="flex flex-column gap-1"
+          class="flex flex-col gap-1"
         >
           <ValidationError
             :is-required="true"
@@ -361,9 +361,9 @@ async function revertProjection() {
         <!-- Percentage projection -->
         <div
           v-if="record.balance_projection === 'percentage'"
-          class="flex flex-column gap-2"
+          class="flex flex-col gap-2"
         >
-          <div class="flex flex-column gap-1">
+          <div class="flex flex-col gap-1">
             <label>Current Balance</label>
             <InputNumber
               size="small"
@@ -378,7 +378,7 @@ async function revertProjection() {
               disabled
             />
           </div>
-          <div class="flex flex-column gap-1">
+          <div class="flex flex-col gap-1">
             <ValidationError
               :message="v$.record.percentage_value.$errors[0]?.$message"
             >
@@ -404,9 +404,9 @@ async function revertProjection() {
         <!-- Multiplier projection -->
         <div
           v-if="record.balance_projection === 'multiplier'"
-          class="flex flex-column gap-2"
+          class="flex flex-col gap-2"
         >
-          <div class="flex flex-column gap-1">
+          <div class="flex flex-col gap-1">
             <ValidationError
               :is-required="true"
               :message="v$.record.multiplier_category_id.$errors[0]?.$message"
@@ -424,7 +424,7 @@ async function revertProjection() {
             />
           </div>
 
-          <div class="flex flex-column gap-1">
+          <div class="flex flex-col gap-1">
             <ValidationError
               :is-required="true"
               :message="v$.record.multiplier_value.$errors[0]?.$message"
@@ -462,7 +462,7 @@ async function revertProjection() {
             (record.balance_projection === 'multiplier' ||
               record.balance_projection === 'percentage')
           "
-          class="flex flex-column gap-1"
+          class="flex flex-col gap-1"
         >
           <label>Account</label>
           <Select
@@ -482,7 +482,7 @@ async function revertProjection() {
               <span v-else>Default account</span>
             </template>
             <template #option="slotProps">
-              <div class="flex flex-column">
+              <div class="flex flex-col">
                 <span class="font-semibold">{{ slotProps.option.name }}</span>
                 <span class="text-xs" style="color: var(--text-secondary)">
                   {{ slotProps.option.account_type?.sub_type }}
@@ -492,7 +492,7 @@ async function revertProjection() {
           </Select>
         </div>
 
-        <div class="flex flex-column w-full">
+        <div class="flex flex-col w-full">
           <Button
             class="main-button"
             label="Save"
@@ -501,7 +501,7 @@ async function revertProjection() {
           />
         </div>
 
-        <div class="flex flex-column w-full">
+        <div class="flex flex-col w-full">
           <Button
             class="delete-button"
             label="Revert"

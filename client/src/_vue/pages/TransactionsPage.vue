@@ -28,9 +28,6 @@ const { hasPermission } = usePermissions();
 
 const trRef = ref<InstanceType<typeof TransfersPaginated> | null>(null);
 const txRef = ref<InstanceType<typeof TransactionsPaginated> | null>(null);
-const tpRef = ref<InstanceType<typeof TransactionTemplatesPaginated> | null>(
-  null,
-);
 
 const createModal = ref(false);
 const updateModal = ref(false);
@@ -192,21 +189,18 @@ async function handleEmit(emitType: any) {
     header="Transaction templates"
   >
     <TransactionTemplatesPaginated
-      ref="tpRef"
       @refresh-template-count="handleEmit('refreshTemplateCount')"
     />
   </Dialog>
 
-  <main class="flex flex-column w-full align-items-center">
+  <main class="flex flex-col w-full items-center">
     <div
       id="mobile-container"
-      class="flex flex-column justify-content-center w-full gap-3 border-round-xl"
+      class="flex flex-col justify-center w-full gap-4 rounded-xl"
     >
-      <div
-        class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
-      >
-        <div class="w-full flex flex-column gap-2">
-          <div class="flex flex-row gap-2 align-items-center w-full">
+      <div class="w-full flex flex-row justify-between p-1 gap-2 items-center">
+        <div class="w-full flex flex-col gap-2">
+          <div class="flex flex-row gap-2 items-center w-full">
             <div style="font-weight: bold">Activity</div>
             <i
               v-if="hasPermission('manage_data')"
@@ -218,10 +212,10 @@ async function handleEmit(emitType: any) {
           <div>A complete record of your financial activity.</div>
         </div>
         <Button
-          class="outline-button w-3"
+          class="outline-button w-3/12"
           @click="manipulateDialog('openTemplateView', true)"
         >
-          <div class="flex flex-row gap-1 align-items-center">
+          <div class="flex flex-row gap-1 items-center">
             <i class="pi pi-database" />
             <span
               ><span class="mobile-hide"> Templates </span>
@@ -230,10 +224,10 @@ async function handleEmit(emitType: any) {
           </div>
         </Button>
         <Button
-          class="main-button w-3"
+          class="main-button w-3/12"
           @click="manipulateDialog('addTransaction', true)"
         >
-          <div class="flex flex-row gap-1 align-items-center">
+          <div class="flex flex-row gap-1 items-center">
             <i class="pi pi-plus" />
             <span> New </span>
             <span class="mobile-hide"> Transaction </span>
@@ -241,7 +235,7 @@ async function handleEmit(emitType: any) {
         </Button>
       </div>
 
-      <div class="flex flex-row gap-3 p-2">
+      <div class="flex flex-row gap-4 p-2">
         <div
           class="cursor-pointer pb-1"
           style="color: var(--text-secondary)"
@@ -272,10 +266,10 @@ async function handleEmit(emitType: any) {
         <div
           v-if="activeTab === 'transactions'"
           key="transactions"
-          class="flex flex-column justify-content-center w-full gap-3"
+          class="flex flex-col justify-center w-full gap-4"
         >
           <div
-            class="flex flex-column w-full p-3 gap-3 border-round-2xl"
+            class="flex flex-col w-full p-4 gap-4 rounded-2xl"
             style="
               background-color: var(--background-secondary);
               border: 1px solid var(--border-color);
@@ -292,7 +286,7 @@ async function handleEmit(emitType: any) {
         </div>
         <div v-else key="transfers" class="w-full">
           <div
-            class="flex flex-column w-full p-3 gap-3 border-round-2xl"
+            class="flex flex-col w-full p-4 gap-4 rounded-2xl"
             style="
               background-color: var(--background-secondary);
               border: 1px solid var(--border-color);

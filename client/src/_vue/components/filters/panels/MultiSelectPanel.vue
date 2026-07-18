@@ -58,7 +58,7 @@ function remove(value: any) {
 </script>
 
 <template>
-  <div class="flex flex-column gap-2">
+  <div class="flex flex-col gap-2">
     <label class="text-sm">{{ label }}</label>
     <MultiSelect
       v-model="internal"

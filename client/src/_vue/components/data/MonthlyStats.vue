@@ -154,16 +154,16 @@ const pieOptions = computed(() => ({
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-column p-2 gap-2">
+  <div v-if="!loading" class="flex flex-col p-2 gap-2">
     <span class="text-sm mobile-hide" style="color: var(--text-secondary)"
       >Monthly stats are computed for all checking accounts, which are treated
       as main accounts.</span
     >
 
     <h4 class="mt-2 mobile-hide">Details</h4>
-    <div v-if="monthlyStats" class="flex flex-column">
-      <div class="flex flex-column w-full gap-2">
-        <div class="flex flex-row gap-2 align-items-center">
+    <div v-if="monthlyStats" class="flex flex-col">
+      <div class="flex flex-col w-full gap-2">
+        <div class="flex flex-row gap-2 items-center">
           <span>Inflows:</span>
           <span
             ><b>{{
@@ -174,7 +174,7 @@ const pieOptions = computed(() => ({
             }}</b></span
           >
         </div>
-        <div class="flex flex-row gap-2 align-items-center">
+        <div class="flex flex-row gap-2 items-center">
           <span>Outflows:</span>
           <span
             ><b>{{
@@ -185,7 +185,7 @@ const pieOptions = computed(() => ({
             }}</b></span
           >
         </div>
-        <div class="flex flex-row gap-2 align-items-center">
+        <div class="flex flex-row gap-2 items-center">
           <span>Take home:</span>
           <span
             ><b>{{
@@ -196,7 +196,7 @@ const pieOptions = computed(() => ({
             }}</b></span
           >
         </div>
-        <div class="flex flex-row gap-2 align-items-center">
+        <div class="flex flex-row gap-2 items-center">
           <span>Overflow:</span>
           <span
             ><b>{{
@@ -209,10 +209,10 @@ const pieOptions = computed(() => ({
         </div>
       </div>
 
-      <div class="flex flex-column w-full gap-2 mt-3">
+      <div class="flex flex-col w-full gap-2 mt-4">
         <h4 class="mobile-hide">Rates</h4>
 
-        <div class="flex flex-row gap-2 align-items-center">
+        <div class="flex flex-row gap-2 items-center">
           <span>Savings:</span>
           <span
             ><b>{{
@@ -230,7 +230,7 @@ const pieOptions = computed(() => ({
           >
         </div>
 
-        <div class="flex flex-row gap-2 align-items-center">
+        <div class="flex flex-row gap-2 items-center">
           <span>Investments</span>
           <span
             ><b>{{
@@ -248,7 +248,7 @@ const pieOptions = computed(() => ({
           >
         </div>
 
-        <div class="flex flex-row gap-2 align-items-center">
+        <div class="flex flex-row gap-2 items-center">
           <span>Debt repayments</span>
           <span
             ><b>{{
@@ -267,12 +267,12 @@ const pieOptions = computed(() => ({
         </div>
       </div>
 
-      <div class="flex flex-column w-full gap-2 mt-3">
+      <div class="flex flex-col w-full gap-2 mt-4">
         <h4>Expense Breakdown</h4>
         <span class="text-sm" style="color: var(--text-secondary)"
           >View what you've spent your money on per month.</span
         >
-        <div class="flex flex-row gap-2 align-items-center w-full pr-2">
+        <div class="flex flex-row gap-2 items-center w-full pr-2">
           <Select
             v-model="selectedYear"
             class="w-full"
@@ -295,10 +295,10 @@ const pieOptions = computed(() => ({
         </div>
         <div
           v-if="hasOutflowData"
-          class="flex flex-column justify-content-center align-items-center"
+          class="flex flex-col justify-center items-center"
         >
           <ComparativePieChart
-            class="mt-3"
+            class="mt-4"
             :size="300"
             :show-legend="false"
             :options="pieOptions"
@@ -308,7 +308,7 @@ const pieOptions = computed(() => ({
         </div>
         <div
           v-else
-          class="flex flex-column align-items-center justify-content-center p-3"
+          class="flex flex-col items-center justify-center p-4"
           style="border: 1px dashed var(--border-color); border-radius: 16px"
         >
           <span class="text-sm" style="color: var(--text-secondary)">

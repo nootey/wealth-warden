@@ -231,10 +231,10 @@ onMounted(getData);
 <template>
   <div
     v-if="payload && !isRefreshing"
-    class="w-full flex flex-column justify-content-center p-2 gap-1"
+    class="w-full flex flex-col justify-center p-2 gap-1"
   >
-    <div class="flex flex-row gap-2 w-full justify-content-between">
-      <div class="flex flex-column gap-2">
+    <div class="flex flex-row gap-2 w-full justify-between">
+      <div class="flex flex-col gap-2">
         <div class="flex flex-row"></div>
         <div class="flex flex-row">
           <strong>{{
@@ -243,7 +243,7 @@ onMounted(getData);
         </div>
       </div>
 
-      <div class="flex flex-column gap-2">
+      <div class="flex flex-col gap-2">
         <Select
           v-model="selectedDTO"
           size="small"
@@ -256,12 +256,12 @@ onMounted(getData);
 
     <div
       v-if="payload?.change && hasSeries"
-      class="flex flex-row gap-2 align-items-center"
+      class="flex flex-row gap-2 items-center"
       :style="{ color: activeColor }"
     >
       <span>{{ vueHelper.displayAsCurrency(Math.abs(effectiveAbs)) }}</span>
 
-      <div class="flex flex-row gap-1 align-items-center">
+      <div class="flex flex-row gap-1 items-center">
         <i
           class="text-sm"
           :class="
@@ -289,7 +289,7 @@ onMounted(getData);
 
     <div
       v-else
-      class="flex flex-column align-items-center justify-content-center border-1 border-dashed border-round-md surface-border"
+      class="flex flex-col items-center justify-center border border-dashed rounded-md border-surface"
       :style="{ height: chartHeight / 2 + 'px' }"
     >
       <i
@@ -308,5 +308,5 @@ onMounted(getData);
       </div>
     </div>
   </div>
-  <ShowLoading v-else :num-fields="6" class="mb-4" />
+  <ShowLoading v-else :num-fields="6" class="mb-6" />
 </template>

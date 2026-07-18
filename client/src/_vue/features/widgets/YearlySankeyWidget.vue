@@ -91,18 +91,18 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-column w-full p-2 gap-3">
+  <div class="flex flex-col w-full p-2 gap-4">
     <div
       v-if="years.length > 0"
-      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
+      class="flex flex-row gap-2 w-full justify-between items-center"
     >
-      <div class="flex flex-column gap-1">
+      <div class="flex flex-col gap-1">
         <span class="text-sm" style="color: var(--text-secondary)">
           View your yearly cash flow breakdown from checking accounts.
         </span>
       </div>
 
-      <div class="flex flex-column gap-2">
+      <div class="flex flex-col gap-2">
         <Select
           v-model="selectedYear"
           size="small"
@@ -112,17 +112,15 @@ watch(
       </div>
     </div>
 
-    <div
-      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
-    >
-      <div class="flex flex-column gap-2">
+    <div class="flex flex-row gap-2 w-full justify-between items-center">
+      <div class="flex flex-col gap-2">
         <span class="text-sm" style="color: var(--text-secondary)">
           A default checking account was found. The stats are representative of
           the cash flow to this account.
         </span>
       </div>
 
-      <div class="flex flex-column gap-2">
+      <div class="flex flex-col gap-2">
         <Select
           v-model="selectedAccountID"
           size="small"
@@ -139,7 +137,7 @@ watch(
             <span v-else>All accounts</span>
           </template>
           <template #option="slotProps">
-            <div class="flex flex-column">
+            <div class="flex flex-col">
               <span class="font-semibold">{{ slotProps.option.name }}</span>
               <span class="text-xs" style="color: var(--text-secondary)">
                 {{

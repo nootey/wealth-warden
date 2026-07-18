@@ -188,13 +188,13 @@ async function restoreCategoryName() {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-column gap-3 p-1">
+  <div v-if="!loading" class="flex flex-col gap-4 p-1">
     <div v-if="readOnly">
       <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
     </div>
     <div
       v-else-if="mode === 'update' && record.is_default && checkCategoryName()"
-      class="flex flex-row w-full align-items-center gap-2"
+      class="flex flex-row w-full items-center gap-2"
     >
       <i
         class="pi pi-spin pi-refresh hover-icon"
@@ -205,9 +205,9 @@ async function restoreCategoryName() {
       >
     </div>
 
-    <div class="flex flex-column gap-3 p-1">
+    <div class="flex flex-col gap-4 p-1">
       <div class="flex flex-row w-full">
-        <div class="flex flex-column w-full gap-1">
+        <div class="flex flex-col w-full gap-1">
           <ValidationError
             :is-required="true"
             :message="v$.record.display_name.$errors[0]?.$message"
@@ -225,7 +225,7 @@ async function restoreCategoryName() {
       </div>
 
       <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
+        <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.classification.$errors[0]?.$message"
@@ -248,7 +248,7 @@ async function restoreCategoryName() {
 
     <div
       v-if="mode === 'update' && record.is_default"
-      class="flex flex-row w-full align-items-center gap-2"
+      class="flex flex-row w-full items-center gap-2"
     >
       <i class="pi pi-info-circle" />
       <span class="text-sm" style="color: var(--text-secondary)"
@@ -265,7 +265,7 @@ async function restoreCategoryName() {
     </div>
 
     <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-column w-full">
+      <div class="flex flex-col w-full">
         <Button
           v-if="!readOnly"
           class="main-button"

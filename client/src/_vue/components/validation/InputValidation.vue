@@ -8,7 +8,7 @@ const props = defineProps<{
 <template>
   <div
     :class="vueHelper.getValidationClass(props.validationObject, 'p-invalid')"
-    class="flex flex-row align-items-center text-align-center gap-1"
+    class="flex flex-row items-center text-align-center gap-1"
   >
     <slot />
   </div>
