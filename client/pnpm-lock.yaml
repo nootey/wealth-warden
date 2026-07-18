@@ -17,14 +17,14 @@ importers:
         specifier: ^2.0.4
         version: 2.0.4(vue@3.5.40(typescript@5.9.3))
       chart.js:
-        specifier: ^3.9.1
-        version: 3.9.1
+        specifier: 4.5.0
+        version: 4.5.0
       chartjs-adapter-date-fns:
         specifier: ^3.0.0
-        version: 3.0.0(chart.js@3.9.1)(date-fns@4.2.1)
+        version: 3.0.0(chart.js@4.5.0)(date-fns@4.2.1)
       chartjs-chart-sankey:
-        specifier: ^0.14.0
-        version: 0.14.0(chart.js@3.9.1)
+        specifier: ^0.15.0
+        version: 0.15.0(chart.js@4.5.0)
       dayjs:
         specifier: ^1.11.21
         version: 1.11.21
@@ -55,9 +55,6 @@ importers:
       vue:
         specifier: ^3.5.40
         version: 3.5.40(typescript@5.9.3)
-      vue-chart-3:
-        specifier: ^3.1.8
-        version: 3.1.8(chart.js@3.9.1)(vue@3.5.40(typescript@5.9.3))
       vue-router:
         specifier: ^5.2.0
         version: 5.2.0(@vue/compiler-sfc@3.5.40)(pinia@4.0.2(@vue/devtools-api@8.1.5)(typescript@5.9.3)(vue@3.5.40(typescript@5.9.3)))(rolldown@1.1.5)(vite@8.1.5(@types/node@26.1.1)(jiti@2.7.0)(sass@1.101.0)(yaml@2.9.0))(vue@3.5.40(typescript@5.9.3))
@@ -363,6 +360,12 @@ packages:
     resolution:
       {
         integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==,
+      }
+
+  "@kurkle/color@0.3.4":
+    resolution:
+      {
+        integrity: sha512-M5UknZPHRu3DEDWoipU6sE8PdkZ6Z/S+v4dD+Ke8IaNlpdSQah50lz1KtcFBa2vsdOnwbbnxJwVM4wty6udA5w==,
       }
 
   "@napi-rs/wasm-runtime@1.1.6":
@@ -1355,11 +1358,12 @@ packages:
       }
     engines: { node: ">=18" }
 
-  chart.js@3.9.1:
+  chart.js@4.5.0:
     resolution:
       {
-        integrity: sha512-Ro2JbLmvg83gXF5F4sniaQ+lTbSv18E+TIf2cOeiH1Iqd2PGFOtem+DUufMZsCJwFE7ywPOpfXFBwRTGq7dh6w==,
+        integrity: sha512-aYeC/jDgSEx8SHWZvANYMioYMZ2KX02W6f6uVfyteuCGcadDLcYVHdfdygsTQkQ4TKn5lghoojAsPj5pu0SnvQ==,
       }
+    engines: { pnpm: ">=8" }
 
   chartjs-adapter-date-fns@3.0.0:
     resolution:
@@ -1370,10 +1374,10 @@ packages:
       chart.js: ">=2.8.0"
       date-fns: ">=2.0.0"
 
-  chartjs-chart-sankey@0.14.0:
+  chartjs-chart-sankey@0.15.0:
     resolution:
       {
-        integrity: sha512-MrU3lE73TE9kALy4MjWFlfcwf4R1EN/DBvhHxmv9n4AHap//JLKjlJTLIZwHsUjDsYo0B8PuMkrJODwfirEZUA==,
+        integrity: sha512-NU0RHKPcUr6iXco2UvzXPA+z0TK/I11m1Pgy+6GqwdrmaGEiD3WQeNFF8NDxyJPkTFYQ/9kKijPQzuHBit41Dg==,
       }
     peerDependencies:
       chart.js: ">=3.3.0"
@@ -1970,12 +1974,6 @@ packages:
         integrity: sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==,
       }
     engines: { node: ">=10" }
-
-  lodash-es@4.18.1:
-    resolution:
-      {
-        integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==,
-      }
 
   magic-string-ast@1.0.3:
     resolution:
@@ -2613,15 +2611,6 @@ packages:
         integrity: sha512-/BpdSx+yCQGnCvecbyXdxHDkuk55/G3xwnC0GqY4gmQ3j+A+g8kzzgB4Nk/SINjqn6+waqw3EgbVF2QKExkRxQ==,
       }
 
-  vue-chart-3@3.1.8:
-    resolution:
-      {
-        integrity: sha512-zX5ajjQi/PocEqLETlej3vp92q/tnI/Fvu2RVb++Kap8qOrXu6PXCpodi73BFrWzEGZIAnqoUxC3OIkRWD657g==,
-      }
-    peerDependencies:
-      chart.js: "=> ^3.1.0"
-      vue: ">= 3"
-
   vue-demi@0.13.11:
     resolution:
       {
@@ -2870,6 +2859,8 @@ snapshots:
     dependencies:
       "@jridgewell/resolve-uri": 3.1.2
       "@jridgewell/sourcemap-codec": 1.5.5
+
+  "@kurkle/color@0.3.4": {}
 
   "@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)":
     dependencies:
@@ -3472,16 +3463,18 @@ snapshots:
 
   chai@6.2.2: {}
 
-  chart.js@3.9.1: {}
-
-  chartjs-adapter-date-fns@3.0.0(chart.js@3.9.1)(date-fns@4.2.1):
+  chart.js@4.5.0:
     dependencies:
-      chart.js: 3.9.1
+      "@kurkle/color": 0.3.4
+
+  chartjs-adapter-date-fns@3.0.0(chart.js@4.5.0)(date-fns@4.2.1):
+    dependencies:
+      chart.js: 4.5.0
       date-fns: 4.2.1
 
-  chartjs-chart-sankey@0.14.0(chart.js@3.9.1):
+  chartjs-chart-sankey@0.15.0(chart.js@4.5.0):
     dependencies:
-      chart.js: 3.9.1
+      chart.js: 4.5.0
 
   chokidar@5.0.0:
     dependencies:
@@ -3783,8 +3776,6 @@ snapshots:
   locate-path@6.0.0:
     dependencies:
       p-locate: 5.0.0
-
-  lodash-es@4.18.1: {}
 
   magic-string-ast@1.0.3:
     dependencies:
@@ -4123,15 +4114,6 @@ snapshots:
       - msw
 
   vscode-uri@3.1.0: {}
-
-  vue-chart-3@3.1.8(chart.js@3.9.1)(vue@3.5.40(typescript@5.9.3)):
-    dependencies:
-      "@vue/runtime-core": 3.5.40
-      "@vue/runtime-dom": 3.5.40
-      chart.js: 3.9.1
-      csstype: 3.2.3
-      lodash-es: 4.18.1
-      vue: 3.5.40(typescript@5.9.3)
 
   vue-demi@0.13.11(vue@3.5.40(typescript@5.9.3)):
     dependencies:

@@ -26,7 +26,6 @@ export default defineConfig(({ mode }) => {
           manualChunks(id) {
             if (
               id.includes("node_modules/chart.js") ||
-              id.includes("node_modules/vue-chart-3") ||
               id.includes("node_modules/chartjs-") ||
               id.includes("node_modules/date-fns")
             ) {

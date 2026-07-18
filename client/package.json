@@ -18,9 +18,9 @@
     "@primeuix/themes": "^2.0.3",
     "@vuelidate/core": "^2.0.3",
     "@vuelidate/validators": "^2.0.4",
-    "chart.js": "^3.9.1",
+    "chart.js": "4.5.0",
     "chartjs-adapter-date-fns": "^3.0.0",
-    "chartjs-chart-sankey": "^0.14.0",
+    "chartjs-chart-sankey": "^0.15.0",
     "dayjs": "^1.11.21",
     "decimal.js": "^10.6.0",
     "dotenv": "^17.4.2",
@@ -31,7 +31,6 @@
     "sass": "^1.101.0",
     "tailwindcss-primeui": "^0.6.1",
     "vue": "^3.5.40",
-    "vue-chart-3": "^3.1.8",
     "vue-router": "^5.2.0"
   },
   "devDependencies": {
