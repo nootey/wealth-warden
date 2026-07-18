@@ -20,7 +20,7 @@ const skeletons = computed(() =>
 
 <template>
   <div
-    class="flex flex-column justify-content-center mt-4 gap-4"
+    class="flex flex-col justify-center mt-6 gap-6"
     style="width: 75%; margin: 0 auto"
   >
     <Skeleton

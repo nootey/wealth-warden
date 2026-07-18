@@ -129,7 +129,7 @@ defineExpose({
     @hide="dateHide"
   >
     <template #footer>
-      <div class="flex justify-content-around w-full">
+      <div class="flex justify-around w-full">
         <Button size="small" label="This week" @click="thisWeek" />
         <Button size="small" label="Last 2 weeks" @click="lastTwoWeeks" />
         <Button size="small" label="This month" @click="thisMonth" />

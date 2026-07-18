@@ -253,19 +253,19 @@ function confirmDelete() {
 </script>
 
 <template>
-  <div v-if="!initializing" class="flex flex-column gap-3 p-1">
+  <div v-if="!initializing" class="flex flex-col gap-4 p-1">
     <div
       v-if="record.monthly_allocation"
-      class="flex flex-column gap-2 p-3 border-round-xl text-sm"
+      class="flex flex-col gap-2 p-4 rounded-xl text-sm"
       style="
         background: var(--background-secondary);
         border: 1px solid var(--border-color);
         color: var(--text-secondary);
       "
     >
-      <div class="flex flex-row gap-2 align-items-center">
+      <div class="flex flex-row gap-2 items-center">
         <i class="pi pi-info-circle" style="flex-shrink: 0" />
-        <div class="flex flex-column gap-1 text-xs">
+        <div class="flex flex-col gap-1 text-xs">
           <span
             >Auto-contributions run daily. The full allocation must be available
             as uncategorized balance - if not, the goal is skipped until the
@@ -277,16 +277,16 @@ function confirmDelete() {
 
     <div
       v-if="record.monthly_allocation"
-      class="flex flex-column gap-2 p-3 border-round-xl text-sm"
+      class="flex flex-col gap-2 p-4 rounded-xl text-sm"
       style="
         background: var(--background-secondary);
         border: 1px solid var(--border-color);
         color: var(--text-secondary);
       "
     >
-      <div class="flex flex-row gap-2 align-items-center">
+      <div class="flex flex-row gap-2 items-center">
         <i class="pi pi-info-circle" style="flex-shrink: 0" />
-        <div class="flex flex-column gap-1 text-xs">
+        <div class="flex flex-col gap-1 text-xs">
           <span
             >If a higher priority goal on the same account cannot be funded, all
             lower priority goals are skipped too.</span
@@ -295,7 +295,7 @@ function confirmDelete() {
       </div>
     </div>
 
-    <div v-if="mode === 'create'" class="flex flex-column gap-1">
+    <div v-if="mode === 'create'" class="flex flex-col gap-1">
       <ValidationError
         :is-required="true"
         :message="v$.record.account_id.$errors[0]?.$message"
@@ -313,7 +313,7 @@ function confirmDelete() {
       />
     </div>
 
-    <div class="flex flex-column gap-1">
+    <div class="flex flex-col gap-1">
       <ValidationError
         :is-required="true"
         :message="v$.record.name.$errors[0]?.$message"
@@ -327,7 +327,7 @@ function confirmDelete() {
       />
     </div>
 
-    <div class="flex flex-column gap-1">
+    <div class="flex flex-col gap-1">
       <ValidationError
         :is-required="true"
         :message="v$.record.target_amount.$errors[0]?.$message"
@@ -344,7 +344,7 @@ function confirmDelete() {
       />
     </div>
 
-    <div v-if="mode === 'create'" class="flex flex-column gap-1">
+    <div v-if="mode === 'create'" class="flex flex-col gap-1">
       <ValidationError
         :is-required="false"
         :message="v$.record.initial_amount.$errors[0]?.$message"
@@ -361,7 +361,7 @@ function confirmDelete() {
       />
     </div>
 
-    <div class="flex flex-column gap-1">
+    <div class="flex flex-col gap-1">
       <ValidationError
         :is-required="false"
         :message="v$.record.target_date.$errors[0]?.$message"
@@ -380,7 +380,7 @@ function confirmDelete() {
       />
     </div>
 
-    <div class="flex flex-column gap-1">
+    <div class="flex flex-col gap-1">
       <ValidationError
         :is-required="false"
         :message="v$.record.priority.$errors[0]?.$message"
@@ -396,7 +396,7 @@ function confirmDelete() {
       />
     </div>
 
-    <div class="flex flex-column gap-1">
+    <div class="flex flex-col gap-1">
       <ValidationError
         :is-required="false"
         :message="v$.record.monthly_allocation.$errors[0]?.$message"
@@ -413,7 +413,7 @@ function confirmDelete() {
       />
     </div>
 
-    <div v-if="record.monthly_allocation" class="flex flex-column gap-1">
+    <div v-if="record.monthly_allocation" class="flex flex-col gap-1">
       <ValidationError
         :is-required="false"
         :message="v$.record.fund_day_of_month.$errors[0]?.$message"
@@ -429,7 +429,7 @@ function confirmDelete() {
       />
     </div>
 
-    <div v-if="mode === 'update'" class="flex flex-column gap-1">
+    <div v-if="mode === 'update'" class="flex flex-col gap-1">
       <ValidationError
         :is-required="true"
         :message="v$.record.status.$errors[0]?.$message"
@@ -445,7 +445,7 @@ function confirmDelete() {
       />
     </div>
 
-    <div class="flex flex-column gap-2 w-full">
+    <div class="flex flex-col gap-2 w-full">
       <div class="flex flex-row w-full">
         <Button
           class="main-button w-full"

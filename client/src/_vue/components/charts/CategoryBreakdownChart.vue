@@ -141,18 +141,18 @@ const chartOptions = computed(() => ({
   scales: {
     x: {
       type: "category",
-      grid: { display: false, drawBorder: false },
+      grid: { display: false },
       ticks: { color: colors.value.axisText, maxRotation: 0, minRotation: 0 },
-      border: { color: colors.value.axisBorder },
+      border: { display: false, color: colors.value.axisBorder },
     },
     y: {
-      grid: { display: false, drawBorder: false },
+      grid: { display: false },
       ticks: {
         display: !props.isMobile,
         color: colors.value.axisText,
         callback: (v: number) => vueHelper.displayAsCurrency(v),
       },
-      border: { color: colors.value.axisBorder },
+      border: { display: false, color: colors.value.axisBorder },
     },
   },
 }));

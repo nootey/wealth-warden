@@ -5,7 +5,7 @@ const emit = defineEmits<{ (e: "commit"): void }>();
 </script>
 
 <template>
-  <div class="flex flex-column gap-2 w-full">
+  <div class="flex flex-col gap-2 w-full">
     <label class="text-sm">{{ "Field search" }}</label>
     <InputText
       v-model="model"

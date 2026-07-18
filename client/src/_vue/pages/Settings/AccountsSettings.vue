@@ -76,7 +76,7 @@ async function closeAccount(id: number) {
 </script>
 
 <template>
-  <div class="flex flex-column w-full gap-3">
+  <div class="flex flex-col w-full gap-4">
     <Dialog
       v-model:visible="createModal"
       class="rounded-dialog"
@@ -89,12 +89,12 @@ async function closeAccount(id: number) {
     </Dialog>
 
     <SettingsSkeleton class="w-full">
-      <div id="main-col" class="w-full flex flex-column gap-3 p-2">
+      <div id="main-col" class="w-full flex flex-col gap-4 p-2">
         <div
-          class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
+          class="w-full flex flex-row justify-between p-1 gap-2 items-center"
         >
-          <div class="w-full flex flex-column gap-2">
-            <div class="flex flex-row gap-2 align-items-center w-full">
+          <div class="w-full flex flex-col gap-2">
+            <div class="flex flex-row gap-2 items-center w-full">
               <div class="font-bold">Account management</div>
             </div>
             <div>
@@ -102,7 +102,7 @@ async function closeAccount(id: number) {
             </div>
           </div>
           <Button class="main-button" @click="openCreate">
-            <div class="flex flex-row gap-1 align-items-center">
+            <div class="flex flex-row gap-1 items-center">
               <i class="pi pi-plus" />
               <span> New </span>
               <span class="mobile-hide"> Account </span>
@@ -122,13 +122,13 @@ async function closeAccount(id: number) {
     </SettingsSkeleton>
 
     <SettingsSkeleton class="w-full">
-      <div id="main-col" class="w-full flex flex-column gap-3 p-2">
+      <div id="main-col" class="w-full flex flex-col gap-4 p-2">
         <DefaultAccounts />
       </div>
     </SettingsSkeleton>
 
     <SettingsSkeleton class="w-full">
-      <div id="main-col" class="w-full flex flex-column gap-3 p-2">
+      <div id="main-col" class="w-full flex flex-col gap-4 p-2">
         <MergeAccounts />
       </div>
     </SettingsSkeleton>

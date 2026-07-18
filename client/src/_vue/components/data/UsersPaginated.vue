@@ -190,9 +190,9 @@ defineExpose({ refresh });
     />
   </Popover>
 
-  <div class="flex flex-column w-full gap-3">
+  <div class="flex flex-col w-full gap-4">
     <div
-      class="flex flex-row justify-content-between align-items-center p-1 gap-3 w-full border-round-md"
+      class="flex flex-row justify-between items-center p-1 gap-4 w-full rounded-md"
       style="
         border: 1px solid var(--border-color);
         background: var(--background-secondary);
@@ -208,7 +208,7 @@ defineExpose({ refresh });
         </template>
         <template #filterButton>
           <div
-            class="hover-icon flex flex-row align-items-center gap-2"
+            class="hover-icon flex flex-row items-center gap-2"
             style="
               padding: 0.5rem 1rem;
               border-radius: 8px;

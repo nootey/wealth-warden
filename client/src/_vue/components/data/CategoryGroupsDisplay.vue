@@ -147,7 +147,7 @@ async function deleteRecord(id: number) {
           v-tooltip="
             'This group has ' + (data?.categories?.length ?? 0) + ' categories'
           "
-          class="flex flex-row align-items-center gap-2"
+          class="flex flex-row items-center gap-2"
         >
           <i class="pi pi-eye" />
           <span>{{ data?.categories?.length ?? 0 }}</span>
@@ -157,7 +157,7 @@ async function deleteRecord(id: number) {
 
     <Column header="Actions">
       <template #body="{ data }">
-        <div class="flex flex-row align-items-center gap-2">
+        <div class="flex flex-row items-center gap-2">
           <i
             v-if="hasPermission('manage_data')"
             v-tooltip="'Edit category group'"

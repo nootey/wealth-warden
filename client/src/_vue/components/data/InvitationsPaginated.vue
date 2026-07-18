@@ -139,7 +139,7 @@ defineExpose({ refresh });
 
 <template>
   <div
-    class="flex flex-column justify-content-center w-full gap-3"
+    class="flex flex-col justify-center w-full gap-4"
     style="background: var(--background-secondary); max-width: 1000px"
   >
     <div class="flex flex-row gap-2 w-full">
@@ -187,7 +187,7 @@ defineExpose({ refresh });
 
         <Column header="Actions">
           <template #body="{ data }">
-            <div class="flex flex-row gap-2 align-items-center">
+            <div class="flex flex-row gap-2 items-center">
               <i
                 v-tooltip="'Resend email'"
                 class="pi pi-refresh hover-icon text-sm"

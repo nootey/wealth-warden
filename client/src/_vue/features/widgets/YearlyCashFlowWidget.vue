@@ -108,21 +108,18 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-column w-full p-2 gap-3">
+  <div class="flex flex-col w-full p-2 gap-4">
     <div
       v-if="years.length > 0"
-      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
+      class="flex flex-row gap-2 w-full justify-between items-center"
     >
-      <div class="mobile-hide flex flex-column gap-1">
+      <div class="mobile-hide flex flex-col gap-1">
         <span class="text-sm" style="color: var(--text-secondary)">
           Select a year, account, and cash flow category to filter the chart.
         </span>
       </div>
 
-      <div
-        id="selects-row"
-        class="flex flex-row flex-wrap gap-2 justify-content-end"
-      >
+      <div id="selects-row" class="flex flex-row flex-wrap gap-2 justify-end">
         <Select
           v-model="selectedYear"
           size="small"
@@ -145,7 +142,7 @@ watch(
             <span v-else>All accounts</span>
           </template>
           <template #option="slotProps">
-            <div class="flex flex-column">
+            <div class="flex flex-col">
               <span class="font-semibold">{{ slotProps.option.name }}</span>
               <span class="text-xs" style="color: var(--text-secondary)">
                 {{

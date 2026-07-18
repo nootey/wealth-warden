@@ -182,10 +182,10 @@ const searchClassifications = (event: { query: string }) => {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-column gap-3 p-1">
-    <div class="flex flex-column gap-3 p-1">
+  <div v-if="!loading" class="flex flex-col gap-4 p-1">
+    <div class="flex flex-col gap-4 p-1">
       <div class="flex flex-row w-full">
-        <div class="flex flex-column w-full gap-1">
+        <div class="flex flex-col w-full gap-1">
           <ValidationError
             :is-required="true"
             :message="v$.record.name.$errors[0]?.$message"
@@ -197,7 +197,7 @@ const searchClassifications = (event: { query: string }) => {
       </div>
 
       <div class="flex flex-row w-full">
-        <div class="flex flex-column w-full gap-1">
+        <div class="flex flex-col w-full gap-1">
           <ValidationError
             :is-required="false"
             :message="v$.record.description.$errors[0]?.$message"
@@ -209,7 +209,7 @@ const searchClassifications = (event: { query: string }) => {
       </div>
 
       <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
+        <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.classification.$errors[0]?.$message"
@@ -228,7 +228,7 @@ const searchClassifications = (event: { query: string }) => {
       </div>
 
       <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
+        <div class="flex flex-col gap-1 w-full">
           <label>Selected categories</label>
           <MultiSelect
             v-model="selectedCategories"
@@ -250,7 +250,7 @@ const searchClassifications = (event: { query: string }) => {
     </div>
 
     <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-column w-full">
+      <div class="flex flex-col w-full">
         <Button
           class="main-button"
           :label="(mode == 'create' ? 'Add' : 'Update') + ' group'"
