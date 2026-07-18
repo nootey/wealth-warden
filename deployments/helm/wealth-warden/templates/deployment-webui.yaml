@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "wealth-warden.webui.name" . }}
+  labels:
+    {{- include "wealth-warden.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webui
+spec:
+  {{- if not .Values.webui.autoscaling.enabled }}
+  replicas: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "wealth-warden.webui.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include "wealth-warden.webui.configChecksum" . }}
+        {{- if .Values.secrets.create }}
+        checksum/secret: {{ include "wealth-warden.secretChecksum" . }}
+        {{- end }}
+        {{- with .Values.webui.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "wealth-warden.webui.selectorLabels" . | nindent 8 }}
+        helm.sh/chart: {{ include "wealth-warden.chart" . }}
+        {{- if .Chart.AppVersion }}
+        app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+        {{- end }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "wealth-warden.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.webui.podSecurityContext | nindent 8 }}
+      containers:
+        - name: webui
+          securityContext:
+            {{- toYaml .Values.webui.securityContext | nindent 12 }}
+          image: "{{ .Values.webui.image.repository }}:{{ .Values.webui.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.webui.image.pullPolicy }}
+          # env:
+          #   - name: "VITE_API_BASE_URL"
+          #     value: "wealth-warden-api.default.svc.cluster.local:2000"
+          ports:
+            - name: http
+              containerPort: {{ .Values.webui.service.targetPort }}
+              protocol: TCP
+          {{- if .Values.webui.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.webui.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.webui.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.webui.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.webui.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.webui.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.webui.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.webui.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.webui.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.webui.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.webui.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.webui.readinessProbe.failureThreshold }}
+          {{- end }}
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+          resources:
+            {{- toYaml .Values.webui.resources | nindent 12 }}
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: {{ include "wealth-warden.webui.name" . }}-nginx-config
+      {{- with .Values.webui.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.webui.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.webui.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
