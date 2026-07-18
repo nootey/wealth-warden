@@ -22,8 +22,6 @@ onMounted(async () => {
   await getCategoryGroups();
 });
 
-const catRef = ref<InstanceType<typeof CategoriesDisplay> | null>(null);
-const groupRef = ref<InstanceType<typeof CategoryGroupsDisplay> | null>(null);
 const createCatModal = ref(false);
 const createGroupModal = ref(false);
 
@@ -155,7 +153,6 @@ async function handleEmit(type: string) {
 
         <div v-if="categories" class="w-full flex flex-col gap-2 w-full">
           <CategoriesDisplay
-            ref="catRef"
             :categories="categories"
             @complete-operation="handleEmit('completeCatOperation')"
             @complete-delete="handleEmit('completeCatDelete')"
@@ -185,7 +182,6 @@ async function handleEmit(type: string) {
 
         <div v-if="categoryGroups" class="w-full flex flex-col gap-2 w-full">
           <CategoryGroupsDisplay
-            ref="groupRef"
             :categories="categories"
             :category-groups="categoryGroups"
             @complete-operation="handleEmit('completeGroupOperation')"

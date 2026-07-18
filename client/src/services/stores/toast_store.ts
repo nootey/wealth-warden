@@ -15,8 +15,7 @@ export const useToastStore = defineStore("toast", () => {
 
     if (error instanceof ApiError) {
       const data = error.data as
-        | { title?: string; message?: string }
-        | undefined;
+        { title?: string; message?: string } | undefined;
 
       if (data?.title || data?.message) {
         summary = data.title ?? "Error";

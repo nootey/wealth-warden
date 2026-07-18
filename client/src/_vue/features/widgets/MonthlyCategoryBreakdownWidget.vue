@@ -79,13 +79,11 @@ const categoryOptions = computed((): OptionItem[] => {
     c === ALL_CATEGORY ? "_general" : (c.classification ?? "other");
 
   return availableCategories.value
-    .map(
-      (c): OptionItem => ({
-        label: (c.display_name ?? c.name ?? "") as string,
-        value: c.id!,
-        meta: c,
-      }),
-    )
+    .map((c): OptionItem => ({
+      label: (c.display_name ?? c.name ?? "") as string,
+      value: c.id!,
+      meta: c,
+    }))
     .sort((a, b) => {
       const ak = order.indexOf(keyOf(a.meta) as any);
       const bk = order.indexOf(keyOf(b.meta) as any);

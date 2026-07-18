@@ -28,9 +28,6 @@ const { hasPermission } = usePermissions();
 
 const trRef = ref<InstanceType<typeof TransfersPaginated> | null>(null);
 const txRef = ref<InstanceType<typeof TransactionsPaginated> | null>(null);
-const tpRef = ref<InstanceType<typeof TransactionTemplatesPaginated> | null>(
-  null,
-);
 
 const createModal = ref(false);
 const updateModal = ref(false);
@@ -192,7 +189,6 @@ async function handleEmit(emitType: any) {
     header="Transaction templates"
   >
     <TransactionTemplatesPaginated
-      ref="tpRef"
       @refresh-template-count="handleEmit('refreshTemplateCount')"
     />
   </Dialog>
