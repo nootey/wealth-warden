@@ -68,7 +68,7 @@ async function setAsDefault() {
 </script>
 
 <template>
-  <div class="flex flex-column gap-3 p-1">
+  <div class="flex flex-col gap-4 p-1">
     <span class="text-sm" style="color: var(--text-secondary)"
       >Select an account type, and define which account should be the default
       for it.</span
@@ -79,7 +79,7 @@ async function setAsDefault() {
     >
 
     <div class="flex flex-row w-full">
-      <div class="flex flex-column gap-1 w-full">
+      <div class="flex flex-col gap-1 w-full">
         <label>Account Type</label>
         <Select
           v-model="selectedType"
@@ -95,7 +95,7 @@ async function setAsDefault() {
     </div>
 
     <div v-if="selectedType" class="flex flex-row w-full">
-      <div class="flex flex-column gap-1 w-full">
+      <div class="flex flex-col gap-1 w-full">
         <label>Account</label>
         <Select
           v-model="selectedAccount"
@@ -110,7 +110,7 @@ async function setAsDefault() {
       </div>
     </div>
     <div class="flex flex-row w-full">
-      <div class="flex flex-column gap-1 w-full">
+      <div class="flex flex-col gap-1 w-full">
         <Button
           v-if="selectedAccount"
           label="Set as Default"

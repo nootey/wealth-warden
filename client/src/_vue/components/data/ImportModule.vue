@@ -83,7 +83,7 @@ defineExpose({ isDisabled, startOperation });
   <div style="min-height: 350px">
     <div
       v-if="selectedRef !== ''"
-      class="flex flex-row gap-2 p-3 mb-2 align-items-center cursor-pointer font-bold hoverable"
+      class="flex flex-row gap-2 p-4 mb-2 items-center cursor-pointer font-bold hoverable"
       style="color: var(--text-primary)"
     >
       <i class="pi pi-angle-left" />
@@ -91,19 +91,19 @@ defineExpose({ isDisabled, startOperation });
     </div>
 
     <Transition name="slide-down" mode="out-in">
-      <div v-if="!selectedRef" class="flex flex-column w-full gap-2">
+      <div v-if="!selectedRef" class="flex flex-col w-full gap-2">
         <span>You can manually import various types of data via JSON.</span>
         <div
-          class="flex flex-column w-full border-round-2xl p-2 gap-2"
+          class="flex flex-col w-full rounded-2xl p-2 gap-2"
           style="background: var(--background-secondary)"
         >
           <span>Sources</span>
           <div
-            class="flex flex-column w-full border-round-2xl p-2 gap-2"
+            class="flex flex-col w-full rounded-2xl p-2 gap-2"
             style="background: var(--background-primary)"
           >
             <div
-              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              class="flex flex-row gap-2 p-2 items-center hover-icon"
               @click="selectedRef = 'accounts'"
             >
               <i class="pi pi-building" style="color: #f05737" />
@@ -115,7 +115,7 @@ defineExpose({ isDisabled, startOperation });
             </div>
             <div style="border-bottom: 2px solid var(--border-color)" />
             <div
-              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              class="flex flex-row gap-2 p-2 items-center hover-icon"
               @click="selectedRef = 'categories'"
             >
               <i class="pi pi-gift" style="color: #fa8c73" />
@@ -127,7 +127,7 @@ defineExpose({ isDisabled, startOperation });
             </div>
             <div style="border-bottom: 2px solid var(--border-color)" />
             <div
-              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              class="flex flex-row gap-2 p-2 items-center hover-icon"
               @click="selectedRef = 'transactions'"
             >
               <i class="pi pi-book" style="color: #486af0" />
@@ -139,7 +139,7 @@ defineExpose({ isDisabled, startOperation });
             </div>
             <div style="border-bottom: 2px solid var(--border-color)" />
             <div
-              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              class="flex flex-row gap-2 p-2 items-center hover-icon"
               @click="selectedRef = 'investments'"
             >
               <i class="pi pi-chart-line" style="color: #9948f0" />
@@ -151,7 +151,7 @@ defineExpose({ isDisabled, startOperation });
             </div>
             <div style="border-bottom: 2px solid var(--border-color)" />
             <div
-              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              class="flex flex-row gap-2 p-2 items-center hover-icon"
               @click="selectedRef = 'savings'"
             >
               <i class="pi pi-building-columns" style="color: #c166f2" />
@@ -163,7 +163,7 @@ defineExpose({ isDisabled, startOperation });
             </div>
             <div style="border-bottom: 2px solid var(--border-color)" />
             <div
-              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              class="flex flex-row gap-2 p-2 items-center hover-icon"
               @click="selectedRef = 'repayments'"
             >
               <i class="pi pi-upload" style="color: #48f05c" />
@@ -175,7 +175,7 @@ defineExpose({ isDisabled, startOperation });
             </div>
             <div style="border-bottom: 2px solid var(--border-color)" />
             <div
-              class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+              class="flex flex-row gap-2 p-2 items-center hover-icon"
               @click="selectedRef = 'trades'"
             >
               <i class="pi pi-bitcoin" style="color: #ffc30d" />

@@ -72,10 +72,10 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
   <ConfirmDialog unstyled>
     <template #container="{ message, acceptCallback, rejectCallback }">
       <div
-        class="flex justify-content-center align-items-center p-overlay-mask p-overlay-mask-enter"
+        class="flex justify-center items-center p-overlay-mask p-overlay-mask-enter"
       >
         <div
-          class="flex flex-column p-5 gap-4 border-round-lg"
+          class="flex flex-col p-8 gap-6 rounded-lg"
           style="background-color: var(--background-secondary)"
         >
           <div class="font-bold text-xl" style="color: var(--text-primary)">
@@ -85,9 +85,9 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
             style="color: var(--text-primary)"
             v-html="message.message.replace(/\n/g, '<br>')"
           />
-          <div class="flex justify-content-end gap-2">
+          <div class="flex justify-end gap-2">
             <Button
-              class="p-2 border-round-lg"
+              class="p-2 rounded-lg"
               :label="message.rejectProps?.label || 'Cancel'"
               variant="outlined"
               style="
@@ -97,7 +97,7 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
               @click="rejectCallback"
             />
             <Button
-              class="p-2 border-round-lg"
+              class="p-2 rounded-lg"
               :label="message.acceptProps?.label || 'Confirm'"
               :severity="message.acceptProps?.severity"
               style="color: var(--text-primary)"
@@ -139,10 +139,10 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
             !hideNavigation
           "
           id="breadcrumb"
-          class="flex flex-row gap-2 mb-2 align-items-center justify-content-between"
+          class="flex flex-row gap-2 mb-2 items-center justify-between"
           style="max-width: 1000px; margin: 0 auto; padding: 1rem 0.5rem 0 0"
         >
-          <div id="crumbs" class="flex gap-1 text-center align-items-center">
+          <div id="crumbs" class="flex gap-1 text-center items-center">
             <i
               class="pi pi-wallet hover-icon mr-1"
               @click="accSidebarRef?.toggle && accSidebarRef.toggle()"
@@ -169,7 +169,7 @@ const isSettingsView = computed(() => route.path.startsWith("/settings"));
             </template>
           </div>
 
-          <div id="sidebar-icon" class="flex flex-row gap-3">
+          <div id="sidebar-icon" class="flex flex-row gap-4">
             <span
               style="
                 position: relative;

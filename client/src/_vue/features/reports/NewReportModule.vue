@@ -22,7 +22,7 @@ const reportTypes = [
   <div style="min-height: 300px">
     <div
       v-if="selectedType"
-      class="flex flex-row gap-2 p-2 mb-3 align-items-center cursor-pointer font-bold"
+      class="flex flex-row gap-2 p-2 mb-4 items-center cursor-pointer font-bold"
       style="color: var(--text-primary)"
       @click="selectedType = ''"
     >
@@ -31,16 +31,16 @@ const reportTypes = [
     </div>
 
     <Transition name="slide-down" mode="out-in">
-      <div v-if="!selectedType" class="flex flex-column w-full gap-2">
+      <div v-if="!selectedType" class="flex flex-col w-full gap-2">
         <span class="text-sm" style="color: var(--text-secondary)">
           Select a report type to generate.
         </span>
         <div
-          class="flex flex-column w-full border-round-2xl p-2 gap-2"
+          class="flex flex-col w-full rounded-2xl p-2 gap-2"
           style="background: var(--background-secondary)"
         >
           <div
-            class="flex flex-column w-full border-round-2xl p-3 gap-3"
+            class="flex flex-col w-full rounded-2xl p-4 gap-4"
             style="background: var(--background-primary)"
           >
             <template v-for="(type, index) in reportTypes" :key="type.key">
@@ -49,7 +49,7 @@ const reportTypes = [
                 style="border-bottom: 2px solid var(--border-color)"
               />
               <div
-                class="flex flex-row gap-2 p-2 align-items-center hover-icon"
+                class="flex flex-row gap-2 p-2 items-center hover-icon"
                 @click="selectedType = type.key"
               >
                 <i
@@ -57,7 +57,7 @@ const reportTypes = [
                   :class="type.icon"
                   :style="{ color: type.color }"
                 />
-                <div class="flex flex-column gap-1">
+                <div class="flex flex-col gap-1">
                   <span>{{ type.label }}</span>
                   <span class="text-xs" style="color: var(--text-secondary)">
                     {{ type.description }}

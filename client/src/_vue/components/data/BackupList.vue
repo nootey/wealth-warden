@@ -121,7 +121,7 @@ async function downloadBackup(backupName: string) {
 </script>
 
 <template>
-  <div class="w-full flex flex-row gap-2 justify-content-center">
+  <div class="w-full flex flex-row gap-2 justify-center">
     <DataTable
       data-key="name"
       class="w-full enhanced-table"
@@ -140,7 +140,7 @@ async function downloadBackup(backupName: string) {
       </template>
       <Column header="Actions">
         <template #body="{ data }">
-          <div class="flex flex-row align-items-center gap-2">
+          <div class="flex flex-row items-center gap-2">
             <i
               v-if="hasPermission('manage_data')"
               v-tooltip.top="'Download'"

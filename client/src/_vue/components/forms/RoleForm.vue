@@ -162,14 +162,14 @@ async function deleteRecord(id: number) {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-column gap-3 p-1">
+  <div v-if="!loading" class="flex flex-col gap-4 p-1">
     <div v-if="readOnly">
       <h5 style="color: var(--text-secondary)">Read-only mode.</h5>
     </div>
 
-    <div class="flex flex-column gap-3 p-1">
+    <div class="flex flex-col gap-4 p-1">
       <div class="flex flex-row w-full">
-        <div class="flex flex-column w-full">
+        <div class="flex flex-col w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.name.$errors[0]?.$message"
@@ -186,7 +186,7 @@ async function deleteRecord(id: number) {
       </div>
 
       <div class="flex flex-row w-full">
-        <div class="flex flex-column gap-1 w-full">
+        <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="false"
             :message="v$.record.description.$errors[0]?.$message"
@@ -205,7 +205,7 @@ async function deleteRecord(id: number) {
 
     <div
       v-if="mode === 'update' && record.is_default"
-      class="flex flex-row w-full align-items-center gap-2"
+      class="flex flex-row w-full items-center gap-2"
     >
       <i class="pi pi-info-circle" />
       <span class="text-sm" style="color: var(--text-secondary)"
@@ -214,7 +214,7 @@ async function deleteRecord(id: number) {
     </div>
 
     <div v-if="!record.is_default" class="flex flex-row gap-2 w-full">
-      <div class="flex flex-column w-full">
+      <div class="flex flex-col w-full">
         <ValidationError
           :is-required="true"
           :message="v$.selectedPermissions.$errors[0]?.$message"
@@ -235,17 +235,17 @@ async function deleteRecord(id: number) {
       </div>
     </div>
 
-    <div class="flex flex-row gap-3 w-full">
+    <div class="flex flex-row gap-4 w-full">
       <div
         v-if="selectedPermissions.length"
-        class="flex flex-column gap-2 w-full p-1 w-full"
+        class="flex flex-col gap-2 w-full p-1 w-full"
         style="max-height: 220px; overflow-y: auto"
       >
         <div
           v-for="perm in selectedPermissions"
           :key="perm.id"
           style="width: 99%"
-          class="flex flex-column p-2 border-round-lg border-1 surface-border gap-1"
+          class="flex flex-col p-2 rounded-lg border border-surface gap-1"
         >
           <div><strong>Name:</strong> {{ perm.name }}</div>
           <div><strong>Description:</strong> {{ perm.description }}</div>
@@ -254,7 +254,7 @@ async function deleteRecord(id: number) {
     </div>
 
     <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-column w-full gap-2">
+      <div class="flex flex-col w-full gap-2">
         <Button
           v-if="!readOnly"
           class="main-button"

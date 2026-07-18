@@ -87,8 +87,8 @@ function forgotPassword() {
 
 <template>
   <AuthSkeleton>
-    <div class="w-full mx-auto px-3 sm:px-0" style="max-width: 400px">
-      <div id="hideOnMobile" class="text-center mb-4">
+    <div class="w-full mx-auto px-4 sm:px-0" style="max-width: 400px">
+      <div id="hideOnMobile" class="text-center mb-6">
         <h2
           class="m-0 text-2xl sm:text-3xl font-bold"
           style="color: var(--text-primary); letter-spacing: -0.025em"
@@ -96,16 +96,16 @@ function forgotPassword() {
           Welcome back
         </h2>
         <p
-          class="mt-2 text-base line-height-3"
+          class="mt-2 text-base leading-normal"
           style="color: var(--text-secondary)"
         >
           Sign in to your account to continue
         </p>
       </div>
 
-      <div class="flex flex-column gap-3">
+      <div class="flex flex-col gap-4">
         <div class="flex flex-row w-full">
-          <div class="flex flex-column gap-1 w-full">
+          <div class="flex flex-col gap-1 w-full">
             <ValidationError
               :is-required="true"
               :message="v$.form.email.$errors[0]?.$message"
@@ -117,13 +117,13 @@ function forgotPassword() {
               v-model="form.email"
               type="email"
               :placeholder="'Email'"
-              class="w-full border-round-xl"
+              class="w-full rounded-xl"
             />
           </div>
         </div>
 
         <div class="flex flex-row w-full">
-          <div class="flex flex-column gap-1 w-full">
+          <div class="flex flex-col gap-1 w-full">
             <ValidationError
               :is-required="true"
               :message="v$.form.password.$errors[0]?.$message"
@@ -135,14 +135,14 @@ function forgotPassword() {
               v-model="form.password"
               type="password"
               :placeholder="'Password'"
-              class="w-full border-round-xl"
+              class="w-full rounded-xl"
               @keydown.enter="login"
             />
           </div>
         </div>
 
-        <div class="flex flex-row w-full justify-content-between">
-          <div class="flex flex-row align-items-center gap-2">
+        <div class="flex flex-row w-full justify-between">
+          <div class="flex flex-row items-center gap-2">
             <Checkbox
               v-model="form.remember_me"
               input-id="rememberMe"
@@ -173,7 +173,7 @@ function forgotPassword() {
       </div>
 
       <div
-        class="flex align-items-center justify-content-center gap-2 mt-4 pt-3"
+        class="flex items-center justify-center gap-2 mt-6 pt-4"
         style="border-top: 1px solid var(--border-color)"
       >
         <span class="text-sm" style="color: var(--text-secondary)">

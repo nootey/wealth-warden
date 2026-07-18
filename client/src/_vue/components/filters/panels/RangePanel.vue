@@ -89,7 +89,7 @@ const searchOperator = (event: any) => {
 </script>
 
 <template>
-  <div class="flex flex-column gap-2 w-full">
+  <div class="flex flex-col gap-2 w-full">
     <div v-if="!useRange" class="flex flex-row w-full">
       <AutoComplete
         size="small"
@@ -123,7 +123,7 @@ const searchOperator = (event: any) => {
       </IftaLabel>
     </div>
 
-    <div v-if="useRange" class="flex flex-column gap-2 w-full">
+    <div v-if="useRange" class="flex flex-col gap-2 w-full">
       <IftaLabel>
         <InputNumber
           size="small"
@@ -157,7 +157,7 @@ const searchOperator = (event: any) => {
       </IftaLabel>
     </div>
 
-    <div class="flex align-items-center gap-2">
+    <div class="flex items-center gap-2">
       <Checkbox v-model="useRange" input-id="useRange" binary />
       <label for="useRange">Use range</label>
     </div>

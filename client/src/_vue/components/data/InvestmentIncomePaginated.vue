@@ -132,7 +132,7 @@ defineExpose({ refresh: load });
 
 <template>
   <div
-    class="flex flex-column w-full border-round-2xl"
+    class="flex flex-col w-full rounded-2xl"
     style="
       padding: 0.25rem 0.25rem 0 0.25rem;
       border: 1px solid var(--border-color);

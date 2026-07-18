@@ -239,9 +239,9 @@ provide("removeFilter", removeFilter);
     />
   </Popover>
 
-  <main class="flex flex-column w-full p-2 align-items-center">
+  <main class="flex flex-col w-full p-2 items-center">
     <div
-      class="flex flex-column justify-content-center p-3 w-full gap-3 border-round-md"
+      class="flex flex-col justify-center p-4 w-full gap-4 rounded-md"
       style="
         border: 1px solid var(--border-color);
         background: var(--background-secondary);
@@ -251,7 +251,7 @@ provide("removeFilter", removeFilter);
       <div style="font-weight: bold">Activity logs</div>
 
       <div
-        class="flex flex-row justify-content-between align-items-center p-1 gap-3 w-full border-round-md"
+        class="flex flex-row justify-between items-center p-1 gap-4 w-full rounded-md"
         style="
           border: 1px solid var(--border-color);
           background: var(--background-secondary);
@@ -267,7 +267,7 @@ provide("removeFilter", removeFilter);
           </template>
           <template #filterButton>
             <div
-              class="hover-icon flex flex-row align-items-center gap-2"
+              class="hover-icon flex flex-row items-center gap-2"
               style="
                 padding: 0.5rem 1rem;
                 border-radius: 8px;

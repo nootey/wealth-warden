@@ -143,15 +143,15 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="hasAnyData" class="flex flex-column gap-3 p-2">
+  <div v-if="hasAnyData" class="flex flex-col gap-4 p-2">
     <div
-      class="flex flex-row align-items-center justify-content-between p-3 border-round-lg"
+      class="flex flex-row items-center justify-between p-4 rounded-lg"
       style="
         background: var(--surface-card);
         border: 1px solid var(--border-color);
       "
     >
-      <div class="flex flex-column gap-1">
+      <div class="flex flex-col gap-1">
         <span class="text-sm" style="color: var(--text-secondary)">
           Total Income
         </span>
@@ -173,7 +173,7 @@ onUnmounted(() => {
   </div>
   <div
     v-else
-    class="flex flex-column align-items-center justify-content-center mt-3 p-3 w-6"
+    class="flex flex-col items-center justify-center mt-4 p-4 w-6/12"
     style="
       border: 1px dashed var(--border-color);
       border-radius: 16px;
