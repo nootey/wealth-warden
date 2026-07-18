@@ -330,63 +330,63 @@ async function syncAssetAccountBalance(acc_id: number | null) {
     :style="{ width: '300px' }"
     :breakpoints="{ '301px': '90vw' }"
   >
-    <div class="flex flex-col gap-4 p-2">
-      <div class="flex flex-col gap-2">
+    <div class="flex flex-column gap-3 p-2">
+      <div class="flex flex-column gap-2">
         <div class="text-sm font-semibold">Crypto format:</div>
-        <div class="flex flex-col gap-1 text-sm">
-          <div class="flex justify-between">
+        <div class="flex flex-column gap-1 text-sm">
+          <div class="flex justify-content-between">
             <span class="font-medium">BTC-USD</span>
-            <span class="text-muted-color">Bitcoin in USD</span>
+            <span class="text-color-secondary">Bitcoin in USD</span>
           </div>
         </div>
-        <div class="text-xs text-muted-color">
+        <div class="text-xs text-color-secondary">
           Default currency is USD if not specified.
         </div>
       </div>
 
-      <div class="flex flex-col gap-2">
+      <div class="flex flex-column gap-2">
         <div class="text-sm font-semibold">Stocks/ETF format:</div>
         <div class="text-sm">Supported Exchanges:</div>
-        <div class="flex flex-col gap-1 text-sm">
-          <div class="flex justify-between">
+        <div class="flex flex-column gap-1 text-sm">
+          <div class="flex justify-content-between">
             <span class="font-medium">L</span>
-            <span class="text-muted-color">London (LSE)</span>
+            <span class="text-color-secondary">London (LSE)</span>
           </div>
-          <div class="flex justify-between">
+          <div class="flex justify-content-between">
             <span class="font-medium">AS</span>
-            <span class="text-muted-color">Amsterdam (Euronext)</span>
+            <span class="text-color-secondary">Amsterdam (Euronext)</span>
           </div>
-          <div class="flex justify-between">
+          <div class="flex justify-content-between">
             <span class="font-medium">PA</span>
-            <span class="text-muted-color">Paris (Euronext)</span>
+            <span class="text-color-secondary">Paris (Euronext)</span>
           </div>
-          <div class="flex justify-between">
+          <div class="flex justify-content-between">
             <span class="font-medium">DE</span>
-            <span class="text-muted-color">Germany (XETRA)</span>
+            <span class="text-color-secondary">Germany (XETRA)</span>
           </div>
-          <div class="flex justify-between">
+          <div class="flex justify-content-between">
             <span class="font-medium">F</span>
-            <span class="text-muted-color">Frankfurt</span>
+            <span class="text-color-secondary">Frankfurt</span>
           </div>
-          <div class="flex justify-between">
+          <div class="flex justify-content-between">
             <span class="font-medium">TO</span>
-            <span class="text-muted-color">Toronto (TSX)</span>
+            <span class="text-color-secondary">Toronto (TSX)</span>
           </div>
-          <div class="flex justify-between">
+          <div class="flex justify-content-between">
             <span class="font-medium">AX</span>
-            <span class="text-muted-color">Australia (ASX)</span>
+            <span class="text-color-secondary">Australia (ASX)</span>
           </div>
         </div>
-        <div class="text-xs text-muted-color">
+        <div class="text-xs text-color-secondary">
           Leave empty for US stocks (NYSE/NASDAQ)
         </div>
       </div>
     </div>
   </Popover>
 
-  <div v-if="!loading" class="flex flex-col gap-4 p-1">
-    <div v-if="!isReadOnly" class="flex flex-row w-full justify-center">
-      <div class="flex flex-col">
+  <div v-if="!loading" class="flex flex-column gap-3 p-1">
+    <div v-if="!isReadOnly" class="flex flex-row w-full justify-content-center">
+      <div class="flex flex-column">
         <SelectButton
           v-model="selectedInvestmentType"
           style="font-size: 0.875rem"
@@ -397,7 +397,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       </div>
     </div>
 
-    <div v-if="isReadOnly" class="flex flex-col gap-2">
+    <div v-if="isReadOnly" class="flex flex-column gap-2">
       <h4>Info</h4>
 
       <span class="text-sm" style="color: var(--text-secondary)">
@@ -407,7 +407,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       </span>
     </div>
 
-    <div v-if="isReadOnly" class="flex flex-col gap-1">
+    <div v-if="isReadOnly" class="flex flex-column gap-1">
       <h4>Sync</h4>
       <span class="text-sm" style="color: var(--text-secondary)"
         >In case of broken prices or prices, you can attempt a
@@ -415,7 +415,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       >
       <div
         v-if="isReadOnly"
-        class="flex flex-row w-full text-center items-center gap-1"
+        class="flex flex-row w-full text-center align-items-center gap-1"
       >
         <span class="text-sm" style="color: var(--text-secondary)"
           >Fetch latest price and recalculate PnL:
@@ -428,7 +428,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       </div>
       <div
         v-if="isReadOnly"
-        class="flex flex-row w-full text-center items-center gap-1"
+        class="flex flex-row w-full text-center align-items-center gap-1"
       >
         <span class="text-sm" style="color: var(--text-secondary)"
           >Recalculate PnL for all assets in account:
@@ -445,18 +445,18 @@ async function syncAssetAccountBalance(acc_id: number | null) {
 
     <div
       v-if="isReadOnly && parseFloat(record.quantity) > 0"
-      class="flex flex-col gap-2 w-full justify-between"
+      class="flex flex-column gap-2 w-full justify-content-between"
     >
       <h4>Financial details</h4>
 
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-row w-full gap-3">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">Investment type</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             record.investment_type
           }}</span>
         </div>
-        <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">Average</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             vueHelper.displayAsCurrency(
@@ -467,14 +467,14 @@ async function syncAssetAccountBalance(acc_id: number | null) {
         </div>
       </div>
 
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-row w-full gap-3">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">Value at buy</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             vueHelper.displayAsCurrency(record.value_at_buy!, record.currency)
           }}</span>
         </div>
-        <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">Current value</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             vueHelper.displayAsCurrency(record.current_value!, record.currency)
@@ -482,14 +482,14 @@ async function syncAssetAccountBalance(acc_id: number | null) {
         </div>
       </div>
 
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-row w-full gap-3">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">Current price</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             vueHelper.displayAsCurrency(record.current_price!, record.currency)
           }}</span>
         </div>
-        <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">Last price update</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             dateHelper.formatDate(record.last_price_update!, true)
@@ -497,14 +497,14 @@ async function syncAssetAccountBalance(acc_id: number | null) {
         </div>
       </div>
 
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-row w-full gap-3">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">Total fees</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             record.total_fees
           }}</span>
         </div>
-        <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">Fee value</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             vueHelper.displayAsCurrency(record.total_fees!, record.currency)
@@ -512,14 +512,14 @@ async function syncAssetAccountBalance(acc_id: number | null) {
         </div>
       </div>
 
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-row w-full gap-3">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">P&L Raw</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             vueHelper.displayAsCurrency(record.profit_loss!, record.currency)
           }}</span>
         </div>
-        <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">P&L Percentage</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             vueHelper.displayAsPercentage(record.profit_loss_percent!)
@@ -528,8 +528,8 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       </div>
 
       <template v-if="record.tax_summary">
-        <div class="flex flex-row w-full gap-4">
-          <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-row w-full gap-3">
+          <div class="flex flex-column gap-1 w-6">
             <label class="text-sm">After-tax P&L</label>
             <span class="text-sm" style="color: var(--text-secondary)">{{
               vueHelper.displayAsCurrency(
@@ -538,7 +538,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
               )
             }}</span>
           </div>
-          <div class="flex flex-col gap-1 w-6/12">
+          <div class="flex flex-column gap-1 w-6">
             <label class="text-sm">Est. tax due</label>
             <span class="text-sm" style="color: var(--text-secondary)">{{
               vueHelper.displayAsCurrency(
@@ -556,20 +556,20 @@ async function syncAssetAccountBalance(acc_id: number | null) {
     </h4>
     <div
       v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0"
-      class="flex flex-col w-full rounded-2xl"
+      class="flex flex-column w-full border-round-2xl"
       style="background-color: var(--background-alt)"
     >
       <InvestmentAssetWidget :asset-id="record.id" :chart-height="200" />
-      <div class="flex flex-col gap-2 p-4 text-xs">
-        <div class="flex flex-row gap-4 items-center text-center">
+      <div class="flex flex-column gap-2 p-3 text-xs">
+        <div class="flex flex-row gap-3 align-items-center text-center">
           <div
-            class="flex flex-row items-center gap-1"
+            class="flex flex-row align-items-center gap-1"
             style="color: var(--text-secondary)"
           >
             <small>—</small> Market value
           </div>
           <div
-            class="flex flex-row items-center gap-1"
+            class="flex flex-row align-items-center gap-1"
             style="color: var(--text-secondary)"
           >
             <small>· · ·</small> Cost basis (total paid)
@@ -593,9 +593,9 @@ async function syncAssetAccountBalance(acc_id: number | null) {
 
     <div
       v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0"
-      class="flex flex-col gap-2"
+      class="flex flex-column gap-2"
     >
-      <div class="flex flex-row justify-between items-center">
+      <div class="flex flex-row justify-content-between align-items-center">
         <h4>Income</h4>
         <Button
           v-if="hasPermission('manage_data')"
@@ -623,7 +623,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
     <h4 v-if="isReadOnly">Asset details</h4>
 
     <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.record.account.$errors[0]?.$message"
@@ -648,7 +648,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
     </div>
 
     <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.record.name.$errors[0]?.$message"
@@ -663,7 +663,10 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       </div>
     </div>
 
-    <div v-if="!isReadOnly" class="flex flex-row w-full items-center gap-2">
+    <div
+      v-if="!isReadOnly"
+      class="flex flex-row w-full align-items-center gap-2"
+    >
       <i
         class="pi pi-info-circle hover-icon text-sm"
         @click="toggleInfoPopup"
@@ -671,8 +674,8 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       <span style="color: var(--text-secondary)">Formatting guide</span>
     </div>
 
-    <div class="flex flex-row w-full gap-4">
-      <div class="flex flex-col gap-1 w-6/12">
+    <div class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
         <ValidationError
           :is-required="true"
           :message="v$.tickerData.name.$errors[0]?.$message"
@@ -687,7 +690,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
           :disabled="isReadOnly"
         />
       </div>
-      <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-column gap-1 w-6">
         <ValidationError
           :is-required="true"
           :message="v$.record.currency.$errors[0]?.$message"
@@ -709,7 +712,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       v-if="selectedInvestmentType.toLowerCase() !== 'crypto'"
       class="flex flex-row w-full gap-2"
     >
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="false"
           :message="v$.tickerData.exchange.$errors[0]?.$message"
@@ -727,7 +730,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
     </div>
 
     <div v-if="isReadOnly" class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.record.quantity.$errors[0]?.$message"
@@ -758,7 +761,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
   </div>
   <ShowLoading v-else :num-fields="5" />
 
-  <div class="flex flex-col mt-4 gap-4">
+  <div class="flex flex-column mt-3 gap-3">
     <Button
       class="main-button"
       :label="(mode == 'create' ? 'Insert' : 'Update') + ' asset'"

@@ -83,16 +83,16 @@ async function deleteRecord(id: number) {
 <template>
   <ConfirmDialog group="delete-import" class="rounded-dialog">
     <template #container="{ message, acceptCallback, rejectCallback }">
-      <div class="flex flex-col gap-2 p-4 justify-center w-full">
+      <div class="flex flex-column gap-2 p-3 justify-content-center w-full">
         <div
-          class="flex flex-col gap-4 p-8 justify-center items-center text-center"
+          class="flex flex-column gap-3 p-5 justify-content-center align-items-center text-center"
         >
           <span class="text-lg">{{ message.message }}</span>
           <strong>This action is irreversible!</strong>
         </div>
-        <div class="flex justify-end gap-2">
+        <div class="flex justify-content-end gap-2">
           <Button
-            class="p-2 rounded-lg"
+            class="p-2 border-round-lg"
             :label="message.rejectProps?.label || 'Cancel'"
             variant="outlined"
             style="
@@ -102,7 +102,7 @@ async function deleteRecord(id: number) {
             @click="rejectCallback"
           />
           <Button
-            class="p-2 rounded-lg"
+            class="p-2 border-round-lg"
             :label="message.acceptProps?.label || 'Confirm'"
             severity="danger"
             style="color: var(--text-primary)"
@@ -113,7 +113,7 @@ async function deleteRecord(id: number) {
     </template>
   </ConfirmDialog>
 
-  <div class="w-full flex flex-row gap-2 justify-center">
+  <div class="w-full flex flex-row gap-2 justify-content-center">
     <DataTable
       data-key="id"
       class="w-full enhanced-table"
@@ -132,7 +132,7 @@ async function deleteRecord(id: number) {
       </template>
       <Column header="Actions">
         <template #body="{ data }">
-          <div class="flex flex-row items-center gap-2">
+          <div class="flex flex-row align-items-center gap-2">
             <i
               v-if="hasPermission('manage_data')"
               class="pi pi-trash hover-icon text-sm"

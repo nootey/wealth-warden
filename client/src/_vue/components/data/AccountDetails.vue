@@ -32,6 +32,7 @@ const sharedStore = useSharedStore();
 const accountStore = useAccountStore();
 
 const confirm = useConfirm();
+const nWidgetRef = ref<InstanceType<typeof NetworthWidget> | null>(null);
 const account = ref<Account | null>(null);
 const projectionsModal = ref(false);
 const latestBalance = ref<Balance | null>(null);
@@ -144,8 +145,8 @@ async function handleEmit(type: string) {
     />
   </Dialog>
 
-  <div v-if="account" class="flex flex-col w-full gap-4">
-    <div class="flex flex-row gap-2 items-center text-center">
+  <div v-if="account" class="flex flex-column w-full gap-3">
+    <div class="flex flex-row gap-2 align-items-center text-center">
       <i
         :class="[
           'pi',
@@ -169,7 +170,7 @@ async function handleEmit(type: string) {
         style="margin-left: auto"
         @click="confirmCloseAccount(account.id!)"
       >
-        <div class="flex flex-row gap-1 items-center">
+        <div class="flex flex-row gap-1 align-items-center">
           <span> Close </span>
           <span class="mobile-hide"> account </span>
         </div>
@@ -178,7 +179,7 @@ async function handleEmit(type: string) {
 
     <div
       v-if="!account.is_active"
-      class="flex flex-row gap-2 items-center text-center pl-1"
+      class="flex flex-row gap-2 align-items-center text-center pl-1"
     >
       <small style="color: var(--text-secondary)"
         >Account is inactive, some aspects will not be shown.</small
@@ -186,8 +187,8 @@ async function handleEmit(type: string) {
     </div>
 
     <SlotSkeleton class="w-full" bg="opt">
-      <div class="flex flex-col gap-2 p-4 w-full">
-        <div class="flex flex-row gap-1 items-center">
+      <div class="flex flex-column gap-2 p-3 w-full">
+        <div class="flex flex-row gap-1 align-items-center">
           <h4>KPI</h4>
           ·
           <span style="color: var(--text-secondary)">{{
@@ -223,8 +224,8 @@ async function handleEmit(type: string) {
     </SlotSkeleton>
 
     <SlotSkeleton class="w-full" bg="opt">
-      <div class="flex flex-col gap-2 p-4 w-full">
-        <div class="flex flex-row gap-1 items-center">
+      <div class="flex flex-column gap-2 p-3 w-full">
+        <div class="flex flex-row gap-1 align-items-center">
           <h4>Details</h4>
           ·
           <span style="color: var(--text-secondary)">
@@ -258,8 +259,8 @@ async function handleEmit(type: string) {
     </SlotSkeleton>
 
     <SlotSkeleton v-if="account.is_active" class="w-full" bg="opt">
-      <div class="flex flex-col gap-2 p-4 w-full">
-        <div class="flex flex-row gap-1 items-center text-center">
+      <div class="flex flex-column gap-2 p-3 w-full">
+        <div class="flex flex-row gap-1 align-items-center text-center">
           <h4>Projections</h4>
           ·
           <i
@@ -284,22 +285,26 @@ async function handleEmit(type: string) {
     <Divider />
 
     <SlotSkeleton class="w-full">
-      <NetworthWidget :account-id="account.id" :chart-height="200" />
+      <NetworthWidget
+        ref="nWidgetRef"
+        :account-id="account.id"
+        :chart-height="200"
+      />
     </SlotSkeleton>
 
-    <div v-if="account.is_active" class="w-full flex flex-col gap-2">
+    <div v-if="account.is_active" class="w-full flex flex-column gap-2">
       <h3 style="color: var(--text-primary)">Stats</h3>
     </div>
     <SlotSkeleton v-if="account.is_active" class="w-full">
       <AccountBasicStats :acc-i-d="account.id" :pie-chart-size="250" />
     </SlotSkeleton>
 
-    <div class="w-full flex flex-col gap-2">
+    <div class="w-full flex flex-column gap-2">
       <h3 style="color: var(--text-primary)">Activity</h3>
     </div>
     <SlotSkeleton class="w-full">
-      <div class="w-full flex flex-col gap-4 p-4">
-        <div class="w-full flex flex-col gap-2">
+      <div class="w-full flex flex-column gap-3 p-3">
+        <div class="w-full flex flex-column gap-2">
           <h4 style="color: var(--text-primary)">Transactions</h4>
         </div>
 
@@ -315,8 +320,8 @@ async function handleEmit(type: string) {
     </SlotSkeleton>
 
     <SlotSkeleton class="w-full">
-      <div class="w-full flex flex-col gap-4 p-4">
-        <div class="w-full flex flex-col gap-2">
+      <div class="w-full flex flex-column gap-3 p-3">
+        <div class="w-full flex flex-column gap-2">
           <h4 style="color: var(--text-primary)">Transfers</h4>
         </div>
 

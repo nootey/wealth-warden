@@ -240,15 +240,15 @@ defineExpose({ refresh: getData });
     />
   </Dialog>
 
-  <div class="flex flex-col w-full gap-4">
+  <div class="flex flex-column w-full gap-3">
     <div
       v-if="advanced"
       id="balance-row"
-      class="flex w-full p-4 gap-2 rounded-xl bordered justify-between items-center"
+      class="flex w-full p-3 gap-2 border-round-xl bordered justify-content-between align-items-center"
       style="max-width: 1000px"
     >
       <div
-        class="flex-1 text-center px-4"
+        class="flex-1 text-center px-3"
         style="border-right: 1px solid var(--border-color)"
       >
         <div class="text-sm" style="color: var(--text-secondary)">Total</div>
@@ -257,7 +257,7 @@ defineExpose({ refresh: getData });
         </div>
       </div>
       <div
-        class="flex-1 text-center px-4"
+        class="flex-1 text-center px-3"
         style="border-right: 1px solid var(--border-color)"
       >
         <div class="text-sm" style="color: var(--text-secondary)">Positive</div>
@@ -265,7 +265,7 @@ defineExpose({ refresh: getData });
           {{ vueHelper.displayAsCurrency(totals.positive) }}
         </div>
       </div>
-      <div class="flex-1 text-center px-4">
+      <div class="flex-1 text-center px-3">
         <div class="text-sm" style="color: var(--text-secondary)">Negative</div>
         <div class="font-bold">
           {{ vueHelper.displayAsCurrency(totals.negative) }}
@@ -274,7 +274,7 @@ defineExpose({ refresh: getData });
     </div>
 
     <div
-      class="flex-1 w-full rounded-xl overflow-y-auto"
+      class="flex-1 w-full border-round-xl overflow-y-auto"
       :style="{ maxWidth: '1000px', maxHeight: `${maxHeight}vh` }"
     >
       <template v-if="loading">
@@ -283,9 +283,11 @@ defineExpose({ refresh: getData });
 
       <div
         v-else-if="groupedAccounts.length === 0"
-        class="flex flex-row p-2 w-full justify-center"
+        class="flex flex-row p-2 w-full justify-content-center"
       >
-        <div class="flex flex-col gap-2 justify-center items-center">
+        <div
+          class="flex flex-column gap-2 justify-content-center align-items-center"
+        >
           <i
             style="color: var(--text-secondary)"
             class="pi pi-eye-slash text-4xl"
@@ -298,10 +300,12 @@ defineExpose({ refresh: getData });
         <div
           v-for="[type, group] in groupedAccounts"
           :key="type"
-          class="w-full mb-4 rounded-xl p-4"
+          class="w-full mb-3 border-round-xl p-3"
           style="background: var(--background-primary)"
         >
-          <div class="flex ml-1 mr-1 items-center justify-between">
+          <div
+            class="flex ml-1 mr-1 align-items-center justify-content-between"
+          >
             <div class="text-sm" style="color: var(--text-secondary)">
               {{ vueHelper.formatString(type) }} · {{ group.length }}
             </div>
@@ -314,13 +318,13 @@ defineExpose({ refresh: getData });
             <div
               v-for="(account, i) in group"
               :key="account.id ?? i"
-              class="account-row flex items-center justify-between p-2 rounded-xl mt-4 bordered"
+              class="account-row flex align-items-center justify-content-between p-2 border-round-xl mt-3 bordered"
               :class="{ advanced, inactive: !account.is_active }"
             >
-              <div class="flex items-center">
+              <div class="flex align-items-center">
                 <!-- Avatar -->
                 <div
-                  class="flex items-center justify-center font-bold"
+                  class="flex align-items-center justify-content-center font-bold"
                   :style="{
                     width: '32px',
                     height: '32px',
@@ -353,13 +357,13 @@ defineExpose({ refresh: getData });
                 <i
                   v-if="hasPermission('manage_data') && account.is_active"
                   v-tooltip="'Edit account'"
-                  class="ml-4 pi pi-pen-to-square text-xs hover-icon edit-icon"
+                  class="ml-3 pi pi-pen-to-square text-xs hover-icon edit-icon"
                   style="color: var(--text-secondary)"
                   @click="openModal('update', account.id!)"
                 />
               </div>
 
-              <div class="flex items-center gap-2">
+              <div class="flex align-items-center gap-2">
                 <div class="font-bold mr-1">
                   {{
                     vueHelper.displayAsCurrency(

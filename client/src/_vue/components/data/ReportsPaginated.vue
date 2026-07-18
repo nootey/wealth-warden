@@ -129,9 +129,9 @@ defineExpose({ refresh });
 </script>
 
 <template>
-  <div class="flex flex-col w-full gap-4">
+  <div class="flex flex-column w-full gap-3">
     <div
-      class="flex flex-col w-full rounded-2xl"
+      class="flex flex-column w-full border-round-2xl"
       style="
         padding: 0.25rem 0.25rem 0 0.25rem;
         border: 1px solid var(--border-color);
@@ -160,7 +160,7 @@ defineExpose({ refresh });
 
         <Column header="Actions">
           <template #body="{ data }">
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <i
                 v-if="data.status === 'completed'"
                 class="pi pi-download hover-icon text-sm"

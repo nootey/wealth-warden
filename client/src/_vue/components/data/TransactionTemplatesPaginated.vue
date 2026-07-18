@@ -291,11 +291,11 @@ defineExpose({ refresh });
   </Dialog>
 
   <div
-    class="flex flex-col justify-center w-full gap-4"
+    class="flex flex-column justify-content-center w-full gap-3"
     style="max-width: 1000px"
   >
     <div
-      class="flex flex-row justify-between items-center text-center gap-2 w-full"
+      class="flex flex-row justify-content-between align-items-center text-center gap-2 w-full"
     >
       <SelectButton
         v-model="activeTab"
@@ -309,7 +309,7 @@ defineExpose({ refresh });
         class="main-button ml-auto"
         @click="manipulateDialog('addTemplate', true)"
       >
-        <div class="flex flex-row gap-1 items-center">
+        <div class="flex flex-row gap-1 align-items-center">
           <i class="pi pi-plus" />
           <span> New </span>
           <span class="mobile-hide"> Template </span>
@@ -319,11 +319,11 @@ defineExpose({ refresh });
 
     <div
       id="projection-bar"
-      class="flex w-full p-4 gap-2 rounded-xl justify-between items-center"
+      class="flex w-full p-3 gap-2 border-round-xl justify-content-between align-items-center"
       style="border: 1px solid var(--border-color)"
     >
       <div
-        class="flex-1 text-center px-4"
+        class="flex-1 text-center px-3"
         style="border-right: 1px solid var(--border-color)"
       >
         <div
@@ -352,7 +352,7 @@ defineExpose({ refresh });
         </div>
       </div>
       <div
-        class="flex-1 text-center px-4"
+        class="flex-1 text-center px-3"
         style="border-right: 1px solid var(--border-color)"
       >
         <div
@@ -380,7 +380,7 @@ defineExpose({ refresh });
           {{ vueHelper.displayAsCurrency(summary?.monthly_expense ?? 0) }} avg.
         </div>
       </div>
-      <div class="flex-1 text-center px-4">
+      <div class="flex-1 text-center px-3">
         <div
           id="projection-label"
           class="text-sm"
@@ -411,7 +411,7 @@ defineExpose({ refresh });
     </div>
 
     <div
-      class="flex items-center gap-2 px-2"
+      class="flex align-items-center gap-2 px-2"
       style="color: var(--text-secondary)"
     >
       <i class="pi pi-info-circle text-xs" />
@@ -480,7 +480,7 @@ defineExpose({ refresh });
               {{ data[col.field]?.name }}
             </template>
             <template v-else-if="col.field === 'amount'">
-              <div class="flex flex-row gap-2 items-center">
+              <div class="flex flex-row gap-2 align-items-center">
                 <i
                   v-if="activeTab !== 'transfer'"
                   class="text-xs"
@@ -529,7 +529,7 @@ defineExpose({ refresh });
 
         <Column header="Actions">
           <template #body="{ data }">
-            <div class="flex flex-row items-center gap-2">
+            <div class="flex flex-row align-items-center gap-2">
               <ToggleSwitch
                 v-if="hasPermission('manage_data')"
                 style="transform: scale(0.675)"

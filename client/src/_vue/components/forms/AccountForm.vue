@@ -459,9 +459,9 @@ async function manageRecord() {
 </script>
 
 <template>
-  <div v-if="!initializing" class="flex flex-col gap-4 p-1">
-    <div v-if="!readOnly" class="flex flex-row w-full justify-center">
-      <div class="flex flex-col w-50">
+  <div v-if="!initializing" class="flex flex-column gap-3 p-1">
+    <div v-if="!readOnly" class="flex flex-row w-full justify-content-center">
+      <div class="flex flex-column w-50">
         <SelectButton
           v-model="selectedClassification"
           style="font-size: 0.875rem"
@@ -476,7 +476,7 @@ async function manageRecord() {
     </div>
 
     <div class="flex flex-row w-full">
-      <div class="flex flex-col w-full">
+      <div class="flex flex-column w-full">
         <ValidationError
           :is-required="true"
           :message="v$.record.name.$errors[0]?.$message"
@@ -492,7 +492,7 @@ async function manageRecord() {
       </div>
     </div>
 
-    <div class="flex flex-col gap-1">
+    <div class="flex flex-column gap-1">
       <ValidationError
         :is-required="true"
         :message="v$.record.balance.$errors[0]?.$message"
@@ -521,7 +521,10 @@ async function manageRecord() {
       />
     </div>
 
-    <div v-if="selectedClassification === 'Asset'" class="flex flex-col gap-1">
+    <div
+      v-if="selectedClassification === 'Asset'"
+      class="flex flex-column gap-1"
+    >
       <ValidationError
         :is-required="false"
         :message="v$.record.credit_limit.$errors[0]?.$message"
@@ -544,7 +547,7 @@ async function manageRecord() {
     </div>
 
     <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.record.account_type.type.$errors[0]?.$message"
@@ -571,7 +574,7 @@ async function manageRecord() {
     </div>
 
     <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.record.account_type.sub_type.$errors[0]?.$message"
@@ -598,7 +601,7 @@ async function manageRecord() {
     </div>
 
     <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.record.opened_at.$errors[0]?.$message"
@@ -626,7 +629,7 @@ async function manageRecord() {
     </div>
 
     <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-col w-full">
+      <div class="flex flex-column w-full">
         <Button
           v-if="!readOnly"
           class="main-button"

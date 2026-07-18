@@ -2,7 +2,7 @@
 
 <template>
   <div
-    class="w-full flex flex-col gap-2 p-2 rounded-lg"
+    class="w-full flex flex-column gap-2 p-2 border-round-lg"
     style="
       border: 1px solid var(--border-color);
       background-color: var(--background-secondary);

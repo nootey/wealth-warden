@@ -90,9 +90,11 @@ const pageTitle = computed(() => {
 
 <template>
   <div class="settings flex p-2 w-full">
-    <aside class="no-mobile text-white h-full flex flex-col gap-2 p-4 w-48">
+    <aside
+      class="no-mobile text-white h-full flex flex-column gap-2 p-3 w-12rem"
+    >
       <div
-        class="flex flex-row gap-2 p-2 mb-2 items-center cursor-pointer font-bold hoverable"
+        class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable"
         style="color: var(--text-primary)"
       >
         <i class="pi pi-angle-left" />
@@ -109,7 +111,7 @@ const pageTitle = computed(() => {
       <template v-for="item in visibleItems" :key="item.name ?? item.label">
         <h6
           v-if="item.separator"
-          class="text-xs font-bold uppercase mb-2 mt-4"
+          class="text-xs font-bold uppercase mb-2 mt-3"
           style="color: var(--text-primary)"
         >
           {{ item.label }}
@@ -118,7 +120,7 @@ const pageTitle = computed(() => {
         <RouterLink
           v-else
           :to="{ name: item.name }"
-          class="flex items-center text-center gap-2 p-2 cursor-pointer"
+          class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
           :class="{ active: isActive(item.name!) }"
           style="
             text-decoration: none;
@@ -136,8 +138,8 @@ const pageTitle = computed(() => {
       </template>
     </aside>
 
-    <main class="w-full flex-1 pt-4" style="max-width: 850px; margin: 0 auto">
-      <div class="flex flex-row gap-2 mb-2 items-center text-center">
+    <main class="w-full flex-1 pt-3" style="max-width: 850px; margin: 0 auto">
+      <div class="flex flex-row gap-2 mb-2 align-items-center text-center">
         <i
           class="pi pi-ellipsis-v mobile-only text-xs"
           style="cursor: pointer"
@@ -164,7 +166,7 @@ const pageTitle = computed(() => {
       :breakpoints="{ '226px': '90vw' }"
     >
       <div
-        class="flex flex-row gap-2 p-2 mb-2 items-center cursor-pointer font-bold hoverable"
+        class="flex flex-row gap-2 p-2 mb-2 align-items-center cursor-pointer font-bold hoverable"
         style="color: var(--text-primary)"
       >
         <i class="pi pi-angle-left" />
@@ -181,7 +183,7 @@ const pageTitle = computed(() => {
       <template v-for="item in visibleItems" :key="item.name ?? item.label">
         <h6
           v-if="item.separator"
-          class="text-xs font-bold uppercase mb-2 mt-4"
+          class="text-xs font-bold uppercase mb-2 mt-3"
           style="color: var(--text-primary)"
         >
           {{ item.label }}
@@ -190,7 +192,7 @@ const pageTitle = computed(() => {
         <RouterLink
           v-else
           :to="{ name: item.name }"
-          class="flex items-center text-center gap-2 p-2 cursor-pointer"
+          class="flex align-items-center text-center gap-2 p-2 cursor-pointer"
           :class="{ active: isActive(item.name!) }"
           style="
             text-decoration: none;
@@ -233,7 +235,6 @@ const pageTitle = computed(() => {
     display: inline-block;
   }
   .settings {
-    grid-template-columns: 1fr;
     padding: 0 1rem 0 1rem !important;
   }
   .no-mobile {

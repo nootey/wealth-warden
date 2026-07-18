@@ -472,12 +472,12 @@ async function startOperation() {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-col gap-4 p-1">
+  <div v-if="!loading" class="flex flex-column gap-3 p-1">
     <div
       v-if="!isImmutable && !isTransfer"
-      class="flex flex-row w-full justify-center"
+      class="flex flex-row w-full justify-content-center"
     >
-      <div class="flex flex-col w-50">
+      <div class="flex flex-column w-50">
         <SelectButton
           v-model="selectedParentCategory"
           style="font-size: 0.875rem"
@@ -498,10 +498,10 @@ async function startOperation() {
 
     <div
       v-if="mode === 'update'"
-      class="flex flex-row w-full gap-2 pb-4"
+      class="flex flex-row w-full gap-2 pb-3"
       style="border-bottom: 1px solid var(--border-color)"
     >
-      <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-column gap-1 w-6">
         <small>Last ran at</small>
         <span
           style="
@@ -519,7 +519,7 @@ async function startOperation() {
           }}</span
         >
       </div>
-      <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-column gap-1 w-6">
         <small>Run count</small>
         <span
           style="
@@ -535,9 +535,9 @@ async function startOperation() {
       </div>
     </div>
 
-    <div class="flex flex-col gap-4">
+    <div class="flex flex-column gap-3">
       <div class="flex flex-row w-full">
-        <div class="flex flex-col gap-1 w-full">
+        <div class="flex flex-column gap-1 w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.name.$errors[0]?.$message"
@@ -553,7 +553,7 @@ async function startOperation() {
       </div>
 
       <div class="flex flex-row w-full">
-        <div class="flex flex-col gap-1 w-full">
+        <div class="flex flex-column gap-1 w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.account.name.$errors[0]?.$message"
@@ -576,7 +576,7 @@ async function startOperation() {
       </div>
 
       <div v-if="isTransfer" class="flex flex-row w-full">
-        <div class="flex flex-col gap-1 w-full">
+        <div class="flex flex-column gap-1 w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.to_account?.name.$errors[0]?.$message"
@@ -599,7 +599,7 @@ async function startOperation() {
       </div>
 
       <div class="flex flex-row w-full">
-        <div class="flex flex-col gap-1 w-full">
+        <div class="flex flex-column gap-1 w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.amount.$errors[0]?.$message"
@@ -620,7 +620,7 @@ async function startOperation() {
       </div>
 
       <div v-if="!isTransfer" class="flex flex-row w-full">
-        <div class="flex flex-col gap-1 w-full">
+        <div class="flex flex-column gap-1 w-full">
           <ValidationError
             :is-required="false"
             :message="v$.record.category.name.$errors[0]?.$message"
@@ -641,8 +641,11 @@ async function startOperation() {
         </div>
       </div>
 
-      <div v-if="!isImmutable" class="flex flex-row w-full justify-center">
-        <div class="flex flex-col gap-1 w-50">
+      <div
+        v-if="!isImmutable"
+        class="flex flex-row w-full justify-content-center"
+      >
+        <div class="flex flex-column gap-1 w-50">
           <SelectButton
             v-model="selectedPreset"
             style="font-size: 0.875rem"
@@ -659,9 +662,9 @@ async function startOperation() {
 
       <div
         v-if="selectedPreset === 'recurring'"
-        class="flex flex-row w-full gap-2 items-center"
+        class="flex flex-row w-full gap-2 align-items-center"
       >
-        <div class="flex flex-col gap-1 w-full">
+        <div class="flex flex-column gap-1 w-12">
           <ValidationError
             :is-required="true"
             :message="v$.record.frequency.$errors[0]?.$message"
@@ -681,8 +684,8 @@ async function startOperation() {
         </div>
       </div>
 
-      <div class="flex flex-row w-full gap-2 items-center">
-        <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-row w-full gap-2 align-items-center">
+        <div class="flex flex-column gap-1 w-full">
           <ValidationError
             :is-required="true"
             :message="v$.record.frequency.$errors[0]?.$message"
@@ -707,7 +710,7 @@ async function startOperation() {
         v-if="selectedPreset === 'recurring'"
         class="flex flex-row w-full gap-2 w-full"
       >
-        <div class="flex flex-col gap-1 w-full">
+        <div class="flex flex-column gap-1 w-full">
           <ValidationError
             :is-required="false"
             :message="v$.record.end_date.$errors[0]?.$message"
@@ -733,7 +736,7 @@ async function startOperation() {
         v-if="selectedPreset === 'recurring'"
         class="flex flex-row w-full gap-2 w-full"
       >
-        <div class="flex flex-col gap-1 w-full">
+        <div class="flex flex-column gap-1 w-full">
           <ValidationError
             :is-required="false"
             :message="v$.record.max_runs.$errors[0]?.$message"
@@ -760,7 +763,7 @@ async function startOperation() {
     </div>
 
     <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-col w-full">
+      <div class="flex flex-column w-full">
         <Button
           v-if="!isReadOnly"
           class="main-button"

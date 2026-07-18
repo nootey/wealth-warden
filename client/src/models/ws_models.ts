@@ -1,5 +1,7 @@
 export type WsEventType =
-  "report.completed" | "report.failed" | "notification.created";
+  | "report.completed"
+  | "report.failed"
+  | "notification.created";
 
 export interface WsEvent {
   type: WsEventType;

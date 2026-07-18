@@ -30,21 +30,23 @@ const activeTab = ref("overview");
   </Dialog>
 
   <main
-    class="flex flex-col w-full items-center"
+    class="flex flex-column w-full align-items-center"
     style="padding: 0 0.5rem 0 0.5rem"
   >
     <div
       id="mobile-container"
-      class="flex flex-col justify-center w-full gap-4 rounded-md"
+      class="flex flex-column justify-content-center w-full gap-3 border-round-md"
     >
-      <div class="w-full flex flex-row justify-between p-1 gap-2 items-center">
-        <div class="w-full flex flex-col gap-2">
+      <div
+        class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
+      >
+        <div class="w-full flex flex-column gap-2">
           <div style="font-weight: bold">Analytics</div>
           <div>Comprehensive insights into your financial health.</div>
         </div>
       </div>
 
-      <div class="flex flex-row gap-4 p-2">
+      <div class="flex flex-row gap-3 p-2">
         <div
           class="cursor-pointer pb-1"
           style="color: var(--text-secondary)"
@@ -75,7 +77,7 @@ const activeTab = ref("overview");
         <div
           v-if="activeTab === 'overview'"
           key="overview"
-          class="flex flex-col justify-center w-full gap-4"
+          class="flex flex-column justify-content-center w-full gap-3"
         >
           <Panel :collapsed="false" header="Basic" toggleable>
             <SlotSkeleton bg="transparent">
@@ -88,17 +90,17 @@ const activeTab = ref("overview");
             </SlotSkeleton>
           </Panel>
         </div>
-        <div v-else key="reports" class="w-full flex flex-col gap-4">
-          <div class="flex flex-row justify-start">
+        <div v-else key="reports" class="w-full flex flex-column gap-3">
+          <div class="flex flex-row justify-content-start">
             <Button class="main-button" @click="newReportModal = true">
-              <div class="flex flex-row gap-1 items-center">
+              <div class="flex flex-row gap-1 align-items-center">
                 <i class="pi pi-plus" />
                 <span>New Report</span>
               </div>
             </Button>
           </div>
           <div
-            class="flex flex-col w-full p-4 gap-4 rounded-2xl"
+            class="flex flex-column w-full p-3 gap-3 border-round-2xl"
             style="
               background-color: var(--background-secondary);
               border: 1px solid var(--border-color);

@@ -91,18 +91,20 @@ async function handleEmit(type: string, data?: any) {
     />
   </Dialog>
 
-  <div class="flex flex-col w-full gap-4">
+  <div class="flex flex-column w-full gap-3">
     <SettingsSkeleton class="w-full">
-      <div class="w-full flex flex-col gap-4 p-2">
-        <div class="flex flex-row justify-between items-center gap-4">
-          <div class="w-full flex flex-col gap-2">
+      <div class="w-full flex flex-column gap-3 p-2">
+        <div
+          class="flex flex-row justify-content-between align-items-center gap-3"
+        >
+          <div class="w-full flex flex-column gap-2">
             <h3>Roles</h3>
             <h5 style="color: var(--text-secondary)">
               View and manage roles and permissions.
             </h5>
           </div>
           <Button class="main-button" @click="handleEmit('openCreate')">
-            <div class="flex flex-row gap-1 items-center">
+            <div class="flex flex-row gap-1 align-items-center">
               <i class="pi pi-plus" />
               <span> New </span>
               <span class="mobile-hide"> Role </span>
@@ -110,7 +112,7 @@ async function handleEmit(type: string, data?: any) {
           </Button>
         </div>
 
-        <div v-if="roles" class="w-full flex flex-col gap-2 w-full">
+        <div v-if="roles" class="w-full flex flex-column gap-2 w-full">
           <DataTable
             class="w-full enhanced-table"
             data-key="id"
@@ -155,7 +157,7 @@ async function handleEmit(type: string, data?: any) {
                     (data?.permissions?.length ?? 0) +
                     ' permissions'
                   "
-                  class="flex flex-row items-center gap-2"
+                  class="flex flex-row align-items-center gap-2"
                 >
                   <i class="pi pi-eye" />
                   <span>{{ data?.permissions?.length ?? 0 }}</span>

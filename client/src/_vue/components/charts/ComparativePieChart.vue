@@ -99,7 +99,7 @@ const chartOptions = computed<ChartOptions<"pie">>(() =>
       width: (size ?? 300) + 'px',
       height: (size ?? 300) + 'px',
     }"
-    class="flex justify-center items-center"
+    class="flex justify-content-center align-items-center"
   >
     <Chart
       v-if="isChartReady"

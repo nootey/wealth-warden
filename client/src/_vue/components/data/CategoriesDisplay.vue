@@ -178,7 +178,7 @@ async function deleteRecord(id: number) {
 
     <Column header="Actions">
       <template #body="{ data }">
-        <div class="flex flex-row items-center gap-2">
+        <div class="flex flex-row align-items-center gap-2">
           <i
             v-if="hasPermission('manage_data')"
             v-tooltip="'Edit category'"

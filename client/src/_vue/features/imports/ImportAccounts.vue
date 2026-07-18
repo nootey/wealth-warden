@@ -80,7 +80,7 @@ defineExpose({ isDisabled, importAccounts });
 
 <template>
   <div
-    class="flex flex-col w-full justify-center items-center text-center gap-4"
+    class="flex flex-column w-full justify-content-center align-items-center text-center gap-3"
   >
     <h3>Import your account data</h3>
     <span class="text-sm" style="color: var(--text-secondary)"
@@ -92,7 +92,7 @@ defineExpose({ isDisabled, importAccounts });
       starting balances. If you end up importing transactions after, note that
       those will count as additions to existing account balances.
     </span>
-    <div class="flex items-center gap-1">
+    <div class="flex align-items-center gap-1">
       <Checkbox
         v-model="useBalances"
         :binary="true"
@@ -115,9 +115,9 @@ defineExpose({ isDisabled, importAccounts });
       @clear="onClear"
     >
       <template #header="{ chooseCallback }">
-        <div class="w-full flex flex-row justify-center">
+        <div class="w-full flex flex-row justify-content-center">
           <Button
-            class="outline-button w-3/12"
+            class="outline-button w-3"
             :disabled="importing"
             label="Upload"
             @click="chooseCallback()"
@@ -128,14 +128,14 @@ defineExpose({ isDisabled, importAccounts });
       <template #content>
         <div
           v-if="selectedFiles.length > 0"
-          class="flex flex-col gap-1 w-full items-center"
+          class="flex flex-column gap-1 w-full align-items-center"
         >
           <h5>Pending</h5>
           <div class="flex flex-wrap gap-2 w-full">
             <div
               v-for="file in selectedFiles"
               :key="file.name + file.type + file.size"
-              class="flex flex-row gap-2 p-1 w-full justify-center items-center w-full"
+              class="flex flex-row gap-2 p-1 w-full justify-content-center align-items-center w-full"
             >
               <span
                 class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden"

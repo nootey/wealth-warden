@@ -46,10 +46,10 @@ function getProperty(
 </script>
 
 <template>
-  <div v-if="event" class="flex flex-row items-center">
+  <div v-if="event" class="flex flex-row align-items-center">
     <i v-tooltip="getProperty('event', event, ``)" class="mobile-hide">
       <span
-        class="flex flex-row items-center justify-items-center text-center custom-marker shadow"
+        class="flex flex-row align-items-center justify-items-center text-center custom-marker shadow-2"
         style="
           background: var(--background-primary);
           color: var(--text-primary);

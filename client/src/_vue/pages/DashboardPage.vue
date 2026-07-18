@@ -49,18 +49,18 @@ async function backfillBalances() {
 
 <template>
   <main
-    class="flex flex-col w-full items-center"
+    class="flex flex-column w-full align-items-center"
     style="padding: 0 0.5rem 0 0.5rem"
   >
     <div
       id="mobile-container"
-      class="flex flex-col justify-center w-full gap-4 rounded-md"
+      class="flex flex-column justify-content-center w-full gap-3 border-round-md"
     >
       <SlotSkeleton bg="transparent">
         <div
-          class="w-full flex flex-row justify-between p-1 gap-2 items-center"
+          class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
         >
-          <div class="w-full flex flex-col gap-2">
+          <div class="w-full flex flex-column gap-2">
             <div style="font-weight: bold">
               Welcome back {{ authStore?.user?.display_name }}
             </div>
@@ -100,7 +100,7 @@ async function backfillBalances() {
       </Panel>
 
       <Panel :collapsed="false" header="Overview by category" toggleable>
-        <div class="w-full flex flex-row justify-between p-1">
+        <div class="w-full flex flex-row justify-content-between p-1">
           <span style="color: var(--text-secondary)" class="text-sm">
             View and compare how your money moves through out different years
             and categories. You can compare up to 5 years at a time, with the

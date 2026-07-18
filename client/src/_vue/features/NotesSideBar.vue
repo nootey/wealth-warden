@@ -7,18 +7,20 @@
     style="width: 100%; max-width: 468px; overflow-y: auto"
   >
     <template #container="{ closeCallback }">
-      <div class="flex flex-col w-full p-4 gap-4">
-        <div class="flex flex-row justify-between items-center p-2">
+      <div class="flex flex-column w-full p-3 gap-3">
+        <div
+          class="flex flex-row justify-content-between align-items-center p-2"
+        >
           <h3>Notes</h3>
           <i class="pi pi-times hover-icon" @click="closeCallback" />
         </div>
 
-        <div class="flex flex-row items-center gap-2">
+        <div class="flex flex-row align-items-center gap-2">
           <Textarea
             v-model="newNoteContent"
             placeholder="Add a new note ..."
             rows="1"
-            class="w-full rounded-xl"
+            class="w-full border-round-xl"
             :style="{
               borderColor: 'var(--border-color)',
               resize: 'none',
@@ -38,7 +40,7 @@
         <div
           v-for="note in notes"
           :key="note.id"
-          class="p-4 rounded-xl"
+          class="p-3 border-round-xl"
           :style="{
             backgroundColor: note.resolved_at
               ? 'var(--background-secondary)'
@@ -46,12 +48,12 @@
             border: '1px solid var(--border-color)',
           }"
         >
-          <div class="flex flex-col gap-2">
+          <div class="flex flex-column gap-2">
             <Textarea
               v-model="note.content"
               :disabled="!!note.resolved_at"
               rows="2"
-              class="w-full rounded-xl"
+              class="w-full border-round-xl"
               :style="{
                 borderColor: 'var(--border-color)',
                 backgroundColor: note.resolved_at
@@ -65,10 +67,10 @@
             />
 
             <div
-              class="flex flex-row gap-2 text-xs justify-between"
+              class="flex flex-row gap-2 text-xs justify-content-between"
               style="color: var(--text-secondary)"
             >
-              <div class="flex flex-row items-center gap-1">
+              <div class="flex flex-row align-items-center gap-1">
                 <span
                   >Created: {{ dateHelper.formatDate(note.created_at) }}</span
                 >
@@ -112,7 +114,7 @@
 
         <div
           v-if="notes.length === 0"
-          class="text-center p-6"
+          class="text-center p-4"
           style="color: var(--text-secondary)"
         >
           No notes yet
@@ -123,7 +125,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, defineExpose } from "vue";
 import { useNotesStore } from "../../services/stores/notes_store.ts";
 import { useSharedStore } from "../../services/stores/shared_store.ts";
 import type { Note } from "../../models/notes_models.ts";

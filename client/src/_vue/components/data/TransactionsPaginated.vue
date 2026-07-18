@@ -200,14 +200,14 @@ defineExpose({ refresh });
     />
   </Popover>
 
-  <div class="flex flex-col w-full gap-4">
+  <div class="flex flex-column w-full gap-3">
     <div
       id="balance-row"
-      class="flex w-full p-4 gap-2 rounded-xl bordered justify-between items-center"
+      class="flex w-full p-3 gap-2 border-round-xl bordered justify-content-between align-items-center"
       style="max-width: 1000px; border: 1px solid var(--border-color)"
     >
       <div
-        class="flex-1 text-center px-4"
+        class="flex-1 text-center px-3"
         style="border-right: 1px solid var(--border-color)"
       >
         <div class="text-sm" style="color: var(--text-secondary)">Total</div>
@@ -216,7 +216,7 @@ defineExpose({ refresh });
         </div>
       </div>
       <div
-        class="flex-1 text-center px-4"
+        class="flex-1 text-center px-3"
         style="border-right: 1px solid var(--border-color)"
       >
         <div class="text-sm" style="color: var(--text-secondary)">Income</div>
@@ -224,7 +224,7 @@ defineExpose({ refresh });
           {{ vueHelper.displayAsCurrency(totals?.income!) }}
         </div>
       </div>
-      <div class="flex-1 text-center px-4">
+      <div class="flex-1 text-center px-3">
         <div class="text-sm" style="color: var(--text-secondary)">Expenses</div>
         <div class="font-bold">
           {{ vueHelper.displayAsCurrency(totals?.expenses!) }}
@@ -243,7 +243,7 @@ defineExpose({ refresh });
         </template>
         <template #filterButton>
           <div
-            class="hover-icon flex flex-row items-center gap-2"
+            class="hover-icon flex flex-row align-items-center gap-2"
             style="
               padding: 0.5rem 1rem;
               border-radius: 8px;
@@ -256,7 +256,7 @@ defineExpose({ refresh });
           </div>
         </template>
         <template #includeDeleted>
-          <div class="flex items-center gap-2" style="margin-left: auto">
+          <div class="flex align-items-center gap-2" style="margin-left: auto">
             <span style="font-size: 0.8rem">Include deleted</span>
             <ToggleSwitch v-model="includeDeleted" />
           </div>
@@ -265,7 +265,7 @@ defineExpose({ refresh });
     </div>
 
     <div
-      class="flex flex-col w-full rounded-2xl"
+      class="flex flex-column w-full border-round-2xl"
       style="
         padding: 0.25rem 0.25rem 0 0.25rem;
         border: 1px solid var(--border-color);
@@ -313,7 +313,7 @@ defineExpose({ refresh });
           </template>
           <template #body="{ data }">
             <template v-if="col.field === 'amount'">
-              <div class="flex flex-row gap-2 items-center">
+              <div class="flex flex-row gap-2 align-items-center">
                 <i
                   class="text-xs"
                   :class="
@@ -345,7 +345,7 @@ defineExpose({ refresh });
               {{ dateHelper.formatDate(data.txn_date, false) }}
             </template>
             <template v-else-if="col.field === 'account'">
-              <div class="flex flex-row gap-2 items-center account-row">
+              <div class="flex flex-row gap-2 align-items-center account-row">
                 <span class="hover" @click="$emit('rowClick', data.id)">
                   {{ data[col.field]?.["name"] }}
                 </span>

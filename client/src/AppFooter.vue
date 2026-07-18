@@ -1,6 +1,6 @@
 <template>
   <footer
-    class="app-footer flex items-center justify-center"
+    class="app-footer flex align-items-center justify-content-center"
     style="
       padding: 0.62rem;
       color: var(--text-secondary);

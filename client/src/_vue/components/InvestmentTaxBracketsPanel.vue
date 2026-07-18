@@ -192,10 +192,10 @@ async function saveSettings(): Promise<void> {
     class="rounded-dialog"
     :header="`Add ${TYPE_LABELS[addBracketType]} Bracket`"
   >
-    <div class="flex flex-col gap-4 p-1">
-      <div class="flex flex-col gap-4">
-        <div class="flex flex-row w-full gap-2 items-center">
-          <div class="flex flex-col gap-1 w-6/12">
+    <div class="flex flex-column gap-3 p-1">
+      <div class="flex flex-column gap-3">
+        <div class="flex flex-row w-full gap-2 align-items-center">
+          <div class="flex flex-column gap-1 w-6">
             <ValidationError
               :is-required="true"
               :message="v$.form.min_days_held.$errors[0]?.$message"
@@ -214,7 +214,7 @@ async function saveSettings(): Promise<void> {
               fluid
             />
           </div>
-          <div class="flex flex-col gap-1 w-6/12">
+          <div class="flex flex-column gap-1 w-6">
             <ValidationError :is-required="false" :message="undefined">
               <label>To days</label>
             </ValidationError>
@@ -232,8 +232,8 @@ async function saveSettings(): Promise<void> {
           </div>
         </div>
 
-        <div class="flex flex-row w-full gap-2 items-center">
-          <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-row w-full gap-2 align-items-center">
+          <div class="flex flex-column gap-1 w-6">
             <ValidationError
               :is-required="true"
               :message="v$.form.taxable_percent.$errors[0]?.$message"
@@ -254,7 +254,7 @@ async function saveSettings(): Promise<void> {
               fluid
             />
           </div>
-          <div class="flex flex-col gap-1 w-6/12">
+          <div class="flex flex-column gap-1 w-6">
             <ValidationError :is-required="false" :message="undefined">
               <label>Label</label>
             </ValidationError>
@@ -277,21 +277,21 @@ async function saveSettings(): Promise<void> {
     </div>
   </Dialog>
 
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-column gap-3">
     <div
-      class="flex flex-row items-center justify-between p-4 rounded-xl gap-4"
+      class="flex flex-row align-items-center justify-content-between p-3 border-round-xl gap-3"
       style="
         background-color: var(--background-secondary);
         border: 1px solid var(--border-color);
       "
     >
-      <div class="flex flex-col w-full gap-4">
-        <div class="flex flex-row items-center text-center gap-2 w-full">
+      <div class="flex flex-column w-full gap-3">
+        <div class="flex flex-row align-items-center text-center gap-2 w-full">
           <h4>Settings</h4>
         </div>
 
         <div
-          class="flex flex-row items-center text-center gap-2 p-4 w-full rounded-lg"
+          class="flex flex-row align-items-center text-center gap-2 p-3 w-full border-round-lg"
           style="border: 1px solid var(--border-color)"
         >
           <span class="font-semibold text-sm">Loss offsetting</span>
@@ -306,7 +306,7 @@ async function saveSettings(): Promise<void> {
           />
         </div>
 
-        <div class="flex flex-row items-center">
+        <div class="flex flex-row align-items-center">
           <Button
             label="Save"
             class="main-button ml-auto"
@@ -321,15 +321,17 @@ async function saveSettings(): Promise<void> {
     <div
       v-for="type in INVESTMENT_TYPES"
       :key="type"
-      class="flex flex-col p-4 gap-4 rounded-xl"
+      class="flex flex-column p-3 gap-3 border-round-xl"
       style="
         background-color: var(--background-secondary);
         border: 1px solid var(--border-color);
       "
     >
-      <div class="flex flex-row justify-between items-center gap-2">
+      <div
+        class="flex flex-row justify-content-between align-items-center gap-2"
+      >
         <span class="font-bold">{{ TYPE_LABELS[type] }}</span>
-        <div class="flex flex-row gap-2 items-center">
+        <div class="flex flex-row gap-2 align-items-center">
           <Select
             v-if="
               bracketsByType[type].length === 0 &&
@@ -348,7 +350,7 @@ async function saveSettings(): Promise<void> {
             style="height: 30px"
             @click="openAddBracket(type)"
           >
-            <div class="flex flex-row gap-1 items-center">
+            <div class="flex flex-row gap-1 align-items-center">
               <i class="pi pi-plus" />
               <span>Add bracket</span>
             </div>
@@ -365,14 +367,14 @@ async function saveSettings(): Promise<void> {
         {{ TYPE_LABELS[type].toLowerCase() }}.
       </span>
 
-      <div v-else class="flex flex-col gap-2">
+      <div v-else class="flex flex-column gap-2">
         <div
           v-for="b in bracketsByType[type]"
           :key="b.id"
-          class="flex flex-row items-center justify-between p-2 rounded-lg gap-2"
+          class="flex flex-row align-items-center justify-content-between p-2 border-round-lg gap-2"
           style="border: 1px solid var(--border-color)"
         >
-          <div class="flex flex-row gap-4 items-center flex-wrap">
+          <div class="flex flex-row gap-3 align-items-center flex-wrap">
             <span class="font-semibold text-sm">
               {{ b.min_days_held }} – {{ b.to_days ?? "∞" }} days
             </span>

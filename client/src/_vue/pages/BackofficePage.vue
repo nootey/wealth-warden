@@ -50,21 +50,23 @@ async function runZeroCostMigration() {
 
 <template>
   <main
-    class="flex flex-col w-full items-center"
+    class="flex flex-column w-full align-items-center"
     style="padding: 0 0.5rem 0 0.5rem"
   >
     <div
       id="mobile-container"
-      class="flex flex-col justify-center w-full gap-4 rounded-md"
+      class="flex flex-column justify-content-center w-full gap-3 border-round-md"
     >
-      <div class="w-full flex flex-row justify-between p-1 gap-2 items-center">
-        <div class="w-full flex flex-col gap-2">
+      <div
+        class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
+      >
+        <div class="w-full flex flex-column gap-2">
           <div style="font-weight: bold">Backoffice</div>
           <div>Watch your step - fragile grounds.</div>
         </div>
       </div>
 
-      <div class="flex flex-row gap-4 p-2">
+      <div class="flex flex-row gap-3 p-2">
         <div
           v-for="tab in visibleTabs"
           :key="tab.key"
@@ -96,11 +98,13 @@ async function runZeroCostMigration() {
         <div
           v-else-if="activeTab === 'admin'"
           key="admin"
-          class="flex flex-col gap-4"
+          class="flex flex-column gap-3"
         >
-          <div class="flex flex-col gap-1 p-4 border rounded-md border-surface">
+          <div
+            class="flex flex-column gap-1 p-3 border-1 border-round-md surface-border"
+          >
             <div style="font-weight: bold">Asset Cash Flow Backfill</div>
-            <div class="text-sm text-muted-color">
+            <div class="text-sm text-color-secondary">
               One-time migration job. Rewrites historical investment buy trades
               as cash outflows in the balance ledger, then rebuilds all account
               snapshots. Run this once after the investment cash flow refactor
@@ -117,9 +121,11 @@ async function runZeroCostMigration() {
             </div>
           </div>
 
-          <div class="flex flex-col gap-1 p-4 border rounded-md border-surface">
+          <div
+            class="flex flex-column gap-1 p-3 border-1 border-round-md surface-border"
+          >
             <div style="font-weight: bold">Correct Fee Accounting</div>
-            <div class="text-sm text-muted-color">
+            <div class="text-sm text-color-secondary">
               One-time correction for stock/ETF buy trades. Fixes
               <code>value_at_buy</code> from <code>qty*price-fee</code> to
               <code>qty*price+fee</code>, recalculates asset aggregates and
@@ -136,9 +142,11 @@ async function runZeroCostMigration() {
             </div>
           </div>
 
-          <div class="flex flex-col gap-1 p-4 border rounded-md border-surface">
+          <div
+            class="flex flex-column gap-1 p-3 border-1 border-round-md surface-border"
+          >
             <div style="font-weight: bold">Zero-Cost Trade Migration</div>
-            <div class="text-sm text-muted-color">
+            <div class="text-sm text-color-secondary">
               Migrates all buy trades with a zero price per unit to investment
               income. Crypto assets are classified as staking rewards;
               stocks/ETFs as dividends.

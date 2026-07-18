@@ -1,5 +1,5 @@
 // Styles
-import "./style/tailwind.css";
+import "../node_modules/primeflex/primeflex.css";
 import "./style/global.scss";
 import "./style/overrride.scss";
 
@@ -36,7 +36,7 @@ app.use(PrimeVue, {
   ripple: true,
   pt: {
     panel: {
-      root: { class: "rounded-xl" },
+      root: { class: "border-round-xl" },
     },
   },
 });

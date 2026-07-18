@@ -68,7 +68,7 @@ function iconClass(field: string | null): string | null {
         padding: 0.65rem;
       "
     >
-      <div class="flex flex-row items-center gap-2">
+      <div class="flex flex-row align-items-center gap-2">
         <div
           v-if="iconClass(filter.field)"
           v-tooltip="filter.field"
@@ -104,7 +104,7 @@ function iconClass(field: string | null): string | null {
           }}
         </div>
         <div
-          class="flex items-center justify-center"
+          class="flex align-items-center justify-content-center"
           @click="clearFilter(filter.originalIndex)"
         >
           <i

@@ -185,7 +185,7 @@ defineExpose({ isDisabled, transferInvestmentTrades });
 
 <template>
   <div
-    class="flex flex-col w-full justify-center items-center text-center gap-4"
+    class="flex flex-column w-full justify-content-center align-items-center text-center gap-3"
   >
     <h3>Import your investment trade data</h3>
     <span class="text-sm" style="color: var(--text-secondary)"
@@ -210,7 +210,7 @@ defineExpose({ isDisabled, transferInvestmentTrades });
       @clear="onClear"
     >
       <template #header="{ chooseCallback }">
-        <div class="flex flex-row w-full justify-center">
+        <div class="flex flex-row w-full justify-content-center">
           <Button
             class="outline-button"
             :disabled="transfering"
@@ -223,14 +223,14 @@ defineExpose({ isDisabled, transferInvestmentTrades });
       <template #content>
         <div
           v-if="selectedFiles.length > 0"
-          class="flex flex-col gap-1 w-full items-center"
+          class="flex flex-column gap-1 w-full align-items-center"
         >
           <h5>Pending</h5>
           <div class="flex flex-wrap gap-2 w-full">
             <div
               v-for="file in selectedFiles"
               :key="file.name + file.type + file.size"
-              class="flex flex-row gap-2 p-1 w-full justify-center items-center w-full"
+              class="flex flex-row gap-2 p-1 w-full justify-content-center align-items-center w-full"
             >
               <span
                 class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden"
@@ -251,14 +251,16 @@ defineExpose({ isDisabled, transferInvestmentTrades });
 
     <div
       v-if="!fileValidated"
-      class="flex flex-col w-full justify-center items-center gap-4"
+      class="flex flex-column w-full justify-content-center align-items-center gap-3"
     >
       <span style="color: var(--text-secondary)">
         Once you have uploaded a document, it needs to be validated.
       </span>
-      <div class="flex flex-row gap-2 items-center w-full justify-center gap-4">
+      <div
+        class="flex flex-row gap-2 align-items-center w-full justify-content-center gap-3"
+      >
         <Button
-          class="main-button w-3/12"
+          class="main-button w-3"
           :disabled="selectedFiles.length === 0 || investmentAccs.length == 0"
           label="Validate"
           @click="() => validateFile('investment_trades')"
@@ -269,7 +271,7 @@ defineExpose({ isDisabled, transferInvestmentTrades });
     <div v-if="validatedResponse">
       <div
         v-if="!transfering"
-        class="flex flex-col w-full gap-4 justify-center items-center"
+        class="flex flex-column w-full gap-3 justify-content-center align-items-center"
       >
         <span>---</span>
 
@@ -277,7 +279,9 @@ defineExpose({ isDisabled, transferInvestmentTrades });
         <span class="text-sm" style="color: var(--text-secondary)"
           >General information about your import.</span
         >
-        <div class="flex flex-row w-full gap-2 items-center justify-center">
+        <div
+          class="flex flex-row w-full gap-2 align-items-center justify-content-center"
+        >
           <span>Trade count: </span>
           <span>{{ validatedResponse.filtered_count }} </span>
         </div>
@@ -287,7 +291,7 @@ defineExpose({ isDisabled, transferInvestmentTrades });
         <h4>Ticker mappings</h4>
         <div
           v-if="validatedResponse.filtered_count > 0"
-          class="flex flex-row w-full gap-4 items-center"
+          class="flex flex-row w-full gap-3 align-items-center"
         >
           <ImportTransferMapping
             v-model:model-value="investmentMappings"

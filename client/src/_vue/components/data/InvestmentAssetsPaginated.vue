@@ -124,7 +124,7 @@ defineExpose({ refresh });
 
 <template>
   <div
-    class="flex flex-col w-full rounded-2xl"
+    class="flex flex-column w-full border-round-2xl"
     style="
       padding: 0.25rem 0.25rem 0 0.25rem;
       border: 1px solid var(--border-color);
@@ -173,7 +173,7 @@ defineExpose({ refresh });
         </template>
         <template #body="{ data }">
           <template v-if="col.field === 'average_buy_price'">
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <span>{{
                 vueHelper.displayAssetPrice(
                   data.average_buy_price,
@@ -191,14 +191,14 @@ defineExpose({ refresh });
               )
             "
           >
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <span>{{
                 vueHelper.displayAsCurrency(data[col.field], data["currency"])
               }}</span>
             </div>
           </template>
           <template v-else-if="col.field == 'profit_loss'">
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <i
                 class="text-xs"
                 :class="
@@ -216,12 +216,12 @@ defineExpose({ refresh });
             </div>
           </template>
           <template v-else-if="col.field === 'account'">
-            <div class="flex flex-row gap-2 items-center account-row">
+            <div class="flex flex-row gap-2 align-items-center account-row">
               {{ data[col.field]?.["name"] }}
             </div>
           </template>
           <template v-else-if="col.field === 'ticker'">
-            <div class="flex flex-row gap-2 items-center account-row">
+            <div class="flex flex-row gap-2 align-items-center account-row">
               <span class="hover" @click="$emit('updateAsset', data.id)">
                 {{ data[col.field] }}
               </span>

@@ -77,7 +77,7 @@ function toDate(v: unknown): Date | null {
 </script>
 
 <template>
-  <div class="flex flex-col gap-2 w-full">
+  <div class="flex flex-column gap-2 w-full">
     <div class="flex flex-row w-full">
       <IftaLabel class="w-full">
         <DatePicker
@@ -96,7 +96,7 @@ function toDate(v: unknown): Date | null {
       </IftaLabel>
     </div>
 
-    <div class="flex flex-row w-full gap-1 items-center">
+    <div class="flex flex-row w-full gap-1 align-items-center">
       <Checkbox v-model="isRange" :binary="true" input-id="range-picker" />
       <label for="range-picker">Range</label>
     </div>

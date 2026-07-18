@@ -101,12 +101,14 @@ function handleMenuClick(item: ProfileMenuItem) {
   <NotesSideBar ref="notesRef" />
   <aside
     v-if="authStore.authenticated && authStore.isValidated"
-    class="flex flex-col overflow-hidden h-screen fixed left-0 top-0"
+    class="flex flex-column overflow-hidden h-screen fixed left-0 top-0"
     style="width: 80px; color: var(--text-primary); padding: 1rem 0"
   >
-    <div class="logo-section flex items-center justify-center mb-2 p-1">
+    <div
+      class="logo-section flex align-items-center justify-content-center mb-2 p-1"
+    >
       <div
-        class="flex items-center justify-center"
+        class="flex align-items-center justify-content-center"
         style="
           width: 32px;
           height: 32px;
@@ -123,12 +125,12 @@ function handleMenuClick(item: ProfileMenuItem) {
       </div>
     </div>
 
-    <div class="menu flex flex-col h-full">
+    <div class="menu flex flex-column h-full">
       <router-link
         v-for="(item, index) in visibleMenuItems"
         :key="index"
         :to="item.to"
-        class="flex flex-col items-center p-1"
+        class="flex flex-column align-items-center p-1"
         style="
           text-decoration: none;
           transition: all 0.2s ease;
@@ -145,7 +147,7 @@ function handleMenuClick(item: ProfileMenuItem) {
 
       <div
         id="user-menu-trigger"
-        class="flex flex-col items-center p-1 rounded-lg mt-auto"
+        class="flex flex-column align-items-center p-1 border-round-lg mt-auto"
         style="
           transition: all 0.2s ease;
           cursor: pointer;
@@ -154,7 +156,7 @@ function handleMenuClick(item: ProfileMenuItem) {
         @click="toggleProfileMenu($event)"
       >
         <div
-          class="flex items-center justify-center font-bold text-sm mb-1"
+          class="flex align-items-center justify-content-center font-bold text-sm mb-1"
           style="
             width: 32px;
             height: 32px;
@@ -180,11 +182,11 @@ function handleMenuClick(item: ProfileMenuItem) {
     <Popover ref="profileMenuRef">
       <div style="padding: 1rem">
         <div
-          class="flex items-center gap-4 pb-1 mb-2"
+          class="flex align-items-center gap-3 pb-1 mb-2"
           style="border-bottom: 1px solid var(--border-color)"
         >
           <div
-            class="flex items-center justify-center text-sm font-bold"
+            class="flex align-items-center justify-content-center text-sm font-bold"
             style="
               width: 40px;
               height: 40px;
@@ -214,12 +216,12 @@ function handleMenuClick(item: ProfileMenuItem) {
           </div>
         </div>
 
-        <div class="flex flex-col gap-1 p-1">
+        <div class="flex flex-column gap-1 p-1">
           <div
             v-for="item in visibleProfileMenuItems"
             id="profileMenuItem"
             :key="item.text"
-            class="flex items-center gap-2 p-1 rounded-md"
+            class="flex align-items-center gap-2 p-1 border-round-md"
             :style="`cursor: pointer; transition: all 0.2s ease; color: ${item.danger ? '#ef4444' : 'var(--text-primary)'}`"
             @click="handleMenuClick(item)"
           >
@@ -234,7 +236,7 @@ function handleMenuClick(item: ProfileMenuItem) {
 
 <style scoped lang="scss">
 .menu {
-  gap: 0.25rem;
+  gap: 1rem;
   padding: 0 0.5rem;
 }
 

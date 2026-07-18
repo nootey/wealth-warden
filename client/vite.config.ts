@@ -3,7 +3,6 @@ import { defineConfig, loadEnv } from "vite";
 import vue from "@vitejs/plugin-vue";
 import Components from "unplugin-vue-components/vite";
 import { PrimeVueResolver } from "@primevue/auto-import-resolver";
-import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -17,7 +16,6 @@ export default defineConfig(({ mode }) => {
       Components({
         resolvers: [PrimeVueResolver()],
       }),
-      tailwindcss(),
     ],
     build: {
       chunkSizeWarningLimit: 800,
@@ -26,6 +24,7 @@ export default defineConfig(({ mode }) => {
           manualChunks(id) {
             if (
               id.includes("node_modules/chart.js") ||
+              id.includes("node_modules/vue-chart-3") ||
               id.includes("node_modules/chartjs-") ||
               id.includes("node_modules/date-fns")
             ) {

@@ -28,7 +28,7 @@ const goToPage = (page: number) => {
 <template>
   <div
     v-if="totalPages > 1"
-    class="flex flex-row items-center justify-center gap-4 p-2"
+    class="flex flex-row align-items-center justify-content-center gap-3 p-2"
   >
     <i
       class="pi pi-chevron-left text-sm"

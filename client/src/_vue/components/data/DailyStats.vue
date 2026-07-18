@@ -36,19 +36,19 @@ async function loadStats() {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-col p-2 gap-2">
+  <div v-if="!loading" class="flex flex-column p-2 gap-2">
     <span class="mobile-hide" style="color: var(--text-secondary)"
       >View your daily spending activity.</span
     >
-    <div v-if="dailyStats" class="flex flex-col mt-2">
-      <div class="flex flex-col w-full gap-2">
-        <div class="flex flex-row gap-2 items-center">
+    <div v-if="dailyStats" class="flex flex-column mt-2">
+      <div class="flex flex-column w-full gap-2">
+        <div class="flex flex-row gap-2 align-items-center">
           <span>Inflows:</span>
           <span
             ><b>{{ vueHelper.displayAsCurrency(dailyStats?.inflow!) }}</b></span
           >
         </div>
-        <div class="flex flex-row gap-2 items-center">
+        <div class="flex flex-row gap-2 align-items-center">
           <span>Outflows:</span>
           <span
             ><b>{{

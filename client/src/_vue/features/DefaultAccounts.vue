@@ -95,9 +95,9 @@ async function handleEmit(type: string) {
     />
   </Dialog>
 
-  <div class="w-full flex flex-col gap-2">
-    <div class="flex flex-row justify-between items-center gap-4">
-      <div class="w-full flex flex-col gap-2">
+  <div class="w-full flex flex-column gap-2">
+    <div class="flex flex-row justify-content-between align-items-center gap-3">
+      <div class="w-full flex flex-column gap-2">
         <h3>Default accounts</h3>
         <h5 style="color: var(--text-secondary)">
           Define default accounts for each account. This might help optimize
@@ -105,10 +105,10 @@ async function handleEmit(type: string) {
         </h5>
       </div>
       <Button
-        class="main-button w-4/12"
+        class="main-button w-4"
         @click="manipulateDialog('insertDefault', true)"
       >
-        <div class="flex flex-row gap-1 items-center">
+        <div class="flex flex-row gap-1 align-items-center">
           <i class="pi pi-plus" />
           <span class="mobile-hide"> New default </span>
         </div>
@@ -117,7 +117,7 @@ async function handleEmit(type: string) {
   </div>
 
   <div
-    class="flex-1 w-full rounded-md overflow-y-auto"
+    class="flex-1 w-full border-round-md overflow-y-auto"
     :style="{ maxWidth: '1000px' }"
   >
     <template v-if="loading">
@@ -126,9 +126,11 @@ async function handleEmit(type: string) {
 
     <div
       v-else-if="accounts.length === 0"
-      class="flex flex-row p-2 w-full justify-center"
+      class="flex flex-row p-2 w-full justify-content-center"
     >
-      <div class="flex flex-col gap-2 justify-center items-center">
+      <div
+        class="flex flex-column gap-2 justify-content-center align-items-center"
+      >
         <i
           style="color: var(--text-secondary)"
           class="pi pi-eye-slash text-4xl"
@@ -139,17 +141,17 @@ async function handleEmit(type: string) {
 
     <div
       v-else
-      class="w-full p-4 mb-2 rounded-md"
+      class="w-full p-3 mb-2 border-round-md"
       style="background: var(--background-primary)"
     >
       <div
         v-for="(account, i) in accounts"
         :key="account.id ?? i"
-        class="account-row flex items-center justify-between p-2 rounded-md mt-1"
+        class="account-row flex align-items-center justify-content-between p-2 border-round-md mt-1"
       >
-        <div class="flex items-center">
+        <div class="flex align-items-center">
           <div
-            class="flex items-center justify-center font-bold"
+            class="flex align-items-center justify-content-center font-bold"
             :style="{
               width: '32px',
               height: '32px',
@@ -174,7 +176,7 @@ async function handleEmit(type: string) {
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex align-items-center gap-2">
           <i
             class="pi pi-trash hover-icon"
             style="color: var(--p-red-300)"

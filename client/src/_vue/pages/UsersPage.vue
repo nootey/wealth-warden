@@ -18,6 +18,7 @@ const updateModal = ref(false);
 const updateUserID = ref(null);
 
 const usrRef = ref<InstanceType<typeof UsersPaginated> | null>(null);
+const invRef = ref<InstanceType<typeof InvitationsPaginated> | null>(null);
 
 const roles = computed<Role[]>(() => userStore.roles);
 const activeTab = ref("users");
@@ -98,14 +99,16 @@ async function handleEmit(emitType: any) {
     />
   </Dialog>
 
-  <main class="flex flex-col w-full items-center">
+  <main class="flex flex-column w-full align-items-center">
     <div
       id="mobile-container"
-      class="flex flex-col justify-center w-full gap-4 rounded-xl"
+      class="flex flex-column justify-content-center w-full gap-3 border-round-xl"
     >
-      <div class="w-full flex flex-row justify-between p-1 gap-2 items-center">
-        <div class="w-full flex flex-col gap-2">
-          <div class="flex flex-row gap-2 items-center w-full">
+      <div
+        class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
+      >
+        <div class="w-full flex flex-column gap-2">
+          <div class="flex flex-row gap-2 align-items-center w-full">
             <div style="font-weight: bold">Management</div>
             <i
               v-if="hasPermission('manage_roles')"
@@ -120,7 +123,7 @@ async function handleEmit(emitType: any) {
           class="main-button"
           @click="manipulateDialog('inviteUser', true)"
         >
-          <div class="flex flex-row gap-1 items-center">
+          <div class="flex flex-row gap-1 align-items-center">
             <i class="pi pi-plus" />
             <span> New </span>
             <span class="mobile-hide"> Invitation </span>
@@ -128,7 +131,7 @@ async function handleEmit(emitType: any) {
         </Button>
       </div>
 
-      <div class="flex flex-row gap-4 p-2">
+      <div class="flex flex-row gap-3 p-2">
         <div
           class="cursor-pointer pb-1"
           style="color: var(--text-secondary)"
@@ -159,7 +162,7 @@ async function handleEmit(emitType: any) {
         <div
           v-if="activeTab === 'users'"
           key="users"
-          class="flex flex-col justify-center w-full gap-4"
+          class="flex flex-column justify-content-center w-full gap-3"
         >
           <Panel :collapsed="false" header="Users">
             <div id="mobile-row" class="flex flex-row w-full">
@@ -174,7 +177,7 @@ async function handleEmit(emitType: any) {
         <div v-else key="invitations" class="w-full">
           <Panel :collapsed="false" header="Invitations">
             <div class="flex flex-row gap-2 w-full">
-              <InvitationsPaginated />
+              <InvitationsPaginated ref="invRef" />
             </div>
           </Panel>
         </div>

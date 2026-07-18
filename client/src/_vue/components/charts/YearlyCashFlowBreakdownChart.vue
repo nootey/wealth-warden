@@ -191,19 +191,19 @@ const chartOptions = computed(() => ({
     x: {
       type: "category",
       stacked: true,
-      grid: { display: false },
+      grid: { display: false, drawBorder: false },
       ticks: { color: colors.value.axisText, maxRotation: 0, minRotation: 0 },
-      border: { display: false, color: colors.value.axisBorder },
+      border: { color: colors.value.axisBorder },
     },
     y: {
       stacked: true,
-      grid: { display: false },
+      grid: { display: false, drawBorder: false },
       ticks: {
         display: !props.isMobile,
         color: colors.value.axisText,
         callback: (v: number) => vueHelper.displayAsCurrency(v),
       },
-      border: { display: false, color: colors.value.axisBorder },
+      border: { color: colors.value.axisBorder },
     },
   },
 }));
@@ -239,7 +239,7 @@ function toNumber(v: string | string[] | undefined): number {
   />
   <div
     v-else
-    class="flex flex-col items-center justify-center mt-4 p-4 w-6/12"
+    class="flex flex-column align-items-center justify-content-center mt-3 p-3 w-6"
     style="
       border: 1px dashed var(--border-color);
       border-radius: 16px;

@@ -207,7 +207,7 @@ defineExpose({ isDisabled, transferInvestments });
 <template>
   <div
     v-if="!transfering"
-    class="flex flex-col w-full justify-center items-center gap-4"
+    class="flex flex-column w-full justify-content-center align-items-center gap-3"
   >
     <h3>Map investments from imported data</h3>
     <span>Select import</span>
@@ -220,20 +220,24 @@ defineExpose({ isDisabled, transferInvestments });
       option-label="name"
       placeholder="Select import"
     />
-    <div v-if="loadingValidation" class="flex flex-col w-full p-2">
+    <div v-if="loadingValidation" class="flex flex-column w-full p-2">
       <ShowLoading :num-fields="5" />
     </div>
     <div
       v-else-if="validatedResponse && validatedResponse.filtered_count == 0"
-      class="flex flex-col w-full p-2 items-center"
+      class="flex flex-column w-full p-2 align-items-center"
     >
       <span style="color: var(--text-secondary)"
         >No investments were found in the provided import!</span
       >
     </div>
     <div v-else-if="validatedResponse">
-      <div class="flex flex-col w-full gap-4 justify-center items-center">
-        <div class="flex flex-col w-full gap-2 items-center justify-center">
+      <div
+        class="flex flex-column w-full gap-3 justify-content-center align-items-center"
+      >
+        <div
+          class="flex flex-column w-full gap-2 align-items-center justify-content-center"
+        >
           <span class="text-sm" style="color: var(--text-secondary)"
             >Select an account which will receive the import transactions.</span
           >
@@ -264,7 +268,9 @@ defineExpose({ isDisabled, transferInvestments });
         <span class="text-sm" style="color: var(--text-secondary)"
           >General information about your import.</span
         >
-        <div class="flex flex-row w-full gap-2 items-center justify-center">
+        <div
+          class="flex flex-row w-full gap-2 align-items-center justify-content-center"
+        >
           <span>Transfer count: </span>
           <span>{{ validatedResponse.filtered_count }} </span>
         </div>
@@ -274,7 +280,7 @@ defineExpose({ isDisabled, transferInvestments });
         <h4>Investment mappings</h4>
         <div
           v-if="validatedResponse.filtered_count > 0"
-          class="flex flex-row w-full gap-4 items-center"
+          class="flex flex-row w-full gap-3 align-items-center"
         >
           <ImportTransferMapping
             v-model:model-value="investmentMappings"
@@ -287,7 +293,7 @@ defineExpose({ isDisabled, transferInvestments });
     </div>
     <div
       v-else-if="!selectedImport"
-      class="flex flex-col w-full p-2 w-full items-center"
+      class="flex flex-column w-full p-2 w-full align-items-center"
     >
       <span style="color: var(--text-secondary)"
         >Please select an import to begin.</span

@@ -16,10 +16,10 @@ const displayMessage = computed(() => {
 
 <template>
   <div
-    class="flex flex-row items-center gap-1"
+    class="flex flex-row align-items-center gap-1"
     :class="[isDisplayed ? 'invalid' : '']"
   >
-    <div class="flex flex-col label items-center">
+    <div class="flex flex-column label align-items-center">
       <slot />
     </div>
     <small v-show="!isDisplayed && props.isRequired" class="invalid disclaimer">

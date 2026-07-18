@@ -132,14 +132,14 @@ async function submit(): Promise<void> {
 
 <template>
   <div
-    class="flex flex-col gap-4 p-4 rounded-xl"
+    class="flex flex-column gap-3 p-3 border-round-xl"
     style="
       background-color: var(--background-secondary);
       border: 1px solid var(--border-color);
     "
   >
-    <div class="flex flex-row w-full gap-4">
-      <div v-if="isStaking" class="flex flex-col gap-1 w-full">
+    <div class="flex flex-row w-full gap-3">
+      <div v-if="isStaking" class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.record.quantity.$errors[0]?.$message"
@@ -155,7 +155,7 @@ async function submit(): Promise<void> {
           placeholder="0"
         />
       </div>
-      <div v-if="!isStaking" class="flex flex-col gap-1 w-full">
+      <div v-if="!isStaking" class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.record.amount.$errors[0]?.$message"
@@ -173,8 +173,8 @@ async function submit(): Promise<void> {
       </div>
     </div>
 
-    <div class="flex flex-row w-full gap-4">
-      <div class="flex flex-col gap-1 w-6/12">
+    <div class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
         <ValidationError
           :is-required="true"
           :message="v$.record.txn_date.$errors[0]?.$message"
@@ -188,7 +188,7 @@ async function submit(): Promise<void> {
           show-icon
         />
       </div>
-      <div v-if="!isStaking" class="flex flex-col gap-1 w-6/12">
+      <div v-if="!isStaking" class="flex flex-column gap-1 w-6">
         <ValidationError :is-required="false" :message="undefined">
           <label>Tax withheld</label>
         </ValidationError>
@@ -201,7 +201,7 @@ async function submit(): Promise<void> {
           placeholder="0,00"
         />
       </div>
-      <div v-if="isStaking" class="flex flex-col gap-1 w-6/12">
+      <div v-if="isStaking" class="flex flex-column gap-1 w-6">
         <ValidationError
           :is-required="false"
           :message="v$.record.notes.$errors[0]?.$message"
@@ -216,8 +216,8 @@ async function submit(): Promise<void> {
       </div>
     </div>
 
-    <div v-if="!isStaking" class="flex flex-row w-full gap-4">
-      <div class="flex flex-col gap-1 w-full">
+    <div v-if="!isStaking" class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="false"
           :message="v$.record.notes.$errors[0]?.$message"

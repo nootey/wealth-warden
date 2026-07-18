@@ -114,8 +114,8 @@ function login() {
 
 <template>
   <AuthSkeleton>
-    <div class="w-full mx-auto px-4 sm:px-0" style="max-width: 400px">
-      <div id="hideOnMobile" class="text-center mb-6">
+    <div class="w-full mx-auto px-3 sm:px-0" style="max-width: 400px">
+      <div id="hideOnMobile" class="text-center mb-4">
         <h2
           class="m-0 text-2xl sm:text-3xl font-bold"
           style="color: var(--text-primary); letter-spacing: -0.025em"
@@ -124,9 +124,9 @@ function login() {
         </h2>
       </div>
 
-      <div class="flex flex-col gap-4">
+      <div class="flex flex-column gap-3">
         <div class="flex flex-row w-full">
-          <div class="flex flex-col gap-1 w-full">
+          <div class="flex flex-column gap-1 w-full">
             <ValidationError
               :is-required="true"
               :message="v$.form.email.$errors[0]?.$message"
@@ -140,13 +140,13 @@ function login() {
               :placeholder="'Email'"
               :disabled="loading"
               :readonly="true"
-              class="w-full rounded-xl"
+              class="w-full border-round-xl"
             />
           </div>
         </div>
 
         <div class="flex flex-row w-full">
-          <div class="flex flex-col gap-1 w-full">
+          <div class="flex flex-column gap-1 w-full">
             <ValidationError
               :is-required="true"
               :message="v$.form.password.$errors[0]?.$message"
@@ -160,13 +160,13 @@ function login() {
               placeholder="New password"
               :disabled="loading"
               :readonly="loading"
-              class="w-full rounded-xl"
+              class="w-full border-round-xl"
             />
           </div>
         </div>
 
         <div class="flex flex-row w-full">
-          <div class="flex flex-col gap-1 w-full">
+          <div class="flex flex-column gap-1 w-full">
             <ValidationError
               :is-required="true"
               :message="v$.form.password_confirmation.$errors[0]?.$message"
@@ -178,7 +178,7 @@ function login() {
               v-model="form.password_confirmation"
               type="password"
               placeholder="Confirm new password"
-              class="w-full rounded-xl"
+              class="w-full border-round-xl"
               :disabled="loading"
               :readonly="loading"
               @keydown.enter="resetPassword"
@@ -195,7 +195,7 @@ function login() {
       </div>
 
       <div
-        class="flex items-center justify-center gap-2 mt-6 pt-4"
+        class="flex align-items-center justify-content-center gap-2 mt-4 pt-3"
         style="border-top: 1px solid var(--border-color)"
       >
         <span class="text-sm" style="color: var(--text-secondary)">

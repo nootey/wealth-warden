@@ -128,15 +128,15 @@ function clearAll() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-1 w-full">
-    <div class="flex flex-col items-center w-full">
+  <div class="flex flex-column gap-1 w-full">
+    <div class="flex flex-column align-items-center w-full">
       <div class="flex flex-row">
         <span style="color: var(--text-secondary)">
           These are the distinct categories. Map them to existing ones. If none
           selected, default will be used.
         </span>
       </div>
-      <div class="flex flex-row gap-4">
+      <div class="flex flex-row gap-3">
         <Button
           size="small"
           class="delete-button"
@@ -163,7 +163,7 @@ function clearAll() {
     >
       <Column header="Imported">
         <template #body="{ data }">
-          <div class="flex items-center gap-2">
+          <div class="flex align-items-center gap-2">
             {{ data.name }}
           </div>
         </template>
@@ -196,7 +196,7 @@ function clearAll() {
                   "Select category"
                 }}
               </span>
-              <span v-else class="text-muted-color">
+              <span v-else class="text-color-secondary">
                 {{
                   defaultCategory
                     ? `Default: ${defaultCategory.display_name || defaultCategory.name}`
@@ -206,9 +206,9 @@ function clearAll() {
             </template>
 
             <template #option="opt">
-              <div class="flex justify-between w-full">
+              <div class="flex justify-content-between w-full">
                 <span>{{ opt.option.label }}</span>
-                <small class="text-muted-color">
+                <small class="text-color-secondary">
                   {{ opt.option.meta.classification }}
                 </small>
               </div>

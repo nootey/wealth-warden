@@ -26,7 +26,7 @@ async function exportData() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-column gap-3">
     <h3>Export your data</h3>
     <span
       >This will create a downloadable snapshot of your accounts, transactions,
@@ -34,7 +34,7 @@ async function exportData() {
     >
     <span>A zip file will be created for the seperate exported modules.</span>
     <Button
-      class="main-button w-3/12"
+      class="main-button w-3"
       label="Export"
       :disabled="exporting"
       :icon="exporting ? 'pi pi-spinner pi-spin' : ''"

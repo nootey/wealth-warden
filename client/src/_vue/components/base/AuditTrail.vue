@@ -57,7 +57,7 @@ onMounted(async () => {
 
 <template>
   <Panel header="Audit trail" toggleable collapsed class="w-full">
-    <div class="flex flex-col gap-2 w-full">
+    <div class="flex flex-column gap-2 w-full">
       <span class="text-sm" style="color: var(--text-secondary)"
         >Ordered from latest to oldest.</span
       >
@@ -67,7 +67,7 @@ onMounted(async () => {
       <div v-else-if="trail.length === 0">
         <p>No audit trail found</p>
       </div>
-      <div v-else class="flex flex-col w-full">
+      <div v-else class="flex flex-column w-full">
         <div v-for="(log, i) in trail" :key="i">
           <span
             class="ml-2 font-semibold text-sm w-full"
@@ -75,7 +75,7 @@ onMounted(async () => {
           >
             {{ "Log #" + (i + 1) + ":" }}
           </span>
-          <div class="flex flex-col w-full p-1">
+          <div class="flex flex-column w-full p-1">
             <div class="text-sm">
               Timestamp: {{ dateHelper.formatDate(log.created_at, true) }}
             </div>
@@ -83,7 +83,7 @@ onMounted(async () => {
             <div class="text-sm">Payload:</div>
             <div
               v-if="log?.metadata"
-              class="truncate-text ml-4"
+              class="truncate-text ml-3"
               style="max-width: 50rem; color: var(--text-secondary)"
             >
               <div

@@ -128,9 +128,9 @@ defineExpose({ v$, localTransfer });
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-col gap-4">
+  <div v-if="!loading" class="flex flex-column gap-3">
     <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.localTransfer.source.$errors[0]?.$message"
@@ -152,7 +152,7 @@ defineExpose({ v$, localTransfer });
     </div>
 
     <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.localTransfer.destination.$errors[0]?.$message"
@@ -174,7 +174,7 @@ defineExpose({ v$, localTransfer });
     </div>
 
     <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.localTransfer.amount.$errors[0]?.$message"
@@ -193,7 +193,7 @@ defineExpose({ v$, localTransfer });
     </div>
 
     <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.localTransfer.created_at.$errors[0]?.$message"
@@ -212,7 +212,7 @@ defineExpose({ v$, localTransfer });
     </div>
 
     <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="false"
           :message="v$.localTransfer.notes.$errors[0]?.$message"

@@ -153,21 +153,22 @@ const getDiffColor = (diff: number) => {
 </script>
 
 <template>
-  <div v-if="breakdownStats" class="w-full flex flex-col gap-4 p-4">
-    <div class="flex flex-row gap-4 w-full justify-between items-center">
-      <div class="mobile-hide flex flex-col gap-2 flex-1">
+  <div v-if="breakdownStats" class="w-full flex flex-column gap-3 p-3">
+    <div
+      class="flex flex-row gap-3 w-full justify-content-between align-items-center"
+    >
+      <div class="mobile-hide flex flex-column gap-2 flex-1">
         <span class="text-sm" style="color: var(--text-secondary)">
           Select year and optional comparison year
         </span>
       </div>
 
-      <div id="year-row" class="flex flex-row gap-2">
-        <div class="flex flex-col gap-1">
+      <div class="flex flex-row gap-2">
+        <div class="flex flex-column gap-1">
           <label class="text-xs" style="color: var(--text-secondary)"
             >Year</label
           >
           <Select
-            id="year-select"
             v-model="selectedYear"
             size="small"
             style="width: 150px"
@@ -175,12 +176,11 @@ const getDiffColor = (diff: number) => {
           />
         </div>
 
-        <div class="flex flex-col gap-1">
+        <div class="flex flex-column gap-1">
           <label class="text-xs" style="color: var(--text-secondary)"
             >Compare to</label
           >
           <Select
-            id="year-select"
             v-model="selectedComparisonYear"
             size="small"
             style="width: 150px"
@@ -194,15 +194,15 @@ const getDiffColor = (diff: number) => {
 
     <div
       v-if="!accID"
-      class="flex flex-row gap-2 w-full justify-between items-center"
+      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
     >
-      <div class="mobile-hide flex flex-col gap-2 w-full">
+      <div class="mobile-hide flex flex-column gap-2 w-full">
         <span class="text-sm" style="color: var(--text-secondary)">
           Select checking account for cash flow analysis
         </span>
       </div>
 
-      <div id="wide" class="flex flex-col gap-2">
+      <div id="wide" class="flex flex-column gap-2">
         <Select
           id="wide"
           v-model="selectedAccountID"
@@ -220,7 +220,7 @@ const getDiffColor = (diff: number) => {
             <span v-else>All accounts</span>
           </template>
           <template #option="slotProps">
-            <div class="flex flex-col">
+            <div class="flex flex-column">
               <span class="font-semibold">{{ slotProps.option.name }}</span>
               <span class="text-xs" style="color: var(--text-secondary)">
                 {{
@@ -236,8 +236,8 @@ const getDiffColor = (diff: number) => {
     </div>
 
     <ShowLoading v-if="isLoading" :num-fields="5" />
-    <div v-else id="stats-container" class="flex flex-row gap-6 w-full">
-      <div class="flex flex-col gap-4 flex-1">
+    <div v-else id="stats-container" class="flex flex-row gap-4 w-full">
+      <div class="flex flex-column gap-3 flex-1">
         <h4 style="color: var(--text-primary)">
           {{ breakdownStats.current_year.year }}
           <span
@@ -250,7 +250,7 @@ const getDiffColor = (diff: number) => {
         </h4>
 
         <div
-          class="flex flex-col gap-2 p-4"
+          class="flex flex-column gap-2 p-3"
           style="background: var(--surface-50); border-radius: 8px"
         >
           <span
@@ -259,9 +259,9 @@ const getDiffColor = (diff: number) => {
             >Cash Flow</span
           >
 
-          <div class="flex flex-row justify-between mobile-small">
+          <div class="flex flex-row justify-content-between mobile-small">
             <span>Total Inflows:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(breakdownStats.current_year.inflow)
               }}</b>
@@ -296,9 +296,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between mobile-small">
+          <div class="flex flex-row justify-content-between mobile-small">
             <span>Total Outflows:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   Math.abs(Number(breakdownStats.current_year.outflow)),
@@ -335,9 +335,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between mobile-small">
+          <div class="flex flex-row justify-content-between mobile-small">
             <span>Avg Monthly Inflows:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   breakdownStats.current_year.avg_monthly_inflow,
@@ -374,9 +374,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between mobile-small">
+          <div class="flex flex-row justify-content-between mobile-small">
             <span>Avg Monthly Outflows:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   Math.abs(
@@ -417,7 +417,7 @@ const getDiffColor = (diff: number) => {
         </div>
 
         <div
-          class="flex flex-col gap-2 p-4"
+          class="flex flex-column gap-2 p-3"
           style="background: var(--surface-50); border-radius: 8px"
         >
           <span
@@ -426,9 +426,9 @@ const getDiffColor = (diff: number) => {
             >Allocations</span
           >
 
-          <div class="flex flex-row justify-between mobile-small">
+          <div class="flex flex-row justify-content-between mobile-small">
             <span>Savings:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   breakdownStats.current_year.savings_allocated,
@@ -468,9 +468,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between mobile-small">
+          <div class="flex flex-row justify-content-between mobile-small">
             <span>Investments:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   breakdownStats.current_year.investment_allocated,
@@ -510,9 +510,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between mobile-small">
+          <div class="flex flex-row justify-content-between mobile-small">
             <span>Debt Payments:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   breakdownStats.current_year.debt_allocated,
@@ -554,7 +554,7 @@ const getDiffColor = (diff: number) => {
         </div>
 
         <div
-          class="flex flex-col gap-2 p-4"
+          class="flex flex-column gap-2 p-3"
           style="background: var(--surface-50); border-radius: 8px"
         >
           <span
@@ -563,9 +563,9 @@ const getDiffColor = (diff: number) => {
             >Net Position</span
           >
 
-          <div class="flex flex-row justify-between mobile-small">
+          <div class="flex flex-row justify-content-between mobile-small">
             <span>Take Home:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   breakdownStats.current_year.take_home,
@@ -602,9 +602,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between mobile-small">
+          <div class="flex flex-row justify-content-between mobile-small">
             <span>Overflow:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   Math.abs(Number(breakdownStats.current_year.overflow)),
@@ -641,9 +641,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between mobile-small">
+          <div class="flex flex-row justify-content-between mobile-small">
             <span>Avg Monthly Take Home:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   breakdownStats.current_year.avg_monthly_take_home,
@@ -680,9 +680,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between mobile-small">
+          <div class="flex flex-row justify-content-between mobile-small">
             <span>Avg Monthly Overflow:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   Math.abs(
@@ -726,7 +726,7 @@ const getDiffColor = (diff: number) => {
       <div
         v-if="breakdownStats.comparison_year"
         id="desktop-comparison"
-        class="flex flex-col gap-4 flex-1"
+        class="flex flex-column gap-3 flex-1"
       >
         <h4 style="color: var(--text-primary)">
           {{ breakdownStats.comparison_year.year }}
@@ -736,7 +736,7 @@ const getDiffColor = (diff: number) => {
         </h4>
 
         <div
-          class="flex flex-col gap-2 p-4"
+          class="flex flex-column gap-2 p-3"
           style="background: var(--surface-50); border-radius: 8px"
         >
           <span
@@ -745,9 +745,9 @@ const getDiffColor = (diff: number) => {
             >Cash Flow</span
           >
 
-          <div class="flex flex-row justify-between">
+          <div class="flex flex-row justify-content-between">
             <span>Total Inflows:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   breakdownStats.comparison_year.inflow,
@@ -783,9 +783,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between">
+          <div class="flex flex-row justify-content-between">
             <span>Total Outflows:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   Math.abs(Number(breakdownStats.comparison_year.outflow)),
@@ -821,9 +821,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between">
+          <div class="flex flex-row justify-content-between">
             <span>Avg Monthly Inflows:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   breakdownStats.comparison_year.avg_monthly_inflow,
@@ -859,9 +859,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between">
+          <div class="flex flex-row justify-content-between">
             <span>Avg Monthly Outflows:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   Math.abs(
@@ -901,7 +901,7 @@ const getDiffColor = (diff: number) => {
         </div>
 
         <div
-          class="flex flex-col gap-2 p-4"
+          class="flex flex-column gap-2 p-3"
           style="background: var(--surface-50); border-radius: 8px"
         >
           <span
@@ -910,9 +910,9 @@ const getDiffColor = (diff: number) => {
             >Allocations</span
           >
 
-          <div class="flex flex-row justify-between">
+          <div class="flex flex-row justify-content-between">
             <span>Savings:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   breakdownStats.comparison_year.savings_allocated,
@@ -951,9 +951,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between">
+          <div class="flex flex-row justify-content-between">
             <span>Investments:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   breakdownStats.comparison_year.investment_allocated,
@@ -992,9 +992,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between">
+          <div class="flex flex-row justify-content-between">
             <span>Debt Payments:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   breakdownStats.comparison_year.debt_allocated,
@@ -1035,7 +1035,7 @@ const getDiffColor = (diff: number) => {
         </div>
 
         <div
-          class="flex flex-col gap-2 p-4"
+          class="flex flex-column gap-2 p-3"
           style="background: var(--surface-50); border-radius: 8px"
         >
           <span
@@ -1044,9 +1044,9 @@ const getDiffColor = (diff: number) => {
             >Net Position</span
           >
 
-          <div class="flex flex-row justify-between">
+          <div class="flex flex-row justify-content-between">
             <span>Take Home:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   breakdownStats.comparison_year.take_home,
@@ -1082,9 +1082,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between">
+          <div class="flex flex-row justify-content-between">
             <span>Overflow:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   Math.abs(Number(breakdownStats.comparison_year.overflow)),
@@ -1120,9 +1120,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between">
+          <div class="flex flex-row justify-content-between">
             <span>Avg Monthly Take Home:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   breakdownStats.comparison_year.avg_monthly_take_home,
@@ -1158,9 +1158,9 @@ const getDiffColor = (diff: number) => {
             </div>
           </div>
 
-          <div class="flex flex-row justify-between">
+          <div class="flex flex-row justify-content-between">
             <span>Avg Monthly Overflow:</span>
-            <div class="flex flex-row gap-2 items-center">
+            <div class="flex flex-row gap-2 align-items-center">
               <b>{{
                 vueHelper.displayAsCurrency(
                   Math.abs(
@@ -1202,7 +1202,7 @@ const getDiffColor = (diff: number) => {
 
       <div
         v-else
-        class="flex flex-col gap-4 flex-1 justify-center items-center p-6"
+        class="flex flex-column gap-3 flex-1 justify-content-center align-items-center p-4"
         style="border: 1px dashed var(--border-color); border-radius: 8px"
       >
         <span class="text-sm" style="color: var(--text-secondary)">
@@ -1235,18 +1235,6 @@ const getDiffColor = (diff: number) => {
   }
 
   #wide {
-    width: 100% !important;
-  }
-
-  #year-row {
-    width: 100%;
-  }
-
-  #year-row > div {
-    flex: 1;
-  }
-
-  #year-select {
     width: 100% !important;
   }
 

@@ -26,7 +26,7 @@ watch(localSelectedValues, (newVal) => {
 </script>
 
 <template>
-  <div class="flex flex-col p-2 gap-4 justify-center">
+  <div class="flex flex-column p-2 gap-3 justify-content-center">
     <MultiSelect
       v-model="localSelectedValues"
       :option-label="optionLabel"

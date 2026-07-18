@@ -8,7 +8,7 @@ withDefaults(
 </script>
 
 <template>
-  <div class="w-full flex flex-col rounded-lg" :class="`panel--${bg}`">
+  <div class="w-full flex flex-column border-round-lg" :class="`panel--${bg}`">
     <Transition appear name="animate">
       <slot />
     </Transition>

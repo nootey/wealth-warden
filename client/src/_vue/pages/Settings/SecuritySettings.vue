@@ -188,10 +188,10 @@ async function updateSettings() {
 </script>
 
 <template>
-  <div class="flex flex-col w-full gap-4">
+  <div class="flex flex-column w-full gap-3">
     <SettingsSkeleton class="w-full">
-      <div class="w-full flex flex-col gap-4 p-2">
-        <div class="w-full flex flex-col gap-2">
+      <div class="w-full flex flex-column gap-3 p-2">
+        <div class="w-full flex flex-column gap-2">
           <h3>Account</h3>
           <h5 style="color: var(--text-secondary)">
             Customize how your account details.
@@ -200,10 +200,10 @@ async function updateSettings() {
 
         <div
           v-if="!loading && currentUser"
-          class="w-full flex flex-col gap-2 w-full"
+          class="w-full flex flex-column gap-2 w-full"
         >
           <div class="flex flex-row w-full">
-            <div class="flex flex-col w-full">
+            <div class="flex flex-column w-full">
               <ValidationError
                 :is-required="true"
                 :message="v$.currentUser.email.$errors[0]?.$message"
@@ -218,7 +218,7 @@ async function updateSettings() {
             </div>
           </div>
           <div class="flex flex-row w-full">
-            <div class="flex flex-col w-full">
+            <div class="flex flex-column w-full">
               <ValidationError
                 :is-required="true"
                 :message="v$.currentUser.display_name.$errors[0]?.$message"
@@ -233,7 +233,7 @@ async function updateSettings() {
             </div>
           </div>
           <div class="flex flex-row w-full">
-            <div class="flex flex-col gap-1 w-full">
+            <div class="flex flex-column gap-1 w-full">
               <ValidationError :message="v$.password.$errors[0]?.$message">
                 <label>New password</label>
               </ValidationError>
@@ -246,7 +246,7 @@ async function updateSettings() {
             </div>
           </div>
           <div class="flex flex-row w-full">
-            <div class="flex flex-col gap-1 w-full">
+            <div class="flex flex-column gap-1 w-full">
               <ValidationError
                 :message="v$.passwordConfirmation.$errors[0]?.$message"
               >
@@ -273,8 +273,8 @@ async function updateSettings() {
     </SettingsSkeleton>
 
     <SettingsSkeleton class="w-full">
-      <div class="w-full flex flex-col gap-4 p-2">
-        <div class="w-full flex flex-col gap-2">
+      <div class="w-full flex flex-column gap-3 p-2">
+        <div class="w-full flex flex-column gap-2">
           <h3>Sessions</h3>
           <h5 style="color: var(--text-secondary)">
             Devices currently signed in to your account. Revoking a session logs
@@ -282,14 +282,14 @@ async function updateSettings() {
           </h5>
         </div>
 
-        <div v-if="!sessionsLoading" class="w-full flex flex-col gap-4">
+        <div v-if="!sessionsLoading" class="w-full flex flex-column gap-3">
           <div
             v-for="session in sessions"
             :key="session.id"
-            class="w-full flex flex-row gap-4 items-center"
+            class="w-full flex flex-row gap-3 align-items-center"
           >
-            <div class="flex flex-col flex-1 gap-1">
-              <div class="flex flex-row items-center">
+            <div class="flex flex-column flex-1 gap-1">
+              <div class="flex flex-row align-items-center">
                 <span class="text-sm">{{ session.device }}</span>
                 <i
                   v-if="session.current"
@@ -326,8 +326,8 @@ async function updateSettings() {
     </SettingsSkeleton>
 
     <SettingsSkeleton class="w-full">
-      <div class="w-full flex flex-col gap-4 p-2">
-        <div class="w-full flex flex-col gap-2">
+      <div class="w-full flex flex-column gap-3 p-2">
+        <div class="w-full flex flex-column gap-2">
           <h3>Connection</h3>
           <h5 style="color: var(--text-secondary)">
             The live connection that delivers notifications and report updates
@@ -335,9 +335,9 @@ async function updateSettings() {
           </h5>
         </div>
 
-        <div class="w-full flex flex-col gap-2">
-          <div class="flex flex-row items-center gap-2">
-            <span class="text-sm w-40" style="color: var(--text-secondary)"
+        <div class="w-full flex flex-column gap-2">
+          <div class="flex flex-row align-items-center gap-2">
+            <span class="text-sm w-10rem" style="color: var(--text-secondary)"
               >Status</span
             >
             <Tag
@@ -346,15 +346,15 @@ async function updateSettings() {
             />
           </div>
 
-          <div class="flex flex-row items-center gap-2">
-            <span class="text-sm w-40" style="color: var(--text-secondary)"
+          <div class="flex flex-row align-items-center gap-2">
+            <span class="text-sm w-10rem" style="color: var(--text-secondary)"
               >Reconnect attempts</span
             >
             <span class="text-sm">{{ wsStore.attempts }}</span>
           </div>
 
-          <div v-if="isAdmin" class="flex flex-row items-center gap-2">
-            <span class="text-sm w-40" style="color: var(--text-secondary)"
+          <div v-if="isAdmin" class="flex flex-row align-items-center gap-2">
+            <span class="text-sm w-10rem" style="color: var(--text-secondary)"
               >Endpoint</span
             >
             <code class="text-sm">{{ endpoint }}</code>
@@ -393,34 +393,34 @@ async function updateSettings() {
     </SettingsSkeleton>
 
     <SettingsSkeleton class="w-full">
-      <div class="w-full flex flex-col gap-4 p-2">
-        <div class="w-full flex flex-col gap-2">
+      <div class="w-full flex flex-column gap-3 p-2">
+        <div class="w-full flex flex-column gap-2">
           <h3>Danger zone</h3>
           <h5 style="color: var(--text-secondary)">Tread carefully.</h5>
         </div>
 
-        <div class="w-full flex flex-row gap-4 items-center">
-          <div class="flex flex-col w-full">
+        <div class="w-full flex flex-row gap-3 align-items-center">
+          <div class="flex flex-column w-full">
             <h4>Reset account</h4>
             <h5 style="color: var(--text-secondary)">
               Resetting your account will delete all your accounts, categories,
               and other data, but keep your user account intact.
             </h5>
           </div>
-          <div class="flex flex-col w-3/12">
+          <div class="flex flex-column w-3">
             <Button size="small" label="Reset account" class="delete-button" />
           </div>
         </div>
 
-        <div class="w-full flex flex-row gap-4 items-center">
-          <div class="flex flex-col w-full">
+        <div class="w-full flex flex-row gap-3 align-items-center">
+          <div class="flex flex-column w-full">
             <h4>Delete account</h4>
             <h5 style="color: var(--text-secondary)">
               Deleting your account will permanently remove all your data and
               cannot be undone.
             </h5>
           </div>
-          <div class="flex flex-col w-3/12">
+          <div class="flex flex-column w-3">
             <Button size="small" label="Delete account" class="delete-button" />
           </div>
         </div>

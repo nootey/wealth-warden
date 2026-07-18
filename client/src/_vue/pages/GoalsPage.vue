@@ -271,7 +271,7 @@ const onTrackBreakdown = computed(() => {
     position="top"
   >
     <template #header>
-      <div class="flex flex-col gap-1">
+      <div class="flex flex-column gap-1">
         <div class="font-bold">{{ selectedGoal?.name }}</div>
         <div class="text-sm" style="color: var(--text-secondary)">
           {{ accountName(selectedGoal?.account_id!) }}
@@ -290,7 +290,7 @@ const onTrackBreakdown = computed(() => {
     position="right"
   >
     <template #header>
-      <div class="flex flex-col gap-1">
+      <div class="flex flex-column gap-1">
         <div class="font-bold">New contribution</div>
         <div class="text-sm" style="color: var(--text-secondary)">
           {{ selectedGoal?.name }}
@@ -303,20 +303,22 @@ const onTrackBreakdown = computed(() => {
     />
   </Dialog>
 
-  <main class="flex flex-col w-full items-center">
+  <main class="flex flex-column w-full align-items-center">
     <div
       id="mobile-container"
-      class="flex flex-col justify-center w-full gap-4 rounded-xl"
+      class="flex flex-column justify-content-center w-full gap-3 border-round-xl"
     >
-      <div class="w-full flex flex-row justify-between p-1 gap-2 items-center">
-        <div class="w-full flex flex-col gap-2">
-          <div class="flex flex-row gap-2 items-center w-full">
+      <div
+        class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
+      >
+        <div class="w-full flex flex-column gap-2">
+          <div class="flex flex-row gap-2 align-items-center w-full">
             <div class="font-bold">Goals</div>
           </div>
           <div>Scope your savings goals and plan ahead.</div>
         </div>
         <Button class="main-button" @click="openCreate">
-          <div class="flex flex-row gap-1 items-center">
+          <div class="flex flex-row gap-1 align-items-center">
             <i class="pi pi-plus" />
             <span> New </span>
             <span class="mobile-hide"> Goal </span>
@@ -327,10 +329,10 @@ const onTrackBreakdown = computed(() => {
       <div
         v-if="!loading && goals.length > 0"
         id="goal-stats"
-        class="w-full flex flex-row gap-4 p-1"
+        class="w-full flex flex-row gap-3 p-1"
       >
         <div
-          class="flex-1 flex flex-col gap-1 p-4 rounded-xl bordered"
+          class="flex-1 flex flex-column gap-1 p-3 border-round-xl bordered"
           :style="{ background: 'var(--background-secondary)' }"
         >
           <div class="text-xs uppercase" style="color: var(--text-secondary)">
@@ -350,7 +352,7 @@ const onTrackBreakdown = computed(() => {
           </div>
         </div>
         <div
-          class="flex-1 flex flex-col gap-1 p-4 rounded-xl bordered"
+          class="flex-1 flex flex-column gap-1 p-3 border-round-xl bordered"
           :style="{ background: 'var(--background-secondary)' }"
         >
           <div class="text-xs uppercase" style="color: var(--text-secondary)">
@@ -368,7 +370,7 @@ const onTrackBreakdown = computed(() => {
           </div>
         </div>
         <div
-          class="flex-1 flex flex-col gap-1 p-4 rounded-xl bordered"
+          class="flex-1 flex flex-column gap-1 p-3 border-round-xl bordered"
           :style="{ background: 'var(--background-secondary)' }"
         >
           <div class="text-xs uppercase" style="color: var(--text-secondary)">
@@ -385,12 +387,14 @@ const onTrackBreakdown = computed(() => {
         </div>
       </div>
 
-      <div class="w-full flex flex-row gap-2 p-1 items-center text-sm">
+      <div
+        class="w-full flex flex-row justify-content-between p-1 align-items-center text-sm"
+      >
         <i class="pi pi-info-circle" style="flex-shrink: 0" />
         <div style="color: var(--text-secondary)">
-          Goals with a monthly allocation are funded automatically. Ensure your
-          account has enough uncategorized balance before the configured fund
-          day.
+          Goals with a monthly allocation are funded automatically each day.
+          Ensure your account has enough uncategorized balance before the
+          configured fund day.
         </div>
       </div>
 
@@ -405,7 +409,7 @@ const onTrackBreakdown = computed(() => {
       </div>
 
       <div
-        class="flex-1 w-full rounded-xl overflow-y-auto"
+        class="flex-1 w-full border-round-xl overflow-y-auto"
         :style="{ maxWidth: '1000px' }"
       >
         <template v-if="loading">
@@ -414,9 +418,11 @@ const onTrackBreakdown = computed(() => {
 
         <div
           v-else-if="goals.length === 0"
-          class="flex flex-row p-2 w-full justify-center"
+          class="flex flex-row p-2 w-full justify-content-center"
         >
-          <div class="flex flex-col gap-2 justify-center items-center">
+          <div
+            class="flex flex-column gap-2 justify-content-center align-items-center"
+          >
             <i
               style="color: var(--text-secondary)"
               class="pi pi-flag text-4xl"
@@ -427,23 +433,25 @@ const onTrackBreakdown = computed(() => {
 
         <div
           v-else-if="filteredGroups.length === 0"
-          class="flex flex-row p-2 w-full justify-center"
+          class="flex flex-row p-2 w-full justify-content-center"
         >
           <span style="color: var(--text-secondary)"
             >No goals match this filter</span
           >
         </div>
 
-        <div v-else class="flex flex-col gap-6">
+        <div v-else class="flex flex-column gap-4">
           <div
             v-for="group in filteredGroups"
             :key="group.accountID"
-            class="flex flex-col gap-4"
+            class="flex flex-column gap-3"
           >
-            <div class="flex flex-row items-center justify-between gap-2 px-1">
+            <div
+              class="flex flex-row align-items-center justify-content-between gap-2 px-1"
+            >
               <div class="font-bold">{{ group.accountName }}</div>
               <div
-                class="flex flex-row gap-4 text-sm"
+                class="flex flex-row gap-3 text-sm"
                 style="color: var(--text-secondary)"
               >
                 <span>
@@ -486,14 +494,18 @@ const onTrackBreakdown = computed(() => {
             <div
               v-for="goal in group.goals"
               :key="goal.id"
-              class="flex flex-col p-4 gap-4 rounded-xl bordered"
+              class="flex flex-column p-3 gap-3 border-round-xl bordered"
               :style="{
                 background: 'var(--background-secondary)',
                 opacity: savingsHelper.isGoalDimmed(goal.status) ? '0.55' : '1',
               }"
             >
-              <div class="flex flex-row items-center justify-between gap-2">
-                <div class="flex flex-row items-center gap-2 flex-1 min-w-0">
+              <div
+                class="flex flex-row align-items-center justify-content-between gap-2"
+              >
+                <div
+                  class="flex flex-row align-items-center gap-2 flex-1 min-w-0"
+                >
                   <div
                     class="font-bold"
                     style="
@@ -507,7 +519,7 @@ const onTrackBreakdown = computed(() => {
                     {{ goal.name }}
                   </div>
                 </div>
-                <div class="flex flex-row items-center gap-2">
+                <div class="flex flex-row align-items-center gap-2">
                   <span
                     v-if="
                       goal.status === 'active' &&
@@ -558,7 +570,9 @@ const onTrackBreakdown = computed(() => {
                 :pt="{ label: { style: 'color: white' } }"
               />
 
-              <div class="flex flex-row justify-between items-center">
+              <div
+                class="flex flex-row justify-content-between align-items-center"
+              >
                 <div class="text-sm">
                   <span class="font-bold">{{
                     vueHelper.displayAsCurrency(goal.current_amount)

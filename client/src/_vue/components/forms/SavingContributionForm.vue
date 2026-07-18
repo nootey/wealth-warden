@@ -76,18 +76,18 @@ async function manageRecord() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 p-1">
+  <div class="flex flex-column gap-3 p-1">
     <div
-      class="flex flex-col gap-2 p-4 rounded-xl text-sm"
+      class="flex flex-column gap-2 p-3 border-round-xl text-sm"
       style="
         background: var(--background-secondary);
         border: 1px solid var(--border-color);
         color: var(--text-secondary);
       "
     >
-      <div class="flex flex-row gap-2 items-center">
+      <div class="flex flex-row gap-2 align-items-center">
         <i class="pi pi-info-circle" style="flex-shrink: 0" />
-        <div class="flex flex-col gap-1 text-xs">
+        <div class="flex flex-column gap-1 text-xs">
           <span
             >To take some allocation off this goal, add a negative
             contribution.</span
@@ -96,7 +96,7 @@ async function manageRecord() {
       </div>
     </div>
 
-    <div class="flex flex-col gap-1">
+    <div class="flex flex-column gap-1">
       <ValidationError
         :is-required="true"
         :message="v$.record.amount.$errors[0]?.$message"
@@ -114,7 +114,7 @@ async function manageRecord() {
       />
     </div>
 
-    <div class="flex flex-col gap-1">
+    <div class="flex flex-column gap-1">
       <ValidationError
         :is-required="true"
         :message="v$.record.month.$errors[0]?.$message"
@@ -131,7 +131,7 @@ async function manageRecord() {
       />
     </div>
 
-    <div class="flex flex-col gap-1">
+    <div class="flex flex-column gap-1">
       <ValidationError :is-required="false" :message="undefined">
         <label>Note</label>
       </ValidationError>

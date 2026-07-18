@@ -306,9 +306,9 @@ async function deleteRecord(id: number) {
 </script>
 
 <template>
-  <div v-if="!loading" class="flex flex-col gap-4 p-1">
-    <div v-if="!isReadOnly" class="flex flex-row w-full justify-center">
-      <div class="flex flex-col">
+  <div v-if="!loading" class="flex flex-column gap-3 p-1">
+    <div v-if="!isReadOnly" class="flex flex-row w-full justify-content-center">
+      <div class="flex flex-column">
         <SelectButton
           v-model="selectedTradeType"
           style="font-size: 0.875rem"
@@ -321,7 +321,7 @@ async function deleteRecord(id: number) {
       </div>
     </div>
 
-    <div v-if="isReadOnly" class="flex flex-col gap-2">
+    <div v-if="isReadOnly" class="flex flex-column gap-2">
       <h4>Info</h4>
       <span class="text-sm" style="color: var(--text-secondary)">
         Due to the complexity of re-calculations, this is mostly read only. If
@@ -329,16 +329,16 @@ async function deleteRecord(id: number) {
       </span>
     </div>
 
-    <div v-if="isReadOnly" class="flex flex-col gap-2">
+    <div v-if="isReadOnly" class="flex flex-column gap-2">
       <h4>Financial details</h4>
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-row w-full gap-3">
+        <div class="flex flex-column gap-1 w-6">
           <label>Trade type</label>
           <span style="color: var(--text-secondary)">{{
             record.trade_type
           }}</span>
         </div>
-        <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-column gap-1 w-6">
           <label>USD exchange rate</label>
           <span style="color: var(--text-secondary)">{{
             record.exchange_rate_to_usd
@@ -346,14 +346,14 @@ async function deleteRecord(id: number) {
         </div>
       </div>
 
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-row w-full gap-3">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">Value at buy</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             vueHelper.displayAsCurrency(record.value_at_buy!, record.currency)
           }}</span>
         </div>
-        <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">{{
             record.trade_type === "buy" ? "Current value" : "Value at sell"
           }}</label>
@@ -372,15 +372,15 @@ async function deleteRecord(id: number) {
 
       <div
         v-if="record.trade_type === 'sell'"
-        class="flex flex-row w-full gap-4"
+        class="flex flex-row w-full gap-3"
       >
-        <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">What if</label>
           <span class="text-sm" style="color: var(--text-secondary)"
             >You haven't sold</span
           >
         </div>
-        <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">Current market value</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             vueHelper.displayAsCurrency(record.current_value!, record.currency)
@@ -388,14 +388,14 @@ async function deleteRecord(id: number) {
         </div>
       </div>
 
-      <div class="flex flex-row w-full gap-4">
-        <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-row w-full gap-3">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">P&L Raw</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             vueHelper.displayAsCurrency(record.profit_loss!, record.currency)
           }}</span>
         </div>
-        <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-column gap-1 w-6">
           <label class="text-sm">P&L Percentage</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             vueHelper.displayAsPercentage(record.profit_loss_percent!)
@@ -404,8 +404,8 @@ async function deleteRecord(id: number) {
       </div>
 
       <template v-if="record.tax_info">
-        <div class="flex flex-row w-full gap-4">
-          <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-row w-full gap-3">
+          <div class="flex flex-column gap-1 w-6">
             <label class="text-sm">P&L Taxed</label>
             <span class="text-sm" style="color: var(--text-secondary)">{{
               vueHelper.displayAsCurrency(
@@ -414,7 +414,7 @@ async function deleteRecord(id: number) {
               )
             }}</span>
           </div>
-          <div class="flex flex-col gap-1 w-6/12">
+          <div class="flex flex-column gap-1 w-6">
             <label class="text-sm">Tax bracket</label>
             <span class="text-sm" style="color: var(--text-secondary)">
               {{
@@ -425,14 +425,14 @@ async function deleteRecord(id: number) {
             </span>
           </div>
         </div>
-        <div class="flex flex-row w-full gap-4">
-          <div class="flex flex-col gap-1 w-6/12">
+        <div class="flex flex-row w-full gap-3">
+          <div class="flex flex-column gap-1 w-6">
             <label class="text-sm">Days held</label>
             <span class="text-sm" style="color: var(--text-secondary)">{{
               record.tax_info.days_held
             }}</span>
           </div>
-          <div class="flex flex-col gap-1 w-6/12">
+          <div class="flex flex-column gap-1 w-6">
             <label class="text-sm">Tax-free in</label>
             <span class="text-sm" style="color: var(--text-secondary)">
               <template v-if="record.tax_info.days_until_tax_free === 0"
@@ -451,7 +451,7 @@ async function deleteRecord(id: number) {
     <h4 v-if="isReadOnly">Trade details</h4>
 
     <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.record.asset.$errors[0]?.$message"
@@ -472,18 +472,20 @@ async function deleteRecord(id: number) {
           @complete="searchAsset"
         >
           <template #option="slotProps">
-            <div class="flex items-center gap-2">
+            <div class="flex align-items-center gap-2">
               <span class="font-semibold">{{ slotProps.option.name }}</span>
-              <span class="text-muted-color">{{
+              <span class="text-color-secondary">{{
                 slotProps.option.ticker
               }}</span>
             </div>
           </template>
 
           <template #chip="slotProps">
-            <div class="flex items-center gap-2">
+            <div class="flex align-items-center gap-2">
               <span class="font-semibold">{{ slotProps.value.name }}</span>
-              <span class="text-muted-color">{{ slotProps.value.ticker }}</span>
+              <span class="text-color-secondary">{{
+                slotProps.value.ticker
+              }}</span>
             </div>
           </template>
         </AutoComplete>
@@ -491,7 +493,7 @@ async function deleteRecord(id: number) {
     </div>
 
     <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="true"
           :message="v$.record.txn_date.$errors[0]?.$message"
@@ -511,8 +513,8 @@ async function deleteRecord(id: number) {
       </div>
     </div>
 
-    <div class="flex flex-row w-full gap-4">
-      <div class="flex flex-col gap-1 w-6/12">
+    <div class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
         <ValidationError
           :is-required="true"
           :message="v$.record.quantity.$errors[0]?.$message"
@@ -531,7 +533,7 @@ async function deleteRecord(id: number) {
           fluid
         />
       </div>
-      <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-column gap-1 w-6">
         <ValidationError
           :is-required="true"
           :message="v$.record.currency.$errors[0]?.$message"
@@ -549,8 +551,8 @@ async function deleteRecord(id: number) {
       </div>
     </div>
 
-    <div class="flex flex-row w-full gap-4">
-      <div class="flex flex-col gap-1 w-6/12">
+    <div class="flex flex-row w-full gap-3">
+      <div class="flex flex-column gap-1 w-6">
         <ValidationError
           :is-required="true"
           :message="v$.record.price_per_unit.$errors[0]?.$message"
@@ -574,7 +576,7 @@ async function deleteRecord(id: number) {
         />
       </div>
 
-      <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-column gap-1 w-6">
         <ValidationError
           :is-required="false"
           :message="v$.record.fee.$errors[0]?.$message"
@@ -602,7 +604,7 @@ async function deleteRecord(id: number) {
     </div>
 
     <div class="flex flex-row w-full">
-      <div class="flex flex-col gap-1 w-full">
+      <div class="flex flex-column gap-1 w-full">
         <ValidationError
           :is-required="false"
           :message="v$.record.description.$errors[0]?.$message"
@@ -628,7 +630,7 @@ async function deleteRecord(id: number) {
   </div>
   <ShowLoading v-else :num-fields="5" />
 
-  <div class="flex flex-col w-full gap-4 mt-4">
+  <div class="flex flex-column w-full gap-3 mt-3">
     <Button
       class="main-button"
       :label="(mode == 'create' ? 'Insert' : 'Update') + ' trade'"

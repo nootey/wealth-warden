@@ -160,12 +160,12 @@ function confirmDeleteContrib(contrib: SavingContribution) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 w-full">
+  <div class="flex flex-column gap-3 w-full">
     <div
-      class="flex flex-col gap-2 p-4 rounded-xl w-full"
+      class="flex flex-column gap-2 p-3 border-round-xl w-full"
       style="background: var(--background-primary)"
     >
-      <div class="flex flex-row justify-between items-center">
+      <div class="flex flex-row justify-content-between align-items-center">
         <div class="text-sm" style="color: var(--text-secondary)">Progress</div>
         <Tag
           :value="savingsHelper.trackStatusLabel(goal?.track_status ?? '')"
@@ -179,7 +179,7 @@ function confirmDeleteContrib(contrib: SavingContribution) {
         style="height: 8px"
         :pt="{ label: { style: 'color: white' } }"
       />
-      <div class="flex flex-row justify-between">
+      <div class="flex flex-row justify-content-between">
         <div class="text-sm">
           <span class="font-bold">{{
             vueHelper.displayAsCurrency(goal?.current_amount ?? null)
@@ -204,37 +204,35 @@ function confirmDeleteContrib(contrib: SavingContribution) {
 
     <div
       v-if="remaining.gt(0)"
-      class="flex flex-col gap-2 p-4 rounded-xl w-full"
+      class="flex flex-column gap-2 p-3 border-round-xl w-full"
       style="background: var(--background-primary)"
     >
       <div class="text-sm" style="color: var(--text-secondary)">Insights</div>
-      <div class="text-sm flex flex-col gap-1">
-        <span
-          >{{ vueHelper.displayAsCurrency(remaining.toString()) }} to go</span
-        >
+      <div class="text-sm">
+        {{ vueHelper.displayAsCurrency(remaining.toString()) }} to go
         <span v-if="monthlyPace.gt(0)">
-          averaging
+          &middot; averaging
           {{ vueHelper.displayAsCurrency(monthlyPace.toFixed(2)) }}/mo since
           {{ dateHelper.formatDate(goal.created_at, false, "MMM YYYY") }}
         </span>
         <span v-if="projectedFinish">
-          at this pace, done around {{ projectedFinish }}
+          &middot; at this pace, done around {{ projectedFinish }}
         </span>
       </div>
     </div>
 
     <div
       v-if="allocationShortfall"
-      class="flex flex-col gap-2 p-4 rounded-xl text-sm"
+      class="flex flex-column gap-2 p-3 border-round-xl text-sm"
       style="
         background: var(--background-primary);
         border: 1px solid var(--border-color);
         color: var(--text-secondary);
       "
     >
-      <div class="flex flex-row gap-2 items-center">
+      <div class="flex flex-row gap-2 align-items-center">
         <i class="pi pi-exclamation-triangle" style="flex-shrink: 0" />
-        <div class="flex flex-col gap-1 text-xs">
+        <div class="flex flex-column gap-1 text-xs">
           <span
             >Your {{ vueHelper.displayAsCurrency(goal.monthly_allocation!) }}/mo
             allocation is below the
@@ -245,8 +243,8 @@ function confirmDeleteContrib(contrib: SavingContribution) {
       </div>
     </div>
 
-    <div class="flex flex-col gap-2">
-      <div class="flex flex-row items-center justify-between">
+    <div class="flex flex-column gap-2">
+      <div class="flex flex-row align-items-center justify-content-between">
         <div class="font-medium text-sm">History</div>
         <div
           v-if="paginator.total > 0"
@@ -259,7 +257,7 @@ function confirmDeleteContrib(contrib: SavingContribution) {
       </div>
 
       <div
-        class="flex flex-col w-full rounded-2xl"
+        class="flex flex-column w-full border-round-2xl"
         style="
           padding: 0.25rem 0.25rem 0 0.25rem;
           border: 1px solid var(--border-color);

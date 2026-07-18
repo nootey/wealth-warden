@@ -176,25 +176,27 @@ async function handleEmit(emitType: any) {
     />
   </Dialog>
 
-  <main class="flex flex-col w-full items-center">
+  <main class="flex flex-column w-full align-items-center">
     <div
       id="mobile-container"
-      class="flex flex-col justify-center w-full gap-4 rounded-xl"
+      class="flex flex-column justify-content-center w-full gap-3 border-round-xl"
     >
-      <div class="w-full flex flex-row justify-between p-1 gap-2 items-center">
-        <div class="w-full flex flex-col gap-2">
+      <div
+        class="w-full flex flex-row justify-content-between p-1 gap-2 align-items-center"
+      >
+        <div class="w-full flex flex-column gap-2">
           <div style="font-weight: bold">Investments</div>
           <div>A detailed look into your investments.</div>
         </div>
         <Button class="main-button" @click="manipulateDialog('addAsset', true)">
-          <div class="flex flex-row gap-1 items-center">
+          <div class="flex flex-row gap-1 align-items-center">
             <i class="pi pi-plus" />
             <span class="mobile-hide"> Add </span>
             <span> Asset </span>
           </div>
         </Button>
         <Button class="main-button" @click="manipulateDialog('addTrade', true)">
-          <div class="flex flex-row gap-1 items-center">
+          <div class="flex flex-row gap-1 align-items-center">
             <i class="pi pi-plus" />
             <span class="mobile-hide"> Add </span>
             <span> Trade </span>
@@ -202,7 +204,7 @@ async function handleEmit(emitType: any) {
         </Button>
       </div>
 
-      <div class="flex flex-row gap-4 p-2">
+      <div class="flex flex-row gap-3 p-2">
         <div
           class="cursor-pointer pb-1"
           style="color: var(--text-secondary)"
@@ -245,10 +247,10 @@ async function handleEmit(emitType: any) {
         <div
           v-if="activeTab === 'assets'"
           key="assets"
-          class="flex flex-col justify-center w-full gap-4"
+          class="flex flex-column justify-content-center w-full gap-3"
         >
           <div
-            class="flex flex-col w-full p-4 gap-4 rounded-2xl"
+            class="flex flex-column w-full p-3 gap-3 border-round-2xl"
             style="
               background-color: var(--background-secondary);
               border: 1px solid var(--border-color);
@@ -263,7 +265,7 @@ async function handleEmit(emitType: any) {
         </div>
         <div v-else-if="activeTab === 'trades'" key="trades" class="w-full">
           <div
-            class="flex flex-col w-full p-4 gap-4 rounded-2xl"
+            class="flex flex-column w-full p-3 gap-3 border-round-2xl"
             style="
               background-color: var(--background-secondary);
               border: 1px solid var(--border-color);

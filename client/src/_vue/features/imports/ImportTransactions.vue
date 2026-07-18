@@ -200,7 +200,7 @@ defineExpose({ isDisabled, importTransactions });
 </script>
 
 <template>
-  <div class="flex flex-col w-full gap-2 p-2">
+  <div class="flex flex-column w-full gap-2 p-2">
     <Tabs value="0">
       <TabList>
         <Tab value="0"> Custom </Tab>
@@ -210,7 +210,7 @@ defineExpose({ isDisabled, importTransactions });
         <TabPanel value="0">
           <div
             v-if="sourceAccounts.length > 0"
-            class="flex flex-col w-full justify-center items-center gap-4"
+            class="flex flex-column w-full justify-content-center align-items-center gap-3"
           >
             <h3>Import your transaction data</h3>
             <span class="text-sm" style="color: var(--text-secondary)"
@@ -236,10 +236,10 @@ defineExpose({ isDisabled, importTransactions });
               @clear="onClear"
             >
               <template #header="{ chooseCallback }">
-                <div class="w-full flex flex-row justify-center">
+                <div class="w-full flex flex-row justify-content-center">
                   <Button
                     v-if="!fileValidated"
-                    class="outline-button w-3/12"
+                    class="outline-button w-3"
                     :disabled="sourceAccounts.length == 0 || importing"
                     label="Upload"
                     @click="chooseCallback()"
@@ -250,14 +250,14 @@ defineExpose({ isDisabled, importTransactions });
               <template #content>
                 <div
                   v-if="selectedFiles.length > 0"
-                  class="flex flex-col gap-1 w-full items-center"
+                  class="flex flex-column gap-1 w-full align-items-center"
                 >
                   <h5>Pending</h5>
                   <div class="flex flex-wrap gap-2 w-full">
                     <div
                       v-for="file in selectedFiles"
                       :key="file.name + file.type + file.size"
-                      class="flex flex-row gap-2 p-1 w-full justify-center items-center w-full"
+                      class="flex flex-row gap-2 p-1 w-full justify-content-center align-items-center w-full"
                     >
                       <span
                         class="font-semibold text-ellipsis whitespace-nowrap overflow-hidden"
@@ -281,16 +281,16 @@ defineExpose({ isDisabled, importTransactions });
 
             <div
               v-if="!fileValidated"
-              class="flex flex-col w-full justify-center items-center gap-4"
+              class="flex flex-column w-full justify-content-center align-items-center gap-3"
             >
               <span style="color: var(--text-secondary)">
                 Once you have uploaded a document, it needs to be validated.
               </span>
               <div
-                class="flex flex-row gap-2 items-center w-full justify-center gap-4"
+                class="flex flex-row gap-2 align-items-center w-full justify-content-center gap-3"
               >
                 <Button
-                  class="main-button w-3/12"
+                  class="main-button w-3"
                   :disabled="
                     selectedFiles.length === 0 || sourceAccounts.length == 0
                   "
@@ -303,15 +303,15 @@ defineExpose({ isDisabled, importTransactions });
             <div v-if="validatedResponse">
               <div
                 v-if="!importing"
-                class="flex flex-col w-full justify-center items-center gap-4"
+                class="flex flex-column w-full justify-content-center align-items-center gap-3"
               >
                 <div
-                  class="flex flex-col w-full gap-2 items-center justify-center"
+                  class="flex flex-column w-full gap-2 align-items-center justify-content-center"
                 >
                   <div class="text-sm" style="color: var(--text-secondary)">
                     Select an account which will receive the import
                     transactions.
-                    <div class="flex items-center gap-1">
+                    <div class="flex align-items-center gap-1">
                       <Checkbox
                         v-model="useNonCheckingAccount"
                         :binary="true"
@@ -356,7 +356,7 @@ defineExpose({ isDisabled, importTransactions });
                   >General information about your import.</span
                 >
                 <div
-                  class="flex flex-row w-full gap-2 items-center justify-center"
+                  class="flex flex-row w-full gap-2 align-items-center justify-content-center"
                 >
                   <span>Txn count: </span>
                   <span>{{ validatedResponse.filtered_count }} </span>
@@ -377,7 +377,7 @@ defineExpose({ isDisabled, importTransactions });
 
           <div
             v-else
-            class="flex flex-col w-100 gap-2 justify-center items-center"
+            class="flex flex-column w-100 gap-2 justify-content-center align-items-center"
           >
             <i
               class="pi pi-inbox text-2xl mb-2"

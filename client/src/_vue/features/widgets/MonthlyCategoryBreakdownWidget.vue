@@ -79,11 +79,13 @@ const categoryOptions = computed((): OptionItem[] => {
     c === ALL_CATEGORY ? "_general" : (c.classification ?? "other");
 
   return availableCategories.value
-    .map((c): OptionItem => ({
-      label: (c.display_name ?? c.name ?? "") as string,
-      value: c.id!,
-      meta: c,
-    }))
+    .map(
+      (c): OptionItem => ({
+        label: (c.display_name ?? c.name ?? "") as string,
+        value: c.id!,
+        meta: c,
+      }),
+    )
     .sort((a, b) => {
       const ak = order.indexOf(keyOf(a.meta) as any);
       const bk = order.indexOf(keyOf(b.meta) as any);
@@ -204,9 +206,11 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-col w-full p-2 gap-4" style="overflow-x: hidden">
-    <div class="flex flex-row gap-2 w-full justify-between items-center">
-      <div class="mobile-hide flex flex-col gap-1 grow">
+  <div class="flex flex-column w-full p-2 gap-3" style="overflow-x: hidden">
+    <div
+      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
+    >
+      <div class="mobile-hide flex flex-column gap-1 flex-grow-1">
         <span class="text-sm" style="color: var(--text-secondary)">
           View and compare category totals by month. To cover more than
           {{ maxYears }} years or all time, generate a
@@ -214,7 +218,7 @@ watch(
         </span>
       </div>
 
-      <div class="flex flex-row gap-2 shrink-0 select-container">
+      <div class="flex flex-row gap-2 flex-shrink-0 select-container">
         <Select
           v-model="selectedCategoryId"
           size="small"
@@ -233,9 +237,9 @@ watch(
           </template>
 
           <template #option="{ option }">
-            <div class="flex justify-between w-full">
+            <div class="flex justify-content-between w-full">
               <span>{{ option.label }}</span>
-              <small class="text-muted-color">
+              <small class="text-color-secondary">
                 {{ option.meta?.classification }}
               </small>
             </div>
@@ -256,15 +260,17 @@ watch(
       </div>
     </div>
 
-    <div class="flex flex-row gap-2 w-full justify-between items-center">
-      <div class="mobile-hide flex flex-col gap-2 grow">
+    <div
+      class="flex flex-row gap-2 w-full justify-content-between align-items-center"
+    >
+      <div class="mobile-hide flex flex-column gap-2 flex-grow-1">
         <span class="text-sm" style="color: var(--text-secondary)">
           A default checking account was found. The stats are representative of
           the cash flow to this account.
         </span>
       </div>
 
-      <div class="flex flex-row gap-2 shrink-0 select-container">
+      <div class="flex flex-row gap-2 flex-shrink-0 select-container">
         <Select
           v-model="selectedAccountID"
           size="small"
@@ -281,7 +287,7 @@ watch(
             <span v-else>All accounts</span>
           </template>
           <template #option="slotProps">
-            <div class="flex flex-col">
+            <div class="flex flex-column">
               <span class="font-semibold">{{ slotProps.option.name }}</span>
               <span class="text-xs" style="color: var(--text-secondary)">
                 {{
@@ -307,7 +313,7 @@ watch(
       </div>
     </div>
 
-    <div class="flex flex-row w-full justify-center items-center">
+    <div class="flex flex-row w-full justify-content-center align-items-center">
       <CategoryBreakdownChart
         v-if="hasAnyData"
         :series="series"
@@ -315,11 +321,11 @@ watch(
       />
       <div
         v-else
-        class="flex flex-col items-center justify-center mt-4"
+        class="flex flex-column align-items-center justify-content-center mt-3"
         style="height: 400px"
       >
         <span
-          class="text-sm p-4"
+          class="text-sm p-3"
           style="
             color: var(--text-secondary);
             border: 1px dashed var(--border-color);
@@ -333,20 +339,20 @@ watch(
       </div>
     </div>
 
-    <div v-if="hasAnyData && stats" class="flex flex-col gap-4 mt-6">
+    <div v-if="hasAnyData && stats" class="flex flex-column gap-3 mt-4">
       <h5>Totals and averages</h5>
 
       <div
-        class="flex flex-row w-full justify-between p-4"
+        class="flex flex-row w-full justify-content-between p-3"
         style="border: 1px solid var(--border-color); border-radius: 16px"
       >
-        <div class="flex flex-col">
+        <div class="flex flex-column">
           <div class="mb-1">Total over time</div>
           <div class="font-bold text-xl">
             {{ vueHelper.displayAsCurrency(stats.all_time_total) }}
           </div>
         </div>
-        <div class="flex flex-col text-right">
+        <div class="flex flex-column text-right">
           <div>Average</div>
           <div class="font-bold text-xl">
             {{ vueHelper.displayAsCurrency(stats.all_time_avg) }}
@@ -358,13 +364,13 @@ watch(
       </div>
 
       <div
-        class="flex flex-row flex-wrap w-full gap-4 p-4"
+        class="flex flex-row flex-wrap w-full gap-3 p-3"
         style="border: 1px solid var(--border-color); border-radius: 16px"
       >
         <div
           v-for="year in selectedYears"
           :key="year"
-          class="flex-1 flex flex-col items-center text-center p-4 year-box"
+          class="flex-1 flex flex-column align-items-center text-center p-3 year-box"
         >
           <div class="mb-2 font-bold text-xl">
             {{ year }}

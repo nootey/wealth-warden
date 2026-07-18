@@ -317,7 +317,7 @@ const options = computed(() => {
       x: {
         type: "timeseries",
         bounds: "data",
-        grid: { display: false },
+        grid: { display: false, drawBorder: false },
         afterBuildTicks: (scale: any) => {
           const t = scale.ticks;
           if (!t?.length) return;
@@ -341,13 +341,13 @@ const options = computed(() => {
                 ),
         },
         time: { unit: "day" },
-        border: { display: false, color: colors.value.axisBorder },
+        border: { color: colors.value.axisBorder },
       },
       y: {
         beginAtZero: false,
         ticks: { display: false },
-        grid: { display: false },
-        border: { display: false, color: colors.value.axisBorder },
+        grid: { display: false, drawBorder: false },
+        border: { color: colors.value.axisBorder },
       },
     },
   };
