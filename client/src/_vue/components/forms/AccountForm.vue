@@ -70,6 +70,13 @@ const balanceFieldRef = computed({
 
 const balanceNumber = currencyHelper.useMoneyField(balanceFieldRef, 2).number;
 const balanceAdjusted = ref(false);
+
+// market-valued accounts (investment/crypto) hold cash and holdings separately;
+// the editable field is cash only, since an adjustment posts a cash transaction
+const hasMarketValue = computed(() => {
+  const mv = record.value.balance.market_value;
+  return props.mode === "update" && mv != null && !new Decimal(mv).isZero();
+});
 const asOfAdjusted = ref(false);
 
 const creditLimitRef = computed({
@@ -495,7 +502,7 @@ async function manageRecord() {
           r$.balance.end_balance?.$errors[0]
         "
       >
-        <label>Current balance</label>
+        <label>{{ hasMarketValue ? "Cash balance" : "Current balance" }}</label>
       </ValidationError>
       <InputNumber
         v-model="balanceNumber"
@@ -517,6 +524,20 @@ async function manageRecord() {
         :max-fraction-digits="2"
         @update:model-value="balanceAdjusted = true"
       />
+      <div v-if="hasMarketValue" class="flex flex-col gap-1 text-sm">
+        <div class="flex justify-between text-muted-color">
+          <span>Market value</span>
+          <span>{{
+            vueHelper.displayAsCurrency(record.balance.market_value)
+          }}</span>
+        </div>
+        <div class="flex justify-between font-medium">
+          <span>Total balance</span>
+          <span>{{
+            vueHelper.displayAsCurrency(record.balance.total_balance)
+          }}</span>
+        </div>
+      </div>
     </div>
 
     <div v-if="selectedClassification === 'Asset'" class="flex flex-col gap-1">
