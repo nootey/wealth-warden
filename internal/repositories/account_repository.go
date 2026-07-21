@@ -30,7 +30,7 @@ type AccountRepositoryInterface interface {
 	FindAccountByIDWithInitialBalance(ctx context.Context, tx *gorm.DB, ID, userID int64) (*models.Account, error)
 	FindAccountTypeByID(ctx context.Context, tx *gorm.DB, ID int64) (models.AccountType, error)
 	FindAccountTypeByType(ctx context.Context, tx *gorm.DB, atype, sub_type string) (models.AccountType, error)
-	FindBalanceForAccountID(ctx context.Context, tx *gorm.DB, accID int64) (models.Balance, error)
+	FindLatestBalanceForAccountID(ctx context.Context, tx *gorm.DB, accID int64) (models.Balance, error)
 	InsertAccount(ctx context.Context, tx *gorm.DB, newRecord *models.Account) (int64, error)
 	UpdateAccount(ctx context.Context, tx *gorm.DB, record *models.Account) (int64, error)
 	UpdateAccountProjection(ctx context.Context, tx *gorm.DB, record *models.Account) (int64, error)
@@ -519,7 +519,7 @@ func (r *AccountRepository) FindAccountTypeClassification(ctx context.Context, t
 	return record, result.Error
 }
 
-func (r *AccountRepository) FindBalanceForAccountID(ctx context.Context, tx *gorm.DB, accID int64) (models.Balance, error) {
+func (r *AccountRepository) FindLatestBalanceForAccountID(ctx context.Context, tx *gorm.DB, accID int64) (models.Balance, error) {
 
 	db := tx
 	if db == nil {
@@ -528,7 +528,9 @@ func (r *AccountRepository) FindBalanceForAccountID(ctx context.Context, tx *gor
 	db = db.WithContext(ctx)
 
 	var record models.Balance
-	result := db.Where("account_id = ?", accID).First(&record)
+	result := db.Where("account_id = ?", accID).
+		Order("as_of DESC").
+		First(&record)
 	return record, result.Error
 }
 
@@ -1017,8 +1019,10 @@ func (r *AccountRepository) FindLatestBalance(ctx context.Context, tx *gorm.DB, 
 	db = db.WithContext(ctx)
 
 	var balance models.Balance
-	err := db.Where("account_id = ?", accountID).
-		Order("as_of DESC").
+	err := db.Select("balances.*").
+		Joins("JOIN accounts ON accounts.id = balances.account_id").
+		Where("balances.account_id = ? AND accounts.user_id = ?", accountID, userID).
+		Order("balances.as_of DESC").
 		Limit(1).
 		First(&balance).Error
 	if err != nil {

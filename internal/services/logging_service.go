@@ -11,7 +11,7 @@ import (
 type LoggingServiceInterface interface {
 	FetchPaginatedLogs(ctx context.Context, p utils.PaginationParams) ([]models.ActivityLog, *utils.Paginator, error)
 	FetchActivityLogFilterData(ctx context.Context, activityIndex string) (map[string]interface{}, error)
-	FetchAuditTrail(ctx context.Context, recordID, category string, events []string) ([]models.ActivityLog, error)
+	FetchAuditTrail(ctx context.Context, recordID string, categories, events []string, causerID int64) ([]models.ActivityLog, error)
 	DeleteActivityLog(ctx context.Context, id int64) error
 }
 
@@ -68,8 +68,8 @@ func (s *LoggingService) FetchActivityLogFilterData(ctx context.Context, activit
 	return s.repo.FindActivityLogFilterData(ctx, activityIndex)
 }
 
-func (s *LoggingService) FetchAuditTrail(ctx context.Context, recordID, category string, events []string) ([]models.ActivityLog, error) {
-	return s.repo.FindAuditTrailByRecordID(ctx, recordID, category, events)
+func (s *LoggingService) FetchAuditTrail(ctx context.Context, recordID string, categories, events []string, causerID int64) ([]models.ActivityLog, error) {
+	return s.repo.FindAuditTrailByRecordID(ctx, recordID, categories, events, causerID)
 }
 
 func (s *LoggingService) DeleteActivityLog(ctx context.Context, id int64) error {

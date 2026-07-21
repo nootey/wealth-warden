@@ -240,7 +240,7 @@ const searchClassifications = (event: { query: string }) => {
       <AuditTrail
         :record-id="props.recordId!"
         :events="['create', 'update']"
-        category="category_group"
+        :categories="['category_group']"
       />
     </div>
 

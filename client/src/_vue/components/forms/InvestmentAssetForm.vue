@@ -747,7 +747,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       <AuditTrail
         :record-id="props.recordId!"
         :events="['create', 'update']"
-        category="investment_asset"
+        :categories="['investment_asset']"
       />
     </div>
   </div>

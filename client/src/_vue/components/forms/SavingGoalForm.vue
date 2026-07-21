@@ -449,7 +449,7 @@ function confirmDelete() {
       <AuditTrail
         :record-id="props.recordId!"
         :events="['create', 'update', 'delete']"
-        category="saving_goal"
+        :categories="['saving_goal']"
       />
     </div>
   </div>

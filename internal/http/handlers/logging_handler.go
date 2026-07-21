@@ -102,6 +102,7 @@ func (h *LoggingHandler) DeleteActivityLog(c *gin.Context) {
 func (h *LoggingHandler) GetAuditTrail(c *gin.Context) {
 	qp := c.Request.URL.Query()
 	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
 
 	id := qp.Get("id")
 	if id == "" {
@@ -110,12 +111,13 @@ func (h *LoggingHandler) GetAuditTrail(c *gin.Context) {
 		return
 	}
 
-	category := qp.Get("category")
-	if category == "" {
+	categoryStr := qp.Get("category")
+	if categoryStr == "" {
 		err := errors.New("category is required")
 		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
 		return
 	}
+	categories := strings.Split(categoryStr, ",")
 
 	eventStr := qp.Get("event")
 	if eventStr == "" {
@@ -124,7 +126,7 @@ func (h *LoggingHandler) GetAuditTrail(c *gin.Context) {
 	}
 	events := strings.Split(eventStr, ",")
 
-	trail, err := h.Service.FetchAuditTrail(ctx, id, category, events)
+	trail, err := h.Service.FetchAuditTrail(ctx, id, categories, events, userID)
 	if err != nil {
 		utils.ErrorMessage(c, "Audit trail error", err.Error(), http.StatusInternalServerError, err)
 		return

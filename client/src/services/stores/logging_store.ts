@@ -28,7 +28,7 @@ export const useLoggingStore = defineStore("logging", {
     async getAuditTrail(
       id: string | number,
       events: string[],
-      category: string,
+      categories: string[],
     ) {
       if (!events || events.length === 0) {
         return { data: [] }; // Return empty result gracefully
@@ -38,7 +38,7 @@ export const useLoggingStore = defineStore("logging", {
         params: {
           id: id.toString(),
           event: events.join(","),
-          category: category,
+          category: categories.join(","),
         },
       });
 

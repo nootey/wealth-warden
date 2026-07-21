@@ -258,8 +258,8 @@ async function deleteRecord(id: number) {
       <div v-if="mode == 'update'" class="flex flex-row gap-2 w-full">
         <AuditTrail
           :record-id="props.recordId!"
-          :events="['create', 'update', 'delete', 'restore']"
-          category="user"
+          :events="['create', 'update', 'delete']"
+          :categories="['user']"
         />
       </div>
 

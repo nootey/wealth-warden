@@ -215,7 +215,6 @@ func (s *SavingsService) UpdateGoal(ctx context.Context, userID, id int64, req *
 	}
 
 	changes := utils.InitChanges()
-	utils.CompareChanges("", strconv.FormatInt(existing.ID, 10), changes, "id")
 	utils.CompareChanges(existing.Name, req.Name, changes, "name")
 	utils.CompareDecimalChange(&existing.TargetAmount, &req.TargetAmount, changes, "target_amount", 2)
 	utils.CompareDecimalChange(existing.MonthlyAllocation, req.MonthlyAllocation, changes, "monthly_allocation", 2)
@@ -240,7 +239,8 @@ func (s *SavingsService) UpdateGoal(ctx context.Context, userID, id int64, req *
 		return 0, err
 	}
 
-	if !changes.IsEmpty() {
+	if changes.HasChanges() {
+		changes.Stamp("id", strconv.FormatInt(existing.ID, 10))
 		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",

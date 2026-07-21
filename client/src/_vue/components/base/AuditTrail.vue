@@ -9,7 +9,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 const props = defineProps<{
   recordId: number | string;
   events: string[];
-  category: string;
+  categories: string[];
 }>();
 
 const loggingStore = useLoggingStore();
@@ -43,7 +43,7 @@ onMounted(async () => {
     const response = await loggingStore.getAuditTrail(
       props.recordId,
       props.events,
-      props.category,
+      props.categories,
     );
     trail.value = response || [];
   } catch (error) {

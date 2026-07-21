@@ -338,7 +338,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "create",
-		Category:    "investment",
+		Category:    "investment_asset",
 		Description: nil,
 		Payload:     changes,
 		Causer:      &userID,
@@ -881,15 +881,15 @@ func (s *InvestmentService) UpdateInvestmentAsset(ctx context.Context, userID in
 	}
 
 	changes := utils.InitChanges()
-	utils.CompareChanges("", strconv.FormatInt(holdID, 10), changes, "id")
-	utils.CompareChanges("", exHold.Ticker, changes, "asset")
 	utils.CompareChanges(exHold.Name, hold.Name, changes, "name")
 
-	if !changes.IsEmpty() {
+	if changes.HasChanges() {
+		changes.Stamp("id", strconv.FormatInt(holdID, 10))
+		changes.Stamp("asset", exHold.Ticker)
 		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
-			Category:    "investment",
+			Category:    "investment_asset",
 			Description: nil,
 			Payload:     changes,
 			Causer:      &userID,
@@ -957,13 +957,11 @@ func (s *InvestmentService) UpdateInvestmentTrade(ctx context.Context, userID in
 		newDesc = *txn.Description
 	}
 
-	if oldDesc != newDesc {
-		utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
-		utils.CompareChanges("", asset.Ticker, changes, "asset")
-		utils.CompareChanges(oldDesc, newDesc, changes, "description")
-	}
+	utils.CompareChanges(oldDesc, newDesc, changes, "description")
 
-	if !changes.IsEmpty() {
+	if changes.HasChanges() {
+		changes.Stamp("id", strconv.FormatInt(txnID, 10))
+		changes.Stamp("asset", asset.Ticker)
 		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
@@ -1087,7 +1085,7 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 	err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
 		Event:       "delete",
-		Category:    "investment",
+		Category:    "investment_asset",
 		Description: nil,
 		Payload:     changes,
 		Causer:      &userID,

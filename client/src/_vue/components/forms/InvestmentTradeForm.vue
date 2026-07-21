@@ -599,7 +599,7 @@ async function deleteRecord(id: number) {
       <AuditTrail
         :record-id="props.recordId!"
         :events="['create', 'update']"
-        category="investment_trade"
+        :categories="['investment_trade']"
       />
     </div>
   </div>

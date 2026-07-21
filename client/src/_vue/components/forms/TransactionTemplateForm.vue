@@ -740,7 +740,7 @@ async function startOperation() {
         <AuditTrail
           :record-id="props.recordId!"
           :events="['create', 'update']"
-          category="txn_template"
+          :categories="['txn_template']"
         />
       </div>
     </div>

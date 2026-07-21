@@ -881,7 +881,6 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 	// Dispatch transaction activity log
 	changes := utils.InitChanges()
-	utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
 	utils.CompareChanges(oldAccount.Name, newAccount.Name, changes, "account")
 	utils.CompareChanges(exTr.TransactionType, tr.TransactionType, changes, "type")
 	utils.CompareDateChange(&exTr.TxnDate, &tr.TxnDate, changes, "date")
@@ -890,7 +889,8 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	utils.CompareChanges(oldCategory.Name, newCategory.Name, changes, "category")
 	utils.CompareChanges(utils.SafeString(exTr.Description), utils.SafeString(tr.Description), changes, "description")
 
-	if !changes.IsEmpty() {
+	if changes.HasChanges() {
+		changes.Stamp("id", strconv.FormatInt(txnID, 10))
 		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 
@@ -949,11 +949,11 @@ func (s *TransactionService) UpdateCategory(ctx context.Context, userID int64, i
 
 	changes := utils.InitChanges()
 
-	utils.CompareChanges("", strconv.FormatInt(catID, 10), changes, "id")
 	utils.CompareChanges(exCat.DisplayName, cat.DisplayName, changes, "name")
 	utils.CompareChanges(exCat.Classification, cat.Classification, changes, "classification")
 
-	if !changes.IsEmpty() {
+	if changes.HasChanges() {
+		changes.Stamp("id", strconv.FormatInt(catID, 10))
 		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 
@@ -2121,7 +2121,6 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Co
 	}
 
 	changes := utils.InitChanges()
-	utils.CompareChanges("", strconv.FormatInt(tp.ID, 10), changes, "id")
 	utils.CompareChanges(strconv.FormatBool(exTp.IsActive), strconv.FormatBool(tp.IsActive), changes, "is_active")
 
 	_, err = s.repo.UpdateTransactionTemplate(ctx, tx, tp, true)
@@ -2134,7 +2133,8 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Co
 		return err
 	}
 
-	if !changes.IsEmpty() {
+	if changes.HasChanges() {
+		changes.Stamp("id", strconv.FormatInt(tp.ID, 10))
 		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
@@ -2184,10 +2184,10 @@ func (s *TransactionService) RenameTransactionTemplate(ctx context.Context, user
 	}
 
 	changes := utils.InitChanges()
-	utils.CompareChanges("", strconv.FormatInt(id, 10), changes, "id")
 	utils.CompareChanges(exTp.Name, name, changes, "name")
 
-	if !changes.IsEmpty() {
+	if changes.HasChanges() {
+		changes.Stamp("id", strconv.FormatInt(id, 10))
 		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
@@ -2762,11 +2762,11 @@ func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int
 	}
 
 	changes := utils.InitChanges()
-	utils.CompareChanges("", strconv.FormatInt(groupID, 10), changes, "id")
 	utils.CompareChanges(exGroup.Name, rec.Name, changes, "name")
 	utils.CompareChanges(exGroup.Classification, rec.Classification, changes, "classification")
 
-	if !changes.IsEmpty() {
+	if changes.HasChanges() {
+		changes.Stamp("id", strconv.FormatInt(groupID, 10))
 		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",

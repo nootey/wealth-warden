@@ -615,8 +615,15 @@ async function manageRecord() {
     <div v-if="mode == 'update'" class="flex flex-row gap-2 w-full">
       <AuditTrail
         :record-id="props.recordId!"
-        :events="['create', 'update', 'close', 'restore']"
-        category="account"
+        :events="[
+          'create',
+          'update',
+          'deactivate',
+          'restore',
+          'close',
+          'merge',
+        ]"
+        :categories="['account', 'balance']"
       />
     </div>
 

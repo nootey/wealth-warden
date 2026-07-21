@@ -258,7 +258,7 @@ async function restoreCategoryName() {
       <AuditTrail
         :record-id="props.recordId!"
         :events="['create', 'update', 'delete', 'restore']"
-        category="category"
+        :categories="['category']"
       />
     </div>
 

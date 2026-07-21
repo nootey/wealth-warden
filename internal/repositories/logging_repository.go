@@ -18,7 +18,7 @@ type LoggingRepositoryInterface interface {
 	FindLogs(ctx context.Context, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error)
 	FindActivityLogFilterData(ctx context.Context, activityIndex string) (map[string]interface{}, error)
 	FindActivityLogByID(ctx context.Context, tx *gorm.DB, ID int64) (models.ActivityLog, error)
-	FindAuditTrailByRecordID(ctx context.Context, recordID, category string, events []string) ([]models.ActivityLog, error)
+	FindAuditTrailByRecordID(ctx context.Context, recordID string, categories, events []string, causerID int64) ([]models.ActivityLog, error)
 	DeleteActivityLog(ctx context.Context, tx *gorm.DB, id int64) error
 }
 
@@ -179,10 +179,10 @@ func (r *LoggingRepository) FindActivityLogByID(ctx context.Context, tx *gorm.DB
 	return record, result.Error
 }
 
-func (r *LoggingRepository) FindAuditTrailByRecordID(ctx context.Context, recordID, category string, events []string) ([]models.ActivityLog, error) {
+func (r *LoggingRepository) FindAuditTrailByRecordID(ctx context.Context, recordID string, categories, events []string, causerID int64) ([]models.ActivityLog, error) {
 	var allLogs []models.ActivityLog
 	err := r.db.WithContext(ctx).
-		Where("event IN ? AND category = ?", events, category).
+		Where("event IN ? AND category IN ? AND causer_id = ?", events, categories, causerID).
 		Order("created_at DESC").
 		Find(&allLogs).Error
 	if err != nil {
