@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/coder/websocket v1.8.15
-	github.com/gin-contrib/cors v1.7.6
+	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-contrib/timeout v1.1.0
 	github.com/gin-contrib/zap v1.1.6
 	github.com/gin-gonic/gin v1.12.0
