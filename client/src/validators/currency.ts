@@ -1,49 +1,43 @@
 import Decimal from "decimal.js";
-import { helpers } from "@vuelidate/validators";
+import { withMessage } from "@regle/rules";
 
 const isEmpty = (v: unknown) => v === null || v === undefined || v === "";
 
-export const decimalValid = helpers.withMessage(
-  "Enter a valid amount",
-  (v: unknown) => {
-    if (isEmpty(v)) return false;
-    try {
-      new Decimal(v as string);
-      return true;
-    } catch {
-      return false;
-    }
-  },
-);
+export const decimalValid = withMessage((v: unknown) => {
+  if (isEmpty(v)) return false;
+  try {
+    new Decimal(v as string);
+    return true;
+  } catch {
+    return false;
+  }
+}, "Enter a valid amount");
 
 export const decimalMin = (min: string | number) =>
-  helpers.withMessage(`Must be ≥ ${min}`, (v: unknown) => {
+  withMessage((v: unknown) => {
     if (isEmpty(v)) return true;
     try {
       return new Decimal(v as string).gte(min);
     } catch {
       return false;
     }
-  });
+  }, `Must be ≥ ${min}`);
 
-export const decimalNonZero = helpers.withMessage(
-  "Must not be zero",
-  (v: unknown) => {
-    if (isEmpty(v)) return true;
-    try {
-      return !new Decimal(v as string).isZero();
-    } catch {
-      return false;
-    }
-  },
-);
+export const decimalNonZero = withMessage((v: unknown) => {
+  if (isEmpty(v)) return true;
+  try {
+    return !new Decimal(v as string).isZero();
+  } catch {
+    return false;
+  }
+}, "Must not be zero");
 
 export const decimalMax = (max: string | number) =>
-  helpers.withMessage(`Must be ≤ ${max}`, (v: unknown) => {
+  withMessage((v: unknown) => {
     if (isEmpty(v)) return true;
     try {
       return new Decimal(v as string).lte(max);
     } catch {
       return false;
     }
-  });
+  }, `Must be ≤ ${max}`);

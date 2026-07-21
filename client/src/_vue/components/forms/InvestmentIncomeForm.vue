@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { required, requiredIf } from "@vuelidate/validators";
-import useVuelidate from "@vuelidate/core";
+import { required, requiredIf } from "@regle/rules";
+import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useInvestmentStore } from "../../../services/stores/investment_store.ts";
@@ -64,21 +64,17 @@ const taxRef = computed({
 const { number: taxNumber } = currencyHelper.useMoneyField(taxRef, 4);
 
 const rules = {
-  record: {
-    txn_date: { required, $autoDirty: true },
-    quantity: {
-      requiredIf: requiredIf(() => isStaking.value),
-      $autoDirty: true,
-    },
-    amount: {
-      requiredIf: requiredIf(() => !isStaking.value),
-      $autoDirty: true,
-    },
-    notes: { $autoDirty: true },
+  txn_date: { required },
+  quantity: {
+    requiredIf: requiredIf(() => isStaking.value),
   },
+  amount: {
+    requiredIf: requiredIf(() => !isStaking.value),
+  },
+  notes: {},
 };
 
-const v$ = useVuelidate(rules, { record });
+const { r$ } = useRegle(record, rules);
 
 onMounted(async () => {
   try {
@@ -90,7 +86,7 @@ onMounted(async () => {
 });
 
 async function submit(): Promise<void> {
-  const valid = await v$.value.$validate();
+  const { valid } = await r$.$validate();
   if (!valid) return;
 
   loading.value = true;
@@ -119,7 +115,7 @@ async function submit(): Promise<void> {
 
   try {
     const response = await investmentStore.createIncome(payload);
-    v$.value.record.$reset();
+    r$.$reset();
     toastStore.successResponseToast(response);
     emit("completeOperation");
   } catch (error) {
@@ -140,10 +136,7 @@ async function submit(): Promise<void> {
   >
     <div class="flex flex-row w-full gap-4">
       <div v-if="isStaking" class="flex flex-col gap-1 w-full">
-        <ValidationError
-          :is-required="true"
-          :message="v$.record.quantity.$errors[0]?.$message"
-        >
+        <ValidationError :is-required="true" :message="r$.quantity.$errors[0]">
           <label>Quantity received</label>
         </ValidationError>
         <InputNumber
@@ -156,10 +149,7 @@ async function submit(): Promise<void> {
         />
       </div>
       <div v-if="!isStaking" class="flex flex-col gap-1 w-full">
-        <ValidationError
-          :is-required="true"
-          :message="v$.record.amount.$errors[0]?.$message"
-        >
+        <ValidationError :is-required="true" :message="r$.amount.$errors[0]">
           <label>Amount received</label>
         </ValidationError>
         <InputNumber
@@ -175,10 +165,7 @@ async function submit(): Promise<void> {
 
     <div class="flex flex-row w-full gap-4">
       <div class="flex flex-col gap-1 w-6/12">
-        <ValidationError
-          :is-required="true"
-          :message="v$.record.txn_date.$errors[0]?.$message"
-        >
+        <ValidationError :is-required="true" :message="r$.txn_date.$errors[0]">
           <label>Date</label>
         </ValidationError>
         <DatePicker
@@ -202,10 +189,7 @@ async function submit(): Promise<void> {
         />
       </div>
       <div v-if="isStaking" class="flex flex-col gap-1 w-6/12">
-        <ValidationError
-          :is-required="false"
-          :message="v$.record.notes.$errors[0]?.$message"
-        >
+        <ValidationError :is-required="false" :message="r$.notes.$errors[0]">
           <label>Notes</label>
         </ValidationError>
         <InputText
@@ -218,10 +202,7 @@ async function submit(): Promise<void> {
 
     <div v-if="!isStaking" class="flex flex-row w-full gap-4">
       <div class="flex flex-col gap-1 w-full">
-        <ValidationError
-          :is-required="false"
-          :message="v$.record.notes.$errors[0]?.$message"
-        >
+        <ValidationError :is-required="false" :message="r$.notes.$errors[0]">
           <label>Notes</label>
         </ValidationError>
         <InputText

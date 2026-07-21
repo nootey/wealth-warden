@@ -3,8 +3,8 @@ import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { nextTick, onMounted, ref } from "vue";
 import type { Role, User } from "../../../models/user_models.ts";
-import { email, required, requiredIf } from "@vuelidate/validators";
-import useVuelidate from "@vuelidate/core";
+import { email, required, requiredIf } from "@regle/rules";
+import { useRegle } from "@regle/core";
 import { useUserStore } from "../../../services/stores/user_store.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import ValidationError from "../validation/ValidationError.vue";
@@ -43,26 +43,21 @@ const record = ref<User>(initData());
 const filteredRoles = ref<Role[]>([]);
 
 const rules = {
-  record: {
-    role: {
-      name: {
-        required,
-        $autoDirty: true,
-      },
-    },
-    display_name: {
-      required: requiredIf(() => props.mode === "update"),
-      $autoDirty: true,
-    },
-    email: {
+  role: {
+    name: {
       required,
-      email,
-      $autoDirty: true,
     },
+  },
+  display_name: {
+    required: requiredIf(() => props.mode === "update"),
+  },
+  email: {
+    required,
+    email,
   },
 };
 
-const v$ = useVuelidate(rules, { record });
+const { r$ } = useRegle(record, rules);
 
 function initData(): User {
   return {
@@ -106,7 +101,7 @@ async function loadRecord(id: number) {
 }
 
 async function isRecordValid() {
-  const isValid = await v$.value.record.$validate();
+  const { valid: isValid } = await r$.$validate();
   if (!isValid) return false;
   return true;
 }
@@ -159,7 +154,7 @@ async function manageRecord() {
     }
 
     loading.value = false;
-    v$.value.record.$reset();
+    r$.$reset();
     toastStore.successResponseToast(response);
     emit("completeOperation");
   } catch (error) {
@@ -209,7 +204,7 @@ async function deleteRecord(id: number) {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
-            :message="v$.record.display_name.$errors[0]?.$message"
+            :message="r$.display_name.$errors[0]"
           >
             <label>Display name</label>
           </ValidationError>
@@ -224,10 +219,7 @@ async function deleteRecord(id: number) {
 
       <div class="flex flex-row w-full">
         <div class="flex flex-col gap-1 w-full">
-          <ValidationError
-            :is-required="true"
-            :message="v$.record.email.$errors[0]?.$message"
-          >
+          <ValidationError :is-required="true" :message="r$.email.$errors[0]">
             <label>Email</label>
           </ValidationError>
           <InputText
@@ -244,7 +236,7 @@ async function deleteRecord(id: number) {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
-            :message="v$.record.role.name.$errors[0]?.$message"
+            :message="r$.role.name.$errors[0]"
           >
             <label>Role</label>
           </ValidationError>

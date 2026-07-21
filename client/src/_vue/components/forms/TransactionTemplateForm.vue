@@ -7,13 +7,13 @@ import type {
   Category,
   TransactionTemplate,
 } from "../../../models/transaction_models.ts";
-import { maxValue, minValue, required } from "@vuelidate/validators";
+import { maxValue, minValue, required } from "@regle/rules";
 import {
   decimalValid,
   decimalMin,
   decimalMax,
 } from "../../../validators/currency.ts";
-import useVuelidate from "@vuelidate/core";
+import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import type { Account } from "../../../models/account_models.ts";
@@ -118,40 +118,32 @@ const filteredToAccounts = ref<Account[]>([]);
 const filteredFrequencies = ref<string[]>([]);
 
 const rules = computed(() => ({
-  record: {
-    name: { required, $autoDirty: true },
-    account: {
-      name: { required, $autoDirty: true },
-    },
-    to_account: isTransfer.value
-      ? { name: { required, $autoDirty: true } }
-      : { name: { $autoDirty: true } },
-    category: {
-      name: { $autoDirty: true },
-    },
-    transaction_type: isTransfer.value
-      ? { $autoDirty: true }
-      : { required, $autoDirty: true },
-    amount: {
-      required,
-      decimalValid,
-      decimalMin: decimalMin(0),
-      decimalMax: decimalMax(1_000_000_000),
-      $autoDirty: true,
-    },
-    frequency: { required, $autoDirty: true },
-    next_run_at: { required, $autoDirty: true },
-    end_date: { $autoDirty: true },
-    max_runs: {
-      $autoDirty: true,
-      min: minValue(1),
-      max: maxValue(99999),
-    },
-    is_active: { required, $autoDirty: true },
+  name: { required },
+  account: {
+    name: { required },
   },
+  to_account: isTransfer.value ? { name: { required } } : { name: {} },
+  category: {
+    name: {},
+  },
+  transaction_type: isTransfer.value ? {} : { required },
+  amount: {
+    required,
+    decimalValid,
+    decimalMin: decimalMin(0),
+    decimalMax: decimalMax(1_000_000_000),
+  },
+  frequency: { required },
+  next_run_at: { required },
+  end_date: {},
+  max_runs: {
+    min: minValue(1),
+    max: maxValue(99999),
+  },
+  is_active: { required },
 }));
 
-const v$ = useVuelidate(rules, { record });
+const { r$ } = useRegle(record, rules);
 
 onMounted(async () => {
   await getSettings();
@@ -325,7 +317,7 @@ const searchFrequency = (event: { query: string }) => {
 };
 
 async function isRecordValid() {
-  const isValid = await v$.value.record.$validate();
+  const { valid: isValid } = await r$.$validate();
   if (!isValid) return false;
   return true;
 }
@@ -397,7 +389,7 @@ async function renameRecord() {
       record.value.id!,
       record.value.name,
     );
-    v$.value.record.$reset();
+    r$.$reset();
     toastStore.successResponseToast(response);
     emit("completeOperation");
   } catch (error) {
@@ -462,7 +454,7 @@ async function startOperation() {
     }
 
     // record.value = initData();
-    v$.value.record.$reset();
+    r$.$reset();
     toastStore.successResponseToast(response);
     emit("completeOperation");
   } catch (error) {
@@ -538,10 +530,7 @@ async function startOperation() {
     <div class="flex flex-col gap-4">
       <div class="flex flex-row w-full">
         <div class="flex flex-col gap-1 w-full">
-          <ValidationError
-            :is-required="true"
-            :message="v$.record.name.$errors[0]?.$message"
-          >
+          <ValidationError :is-required="true" :message="r$.name.$errors[0]">
             <label>Name</label>
           </ValidationError>
           <InputText
@@ -556,7 +545,7 @@ async function startOperation() {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
-            :message="v$.record.account.name.$errors[0]?.$message"
+            :message="r$.account.name.$errors[0]"
           >
             <label>Account</label>
           </ValidationError>
@@ -579,7 +568,7 @@ async function startOperation() {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
-            :message="v$.record.to_account?.name.$errors[0]?.$message"
+            :message="r$.to_account?.name.$errors[0]"
           >
             <label>To account</label>
           </ValidationError>
@@ -600,10 +589,7 @@ async function startOperation() {
 
       <div class="flex flex-row w-full">
         <div class="flex flex-col gap-1 w-full">
-          <ValidationError
-            :is-required="true"
-            :message="v$.record.amount.$errors[0]?.$message"
-          >
+          <ValidationError :is-required="true" :message="r$.amount.$errors[0]">
             <label>Amount</label>
           </ValidationError>
           <InputNumber
@@ -623,7 +609,7 @@ async function startOperation() {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="false"
-            :message="v$.record.category.name.$errors[0]?.$message"
+            :message="r$.category.name.$errors[0]"
           >
             <label>Category</label>
           </ValidationError>
@@ -664,7 +650,7 @@ async function startOperation() {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
-            :message="v$.record.frequency.$errors[0]?.$message"
+            :message="r$.frequency.$errors[0]"
           >
             <label>Frequency</label>
           </ValidationError>
@@ -685,7 +671,7 @@ async function startOperation() {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
-            :message="v$.record.frequency.$errors[0]?.$message"
+            :message="r$.frequency.$errors[0]"
           >
             <label>{{ mode === "create" ? "First run" : "Next run" }}</label>
           </ValidationError>
@@ -710,7 +696,7 @@ async function startOperation() {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="false"
-            :message="v$.record.end_date.$errors[0]?.$message"
+            :message="r$.end_date?.$errors[0]"
           >
             <label>End date</label>
           </ValidationError>
@@ -736,7 +722,7 @@ async function startOperation() {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="false"
-            :message="v$.record.max_runs.$errors[0]?.$message"
+            :message="r$.max_runs.$errors[0]"
           >
             <label>Max runs</label>
           </ValidationError>

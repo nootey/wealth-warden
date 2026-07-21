@@ -6,12 +6,10 @@ import {
   decimalNonZero,
 } from "./currency.ts";
 
-type Rule = {
-  $validator: (value: unknown, siblings: unknown, vm: unknown) => boolean;
-};
+type Rule = { exec: (value: unknown) => boolean };
 
 const check = (rule: unknown, value: unknown): boolean =>
-  (rule as Rule).$validator(value, {}, {});
+  (rule as Rule).exec(value);
 
 const EMPTY = [null, undefined, ""];
 

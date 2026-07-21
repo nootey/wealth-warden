@@ -4,9 +4,9 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import { useSavingsStore } from "../../../services/stores/savings_store.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
-import { numeric, required } from "@vuelidate/validators";
+import { numeric, required } from "@regle/rules";
 import { decimalMin, decimalValid } from "../../../validators/currency.ts";
-import useVuelidate from "@vuelidate/core";
+import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
@@ -91,37 +91,26 @@ const statusOptions: { label: string; value: SavingGoalStatus }[] = [
 ];
 
 const rules = computed(() => ({
-  record: {
-    account_id: { required, $autoDirty: true },
-    name: { required, $autoDirty: true },
-    target_date: { $autoDirty: true },
-    target_amount: {
-      required,
-      decimalValid,
-      decimalMin: decimalMin("0.01"),
-      $autoDirty: true,
-    },
-    initial_amount: {
-      $autoDirty: true,
-    },
-    monthly_allocation: {
-      $autoDirty: true,
-    },
-    fund_day_of_month: {
-      $autoDirty: true,
-    },
-    priority: {
-      numeric,
-      $autoDirty: true,
-    },
-    status: {
-      required,
-      $autoDirty: true,
-    },
+  account_id: { required },
+  name: { required },
+  target_date: {},
+  target_amount: {
+    required,
+    decimalValid,
+    decimalMin: decimalMin("0.01"),
+  },
+  initial_amount: {},
+  monthly_allocation: {},
+  fund_day_of_month: {},
+  priority: {
+    numeric,
+  },
+  status: {
+    required,
   },
 }));
 
-const v$ = useVuelidate(rules, { record });
+const { r$ } = useRegle(record, rules);
 
 onMounted(async () => {
   initializing.value = true;
@@ -169,7 +158,7 @@ async function loadRecord(id: number) {
 }
 
 async function isRecordValid() {
-  return await v$.value.record.$validate();
+  return (await r$.$validate()).valid;
 }
 
 async function manageRecord() {
@@ -219,7 +208,7 @@ async function manageRecord() {
       response = await savingsStore.updateGoal(props.recordId!, req);
     }
 
-    v$.value.record.$reset();
+    r$.$reset();
     toastStore.successResponseToast(response);
     emit("completeOperation");
   } catch (err) {
@@ -296,10 +285,7 @@ function confirmDelete() {
     </div>
 
     <div v-if="mode === 'create'" class="flex flex-col gap-1">
-      <ValidationError
-        :is-required="true"
-        :message="v$.record.account_id.$errors[0]?.$message"
-      >
+      <ValidationError :is-required="true" :message="r$.account_id.$errors[0]">
         <label>Account</label>
       </ValidationError>
       <Select
@@ -314,10 +300,7 @@ function confirmDelete() {
     </div>
 
     <div class="flex flex-col gap-1">
-      <ValidationError
-        :is-required="true"
-        :message="v$.record.name.$errors[0]?.$message"
-      >
+      <ValidationError :is-required="true" :message="r$.name.$errors[0]">
         <label>Name</label>
       </ValidationError>
       <InputText
@@ -330,7 +313,7 @@ function confirmDelete() {
     <div class="flex flex-col gap-1">
       <ValidationError
         :is-required="true"
-        :message="v$.record.target_amount.$errors[0]?.$message"
+        :message="r$.target_amount.$errors[0]"
       >
         <label>Target amount</label>
       </ValidationError>
@@ -347,7 +330,7 @@ function confirmDelete() {
     <div v-if="mode === 'create'" class="flex flex-col gap-1">
       <ValidationError
         :is-required="false"
-        :message="v$.record.initial_amount.$errors[0]?.$message"
+        :message="r$.initial_amount.$errors[0]"
       >
         <label>Initial amount</label>
       </ValidationError>
@@ -364,7 +347,7 @@ function confirmDelete() {
     <div class="flex flex-col gap-1">
       <ValidationError
         :is-required="false"
-        :message="v$.record.target_date.$errors[0]?.$message"
+        :message="r$.target_date.$errors[0]"
       >
         <label>Target date</label>
       </ValidationError>
@@ -381,10 +364,7 @@ function confirmDelete() {
     </div>
 
     <div class="flex flex-col gap-1">
-      <ValidationError
-        :is-required="false"
-        :message="v$.record.priority.$errors[0]?.$message"
-      >
+      <ValidationError :is-required="false" :message="r$.priority.$errors[0]">
         <label>Priority</label>
       </ValidationError>
       <InputNumber
@@ -399,7 +379,7 @@ function confirmDelete() {
     <div class="flex flex-col gap-1">
       <ValidationError
         :is-required="false"
-        :message="v$.record.monthly_allocation.$errors[0]?.$message"
+        :message="r$.monthly_allocation.$errors[0]"
       >
         <label>Monthly allocation</label>
       </ValidationError>
@@ -416,7 +396,7 @@ function confirmDelete() {
     <div v-if="record.monthly_allocation" class="flex flex-col gap-1">
       <ValidationError
         :is-required="false"
-        :message="v$.record.fund_day_of_month.$errors[0]?.$message"
+        :message="r$.fund_day_of_month.$errors[0]"
       >
         <label>Fund day</label>
       </ValidationError>
@@ -430,10 +410,7 @@ function confirmDelete() {
     </div>
 
     <div v-if="mode === 'update'" class="flex flex-col gap-1">
-      <ValidationError
-        :is-required="true"
-        :message="v$.record.status.$errors[0]?.$message"
-      >
+      <ValidationError :is-required="true" :message="r$.status.$errors[0]">
         <label>Status</label>
       </ValidationError>
       <Select

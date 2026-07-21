@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
-import { computed, nextTick, onMounted, ref } from "vue";
-import { required } from "@vuelidate/validators";
-import useVuelidate from "@vuelidate/core";
+import { computed, nextTick, onMounted, reactive, ref } from "vue";
+import { required } from "@regle/rules";
+import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
 import type { Permission, Role } from "../../../models/user_models.ts";
@@ -48,16 +48,18 @@ const selectedPermissions = ref<Permission[]>([]);
 
 const rules = {
   record: {
-    name: { required, $autoDirty: true },
-    description: { $autoDirty: true },
+    name: { required },
+    description: {},
   },
   selectedPermissions: {
     required,
-    $autoDirty: true,
   },
 };
 
-const v$ = useVuelidate(rules, { record, selectedPermissions });
+// `reactive` unwraps the refs, so writes from the v-models stay bound
+const validationState = reactive({ record, selectedPermissions });
+
+const { r$ } = useRegle(validationState, rules);
 
 function initData(): Role {
   return {
@@ -92,7 +94,7 @@ async function loadRecord(id: number) {
 }
 
 async function isRecordValid() {
-  return await v$.value.$validate();
+  return (await r$.$validate()).valid;
 }
 
 async function manageRecord() {
@@ -132,7 +134,7 @@ async function manageRecord() {
         break;
     }
 
-    v$.value.record.$reset();
+    r$.record.$reset();
     toastStore.successResponseToast(response);
     emit("completeOperation");
   } catch (error) {
@@ -172,7 +174,7 @@ async function deleteRecord(id: number) {
         <div class="flex flex-col w-full">
           <ValidationError
             :is-required="true"
-            :message="v$.record.name.$errors[0]?.$message"
+            :message="r$.record.name.$errors[0]"
           >
             <label>Name</label>
           </ValidationError>
@@ -189,7 +191,7 @@ async function deleteRecord(id: number) {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="false"
-            :message="v$.record.description.$errors[0]?.$message"
+            :message="r$.record.description?.$errors[0]"
           >
             <label>Description</label>
           </ValidationError>
@@ -217,7 +219,7 @@ async function deleteRecord(id: number) {
       <div class="flex flex-col w-full">
         <ValidationError
           :is-required="true"
-          :message="v$.selectedPermissions.$errors[0]?.$message"
+          :message="r$.selectedPermissions.$errors.$self?.[0]"
         >
           <label>Permissions</label>
         </ValidationError>

@@ -8,13 +8,13 @@ import type {
   Transaction,
   Transfer,
 } from "../../../models/transaction_models.ts";
-import { required } from "@vuelidate/validators";
+import { required } from "@regle/rules";
 import {
   decimalValid,
   decimalMin,
   decimalMax,
 } from "../../../validators/currency.ts";
-import useVuelidate from "@vuelidate/core";
+import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
 import type { Account } from "../../../models/account_models.ts";
@@ -158,40 +158,30 @@ const filteredCategories = ref<Category[]>([]);
 const filteredAccounts = ref<Account[]>([]);
 
 const rules = {
-  record: {
-    category: {
-      name: {
-        $autoDirty: true,
-      },
-    },
-    account: {
-      name: {
-        required,
-        $autoDirty: true,
-      },
-    },
-    transaction_type: {
+  category: {
+    name: {},
+  },
+  account: {
+    name: {
       required,
-      $autoDirty: true,
-    },
-    amount: {
-      required,
-      decimalValid,
-      decimalMin: decimalMin(0),
-      decimalMax: decimalMax(1_000_000_000),
-      $autoDirty: true,
-    },
-    txn_date: {
-      required,
-      $autoDirty: true,
-    },
-    description: {
-      $autoDirty: true,
     },
   },
+  transaction_type: {
+    required,
+  },
+  amount: {
+    required,
+    decimalValid,
+    decimalMin: decimalMin(0),
+    decimalMax: decimalMax(1_000_000_000),
+  },
+  txn_date: {
+    required,
+  },
+  description: {},
 };
 
-const v$ = useVuelidate(rules, { record });
+const { r$ } = useRegle(record, rules);
 
 onMounted(async () => {
   // Fetch accounts first
@@ -320,7 +310,7 @@ const searchAccount = (event: { query: string }) => {
 };
 
 async function isRecordValid() {
-  const isValid = await v$.value.record.$validate();
+  const { valid: isValid } = await r$.$validate();
   if (!isValid) return false;
   return true;
 }
@@ -428,7 +418,7 @@ async function startTransactionOperation() {
     } else {
       toastStore.successResponseToast(response);
     }
-    v$.value.record.$reset();
+    r$.$reset();
     emit("completeTxOperation");
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -436,7 +426,7 @@ async function startTransactionOperation() {
 }
 
 async function startTransferOperation() {
-  const isValid = await transferFormRef.value?.v$.$validate();
+  const isValid = (await transferFormRef.value?.r$.$validate())?.valid;
   if (!isValid) return;
 
   const created_at = dateHelper.mergeDateWithCurrentTime(
@@ -461,7 +451,7 @@ async function startTransferOperation() {
     } else {
       toastStore.successResponseToast(response);
     }
-    v$.value.record.$reset();
+    r$.$reset();
     emit("completeTrOperation");
   } catch (error) {
     toastStore.errorResponseToast(error);
@@ -472,7 +462,7 @@ async function restoreTransaction() {
   try {
     let response = await transactionStore.restoreTransaction(props.recordId!);
 
-    v$.value.record.$reset();
+    r$.$reset();
     toastStore.successResponseToast(response);
     emit("completeTxOperation");
   } catch (error) {
@@ -552,7 +542,7 @@ async function deleteRecord(id: number, tx_type: string) {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
-            :message="v$.record.account.name.$errors[0]?.$message"
+            :message="r$.account.name.$errors[0]"
           >
             <label>Account</label>
           </ValidationError>
@@ -574,10 +564,7 @@ async function deleteRecord(id: number, tx_type: string) {
 
       <div class="flex flex-row w-full">
         <div class="flex flex-col gap-1 w-full">
-          <ValidationError
-            :is-required="true"
-            :message="v$.record.amount.$errors[0]?.$message"
-          >
+          <ValidationError :is-required="true" :message="r$.amount.$errors[0]">
             <label>Amount</label>
           </ValidationError>
           <InputNumber
@@ -597,7 +584,7 @@ async function deleteRecord(id: number, tx_type: string) {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="false"
-            :message="v$.record.category.name.$errors[0]?.$message"
+            :message="r$.category.name.$errors[0]"
           >
             <label>Category</label>
           </ValidationError>
@@ -619,7 +606,7 @@ async function deleteRecord(id: number, tx_type: string) {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
-            :message="v$.record.txn_date.$errors[0]?.$message"
+            :message="r$.txn_date.$errors[0]"
           >
             <label>Date</label>
           </ValidationError>
@@ -641,7 +628,7 @@ async function deleteRecord(id: number, tx_type: string) {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="false"
-            :message="v$.record.description.$errors[0]?.$message"
+            :message="r$.description.$errors[0]"
           >
             <label>Description</label>
           </ValidationError>

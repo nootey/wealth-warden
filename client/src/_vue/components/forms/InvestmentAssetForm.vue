@@ -2,20 +2,20 @@
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import type { Account } from "../../../models/account_models.ts";
 import type {
   InvestmentAsset,
   TickerData,
 } from "../../../models/investment_models.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
-import { required } from "@vuelidate/validators";
+import { required } from "@regle/rules";
 import {
   decimalMax,
   decimalMin,
   decimalValid,
 } from "../../../validators/currency.ts";
-import useVuelidate from "@vuelidate/core";
+import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import dateHelper from "../../../utils/date_helper.ts";
@@ -100,40 +100,35 @@ const rules = {
   record: {
     name: {
       required,
-      $autoDirty: true,
     },
     account: {
-      required,
-      $autoDirty: true,
+      $self: { required },
     },
     investment_type: {
       required,
-      $autoDirty: true,
     },
     quantity: {
       required,
       decimalValid,
       decimalMin: decimalMin(0),
       decimalMax: decimalMax(1_000_000_000),
-      $autoDirty: true,
     },
     currency: {
       required,
-      $autoDirty: true,
     },
   },
   tickerData: {
     name: {
       required,
-      $autoDirty: true,
     },
-    exchange: {
-      $autoDirty: true,
-    },
+    exchange: {},
   },
 };
 
-const v$ = useVuelidate(rules, { record, tickerData });
+// `reactive` unwraps the refs, so writes from the v-models stay bound
+const validationState = reactive({ record, tickerData });
+
+const { r$ } = useRegle(validationState, rules);
 
 onMounted(async () => {
   accounts.value = await accountStore.getAllAccounts(true, true);
@@ -167,7 +162,7 @@ const searchAccount = (event: { query: string }) => {
 };
 
 async function isRecordValid() {
-  const isValid = await v$.value.$validate();
+  const { valid: isValid } = await r$.$validate();
   if (!isValid) return false;
   return true;
 }
@@ -249,7 +244,7 @@ async function manageRecord() {
         break;
     }
 
-    v$.value.record.$reset();
+    r$.record.$reset();
     toastStore.successResponseToast(response);
     emit("completeOperation");
   } catch (error) {
@@ -626,7 +621,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       <div class="flex flex-col gap-1 w-full">
         <ValidationError
           :is-required="true"
-          :message="v$.record.account.$errors[0]?.$message"
+          :message="r$.record.account.$errors.$self?.[0]"
         >
           <label>Account</label>
         </ValidationError>
@@ -651,7 +646,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       <div class="flex flex-col gap-1 w-full">
         <ValidationError
           :is-required="true"
-          :message="v$.record.name.$errors[0]?.$message"
+          :message="r$.record.name.$errors[0]"
         >
           <label>Name</label>
         </ValidationError>
@@ -675,7 +670,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       <div class="flex flex-col gap-1 w-6/12">
         <ValidationError
           :is-required="true"
-          :message="v$.tickerData.name.$errors[0]?.$message"
+          :message="r$.tickerData.name.$errors[0]"
         >
           <label>Ticker</label>
         </ValidationError>
@@ -690,7 +685,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       <div class="flex flex-col gap-1 w-6/12">
         <ValidationError
           :is-required="true"
-          :message="v$.record.currency.$errors[0]?.$message"
+          :message="r$.record.currency.$errors[0]"
         >
           <label>Currency</label>
         </ValidationError>
@@ -712,7 +707,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       <div class="flex flex-col gap-1 w-full">
         <ValidationError
           :is-required="false"
-          :message="v$.tickerData.exchange.$errors[0]?.$message"
+          :message="r$.tickerData.exchange?.$errors[0]"
         >
           <label>Exchange</label>
         </ValidationError>
@@ -730,7 +725,7 @@ async function syncAssetAccountBalance(acc_id: number | null) {
       <div class="flex flex-col gap-1 w-full">
         <ValidationError
           :is-required="true"
-          :message="v$.record.quantity.$errors[0]?.$message"
+          :message="r$.record.quantity.$errors[0]"
         >
           <label>Quantity</label>
         </ValidationError>

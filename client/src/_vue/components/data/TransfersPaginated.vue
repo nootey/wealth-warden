@@ -150,7 +150,7 @@ function openUpdate(tr: Transfer) {
 
 async function submitUpdate() {
   if (submitting.value || !selectedTransfer.value) return;
-  const isValid = await transferFormRef.value?.v$.localTransfer.$validate();
+  const isValid = (await transferFormRef.value?.r$.$validate())?.valid;
   if (!isValid) return;
 
   submitting.value = true;

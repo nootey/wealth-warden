@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import SettingsSkeleton from "../../components/layout/SettingsSkeleton.vue";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useAuthStore } from "../../../services/stores/auth_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
@@ -8,8 +8,8 @@ import { useWsStore } from "../../../services/stores/ws_store.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
 import ShowLoading from "../../components/base/ShowLoading.vue";
-import { email, required, helpers } from "@vuelidate/validators";
-import useVuelidate from "@vuelidate/core";
+import { email, required, sameAs } from "@regle/rules";
+import { useRegle } from "@regle/core";
 import {
   passwordMinLength,
   noSpaces,
@@ -44,10 +44,17 @@ const passwordConfirmation = ref("");
 const sessions = ref<SessionInfo[]>([]);
 const sessionsLoading = ref(true);
 
+// `reactive` unwraps the refs, so writes from the v-models stay bound
+const validationState = reactive({
+  currentUser,
+  password,
+  passwordConfirmation,
+});
+
 const rules = computed(() => ({
   currentUser: {
-    display_name: { required, $autoDirty: true },
-    email: { required, email, $autoDirty: true },
+    display_name: { required },
+    email: { required, email },
   },
   password: password.value
     ? {
@@ -56,26 +63,20 @@ const rules = computed(() => ({
         hasNumber,
         hasUppercase,
         hasSpecialChar,
-        $autoDirty: true,
       }
     : {},
   passwordConfirmation: password.value
     ? {
-        repeatPassword: helpers.withMessage(
-          ": must match password",
-          (value: string) => value === password.value,
-        ),
-        $autoDirty: true,
+        sameAs: sameAs(() => password.value, "password"),
       }
     : {},
 }));
 
-const v$ = useVuelidate(rules, { currentUser, password, passwordConfirmation });
+const { r$ } = useRegle(validationState, rules);
 
 async function isRecordValid() {
-  const isValid = await v$.value.$validate();
-  if (!isValid) return false;
-  return true;
+  const { valid } = await r$.$validate();
+  return valid;
 }
 
 onMounted(async () => {
@@ -206,7 +207,7 @@ async function updateSettings() {
             <div class="flex flex-col w-full">
               <ValidationError
                 :is-required="true"
-                :message="v$.currentUser.email.$errors[0]?.$message"
+                :message="r$.currentUser.email.$errors[0]"
               >
                 <label>Email</label>
               </ValidationError>
@@ -221,7 +222,7 @@ async function updateSettings() {
             <div class="flex flex-col w-full">
               <ValidationError
                 :is-required="true"
-                :message="v$.currentUser.display_name.$errors[0]?.$message"
+                :message="r$.currentUser.display_name.$errors[0]"
               >
                 <label>Display name</label>
               </ValidationError>
@@ -234,7 +235,7 @@ async function updateSettings() {
           </div>
           <div class="flex flex-row w-full">
             <div class="flex flex-col gap-1 w-full">
-              <ValidationError :message="v$.password.$errors[0]?.$message">
+              <ValidationError :message="r$.password.$errors[0]">
                 <label>New password</label>
               </ValidationError>
               <InputText
@@ -247,9 +248,7 @@ async function updateSettings() {
           </div>
           <div class="flex flex-row w-full">
             <div class="flex flex-col gap-1 w-full">
-              <ValidationError
-                :message="v$.passwordConfirmation.$errors[0]?.$message"
-              >
+              <ValidationError :message="r$.passwordConfirmation.$errors[0]">
                 <label>Confirm new password</label>
               </ValidationError>
               <InputText

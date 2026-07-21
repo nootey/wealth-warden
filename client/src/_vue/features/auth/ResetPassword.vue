@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { required, email, helpers } from "@vuelidate/validators";
-import useVuelidate from "@vuelidate/core";
+import { required, email, sameAs } from "@regle/rules";
+import { useRegle } from "@regle/core";
 import {
   passwordMinLength,
   noSpaces,
@@ -33,34 +33,24 @@ const form = ref<AuthForm>({
   password_confirmation: "",
 });
 
-const rules = {
-  form: {
-    email: {
-      required,
-      email,
-      $autoDirty: true,
-    },
-    password: {
-      required,
-      $autoDirty: true,
-      minLength: passwordMinLength,
-      noSpaces,
-      hasNumber,
-      hasUppercase,
-      hasSpecialChar,
-    },
-    password_confirmation: {
-      required,
-      $autoDirty: true,
-      repeatPassword: helpers.withMessage(
-        ": must match password",
-        (value) => value === form.value.password,
-      ),
-    },
+const { r$ } = useRegle(form, {
+  email: {
+    required,
+    email,
   },
-};
-
-const v$ = useVuelidate(rules, { form });
+  password: {
+    required,
+    minLength: passwordMinLength,
+    noSpaces,
+    hasNumber,
+    hasUppercase,
+    hasSpecialChar,
+  },
+  password_confirmation: {
+    required,
+    sameAs: sameAs(() => form.value.password, "password"),
+  },
+});
 
 onMounted(async () => {
   loading.value = true;
@@ -91,8 +81,8 @@ async function getUser() {
 }
 
 async function resetPassword() {
-  v$.value.$touch();
-  if (v$.value.$error) return;
+  const { valid } = await r$.$validate();
+  if (!valid) return;
 
   loading.value = true;
 
@@ -127,10 +117,7 @@ function login() {
       <div class="flex flex-col gap-4">
         <div class="flex flex-row w-full">
           <div class="flex flex-col gap-1 w-full">
-            <ValidationError
-              :is-required="true"
-              :message="v$.form.email.$errors[0]?.$message"
-            >
+            <ValidationError :is-required="true" :message="r$.email.$errors[0]">
               <label>Email</label>
             </ValidationError>
             <InputText
@@ -149,7 +136,7 @@ function login() {
           <div class="flex flex-col gap-1 w-full">
             <ValidationError
               :is-required="true"
-              :message="v$.form.password.$errors[0]?.$message"
+              :message="r$.password.$errors[0]"
             >
               <label>New password</label>
             </ValidationError>
@@ -169,7 +156,7 @@ function login() {
           <div class="flex flex-col gap-1 w-full">
             <ValidationError
               :is-required="true"
-              :message="v$.form.password_confirmation.$errors[0]?.$message"
+              :message="r$.password_confirmation.$errors[0]"
             >
               <label>Confirm new password</label>
             </ValidationError>

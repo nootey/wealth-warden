@@ -1,17 +1,12 @@
 <script setup lang="ts">
-import { computed, type Ref, unref } from "vue";
+import { computed } from "vue";
 
 const props = defineProps<{
-  message?: string | Ref<string>;
+  message?: string;
   isRequired?: boolean;
 }>();
 
-const isDisplayed = computed(() => Boolean(unref(props.message)));
-
-const displayMessage = computed(() => {
-  const msg = unref(props.message);
-  return msg?.replace("Value", ": field") ?? "";
-});
+const isDisplayed = computed(() => Boolean(props.message));
 </script>
 
 <template>
@@ -27,7 +22,7 @@ const displayMessage = computed(() => {
     </small>
     <Transition name="slide-fade">
       <span v-if="isDisplayed" class="text-xs">
-        {{ displayMessage }}
+        {{ props.message }}
       </span>
     </Transition>
   </div>
