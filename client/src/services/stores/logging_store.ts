@@ -29,9 +29,11 @@ export const useLoggingStore = defineStore("logging", {
       id: string | number,
       events: string[],
       categories: string[],
+      page: number,
+      rowsPerPage: number,
     ) {
       if (!events || events.length === 0) {
-        return { data: [] }; // Return empty result gracefully
+        return { data: [], total_records: 0, from: 0, to: 0 };
       }
 
       const response = await apiClient.get(`${this.apiPrefix}/audit-trail`, {
@@ -39,6 +41,8 @@ export const useLoggingStore = defineStore("logging", {
           id: id.toString(),
           event: events.join(","),
           category: categories.join(","),
+          page: page,
+          rowsPerPage: rowsPerPage,
         },
       });
 

@@ -18,7 +18,8 @@ type LoggingRepositoryInterface interface {
 	FindLogs(ctx context.Context, offset, limit int, sortField, sortOrder string, filters []utils.Filter) ([]models.ActivityLog, error)
 	FindActivityLogFilterData(ctx context.Context, activityIndex string) (map[string]interface{}, error)
 	FindActivityLogByID(ctx context.Context, tx *gorm.DB, ID int64) (models.ActivityLog, error)
-	FindAuditTrailByRecordID(ctx context.Context, recordID string, categories, events []string, causerID int64) ([]models.ActivityLog, error)
+	CountAuditTrailByRecordID(ctx context.Context, recordID string, categories, events []string, causerID int64) (int64, error)
+	FindAuditTrailByRecordID(ctx context.Context, recordID string, categories, events []string, causerID int64, offset, limit int) ([]models.ActivityLog, error)
 	DeleteActivityLog(ctx context.Context, tx *gorm.DB, id int64) error
 }
 
@@ -179,42 +180,32 @@ func (r *LoggingRepository) FindActivityLogByID(ctx context.Context, tx *gorm.DB
 	return record, result.Error
 }
 
-func (r *LoggingRepository) FindAuditTrailByRecordID(ctx context.Context, recordID string, categories, events []string, causerID int64) ([]models.ActivityLog, error) {
-	var allLogs []models.ActivityLog
-	err := r.db.WithContext(ctx).
+func (r *LoggingRepository) auditTrailQuery(ctx context.Context, recordID string, categories, events []string, causerID int64) *gorm.DB {
+	return r.db.WithContext(ctx).
+		Model(&models.ActivityLog{}).
 		Where("event IN ? AND category IN ? AND causer_id = ?", events, categories, causerID).
-		Order("created_at DESC").
-		Find(&allLogs).Error
+		Where("metadata->'new'->>'id' = ?", recordID)
+}
+
+func (r *LoggingRepository) CountAuditTrailByRecordID(ctx context.Context, recordID string, categories, events []string, causerID int64) (int64, error) {
+	var totalRecords int64
+	err := r.auditTrailQuery(ctx, recordID, categories, events, causerID).Count(&totalRecords).Error
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	// Filter by ID in metadata
+	return totalRecords, nil
+}
+
+func (r *LoggingRepository) FindAuditTrailByRecordID(ctx context.Context, recordID string, categories, events []string, causerID int64, offset, limit int) ([]models.ActivityLog, error) {
 	var records []models.ActivityLog
-	for _, log := range allLogs {
-		if log.Metadata == nil {
-			continue
-		}
-
-		var metadata map[string]map[string]interface{}
-		if err := json.Unmarshal(log.Metadata, &metadata); err != nil {
-			continue
-		}
-
-		newData, ok := metadata["new"]
-		if !ok {
-			continue
-		}
-
-		idVal, ok := newData["id"]
-		if !ok {
-			continue
-		}
-
-		idStr := fmt.Sprintf("%v", idVal)
-		if idStr == recordID {
-			records = append(records, log)
-		}
+	err := r.auditTrailQuery(ctx, recordID, categories, events, causerID).
+		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&records).Error
+	if err != nil {
+		return nil, err
 	}
 
 	return records, nil

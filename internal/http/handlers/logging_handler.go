@@ -119,18 +119,34 @@ func (h *LoggingHandler) GetAuditTrail(c *gin.Context) {
 	}
 	categories := strings.Split(categoryStr, ",")
 
+	p := utils.GetPaginationParams(qp)
+
 	eventStr := qp.Get("event")
 	if eventStr == "" {
-		c.JSON(http.StatusOK, gin.H{"data": []models.ActivityLog{}})
+		c.JSON(http.StatusOK, gin.H{
+			"current_page":  p.PageNumber,
+			"rows_per_page": p.RowsPerPage,
+			"total_records": 0,
+			"from":          0,
+			"to":            0,
+			"data":          []models.ActivityLog{},
+		})
 		return
 	}
 	events := strings.Split(eventStr, ",")
 
-	trail, err := h.Service.FetchAuditTrail(ctx, id, categories, events, userID)
+	trail, paginator, err := h.Service.FetchAuditTrail(ctx, id, categories, events, userID, p)
 	if err != nil {
 		utils.ErrorMessage(c, "Audit trail error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, trail)
+	c.JSON(http.StatusOK, gin.H{
+		"current_page":  paginator.CurrentPage,
+		"rows_per_page": paginator.RowsPerPage,
+		"total_records": paginator.TotalRecords,
+		"from":          paginator.From,
+		"to":            paginator.To,
+		"data":          trail,
+	})
 }
