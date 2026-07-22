@@ -28,17 +28,21 @@ export const useLoggingStore = defineStore("logging", {
     async getAuditTrail(
       id: string | number,
       events: string[],
-      category: string,
+      categories: string[],
+      page: number,
+      rowsPerPage: number,
     ) {
       if (!events || events.length === 0) {
-        return { data: [] }; // Return empty result gracefully
+        return { data: [], total_records: 0, from: 0, to: 0 };
       }
 
       const response = await apiClient.get(`${this.apiPrefix}/audit-trail`, {
         params: {
           id: id.toString(),
           event: events.join(","),
-          category: category,
+          category: categories.join(","),
+          page: page,
+          rowsPerPage: rowsPerPage,
         },
       });
 

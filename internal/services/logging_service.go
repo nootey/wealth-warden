@@ -11,7 +11,7 @@ import (
 type LoggingServiceInterface interface {
 	FetchPaginatedLogs(ctx context.Context, p utils.PaginationParams) ([]models.ActivityLog, *utils.Paginator, error)
 	FetchActivityLogFilterData(ctx context.Context, activityIndex string) (map[string]interface{}, error)
-	FetchAuditTrail(ctx context.Context, recordID, category string, events []string) ([]models.ActivityLog, error)
+	FetchAuditTrail(ctx context.Context, recordID string, categories, events []string, causerID int64, p utils.PaginationParams) ([]models.ActivityLog, *utils.Paginator, error)
 	DeleteActivityLog(ctx context.Context, id int64) error
 }
 
@@ -68,8 +68,39 @@ func (s *LoggingService) FetchActivityLogFilterData(ctx context.Context, activit
 	return s.repo.FindActivityLogFilterData(ctx, activityIndex)
 }
 
-func (s *LoggingService) FetchAuditTrail(ctx context.Context, recordID, category string, events []string) ([]models.ActivityLog, error) {
-	return s.repo.FindAuditTrailByRecordID(ctx, recordID, category, events)
+func (s *LoggingService) FetchAuditTrail(ctx context.Context, recordID string, categories, events []string, causerID int64, p utils.PaginationParams) ([]models.ActivityLog, *utils.Paginator, error) {
+
+	totalRecords, err := s.repo.CountAuditTrailByRecordID(ctx, recordID, categories, events, causerID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	offset := (p.PageNumber - 1) * p.RowsPerPage
+
+	records, err := s.repo.FindAuditTrailByRecordID(ctx, recordID, categories, events, causerID, offset, p.RowsPerPage)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	from := offset + 1
+	if from > int(totalRecords) {
+		from = int(totalRecords)
+	}
+
+	to := offset + len(records)
+	if to > int(totalRecords) {
+		to = int(totalRecords)
+	}
+
+	paginator := &utils.Paginator{
+		CurrentPage:  p.PageNumber,
+		RowsPerPage:  p.RowsPerPage,
+		TotalRecords: int(totalRecords),
+		From:         from,
+		To:           to,
+	}
+
+	return records, paginator, nil
 }
 
 func (s *LoggingService) DeleteActivityLog(ctx context.Context, id int64) error {

@@ -4,13 +4,13 @@ import ShowLoading from "../base/ShowLoading.vue";
 import SlotSkeleton from "../layout/SlotSkeleton.vue";
 import ValidationError from "../validation/ValidationError.vue";
 import { computed, onMounted, ref, watch } from "vue";
-import { required } from "@vuelidate/validators";
+import { maxValue, minValue, required } from "@regle/rules";
 import {
   decimalMax,
   decimalMin,
   decimalValid,
 } from "../../../validators/currency.ts";
-import useVuelidate from "@vuelidate/core";
+import { useRegle } from "@regle/core";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import type { CategoryOrGroup } from "../../../models/transaction_models.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
@@ -179,34 +179,28 @@ const expectedBalance = computed(() => {
 });
 
 const rules = computed(() => ({
-  record: {
-    balance_projection: { required, $autoDirty: true },
-    expected_balance: {
-      required,
-      decimalValid,
-      decimalMin: decimalMin(0),
-      decimalMax: decimalMax(1_000_000_000),
-      $autoDirty: true,
-    },
-    percentage_value: {
-      decimalMin: decimalMin(0),
-      decimalMax: decimalMax(100),
-      $autoDirty: true,
-    },
-    multiplier_category_id: {
-      required,
-      $autoDirty: true,
-    },
-    multiplier_value: {
-      required,
-      minValue: 1,
-      maxValue: 10,
-      $autoDirty: true,
-    },
+  balance_projection: { required },
+  expected_balance: {
+    required,
+    decimalValid,
+    decimalMin: decimalMin(0),
+    decimalMax: decimalMax(1_000_000_000),
+  },
+  percentage_value: {
+    decimalMin: decimalMin(0),
+    decimalMax: decimalMax(100),
+  },
+  multiplier_category_id: {
+    required,
+  },
+  multiplier_value: {
+    required,
+    minValue: minValue(1),
+    maxValue: maxValue(10),
   },
 }));
 
-const v$ = useVuelidate(rules, { record });
+const { r$ } = useRegle(record, rules);
 
 // Watch for account change to reload data
 watch(effectiveAccountID, async (newID, oldID) => {
@@ -315,7 +309,7 @@ async function revertProjection() {
           <div class="flex flex-col w-full gap-1">
             <ValidationError
               :is-required="true"
-              :message="v$.record.balance_projection.$errors[0]?.$message"
+              :message="r$.balance_projection.$errors[0]"
             >
               <label>Projection</label>
             </ValidationError>
@@ -337,7 +331,7 @@ async function revertProjection() {
         >
           <ValidationError
             :is-required="true"
-            :message="v$.record.expected_balance.$errors[0]?.$message"
+            :message="r$.expected_balance.$errors[0]"
           >
             <label>Expected balance</label>
           </ValidationError>
@@ -379,9 +373,7 @@ async function revertProjection() {
             />
           </div>
           <div class="flex flex-col gap-1">
-            <ValidationError
-              :message="v$.record.percentage_value.$errors[0]?.$message"
-            >
+            <ValidationError :message="r$.percentage_value.$errors[0]">
               <label>Percentage</label>
             </ValidationError>
             <InputNumber
@@ -409,7 +401,7 @@ async function revertProjection() {
           <div class="flex flex-col gap-1">
             <ValidationError
               :is-required="true"
-              :message="v$.record.multiplier_category_id.$errors[0]?.$message"
+              :message="r$.multiplier_category_id.$errors[0]"
             >
               <label>Category/Group</label>
             </ValidationError>
@@ -427,7 +419,7 @@ async function revertProjection() {
           <div class="flex flex-col gap-1">
             <ValidationError
               :is-required="true"
-              :message="v$.record.multiplier_value.$errors[0]?.$message"
+              :message="r$.multiplier_value.$errors[0]"
             >
               <label>Multiplier</label>
             </ValidationError>

@@ -7,13 +7,13 @@ import type {
   InvestmentTrade,
 } from "../../../models/investment_models.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
-import { required } from "@vuelidate/validators";
+import { required } from "@regle/rules";
 import {
   decimalMax,
   decimalMin,
   decimalValid,
 } from "../../../validators/currency.ts";
-import useVuelidate from "@vuelidate/core";
+import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
@@ -84,51 +84,40 @@ const { number: pricePerUnitNumber } = currencyHelper.useMoneyField(
 );
 
 const rules = {
-  record: {
-    asset: {
-      required,
-      $autoDirty: true,
-    },
-    txn_date: {
-      required,
-      $autoDirty: true,
-    },
-    trade_type: {
-      required,
-      $autoDirty: true,
-    },
-    quantity: {
-      required,
-      decimalValid,
-      decimalMin: decimalMin(0),
-      decimalMax: decimalMax(1_000_000_000),
-      $autoDirty: true,
-    },
-    fee: {
-      required,
-      decimalValid,
-      decimalMin: decimalMin(0),
-      decimalMax: decimalMax(1_000_000_000),
-      $autoDirty: true,
-    },
-    price_per_unit: {
-      required,
-      decimalValid,
-      decimalMin: decimalMin(0),
-      decimalMax: decimalMax(1_000_000_000),
-      $autoDirty: true,
-    },
-    currency: {
-      required,
-      $autoDirty: true,
-    },
-    description: {
-      $autoDirty: true,
-    },
+  asset: {
+    $self: { required },
   },
+  txn_date: {
+    required,
+  },
+  trade_type: {
+    required,
+  },
+  quantity: {
+    required,
+    decimalValid,
+    decimalMin: decimalMin(0),
+    decimalMax: decimalMax(1_000_000_000),
+  },
+  fee: {
+    required,
+    decimalValid,
+    decimalMin: decimalMin(0),
+    decimalMax: decimalMax(1_000_000_000),
+  },
+  price_per_unit: {
+    required,
+    decimalValid,
+    decimalMin: decimalMin(0),
+    decimalMax: decimalMax(1_000_000_000),
+  },
+  currency: {
+    required,
+  },
+  description: {},
 };
 
-const v$ = useVuelidate(rules, { record });
+const { r$ } = useRegle(record, rules);
 
 onMounted(async () => {
   await getSettings();
@@ -196,7 +185,7 @@ const searchAsset = (event: { query: string }) => {
 };
 
 async function isRecordValid() {
-  const isValid = await v$.value.$validate();
+  const { valid: isValid } = await r$.$validate();
   if (!isValid) return false;
   return true;
 }
@@ -262,7 +251,7 @@ async function manageRecord() {
         break;
     }
 
-    v$.value.record.$reset();
+    r$.$reset();
     toastStore.successResponseToast(response);
     emit("completeOperation");
   } catch (error) {
@@ -454,7 +443,7 @@ async function deleteRecord(id: number) {
       <div class="flex flex-col gap-1 w-full">
         <ValidationError
           :is-required="true"
-          :message="v$.record.asset.$errors[0]?.$message"
+          :message="r$.asset.$errors.$self?.[0]"
         >
           <label>Asset</label>
         </ValidationError>
@@ -492,10 +481,7 @@ async function deleteRecord(id: number) {
 
     <div class="flex flex-row w-full">
       <div class="flex flex-col gap-1 w-full">
-        <ValidationError
-          :is-required="true"
-          :message="v$.record.txn_date.$errors[0]?.$message"
-        >
+        <ValidationError :is-required="true" :message="r$.txn_date.$errors[0]">
           <label>Date</label>
         </ValidationError>
         <DatePicker
@@ -513,10 +499,7 @@ async function deleteRecord(id: number) {
 
     <div class="flex flex-row w-full gap-4">
       <div class="flex flex-col gap-1 w-6/12">
-        <ValidationError
-          :is-required="true"
-          :message="v$.record.quantity.$errors[0]?.$message"
-        >
+        <ValidationError :is-required="true" :message="r$.quantity.$errors[0]">
           <label>Quantity</label>
         </ValidationError>
         <InputNumber
@@ -532,10 +515,7 @@ async function deleteRecord(id: number) {
         />
       </div>
       <div class="flex flex-col gap-1 w-6/12">
-        <ValidationError
-          :is-required="true"
-          :message="v$.record.currency.$errors[0]?.$message"
-        >
+        <ValidationError :is-required="true" :message="r$.currency.$errors[0]">
           <label>Currency</label>
         </ValidationError>
         <Select
@@ -553,7 +533,7 @@ async function deleteRecord(id: number) {
       <div class="flex flex-col gap-1 w-6/12">
         <ValidationError
           :is-required="true"
-          :message="v$.record.price_per_unit.$errors[0]?.$message"
+          :message="r$.price_per_unit.$errors[0]"
         >
           <label>Price per unit</label>
         </ValidationError>
@@ -575,10 +555,7 @@ async function deleteRecord(id: number) {
       </div>
 
       <div class="flex flex-col gap-1 w-6/12">
-        <ValidationError
-          :is-required="false"
-          :message="v$.record.fee.$errors[0]?.$message"
-        >
+        <ValidationError :is-required="false" :message="r$.fee.$errors[0]">
           <label>Fee</label>
         </ValidationError>
         <InputNumber
@@ -605,7 +582,7 @@ async function deleteRecord(id: number) {
       <div class="flex flex-col gap-1 w-full">
         <ValidationError
           :is-required="false"
-          :message="v$.record.description.$errors[0]?.$message"
+          :message="r$.description.$errors[0]"
         >
           <label>Description</label>
         </ValidationError>
@@ -622,7 +599,7 @@ async function deleteRecord(id: number) {
       <AuditTrail
         :record-id="props.recordId!"
         :events="['create', 'update']"
-        category="investment_trade"
+        :categories="['investment_trade']"
       />
     </div>
   </div>

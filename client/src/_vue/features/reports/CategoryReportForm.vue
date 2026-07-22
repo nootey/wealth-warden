@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { requiredIf, helpers } from "@vuelidate/validators";
-import useVuelidate from "@vuelidate/core";
+import { requiredIf, withMessage } from "@regle/rules";
+import { useRegle } from "@regle/core";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
 import { useAnalyticsStore } from "../../../services/stores/analytics_store.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
@@ -49,30 +49,27 @@ watch(
 );
 
 const rules = {
-  form: {
-    selectedYears: {
-      required: helpers.withMessage(
-        "Select at least one year",
-        requiredIf(() => !form.allTime),
-      ),
-      $autoDirty: true,
-    },
-    inflowCategories: {
-      atLeastOne: helpers.withMessage(
-        "Select at least one primary category",
-        () => form.inflowCategories.length > 0,
-      ),
-    },
-    outflowCategories: {
-      atLeastOne: helpers.withMessage(
-        "Must have a primary category selected",
-        () => form.inflowCategories.length > 0,
-      ),
-    },
+  selectedYears: {
+    required: withMessage(
+      requiredIf(() => !form.allTime),
+      "Select at least one year",
+    ),
+  },
+  inflowCategories: {
+    atLeastOne: withMessage(
+      () => form.inflowCategories.length > 0,
+      "Select at least one primary category",
+    ),
+  },
+  outflowCategories: {
+    atLeastOne: withMessage(
+      () => form.inflowCategories.length > 0,
+      "Must have a primary category selected",
+    ),
   },
 };
 
-const v$ = useVuelidate(rules, { form });
+const { r$ } = useRegle(form, rules);
 
 onMounted(async () => {
   const categoryLoad = async () => {
@@ -146,7 +143,7 @@ const groupedCategories = computed(() => {
 });
 
 async function generate() {
-  const isValid = await v$.value.form.$validate();
+  const { valid: isValid } = await r$.$validate();
   if (!isValid) return;
 
   isGenerating.value = true;
@@ -175,7 +172,7 @@ async function generate() {
       <div class="flex flex-col gap-1" style="flex: 1; max-width: 280px">
         <ValidationError
           :is-required="true"
-          :message="v$.form.inflowCategories.$errors[0]?.$message"
+          :message="r$.inflowCategories.$errors.$self?.[0]"
         >
           <label>Primary categories</label>
         </ValidationError>
@@ -206,7 +203,7 @@ async function generate() {
       <div class="flex flex-col gap-1" style="flex: 1; max-width: 280px">
         <ValidationError
           :is-required="false"
-          :message="v$.form.outflowCategories.$errors[0]?.$message"
+          :message="r$.outflowCategories.$errors.$self?.[0]"
         >
           <label>Secondary categories</label>
         </ValidationError>
@@ -240,7 +237,7 @@ async function generate() {
       <div class="flex flex-col gap-1" style="flex: 1; max-width: 280px">
         <ValidationError
           :is-required="!form.allTime"
-          :message="v$.form.selectedYears.$errors[0]?.$message"
+          :message="r$.selectedYears.$errors.$self?.[0]"
         >
           <label>Years (max {{ maxYears }})</label>
         </ValidationError>

@@ -6,8 +6,8 @@ import type {
   Category,
   CategoryGroup,
 } from "../../../models/transaction_models.ts";
-import { required } from "@vuelidate/validators";
-import useVuelidate from "@vuelidate/core";
+import { required } from "@regle/rules";
+import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
@@ -67,14 +67,12 @@ const classifications = ref<string[]>(["income", "expense"]);
 const filteredClassifications = ref<string[]>([]);
 
 const rules = {
-  record: {
-    name: { required, $autoDirty: true },
-    classification: { required, $autoDirty: true },
-    description: { $autoDirty: true },
-  },
+  name: { required },
+  classification: { required },
+  description: {},
 };
 
-const v$ = useVuelidate(rules, { record });
+const { r$ } = useRegle(record, rules);
 
 watch(
   () => record.value.classification,
@@ -119,7 +117,7 @@ async function loadRecord(id: number) {
 }
 
 async function isRecordValid() {
-  const isValid = await v$.value.record.$validate();
+  const { valid: isValid } = await r$.$validate();
   if (!isValid) return false;
   return true;
 }
@@ -162,7 +160,7 @@ async function manageRecord() {
         break;
     }
 
-    v$.value.record.$reset();
+    r$.$reset();
     toastStore.successResponseToast(response);
     emit("completeOperation");
   } catch (error) {
@@ -186,10 +184,7 @@ const searchClassifications = (event: { query: string }) => {
     <div class="flex flex-col gap-4 p-1">
       <div class="flex flex-row w-full">
         <div class="flex flex-col w-full gap-1">
-          <ValidationError
-            :is-required="true"
-            :message="v$.record.name.$errors[0]?.$message"
-          >
+          <ValidationError :is-required="true" :message="r$.name.$errors[0]">
             <label>Name</label>
           </ValidationError>
           <InputText v-model="record.name" size="small" />
@@ -200,7 +195,7 @@ const searchClassifications = (event: { query: string }) => {
         <div class="flex flex-col w-full gap-1">
           <ValidationError
             :is-required="false"
-            :message="v$.record.description.$errors[0]?.$message"
+            :message="r$.description.$errors[0]"
           >
             <label>Description</label>
           </ValidationError>
@@ -212,7 +207,7 @@ const searchClassifications = (event: { query: string }) => {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
-            :message="v$.record.classification.$errors[0]?.$message"
+            :message="r$.classification.$errors[0]"
           >
             <label>Classification</label>
           </ValidationError>
@@ -245,7 +240,7 @@ const searchClassifications = (event: { query: string }) => {
       <AuditTrail
         :record-id="props.recordId!"
         :events="['create', 'update']"
-        category="category_group"
+        :categories="['category_group']"
       />
     </div>
 

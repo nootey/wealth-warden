@@ -317,12 +317,11 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 	}
 
 	changes := utils.InitChanges()
-	utils.CompareChanges("", strconv.FormatInt(uID, 10), changes, "id")
-	utils.CompareChanges("", strconv.FormatInt(id, 10), changes, "id")
 	utils.CompareChanges(oldRole.Name, newRole.Name, changes, "role")
 	utils.CompareChanges(exUsr.DisplayName, usr.DisplayName, changes, "display_name")
 
-	if !changes.IsEmpty() {
+	if changes.HasChanges() {
+		changes.Stamp("id", strconv.FormatInt(uID, 10))
 		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
@@ -376,6 +375,7 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 	}
 
 	changes := utils.InitChanges()
+	utils.CompareChanges("", strconv.FormatInt(usr.ID, 10), changes, "id")
 	utils.CompareChanges(role.Name, "", changes, "role")
 	utils.CompareChanges(usr.DisplayName, "", changes, "display_name")
 	utils.CompareChanges(usr.Email, "", changes, "email")

@@ -186,7 +186,6 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 	}
 
 	changes := utils.InitChanges()
-	utils.CompareChanges("", strconv.FormatInt(roleID, 10), changes, "id")
 	utils.CompareChanges(exRole.Name, role.Name, changes, "name")
 	utils.CompareChanges(utils.SafeString(exRole.Description), utils.SafeString(role.Description), changes, "description")
 
@@ -205,7 +204,8 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 		utils.CompareChanges(string(prevBytes), string(newBytes), changes, "permissions")
 	}
 
-	if !changes.IsEmpty() {
+	if changes.HasChanges() {
+		changes.Stamp("id", strconv.FormatInt(roleID, 10))
 		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",

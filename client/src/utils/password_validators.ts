@@ -1,23 +1,29 @@
-import { helpers, minLength } from "@vuelidate/validators";
+import { minLength, withMessage } from "@regle/rules";
+import type { MaybeInput } from "@regle/core";
+
+// Empty values pass; `required` is what enforces presence.
+const optional =
+  (test: (value: string) => boolean) => (value: MaybeInput<string>) =>
+    !value || test(value);
 
 export const passwordMinLength = minLength(6);
 
-export const noSpaces = helpers.withMessage(
+export const noSpaces = withMessage(
+  optional((value) => !/\s/.test(value)),
   "Password cannot contain spaces",
-  (value: string) => !/\s/.test(value ?? ""),
 );
 
-export const hasNumber = helpers.withMessage(
+export const hasNumber = withMessage(
+  optional((value) => /\d/.test(value)),
   "Password must contain at least one number",
-  helpers.regex(/\d/),
 );
 
-export const hasUppercase = helpers.withMessage(
+export const hasUppercase = withMessage(
+  optional((value) => /[A-Z]/.test(value)),
   "Password must contain at least one uppercase letter",
-  helpers.regex(/[A-Z]/),
 );
 
-export const hasSpecialChar = helpers.withMessage(
+export const hasSpecialChar = withMessage(
+  optional((value) => /[!@#$%^&*(),.?":{}|<>]/.test(value)),
   "Password must contain at least one special character",
-  helpers.regex(/[!@#$%^&*(),.?":{}|<>]/),
 );

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import ValidationError from "../../components/validation/ValidationError.vue";
-import { required } from "@vuelidate/validators";
+import { required } from "@regle/rules";
 import {
   decimalValid,
   decimalMin,
   decimalMax,
 } from "../../../validators/currency.ts";
-import useVuelidate from "@vuelidate/core";
+import { useRegle } from "@regle/core";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
@@ -70,6 +70,13 @@ const balanceFieldRef = computed({
 
 const balanceNumber = currencyHelper.useMoneyField(balanceFieldRef, 2).number;
 const balanceAdjusted = ref(false);
+
+// market-valued accounts (investment/crypto) hold cash and holdings separately;
+// the editable field is cash only, since an adjustment posts a cash transaction
+const hasMarketValue = computed(() => {
+  const mv = record.value.balance.market_value;
+  return props.mode === "update" && mv != null && !new Decimal(mv).isZero();
+});
 const asOfAdjusted = ref(false);
 
 const creditLimitRef = computed({
@@ -132,53 +139,47 @@ const searchSubtype = (event: { query: string }) => {
 };
 
 const rules = computed(() => ({
-  record: {
-    name: { required, $autoDirty: true },
-    account_type: {
-      type: { required, $autoDirty: true },
-      sub_type: { required, $autoDirty: true },
-    },
-    opened_at: {
-      required,
-      $autoDirty: true,
-    },
-    balance: {
-      start_balance:
-        props.mode === "create"
-          ? {
-              required,
-              decimalValid,
-              ...(selectedClassification.value === "Asset"
-                ? { decimalMin: decimalMin(0) }
-                : {}),
-              decimalMax: decimalMax(1_000_000_000),
-              $autoDirty: true,
-            }
-          : {},
-      end_balance:
-        props.mode === "update"
-          ? {
-              required,
-              decimalValid,
-              ...(selectedClassification.value === "Asset" &&
-              record.value.credit_limit == null &&
-              originalCreditLimit.value == null
-                ? { decimalMin: decimalMin(0) }
-                : {}),
-              decimalMax: decimalMax(1_000_000_000),
-              $autoDirty: true,
-            }
-          : {},
-    },
-    credit_limit: {
-      decimalMin: decimalMin(0),
-      decimalMax: decimalMax(1_000_000_000),
-      $autoDirty: true,
-    },
+  name: { required },
+  account_type: {
+    type: { required },
+    sub_type: { required },
+  },
+  opened_at: {
+    required,
+  },
+  balance: {
+    start_balance:
+      props.mode === "create"
+        ? {
+            required,
+            decimalValid,
+            ...(selectedClassification.value === "Asset"
+              ? { decimalMin: decimalMin(0) }
+              : {}),
+            decimalMax: decimalMax(1_000_000_000),
+          }
+        : {},
+    end_balance:
+      props.mode === "update"
+        ? {
+            required,
+            decimalValid,
+            ...(selectedClassification.value === "Asset" &&
+            record.value.credit_limit == null &&
+            originalCreditLimit.value == null
+              ? { decimalMin: decimalMin(0) }
+              : {}),
+            decimalMax: decimalMax(1_000_000_000),
+          }
+        : {},
+  },
+  credit_limit: {
+    decimalMin: decimalMin(0),
+    decimalMax: decimalMax(1_000_000_000),
   },
 }));
 
-const v$ = useVuelidate(rules, { record });
+const { r$ } = useRegle(record, rules);
 
 // Format selected types
 const formattedTypeModel = computed({
@@ -330,7 +331,7 @@ async function loadRecord(id: number) {
 }
 
 async function isRecordValid() {
-  const isValid = await v$.value.record.$validate();
+  const { valid: isValid } = await r$.$validate();
   if (!isValid) return false;
   return true;
 }
@@ -377,7 +378,10 @@ async function manageRecord() {
   }
   submitting.value = true;
 
-  if (!(await isRecordValid())) return;
+  if (!(await isRecordValid())) {
+    submitting.value = false;
+    return;
+  }
 
   const at =
     accountTypes.value.find(
@@ -393,6 +397,7 @@ async function manageRecord() {
       title: "error",
       message: "Account type not found!",
     });
+    submitting.value = false;
     return;
   }
 
@@ -447,7 +452,7 @@ async function manageRecord() {
         break;
     }
 
-    v$.value.record.$reset();
+    r$.$reset();
     toastStore.successResponseToast(response);
     emit("completeOperation");
   } catch (error) {
@@ -461,7 +466,7 @@ async function manageRecord() {
 <template>
   <div v-if="!initializing" class="flex flex-col gap-4 p-1">
     <div v-if="!readOnly" class="flex flex-row w-full justify-center">
-      <div class="flex flex-col w-50">
+      <div class="flex flex-col">
         <SelectButton
           v-model="selectedClassification"
           style="font-size: 0.875rem"
@@ -477,10 +482,7 @@ async function manageRecord() {
 
     <div class="flex flex-row w-full">
       <div class="flex flex-col w-full">
-        <ValidationError
-          :is-required="true"
-          :message="v$.record.name.$errors[0]?.$message"
-        >
+        <ValidationError :is-required="true" :message="r$.name.$errors[0]">
           <label>Name</label>
         </ValidationError>
         <InputText
@@ -495,9 +497,12 @@ async function manageRecord() {
     <div class="flex flex-col gap-1">
       <ValidationError
         :is-required="true"
-        :message="v$.record.balance.$errors[0]?.$message"
+        :message="
+          r$.balance.start_balance?.$errors[0] ??
+          r$.balance.end_balance?.$errors[0]
+        "
       >
-        <label>Current balance</label>
+        <label>{{ hasMarketValue ? "Cash balance" : "Current balance" }}</label>
       </ValidationError>
       <InputNumber
         v-model="balanceNumber"
@@ -519,12 +524,26 @@ async function manageRecord() {
         :max-fraction-digits="2"
         @update:model-value="balanceAdjusted = true"
       />
+      <div v-if="hasMarketValue" class="flex flex-col gap-1 text-sm">
+        <div class="flex justify-between text-muted-color">
+          <span>Market value</span>
+          <span>{{
+            vueHelper.displayAsCurrency(record.balance.market_value)
+          }}</span>
+        </div>
+        <div class="flex justify-between font-medium">
+          <span>Total balance</span>
+          <span>{{
+            vueHelper.displayAsCurrency(record.balance.total_balance)
+          }}</span>
+        </div>
+      </div>
     </div>
 
     <div v-if="selectedClassification === 'Asset'" class="flex flex-col gap-1">
       <ValidationError
         :is-required="false"
-        :message="v$.record.credit_limit.$errors[0]?.$message"
+        :message="r$.credit_limit.$errors[0]"
       >
         <label>Credit limit</label>
       </ValidationError>
@@ -547,7 +566,7 @@ async function manageRecord() {
       <div class="flex flex-col gap-1 w-full">
         <ValidationError
           :is-required="true"
-          :message="v$.record.account_type.type.$errors[0]?.$message"
+          :message="r$.account_type.type.$errors[0]"
         >
           <label>Type</label>
         </ValidationError>
@@ -574,7 +593,7 @@ async function manageRecord() {
       <div class="flex flex-col gap-1 w-full">
         <ValidationError
           :is-required="true"
-          :message="v$.record.account_type.sub_type.$errors[0]?.$message"
+          :message="r$.account_type.sub_type.$errors[0]"
         >
           <label>Subtype</label>
         </ValidationError>
@@ -599,10 +618,7 @@ async function manageRecord() {
 
     <div class="flex flex-row w-full">
       <div class="flex flex-col gap-1 w-full">
-        <ValidationError
-          :is-required="true"
-          :message="v$.record.opened_at.$errors[0]?.$message"
-        >
+        <ValidationError :is-required="true" :message="r$.opened_at.$errors[0]">
           <label>Opening date</label>
         </ValidationError>
         <DatePicker
@@ -620,8 +636,15 @@ async function manageRecord() {
     <div v-if="mode == 'update'" class="flex flex-row gap-2 w-full">
       <AuditTrail
         :record-id="props.recordId!"
-        :events="['create', 'update', 'close', 'restore']"
-        category="account"
+        :events="[
+          'create',
+          'update',
+          'deactivate',
+          'restore',
+          'close',
+          'merge',
+        ]"
+        :categories="['account', 'balance']"
       />
     </div>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { required, email } from "@vuelidate/validators";
-import useVuelidate from "@vuelidate/core";
+import { required, email } from "@regle/rules";
+import { useRegle } from "@regle/core";
 import { useRoute, useRouter } from "vue-router";
 import ValidationError from "../../components/validation/ValidationError.vue";
 import { useAuthStore } from "../../../services/stores/auth_store.ts";
@@ -23,21 +23,15 @@ const form = ref<AuthForm>({
   remember_me: false,
 });
 
-const rules = {
-  form: {
-    email: {
-      required,
-      email,
-      $autoDirty: true,
-    },
-    password: {
-      required,
-      $autoDirty: true,
-    },
+const { r$ } = useRegle(form, {
+  email: {
+    required,
+    email,
   },
-};
-
-const v$ = useVuelidate(rules, { form });
+  password: {
+    required,
+  },
+});
 
 function resolveRedirect(): string {
   const q = route.query.redirect as string | string[] | undefined;
@@ -58,8 +52,8 @@ function resolveRedirect(): string {
 }
 
 async function login() {
-  v$.value.$touch();
-  if (v$.value.$error) return;
+  const { valid } = await r$.$validate();
+  if (!valid) return;
 
   loading.value = true;
   try {
@@ -106,10 +100,7 @@ function forgotPassword() {
       <div class="flex flex-col gap-4">
         <div class="flex flex-row w-full">
           <div class="flex flex-col gap-1 w-full">
-            <ValidationError
-              :is-required="true"
-              :message="v$.form.email.$errors[0]?.$message"
-            >
+            <ValidationError :is-required="true" :message="r$.email.$errors[0]">
               <label>Email</label>
             </ValidationError>
             <InputText
@@ -126,7 +117,7 @@ function forgotPassword() {
           <div class="flex flex-col gap-1 w-full">
             <ValidationError
               :is-required="true"
-              :message="v$.form.password.$errors[0]?.$message"
+              :message="r$.password.$errors[0]"
             >
               <label>Password</label>
             </ValidationError>
@@ -167,7 +158,7 @@ function forgotPassword() {
           :label="loading ? 'Signing in...' : 'Sign in'"
           :icon="loading ? 'pi pi-spin pi-spinner mr-2' : ''"
           class="w-full auth-accent-button"
-          :disabled="loading || v$.$error"
+          :disabled="loading || r$.$error"
           @click="login"
         />
       </div>

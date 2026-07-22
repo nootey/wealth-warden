@@ -41,6 +41,27 @@ func TestChanges_HasChanges(t *testing.T) {
 	})
 }
 
+func TestChanges_Stamp(t *testing.T) {
+	t.Run("identical record still reports no changes", func(t *testing.T) {
+		c := utils.InitChanges()
+		utils.CompareChanges("Groceries", "Groceries", c, "category")
+		utils.CompareChanges("EUR", "EUR", c, "currency")
+		assert.False(t, c.HasChanges())
+	})
+
+	t.Run("stamp adds identifier without affecting the diff", func(t *testing.T) {
+		c := utils.InitChanges()
+		utils.CompareChanges("Groceries", "Rent", c, "category")
+		assert.True(t, c.HasChanges())
+
+		c.Stamp("id", "42")
+		assert.Equal(t, "42", c.New["id"])
+		assert.Equal(t, "Rent", c.New["category"])
+		assert.Equal(t, "Groceries", c.Old["category"])
+		assert.Empty(t, c.Old["id"])
+	})
+}
+
 func TestCompareChanges(t *testing.T) {
 	t.Run("no change when values equal", func(t *testing.T) {
 		c := utils.InitChanges()

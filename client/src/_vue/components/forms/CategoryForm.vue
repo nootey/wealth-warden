@@ -3,8 +3,8 @@ import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { nextTick, onMounted, ref } from "vue";
 import type { Category } from "../../../models/transaction_models.ts";
-import { required } from "@vuelidate/validators";
-import useVuelidate from "@vuelidate/core";
+import { required } from "@regle/rules";
+import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import ShowLoading from "../base/ShowLoading.vue";
 import { useTransactionStore } from "../../../services/stores/transaction_store.ts";
@@ -45,13 +45,11 @@ const classifications = ref<string[]>(["income", "expense"]);
 const filteredClassifications = ref<string[]>([]);
 
 const rules = {
-  record: {
-    display_name: { required, $autoDirty: true },
-    classification: { required, $autoDirty: true },
-  },
+  display_name: { required },
+  classification: { required },
 };
 
-const v$ = useVuelidate(rules, { record });
+const { r$ } = useRegle(record, rules);
 
 function initData(): Category {
   return {
@@ -87,7 +85,7 @@ async function loadRecord(id: number) {
 }
 
 async function isRecordValid() {
-  const isValid = await v$.value.record.$validate();
+  const { valid: isValid } = await r$.$validate();
   if (!isValid) return false;
   return true;
 }
@@ -136,7 +134,7 @@ async function manageRecord() {
         break;
     }
 
-    v$.value.record.$reset();
+    r$.$reset();
     toastStore.successResponseToast(response);
     emit("completeOperation");
   } catch (error) {
@@ -158,7 +156,7 @@ async function restoreCategory() {
   try {
     let response = await transactionStore.restoreCategory(props.recordId!);
 
-    v$.value.record.$reset();
+    r$.$reset();
     toastStore.successResponseToast(response);
     emit("completeOperation");
   } catch (error) {
@@ -178,7 +176,7 @@ async function restoreCategoryName() {
   try {
     let response = await transactionStore.restoreCategoryName(props.recordId!);
 
-    v$.value.record.$reset();
+    r$.$reset();
     toastStore.successResponseToast(response);
     emit("completeOperation");
   } catch (error) {
@@ -210,7 +208,7 @@ async function restoreCategoryName() {
         <div class="flex flex-col w-full gap-1">
           <ValidationError
             :is-required="true"
-            :message="v$.record.display_name.$errors[0]?.$message"
+            :message="r$.display_name.$errors[0]"
           >
             <label>Name</label>
           </ValidationError>
@@ -228,7 +226,7 @@ async function restoreCategoryName() {
         <div class="flex flex-col gap-1 w-full">
           <ValidationError
             :is-required="true"
-            :message="v$.record.classification.$errors[0]?.$message"
+            :message="r$.classification.$errors[0]"
           >
             <label>Classification</label>
           </ValidationError>
@@ -260,7 +258,7 @@ async function restoreCategoryName() {
       <AuditTrail
         :record-id="props.recordId!"
         :events="['create', 'update', 'delete', 'restore']"
-        category="category"
+        :categories="['category']"
       />
     </div>
 

@@ -62,3 +62,7 @@ func CompareDateChange(oldT *time.Time, newT *time.Time, changes *Changes, key s
 func (c *Changes) HasChanges() bool {
 	return len(c.New) > 0 || len(c.Old) > 0
 }
+
+func (c *Changes) Stamp(index, value string) {
+	c.New[index] = value
+}

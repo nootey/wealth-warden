@@ -94,7 +94,7 @@ func NewAccountService(
 var _ AccountServiceInterface = (*AccountService)(nil)
 
 func (s *AccountService) LogBalanceChange(ctx context.Context, account *models.Account, userID int64, change decimal.Decimal) error {
-	newBalance, err := s.repo.FindBalanceForAccountID(ctx, nil, account.ID)
+	newBalance, err := s.repo.FindLatestBalanceForAccountID(ctx, nil, account.ID)
 	if err != nil {
 		return err
 	}
@@ -108,6 +108,7 @@ func (s *AccountService) LogBalanceChange(ctx context.Context, account *models.A
 	utils.CompareChanges("", startBalance.StringFixed(2), changes, "start_balance")
 	utils.CompareChanges("", endBalance.StringFixed(2), changes, "end_balance")
 	utils.CompareChanges("", account.Currency, changes, "currency")
+	changes.Stamp("id", strconv.FormatInt(account.ID, 10))
 
 	return s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,
@@ -509,7 +510,6 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 
 	changes := utils.InitChanges()
 
-	utils.CompareChanges("", strconv.FormatInt(acc.ID, 10), changes, "id")
 	utils.CompareChanges(exAcc.Name, acc.Name, changes, "name")
 	utils.CompareChanges(exAccType.Type, newAccType.Type, changes, "account_type")
 	utils.CompareChanges(exAccType.Subtype, newAccType.Subtype, changes, "account_subtype")
@@ -624,11 +624,13 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 	if req.Balance != nil {
 		accForLog := &models.Account{ID: exAcc.ID, Name: acc.Name, Currency: exAcc.Currency}
 		if err := s.LogBalanceChange(ctx, accForLog, userID, delta); err != nil {
-			fmt.Println("Balance change logging failed")
+			s.logger.Error("balance change logging failed",
+				zap.Error(err), zap.Int64("account_id", exAcc.ID))
 		}
 	}
 
-	if !changes.IsEmpty() {
+	if changes.HasChanges() {
+		changes.Stamp("id", strconv.FormatInt(acc.ID, 10))
 		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
 			Event:       "update",
@@ -686,7 +688,6 @@ func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID in
 	}
 
 	changes := utils.InitChanges()
-	utils.CompareChanges("", strconv.FormatInt(acc.ID, 10), changes, "id")
 	utils.CompareChanges(strconv.FormatBool(exAcc.IsActive), strconv.FormatBool(acc.IsActive), changes, "is_active")
 
 	_, err = s.repo.UpdateAccount(ctx, tx, acc)
@@ -699,10 +700,16 @@ func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID in
 		return err
 	}
 
-	if !changes.IsEmpty() {
+	if changes.HasChanges() {
+		event := "deactivate"
+		if acc.IsActive {
+			event = "restore"
+		}
+
+		changes.Stamp("id", strconv.FormatInt(acc.ID, 10))
 		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 			LoggingRepo: s.loggingRepo,
-			Event:       "update",
+			Event:       event,
 			Category:    "account",
 			Description: nil,
 			Payload:     changes,
@@ -1157,7 +1164,6 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 	}
 
 	changes := utils.InitChanges()
-	utils.CompareChanges("", strconv.FormatInt(account.ID, 10), changes, "id")
 	utils.CompareChanges(strconv.FormatBool(account.IsDefault), strconv.FormatBool(setAsDefault), changes, "default")
 
 	err = s.repo.UpdateDefaultAccount(ctx, tx, *account, setAsDefault)
@@ -1169,15 +1175,18 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 		return err
 	}
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
-		Event:       "update",
-		Category:    "account",
-		Description: nil,
-		Payload:     changes,
-		Causer:      &userID,
-	}); err != nil {
-		return err
+	if changes.HasChanges() {
+		changes.Stamp("id", strconv.FormatInt(account.ID, 10))
+		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
+			Event:       "update",
+			Category:    "account",
+			Description: nil,
+			Payload:     changes,
+			Causer:      &userID,
+		}); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -1509,6 +1518,7 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 	utils.CompareChanges("", dstAcc.Name, changes, "destination_account")
 	utils.CompareChanges("", strconv.FormatInt(txnCount, 10), changes, "transactions_moved")
 	utils.CompareChanges("", strconv.FormatInt(int64(len(transfers)), 10), changes, "transfers_removed")
+	changes.Stamp("id", strconv.FormatInt(dstAcc.ID, 10))
 
 	return s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
 		LoggingRepo: s.loggingRepo,

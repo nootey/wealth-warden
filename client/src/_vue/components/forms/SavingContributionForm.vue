@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { required } from "@vuelidate/validators";
+import { required } from "@regle/rules";
 import { decimalNonZero, decimalValid } from "../../../validators/currency.ts";
-import useVuelidate from "@vuelidate/core";
+import { useRegle } from "@regle/core";
 import ValidationError from "../validation/ValidationError.vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSavingsStore } from "../../../services/stores/savings_store.ts";
@@ -40,19 +40,17 @@ const amountRef = computed({
 const { number: amountNumber } = currencyHelper.useMoneyField(amountRef, 2);
 
 const rules = computed(() => ({
-  record: {
-    amount: { required, decimalValid, decimalNonZero, $autoDirty: true },
-    month: { required, $autoDirty: true },
-  },
+  amount: { required, decimalValid, decimalNonZero },
+  month: { required },
 }));
 
-const v$ = useVuelidate(rules, { record });
+const { r$ } = useRegle(record, rules);
 
 async function manageRecord() {
   if (submitting.value) return;
   submitting.value = true;
 
-  if (!(await v$.value.record.$validate())) {
+  if (!(await r$.$validate()).valid) {
     submitting.value = false;
     return;
   }
@@ -65,7 +63,7 @@ async function manageRecord() {
     };
     const response = await savingsStore.insertContribution(props.goalId, req);
     toastStore.successResponseToast(response);
-    v$.value.record.$reset();
+    r$.$reset();
     emit("completeOperation");
   } catch (err) {
     toastStore.errorResponseToast(err);
@@ -97,10 +95,7 @@ async function manageRecord() {
     </div>
 
     <div class="flex flex-col gap-1">
-      <ValidationError
-        :is-required="true"
-        :message="v$.record.amount.$errors[0]?.$message"
-      >
+      <ValidationError :is-required="true" :message="r$.amount.$errors[0]">
         <label>Amount</label>
       </ValidationError>
       <InputNumber
@@ -115,10 +110,7 @@ async function manageRecord() {
     </div>
 
     <div class="flex flex-col gap-1">
-      <ValidationError
-        :is-required="true"
-        :message="v$.record.month.$errors[0]?.$message"
-      >
+      <ValidationError :is-required="true" :message="r$.month.$errors[0]">
         <label>Month</label>
       </ValidationError>
       <DatePicker

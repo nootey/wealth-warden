@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { required, minValue } from "@vuelidate/validators";
-import useVuelidate from "@vuelidate/core";
+import { required, minValue } from "@regle/rules";
+import { useRegle } from "@regle/core";
 import ValidationError from "./validation/ValidationError.vue";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useInvestmentStore } from "../../services/stores/investment_store.ts";
@@ -66,18 +66,15 @@ const { number: taxablePercentNumber } = currencyHelper.useMoneyField(
 );
 
 const rules = {
-  form: {
-    min_days_held: { required, minValue: minValue(0), $autoDirty: true },
-    taxable_percent: {
-      decimalValid,
-      decimalMin: decimalMin(0),
-      decimalMax: decimalMax(100),
-      $autoDirty: true,
-    },
+  min_days_held: { required, minValue: minValue(0) },
+  taxable_percent: {
+    decimalValid,
+    decimalMin: decimalMin(0),
+    decimalMax: decimalMax(100),
   },
 };
 
-const v$ = useVuelidate(rules, { form });
+const { r$ } = useRegle(form, rules);
 
 onMounted(async () => {
   await Promise.all([loadBrackets(), loadSettings()]);
@@ -107,12 +104,12 @@ function openAddBracket(type: InvestmentType): void {
     taxable_percent: "",
     label: "",
   };
-  v$.value.form.$reset();
+  r$.$reset();
   addBracketModal.value = true;
 }
 
 async function submitBracket(): Promise<void> {
-  const valid = await v$.value.$validate();
+  const { valid } = await r$.$validate();
   if (!valid) return;
 
   loading.value = true;
@@ -198,7 +195,7 @@ async function saveSettings(): Promise<void> {
           <div class="flex flex-col gap-1 w-6/12">
             <ValidationError
               :is-required="true"
-              :message="v$.form.min_days_held.$errors[0]?.$message"
+              :message="r$.min_days_held.$errors[0]"
             >
               <label>Min days held</label>
             </ValidationError>
@@ -236,7 +233,7 @@ async function saveSettings(): Promise<void> {
           <div class="flex flex-col gap-1 w-6/12">
             <ValidationError
               :is-required="true"
-              :message="v$.form.taxable_percent.$errors[0]?.$message"
+              :message="r$.taxable_percent.$errors[0]"
             >
               <label>Taxable %</label>
             </ValidationError>

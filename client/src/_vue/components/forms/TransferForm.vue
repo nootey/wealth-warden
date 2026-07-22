@@ -2,8 +2,8 @@
 import { computed, ref, watch } from "vue";
 import type { Account } from "../../../models/account_models.ts";
 import type { Transfer } from "../../../models/transaction_models.ts";
-import useVuelidate from "@vuelidate/core";
-import { required } from "@vuelidate/validators";
+import { useRegle } from "@regle/core";
+import { required } from "@regle/rules";
 import ValidationError from "../validation/ValidationError.vue";
 import {
   decimalMax,
@@ -48,25 +48,21 @@ const localTransfer = ref<{
 });
 
 const rules = {
-  localTransfer: {
-    source: { required, $autoDirty: true },
-    destination: { required, $autoDirty: true },
-    amount: {
-      required,
-      decimalValid,
-      decimalMin: decimalMin(0),
-      decimalMax: decimalMax(1_000_000_000),
-      $autoDirty: true,
-    },
-    created_at: {
-      required,
-      $autoDirty: true,
-    },
-    notes: { $autoDirty: true },
+  source: { $self: { required } },
+  destination: { $self: { required } },
+  amount: {
+    required,
+    decimalValid,
+    decimalMin: decimalMin(0),
+    decimalMax: decimalMax(1_000_000_000),
   },
+  created_at: {
+    required,
+  },
+  notes: {},
 };
 
-const v$ = useVuelidate(rules, { localTransfer });
+const { r$ } = useRegle(localTransfer, rules);
 const amountRef = computed({
   get: () => localTransfer.value.amount,
   set: (v) => (localTransfer.value.amount = v),
@@ -124,7 +120,7 @@ function searchAccount(
   }, 200);
 }
 
-defineExpose({ v$, localTransfer });
+defineExpose({ r$, localTransfer });
 </script>
 
 <template>
@@ -133,7 +129,7 @@ defineExpose({ v$, localTransfer });
       <div class="flex flex-col gap-1 w-full">
         <ValidationError
           :is-required="true"
-          :message="v$.localTransfer.source.$errors[0]?.$message"
+          :message="r$.source.$errors.$self?.[0]"
         >
           <label>Source</label>
         </ValidationError>
@@ -155,7 +151,7 @@ defineExpose({ v$, localTransfer });
       <div class="flex flex-col gap-1 w-full">
         <ValidationError
           :is-required="true"
-          :message="v$.localTransfer.destination.$errors[0]?.$message"
+          :message="r$.destination.$errors.$self?.[0]"
         >
           <label>Destination</label>
         </ValidationError>
@@ -175,10 +171,7 @@ defineExpose({ v$, localTransfer });
 
     <div class="flex flex-row w-full">
       <div class="flex flex-col gap-1 w-full">
-        <ValidationError
-          :is-required="true"
-          :message="v$.localTransfer.amount.$errors[0]?.$message"
-        >
+        <ValidationError :is-required="true" :message="r$.amount.$errors[0]">
           <label>Amount</label>
         </ValidationError>
         <InputNumber
@@ -196,7 +189,7 @@ defineExpose({ v$, localTransfer });
       <div class="flex flex-col gap-1 w-full">
         <ValidationError
           :is-required="true"
-          :message="v$.localTransfer.created_at.$errors[0]?.$message"
+          :message="r$.created_at.$errors[0]"
         >
           <label>Date</label>
         </ValidationError>
@@ -213,10 +206,7 @@ defineExpose({ v$, localTransfer });
 
     <div class="flex flex-row w-full">
       <div class="flex flex-col gap-1 w-full">
-        <ValidationError
-          :is-required="false"
-          :message="v$.localTransfer.notes.$errors[0]?.$message"
-        >
+        <ValidationError :is-required="false" :message="r$.notes.$errors[0]">
           <label>Notes</label>
         </ValidationError>
         <InputText
