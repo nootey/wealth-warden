@@ -506,7 +506,7 @@ async function deleteRecord(id: number, tx_type: string) {
 <template>
   <div v-if="!loading" class="flex flex-col gap-4 p-1">
     <div v-if="!isFormReadOnly" class="flex flex-row w-full justify-center">
-      <div class="flex flex-col w-50">
+      <div class="flex flex-col">
         <SelectButton
           v-model="selectedParentCategory"
           style="font-size: 0.875rem"

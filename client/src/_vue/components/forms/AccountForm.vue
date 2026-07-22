@@ -466,7 +466,7 @@ async function manageRecord() {
 <template>
   <div v-if="!initializing" class="flex flex-col gap-4 p-1">
     <div v-if="!readOnly" class="flex flex-row w-full justify-center">
-      <div class="flex flex-col w-50">
+      <div class="flex flex-col">
         <SelectButton
           v-model="selectedClassification"
           style="font-size: 0.875rem"

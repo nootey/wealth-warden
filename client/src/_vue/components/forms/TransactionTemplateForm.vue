@@ -469,7 +469,7 @@ async function startOperation() {
       v-if="!isImmutable && !isTransfer"
       class="flex flex-row w-full justify-center"
     >
-      <div class="flex flex-col w-50">
+      <div class="flex flex-col">
         <SelectButton
           v-model="selectedParentCategory"
           style="font-size: 0.875rem"
@@ -628,7 +628,7 @@ async function startOperation() {
       </div>
 
       <div v-if="!isImmutable" class="flex flex-row w-full justify-center">
-        <div class="flex flex-col gap-1 w-50">
+        <div class="flex flex-col gap-1">
           <SelectButton
             v-model="selectedPreset"
             style="font-size: 0.875rem"
