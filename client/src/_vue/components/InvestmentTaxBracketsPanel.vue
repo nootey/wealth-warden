@@ -315,6 +315,19 @@ async function saveSettings(): Promise<void> {
       </div>
     </div>
 
+    <div class="flex flex-col w-full gap-4">
+      <div class="flex flex-row items-center text-center gap-2 w-full">
+        <h4>Tax brackets</h4>
+      </div>
+
+      <span class="text-sm" style="color: var(--text-secondary)">
+        Define tax brackets per investment type. Each bracket covers a holding
+        period and sets how much of the profit is taxable - leave "To days"
+        empty for an open-ended final bracket. For example, 0–365 days at 100%
+        taxable and 365+ days at 50% taxable. Labels are optional.
+      </span>
+    </div>
+
     <div
       v-for="type in INVESTMENT_TYPES"
       :key="type"
