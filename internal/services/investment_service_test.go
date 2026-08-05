@@ -1811,3 +1811,162 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_Dividend_Missing
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), count, "no income record should be created on validation failure")
 }
+
+// A sell on an asset holding staking rewards must remove the same cost basis whether
+// it goes through the incremental update or a later full recalculation, and the basis
+// removed must match the cost basis the sell trade itself recorded.
+func (s *InvestmentServiceTestSuite) TestSellWithStakingRewards_BasisAgreesAcrossPaths() {
+	svc := s.TC.App.InvestmentService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentCrypto,
+		Name:           "Bitcoin",
+		Ticker:         "BTC-EUR",
+		Currency:       "EUR",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+
+	// Buy 10 units at 100 EUR -> cost basis 1000, quantity 10
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      today,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(10),
+		PricePerUnit: decimal.NewFromInt(100),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	// Staking reward of 2 units -> quantity 12, basis untouched at 1000
+	stakedQty := decimal.NewFromInt(2)
+	_, err = svc.CreateInvestmentIncome(s.Ctx, userID, &models.InvestmentIncomeReq{
+		AssetID:    assetID,
+		TxnDate:    today,
+		IncomeType: models.IncomeTypeStaking,
+		Quantity:   &stakedQty,
+		Currency:   "EUR",
+	})
+	s.Require().NoError(err)
+
+	var beforeSell models.InvestmentAsset
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&beforeSell).Error
+	s.Require().NoError(err)
+	s.Require().True(decimal.NewFromInt(12).Equal(beforeSell.Quantity),
+		"staking reward should lift quantity to 12, got %s", beforeSell.Quantity.String())
+
+	// Sell 6 of the 12 units held
+	sellTradeID, err := svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      today,
+		TradeType:    models.InvestmentSell,
+		Quantity:     decimal.NewFromInt(6),
+		PricePerUnit: decimal.NewFromInt(120),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	var afterSell models.InvestmentAsset
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&afterSell).Error
+	s.Require().NoError(err)
+
+	var sellTrade models.InvestmentTrade
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", sellTradeID).First(&sellTrade).Error
+	s.Require().NoError(err)
+
+	basisRemovedIncrementally := beforeSell.ValueAtBuy.Sub(afterSell.ValueAtBuy)
+	// The trade prices the sale off average_buy_price, stored at 4dp, so allow that quantisation
+	tolerance := decimal.NewFromInt(6).Mul(decimal.NewFromFloat(0.0001))
+	s.Assert().True(sellTrade.ValueAtBuy.Sub(basisRemovedIncrementally).Abs().LessThanOrEqual(tolerance),
+		"sell trade recorded a cost basis of %s but %s left the asset",
+		sellTrade.ValueAtBuy.String(), basisRemovedIncrementally.String())
+
+	// Any later recalculation (price sync, income change, trade delete) must land on the
+	// same numbers the incremental sell produced
+	err = svc.RecalculateAssetPnL(s.Ctx, userID, assetID)
+	s.Require().NoError(err)
+
+	var afterRecalc models.InvestmentAsset
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&afterRecalc).Error
+	s.Require().NoError(err)
+
+	s.Assert().True(afterSell.Quantity.Equal(afterRecalc.Quantity),
+		"quantity drifted on recalc: %s -> %s", afterSell.Quantity.String(), afterRecalc.Quantity.String())
+	s.Assert().True(afterSell.ValueAtBuy.Equal(afterRecalc.ValueAtBuy),
+		"cost basis drifted on recalc: %s -> %s", afterSell.ValueAtBuy.String(), afterRecalc.ValueAtBuy.String())
+	s.Assert().True(afterSell.AverageBuyPrice.Equal(afterRecalc.AverageBuyPrice),
+		"average buy price drifted on recalc: %s -> %s", afterSell.AverageBuyPrice.String(), afterRecalc.AverageBuyPrice.String())
+}
+
+// A recalculation refreshes current_price, so it must write the matching price history row
+// or the chart keeps replaying a stale price while the asset index moves on.
+func (s *InvestmentServiceTestSuite) TestRecalculateAssetPnL_WritesTodaysPriceHistory() {
+	svc := s.TC.App.InvestmentService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentStock,
+		Name:           "iShares Core MSCI World",
+		Ticker:         "IWDA.AS",
+		Currency:       "EUR",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+
+	_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      today,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(10),
+		PricePerUnit: decimal.NewFromInt(90),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.AssetPriceHistory{}).
+		Where("asset_id = ? AND as_of = ?", assetID, today).
+		Update("price", decimal.NewFromInt(42)).Error
+	s.Require().NoError(err)
+
+	err = svc.RecalculateAssetPnL(s.Ctx, userID, assetID)
+	s.Require().NoError(err)
+
+	var asset models.InvestmentAsset
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
+	s.Require().NoError(err)
+
+	var history models.AssetPriceHistory
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("asset_id = ? AND as_of = ?", assetID, today).
+		First(&history).Error
+	s.Require().NoError(err)
+
+	s.Assert().True(asset.CurrentPrice.Equal(history.Price),
+		"asset holds price %s but today's history row still says %s",
+		asset.CurrentPrice.String(), history.Price.String())
+}

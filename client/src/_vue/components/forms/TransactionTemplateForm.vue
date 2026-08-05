@@ -23,6 +23,7 @@ import ShowLoading from "../base/ShowLoading.vue";
 import vueHelper from "../../../utils/vue_helper.ts";
 import AuditTrail from "../base/AuditTrail.vue";
 import dateHelper from "../../../utils/date_helper.ts";
+import searchHelper from "../../../utils/search_helper.ts";
 import type { UserSettings } from "../../../models/settings_models.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 
@@ -264,56 +265,40 @@ function updateSelectedParentCategory($event: any) {
 }
 
 const searchCategory = (event: { query: string }) => {
-  setTimeout(() => {
-    if (!event.query.trim().length) {
-      filteredCategories.value = [...availableCategories.value];
-    } else {
-      filteredCategories.value = availableCategories.value.filter((record) => {
-        return record.name.toLowerCase().startsWith(event.query.toLowerCase());
-      });
-    }
-  }, 250);
+  filteredCategories.value = searchHelper.filterByQuery(
+    availableCategories.value,
+    event.query,
+    (record) => [record.display_name, record.name],
+  );
 };
 
 const searchAccount = (event: { query: string }) => {
-  setTimeout(() => {
-    const pool = isTransfer.value
-      ? accounts.value.filter((a) => a.account_type.sub_type === "checking")
-      : accounts.value;
-    if (!event.query.trim().length) {
-      filteredAccounts.value = [...pool];
-    } else {
-      filteredAccounts.value = pool.filter((a) =>
-        a.name.toLowerCase().startsWith(event.query.toLowerCase()),
-      );
-    }
-  }, 250);
+  const pool = isTransfer.value
+    ? accounts.value.filter((a) => a.account_type.sub_type === "checking")
+    : accounts.value;
+  filteredAccounts.value = searchHelper.filterByQuery(
+    pool,
+    event.query,
+    (a) => [a.name],
+  );
 };
 
 const searchToAccount = (event: { query: string }) => {
-  setTimeout(() => {
-    const sourceId = record.value.account?.id;
-    const pool = accounts.value.filter((a) => a.id !== sourceId);
-    if (!event.query.trim().length) {
-      filteredToAccounts.value = [...pool];
-    } else {
-      filteredToAccounts.value = pool.filter((a) =>
-        a.name.toLowerCase().startsWith(event.query.toLowerCase()),
-      );
-    }
-  }, 250);
+  const sourceId = record.value.account?.id;
+  const pool = accounts.value.filter((a) => a.id !== sourceId);
+  filteredToAccounts.value = searchHelper.filterByQuery(
+    pool,
+    event.query,
+    (a) => [a.name],
+  );
 };
 
 const searchFrequency = (event: { query: string }) => {
-  setTimeout(() => {
-    if (!event.query.trim().length) {
-      filteredFrequencies.value = [...frequencies.value];
-    } else {
-      filteredFrequencies.value = frequencies.value.filter((record) => {
-        return record.toLowerCase().startsWith(event.query.toLowerCase());
-      });
-    }
-  }, 250);
+  filteredFrequencies.value = searchHelper.filterByQuery(
+    frequencies.value,
+    event.query,
+    (record) => [record],
+  );
 };
 
 async function isRecordValid() {

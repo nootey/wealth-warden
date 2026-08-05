@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 	"wealth-warden/internal/queue/queue_jobs"
+	"wealth-warden/internal/ws"
 
 	"go.uber.org/zap/zaptest"
 )
@@ -36,7 +37,8 @@ func ptr[T any](v T) *T { return &v }
 
 func TestRecalculateAssetPnLJob_SingleAsset(t *testing.T) {
 	svc := &mockPnLSvc{}
-	job := queue_jobs.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, 1, ptr(int64(42)), nil)
+	broadcaster := &recordingBroadcaster{}
+	job := queue_jobs.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, broadcaster, 1, ptr(int64(42)), nil)
 
 	if err := job.Process(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -45,11 +47,21 @@ func TestRecalculateAssetPnLJob_SingleAsset(t *testing.T) {
 	if len(svc.recalculated) != 1 || svc.recalculated[0] != 42 {
 		t.Errorf("expected asset 42 to be recalculated, got %v", svc.recalculated)
 	}
+
+	events := broadcaster.events[1]
+	if len(events) != 1 || events[0].Type != ws.TypeAssetPnLSynced {
+		t.Fatalf("expected one %s event, got %v", ws.TypeAssetPnLSynced, events)
+	}
+	payload, ok := events[0].Payload.(ws.AssetPnLPayload)
+	if !ok || payload.AssetID == nil || *payload.AssetID != 42 {
+		t.Errorf("expected payload with asset 42, got %#v", events[0].Payload)
+	}
 }
 
 func TestRecalculateAssetPnLJob_AccountScope(t *testing.T) {
 	svc := &mockPnLSvc{assetIDs: []int64{10, 20, 30}}
-	job := queue_jobs.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, 1, nil, ptr(int64(5)))
+	broadcaster := &recordingBroadcaster{}
+	job := queue_jobs.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, broadcaster, 1, nil, ptr(int64(5)))
 
 	if err := job.Process(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -63,11 +75,20 @@ func TestRecalculateAssetPnLJob_AccountScope(t *testing.T) {
 			t.Errorf("expected asset %d at index %d, got %d", id, i, svc.recalculated[i])
 		}
 	}
+
+	events := broadcaster.events[1]
+	if len(events) != 1 {
+		t.Fatalf("expected a single account-scoped event, got %v", events)
+	}
+	payload, ok := events[0].Payload.(ws.AssetPnLPayload)
+	if !ok || payload.AccountID == nil || *payload.AccountID != 5 {
+		t.Errorf("expected payload with account 5, got %#v", events[0].Payload)
+	}
 }
 
 func TestRecalculateAssetPnLJob_NeitherAssetNorAccount(t *testing.T) {
 	svc := &mockPnLSvc{}
-	job := queue_jobs.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, 1, nil, nil)
+	job := queue_jobs.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, ws.NoopBroadcaster{}, 1, nil, nil)
 
 	if err := job.Process(context.Background()); err == nil {
 		t.Error("expected error when neither AssetID nor AccountID provided")
@@ -76,7 +97,7 @@ func TestRecalculateAssetPnLJob_NeitherAssetNorAccount(t *testing.T) {
 
 func TestRecalculateAssetPnLJob_RecalcError(t *testing.T) {
 	svc := &mockPnLSvc{recalcErr: errors.New("db error")}
-	job := queue_jobs.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, 1, ptr(int64(99)), nil)
+	job := queue_jobs.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, ws.NoopBroadcaster{}, 1, ptr(int64(99)), nil)
 
 	if err := job.Process(context.Background()); err == nil {
 		t.Error("expected error to propagate from RecalculateAssetPnL")
@@ -85,7 +106,7 @@ func TestRecalculateAssetPnLJob_RecalcError(t *testing.T) {
 
 func TestRecalculateAssetPnLJob_GetAssetIDsError(t *testing.T) {
 	svc := &mockPnLSvc{assetIDsErr: errors.New("lookup failed")}
-	job := queue_jobs.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, 1, nil, ptr(int64(5)))
+	job := queue_jobs.NewRecalculateAssetPnLJob(zaptest.NewLogger(t), svc, ws.NoopBroadcaster{}, 1, nil, ptr(int64(5)))
 
 	if err := job.Process(context.Background()); err == nil {
 		t.Error("expected error to propagate from GetAssetIDsForAccount")

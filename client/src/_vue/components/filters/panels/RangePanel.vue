@@ -2,6 +2,7 @@
 import { ref, computed, watch } from "vue";
 import vueHelper from "../../../../utils/vue_helper.ts";
 import { useSettingsStore } from "../../../../services/stores/settings_store.ts";
+import searchHelper from "../../../../utils/search_helper.ts";
 
 type OpVal = "=" | ">=" | "<=";
 type Model = {
@@ -80,11 +81,12 @@ function onRangeMax(v: number | null) {
   model.value.max = v;
 }
 
-const searchOperator = (event: any) => {
-  const q = (event.query ?? "").trim().toLowerCase();
-  filteredOperators.value = q
-    ? operators.filter((o) => o.name.toLowerCase().startsWith(q))
-    : [...operators];
+const searchOperator = (event: { query: string }) => {
+  filteredOperators.value = searchHelper.filterByQuery(
+    operators,
+    event.query ?? "",
+    (o) => [o.name],
+  );
 };
 </script>
 

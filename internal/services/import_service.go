@@ -1948,11 +1948,6 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		}
 
 		txnCurrentValue := effectiveQuantity.Mul(currentPrice)
-		txnProfitLoss := txnCurrentValue.Sub(valueAtBuy)
-		var txnProfitLossPercent decimal.Decimal
-		if !valueAtBuy.IsZero() {
-			txnProfitLossPercent = txnProfitLoss.Div(valueAtBuy)
-		}
 
 		var txnRealizedValue decimal.Decimal
 		if models.TradeType(txn.TransactionType) == models.InvestmentSell {
@@ -1961,6 +1956,17 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			} else {
 				txnRealizedValue = effectiveQuantity.Mul(pricePerUnit).Sub(fee)
 			}
+			// A sell stores the basis it removes, not the sale proceeds
+			valueAtBuy = asset.AverageBuyPrice.Mul(effectiveQuantity)
+		}
+
+		txnProfitLoss := txnCurrentValue.Sub(valueAtBuy)
+		if models.TradeType(txn.TransactionType) == models.InvestmentSell {
+			txnProfitLoss = txnRealizedValue.Sub(valueAtBuy)
+		}
+		var txnProfitLossPercent decimal.Decimal
+		if !valueAtBuy.IsZero() {
+			txnProfitLossPercent = txnProfitLoss.Div(valueAtBuy)
 		}
 
 		trade := models.InvestmentTrade{

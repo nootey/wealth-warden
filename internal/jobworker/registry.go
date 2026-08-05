@@ -55,7 +55,7 @@ func newRegistry(c *bootstrap.ServiceContainer, logger *zap.Logger) *registry {
 			if err := json.Unmarshal(data, &j); err != nil {
 				return nil, err
 			}
-			return queue_jobs.NewRecalculateAssetPnLJob(logger.Named("pnl_sync"), c.InvestmentService, j.UserID, j.AssetID, j.AccountID), nil
+			return queue_jobs.NewRecalculateAssetPnLJob(logger.Named("pnl_sync"), c.InvestmentService, c.Hub, j.UserID, j.AssetID, j.AccountID), nil
 		},
 		queue_jobs.TypeSyncAssetAfterTrade: func(data []byte) (queue.Job, error) {
 			var j queue_jobs.SyncAssetAfterTradeJob

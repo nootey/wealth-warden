@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"sort"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
@@ -400,17 +401,9 @@ func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *go
 	if tradeType == models.InvestmentBuy {
 		newQuantity = asset.Quantity.Add(quantity)
 
-		// Exclude staking income from avg buy price denominator — asset.Quantity includes staking units
-		var stakingQty decimal.Decimal
-		db.Model(&models.InvestmentIncome{}).
-			Select("COALESCE(SUM(quantity), 0)").
-			Where("asset_id = ? AND income_type = ?", assetID, models.IncomeTypeStaking).
-			Scan(&stakingQty)
-		tradeOnlyQuantity := newQuantity.Sub(stakingQty)
-
 		newTotalValue := asset.ValueAtBuy.Add(tradeValueAtBuy)
-		if tradeOnlyQuantity.GreaterThan(decimal.Zero) {
-			newAverageBuyPrice = newTotalValue.Div(tradeOnlyQuantity)
+		if newQuantity.GreaterThan(decimal.Zero) {
+			newAverageBuyPrice = newTotalValue.Div(newQuantity)
 		}
 		newTotalValueAtBuy = newTotalValue
 		newTotalFees = asset.TotalFees.Add(tradeFee)
@@ -554,6 +547,79 @@ func (r *InvestmentRepository) CorrectTradeValueAtBuy(ctx context.Context, tx *g
 		}).Error
 }
 
+// MergeStakingIntoTrades folds staking rewards in as zero-fee buys at their value on receipt.
+// Every walkTradeTotals caller must feed it this stream, or quantity and basis drift apart.
+func MergeStakingIntoTrades(trades []models.InvestmentTrade, income []models.InvestmentIncome) []models.InvestmentTrade {
+	if len(income) == 0 {
+		return trades
+	}
+
+	merged := make([]models.InvestmentTrade, 0, len(trades)+len(income))
+	merged = append(merged, trades...)
+	for _, inc := range income {
+		if inc.IncomeType != models.IncomeTypeStaking || inc.Quantity == nil {
+			continue
+		}
+		merged = append(merged, models.InvestmentTrade{
+			TradeType:  models.InvestmentBuy,
+			TxnDate:    inc.TxnDate,
+			Quantity:   *inc.Quantity,
+			ValueAtBuy: inc.Amount,
+			CreatedAt:  inc.CreatedAt,
+		})
+	}
+
+	// txn_date is a date, so same-day events fall back to entry order
+	sort.SliceStable(merged, func(i, j int) bool {
+		if !merged[i].TxnDate.Equal(merged[j].TxnDate) {
+			return merged[i].TxnDate.Before(merged[j].TxnDate)
+		}
+		return merged[i].CreatedAt.Before(merged[j].CreatedAt)
+	})
+
+	return merged
+}
+
+// walkTradeTotals replays trades in order and returns holdings as of asOf (nil = all trades).
+// Single source of truth for cost basis - the asset aggregates and the chart series both use it.
+// Trades must be ordered by txn_date ASC, id ASC, with staking already merged in.
+func walkTradeTotals(trades []models.InvestmentTrade, asOf *time.Time) (quantity, valueAtBuy, fees decimal.Decimal) {
+	for _, txn := range trades {
+		if asOf != nil && txn.TxnDate.After(*asOf) {
+			break
+		}
+
+		if txn.TradeType == models.InvestmentBuy {
+			quantity = quantity.Add(txn.Quantity)
+			valueAtBuy = valueAtBuy.Add(txn.ValueAtBuy)
+			fees = fees.Add(txn.Fee)
+			continue
+		}
+
+		// Sell: reduce proportionally
+		quantity = quantity.Sub(txn.Quantity)
+		if quantity.GreaterThan(decimal.Zero) {
+			soldProportion := txn.Quantity.Div(quantity.Add(txn.Quantity))
+			remaining := decimal.NewFromInt(1).Sub(soldProportion)
+			valueAtBuy = valueAtBuy.Mul(remaining)
+			fees = fees.Mul(remaining)
+		} else {
+			valueAtBuy = decimal.Zero
+			fees = decimal.Zero
+		}
+	}
+
+	return quantity, valueAtBuy, fees
+}
+
+// CostBasis applies the fee rule: fees count toward basis for everything but crypto.
+func CostBasis(valueAtBuy, fees decimal.Decimal, investmentType models.InvestmentType) decimal.Decimal {
+	if investmentType == models.InvestmentCrypto {
+		return valueAtBuy
+	}
+	return valueAtBuy.Add(fees)
+}
+
 func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error {
 	db := tx
 	if db == nil {
@@ -574,54 +640,21 @@ func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, t
 		return err
 	}
 
-	// Start fresh
-	totalQuantity := decimal.Zero
-	totalValueAtBuy := decimal.Zero
-	totalFees := decimal.Zero
-
-	for _, txn := range trades {
-		if txn.TradeType == models.InvestmentBuy {
-			totalQuantity = totalQuantity.Add(txn.Quantity)
-			totalValueAtBuy = totalValueAtBuy.Add(txn.ValueAtBuy)
-			totalFees = totalFees.Add(txn.Fee)
-		} else {
-			// Sell: reduce proportionally
-			totalQuantity = totalQuantity.Sub(txn.Quantity)
-			if totalQuantity.GreaterThan(decimal.Zero) {
-				soldProportion := txn.Quantity.Div(totalQuantity.Add(txn.Quantity))
-				totalValueAtBuy = totalValueAtBuy.Mul(decimal.NewFromInt(1).Sub(soldProportion))
-				totalFees = totalFees.Mul(decimal.NewFromInt(1).Sub(soldProportion))
-			} else {
-				totalValueAtBuy = decimal.Zero
-				totalFees = decimal.Zero
-			}
-		}
-	}
-
-	// Snapshot trade-only quantity before adding staking — avgBuyPrice must reflect only purchased units
-	tradeQuantity := totalQuantity
-
 	var stakingIncome []models.InvestmentIncome
 	if err := db.Where("asset_id = ? AND user_id = ? AND income_type = ?", assetID, userID, models.IncomeTypeStaking).
+		Order("txn_date ASC, id ASC").
 		Find(&stakingIncome).Error; err != nil {
 		return err
 	}
-	for _, inc := range stakingIncome {
-		if inc.Quantity != nil {
-			totalQuantity = totalQuantity.Add(*inc.Quantity)
-		}
-	}
+
+	totalQuantity, totalValueAtBuy, totalFees := walkTradeTotals(MergeStakingIntoTrades(trades, stakingIncome), nil)
 
 	var avgBuyPrice decimal.Decimal
-	if tradeQuantity.GreaterThan(decimal.Zero) {
-		avgBuyPrice = totalValueAtBuy.Div(tradeQuantity)
+	if totalQuantity.GreaterThan(decimal.Zero) {
+		avgBuyPrice = totalValueAtBuy.Div(totalQuantity)
 	}
 
-	// Calculate current values
-	costBasis := totalValueAtBuy
-	if asset.InvestmentType != models.InvestmentCrypto {
-		costBasis = totalValueAtBuy.Add(totalFees)
-	}
+	costBasis := CostBasis(totalValueAtBuy, totalFees, asset.InvestmentType)
 
 	var currentValue, profitLoss, profitLossPercent decimal.Decimal
 	if asset.CurrentPrice != nil && !asset.CurrentPrice.IsZero() && totalQuantity.GreaterThan(decimal.Zero) {

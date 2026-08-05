@@ -50,7 +50,11 @@ const columns = computed<Column[]>(() => [
   ...(props.investmentType === "crypto"
     ? [{ field: "quantity", header: "Quantity", type: "number" } as Column]
     : []),
-  { field: "amount", header: "Amount", type: "number" },
+  {
+    field: "amount",
+    header: props.investmentType === "crypto" ? "Value" : "Amount",
+    type: "number",
+  },
   ...(props.investmentType === "stock" || props.investmentType === "etf"
     ? [{ field: "tax_withheld", header: "Tax", type: "number" } as Column]
     : []),

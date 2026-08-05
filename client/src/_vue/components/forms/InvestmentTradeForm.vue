@@ -25,6 +25,7 @@ import { usePermissions } from "../../../utils/use_permissions.ts";
 import AuditTrail from "../base/AuditTrail.vue";
 import type { UserSettings } from "../../../models/settings_models.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
+import searchHelper from "../../../utils/search_helper.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -171,17 +172,11 @@ function getCurrencyPlaceholder(currency: string) {
 }
 
 const searchAsset = (event: { query: string }) => {
-  setTimeout(() => {
-    if (!event.query.trim().length) {
-      filteredAssets.value = [...assets.value];
-    } else {
-      filteredAssets.value = assets.value.filter((record) => {
-        return record.ticker
-          .toLowerCase()
-          .startsWith(event.query.toLowerCase());
-      });
-    }
-  }, 250);
+  filteredAssets.value = searchHelper.filterByQuery(
+    assets.value,
+    event.query,
+    (record) => [record.name, record.ticker],
+  );
 };
 
 async function isRecordValid() {

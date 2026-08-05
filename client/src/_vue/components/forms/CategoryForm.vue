@@ -11,6 +11,7 @@ import { useTransactionStore } from "../../../services/stores/transaction_store.
 import vueHelper from "../../../utils/vue_helper.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import AuditTrail from "../base/AuditTrail.vue";
+import searchHelper from "../../../utils/search_helper.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -145,11 +146,11 @@ async function manageRecord() {
 }
 
 const searchClassifications = (event: { query: string }) => {
-  const q = event.query.trim().toLowerCase();
-  const all = classifications.value;
-  filteredClassifications.value = !q
-    ? [...all]
-    : all.filter((t) => t.toLowerCase().startsWith(q));
+  filteredClassifications.value = searchHelper.filterByQuery(
+    classifications.value,
+    event.query,
+    (t) => [t],
+  );
 };
 
 async function restoreCategory() {

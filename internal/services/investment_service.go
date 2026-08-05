@@ -1248,6 +1248,12 @@ func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, userID, ass
 			if err := s.repo.UpdateTradesPnLForAsset(ctx, nil, assetID, price, asset.InvestmentType, now); err != nil {
 				return err
 			}
+			today := now.Truncate(24 * time.Hour)
+			if err := s.repo.UpsertAssetPrice(ctx, nil, []models.AssetPriceHistory{
+				{AssetID: assetID, AsOf: today, Price: price, Currency: priceData.Currency},
+			}); err != nil {
+				return err
+			}
 		}
 	}
 	return s.repo.RecalculateAssetFromTrades(ctx, nil, assetID, userID)
@@ -1323,13 +1329,20 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 		}
 	}
 
-	// For staking, calculate fair market value from price at income date
-	incomeAmount := decimal.Zero
+	// Staking rewards carry their value on receipt as cost basis, so a missing price is fatal
+	var incomeAmount decimal.Decimal
 	if req.IncomeType == models.IncomeTypeStaking {
 		priceData, err := s.priceFetchClient.GetAssetPriceOnDate(ctx, asset.Ticker, asset.InvestmentType, req.TxnDate)
-		if err == nil && priceData != nil && priceData.Price > 0 {
-			incomeAmount = req.Quantity.Mul(decimal.NewFromFloat(priceData.Price))
+		if err != nil || priceData == nil || priceData.Price <= 0 {
+			tx.Rollback()
+			s.logger.Warn("Failed to price staking reward",
+				zap.String("ticker", asset.Ticker),
+				zap.Time("txn_date", req.TxnDate),
+				zap.Error(err))
+			return 0, fmt.Errorf("could not fetch a price for %s on %s, try again later",
+				asset.Ticker, req.TxnDate.Format("2006-01-02"))
 		}
+		incomeAmount = req.Quantity.Mul(decimal.NewFromFloat(priceData.Price))
 	} else {
 		incomeAmount = *req.Amount
 	}

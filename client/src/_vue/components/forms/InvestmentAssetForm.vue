@@ -2,8 +2,10 @@
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
-import { computed, nextTick, onMounted, reactive, ref } from "vue";
+import { useWsStore } from "../../../services/stores/ws_store.ts";
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from "vue";
 import type { Account } from "../../../models/account_models.ts";
+import type { AssetPnLPayload } from "../../../models/ws_models.ts";
 import type {
   InvestmentAsset,
   TickerData,
@@ -26,6 +28,7 @@ import AuditTrail from "../base/AuditTrail.vue";
 import InvestmentAssetWidget from "../../features/widgets/InvestmentAssetWidget.vue";
 import InvestmentIncomeForm from "./InvestmentIncomeForm.vue";
 import InvestmentIncomePaginated from "../data/InvestmentIncomePaginated.vue";
+import searchHelper from "../../../utils/search_helper.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -42,6 +45,7 @@ const apiPrefix = "investments";
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const accountStore = useAccountStore();
+const wsStore = useWsStore();
 
 const confirm = useConfirm();
 const { hasPermission } = usePermissions();
@@ -130,13 +134,31 @@ const validationState = reactive({ record, tickerData });
 
 const { r$ } = useRegle(validationState, rules);
 
+const unsubscribers: (() => void)[] = [];
+
 onMounted(async () => {
   accounts.value = await accountStore.getAllAccounts(true, true);
 
   if (props.mode === "update" && props.recordId) {
     await loadRecord(props.recordId);
   }
+
+  unsubscribers.push(
+    wsStore.on("asset.pnl_synced", (payload) => {
+      const { asset_id, account_id } = (payload ?? {}) as AssetPnLPayload;
+      const id = record.value.id;
+      if (!id) return;
+      if (
+        asset_id === id ||
+        (account_id != null && account_id === record.value.account?.id)
+      ) {
+        loadRecord(id);
+      }
+    }),
+  );
 });
+
+onUnmounted(() => unsubscribers.forEach((unsubscribe) => unsubscribe()));
 
 function initData(): InvestmentAsset {
   return {
@@ -150,15 +172,11 @@ function initData(): InvestmentAsset {
 }
 
 const searchAccount = (event: { query: string }) => {
-  setTimeout(() => {
-    if (!event.query.trim().length) {
-      filteredAccounts.value = [...availableAccounts.value];
-    } else {
-      filteredAccounts.value = availableAccounts.value.filter((record) => {
-        return record.name.toLowerCase().startsWith(event.query.toLowerCase());
-      });
-    }
-  }, 250);
+  filteredAccounts.value = searchHelper.filterByQuery(
+    availableAccounts.value,
+    event.query,
+    (record) => [record.name],
+  );
 };
 
 async function isRecordValid() {
@@ -549,6 +567,16 @@ async function syncAssetAccountBalance(acc_id: number | null) {
     <h4 v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0">
       Chart
     </h4>
+    <div class="text-sm" style="color: var(--text-secondary)">
+      <span
+        >This chart represents the total market value of your investment over
+        time and includes new purchases. It's the total value moved in the
+        selected window.</span
+      >
+      <span class="text-sm" style="color: var(--text-secondary)">
+        P&L shows gain/loss vs. total cost basis (all-time)
+      </span>
+    </div>
     <div
       v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0"
       class="flex flex-col w-full rounded-2xl"
@@ -567,31 +595,18 @@ async function syncAssetAccountBalance(acc_id: number | null) {
             class="flex flex-row items-center gap-1"
             style="color: var(--text-secondary)"
           >
-            <small>· · ·</small> Cost basis (total paid)
+            <small>· · ·</small> Cost basis
           </div>
         </div>
-        <span
-          >P&amp;L:
-          <span style="color: var(--text-secondary)"
-            >gain/loss vs. total cost basis (all-time)</span
-          ></span
-        >
-        <span
-          >Period change:
-          <span style="color: var(--text-secondary)">
-            total value moved in the selected window - includes new
-            purchases</span
-          ></span
-        >
       </div>
     </div>
 
     <div
       v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0"
-      class="flex flex-col gap-2"
+      class="flex flex-col gap-3"
     >
       <div class="flex flex-row justify-between items-center">
-        <h4>Income</h4>
+        <h4>Investment income</h4>
         <Button
           v-if="hasPermission('manage_data')"
           :label="showIncomeForm ? 'Cancel' : 'Add income'"
@@ -600,6 +615,11 @@ async function syncAssetAccountBalance(acc_id: number | null) {
           @click="showIncomeForm = !showIncomeForm"
         />
       </div>
+      <span class="text-sm" style="color: var(--text-secondary)">
+        Income the asset pays out - dividends and interest for stocks/ETFs as
+        cash amounts, staking rewards for crypto, as a quantity. Rewards add to
+        your holdings; cash income does not.
+      </span>
       <InvestmentIncomeForm
         v-if="showIncomeForm"
         :asset-id="record.id!"
@@ -616,7 +636,10 @@ async function syncAssetAccountBalance(acc_id: number | null) {
     </div>
 
     <h4 v-if="isReadOnly">Asset details</h4>
-
+    <span class="text-sm" style="color: var(--text-secondary)">
+      Read-only, technical details about the investment asset. Shows which
+      account it's linked to. To make changes, delete the asset and re-input.
+    </span>
     <div class="flex flex-row w-full">
       <div class="flex flex-col gap-1 w-full">
         <ValidationError

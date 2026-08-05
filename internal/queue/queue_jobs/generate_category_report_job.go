@@ -83,8 +83,6 @@ func (j *GenerateCategoryReportJob) Process(ctx context.Context) error {
 		return j.fail(ctx, ErrNoCategoryData)
 	}
 
-	categoryLabel := deriveCategoryLabel(rows)
-
 	data, err := j.buildXLSX(rows, scopeLabel)
 	if err != nil {
 		return j.fail(ctx, err)
@@ -99,7 +97,7 @@ func (j *GenerateCategoryReportJob) Process(ctx context.Context) error {
 	fileSize := int64(len(data))
 	if err := j.analyticsRepo.UpdateReport(ctx, nil, j.ReportID, map[string]interface{}{
 		"status":       "completed",
-		"name":         j.reportName(categoryLabel),
+		"name":         j.reportName(now),
 		"file_path":    filePath,
 		"file_size":    fileSize,
 		"completed_at": now,
@@ -880,22 +878,26 @@ func (j *GenerateCategoryReportJob) addAllTimeChart(
 	})
 }
 
-func (j *GenerateCategoryReportJob) reportName(categoryLabel string) string {
-	var yearPart string
-	if j.Params.AllTime {
-		yearPart = "All Time"
-	} else {
-		parts := make([]string, len(j.Params.Years))
-		for i, y := range j.Params.Years {
-			parts[i] = fmt.Sprintf("%d", y)
-		}
-		yearPart = strings.Join(parts, ", ")
+func (j *GenerateCategoryReportJob) reportName(generatedAt time.Time) string {
+	categoryPart := pluralize(len(j.Params.InflowCategoryIDs)+len(j.Params.OutflowCategoryIDs), "category", "categories")
+
+	yearPart := "All Time"
+	if !j.Params.AllTime {
+		yearPart = pluralize(len(j.Params.Years), "year", "years")
 	}
-	name := fmt.Sprintf("Category Report - %s - %s", categoryLabel, yearPart)
+
+	name := fmt.Sprintf("Category Report - %s - %s - %s", categoryPart, yearPart, generatedAt.Format("2006-01-02 15:04"))
 	if j.Params.Description != "" {
 		name += fmt.Sprintf(" (%s)", j.Params.Description)
 	}
 	return name
+}
+
+func pluralize(count int, singular, plural string) string {
+	if count == 1 {
+		return fmt.Sprintf("1 %s", singular)
+	}
+	return fmt.Sprintf("%d %s", count, plural)
 }
 
 func (j *GenerateCategoryReportJob) saveFile(data []byte) (string, error) {
@@ -917,24 +919,6 @@ func sortedYears(m map[int][]models.CategoryReportDataRow) []int {
 	}
 	sort.Ints(years)
 	return years
-}
-
-func deriveCategoryLabel(rows []models.CategoryReportDataRow) string {
-	seen := make(map[string]struct{})
-	for _, r := range rows {
-		if r.Classification == "inflow" {
-			seen[r.CategoryName] = struct{}{}
-		}
-	}
-	names := make([]string, 0, len(seen))
-	for name := range seen {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	if len(names) > 0 {
-		return names[0]
-	}
-	return "Unknown"
 }
 
 func xlsxTitle(f *excelize.File, sheet string, row int, title string, styleID int) int {

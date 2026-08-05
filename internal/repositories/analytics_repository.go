@@ -907,13 +907,17 @@ func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gor
 	}
 	db = db.WithContext(ctx)
 
-	var currency string
-	if err := db.Raw(`SELECT currency FROM investment_assets WHERE id = ? AND user_id = ?`, assetID, userID).Scan(&currency).Error; err != nil || currency == "" {
+	var meta struct {
+		Currency       string
+		InvestmentType models.InvestmentType
+	}
+	if err := db.Raw(`SELECT currency, investment_type FROM investment_assets WHERE id = ? AND user_id = ?`, assetID, userID).Scan(&meta).Error; err != nil || meta.Currency == "" {
 		if err != nil {
 			return "", nil, nil, err
 		}
 		return "", nil, nil, fmt.Errorf("asset not found")
 	}
+	currency := meta.Currency
 
 	type row struct {
 		Date  time.Time
@@ -1005,76 +1009,39 @@ func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gor
 		}
 	}
 
-	// Cost basis at every price-history date so it's index-aligned with the market value series.
-	// Uses the same bucketing as the market value query to keep both series in sync.
-	cbRows := []row{}
-	switch gran {
-	case "week":
-		cbSQL := `
-		  WITH s AS (
-		    SELECT ph.as_of,
-		           COALESCE(SUM(
-		             CASE WHEN it.trade_type = 'buy'  THEN it.value_at_buy
-		                  WHEN it.trade_type = 'sell' THEN -it.value_at_buy END
-		           ), 0) AS value
-		    FROM asset_price_history ph
-		    LEFT JOIN investment_trades it
-		      ON it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
-		    WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
-		    GROUP BY ph.as_of
-		  ),
-		  b AS (SELECT date_trunc('week', as_of)::date AS bucket, as_of, value FROM s)
-		  SELECT DISTINCT ON (bucket) as_of::date AS date, value::text AS value
-		  FROM b ORDER BY bucket, as_of DESC`
-		if err := db.Raw(cbSQL, assetID, from, to).Scan(&cbRows).Error; err != nil {
-			return "", nil, nil, err
-		}
-	case "month":
-		cbSQL := `
-		  WITH s AS (
-		    SELECT ph.as_of,
-		           COALESCE(SUM(
-		             CASE WHEN it.trade_type = 'buy'  THEN it.value_at_buy
-		                  WHEN it.trade_type = 'sell' THEN -it.value_at_buy END
-		           ), 0) AS value
-		    FROM asset_price_history ph
-		    LEFT JOIN investment_trades it
-		      ON it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
-		    WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
-		    GROUP BY ph.as_of
-		  ),
-		  b AS (SELECT date_trunc('month', as_of)::date AS bucket, as_of, value FROM s)
-		  SELECT DISTINCT ON (bucket) as_of::date AS date, value::text AS value
-		  FROM b ORDER BY bucket, as_of DESC`
-		if err := db.Raw(cbSQL, assetID, from, to).Scan(&cbRows).Error; err != nil {
-			return "", nil, nil, err
-		}
-	default:
-		cbSQL := `
-		  SELECT ph.as_of::date AS date,
-		         COALESCE(SUM(
-		           CASE WHEN it.trade_type = 'buy'  THEN it.value_at_buy
-		                WHEN it.trade_type = 'sell' THEN -it.value_at_buy END
-		         ), 0)::text AS value
-		  FROM asset_price_history ph
-		  LEFT JOIN investment_trades it
-		    ON it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
-		  WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
-		  GROUP BY ph.as_of
-		  ORDER BY ph.as_of`
-		if err := db.Raw(cbSQL, assetID, from, to).Scan(&cbRows).Error; err != nil {
-			return "", nil, nil, err
-		}
+	// Cost basis is replayed from the trades with walkTradeTotals - the same walk that produces
+	// investment_assets.profit_loss - so the chart and the asset index can never disagree.
+	var trades []models.InvestmentTrade
+	if err := db.Where("asset_id = ?", assetID).
+		Order("txn_date ASC, id ASC").
+		Find(&trades).Error; err != nil {
+		return "", nil, nil, err
 	}
 
-	toPoints := func(rows []row) []models.ChartPoint {
-		out := make([]models.ChartPoint, 0, len(rows))
-		for _, r := range rows {
-			v, _ := decimal.NewFromString(r.Value)
-			out = append(out, models.ChartPoint{Date: r.Date, Value: v})
-		}
-		return out
+	var stakingIncome []models.InvestmentIncome
+	if err := db.Where("asset_id = ? AND income_type = ?", assetID, models.IncomeTypeStaking).
+		Order("txn_date ASC, id ASC").
+		Find(&stakingIncome).Error; err != nil {
+		return "", nil, nil, err
+	}
+	trades = MergeStakingIntoTrades(trades, stakingIncome)
+
+	// One basis point per market value point, keeping the two series index-aligned.
+	cbPoints := make([]models.ChartPoint, 0, len(mvRows))
+	for _, r := range mvRows {
+		asOf := r.Date
+		_, valueAtBuy, fees := walkTradeTotals(trades, &asOf)
+		cbPoints = append(cbPoints, models.ChartPoint{
+			Date:  r.Date,
+			Value: CostBasis(valueAtBuy, fees, meta.InvestmentType),
+		})
 	}
 
-	return currency, toPoints(mvRows), toPoints(cbRows), nil
+	mvPoints := make([]models.ChartPoint, 0, len(mvRows))
+	for _, r := range mvRows {
+		v, _ := decimal.NewFromString(r.Value)
+		mvPoints = append(mvPoints, models.ChartPoint{Date: r.Date, Value: v})
+	}
+
+	return currency, mvPoints, cbPoints, nil
 }

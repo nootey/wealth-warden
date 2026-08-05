@@ -175,7 +175,16 @@ defineExpose({ refresh });
             </div>
           </template>
         </Column>
-        <Column field="name" header="Name" />
+        <Column field="name" header="Name">
+          <template #body="{ data }">
+            <span
+              v-tooltip.top="data.name"
+              class="block truncate max-w-[9rem] sm:max-w-[16rem] md:max-w-[30rem]"
+            >
+              {{ data.name }}
+            </span>
+          </template>
+        </Column>
         <Column field="type" header="Type" />
         <Column field="status" header="Status">
           <template #body="{ data }">
