@@ -11,6 +11,7 @@ import ValidationError from "../validation/ValidationError.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import { useConfirm } from "primevue/useconfirm";
 import AuditTrail from "../base/AuditTrail.vue";
+import searchHelper from "../../../utils/search_helper.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -73,15 +74,11 @@ function initData(): User {
 }
 
 const searchRole = (event: { query: string }) => {
-  setTimeout(() => {
-    if (!event.query.trim().length) {
-      filteredRoles.value = [...props.roles];
-    } else {
-      filteredRoles.value = props.roles.filter((record) => {
-        return record.name.toLowerCase().startsWith(event.query.toLowerCase());
-      });
-    }
-  }, 250);
+  filteredRoles.value = searchHelper.filterByQuery(
+    props.roles,
+    event.query,
+    (record) => [record.name],
+  );
 };
 
 async function loadRecord(id: number) {

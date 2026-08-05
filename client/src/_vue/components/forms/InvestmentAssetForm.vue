@@ -26,6 +26,7 @@ import AuditTrail from "../base/AuditTrail.vue";
 import InvestmentAssetWidget from "../../features/widgets/InvestmentAssetWidget.vue";
 import InvestmentIncomeForm from "./InvestmentIncomeForm.vue";
 import InvestmentIncomePaginated from "../data/InvestmentIncomePaginated.vue";
+import searchHelper from "../../../utils/search_helper.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -150,15 +151,11 @@ function initData(): InvestmentAsset {
 }
 
 const searchAccount = (event: { query: string }) => {
-  setTimeout(() => {
-    if (!event.query.trim().length) {
-      filteredAccounts.value = [...availableAccounts.value];
-    } else {
-      filteredAccounts.value = availableAccounts.value.filter((record) => {
-        return record.name.toLowerCase().startsWith(event.query.toLowerCase());
-      });
-    }
-  }, 250);
+  filteredAccounts.value = searchHelper.filterByQuery(
+    availableAccounts.value,
+    event.query,
+    (record) => [record.name],
+  );
 };
 
 async function isRecordValid() {

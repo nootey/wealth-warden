@@ -22,6 +22,7 @@ import dayjs from "dayjs";
 import dateHelper from "../../../utils/date_helper.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
+import searchHelper from "../../../utils/search_helper.ts";
 import TransferForm from "./TransferForm.vue";
 import ShowLoading from "../base/ShowLoading.vue";
 import { useConfirm } from "primevue/useconfirm";
@@ -284,29 +285,19 @@ function updateSelectedParentCategory($event: any) {
 }
 
 const searchCategory = (event: { query: string }) => {
-  setTimeout(() => {
-    if (!event.query.trim().length) {
-      filteredCategories.value = [...availableCategories.value];
-    } else {
-      filteredCategories.value = availableCategories.value.filter((record) => {
-        return record.display_name
-          .toLowerCase()
-          .startsWith(event.query.toLowerCase());
-      });
-    }
-  }, 250);
+  filteredCategories.value = searchHelper.filterByQuery(
+    availableCategories.value,
+    event.query,
+    (record) => [record.display_name, record.name],
+  );
 };
 
 const searchAccount = (event: { query: string }) => {
-  setTimeout(() => {
-    if (!event.query.trim().length) {
-      filteredAccounts.value = [...accounts.value];
-    } else {
-      filteredAccounts.value = accounts.value.filter((record) => {
-        return record.name.toLowerCase().startsWith(event.query.toLowerCase());
-      });
-    }
-  }, 250);
+  filteredAccounts.value = searchHelper.filterByQuery(
+    accounts.value,
+    event.query,
+    (record) => [record.name],
+  );
 };
 
 async function isRecordValid() {

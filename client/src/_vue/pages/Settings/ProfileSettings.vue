@@ -5,6 +5,7 @@ import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 import { useThemeStore } from "../../../services/stores/theme_store.ts";
 import ShowLoading from "../../components/base/ShowLoading.vue";
+import searchHelper from "../../../utils/search_helper.ts";
 import type {
   CurrencyInfo,
   LanguageInfo,
@@ -163,46 +164,28 @@ async function getAvailableCurrencies() {
   }
 }
 
-function searchTimezone(event: any) {
-  const query = event.query.toLowerCase();
-
-  if (!query) {
-    filteredTimezones.value = timezones.value;
-  } else {
-    filteredTimezones.value = timezones.value.filter(
-      (tz) =>
-        tz.label.toLowerCase().includes(query) ||
-        tz.value.toLowerCase().includes(query),
-    );
-  }
+function searchTimezone(event: { query: string }) {
+  filteredTimezones.value = searchHelper.filterByQuery(
+    timezones.value,
+    event.query,
+    (tz) => [tz.label, tz.value],
+  );
 }
 
 function searchCurrency(event: { query: string }) {
-  const query = event.query.toLowerCase();
-
-  if (!query) {
-    filteredCurrencies.value = currencies.value;
-  } else {
-    filteredCurrencies.value = currencies.value.filter(
-      (c) =>
-        c.label.toLowerCase().includes(query) ||
-        c.value.toLowerCase().includes(query),
-    );
-  }
+  filteredCurrencies.value = searchHelper.filterByQuery(
+    currencies.value,
+    event.query,
+    (c) => [c.label, c.value],
+  );
 }
 
 function searchLanguage(event: { query: string }) {
-  const query = event.query.toLowerCase();
-
-  if (!query) {
-    filteredLanguages.value = languages.value;
-  } else {
-    filteredLanguages.value = languages.value.filter(
-      (lang) =>
-        lang.label.toLowerCase().includes(query) ||
-        lang.value.toLowerCase().includes(query),
-    );
-  }
+  filteredLanguages.value = searchHelper.filterByQuery(
+    languages.value,
+    event.query,
+    (lang) => [lang.label, lang.value],
+  );
 }
 
 async function updateSettings() {

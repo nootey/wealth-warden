@@ -15,6 +15,7 @@ import vueHelper from "../../../utils/vue_helper.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
 import ShowLoading from "../base/ShowLoading.vue";
 import dayjs from "dayjs";
+import searchHelper from "../../../utils/search_helper.ts";
 
 const props = defineProps<{
   accounts: Account[];
@@ -91,33 +92,27 @@ function searchAccount(
   type: "source" | "destination",
   event: { query: string },
 ) {
-  setTimeout(() => {
-    let results = props.accounts;
+  let results = searchHelper.filterByQuery(
+    props.accounts,
+    event.query ?? "",
+    (a) => [a.name],
+  );
 
-    if (event.query?.trim().length) {
-      results = results.filter((a) =>
-        a.name.toLowerCase().startsWith(event.query.toLowerCase()),
+  if (type === "source") {
+    // exclude currently selected destination
+    if (localTransfer.value.destination) {
+      results = results.filter(
+        (a) => a.id !== localTransfer.value?.destination?.id,
       );
     }
-
-    if (type === "source") {
-      // exclude currently selected destination
-      if (localTransfer.value.destination) {
-        results = results.filter(
-          (a) => a.id !== localTransfer.value?.destination?.id,
-        );
-      }
-      filteredSourceAccounts.value = results;
-    } else {
-      // exclude currently selected source
-      if (localTransfer.value.source) {
-        results = results.filter(
-          (a) => a.id !== localTransfer.value?.source?.id,
-        );
-      }
-      filteredDestinationAccounts.value = results;
+    filteredSourceAccounts.value = results;
+  } else {
+    // exclude currently selected source
+    if (localTransfer.value.source) {
+      results = results.filter((a) => a.id !== localTransfer.value?.source?.id);
     }
-  }, 200);
+    filteredDestinationAccounts.value = results;
+  }
 }
 
 defineExpose({ r$, localTransfer });

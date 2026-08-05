@@ -10,6 +10,7 @@ import type {
 } from "../../../models/dataio_models.ts";
 import ImportTransferMapping from "../../components/base/ImportTransferMapping.vue";
 import ShowLoading from "../../components/base/ShowLoading.vue";
+import searchHelper from "../../../utils/search_helper.ts";
 
 const emit = defineEmits<{
   (e: "completeTransfer"): void;
@@ -115,11 +116,10 @@ function searchAccount(event: { query: string }, accType: string) {
   if (!listRef || !filteredListRef) return;
 
   const all = listRef.value ?? [];
-  const q = event.query.trim().toLowerCase();
 
-  filteredListRef.value = q
-    ? all.filter((a) => a.name.toLowerCase().includes(q))
-    : [...all];
+  filteredListRef.value = searchHelper.filterByQuery(all, event.query, (a) => [
+    a.name,
+  ]);
 }
 
 function resetWizard() {

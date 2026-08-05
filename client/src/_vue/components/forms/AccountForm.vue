@@ -22,6 +22,7 @@ import dateHelper from "../../../utils/date_helper.ts";
 import AuditTrail from "../base/AuditTrail.vue";
 import type { UserSettings } from "../../../models/settings_models.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
+import searchHelper from "../../../utils/search_helper.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -123,19 +124,19 @@ const filteredAccountTypes = ref<string[]>([]);
 const filteredSubtypeOptions = ref<string[]>([]);
 
 const searchAccountType = (event: { query: string }) => {
-  const q = event.query.trim().toLowerCase();
-  const all = typeOptions.value;
-  filteredAccountTypes.value = !q
-    ? [...all]
-    : all.filter((t) => t.toLowerCase().startsWith(q));
+  filteredAccountTypes.value = searchHelper.filterByQuery(
+    typeOptions.value,
+    event.query,
+    (t) => [t],
+  );
 };
 
 const searchSubtype = (event: { query: string }) => {
-  const q = event.query.trim().toLowerCase();
-  const all = subtypeOptions.value;
-  filteredSubtypeOptions.value = !q
-    ? [...all]
-    : all.filter((s) => s.toLowerCase().startsWith(q));
+  filteredSubtypeOptions.value = searchHelper.filterByQuery(
+    subtypeOptions.value,
+    event.query,
+    (s) => [s],
+  );
 };
 
 const rules = computed(() => ({
