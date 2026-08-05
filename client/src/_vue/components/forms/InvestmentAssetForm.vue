@@ -2,8 +2,10 @@
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useAccountStore } from "../../../services/stores/account_store.ts";
-import { computed, nextTick, onMounted, reactive, ref } from "vue";
+import { useWsStore } from "../../../services/stores/ws_store.ts";
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from "vue";
 import type { Account } from "../../../models/account_models.ts";
+import type { AssetPnLPayload } from "../../../models/ws_models.ts";
 import type {
   InvestmentAsset,
   TickerData,
@@ -43,6 +45,7 @@ const apiPrefix = "investments";
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
 const accountStore = useAccountStore();
+const wsStore = useWsStore();
 
 const confirm = useConfirm();
 const { hasPermission } = usePermissions();
@@ -131,13 +134,31 @@ const validationState = reactive({ record, tickerData });
 
 const { r$ } = useRegle(validationState, rules);
 
+const unsubscribers: (() => void)[] = [];
+
 onMounted(async () => {
   accounts.value = await accountStore.getAllAccounts(true, true);
 
   if (props.mode === "update" && props.recordId) {
     await loadRecord(props.recordId);
   }
+
+  unsubscribers.push(
+    wsStore.on("asset.pnl_synced", (payload) => {
+      const { asset_id, account_id } = (payload ?? {}) as AssetPnLPayload;
+      const id = record.value.id;
+      if (!id) return;
+      if (
+        asset_id === id ||
+        (account_id != null && account_id === record.value.account?.id)
+      ) {
+        loadRecord(id);
+      }
+    }),
+  );
 });
+
+onUnmounted(() => unsubscribers.forEach((unsubscribe) => unsubscribe()));
 
 function initData(): InvestmentAsset {
   return {
@@ -546,6 +567,16 @@ async function syncAssetAccountBalance(acc_id: number | null) {
     <h4 v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0">
       Chart
     </h4>
+    <div class="text-sm" style="color: var(--text-secondary)">
+      <span
+        >This chart represents the total market value of your investment over
+        time and includes new purchases. It's the total value moved in the
+        selected window.</span
+      >
+      <span class="text-sm" style="color: var(--text-secondary)">
+        P&L shows gain/loss vs. total cost basis (all-time)
+      </span>
+    </div>
     <div
       v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0"
       class="flex flex-col w-full rounded-2xl"
@@ -564,22 +595,9 @@ async function syncAssetAccountBalance(acc_id: number | null) {
             class="flex flex-row items-center gap-1"
             style="color: var(--text-secondary)"
           >
-            <small>· · ·</small> Cost basis (total paid)
+            <small>· · ·</small> Cost basis
           </div>
         </div>
-        <span
-          >P&amp;L:
-          <span style="color: var(--text-secondary)"
-            >gain/loss vs. total cost basis (all-time)</span
-          ></span
-        >
-        <span
-          >Period change:
-          <span style="color: var(--text-secondary)">
-            total value moved in the selected window - includes new
-            purchases</span
-          ></span
-        >
       </div>
     </div>
 

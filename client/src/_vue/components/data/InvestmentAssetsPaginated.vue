@@ -4,10 +4,11 @@ import CustomPaginator from "../base/CustomPaginator.vue";
 import ColumnHeader from "../base/ColumnHeader.vue";
 import LoadingSpinner from "../base/LoadingSpinner.vue";
 import type { Column } from "../../../services/filter_registry.ts";
-import { computed, onMounted, provide, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, provide, ref, watch } from "vue";
 import filterHelper from "../../../utils/filter_helper.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
+import { useWsStore } from "../../../services/stores/ws_store.ts";
 import type { InvestmentAsset } from "../../../models/investment_models.ts";
 import { useChartColors } from "../../../style/theme/chartColors.ts";
 import type { PaginatorState } from "../../../models/shared_models.ts";
@@ -22,6 +23,7 @@ defineEmits<{
 
 const sharedStore = useSharedStore();
 const toastStore = useToastStore();
+const wsStore = useWsStore();
 
 const loading = ref(false);
 const records = ref<InvestmentAsset[]>([]);
@@ -67,9 +69,15 @@ const activeColumns = computed<Column[]>(() => [
   { field: "profit_loss", header: "PNL" },
 ]);
 
+const unsubscribers: (() => void)[] = [];
+
 onMounted(async () => {
   await getData();
+
+  unsubscribers.push(wsStore.on("asset.pnl_synced", () => refresh()));
 });
+
+onUnmounted(() => unsubscribers.forEach((unsubscribe) => unsubscribe()));
 
 watch(includeDeleted, async () => {
   await getData(1);

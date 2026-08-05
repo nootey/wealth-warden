@@ -554,6 +554,46 @@ func (r *InvestmentRepository) CorrectTradeValueAtBuy(ctx context.Context, tx *g
 		}).Error
 }
 
+// walkTradeTotals replays trades in order and returns holdings as of asOf (nil = all trades).
+// Single source of truth for cost basis - the asset aggregates and the chart series both use it.
+// Trades must be ordered by txn_date ASC, id ASC. Staking quantity is not included.
+func walkTradeTotals(trades []models.InvestmentTrade, asOf *time.Time) (quantity, valueAtBuy, fees decimal.Decimal) {
+	for _, txn := range trades {
+		if asOf != nil && txn.TxnDate.After(*asOf) {
+			break
+		}
+
+		if txn.TradeType == models.InvestmentBuy {
+			quantity = quantity.Add(txn.Quantity)
+			valueAtBuy = valueAtBuy.Add(txn.ValueAtBuy)
+			fees = fees.Add(txn.Fee)
+			continue
+		}
+
+		// Sell: reduce proportionally
+		quantity = quantity.Sub(txn.Quantity)
+		if quantity.GreaterThan(decimal.Zero) {
+			soldProportion := txn.Quantity.Div(quantity.Add(txn.Quantity))
+			remaining := decimal.NewFromInt(1).Sub(soldProportion)
+			valueAtBuy = valueAtBuy.Mul(remaining)
+			fees = fees.Mul(remaining)
+		} else {
+			valueAtBuy = decimal.Zero
+			fees = decimal.Zero
+		}
+	}
+
+	return quantity, valueAtBuy, fees
+}
+
+// CostBasis applies the fee rule: fees count toward basis for everything but crypto.
+func CostBasis(valueAtBuy, fees decimal.Decimal, investmentType models.InvestmentType) decimal.Decimal {
+	if investmentType == models.InvestmentCrypto {
+		return valueAtBuy
+	}
+	return valueAtBuy.Add(fees)
+}
+
 func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error {
 	db := tx
 	if db == nil {
@@ -574,29 +614,7 @@ func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, t
 		return err
 	}
 
-	// Start fresh
-	totalQuantity := decimal.Zero
-	totalValueAtBuy := decimal.Zero
-	totalFees := decimal.Zero
-
-	for _, txn := range trades {
-		if txn.TradeType == models.InvestmentBuy {
-			totalQuantity = totalQuantity.Add(txn.Quantity)
-			totalValueAtBuy = totalValueAtBuy.Add(txn.ValueAtBuy)
-			totalFees = totalFees.Add(txn.Fee)
-		} else {
-			// Sell: reduce proportionally
-			totalQuantity = totalQuantity.Sub(txn.Quantity)
-			if totalQuantity.GreaterThan(decimal.Zero) {
-				soldProportion := txn.Quantity.Div(totalQuantity.Add(txn.Quantity))
-				totalValueAtBuy = totalValueAtBuy.Mul(decimal.NewFromInt(1).Sub(soldProportion))
-				totalFees = totalFees.Mul(decimal.NewFromInt(1).Sub(soldProportion))
-			} else {
-				totalValueAtBuy = decimal.Zero
-				totalFees = decimal.Zero
-			}
-		}
-	}
+	totalQuantity, totalValueAtBuy, totalFees := walkTradeTotals(trades, nil)
 
 	// Snapshot trade-only quantity before adding staking — avgBuyPrice must reflect only purchased units
 	tradeQuantity := totalQuantity
@@ -617,11 +635,7 @@ func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, t
 		avgBuyPrice = totalValueAtBuy.Div(tradeQuantity)
 	}
 
-	// Calculate current values
-	costBasis := totalValueAtBuy
-	if asset.InvestmentType != models.InvestmentCrypto {
-		costBasis = totalValueAtBuy.Add(totalFees)
-	}
+	costBasis := CostBasis(totalValueAtBuy, totalFees, asset.InvestmentType)
 
 	var currentValue, profitLoss, profitLossPercent decimal.Decimal
 	if asset.CurrentPrice != nil && !asset.CurrentPrice.IsZero() && totalQuantity.GreaterThan(decimal.Zero) {

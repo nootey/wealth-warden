@@ -1295,6 +1295,12 @@ func (s *AccountService) RecalculateAssetPnL(ctx context.Context, userID, assetI
 			if err := s.investmentRepo.UpdateTradesPnLForAsset(ctx, nil, assetID, price, asset.InvestmentType, now); err != nil {
 				return err
 			}
+			today := now.Truncate(24 * time.Hour)
+			if err := s.investmentRepo.UpsertAssetPrice(ctx, nil, []models.AssetPriceHistory{
+				{AssetID: assetID, AsOf: today, Price: price, Currency: priceData.Currency},
+			}); err != nil {
+				return err
+			}
 		}
 	}
 	return s.investmentRepo.RecalculateAssetFromTrades(ctx, nil, assetID, userID)
@@ -1307,14 +1313,14 @@ func (s *AccountService) GetAssetIDsForAccount(ctx context.Context, userID, acco
 func (s *AccountService) SyncAssetPnL(ctx context.Context, userID, assetID int64) error {
 	return s.jobDispatcher.Dispatch(ctx, queue_jobs.NewRecalculateAssetPnLJob(
 		s.logger.Named("pnl_sync"),
-		s, userID, &assetID, nil,
+		s, nil, userID, &assetID, nil,
 	))
 }
 
 func (s *AccountService) SyncAccountPnL(ctx context.Context, userID, accountID int64) error {
 	return s.jobDispatcher.Dispatch(ctx, queue_jobs.NewRecalculateAssetPnLJob(
 		s.logger.Named("pnl_sync"),
-		s, userID, nil, &accountID,
+		s, nil, userID, nil, &accountID,
 	))
 }
 

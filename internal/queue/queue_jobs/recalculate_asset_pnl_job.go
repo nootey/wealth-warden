@@ -3,6 +3,7 @@ package queue_jobs
 import (
 	"context"
 	"fmt"
+	"wealth-warden/internal/ws"
 
 	"go.uber.org/zap"
 )
@@ -15,7 +16,8 @@ type pnlSvc interface {
 
 type RecalculateAssetPnLJob struct {
 	logger            *zap.Logger
-	InvestmentService pnlSvc `json:"-"`
+	InvestmentService pnlSvc         `json:"-"`
+	broadcaster       ws.Broadcaster `json:"-"`
 	UserID            int64
 	AssetID           *int64 // nil = all assets for the account
 	AccountID         *int64 // nil = single asset mode
@@ -26,6 +28,7 @@ func (j *RecalculateAssetPnLJob) Type() string { return TypeRecalculateAssetPnL 
 func NewRecalculateAssetPnLJob(
 	logger *zap.Logger,
 	investmentService pnlSvc,
+	broadcaster ws.Broadcaster,
 	userID int64,
 	assetID *int64,
 	accountID *int64,
@@ -33,6 +36,7 @@ func NewRecalculateAssetPnLJob(
 	return &RecalculateAssetPnLJob{
 		logger:            logger,
 		InvestmentService: investmentService,
+		broadcaster:       broadcaster,
 		UserID:            userID,
 		AssetID:           assetID,
 		AccountID:         accountID,
@@ -48,6 +52,7 @@ func (j *RecalculateAssetPnLJob) Process(ctx context.Context) error {
 		}
 		j.logger.Info("Asset PnL recalculated", zap.Int64("assetID", *j.AssetID))
 		j.refreshSnapshots(ctx)
+		j.notify(ws.AssetPnLPayload{AssetID: j.AssetID})
 		return nil
 	}
 
@@ -66,10 +71,19 @@ func (j *RecalculateAssetPnLJob) Process(ctx context.Context) error {
 		}
 		j.logger.Info("Account PnL recalculated", zap.Int64("accountID", *j.AccountID), zap.Int("assets", len(assetIDs)))
 		j.refreshSnapshots(ctx)
+		j.notify(ws.AssetPnLPayload{AccountID: j.AccountID})
 		return nil
 	}
 
 	return fmt.Errorf("RecalculateAssetPnLJob: neither AssetID nor AccountID provided")
+}
+
+// The dispatch site builds this job without a hub; only the worker's rebuild has one.
+func (j *RecalculateAssetPnLJob) notify(payload ws.AssetPnLPayload) {
+	if j.broadcaster == nil {
+		return
+	}
+	j.broadcaster.Send(j.UserID, ws.Event{Type: ws.TypeAssetPnLSynced, Payload: payload})
 }
 
 func (j *RecalculateAssetPnLJob) refreshSnapshots(ctx context.Context) {
