@@ -163,19 +163,20 @@ async function submit(): Promise<void> {
       </div>
     </div>
 
-    <div class="flex flex-row w-full gap-4">
-      <div class="flex flex-col gap-1 w-6/12">
+    <div class="flex flex-row w-full gap-4 items-center">
+      <div class="flex flex-col gap-1 flex-1 w-6/12">
         <ValidationError :is-required="true" :message="r$.txn_date.$errors[0]">
           <label>Date</label>
         </ValidationError>
         <DatePicker
           v-model="record.txn_date"
           size="small"
-          date-format="dd/mm/yy"
+          date-format="yy-mm-dd"
           show-icon
+          fluid
         />
       </div>
-      <div v-if="!isStaking" class="flex flex-col gap-1 w-6/12">
+      <div v-if="!isStaking" class="flex flex-col gap-1 flex-1 w-6/12">
         <ValidationError :is-required="false" :message="undefined">
           <label>Tax withheld</label>
         </ValidationError>
@@ -186,6 +187,7 @@ async function submit(): Promise<void> {
           :min-fraction-digits="2"
           :max-fraction-digits="4"
           placeholder="0,00"
+          fluid
         />
       </div>
       <div v-if="isStaking" class="flex flex-col gap-1 w-6/12">

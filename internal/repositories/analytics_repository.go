@@ -1018,6 +1018,14 @@ func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gor
 		return "", nil, nil, err
 	}
 
+	var stakingIncome []models.InvestmentIncome
+	if err := db.Where("asset_id = ? AND income_type = ?", assetID, models.IncomeTypeStaking).
+		Order("txn_date ASC, id ASC").
+		Find(&stakingIncome).Error; err != nil {
+		return "", nil, nil, err
+	}
+	trades = MergeStakingIntoTrades(trades, stakingIncome)
+
 	// One basis point per market value point, keeping the two series index-aligned.
 	cbPoints := make([]models.ChartPoint, 0, len(mvRows))
 	for _, r := range mvRows {

@@ -603,10 +603,10 @@ async function syncAssetAccountBalance(acc_id: number | null) {
 
     <div
       v-if="isReadOnly && record.id && parseFloat(record.quantity) > 0"
-      class="flex flex-col gap-2"
+      class="flex flex-col gap-3"
     >
       <div class="flex flex-row justify-between items-center">
-        <h4>Income</h4>
+        <h4>Investment income</h4>
         <Button
           v-if="hasPermission('manage_data')"
           :label="showIncomeForm ? 'Cancel' : 'Add income'"
@@ -615,6 +615,11 @@ async function syncAssetAccountBalance(acc_id: number | null) {
           @click="showIncomeForm = !showIncomeForm"
         />
       </div>
+      <span class="text-sm" style="color: var(--text-secondary)">
+        Income the asset pays out - dividends and interest for stocks/ETFs as
+        cash amounts, staking rewards for crypto, as a quantity. Rewards add to
+        your holdings; cash income does not.
+      </span>
       <InvestmentIncomeForm
         v-if="showIncomeForm"
         :asset-id="record.id!"
@@ -631,7 +636,10 @@ async function syncAssetAccountBalance(acc_id: number | null) {
     </div>
 
     <h4 v-if="isReadOnly">Asset details</h4>
-
+    <span class="text-sm" style="color: var(--text-secondary)">
+      Read-only, technical details about the investment asset. Shows which
+      account it's linked to. To make changes, delete the asset and re-input.
+    </span>
     <div class="flex flex-row w-full">
       <div class="flex flex-col gap-1 w-full">
         <ValidationError
