@@ -66,7 +66,7 @@ type MockTransactionServiceInterface_DeleteCategory_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - id int64
-func (_e *MockTransactionServiceInterface_Expecter) DeleteCategory(ctx interface{}, userID interface{}, id interface{}) *MockTransactionServiceInterface_DeleteCategory_Call {
+func (_e *MockTransactionServiceInterface_Expecter) DeleteCategory(ctx any, userID any, id any) *MockTransactionServiceInterface_DeleteCategory_Call {
 	return &MockTransactionServiceInterface_DeleteCategory_Call{Call: _e.mock.On("DeleteCategory", ctx, userID, id)}
 }
 
@@ -129,7 +129,7 @@ type MockTransactionServiceInterface_DeleteCategoryGroup_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - id int64
-func (_e *MockTransactionServiceInterface_Expecter) DeleteCategoryGroup(ctx interface{}, userID interface{}, id interface{}) *MockTransactionServiceInterface_DeleteCategoryGroup_Call {
+func (_e *MockTransactionServiceInterface_Expecter) DeleteCategoryGroup(ctx any, userID any, id any) *MockTransactionServiceInterface_DeleteCategoryGroup_Call {
 	return &MockTransactionServiceInterface_DeleteCategoryGroup_Call{Call: _e.mock.On("DeleteCategoryGroup", ctx, userID, id)}
 }
 
@@ -192,7 +192,7 @@ type MockTransactionServiceInterface_DeleteTransaction_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - id int64
-func (_e *MockTransactionServiceInterface_Expecter) DeleteTransaction(ctx interface{}, userID interface{}, id interface{}) *MockTransactionServiceInterface_DeleteTransaction_Call {
+func (_e *MockTransactionServiceInterface_Expecter) DeleteTransaction(ctx any, userID any, id any) *MockTransactionServiceInterface_DeleteTransaction_Call {
 	return &MockTransactionServiceInterface_DeleteTransaction_Call{Call: _e.mock.On("DeleteTransaction", ctx, userID, id)}
 }
 
@@ -255,7 +255,7 @@ type MockTransactionServiceInterface_DeleteTransactionTemplate_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - id int64
-func (_e *MockTransactionServiceInterface_Expecter) DeleteTransactionTemplate(ctx interface{}, userID interface{}, id interface{}) *MockTransactionServiceInterface_DeleteTransactionTemplate_Call {
+func (_e *MockTransactionServiceInterface_Expecter) DeleteTransactionTemplate(ctx any, userID any, id any) *MockTransactionServiceInterface_DeleteTransactionTemplate_Call {
 	return &MockTransactionServiceInterface_DeleteTransactionTemplate_Call{Call: _e.mock.On("DeleteTransactionTemplate", ctx, userID, id)}
 }
 
@@ -318,7 +318,7 @@ type MockTransactionServiceInterface_DeleteTransfer_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - id int64
-func (_e *MockTransactionServiceInterface_Expecter) DeleteTransfer(ctx interface{}, userID interface{}, id interface{}) *MockTransactionServiceInterface_DeleteTransfer_Call {
+func (_e *MockTransactionServiceInterface_Expecter) DeleteTransfer(ctx any, userID any, id any) *MockTransactionServiceInterface_DeleteTransfer_Call {
 	return &MockTransactionServiceInterface_DeleteTransfer_Call{Call: _e.mock.On("DeleteTransfer", ctx, userID, id)}
 }
 
@@ -351,6 +351,69 @@ func (_c *MockTransactionServiceInterface_DeleteTransfer_Call) Return(err error)
 }
 
 func (_c *MockTransactionServiceInterface_DeleteTransfer_Call) RunAndReturn(run func(ctx context.Context, userID int64, id int64) error) *MockTransactionServiceInterface_DeleteTransfer_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ExecuteTemplateEarly provides a mock function for the type MockTransactionServiceInterface
+func (_mock *MockTransactionServiceInterface) ExecuteTemplateEarly(ctx context.Context, userID int64, id int64) error {
+	ret := _mock.Called(ctx, userID, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExecuteTemplateEarly")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) error); ok {
+		r0 = returnFunc(ctx, userID, id)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockTransactionServiceInterface_ExecuteTemplateEarly_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ExecuteTemplateEarly'
+type MockTransactionServiceInterface_ExecuteTemplateEarly_Call struct {
+	*mock.Call
+}
+
+// ExecuteTemplateEarly is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - id int64
+func (_e *MockTransactionServiceInterface_Expecter) ExecuteTemplateEarly(ctx any, userID any, id any) *MockTransactionServiceInterface_ExecuteTemplateEarly_Call {
+	return &MockTransactionServiceInterface_ExecuteTemplateEarly_Call{Call: _e.mock.On("ExecuteTemplateEarly", ctx, userID, id)}
+}
+
+func (_c *MockTransactionServiceInterface_ExecuteTemplateEarly_Call) Run(run func(ctx context.Context, userID int64, id int64)) *MockTransactionServiceInterface_ExecuteTemplateEarly_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 int64
+		if args[2] != nil {
+			arg2 = args[2].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_ExecuteTemplateEarly_Call) Return(err error) *MockTransactionServiceInterface_ExecuteTemplateEarly_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_ExecuteTemplateEarly_Call) RunAndReturn(run func(ctx context.Context, userID int64, id int64) error) *MockTransactionServiceInterface_ExecuteTemplateEarly_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -392,7 +455,7 @@ type MockTransactionServiceInterface_FetchAllCategories_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - includeDeleted bool
-func (_e *MockTransactionServiceInterface_Expecter) FetchAllCategories(ctx interface{}, userID interface{}, includeDeleted interface{}) *MockTransactionServiceInterface_FetchAllCategories_Call {
+func (_e *MockTransactionServiceInterface_Expecter) FetchAllCategories(ctx any, userID any, includeDeleted any) *MockTransactionServiceInterface_FetchAllCategories_Call {
 	return &MockTransactionServiceInterface_FetchAllCategories_Call{Call: _e.mock.On("FetchAllCategories", ctx, userID, includeDeleted)}
 }
 
@@ -465,7 +528,7 @@ type MockTransactionServiceInterface_FetchAllCategoriesWithGroups_Call struct {
 // FetchAllCategoriesWithGroups is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockTransactionServiceInterface_Expecter) FetchAllCategoriesWithGroups(ctx interface{}, userID interface{}) *MockTransactionServiceInterface_FetchAllCategoriesWithGroups_Call {
+func (_e *MockTransactionServiceInterface_Expecter) FetchAllCategoriesWithGroups(ctx any, userID any) *MockTransactionServiceInterface_FetchAllCategoriesWithGroups_Call {
 	return &MockTransactionServiceInterface_FetchAllCategoriesWithGroups_Call{Call: _e.mock.On("FetchAllCategoriesWithGroups", ctx, userID)}
 }
 
@@ -533,7 +596,7 @@ type MockTransactionServiceInterface_FetchAllCategoryGroups_Call struct {
 // FetchAllCategoryGroups is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockTransactionServiceInterface_Expecter) FetchAllCategoryGroups(ctx interface{}, userID interface{}) *MockTransactionServiceInterface_FetchAllCategoryGroups_Call {
+func (_e *MockTransactionServiceInterface_Expecter) FetchAllCategoryGroups(ctx any, userID any) *MockTransactionServiceInterface_FetchAllCategoryGroups_Call {
 	return &MockTransactionServiceInterface_FetchAllCategoryGroups_Call{Call: _e.mock.On("FetchAllCategoryGroups", ctx, userID)}
 }
 
@@ -603,7 +666,7 @@ type MockTransactionServiceInterface_FetchCategoryByID_Call struct {
 //   - userID int64
 //   - id int64
 //   - includeDeleted bool
-func (_e *MockTransactionServiceInterface_Expecter) FetchCategoryByID(ctx interface{}, userID interface{}, id interface{}, includeDeleted interface{}) *MockTransactionServiceInterface_FetchCategoryByID_Call {
+func (_e *MockTransactionServiceInterface_Expecter) FetchCategoryByID(ctx any, userID any, id any, includeDeleted any) *MockTransactionServiceInterface_FetchCategoryByID_Call {
 	return &MockTransactionServiceInterface_FetchCategoryByID_Call{Call: _e.mock.On("FetchCategoryByID", ctx, userID, id, includeDeleted)}
 }
 
@@ -682,7 +745,7 @@ type MockTransactionServiceInterface_FetchCategoryGroupByID_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - id int64
-func (_e *MockTransactionServiceInterface_Expecter) FetchCategoryGroupByID(ctx interface{}, userID interface{}, id interface{}) *MockTransactionServiceInterface_FetchCategoryGroupByID_Call {
+func (_e *MockTransactionServiceInterface_Expecter) FetchCategoryGroupByID(ctx any, userID any, id any) *MockTransactionServiceInterface_FetchCategoryGroupByID_Call {
 	return &MockTransactionServiceInterface_FetchCategoryGroupByID_Call{Call: _e.mock.On("FetchCategoryGroupByID", ctx, userID, id)}
 }
 
@@ -757,7 +820,7 @@ type MockTransactionServiceInterface_FetchTransactionByID_Call struct {
 //   - userID int64
 //   - id int64
 //   - includeDeleted bool
-func (_e *MockTransactionServiceInterface_Expecter) FetchTransactionByID(ctx interface{}, userID interface{}, id interface{}, includeDeleted interface{}) *MockTransactionServiceInterface_FetchTransactionByID_Call {
+func (_e *MockTransactionServiceInterface_Expecter) FetchTransactionByID(ctx any, userID any, id any, includeDeleted any) *MockTransactionServiceInterface_FetchTransactionByID_Call {
 	return &MockTransactionServiceInterface_FetchTransactionByID_Call{Call: _e.mock.On("FetchTransactionByID", ctx, userID, id, includeDeleted)}
 }
 
@@ -836,7 +899,7 @@ type MockTransactionServiceInterface_FetchTransactionTemplateByID_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - id int64
-func (_e *MockTransactionServiceInterface_Expecter) FetchTransactionTemplateByID(ctx interface{}, userID interface{}, id interface{}) *MockTransactionServiceInterface_FetchTransactionTemplateByID_Call {
+func (_e *MockTransactionServiceInterface_Expecter) FetchTransactionTemplateByID(ctx any, userID any, id any) *MockTransactionServiceInterface_FetchTransactionTemplateByID_Call {
 	return &MockTransactionServiceInterface_FetchTransactionTemplateByID_Call{Call: _e.mock.On("FetchTransactionTemplateByID", ctx, userID, id)}
 }
 
@@ -919,7 +982,7 @@ type MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call str
 //   - userID int64
 //   - p utils.PaginationParams
 //   - templateType string
-func (_e *MockTransactionServiceInterface_Expecter) FetchTransactionTemplatesPaginated(ctx interface{}, userID interface{}, p interface{}, templateType interface{}) *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call {
+func (_e *MockTransactionServiceInterface_Expecter) FetchTransactionTemplatesPaginated(ctx any, userID any, p any, templateType any) *MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call {
 	return &MockTransactionServiceInterface_FetchTransactionTemplatesPaginated_Call{Call: _e.mock.On("FetchTransactionTemplatesPaginated", ctx, userID, p, templateType)}
 }
 
@@ -1016,7 +1079,7 @@ type MockTransactionServiceInterface_FetchTransactionsPaginated_Call struct {
 //   - p utils.PaginationParams
 //   - includeDeleted bool
 //   - accountID *int64
-func (_e *MockTransactionServiceInterface_Expecter) FetchTransactionsPaginated(ctx interface{}, userID interface{}, p interface{}, includeDeleted interface{}, accountID interface{}) *MockTransactionServiceInterface_FetchTransactionsPaginated_Call {
+func (_e *MockTransactionServiceInterface_Expecter) FetchTransactionsPaginated(ctx any, userID any, p any, includeDeleted any, accountID any) *MockTransactionServiceInterface_FetchTransactionsPaginated_Call {
 	return &MockTransactionServiceInterface_FetchTransactionsPaginated_Call{Call: _e.mock.On("FetchTransactionsPaginated", ctx, userID, p, includeDeleted, accountID)}
 }
 
@@ -1110,7 +1173,7 @@ type MockTransactionServiceInterface_FetchTransfersPaginated_Call struct {
 //   - p utils.PaginationParams
 //   - includeDeleted bool
 //   - accountID *int64
-func (_e *MockTransactionServiceInterface_Expecter) FetchTransfersPaginated(ctx interface{}, userID interface{}, p interface{}, includeDeleted interface{}, accountID interface{}) *MockTransactionServiceInterface_FetchTransfersPaginated_Call {
+func (_e *MockTransactionServiceInterface_Expecter) FetchTransfersPaginated(ctx any, userID any, p any, includeDeleted any, accountID any) *MockTransactionServiceInterface_FetchTransfersPaginated_Call {
 	return &MockTransactionServiceInterface_FetchTransfersPaginated_Call{Call: _e.mock.On("FetchTransfersPaginated", ctx, userID, p, includeDeleted, accountID)}
 }
 
@@ -1193,7 +1256,7 @@ type MockTransactionServiceInterface_GetTemplateSummary_Call struct {
 // GetTemplateSummary is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockTransactionServiceInterface_Expecter) GetTemplateSummary(ctx interface{}, userID interface{}) *MockTransactionServiceInterface_GetTemplateSummary_Call {
+func (_e *MockTransactionServiceInterface_Expecter) GetTemplateSummary(ctx any, userID any) *MockTransactionServiceInterface_GetTemplateSummary_Call {
 	return &MockTransactionServiceInterface_GetTemplateSummary_Call{Call: _e.mock.On("GetTemplateSummary", ctx, userID)}
 }
 
@@ -1261,7 +1324,7 @@ type MockTransactionServiceInterface_GetTemplatesReadyToRun_Call struct {
 // GetTemplatesReadyToRun is a helper method to define mock.On call
 //   - ctx context.Context
 //   - tx *gorm.DB
-func (_e *MockTransactionServiceInterface_Expecter) GetTemplatesReadyToRun(ctx interface{}, tx interface{}) *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call {
+func (_e *MockTransactionServiceInterface_Expecter) GetTemplatesReadyToRun(ctx any, tx any) *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call {
 	return &MockTransactionServiceInterface_GetTemplatesReadyToRun_Call{Call: _e.mock.On("GetTemplatesReadyToRun", ctx, tx)}
 }
 
@@ -1328,7 +1391,7 @@ type MockTransactionServiceInterface_GetTransactionTemplateCount_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - templateType string
-func (_e *MockTransactionServiceInterface_Expecter) GetTransactionTemplateCount(ctx interface{}, userID interface{}, templateType interface{}) *MockTransactionServiceInterface_GetTransactionTemplateCount_Call {
+func (_e *MockTransactionServiceInterface_Expecter) GetTransactionTemplateCount(ctx any, userID any, templateType any) *MockTransactionServiceInterface_GetTransactionTemplateCount_Call {
 	return &MockTransactionServiceInterface_GetTransactionTemplateCount_Call{Call: _e.mock.On("GetTransactionTemplateCount", ctx, userID, templateType)}
 }
 
@@ -1400,7 +1463,7 @@ type MockTransactionServiceInterface_InsertCategory_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - req *models.CategoryReq
-func (_e *MockTransactionServiceInterface_Expecter) InsertCategory(ctx interface{}, userID interface{}, req interface{}) *MockTransactionServiceInterface_InsertCategory_Call {
+func (_e *MockTransactionServiceInterface_Expecter) InsertCategory(ctx any, userID any, req any) *MockTransactionServiceInterface_InsertCategory_Call {
 	return &MockTransactionServiceInterface_InsertCategory_Call{Call: _e.mock.On("InsertCategory", ctx, userID, req)}
 }
 
@@ -1472,7 +1535,7 @@ type MockTransactionServiceInterface_InsertCategoryGroup_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - req *models.CategoryGroupReq
-func (_e *MockTransactionServiceInterface_Expecter) InsertCategoryGroup(ctx interface{}, userID interface{}, req interface{}) *MockTransactionServiceInterface_InsertCategoryGroup_Call {
+func (_e *MockTransactionServiceInterface_Expecter) InsertCategoryGroup(ctx any, userID any, req any) *MockTransactionServiceInterface_InsertCategoryGroup_Call {
 	return &MockTransactionServiceInterface_InsertCategoryGroup_Call{Call: _e.mock.On("InsertCategoryGroup", ctx, userID, req)}
 }
 
@@ -1551,9 +1614,9 @@ type MockTransactionServiceInterface_InsertTransaction_Call struct {
 //   - userID int64
 //   - req *models.TransactionReq
 //   - existingTx ...*gorm.DB
-func (_e *MockTransactionServiceInterface_Expecter) InsertTransaction(ctx interface{}, userID interface{}, req interface{}, existingTx ...interface{}) *MockTransactionServiceInterface_InsertTransaction_Call {
+func (_e *MockTransactionServiceInterface_Expecter) InsertTransaction(ctx any, userID any, req any, existingTx ...any) *MockTransactionServiceInterface_InsertTransaction_Call {
 	return &MockTransactionServiceInterface_InsertTransaction_Call{Call: _e.mock.On("InsertTransaction",
-		append([]interface{}{ctx, userID, req}, existingTx...)...)}
+		append([]any{ctx, userID, req}, existingTx...)...)}
 }
 
 func (_c *MockTransactionServiceInterface_InsertTransaction_Call) Run(run func(ctx context.Context, userID int64, req *models.TransactionReq, existingTx ...*gorm.DB)) *MockTransactionServiceInterface_InsertTransaction_Call {
@@ -1631,7 +1694,7 @@ type MockTransactionServiceInterface_InsertTransactionTemplate_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - req *models.TransactionTemplateReq
-func (_e *MockTransactionServiceInterface_Expecter) InsertTransactionTemplate(ctx interface{}, userID interface{}, req interface{}) *MockTransactionServiceInterface_InsertTransactionTemplate_Call {
+func (_e *MockTransactionServiceInterface_Expecter) InsertTransactionTemplate(ctx any, userID any, req any) *MockTransactionServiceInterface_InsertTransactionTemplate_Call {
 	return &MockTransactionServiceInterface_InsertTransactionTemplate_Call{Call: _e.mock.On("InsertTransactionTemplate", ctx, userID, req)}
 }
 
@@ -1703,7 +1766,7 @@ type MockTransactionServiceInterface_InsertTransfer_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - req *models.TransferReq
-func (_e *MockTransactionServiceInterface_Expecter) InsertTransfer(ctx interface{}, userID interface{}, req interface{}) *MockTransactionServiceInterface_InsertTransfer_Call {
+func (_e *MockTransactionServiceInterface_Expecter) InsertTransfer(ctx any, userID any, req any) *MockTransactionServiceInterface_InsertTransfer_Call {
 	return &MockTransactionServiceInterface_InsertTransfer_Call{Call: _e.mock.On("InsertTransfer", ctx, userID, req)}
 }
 
@@ -1765,7 +1828,7 @@ type MockTransactionServiceInterface_ProcessTemplate_Call struct {
 // ProcessTemplate is a helper method to define mock.On call
 //   - ctx context.Context
 //   - template *models.TransactionTemplate
-func (_e *MockTransactionServiceInterface_Expecter) ProcessTemplate(ctx interface{}, template interface{}) *MockTransactionServiceInterface_ProcessTemplate_Call {
+func (_e *MockTransactionServiceInterface_Expecter) ProcessTemplate(ctx any, template any) *MockTransactionServiceInterface_ProcessTemplate_Call {
 	return &MockTransactionServiceInterface_ProcessTemplate_Call{Call: _e.mock.On("ProcessTemplate", ctx, template)}
 }
 
@@ -1824,7 +1887,7 @@ type MockTransactionServiceInterface_RenameTransactionTemplate_Call struct {
 //   - userID int64
 //   - id int64
 //   - name string
-func (_e *MockTransactionServiceInterface_Expecter) RenameTransactionTemplate(ctx interface{}, userID interface{}, id interface{}, name interface{}) *MockTransactionServiceInterface_RenameTransactionTemplate_Call {
+func (_e *MockTransactionServiceInterface_Expecter) RenameTransactionTemplate(ctx any, userID any, id any, name any) *MockTransactionServiceInterface_RenameTransactionTemplate_Call {
 	return &MockTransactionServiceInterface_RenameTransactionTemplate_Call{Call: _e.mock.On("RenameTransactionTemplate", ctx, userID, id, name)}
 }
 
@@ -1892,7 +1955,7 @@ type MockTransactionServiceInterface_RestoreCategory_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - id int64
-func (_e *MockTransactionServiceInterface_Expecter) RestoreCategory(ctx interface{}, userID interface{}, id interface{}) *MockTransactionServiceInterface_RestoreCategory_Call {
+func (_e *MockTransactionServiceInterface_Expecter) RestoreCategory(ctx any, userID any, id any) *MockTransactionServiceInterface_RestoreCategory_Call {
 	return &MockTransactionServiceInterface_RestoreCategory_Call{Call: _e.mock.On("RestoreCategory", ctx, userID, id)}
 }
 
@@ -1955,7 +2018,7 @@ type MockTransactionServiceInterface_RestoreCategoryName_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - id int64
-func (_e *MockTransactionServiceInterface_Expecter) RestoreCategoryName(ctx interface{}, userID interface{}, id interface{}) *MockTransactionServiceInterface_RestoreCategoryName_Call {
+func (_e *MockTransactionServiceInterface_Expecter) RestoreCategoryName(ctx any, userID any, id any) *MockTransactionServiceInterface_RestoreCategoryName_Call {
 	return &MockTransactionServiceInterface_RestoreCategoryName_Call{Call: _e.mock.On("RestoreCategoryName", ctx, userID, id)}
 }
 
@@ -2018,7 +2081,7 @@ type MockTransactionServiceInterface_RestoreTransaction_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - id int64
-func (_e *MockTransactionServiceInterface_Expecter) RestoreTransaction(ctx interface{}, userID interface{}, id interface{}) *MockTransactionServiceInterface_RestoreTransaction_Call {
+func (_e *MockTransactionServiceInterface_Expecter) RestoreTransaction(ctx any, userID any, id any) *MockTransactionServiceInterface_RestoreTransaction_Call {
 	return &MockTransactionServiceInterface_RestoreTransaction_Call{Call: _e.mock.On("RestoreTransaction", ctx, userID, id)}
 }
 
@@ -2081,7 +2144,7 @@ type MockTransactionServiceInterface_ToggleTransactionTemplateActiveState_Call s
 //   - ctx context.Context
 //   - userID int64
 //   - id int64
-func (_e *MockTransactionServiceInterface_Expecter) ToggleTransactionTemplateActiveState(ctx interface{}, userID interface{}, id interface{}) *MockTransactionServiceInterface_ToggleTransactionTemplateActiveState_Call {
+func (_e *MockTransactionServiceInterface_Expecter) ToggleTransactionTemplateActiveState(ctx any, userID any, id any) *MockTransactionServiceInterface_ToggleTransactionTemplateActiveState_Call {
 	return &MockTransactionServiceInterface_ToggleTransactionTemplateActiveState_Call{Call: _e.mock.On("ToggleTransactionTemplateActiveState", ctx, userID, id)}
 }
 
@@ -2154,7 +2217,7 @@ type MockTransactionServiceInterface_UpdateCategory_Call struct {
 //   - userID int64
 //   - id int64
 //   - req *models.CategoryReq
-func (_e *MockTransactionServiceInterface_Expecter) UpdateCategory(ctx interface{}, userID interface{}, id interface{}, req interface{}) *MockTransactionServiceInterface_UpdateCategory_Call {
+func (_e *MockTransactionServiceInterface_Expecter) UpdateCategory(ctx any, userID any, id any, req any) *MockTransactionServiceInterface_UpdateCategory_Call {
 	return &MockTransactionServiceInterface_UpdateCategory_Call{Call: _e.mock.On("UpdateCategory", ctx, userID, id, req)}
 }
 
@@ -2232,7 +2295,7 @@ type MockTransactionServiceInterface_UpdateCategoryGroup_Call struct {
 //   - userID int64
 //   - id int64
 //   - req *models.CategoryGroupReq
-func (_e *MockTransactionServiceInterface_Expecter) UpdateCategoryGroup(ctx interface{}, userID interface{}, id interface{}, req interface{}) *MockTransactionServiceInterface_UpdateCategoryGroup_Call {
+func (_e *MockTransactionServiceInterface_Expecter) UpdateCategoryGroup(ctx any, userID any, id any, req any) *MockTransactionServiceInterface_UpdateCategoryGroup_Call {
 	return &MockTransactionServiceInterface_UpdateCategoryGroup_Call{Call: _e.mock.On("UpdateCategoryGroup", ctx, userID, id, req)}
 }
 
@@ -2310,7 +2373,7 @@ type MockTransactionServiceInterface_UpdateTransaction_Call struct {
 //   - userID int64
 //   - id int64
 //   - req *models.TransactionReq
-func (_e *MockTransactionServiceInterface_Expecter) UpdateTransaction(ctx interface{}, userID interface{}, id interface{}, req interface{}) *MockTransactionServiceInterface_UpdateTransaction_Call {
+func (_e *MockTransactionServiceInterface_Expecter) UpdateTransaction(ctx any, userID any, id any, req any) *MockTransactionServiceInterface_UpdateTransaction_Call {
 	return &MockTransactionServiceInterface_UpdateTransaction_Call{Call: _e.mock.On("UpdateTransaction", ctx, userID, id, req)}
 }
 
@@ -2388,7 +2451,7 @@ type MockTransactionServiceInterface_UpdateTransactionTemplate_Call struct {
 //   - userID int64
 //   - id int64
 //   - req *models.TransactionTemplateReq
-func (_e *MockTransactionServiceInterface_Expecter) UpdateTransactionTemplate(ctx interface{}, userID interface{}, id interface{}, req interface{}) *MockTransactionServiceInterface_UpdateTransactionTemplate_Call {
+func (_e *MockTransactionServiceInterface_Expecter) UpdateTransactionTemplate(ctx any, userID any, id any, req any) *MockTransactionServiceInterface_UpdateTransactionTemplate_Call {
 	return &MockTransactionServiceInterface_UpdateTransactionTemplate_Call{Call: _e.mock.On("UpdateTransactionTemplate", ctx, userID, id, req)}
 }
 
@@ -2457,7 +2520,7 @@ type MockTransactionServiceInterface_UpdateTransfer_Call struct {
 //   - userID int64
 //   - id int64
 //   - req *models.UpdateTransferReq
-func (_e *MockTransactionServiceInterface_Expecter) UpdateTransfer(ctx interface{}, userID interface{}, id interface{}, req interface{}) *MockTransactionServiceInterface_UpdateTransfer_Call {
+func (_e *MockTransactionServiceInterface_Expecter) UpdateTransfer(ctx any, userID any, id any, req any) *MockTransactionServiceInterface_UpdateTransfer_Call {
 	return &MockTransactionServiceInterface_UpdateTransfer_Call{Call: _e.mock.On("UpdateTransfer", ctx, userID, id, req)}
 }
 

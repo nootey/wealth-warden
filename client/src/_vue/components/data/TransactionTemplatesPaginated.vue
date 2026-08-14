@@ -146,6 +146,35 @@ async function deleteConfirmation(id: number, name: string) {
   });
 }
 
+async function executeConfirmation(id: number, name: string) {
+  confirm.require({
+    header: "Execute template early?",
+    message: `This will run "${name}" today and advance it to its next scheduled date. Can only be done once per day.`,
+    rejectProps: { label: "Cancel" },
+    acceptProps: { label: "Execute" },
+    accept: () => executeTemplate(id),
+  });
+}
+
+async function executeTemplate(id: number) {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
+
+  try {
+    let response = await transactionStore.executeTemplate(id);
+    toastStore.successResponseToast(response);
+    emit("refreshTemplateCount");
+    await Promise.all([getData(), getSummary()]);
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
 async function deleteRecord(id: number) {
   if (!hasPermission("manage_data")) {
     toastStore.createInfoToast(
@@ -446,6 +475,38 @@ defineExpose({ refresh });
           />
         </template>
 
+        <Column header="Actions">
+          <template #body="{ data }">
+            <div class="flex flex-row items-center gap-2">
+              <ToggleSwitch
+                v-if="hasPermission('manage_data')"
+                style="transform: scale(0.675)"
+                :model-value="data.is_active"
+                @update:model-value="(v) => toggleActiveTemplate(data, v)"
+              />
+              <i
+                v-if="hasPermission('manage_data') && data.is_active"
+                v-tooltip="'Execute now'"
+                class="pi pi-forward hover-icon"
+                style="font-size: 0.875rem"
+                @click="executeConfirmation(data?.id, data?.name)"
+              />
+              <i
+                v-if="hasPermission('manage_data')"
+                class="pi pi-trash hover-icon"
+                style="font-size: 0.875rem; color: var(--p-red-300)"
+                @click="deleteConfirmation(data?.id, data?.name)"
+              />
+              <i
+                v-else
+                v-tooltip="'No action available'"
+                class="pi pi-exclamation-circle"
+                style="font-size: 0.875rem"
+              />
+            </div>
+          </template>
+        </Column>
+
         <Column
           v-for="col of activeColumns"
           :key="col.field"
@@ -524,31 +585,6 @@ defineExpose({ refresh });
             <template v-else>
               {{ data[col.field] }}
             </template>
-          </template>
-        </Column>
-
-        <Column header="Actions">
-          <template #body="{ data }">
-            <div class="flex flex-row items-center gap-2">
-              <ToggleSwitch
-                v-if="hasPermission('manage_data')"
-                style="transform: scale(0.675)"
-                :model-value="data.is_active"
-                @update:model-value="(v) => toggleActiveTemplate(data, v)"
-              />
-              <i
-                v-if="hasPermission('manage_data')"
-                class="pi pi-trash hover-icon"
-                style="font-size: 0.875rem; color: var(--p-red-300)"
-                @click="deleteConfirmation(data?.id, data?.name)"
-              />
-              <i
-                v-else
-                v-tooltip="'No action available'"
-                class="pi pi-exclamation-circle"
-                style="font-size: 0.875rem"
-              />
-            </div>
           </template>
         </Column>
       </DataTable>

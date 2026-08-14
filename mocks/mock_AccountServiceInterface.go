@@ -69,7 +69,7 @@ type MockAccountServiceInterface_BackfillBalancesForUser_Call struct {
 //   - userID int64
 //   - from string
 //   - to string
-func (_e *MockAccountServiceInterface_Expecter) BackfillBalancesForUser(ctx interface{}, userID interface{}, from interface{}, to interface{}) *MockAccountServiceInterface_BackfillBalancesForUser_Call {
+func (_e *MockAccountServiceInterface_Expecter) BackfillBalancesForUser(ctx any, userID any, from any, to any) *MockAccountServiceInterface_BackfillBalancesForUser_Call {
 	return &MockAccountServiceInterface_BackfillBalancesForUser_Call{Call: _e.mock.On("BackfillBalancesForUser", ctx, userID, from, to)}
 }
 
@@ -136,7 +136,7 @@ type MockAccountServiceInterface_ClearInvestmentCashFlows_Call struct {
 // ClearInvestmentCashFlows is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) ClearInvestmentCashFlows(ctx interface{}, userID interface{}) *MockAccountServiceInterface_ClearInvestmentCashFlows_Call {
+func (_e *MockAccountServiceInterface_Expecter) ClearInvestmentCashFlows(ctx any, userID any) *MockAccountServiceInterface_ClearInvestmentCashFlows_Call {
 	return &MockAccountServiceInterface_ClearInvestmentCashFlows_Call{Call: _e.mock.On("ClearInvestmentCashFlows", ctx, userID)}
 }
 
@@ -193,7 +193,7 @@ type MockAccountServiceInterface_ClearInvestmentSnapshots_Call struct {
 // ClearInvestmentSnapshots is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) ClearInvestmentSnapshots(ctx interface{}, userID interface{}) *MockAccountServiceInterface_ClearInvestmentSnapshots_Call {
+func (_e *MockAccountServiceInterface_Expecter) ClearInvestmentSnapshots(ctx any, userID any) *MockAccountServiceInterface_ClearInvestmentSnapshots_Call {
 	return &MockAccountServiceInterface_ClearInvestmentSnapshots_Call{Call: _e.mock.On("ClearInvestmentSnapshots", ctx, userID)}
 }
 
@@ -251,7 +251,7 @@ type MockAccountServiceInterface_CloseAccount_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - id int64
-func (_e *MockAccountServiceInterface_Expecter) CloseAccount(ctx interface{}, userID interface{}, id interface{}) *MockAccountServiceInterface_CloseAccount_Call {
+func (_e *MockAccountServiceInterface_Expecter) CloseAccount(ctx any, userID any, id any) *MockAccountServiceInterface_CloseAccount_Call {
 	return &MockAccountServiceInterface_CloseAccount_Call{Call: _e.mock.On("CloseAccount", ctx, userID, id)}
 }
 
@@ -326,7 +326,7 @@ type MockAccountServiceInterface_FetchAccountByID_Call struct {
 //   - userID int64
 //   - id int64
 //   - initialBalance bool
-func (_e *MockAccountServiceInterface_Expecter) FetchAccountByID(ctx interface{}, userID interface{}, id interface{}, initialBalance interface{}) *MockAccountServiceInterface_FetchAccountByID_Call {
+func (_e *MockAccountServiceInterface_Expecter) FetchAccountByID(ctx any, userID any, id any, initialBalance any) *MockAccountServiceInterface_FetchAccountByID_Call {
 	return &MockAccountServiceInterface_FetchAccountByID_Call{Call: _e.mock.On("FetchAccountByID", ctx, userID, id, initialBalance)}
 }
 
@@ -405,7 +405,7 @@ type MockAccountServiceInterface_FetchAccountByName_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - name string
-func (_e *MockAccountServiceInterface_Expecter) FetchAccountByName(ctx interface{}, userID interface{}, name interface{}) *MockAccountServiceInterface_FetchAccountByName_Call {
+func (_e *MockAccountServiceInterface_Expecter) FetchAccountByName(ctx any, userID any, name any) *MockAccountServiceInterface_FetchAccountByName_Call {
 	return &MockAccountServiceInterface_FetchAccountByName_Call{Call: _e.mock.On("FetchAccountByName", ctx, userID, name)}
 }
 
@@ -478,7 +478,7 @@ type MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call struct {
 // FetchAccountTypesWithoutDefaults is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) FetchAccountTypesWithoutDefaults(ctx interface{}, userID interface{}) *MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call {
+func (_e *MockAccountServiceInterface_Expecter) FetchAccountTypesWithoutDefaults(ctx any, userID any) *MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call {
 	return &MockAccountServiceInterface_FetchAccountTypesWithoutDefaults_Call{Call: _e.mock.On("FetchAccountTypesWithoutDefaults", ctx, userID)}
 }
 
@@ -547,7 +547,7 @@ type MockAccountServiceInterface_FetchAccountsBySubtype_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - subtype string
-func (_e *MockAccountServiceInterface_Expecter) FetchAccountsBySubtype(ctx interface{}, userID interface{}, subtype interface{}) *MockAccountServiceInterface_FetchAccountsBySubtype_Call {
+func (_e *MockAccountServiceInterface_Expecter) FetchAccountsBySubtype(ctx any, userID any, subtype any) *MockAccountServiceInterface_FetchAccountsBySubtype_Call {
 	return &MockAccountServiceInterface_FetchAccountsBySubtype_Call{Call: _e.mock.On("FetchAccountsBySubtype", ctx, userID, subtype)}
 }
 
@@ -621,7 +621,7 @@ type MockAccountServiceInterface_FetchAccountsByType_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - t string
-func (_e *MockAccountServiceInterface_Expecter) FetchAccountsByType(ctx interface{}, userID interface{}, t interface{}) *MockAccountServiceInterface_FetchAccountsByType_Call {
+func (_e *MockAccountServiceInterface_Expecter) FetchAccountsByType(ctx any, userID any, t any) *MockAccountServiceInterface_FetchAccountsByType_Call {
 	return &MockAccountServiceInterface_FetchAccountsByType_Call{Call: _e.mock.On("FetchAccountsByType", ctx, userID, t)}
 }
 
@@ -705,7 +705,7 @@ type MockAccountServiceInterface_FetchAccountsPaginated_Call struct {
 //   - p utils.PaginationParams
 //   - includeInactive bool
 //   - classification string
-func (_e *MockAccountServiceInterface_Expecter) FetchAccountsPaginated(ctx interface{}, userID interface{}, p interface{}, includeInactive interface{}, classification interface{}) *MockAccountServiceInterface_FetchAccountsPaginated_Call {
+func (_e *MockAccountServiceInterface_Expecter) FetchAccountsPaginated(ctx any, userID any, p any, includeInactive any, classification any) *MockAccountServiceInterface_FetchAccountsPaginated_Call {
 	return &MockAccountServiceInterface_FetchAccountsPaginated_Call{Call: _e.mock.On("FetchAccountsPaginated", ctx, userID, p, includeInactive, classification)}
 }
 
@@ -788,7 +788,7 @@ type MockAccountServiceInterface_FetchAccountsWithDefaults_Call struct {
 // FetchAccountsWithDefaults is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) FetchAccountsWithDefaults(ctx interface{}, userID interface{}) *MockAccountServiceInterface_FetchAccountsWithDefaults_Call {
+func (_e *MockAccountServiceInterface_Expecter) FetchAccountsWithDefaults(ctx any, userID any) *MockAccountServiceInterface_FetchAccountsWithDefaults_Call {
 	return &MockAccountServiceInterface_FetchAccountsWithDefaults_Call{Call: _e.mock.On("FetchAccountsWithDefaults", ctx, userID)}
 }
 
@@ -855,7 +855,7 @@ type MockAccountServiceInterface_FetchAllAccountTypes_Call struct {
 
 // FetchAllAccountTypes is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *MockAccountServiceInterface_Expecter) FetchAllAccountTypes(ctx interface{}) *MockAccountServiceInterface_FetchAllAccountTypes_Call {
+func (_e *MockAccountServiceInterface_Expecter) FetchAllAccountTypes(ctx any) *MockAccountServiceInterface_FetchAllAccountTypes_Call {
 	return &MockAccountServiceInterface_FetchAllAccountTypes_Call{Call: _e.mock.On("FetchAllAccountTypes", ctx)}
 }
 
@@ -926,9 +926,9 @@ type MockAccountServiceInterface_FetchAllAccounts_Call struct {
 //   - userID int64
 //   - includeInactive bool
 //   - options ...bool
-func (_e *MockAccountServiceInterface_Expecter) FetchAllAccounts(ctx interface{}, userID interface{}, includeInactive interface{}, options ...interface{}) *MockAccountServiceInterface_FetchAllAccounts_Call {
+func (_e *MockAccountServiceInterface_Expecter) FetchAllAccounts(ctx any, userID any, includeInactive any, options ...any) *MockAccountServiceInterface_FetchAllAccounts_Call {
 	return &MockAccountServiceInterface_FetchAllAccounts_Call{Call: _e.mock.On("FetchAllAccounts",
-		append([]interface{}{ctx, userID, includeInactive}, options...)...)}
+		append([]any{ctx, userID, includeInactive}, options...)...)}
 }
 
 func (_c *MockAccountServiceInterface_FetchAllAccounts_Call) Run(run func(ctx context.Context, userID int64, includeInactive bool, options ...bool)) *MockAccountServiceInterface_FetchAllAccounts_Call {
@@ -1008,7 +1008,7 @@ type MockAccountServiceInterface_FetchLatestBalance_Call struct {
 //   - ctx context.Context
 //   - accID int64
 //   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) FetchLatestBalance(ctx interface{}, accID interface{}, userID interface{}) *MockAccountServiceInterface_FetchLatestBalance_Call {
+func (_e *MockAccountServiceInterface_Expecter) FetchLatestBalance(ctx any, accID any, userID any) *MockAccountServiceInterface_FetchLatestBalance_Call {
 	return &MockAccountServiceInterface_FetchLatestBalance_Call{Call: _e.mock.On("FetchLatestBalance", ctx, accID, userID)}
 }
 
@@ -1074,7 +1074,7 @@ type MockAccountServiceInterface_FrontfillBalancesForAccount_Call struct {
 //   - accountID int64
 //   - currency string
 //   - from time.Time
-func (_e *MockAccountServiceInterface_Expecter) FrontfillBalancesForAccount(ctx interface{}, tx interface{}, userID interface{}, accountID interface{}, currency interface{}, from interface{}) *MockAccountServiceInterface_FrontfillBalancesForAccount_Call {
+func (_e *MockAccountServiceInterface_Expecter) FrontfillBalancesForAccount(ctx any, tx any, userID any, accountID any, currency any, from any) *MockAccountServiceInterface_FrontfillBalancesForAccount_Call {
 	return &MockAccountServiceInterface_FrontfillBalancesForAccount_Call{Call: _e.mock.On("FrontfillBalancesForAccount", ctx, tx, userID, accountID, currency, from)}
 }
 
@@ -1163,7 +1163,7 @@ type MockAccountServiceInterface_GetAssetIDsForAccount_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - accountID int64
-func (_e *MockAccountServiceInterface_Expecter) GetAssetIDsForAccount(ctx interface{}, userID interface{}, accountID interface{}) *MockAccountServiceInterface_GetAssetIDsForAccount_Call {
+func (_e *MockAccountServiceInterface_Expecter) GetAssetIDsForAccount(ctx any, userID any, accountID any) *MockAccountServiceInterface_GetAssetIDsForAccount_Call {
 	return &MockAccountServiceInterface_GetAssetIDsForAccount_Call{Call: _e.mock.On("GetAssetIDsForAccount", ctx, userID, accountID)}
 }
 
@@ -1235,7 +1235,7 @@ type MockAccountServiceInterface_InsertAccount_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - req *models.AccountReq
-func (_e *MockAccountServiceInterface_Expecter) InsertAccount(ctx interface{}, userID interface{}, req interface{}) *MockAccountServiceInterface_InsertAccount_Call {
+func (_e *MockAccountServiceInterface_Expecter) InsertAccount(ctx any, userID any, req any) *MockAccountServiceInterface_InsertAccount_Call {
 	return &MockAccountServiceInterface_InsertAccount_Call{Call: _e.mock.On("InsertAccount", ctx, userID, req)}
 }
 
@@ -1299,7 +1299,7 @@ type MockAccountServiceInterface_MergeAccount_Call struct {
 //   - userID int64
 //   - sourceID int64
 //   - destinationID int64
-func (_e *MockAccountServiceInterface_Expecter) MergeAccount(ctx interface{}, userID interface{}, sourceID interface{}, destinationID interface{}) *MockAccountServiceInterface_MergeAccount_Call {
+func (_e *MockAccountServiceInterface_Expecter) MergeAccount(ctx any, userID any, sourceID any, destinationID any) *MockAccountServiceInterface_MergeAccount_Call {
 	return &MockAccountServiceInterface_MergeAccount_Call{Call: _e.mock.On("MergeAccount", ctx, userID, sourceID, destinationID)}
 }
 
@@ -1366,7 +1366,7 @@ type MockAccountServiceInterface_RebuildSnapshotsForUser_Call struct {
 // RebuildSnapshotsForUser is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) RebuildSnapshotsForUser(ctx interface{}, userID interface{}) *MockAccountServiceInterface_RebuildSnapshotsForUser_Call {
+func (_e *MockAccountServiceInterface_Expecter) RebuildSnapshotsForUser(ctx any, userID any) *MockAccountServiceInterface_RebuildSnapshotsForUser_Call {
 	return &MockAccountServiceInterface_RebuildSnapshotsForUser_Call{Call: _e.mock.On("RebuildSnapshotsForUser", ctx, userID)}
 }
 
@@ -1424,7 +1424,7 @@ type MockAccountServiceInterface_RecalculateAssetPnL_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - assetID int64
-func (_e *MockAccountServiceInterface_Expecter) RecalculateAssetPnL(ctx interface{}, userID interface{}, assetID interface{}) *MockAccountServiceInterface_RecalculateAssetPnL_Call {
+func (_e *MockAccountServiceInterface_Expecter) RecalculateAssetPnL(ctx any, userID any, assetID any) *MockAccountServiceInterface_RecalculateAssetPnL_Call {
 	return &MockAccountServiceInterface_RecalculateAssetPnL_Call{Call: _e.mock.On("RecalculateAssetPnL", ctx, userID, assetID)}
 }
 
@@ -1487,7 +1487,7 @@ type MockAccountServiceInterface_RevertAccountProjection_Call struct {
 //   - ctx context.Context
 //   - id int64
 //   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) RevertAccountProjection(ctx interface{}, id interface{}, userID interface{}) *MockAccountServiceInterface_RevertAccountProjection_Call {
+func (_e *MockAccountServiceInterface_Expecter) RevertAccountProjection(ctx any, id any, userID any) *MockAccountServiceInterface_RevertAccountProjection_Call {
 	return &MockAccountServiceInterface_RevertAccountProjection_Call{Call: _e.mock.On("RevertAccountProjection", ctx, id, userID)}
 }
 
@@ -1551,7 +1551,7 @@ type MockAccountServiceInterface_SaveAccountProjection_Call struct {
 //   - id int64
 //   - userID int64
 //   - req *models.AccountProjectionReq
-func (_e *MockAccountServiceInterface_Expecter) SaveAccountProjection(ctx interface{}, id interface{}, userID interface{}, req interface{}) *MockAccountServiceInterface_SaveAccountProjection_Call {
+func (_e *MockAccountServiceInterface_Expecter) SaveAccountProjection(ctx any, id any, userID any, req any) *MockAccountServiceInterface_SaveAccountProjection_Call {
 	return &MockAccountServiceInterface_SaveAccountProjection_Call{Call: _e.mock.On("SaveAccountProjection", ctx, id, userID, req)}
 }
 
@@ -1619,7 +1619,7 @@ type MockAccountServiceInterface_SetDefaultAccount_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - accountID int64
-func (_e *MockAccountServiceInterface_Expecter) SetDefaultAccount(ctx interface{}, userID interface{}, accountID interface{}) *MockAccountServiceInterface_SetDefaultAccount_Call {
+func (_e *MockAccountServiceInterface_Expecter) SetDefaultAccount(ctx any, userID any, accountID any) *MockAccountServiceInterface_SetDefaultAccount_Call {
 	return &MockAccountServiceInterface_SetDefaultAccount_Call{Call: _e.mock.On("SetDefaultAccount", ctx, userID, accountID)}
 }
 
@@ -1682,7 +1682,7 @@ type MockAccountServiceInterface_SyncAccountPnL_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - accountID int64
-func (_e *MockAccountServiceInterface_Expecter) SyncAccountPnL(ctx interface{}, userID interface{}, accountID interface{}) *MockAccountServiceInterface_SyncAccountPnL_Call {
+func (_e *MockAccountServiceInterface_Expecter) SyncAccountPnL(ctx any, userID any, accountID any) *MockAccountServiceInterface_SyncAccountPnL_Call {
 	return &MockAccountServiceInterface_SyncAccountPnL_Call{Call: _e.mock.On("SyncAccountPnL", ctx, userID, accountID)}
 }
 
@@ -1745,7 +1745,7 @@ type MockAccountServiceInterface_SyncAssetPnL_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - assetID int64
-func (_e *MockAccountServiceInterface_Expecter) SyncAssetPnL(ctx interface{}, userID interface{}, assetID interface{}) *MockAccountServiceInterface_SyncAssetPnL_Call {
+func (_e *MockAccountServiceInterface_Expecter) SyncAssetPnL(ctx any, userID any, assetID any) *MockAccountServiceInterface_SyncAssetPnL_Call {
 	return &MockAccountServiceInterface_SyncAssetPnL_Call{Call: _e.mock.On("SyncAssetPnL", ctx, userID, assetID)}
 }
 
@@ -1807,7 +1807,7 @@ type MockAccountServiceInterface_SyncForUser_Call struct {
 // SyncForUser is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) SyncForUser(ctx interface{}, userID interface{}) *MockAccountServiceInterface_SyncForUser_Call {
+func (_e *MockAccountServiceInterface_Expecter) SyncForUser(ctx any, userID any) *MockAccountServiceInterface_SyncForUser_Call {
 	return &MockAccountServiceInterface_SyncForUser_Call{Call: _e.mock.On("SyncForUser", ctx, userID)}
 }
 
@@ -1865,7 +1865,7 @@ type MockAccountServiceInterface_ToggleAccountActiveState_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - id int64
-func (_e *MockAccountServiceInterface_Expecter) ToggleAccountActiveState(ctx interface{}, userID interface{}, id interface{}) *MockAccountServiceInterface_ToggleAccountActiveState_Call {
+func (_e *MockAccountServiceInterface_Expecter) ToggleAccountActiveState(ctx any, userID any, id any) *MockAccountServiceInterface_ToggleAccountActiveState_Call {
 	return &MockAccountServiceInterface_ToggleAccountActiveState_Call{Call: _e.mock.On("ToggleAccountActiveState", ctx, userID, id)}
 }
 
@@ -1928,7 +1928,7 @@ type MockAccountServiceInterface_UnsetDefaultAccount_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - accountID int64
-func (_e *MockAccountServiceInterface_Expecter) UnsetDefaultAccount(ctx interface{}, userID interface{}, accountID interface{}) *MockAccountServiceInterface_UnsetDefaultAccount_Call {
+func (_e *MockAccountServiceInterface_Expecter) UnsetDefaultAccount(ctx any, userID any, accountID any) *MockAccountServiceInterface_UnsetDefaultAccount_Call {
 	return &MockAccountServiceInterface_UnsetDefaultAccount_Call{Call: _e.mock.On("UnsetDefaultAccount", ctx, userID, accountID)}
 }
 
@@ -2001,7 +2001,7 @@ type MockAccountServiceInterface_UpdateAccount_Call struct {
 //   - userID int64
 //   - id int64
 //   - req *models.AccountReq
-func (_e *MockAccountServiceInterface_Expecter) UpdateAccount(ctx interface{}, userID interface{}, id interface{}, req interface{}) *MockAccountServiceInterface_UpdateAccount_Call {
+func (_e *MockAccountServiceInterface_Expecter) UpdateAccount(ctx any, userID any, id any, req any) *MockAccountServiceInterface_UpdateAccount_Call {
 	return &MockAccountServiceInterface_UpdateAccount_Call{Call: _e.mock.On("UpdateAccount", ctx, userID, id, req)}
 }
 
@@ -2072,7 +2072,7 @@ type MockAccountServiceInterface_UpdateAccountCashBalance_Call struct {
 //   - asOf time.Time
 //   - transactionType string
 //   - amount decimal.Decimal
-func (_e *MockAccountServiceInterface_Expecter) UpdateAccountCashBalance(ctx interface{}, tx interface{}, acc interface{}, asOf interface{}, transactionType interface{}, amount interface{}) *MockAccountServiceInterface_UpdateAccountCashBalance_Call {
+func (_e *MockAccountServiceInterface_Expecter) UpdateAccountCashBalance(ctx any, tx any, acc any, asOf any, transactionType any, amount any) *MockAccountServiceInterface_UpdateAccountCashBalance_Call {
 	return &MockAccountServiceInterface_UpdateAccountCashBalance_Call{Call: _e.mock.On("UpdateAccountCashBalance", ctx, tx, acc, asOf, transactionType, amount)}
 }
 
@@ -2153,7 +2153,7 @@ type MockAccountServiceInterface_UpdateBalancesForTransfer_Call struct {
 //   - toAcc *models.Account
 //   - when time.Time
 //   - amount decimal.Decimal
-func (_e *MockAccountServiceInterface_Expecter) UpdateBalancesForTransfer(ctx interface{}, tx interface{}, fromAcc interface{}, toAcc interface{}, when interface{}, amount interface{}) *MockAccountServiceInterface_UpdateBalancesForTransfer_Call {
+func (_e *MockAccountServiceInterface_Expecter) UpdateBalancesForTransfer(ctx any, tx any, fromAcc any, toAcc any, when any, amount any) *MockAccountServiceInterface_UpdateBalancesForTransfer_Call {
 	return &MockAccountServiceInterface_UpdateBalancesForTransfer_Call{Call: _e.mock.On("UpdateBalancesForTransfer", ctx, tx, fromAcc, toAcc, when, amount)}
 }
 
@@ -2234,7 +2234,7 @@ type MockAccountServiceInterface_UpdateDailyCashNoSnapshot_Call struct {
 //   - asOf time.Time
 //   - txnType string
 //   - amt decimal.Decimal
-func (_e *MockAccountServiceInterface_Expecter) UpdateDailyCashNoSnapshot(ctx interface{}, tx interface{}, acc interface{}, asOf interface{}, txnType interface{}, amt interface{}) *MockAccountServiceInterface_UpdateDailyCashNoSnapshot_Call {
+func (_e *MockAccountServiceInterface_Expecter) UpdateDailyCashNoSnapshot(ctx any, tx any, acc any, asOf any, txnType any, amt any) *MockAccountServiceInterface_UpdateDailyCashNoSnapshot_Call {
 	return &MockAccountServiceInterface_UpdateDailyCashNoSnapshot_Call{Call: _e.mock.On("UpdateDailyCashNoSnapshot", ctx, tx, acc, asOf, txnType, amt)}
 }
 
@@ -2311,7 +2311,7 @@ type MockAccountServiceInterface_UpdateSnapshotMarketValues_Call struct {
 // UpdateSnapshotMarketValues is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) UpdateSnapshotMarketValues(ctx interface{}, userID interface{}) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
+func (_e *MockAccountServiceInterface_Expecter) UpdateSnapshotMarketValues(ctx any, userID any) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
 	return &MockAccountServiceInterface_UpdateSnapshotMarketValues_Call{Call: _e.mock.On("UpdateSnapshotMarketValues", ctx, userID)}
 }
 

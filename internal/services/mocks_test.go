@@ -4980,6 +4980,69 @@ func (_c *MockTransactionServiceInterface_ToggleTransactionTemplateActiveState_C
 	return _c
 }
 
+// ExecuteTemplateEarly provides a mock function for the type MockTransactionServiceInterface
+func (_mock *MockTransactionServiceInterface) ExecuteTemplateEarly(ctx context.Context, userID int64, id int64) error {
+	ret := _mock.Called(ctx, userID, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExecuteTemplateEarly")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) error); ok {
+		r0 = returnFunc(ctx, userID, id)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockTransactionServiceInterface_ExecuteTemplateEarly_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ExecuteTemplateEarly'
+type MockTransactionServiceInterface_ExecuteTemplateEarly_Call struct {
+	*mock.Call
+}
+
+// ExecuteTemplateEarly is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - id int64
+func (_e *MockTransactionServiceInterface_Expecter) ExecuteTemplateEarly(ctx interface{}, userID interface{}, id interface{}) *MockTransactionServiceInterface_ExecuteTemplateEarly_Call {
+	return &MockTransactionServiceInterface_ExecuteTemplateEarly_Call{Call: _e.mock.On("ExecuteTemplateEarly", ctx, userID, id)}
+}
+
+func (_c *MockTransactionServiceInterface_ExecuteTemplateEarly_Call) Run(run func(ctx context.Context, userID int64, id int64)) *MockTransactionServiceInterface_ExecuteTemplateEarly_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 int64
+		if args[2] != nil {
+			arg2 = args[2].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_ExecuteTemplateEarly_Call) Return(err error) *MockTransactionServiceInterface_ExecuteTemplateEarly_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_ExecuteTemplateEarly_Call) RunAndReturn(run func(ctx context.Context, userID int64, id int64) error) *MockTransactionServiceInterface_ExecuteTemplateEarly_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateCategory provides a mock function for the type MockTransactionServiceInterface
 func (_mock *MockTransactionServiceInterface) UpdateCategory(ctx context.Context, userID int64, id int64, req *models.CategoryReq) (int64, error) {
 	ret := _mock.Called(ctx, userID, id, req)
