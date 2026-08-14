@@ -169,7 +169,7 @@ type MockWebClientMiddlewareInterface_CreateLoginSession_Call struct {
 //   - rememberMe bool
 //   - userAgent string
 //   - ip string
-func (_e *MockWebClientMiddlewareInterface_Expecter) CreateLoginSession(ctx interface{}, userID interface{}, rememberMe interface{}, userAgent interface{}, ip interface{}) *MockWebClientMiddlewareInterface_CreateLoginSession_Call {
+func (_e *MockWebClientMiddlewareInterface_Expecter) CreateLoginSession(ctx any, userID any, rememberMe any, userAgent any, ip any) *MockWebClientMiddlewareInterface_CreateLoginSession_Call {
 	return &MockWebClientMiddlewareInterface_CreateLoginSession_Call{Call: _e.mock.On("CreateLoginSession", ctx, userID, rememberMe, userAgent, ip)}
 }
 
@@ -241,7 +241,7 @@ type MockWebClientMiddlewareInterface_DestroySession_Call struct {
 // DestroySession is a helper method to define mock.On call
 //   - ctx context.Context
 //   - sessionID string
-func (_e *MockWebClientMiddlewareInterface_Expecter) DestroySession(ctx interface{}, sessionID interface{}) *MockWebClientMiddlewareInterface_DestroySession_Call {
+func (_e *MockWebClientMiddlewareInterface_Expecter) DestroySession(ctx any, sessionID any) *MockWebClientMiddlewareInterface_DestroySession_Call {
 	return &MockWebClientMiddlewareInterface_DestroySession_Call{Call: _e.mock.On("DestroySession", ctx, sessionID)}
 }
 

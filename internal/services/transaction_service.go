@@ -42,6 +42,7 @@ type TransactionServiceInterface interface {
 	UpdateTransactionTemplate(ctx context.Context, userID, id int64, req *models.TransactionTemplateReq) (int64, error)
 	RenameTransactionTemplate(ctx context.Context, userID, id int64, name string) error
 	ToggleTransactionTemplateActiveState(ctx context.Context, userID int64, id int64) error
+	ExecuteTemplateEarly(ctx context.Context, userID int64, id int64) error
 	DeleteTransactionTemplate(ctx context.Context, userID int64, id int64) error
 	GetTransactionTemplateCount(ctx context.Context, userID int64, templateType string) (int64, error)
 	GetTemplateSummary(ctx context.Context, userID int64) (*models.TemplateSummary, error)
@@ -2369,10 +2370,51 @@ func (s *TransactionService) GetTemplatesReadyToRun(ctx context.Context, tx *gor
 }
 
 func (s *TransactionService) ProcessTemplate(ctx context.Context, template *models.TransactionTemplate) error {
+	_, _, err := s.runTemplate(ctx, template, false)
+	return err
+}
+
+func (s *TransactionService) ExecuteTemplateEarly(ctx context.Context, userID int64, id int64) error {
+
+	template, err := s.repo.FindTransactionTemplateByID(ctx, nil, id, userID)
+	if err != nil {
+		return fmt.Errorf("can't find transaction template with given id %w", err)
+	}
+
+	if !template.IsActive {
+		return fmt.Errorf("template is not active")
+	}
+
+	oldRunCount := template.RunCount
+	oldNextRunAt := template.NextRunAt
+
+	newRunCount, newNextRunAt, err := s.runTemplate(ctx, &template, true)
+	if err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(strconv.Itoa(oldRunCount), strconv.Itoa(newRunCount), changes, "run_count")
+	utils.CompareChanges(oldNextRunAt.Format(time.RFC3339), newNextRunAt.Format(time.RFC3339), changes, "next_run_at")
+	changes.Stamp("id", strconv.FormatInt(template.ID, 10))
+
+	return s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
+		LoggingRepo: s.loggingRepo,
+		Event:       "execute",
+		Category:    "txn_template",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	})
+}
+
+// executeNow dates the transaction today instead of the template's scheduled date; the next run
+// date is always computed from the original NextRunAt so the cadence doesn't drift.
+func (s *TransactionService) runTemplate(ctx context.Context, template *models.TransactionTemplate, executeNow bool) (int, time.Time, error) {
 
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
-		return err
+		return 0, time.Time{}, err
 	}
 
 	defer func() {
@@ -2382,44 +2424,67 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 		}
 	}()
 
-	// Reload template to ensure it's still active and valid
-	currentTemplate, err := s.repo.FindTransactionTemplateByID(ctx, tx, template.ID, template.UserID)
+	currentTemplate, err := s.repo.FindTransactionTemplateByIDForUpdate(ctx, tx, template.ID, template.UserID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("template not found: %w", err)
+		return 0, time.Time{}, fmt.Errorf("template not found: %w", err)
 	}
 
 	if !currentTemplate.IsActive {
 		tx.Rollback()
-		return fmt.Errorf("template is not active")
+		return 0, time.Time{}, fmt.Errorf("template is not active")
 	}
 
 	// Verify account still exists and is active
 	acc, err := s.accRepo.FindAccountByID(ctx, tx, currentTemplate.AccountID, currentTemplate.UserID, false)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("account not found: %w", err)
+		return 0, time.Time{}, fmt.Errorf("account not found: %w", err)
 	}
 
-	desc := fmt.Sprintf("Auto: %s", currentTemplate.Name)
+	loc := time.UTC
+	if settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, currentTemplate.UserID); err == nil {
+		if l, err := time.LoadLocation(settings.Timezone); err == nil && l != nil {
+			loc = l
+		}
+	}
+
+	if executeNow && currentTemplate.LastRunAt != nil {
+		lastRun := currentTemplate.LastRunAt.In(loc)
+		now := time.Now().In(loc)
+		if lastRun.Year() == now.Year() && lastRun.YearDay() == now.YearDay() {
+			tx.Rollback()
+			return 0, time.Time{}, fmt.Errorf("template already executed today")
+		}
+	}
+
 	txDate := currentTemplate.NextRunAt
+	descPrefix := "Auto"
+	if executeNow {
+		txDate = utils.LocalMidnightUTC(time.Now(), loc)
+		descPrefix = "Early"
+	}
+	desc := fmt.Sprintf("%s: %s", descPrefix, currentTemplate.Name)
+
+	var transferLog *models.Transfer
+	var transferSrcName, transferDstName string
 
 	if currentTemplate.TemplateType == "transfer" {
 		srcAcc, err := s.accRepo.FindAccountByID(ctx, tx, currentTemplate.AccountID, currentTemplate.UserID, true)
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("source account not found: %w", err)
+			return 0, time.Time{}, fmt.Errorf("source account not found: %w", err)
 		}
 		if srcAcc.Balance.EndBalance.Sub(currentTemplate.Amount).LessThan(decimal.Zero) {
 			tx.Rollback()
-			return fmt.Errorf("insufficient funds in source account %s (balance: %s, requested: %s)",
+			return 0, time.Time{}, fmt.Errorf("insufficient funds in source account %s (balance: %s, requested: %s)",
 				srcAcc.Name, srcAcc.Balance.EndBalance.StringFixed(2), currentTemplate.Amount.StringFixed(2))
 		}
 
 		toAcc, err := s.accRepo.FindAccountByID(ctx, tx, *currentTemplate.ToAccountID, currentTemplate.UserID, false)
 		if err != nil {
 			tx.Rollback()
-			return fmt.Errorf("destination account not found: %w", err)
+			return 0, time.Time{}, fmt.Errorf("destination account not found: %w", err)
 		}
 
 		outflow := models.Transaction{
@@ -2434,7 +2499,7 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
 			tx.Rollback()
-			return err
+			return 0, time.Time{}, err
 		}
 
 		inflow := models.Transaction{
@@ -2449,7 +2514,7 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
 			tx.Rollback()
-			return err
+			return 0, time.Time{}, err
 		}
 
 		transfer := models.Transfer{
@@ -2464,16 +2529,19 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 		}
 		if _, err := s.repo.InsertTransfer(ctx, tx, &transfer); err != nil {
 			tx.Rollback()
-			return err
+			return 0, time.Time{}, err
 		}
+		transferLog = &transfer
+		transferSrcName = srcAcc.Name
+		transferDstName = toAcc.Name
 
 		if err := s.updateAccountBalance(ctx, tx, srcAcc, txDate, "expense", currentTemplate.Amount); err != nil {
 			tx.Rollback()
-			return err
+			return 0, time.Time{}, err
 		}
 		if err := s.updateAccountBalance(ctx, tx, toAcc, txDate, "income", currentTemplate.Amount); err != nil {
 			tx.Rollback()
-			return err
+			return 0, time.Time{}, err
 		}
 	} else {
 		// Verify category still exists
@@ -2484,7 +2552,7 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 				cat, err := s.repo.FindCategoryByClassification(ctx, tx, "uncategorized", &currentTemplate.UserID)
 				if err != nil {
 					tx.Rollback()
-					return fmt.Errorf("can't find default category %w", err)
+					return 0, time.Time{}, fmt.Errorf("can't find default category %w", err)
 				}
 				categoryID = &cat.ID
 			} else {
@@ -2507,21 +2575,10 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 		}
 		if _, err = s.InsertTransaction(ctx, currentTemplate.UserID, txnReq, tx); err != nil {
 			tx.Rollback()
-			return err
+			return 0, time.Time{}, err
 		}
-	}
-	if err != nil {
-		tx.Rollback()
-		return err
 	}
 
-	// Calculate next run date in user's local timezone
-	loc := time.UTC
-	if settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, currentTemplate.UserID); err == nil {
-		if l, err := time.LoadLocation(settings.Timezone); err == nil && l != nil {
-			loc = l
-		}
-	}
 	nextRun := utils.CalculateNextRun(currentTemplate.NextRunAt, currentTemplate.Frequency, currentTemplate.DayOfMonth, loc)
 	now := time.Now().UTC()
 
@@ -2549,14 +2606,34 @@ func (s *TransactionService) ProcessTemplate(ctx context.Context, template *mode
 
 	if err := tx.Model(&models.TransactionTemplate{}).Where("id = ?", currentTemplate.ID).Updates(updates).Error; err != nil {
 		tx.Rollback()
-		return err
+		return 0, time.Time{}, err
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return err
+		return 0, time.Time{}, err
 	}
 
-	return nil
+	if transferLog != nil {
+		changes := utils.InitChanges()
+		utils.CompareChanges("", strconv.FormatInt(transferLog.ID, 10), changes, "id")
+		utils.CompareChanges("", transferSrcName, changes, "from")
+		utils.CompareChanges("", transferDstName, changes, "to")
+		utils.CompareChanges("", transferLog.Amount.StringFixed(2), changes, "amount")
+		utils.CompareChanges("", transferLog.Currency, changes, "currency")
+
+		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
+			LoggingRepo: s.loggingRepo,
+			Event:       "create",
+			Category:    "transfer",
+			Description: &desc,
+			Payload:     changes,
+			Causer:      &currentTemplate.UserID,
+		}); err != nil {
+			return 0, time.Time{}, err
+		}
+	}
+
+	return currentTemplate.RunCount + 1, nextRun, nil
 }
 
 func (s *TransactionService) FetchAllCategoryGroups(ctx context.Context, userID int64) ([]models.CategoryGroup, error) {

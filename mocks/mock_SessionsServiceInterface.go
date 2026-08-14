@@ -75,7 +75,7 @@ type MockSessionsServiceInterface_ListSessions_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - currentSessionID string
-func (_e *MockSessionsServiceInterface_Expecter) ListSessions(ctx interface{}, userID interface{}, currentSessionID interface{}) *MockSessionsServiceInterface_ListSessions_Call {
+func (_e *MockSessionsServiceInterface_Expecter) ListSessions(ctx any, userID any, currentSessionID any) *MockSessionsServiceInterface_ListSessions_Call {
 	return &MockSessionsServiceInterface_ListSessions_Call{Call: _e.mock.On("ListSessions", ctx, userID, currentSessionID)}
 }
 
@@ -137,7 +137,7 @@ type MockSessionsServiceInterface_RevokeAllSessions_Call struct {
 // RevokeAllSessions is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockSessionsServiceInterface_Expecter) RevokeAllSessions(ctx interface{}, userID interface{}) *MockSessionsServiceInterface_RevokeAllSessions_Call {
+func (_e *MockSessionsServiceInterface_Expecter) RevokeAllSessions(ctx any, userID any) *MockSessionsServiceInterface_RevokeAllSessions_Call {
 	return &MockSessionsServiceInterface_RevokeAllSessions_Call{Call: _e.mock.On("RevokeAllSessions", ctx, userID)}
 }
 
@@ -196,7 +196,7 @@ type MockSessionsServiceInterface_RevokeSession_Call struct {
 //   - userID int64
 //   - currentSessionID string
 //   - handle string
-func (_e *MockSessionsServiceInterface_Expecter) RevokeSession(ctx interface{}, userID interface{}, currentSessionID interface{}, handle interface{}) *MockSessionsServiceInterface_RevokeSession_Call {
+func (_e *MockSessionsServiceInterface_Expecter) RevokeSession(ctx any, userID any, currentSessionID any, handle any) *MockSessionsServiceInterface_RevokeSession_Call {
 	return &MockSessionsServiceInterface_RevokeSession_Call{Call: _e.mock.On("RevokeSession", ctx, userID, currentSessionID, handle)}
 }
 

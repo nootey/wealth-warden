@@ -2,7 +2,6 @@
 import { useSharedStore } from "../../../services/stores/shared_store.ts";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
 import { usePermissions } from "../../../utils/use_permissions.ts";
-import { useConfirm } from "primevue/useconfirm";
 import { computed, onMounted, provide, ref, watch } from "vue";
 import type {
   TemplateSummary,
@@ -29,7 +28,6 @@ const transactionStore = useTransactionStore();
 const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
 
-const confirm = useConfirm();
 const { colors } = useChartColors();
 
 const apiPrefix = "transactions/templates";
@@ -84,17 +82,17 @@ const activeColumns = computed<Column[]>(() => {
       { field: "account", header: "From" },
       { field: "to_account", header: "To" },
       { field: "amount", header: "Amount" },
-      { field: "frequency", header: "Frequency" },
-      { field: "next_run_at", header: "Next run" },
+      { field: "frequency", header: "Frequency", hideOnMobile: true },
+      { field: "next_run_at", header: "Next run", hideOnMobile: true },
     ];
   }
   return [
     { field: "name", header: "Name" },
-    { field: "account", header: "Account" },
+    { field: "account", header: "Account", hideOnMobile: true },
     { field: "category", header: "Category" },
     { field: "amount", header: "Amount" },
-    { field: "frequency", header: "Frequency" },
-    { field: "next_run_at", header: "Next run" },
+    { field: "frequency", header: "Frequency", hideOnMobile: true },
+    { field: "next_run_at", header: "Next run", hideOnMobile: true },
   ];
 });
 
@@ -134,34 +132,6 @@ async function onPage(event: any) {
   paginator.value.rowsPerPage = event.rows;
   page.value = event.page + 1;
   await getData();
-}
-
-async function deleteConfirmation(id: number, name: string) {
-  confirm.require({
-    header: "Delete record?",
-    message: `This will delete template: ${name}".`,
-    rejectProps: { label: "Cancel" },
-    acceptProps: { label: "Delete", severity: "danger" },
-    accept: () => deleteRecord(id),
-  });
-}
-
-async function deleteRecord(id: number) {
-  if (!hasPermission("manage_data")) {
-    toastStore.createInfoToast(
-      "Access denied",
-      "You don't have permission to perform this action.",
-    );
-    return;
-  }
-
-  try {
-    let response = await sharedStore.deleteRecord(apiPrefix, id);
-    toastStore.successResponseToast(response);
-    await Promise.all([getData(), getSummary()]);
-  } catch (error) {
-    toastStore.errorResponseToast(error);
-  }
 }
 
 function refresh() {
@@ -208,6 +178,18 @@ async function handleEmit(emitType: any, data?: any) {
       emit("refreshTemplateCount");
       break;
     }
+    case "completeDelete": {
+      createModal.value = false;
+      updateModal.value = false;
+      await Promise.all([getData(), getSummary()]);
+      emit("refreshTemplateCount");
+      break;
+    }
+    case "refreshList": {
+      await Promise.all([getData(), getSummary()]);
+      emit("refreshTemplateCount");
+      break;
+    }
     case "updateTemplate": {
       updateModal.value = true;
       updateRecordID.value = data;
@@ -216,30 +198,6 @@ async function handleEmit(emitType: any, data?: any) {
     default: {
       break;
     }
-  }
-}
-
-async function toggleActiveTemplate(
-  tp: TransactionTemplate,
-  nextValue: boolean,
-): Promise<boolean> {
-  const previous = tp.is_active;
-
-  try {
-    tp.is_active = nextValue;
-
-    const response = await transactionStore.toggleTemplateActiveState(tp.id!);
-    toastStore.successResponseToast(response);
-
-    emit("refreshTemplateCount");
-    await Promise.all([getData(), getSummary()]);
-    return true;
-  } catch (error) {
-    // add a small delay for the toggle animation to complete
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    tp.is_active = previous;
-    toastStore.errorResponseToast(error);
-    return false;
   }
 }
 
@@ -287,6 +245,8 @@ defineExpose({ refresh });
       mode="update"
       :record-id="updateRecordID"
       @complete-operation="handleEmit('completeOperation')"
+      @complete-delete="handleEmit('completeDelete')"
+      @refresh-list="handleEmit('refreshList')"
     />
   </Dialog>
 
@@ -450,7 +410,8 @@ defineExpose({ refresh });
           v-for="col of activeColumns"
           :key="col.field"
           :field="col.field"
-          style="width: 25%"
+          :header-class="col.hideOnMobile ? 'mobile-hide ' : ''"
+          :body-class="col.hideOnMobile ? 'mobile-hide ' : ''"
         >
           <template #header>
             <ColumnHeader
@@ -524,31 +485,6 @@ defineExpose({ refresh });
             <template v-else>
               {{ data[col.field] }}
             </template>
-          </template>
-        </Column>
-
-        <Column header="Actions">
-          <template #body="{ data }">
-            <div class="flex flex-row items-center gap-2">
-              <ToggleSwitch
-                v-if="hasPermission('manage_data')"
-                style="transform: scale(0.675)"
-                :model-value="data.is_active"
-                @update:model-value="(v) => toggleActiveTemplate(data, v)"
-              />
-              <i
-                v-if="hasPermission('manage_data')"
-                class="pi pi-trash hover-icon"
-                style="font-size: 0.875rem; color: var(--p-red-300)"
-                @click="deleteConfirmation(data?.id, data?.name)"
-              />
-              <i
-                v-else
-                v-tooltip="'No action available'"
-                class="pi pi-exclamation-circle"
-                style="font-size: 0.875rem"
-              />
-            </div>
           </template>
         </Column>
       </DataTable>

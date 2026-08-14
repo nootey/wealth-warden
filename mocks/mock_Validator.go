@@ -59,7 +59,7 @@ type MockValidator_ValidateStruct_Call struct {
 
 // ValidateStruct is a helper method to define mock.On call
 //   - data interface{}
-func (_e *MockValidator_Expecter) ValidateStruct(data interface{}) *MockValidator_ValidateStruct_Call {
+func (_e *MockValidator_Expecter) ValidateStruct(data any) *MockValidator_ValidateStruct_Call {
 	return &MockValidator_ValidateStruct_Call{Call: _e.mock.On("ValidateStruct", data)}
 }
 

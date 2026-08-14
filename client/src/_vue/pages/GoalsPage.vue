@@ -107,6 +107,10 @@ async function handleGoalDeleted() {
   await loadGoals();
 }
 
+async function handleGoalRefresh() {
+  await loadGoals();
+}
+
 async function handleContribRefresh() {
   await loadGoals();
   selectedGoal.value =
@@ -259,6 +263,7 @@ const onTrackBreakdown = computed(() => {
       :record-id="selectedGoalID"
       @complete-operation="handleGoalUpdated"
       @complete-delete="handleGoalDeleted"
+      @refresh-list="handleGoalRefresh"
     />
   </Dialog>
 

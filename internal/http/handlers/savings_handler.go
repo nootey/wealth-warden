@@ -34,6 +34,7 @@ func (h *SavingsHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.PUT("", authz.RequireAllMW("manage_data"), h.InsertGoal)
 	apiGroup.PUT("/:id", authz.RequireAllMW("manage_data"), h.UpdateGoal)
 	apiGroup.DELETE("/:id", authz.RequireAllMW("manage_data"), h.DeleteGoal)
+	apiGroup.POST("/:id/fund", authz.RequireAllMW("manage_data"), h.FundGoalNow)
 
 	apiGroup.GET("/:id/contributions", authz.RequireAllMW("view_data"), h.GetContributions)
 	apiGroup.PUT("/:id/contributions", authz.RequireAllMW("manage_data"), h.InsertContribution)
@@ -142,6 +143,24 @@ func (h *SavingsHandler) DeleteGoal(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Goal deleted", "Success", http.StatusOK)
+}
+
+func (h *SavingsHandler) FundGoalNow(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	id, err := parseID(c, "id")
+	if err != nil {
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.service.FundGoalNow(ctx, userID, id); err != nil {
+		utils.ErrorMessage(c, "Fund error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Goal funded", "Success", http.StatusOK)
 }
 
 func (h *SavingsHandler) GetContributions(c *gin.Context) {

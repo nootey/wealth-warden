@@ -61,6 +61,7 @@ func (h *TransactionHandler) Routes(ap *gin.RouterGroup) {
 	ap.PUT("templates/:id", authz.RequireAllMW("manage_data"), h.UpdateTransactionTemplate)
 	ap.PATCH("templates/:id/name", authz.RequireAllMW("manage_data"), h.RenameTransactionTemplate)
 	ap.POST("templates/:id/active", authz.RequireAllMW("manage_data"), h.ToggleTransactionTemplateActiveState)
+	ap.POST("templates/:id/execute", authz.RequireAllMW("manage_data"), h.ExecuteTransactionTemplateEarly)
 	ap.DELETE("templates/:id", authz.RequireAllMW("manage_data"), h.DeleteTransactionTemplate)
 }
 
@@ -724,6 +725,33 @@ func (h *TransactionHandler) ToggleTransactionTemplateActiveState(c *gin.Context
 	}
 
 	utils.SuccessMessage(c, "State toggled", "Success", http.StatusOK)
+}
+
+func (h *TransactionHandler) ExecuteTransactionTemplateEarly(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	idStr := c.Param("id")
+
+	if idStr == "" {
+		err := errors.New("invalid id provided")
+		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.Service.ExecuteTemplateEarly(ctx, userID, id); err != nil {
+		utils.ErrorMessage(c, "Execute error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Template executed", "Success", http.StatusOK)
 }
 
 func (h *TransactionHandler) DeleteTransactionTemplate(c *gin.Context) {

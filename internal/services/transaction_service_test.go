@@ -7,6 +7,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/tests"
+	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/suite"
@@ -3573,4 +3574,150 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_Source_ExceedsCreditLim
 		Where("account_id = ? AND is_transfer = true", srcID).Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transfer transaction should be created on source account")
+}
+
+// Executing a template early should date the transaction today, but still advance next_run_at
+// from the template's original schedule rather than from today.
+func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_Success() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	initialBalance := decimal.NewFromInt(50000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Template Account",
+		AccountTypeID: 1,
+		Balance:       &initialBalance,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	originalNextRun := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, 10), time.UTC)
+	txnType := "income"
+	amount := decimal.NewFromInt(5000)
+
+	template := models.TransactionTemplate{
+		Name:            "Salary",
+		UserID:          userID,
+		AccountID:       accID,
+		TemplateType:    "transaction",
+		TransactionType: &txnType,
+		Amount:          amount,
+		Frequency:       "monthly",
+		DayOfMonth:      originalNextRun.Day(),
+		NextRunAt:       originalNextRun,
+		IsActive:        true,
+	}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
+
+	err = svc.ExecuteTemplateEarly(s.Ctx, userID, template.ID)
+	s.Require().NoError(err)
+
+	var txn models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND user_id = ?", accID, userID).
+		First(&txn).Error
+	s.Require().NoError(err)
+	today := utils.LocalMidnightUTC(time.Now(), time.UTC)
+	s.Assert().True(txn.TxnDate.Equal(today), "transaction should be dated today, not the template's scheduled date")
+	s.Assert().True(amount.Equal(txn.Amount))
+
+	var updated models.TransactionTemplate
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", template.ID).First(&updated).Error)
+	s.Assert().Equal(1, updated.RunCount)
+	s.Assert().True(updated.IsActive)
+
+	expectedNextRun := utils.CalculateNextRun(originalNextRun, "monthly", originalNextRun.Day(), time.UTC)
+	s.Assert().True(updated.NextRunAt.Equal(expectedNextRun), "next run should be calculated from the original schedule, not from today")
+}
+
+func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenAlreadyExecutedToday() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	initialBalance := decimal.NewFromInt(50000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Double Click Account",
+		AccountTypeID: 1,
+		Balance:       &initialBalance,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	originalNextRun := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, 10), time.UTC)
+	txnType := "income"
+
+	template := models.TransactionTemplate{
+		Name:            "Salary",
+		UserID:          userID,
+		AccountID:       accID,
+		TemplateType:    "transaction",
+		TransactionType: &txnType,
+		Amount:          decimal.NewFromInt(5000),
+		Frequency:       "monthly",
+		DayOfMonth:      originalNextRun.Day(),
+		NextRunAt:       originalNextRun,
+		IsActive:        true,
+	}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
+
+	s.Require().NoError(svc.ExecuteTemplateEarly(s.Ctx, userID, template.ID))
+
+	err = svc.ExecuteTemplateEarly(s.Ctx, userID, template.ID)
+	s.Require().Error(err)
+	s.Assert().Contains(err.Error(), "already executed today")
+
+	var txnCount int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("account_id = ?", accID).Count(&txnCount).Error)
+	s.Assert().Equal(int64(1), txnCount, "second execution should not create another transaction")
+
+	var updated models.TransactionTemplate
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", template.ID).First(&updated).Error)
+	s.Assert().Equal(1, updated.RunCount, "second execution should not advance run_count")
+}
+
+func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenInactive() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	initialBalance := decimal.NewFromInt(50000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Paused Template Account",
+		AccountTypeID: 1,
+		Balance:       &initialBalance,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	nextRun := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, 10), time.UTC)
+	txnType := "expense"
+
+	template := models.TransactionTemplate{
+		Name:            "Paused rent",
+		UserID:          userID,
+		AccountID:       accID,
+		TemplateType:    "transaction",
+		TransactionType: &txnType,
+		Amount:          decimal.NewFromInt(2500),
+		Frequency:       "monthly",
+		DayOfMonth:      nextRun.Day(),
+		NextRunAt:       nextRun,
+		IsActive:        true,
+	}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
+	// IsActive is a `default:true` column, so GORM omits an explicit `false` on Create; flip it
+	// with a follow-up update instead.
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.TransactionTemplate{}).
+		Where("id = ?", template.ID).UpdateColumn("is_active", false).Error)
+
+	err = svc.ExecuteTemplateEarly(s.Ctx, userID, template.ID)
+	s.Require().Error(err)
+
+	var txnCount int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("account_id = ?", accID).Count(&txnCount).Error)
+	s.Assert().Equal(int64(0), txnCount, "no transaction should be created for a blocked execution")
 }

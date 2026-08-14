@@ -21,6 +21,7 @@ import type {
 import Decimal from "decimal.js";
 import dateHelper from "../../../utils/date_helper.ts";
 import AuditTrail from "../base/AuditTrail.vue";
+import { usePermissions } from "../../../utils/use_permissions.ts";
 
 interface GoalFormData {
   account_id: number | null;
@@ -42,6 +43,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: "completeOperation"): void;
   (event: "completeDelete"): void;
+  (event: "refreshList"): void;
 }>();
 
 const toastStore = useToastStore();
@@ -49,6 +51,7 @@ const accountStore = useAccountStore();
 const savingsStore = useSavingsStore();
 const settingsStore = useSettingsStore();
 const confirm = useConfirm();
+const { hasPermission } = usePermissions();
 
 const initializing = ref(false);
 const submitting = ref(false);
@@ -215,6 +218,35 @@ async function manageRecord() {
     toastStore.errorResponseToast(err);
   } finally {
     submitting.value = false;
+  }
+}
+
+function fundConfirmation() {
+  confirm.require({
+    header: "Fund goal now?",
+    message: `This will add this month's allocation to "${record.value.name}" now, ahead of the fund day. Can only be done once per month.`,
+    rejectProps: { label: "Cancel", severity: "secondary", outlined: true },
+    acceptProps: { label: "Fund now" },
+    accept: () => fundGoal(),
+  });
+}
+
+async function fundGoal() {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
+
+  try {
+    const response = await savingsStore.fundGoal(props.recordId!);
+    toastStore.successResponseToast(response);
+    await loadRecord(props.recordId!);
+    emit("refreshList");
+  } catch (err) {
+    toastStore.errorResponseToast(err);
   }
 }
 
@@ -431,6 +463,20 @@ function confirmDelete() {
           :loading="submitting"
           style="height: 42px"
           @click="manageRecord"
+        />
+      </div>
+      <div class="flex flex-row w-full">
+        <Button
+          v-if="
+            mode === 'update' &&
+            record.status === 'active' &&
+            record.monthly_allocation &&
+            hasPermission('manage_data')
+          "
+          label="Fund now"
+          class="outline-button w-full"
+          style="height: 42px"
+          @click="fundConfirmation"
         />
       </div>
       <div class="flex flex-row w-full">

@@ -86,6 +86,9 @@ export const useTransactionStore = defineStore("transaction", {
     async toggleTemplateActiveState(id: number) {
       return await apiClient.post(`${this.apiPrefix}/templates/${id}/active`);
     },
+    async executeTemplate(id: number) {
+      return await apiClient.post(`${this.apiPrefix}/templates/${id}/execute`);
+    },
     async renameTemplate(id: number, name: string) {
       return await apiClient.patch(`${this.apiPrefix}/templates/${id}/name`, {
         name,

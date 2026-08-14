@@ -12,6 +12,7 @@ import (
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type TransactionRepositoryInterface interface {
@@ -56,6 +57,7 @@ type TransactionRepositoryInterface interface {
 	FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, templateType string) ([]models.TransactionTemplate, error)
 	CountTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, onlyActive bool, templateType string) (int64, error)
 	FindTransactionTemplateByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.TransactionTemplate, error)
+	FindTransactionTemplateByIDForUpdate(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.TransactionTemplate, error)
 	InsertTransactionTemplate(ctx context.Context, tx *gorm.DB, newRecord *models.TransactionTemplate) (int64, error)
 	UpdateTransactionTemplate(ctx context.Context, tx *gorm.DB, record models.TransactionTemplate, onlyActive bool) (int64, error)
 	RenameTransactionTemplate(ctx context.Context, tx *gorm.DB, id int64, name string) error
@@ -974,6 +976,27 @@ func (r *TransactionRepository) FindTransactionTemplateByID(ctx context.Context,
 
 	var record models.TransactionTemplate
 	q := db.
+		Preload("Category").
+		Preload("Account").
+		Preload("ToAccount").
+		Where("id = ? AND user_id = ?", ID, userID)
+
+	q = q.First(&record)
+
+	return record, q.Error
+}
+
+func (r *TransactionRepository) FindTransactionTemplateByIDForUpdate(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.TransactionTemplate, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var record models.TransactionTemplate
+	q := db.
+		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Preload("Category").
 		Preload("Account").
 		Preload("ToAccount").

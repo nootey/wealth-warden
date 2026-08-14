@@ -171,6 +171,58 @@ func (s *SavingsServiceTestSuite) TestAutoFundGoal_MissedMonthStaysMissed() {
 	s.Equal(int64(1), countB)
 }
 
+// FundGoalNow funds a goal on demand and blocks a second call the same month, but a manual
+// contribution afterward is unaffected by (and does not satisfy) that guard.
+func (s *SavingsServiceTestSuite) TestFundGoalNow_BlocksSecondCallSameMonth_ButAllowsManualContribution() {
+	svc := s.TC.App.SavingsService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	balance := decimal.NewFromInt(500)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Test Savings",
+		AccountTypeID:  2,
+		Type:           "cash",
+		Subtype:        "savings",
+		Classification: "asset",
+		Balance:        &balance,
+		OpenedAt:       time.Now(),
+	})
+	s.Require().NoError(err)
+
+	alloc := decimal.NewFromInt(100)
+	goalID, err := svc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:         accID,
+		Name:              "Test Goal",
+		TargetAmount:      decimal.NewFromInt(1000),
+		MonthlyAllocation: &alloc,
+	})
+	s.Require().NoError(err)
+
+	err = svc.FundGoalNow(s.Ctx, userID, goalID)
+	s.Require().NoError(err)
+
+	// Second on-demand call the same month is blocked by AutoFundGoal's guard.
+	err = svc.FundGoalNow(s.Ctx, userID, goalID)
+	s.Require().Error(err)
+	s.Contains(err.Error(), "already funded")
+
+	// A manual contribution is still allowed and does not get blocked by the auto guard.
+	_, err = svc.InsertContribution(s.Ctx, userID, goalID, &models.SavingContributionReq{
+		Amount: decimal.NewFromInt(50),
+		Month:  time.Now().UTC().Format("2006-01-02"),
+	})
+	s.Require().NoError(err)
+
+	var count int64
+	s.Require().NoError(
+		s.TC.DB.Model(&models.SavingContribution{}).
+			Where("goal_id = ?", goalID).
+			Count(&count).Error,
+	)
+	s.Equal(int64(2), count)
+}
+
 // InsertContribution rejects contributions (positive and negative) for non-active goals.
 func (s *SavingsServiceTestSuite) TestInsertContribution_NonActiveGoalRejected() {
 	svc := s.TC.App.SavingsService

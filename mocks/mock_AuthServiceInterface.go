@@ -64,7 +64,7 @@ type MockAuthServiceInterface_CompleteSetup_Call struct {
 //   - ctx context.Context
 //   - userID int64
 //   - req models.CompleteSetupReq
-func (_e *MockAuthServiceInterface_Expecter) CompleteSetup(ctx interface{}, userID interface{}, req interface{}) *MockAuthServiceInterface_CompleteSetup_Call {
+func (_e *MockAuthServiceInterface_Expecter) CompleteSetup(ctx any, userID any, req any) *MockAuthServiceInterface_CompleteSetup_Call {
 	return &MockAuthServiceInterface_CompleteSetup_Call{Call: _e.mock.On("CompleteSetup", ctx, userID, req)}
 }
 
@@ -128,7 +128,7 @@ type MockAuthServiceInterface_ConfirmEmail_Call struct {
 //   - tokenValue string
 //   - userAgent string
 //   - ip string
-func (_e *MockAuthServiceInterface_Expecter) ConfirmEmail(ctx interface{}, tokenValue interface{}, userAgent interface{}, ip interface{}) *MockAuthServiceInterface_ConfirmEmail_Call {
+func (_e *MockAuthServiceInterface_Expecter) ConfirmEmail(ctx any, tokenValue any, userAgent any, ip any) *MockAuthServiceInterface_ConfirmEmail_Call {
 	return &MockAuthServiceInterface_ConfirmEmail_Call{Call: _e.mock.On("ConfirmEmail", ctx, tokenValue, userAgent, ip)}
 }
 
@@ -206,7 +206,7 @@ type MockAuthServiceInterface_GetCurrentUser_Call struct {
 // GetCurrentUser is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockAuthServiceInterface_Expecter) GetCurrentUser(ctx interface{}, userID interface{}) *MockAuthServiceInterface_GetCurrentUser_Call {
+func (_e *MockAuthServiceInterface_Expecter) GetCurrentUser(ctx any, userID any) *MockAuthServiceInterface_GetCurrentUser_Call {
 	return &MockAuthServiceInterface_GetCurrentUser_Call{Call: _e.mock.On("GetCurrentUser", ctx, userID)}
 }
 
@@ -265,7 +265,7 @@ type MockAuthServiceInterface_RegisterUser_Call struct {
 //   - form models.RegisterForm
 //   - userAgent string
 //   - ip string
-func (_e *MockAuthServiceInterface_Expecter) RegisterUser(ctx interface{}, form interface{}, userAgent interface{}, ip interface{}) *MockAuthServiceInterface_RegisterUser_Call {
+func (_e *MockAuthServiceInterface_Expecter) RegisterUser(ctx any, form any, userAgent any, ip any) *MockAuthServiceInterface_RegisterUser_Call {
 	return &MockAuthServiceInterface_RegisterUser_Call{Call: _e.mock.On("RegisterUser", ctx, form, userAgent, ip)}
 }
 
@@ -334,7 +334,7 @@ type MockAuthServiceInterface_RequestPasswordReset_Call struct {
 //   - email string
 //   - userAgent string
 //   - ip string
-func (_e *MockAuthServiceInterface_Expecter) RequestPasswordReset(ctx interface{}, email interface{}, userAgent interface{}, ip interface{}) *MockAuthServiceInterface_RequestPasswordReset_Call {
+func (_e *MockAuthServiceInterface_Expecter) RequestPasswordReset(ctx any, email any, userAgent any, ip any) *MockAuthServiceInterface_RequestPasswordReset_Call {
 	return &MockAuthServiceInterface_RequestPasswordReset_Call{Call: _e.mock.On("RequestPasswordReset", ctx, email, userAgent, ip)}
 }
 
@@ -403,7 +403,7 @@ type MockAuthServiceInterface_ResendConfirmationEmail_Call struct {
 //   - email string
 //   - userAgent string
 //   - ip string
-func (_e *MockAuthServiceInterface_Expecter) ResendConfirmationEmail(ctx interface{}, email interface{}, userAgent interface{}, ip interface{}) *MockAuthServiceInterface_ResendConfirmationEmail_Call {
+func (_e *MockAuthServiceInterface_Expecter) ResendConfirmationEmail(ctx any, email any, userAgent any, ip any) *MockAuthServiceInterface_ResendConfirmationEmail_Call {
 	return &MockAuthServiceInterface_ResendConfirmationEmail_Call{Call: _e.mock.On("ResendConfirmationEmail", ctx, email, userAgent, ip)}
 }
 
@@ -472,7 +472,7 @@ type MockAuthServiceInterface_ResetPassword_Call struct {
 //   - form models.ResetPasswordForm
 //   - userAgent string
 //   - ip string
-func (_e *MockAuthServiceInterface_Expecter) ResetPassword(ctx interface{}, form interface{}, userAgent interface{}, ip interface{}) *MockAuthServiceInterface_ResetPassword_Call {
+func (_e *MockAuthServiceInterface_Expecter) ResetPassword(ctx any, form any, userAgent any, ip any) *MockAuthServiceInterface_ResetPassword_Call {
 	return &MockAuthServiceInterface_ResetPassword_Call{Call: _e.mock.On("ResetPassword", ctx, form, userAgent, ip)}
 }
 
@@ -550,7 +550,7 @@ type MockAuthServiceInterface_SignUp_Call struct {
 //   - form models.RegisterForm
 //   - userAgent string
 //   - ip string
-func (_e *MockAuthServiceInterface_Expecter) SignUp(ctx interface{}, form interface{}, userAgent interface{}, ip interface{}) *MockAuthServiceInterface_SignUp_Call {
+func (_e *MockAuthServiceInterface_Expecter) SignUp(ctx any, form any, userAgent any, ip any) *MockAuthServiceInterface_SignUp_Call {
 	return &MockAuthServiceInterface_SignUp_Call{Call: _e.mock.On("SignUp", ctx, form, userAgent, ip)}
 }
 
@@ -617,7 +617,7 @@ type MockAuthServiceInterface_ValidateInvitation_Call struct {
 // ValidateInvitation is a helper method to define mock.On call
 //   - ctx context.Context
 //   - hash string
-func (_e *MockAuthServiceInterface_Expecter) ValidateInvitation(ctx interface{}, hash interface{}) *MockAuthServiceInterface_ValidateInvitation_Call {
+func (_e *MockAuthServiceInterface_Expecter) ValidateInvitation(ctx any, hash any) *MockAuthServiceInterface_ValidateInvitation_Call {
 	return &MockAuthServiceInterface_ValidateInvitation_Call{Call: _e.mock.On("ValidateInvitation", ctx, hash)}
 }
 
@@ -688,7 +688,7 @@ type MockAuthServiceInterface_ValidateLogin_Call struct {
 //   - password string
 //   - userAgent string
 //   - ip string
-func (_e *MockAuthServiceInterface_Expecter) ValidateLogin(ctx interface{}, email interface{}, password interface{}, userAgent interface{}, ip interface{}) *MockAuthServiceInterface_ValidateLogin_Call {
+func (_e *MockAuthServiceInterface_Expecter) ValidateLogin(ctx any, email any, password any, userAgent any, ip any) *MockAuthServiceInterface_ValidateLogin_Call {
 	return &MockAuthServiceInterface_ValidateLogin_Call{Call: _e.mock.On("ValidateLogin", ctx, email, password, userAgent, ip)}
 }
 
@@ -769,7 +769,7 @@ type MockAuthServiceInterface_ValidatePasswordReset_Call struct {
 // ValidatePasswordReset is a helper method to define mock.On call
 //   - ctx context.Context
 //   - tokenValue string
-func (_e *MockAuthServiceInterface_Expecter) ValidatePasswordReset(ctx interface{}, tokenValue interface{}) *MockAuthServiceInterface_ValidatePasswordReset_Call {
+func (_e *MockAuthServiceInterface_Expecter) ValidatePasswordReset(ctx any, tokenValue any) *MockAuthServiceInterface_ValidatePasswordReset_Call {
 	return &MockAuthServiceInterface_ValidatePasswordReset_Call{Call: _e.mock.On("ValidatePasswordReset", ctx, tokenValue)}
 }
 
