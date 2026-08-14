@@ -29,6 +29,7 @@ type SavingsServiceInterface interface {
 
 	AutoFundGoal(ctx context.Context, goal models.SavingGoal, month time.Time) (funded bool, skipReason string, err error)
 	FetchActiveGoalsWithAllocation(ctx context.Context, dayOfMonth int) ([]models.SavingGoal, error)
+	FundGoalNow(ctx context.Context, userID, goalID int64) error
 }
 
 type SavingsService struct {
@@ -586,6 +587,41 @@ func (s *SavingsService) AutoFundGoal(ctx context.Context, goal models.SavingGoa
 	})
 
 	return true, "", nil
+}
+
+// FundGoalNow lets a user trigger this month's auto-fund contribution on demand,
+// ahead of FundDayOfMonth. AutoFundGoal's own per-goal-per-month guard (source='auto')
+// still applies, so the scheduled job won't insert a second contribution for the month.
+func (s *SavingsService) FundGoalNow(ctx context.Context, userID, goalID int64) error {
+	goal, err := s.repo.FindGoalByID(ctx, nil, goalID, userID)
+	if err != nil {
+		return fmt.Errorf("goal not found: %w", err)
+	}
+
+	if goal.Status != models.SavingGoalStatusActive {
+		return fmt.Errorf("cannot fund a %s goal", goal.Status)
+	}
+
+	if goal.MonthlyAllocation == nil || goal.MonthlyAllocation.IsZero() {
+		return fmt.Errorf("goal has no monthly allocation set")
+	}
+
+	funded, skipReason, err := s.AutoFundGoal(ctx, goal, time.Now())
+	if err != nil {
+		return err
+	}
+	if !funded {
+		switch skipReason {
+		case "already_funded":
+			return fmt.Errorf("goal already funded this month")
+		case "insufficient_balance":
+			return fmt.Errorf("insufficient uncategorized balance to fund this goal")
+		default:
+			return fmt.Errorf("goal was not funded")
+		}
+	}
+
+	return nil
 }
 
 func computeProgress(g models.SavingGoal) models.SavingGoalWithProgress {

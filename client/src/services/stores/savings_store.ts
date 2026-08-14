@@ -40,6 +40,10 @@ export const useSavingsStore = defineStore("savings", {
       return await apiClient.delete(`${this.apiPrefix}/${id}`);
     },
 
+    async fundGoal(id: number) {
+      return await apiClient.post(`${this.apiPrefix}/${id}/fund`);
+    },
+
     async fetchContributions(goalID: number): Promise<SavingContribution[]> {
       const response = await apiClient.get<SavingContribution[]>(
         `${this.apiPrefix}/${goalID}/contributions`,
