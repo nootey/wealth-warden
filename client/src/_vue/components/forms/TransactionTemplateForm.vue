@@ -26,6 +26,8 @@ import dateHelper from "../../../utils/date_helper.ts";
 import searchHelper from "../../../utils/search_helper.ts";
 import type { UserSettings } from "../../../models/settings_models.ts";
 import { useSettingsStore } from "../../../services/stores/settings_store.ts";
+import { useConfirm } from "primevue/useconfirm";
+import { usePermissions } from "../../../utils/use_permissions.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -35,6 +37,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: "completeOperation"): void;
+  (event: "completeDelete"): void;
+  (event: "refreshList"): void;
 }>();
 
 const sharedStore = useSharedStore();
@@ -42,6 +46,8 @@ const toastStore = useToastStore();
 const transactionStore = useTransactionStore();
 const accountStore = useAccountStore();
 const settingsStore = useSettingsStore();
+const confirm = useConfirm();
+const { hasPermission } = usePermissions();
 
 const presetOptions = [
   { label: "Recurring", value: "recurring" },
@@ -384,6 +390,87 @@ async function renameRecord() {
   }
 }
 
+async function toggleActive(nextValue: boolean) {
+  const previous = record.value.is_active;
+
+  try {
+    record.value.is_active = nextValue;
+    isReadOnly.value = !nextValue;
+
+    const response = await transactionStore.toggleTemplateActiveState(
+      record.value.id!,
+    );
+    toastStore.successResponseToast(response);
+    emit("refreshList");
+  } catch (error) {
+    // add a small delay for the toggle animation to complete
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    record.value.is_active = previous;
+    isReadOnly.value = !previous;
+    toastStore.errorResponseToast(error);
+  }
+}
+
+async function executeConfirmation() {
+  confirm.require({
+    header: "Execute template early?",
+    message: `This will run "${record.value.name}" today and advance it to its next scheduled date. Can only be done once per day.`,
+    rejectProps: { label: "Cancel" },
+    acceptProps: { label: "Execute" },
+    accept: () => executeTemplate(),
+  });
+}
+
+async function executeTemplate() {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
+
+  try {
+    const response = await transactionStore.executeTemplate(record.value.id!);
+    toastStore.successResponseToast(response);
+    await loadRecord(record.value.id!);
+    emit("refreshList");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
+async function deleteConfirmation() {
+  confirm.require({
+    header: "Delete record?",
+    message: `This will delete template: ${record.value.name}".`,
+    rejectProps: { label: "Cancel" },
+    acceptProps: { label: "Delete", severity: "danger" },
+    accept: () => deleteRecord(),
+  });
+}
+
+async function deleteRecord() {
+  if (!hasPermission("manage_data")) {
+    toastStore.createInfoToast(
+      "Access denied",
+      "You don't have permission to perform this action.",
+    );
+    return;
+  }
+
+  try {
+    const response = await sharedStore.deleteRecord(
+      "transactions/templates",
+      record.value.id!,
+    );
+    toastStore.successResponseToast(response);
+    emit("completeDelete");
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
+}
+
 async function startOperation() {
   const next_run_at = dateHelper.mergeDateWithCurrentTime(
     dayjs(record.value.next_run_at).format("YYYY-MM-DD"),
@@ -478,7 +565,7 @@ async function startOperation() {
       class="flex flex-row w-full gap-2 pb-4"
       style="border-bottom: 1px solid var(--border-color)"
     >
-      <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-col gap-1 flex-1">
         <small>Last ran at</small>
         <span
           style="
@@ -496,7 +583,7 @@ async function startOperation() {
           }}</span
         >
       </div>
-      <div class="flex flex-col gap-1 w-6/12">
+      <div class="flex flex-col gap-1 flex-1">
         <small>Run count</small>
         <span
           style="
@@ -509,6 +596,22 @@ async function startOperation() {
         >
           {{ record.run_count }}</span
         >
+      </div>
+      <div class="flex flex-col gap-1 flex-1">
+        <small>Active</small>
+        <div class="flex items-center" style="height: 100%">
+          <ToggleSwitch
+            v-if="hasPermission('manage_data')"
+            :model-value="record.is_active"
+            @update:model-value="toggleActive"
+          />
+          <i
+            v-else
+            v-tooltip="'No action available'"
+            class="pi pi-exclamation-circle"
+            style="font-size: 0.875rem"
+          />
+        </div>
       </div>
     </div>
 
@@ -731,7 +834,7 @@ async function startOperation() {
     </div>
 
     <div class="flex flex-row gap-2 w-full">
-      <div class="flex flex-col w-full">
+      <div class="flex flex-col w-full gap-2">
         <Button
           v-if="!isReadOnly"
           class="main-button"
@@ -749,6 +852,24 @@ async function startOperation() {
           :loading="submitting"
           style="height: 42px"
           @click="renameRecord"
+        />
+        <Button
+          v-if="
+            mode === 'update' &&
+            record.is_active &&
+            hasPermission('manage_data')
+          "
+          label="Execute now"
+          class="outline-button"
+          style="height: 42px"
+          @click="executeConfirmation"
+        />
+        <Button
+          v-if="mode === 'update'"
+          label="Delete template"
+          class="delete-button"
+          style="height: 42px"
+          @click="deleteConfirmation"
         />
       </div>
     </div>
