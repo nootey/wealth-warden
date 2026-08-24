@@ -667,7 +667,9 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		}
 
 		if trade.TradeType == models.InvestmentBuy {
-			grossCost := trade.Quantity.Mul(trade.PricePerUnit)
+			// Not quantity * price_per_unit: NUMERIC(19,4) rounds a sub-cent
+			// asset to 0 and its cost vanishes.
+			grossCost := trade.ValueAtBuy
 			if trade.Asset.InvestmentType != models.InvestmentCrypto {
 				grossCost = grossCost.Add(trade.Fee)
 			}
