@@ -54,16 +54,9 @@ const sort = ref(filterHelper.initSort());
 
 const activeColumns = computed<Column[]>(() => [
   { field: "ticker", header: "Ticker" },
-  {
-    field: "account",
-    header: "Account",
-    type: "enum",
-    optionLabel: "name",
-    hideOnMobile: true,
-  },
   { field: "quantity", header: "Quantity" },
   { field: "current_price", header: "Price", hideOnMobile: true },
-  { field: "value_at_buy", header: "Value on buy", hideOnMobile: true },
+  { field: "value_at_buy", header: "Invested", hideOnMobile: true },
   { field: "current_value", header: "Current value", hideOnMobile: true },
   { field: "average_buy_price", header: "Average", hideOnMobile: true },
   { field: "profit_loss", header: "PNL" },

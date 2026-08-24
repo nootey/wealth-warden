@@ -6,6 +6,7 @@ import InvestmentAssetForm from "../components/forms/InvestmentAssetForm.vue";
 import InvestmentAssetsPaginated from "../components/data/InvestmentAssetsPaginated.vue";
 import InvestmentTradeForm from "../components/forms/InvestmentTradeForm.vue";
 import InvestmentTradesPaginated from "../components/data/InvestmentTradesPaginated.vue";
+import InvestmentAllocationPanel from "../components/InvestmentAllocationPanel.vue";
 import InvestmentTaxBracketsPanel from "../components/InvestmentTaxBracketsPanel.vue";
 
 const toastStore = useToastStore();
@@ -231,6 +232,18 @@ async function handleEmit(emitType: any) {
           class="cursor-pointer pb-1"
           style="color: var(--text-secondary)"
           :style="
+            activeTab === 'allocation'
+              ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
+              : ''
+          "
+          @click="activeTab = 'allocation'"
+        >
+          Allocation
+        </div>
+        <div
+          class="cursor-pointer pb-1"
+          style="color: var(--text-secondary)"
+          :style="
             activeTab === 'tax'
               ? 'color: var(--text-primary); border-bottom: 2px solid var(--text-primary)'
               : ''
@@ -275,6 +288,13 @@ async function handleEmit(emitType: any) {
               @update-trade="(id) => manipulateDialog('updateTrade', id)"
             />
           </div>
+        </div>
+        <div
+          v-else-if="activeTab === 'allocation'"
+          key="allocation"
+          class="w-full"
+        >
+          <InvestmentAllocationPanel />
         </div>
         <div v-else key="tax" class="w-full">
           <InvestmentTaxBracketsPanel />
