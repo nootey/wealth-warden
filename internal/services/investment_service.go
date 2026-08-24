@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +25,7 @@ const priceBackfillFlushSize = 100
 type InvestmentServiceInterface interface {
 	RebuildInvestmentDerivedData(ctx context.Context, userID int64) error
 	CorrectFeeAccountingAndRebuild(ctx context.Context, userID int64) error
+	BackfillIncomeExchangeRates(ctx context.Context, userID int64) (updated, skipped int, err error)
 	FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error)
 	FetchAllInvestmentAssets(ctx context.Context, userID int64) ([]models.InvestmentAsset, error)
 	FetchInvestmentAssetByID(ctx context.Context, userID int64, id int64) (*models.InvestmentAsset, error)
@@ -58,6 +60,7 @@ type InvestmentServiceInterface interface {
 	SaveTaxSettings(ctx context.Context, userID int64, req *models.InvestmentTaxSettingsReq) error
 	CopyTaxBrackets(ctx context.Context, userID int64, fromType, toType models.InvestmentType) error
 	FetchPortfolioAllocation(ctx context.Context, userID int64, currency string) (*models.PortfolioAllocation, error)
+	FetchPortfolioReturns(ctx context.Context, userID int64, currency string) (*models.PortfolioReturns, error)
 }
 
 type InvestmentService struct {
@@ -1485,16 +1488,23 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 		incomeAmount = *req.Amount
 	}
 
+	exchangeRateToUSD, err := s.GetExchangeRate(ctx, req.Currency, "USD", &req.TxnDate)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("failed to get exchange rate: %w", err)
+	}
+
 	record := models.InvestmentIncome{
-		UserID:      userID,
-		AssetID:     asset.ID,
-		TxnDate:     req.TxnDate.UTC().Truncate(24 * time.Hour),
-		IncomeType:  req.IncomeType,
-		Quantity:    req.Quantity,
-		Amount:      incomeAmount,
-		TaxWithheld: req.TaxWithheld,
-		Currency:    req.Currency,
-		Notes:       req.Notes,
+		UserID:            userID,
+		AssetID:           asset.ID,
+		TxnDate:           req.TxnDate.UTC().Truncate(24 * time.Hour),
+		IncomeType:        req.IncomeType,
+		Quantity:          req.Quantity,
+		Amount:            incomeAmount,
+		TaxWithheld:       req.TaxWithheld,
+		Currency:          req.Currency,
+		ExchangeRateToUSD: exchangeRateToUSD,
+		Notes:             req.Notes,
 	}
 
 	id, err := s.repo.CreateInvestmentIncome(ctx, tx, &record)
@@ -1950,6 +1960,135 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 	}
 
 	return tx.Commit().Error
+}
+
+func (s *InvestmentService) BackfillIncomeExchangeRates(ctx context.Context, userID int64) (updated, skipped int, err error) {
+	records, err := s.repo.GetForeignCurrencyIncome(ctx, nil, userID)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	for _, record := range records {
+		rate, err := s.GetExchangeRate(ctx, record.Currency, "USD", &record.TxnDate)
+		if err != nil {
+			s.logger.Warn("Failed to fetch income exchange rate",
+				zap.Int64("incomeID", record.ID),
+				zap.String("currency", record.Currency),
+				zap.Time("txn_date", record.TxnDate),
+				zap.Error(err))
+			skipped++
+			continue
+		}
+
+		if err := s.repo.UpdateInvestmentIncomeExchangeRate(ctx, nil, record.ID, userID, rate); err != nil {
+			return updated, skipped, err
+		}
+		updated++
+	}
+
+	return updated, skipped, nil
+}
+
+func (s *InvestmentService) FetchPortfolioReturns(ctx context.Context, userID int64, currency string) (*models.PortfolioReturns, error) {
+
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	if currency == "" {
+		settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
+		if err != nil {
+			return nil, err
+		}
+		currency = settings.DefaultCurrency
+	}
+
+	rows, err := s.repo.FetchReturnFlows(ctx, nil, userID, currency)
+	if err != nil {
+		return nil, err
+	}
+
+	type holding struct {
+		ticker  string
+		name    string
+		flows   []utils.CashFlow
+		current decimal.Decimal
+	}
+
+	holdings := make(map[int64]*holding)
+	order := make([]int64, 0)
+	unpriced := make(map[int64]bool)
+	portfolioFlows := make([]utils.CashFlow, 0, len(rows))
+
+	for _, row := range rows {
+		// A held asset with no price has buys but no closing value. Counting its
+		// flows would read the holding as a total loss.
+		if row.HeldUnpriced {
+			unpriced[row.AssetID] = true
+			continue
+		}
+
+		amount, err := decimal.NewFromString(row.AmountText)
+		if err != nil {
+			return nil, fmt.Errorf("invalid flow amount for %s: %w", row.Ticker, err)
+		}
+
+		flow := utils.CashFlow{Date: row.FlowDate, Amount: amount}
+
+		item, ok := holdings[row.AssetID]
+		if !ok {
+			item = &holding{ticker: row.Ticker, name: row.Name}
+			holdings[row.AssetID] = item
+			order = append(order, row.AssetID)
+		}
+
+		item.flows = append(item.flows, flow)
+		if row.IsTerminal {
+			current, err := decimal.NewFromString(row.DisplayAmountText)
+			if err != nil {
+				return nil, fmt.Errorf("invalid current value for %s: %w", row.Ticker, err)
+			}
+			item.current = current
+		}
+
+		portfolioFlows = append(portfolioFlows, flow)
+	}
+
+	assets := make([]models.PortfolioReturnRow, 0, len(order))
+	for _, assetID := range order {
+		item := holdings[assetID]
+		row := models.PortfolioReturnRow{
+			Key:          item.ticker,
+			Label:        item.name,
+			CurrentValue: item.current,
+		}
+
+		if rate, err := utils.XIRR(item.flows); err != nil {
+			row.Reason = utils.XIRRReason(err)
+		} else {
+			row.Rate = &rate
+		}
+
+		assets = append(assets, row)
+	}
+
+	sort.SliceStable(assets, func(i, j int) bool {
+		return assets[i].CurrentValue.GreaterThan(assets[j].CurrentValue)
+	})
+
+	portfolio := models.PortfolioReturnRow{Key: "portfolio", Label: "Portfolio"}
+	for _, row := range assets {
+		portfolio.CurrentValue = portfolio.CurrentValue.Add(row.CurrentValue)
+	}
+	if rate, err := utils.XIRR(portfolioFlows); err != nil {
+		portfolio.Reason = utils.XIRRReason(err)
+	} else {
+		portfolio.Rate = &rate
+	}
+
+	return &models.PortfolioReturns{
+		Currency:       currency,
+		UnpricedAssets: len(unpriced),
+		Portfolio:      portfolio,
+		Assets:         assets,
+	}, nil
 }
 
 func (s *InvestmentService) FetchPortfolioAllocation(ctx context.Context, userID int64, currency string) (*models.PortfolioAllocation, error) {

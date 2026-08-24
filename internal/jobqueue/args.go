@@ -74,6 +74,14 @@ func (CorrectFeeAccountingArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{Queue: QueueRebuild}
 }
 
+type BackfillIncomeFXRatesArgs struct{}
+
+func (BackfillIncomeFXRatesArgs) Kind() string { return TypeBackfillIncomeFXRates }
+
+func (BackfillIncomeFXRatesArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{Queue: QueueRebuild}
+}
+
 type MigrateZeroCostTradesArgs struct{}
 
 func (MigrateZeroCostTradesArgs) Kind() string { return TypeMigrateZeroCostTrades }

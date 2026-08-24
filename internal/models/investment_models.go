@@ -135,6 +135,7 @@ type InvestmentIncome struct {
 	Amount              decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"amount"`
 	TaxWithheld         *decimal.Decimal `gorm:"type:decimal(19,4)" json:"tax_withheld"`
 	Currency            string           `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
+	ExchangeRateToUSD   decimal.Decimal  `gorm:"type:decimal(19,6);not null;default:1.0" json:"exchange_rate_to_usd"`
 	Notes               *string          `gorm:"type:varchar(255)" json:"notes"`
 	LinkedTransactionID *int64           `gorm:"index" json:"linked_transaction_id,omitempty"`
 	Asset               InvestmentAsset  `json:"asset"`
@@ -246,4 +247,30 @@ type PortfolioAllocation struct {
 	TotalValue     decimal.Decimal            `json:"total_value"`
 	UnpricedAssets int                        `json:"unpriced_assets"`
 	Groups         map[string][]AllocationRow `json:"groups"`
+}
+
+type ReturnFlowRow struct {
+	AssetID           int64
+	Ticker            string
+	Name              string
+	FlowDate          time.Time
+	AmountText        string
+	DisplayAmountText string
+	IsTerminal        bool
+	HeldUnpriced      bool
+}
+
+type PortfolioReturnRow struct {
+	Key          string           `json:"key"`
+	Label        string           `json:"label"`
+	Rate         *decimal.Decimal `json:"rate"`
+	Reason       string           `json:"reason,omitempty"`
+	CurrentValue decimal.Decimal  `json:"current_value"`
+}
+
+type PortfolioReturns struct {
+	Currency       string               `json:"currency"`
+	UnpricedAssets int                  `json:"unpriced_assets"`
+	Portfolio      PortfolioReturnRow   `json:"portfolio"`
+	Assets         []PortfolioReturnRow `json:"assets"`
 }

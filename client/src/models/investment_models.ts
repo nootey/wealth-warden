@@ -118,3 +118,18 @@ export interface PortfolioAllocation {
   unpriced_assets: number;
   groups: Record<AllocationGroupKey, AllocationRow[]>;
 }
+
+export interface PortfolioReturnRow {
+  key: string;
+  label: string;
+  rate: string | null;
+  reason?: string;
+  current_value: string;
+}
+
+export interface PortfolioReturns {
+  currency: string;
+  unpriced_assets: number;
+  portfolio: PortfolioReturnRow;
+  assets: PortfolioReturnRow[];
+}

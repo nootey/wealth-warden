@@ -12,6 +12,7 @@ import (
 type BackofficeServiceInterface interface {
 	BackfillAssetCashFlows(ctx context.Context) error
 	CorrectFeeAccounting(ctx context.Context) error
+	BackfillIncomeExchangeRates(ctx context.Context) error
 	MigrateZeroCostTrades(ctx context.Context) error
 	RunZeroCostTradeMigration(ctx context.Context) (*models.ZeroCostMigrationResult, error)
 }
@@ -45,6 +46,10 @@ func (s *BackofficeService) BackfillAssetCashFlows(ctx context.Context) error {
 
 func (s *BackofficeService) CorrectFeeAccounting(ctx context.Context) error {
 	return s.jobDispatcher.Dispatch(ctx, jobqueue.CorrectFeeAccountingArgs{})
+}
+
+func (s *BackofficeService) BackfillIncomeExchangeRates(ctx context.Context) error {
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.BackfillIncomeFXRatesArgs{})
 }
 
 func (s *BackofficeService) MigrateZeroCostTrades(ctx context.Context) error {

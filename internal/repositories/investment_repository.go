@@ -58,6 +58,8 @@ type InvestmentRepositoryInterface interface {
 	CountInvestmentIncome(ctx context.Context, tx *gorm.DB, assetID, userID int64) (int64, error)
 	GetInvestmentIncomeByAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64, offset, limit int, sortField, sortOrder string) ([]models.InvestmentIncome, error)
 	DeleteInvestmentIncome(ctx context.Context, tx *gorm.DB, id, userID int64) error
+	GetForeignCurrencyIncome(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentIncome, error)
+	UpdateInvestmentIncomeExchangeRate(ctx context.Context, tx *gorm.DB, id, userID int64, rate decimal.Decimal) error
 	FindTaxBracketsByUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTaxBracket, error)
 	FindTaxBracketsByUserAndType(ctx context.Context, tx *gorm.DB, userID int64, investmentType models.InvestmentType) ([]models.InvestmentTaxBracket, error)
 	CountTaxBracketsByUserAndType(ctx context.Context, tx *gorm.DB, userID int64, investmentType models.InvestmentType) (int64, error)
@@ -67,6 +69,7 @@ type InvestmentRepositoryInterface interface {
 	FindTaxSettings(ctx context.Context, tx *gorm.DB, userID int64) (models.InvestmentTaxSettings, error)
 	UpsertTaxSettings(ctx context.Context, tx *gorm.DB, record models.InvestmentTaxSettings) error
 	FetchPortfolioAllocation(ctx context.Context, tx *gorm.DB, userID int64, currency string) ([]models.AllocationAssetRow, error)
+	FetchReturnFlows(ctx context.Context, tx *gorm.DB, userID int64, currency string) ([]models.ReturnFlowRow, error)
 }
 
 type InvestmentRepository struct {
@@ -943,6 +946,30 @@ func (r *InvestmentRepository) DeleteInvestmentIncome(ctx context.Context, tx *g
 		Delete(&models.InvestmentIncome{}).Error
 }
 
+func (r *InvestmentRepository) GetForeignCurrencyIncome(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentIncome, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var records []models.InvestmentIncome
+	err := db.WithContext(ctx).
+		Where("user_id = ? AND currency <> ?", userID, "USD").
+		Order("txn_date ASC").
+		Find(&records).Error
+	return records, err
+}
+
+func (r *InvestmentRepository) UpdateInvestmentIncomeExchangeRate(ctx context.Context, tx *gorm.DB, id, userID int64, rate decimal.Decimal) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).
+		Model(&models.InvestmentIncome{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Update("exchange_rate_to_usd", rate).Error
+}
+
 func (r *InvestmentRepository) FindTaxBracketsByUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTaxBracket, error) {
 	db := tx
 	if db == nil {
@@ -1044,6 +1071,127 @@ func (r *InvestmentRepository) UpsertTaxSettings(ctx context.Context, tx *gorm.D
 			DoUpdates: clause.AssignmentColumns([]string{"loss_offsetting_enabled", "updated_at"}),
 		}).
 		Create(&record).Error
+}
+
+func (r *InvestmentRepository) FetchReturnFlows(ctx context.Context, tx *gorm.DB, userID int64, currency string) ([]models.ReturnFlowRow, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var rows []models.ReturnFlowRow
+
+	query := `
+		WITH flows AS (
+			SELECT
+				t.asset_id,
+				t.txn_date AS flow_date,
+				-(t.value_at_buy
+					+ CASE WHEN ia.investment_type = 'crypto' THEN 0 ELSE t.fee END
+				 ) AS amount,
+				t.exchange_rate_to_usd AS rate_to_usd,
+				0 AS display_amount,
+				FALSE AS is_terminal
+			FROM investment_trades t
+			JOIN investment_assets ia ON ia.id = t.asset_id
+			JOIN accounts a ON a.id = ia.account_id
+			WHERE t.user_id = ?
+			  AND t.trade_type = 'buy'
+			  AND a.is_active = TRUE
+			  AND a.closed_at IS NULL
+
+			UNION ALL
+
+			SELECT
+				t.asset_id,
+				t.txn_date,
+				t.realized_value,
+				t.exchange_rate_to_usd,
+				0,
+				FALSE
+			FROM investment_trades t
+			JOIN investment_assets ia ON ia.id = t.asset_id
+			JOIN accounts a ON a.id = ia.account_id
+			WHERE t.user_id = ?
+			  AND t.trade_type = 'sell'
+			  AND a.is_active = TRUE
+			  AND a.closed_at IS NULL
+
+			UNION ALL
+
+			SELECT
+				i.asset_id,
+				i.txn_date,
+				i.amount - COALESCE(i.tax_withheld, 0),
+				i.exchange_rate_to_usd,
+				0,
+				FALSE
+			FROM investment_income i
+			JOIN investment_assets ia ON ia.id = i.asset_id
+			JOIN accounts a ON a.id = ia.account_id
+			WHERE i.user_id = ?
+			  AND i.income_type = 'dividend'
+			  AND a.is_active = TRUE
+			  AND a.closed_at IS NULL
+
+			UNION ALL
+
+			SELECT
+				ia.id,
+				CURRENT_DATE,
+				lp.price * ia.quantity,
+				COALESCE(erh_usd.rate, 1),
+				lp.price * ia.quantity * COALESCE(erh_disp.rate, 1),
+				TRUE
+			FROM investment_assets ia
+			JOIN accounts a ON a.id = ia.account_id
+			LEFT JOIN ticker_latest_price lp ON lp.ticker = ia.ticker
+			LEFT JOIN LATERAL (
+				SELECT erh.rate
+				FROM exchange_rate_history erh
+				WHERE erh.from_currency = COALESCE(lp.currency, ia.currency)
+				  AND erh.to_currency   = 'USD'
+				  AND erh.as_of        <= CURRENT_DATE
+				ORDER BY erh.as_of DESC
+				LIMIT 1
+			) erh_usd ON COALESCE(lp.currency, ia.currency) <> 'USD'
+			LEFT JOIN LATERAL (
+				SELECT erh.rate
+				FROM exchange_rate_history erh
+				WHERE erh.from_currency = COALESCE(lp.currency, ia.currency)
+				  AND erh.to_currency   = ?
+				  AND erh.as_of        <= CURRENT_DATE
+				ORDER BY erh.as_of DESC
+				LIMIT 1
+			) erh_disp ON COALESCE(lp.currency, ia.currency) <> ?
+			WHERE ia.user_id  = ?
+			  AND ia.quantity > 0
+			  AND lp.price IS NOT NULL
+			  AND lp.price <> 0
+			  AND a.is_active = TRUE
+			  AND a.closed_at IS NULL
+		)
+		SELECT
+			f.asset_id,
+			ia.ticker,
+			ia.name,
+			f.flow_date,
+			(f.amount * f.rate_to_usd)::text AS amount_text,
+			f.display_amount::text           AS display_amount_text,
+			f.is_terminal,
+			(ia.quantity > 0 AND (lp.price IS NULL OR lp.price = 0)) AS held_unpriced
+		FROM flows f
+		JOIN investment_assets ia ON ia.id = f.asset_id
+		LEFT JOIN ticker_latest_price lp ON lp.ticker = ia.ticker
+		ORDER BY f.flow_date ASC, f.asset_id ASC
+	`
+
+	if err := db.Raw(query, userID, userID, userID, currency, currency, userID).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	return rows, nil
 }
 
 func (r *InvestmentRepository) FetchPortfolioAllocation(ctx context.Context, tx *gorm.DB, userID int64, currency string) ([]models.AllocationAssetRow, error) {
