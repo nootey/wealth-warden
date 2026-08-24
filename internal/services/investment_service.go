@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -51,6 +52,7 @@ type InvestmentServiceInterface interface {
 	FetchTaxSettings(ctx context.Context, userID int64) (models.InvestmentTaxSettings, error)
 	SaveTaxSettings(ctx context.Context, userID int64, req *models.InvestmentTaxSettingsReq) error
 	CopyTaxBrackets(ctx context.Context, userID int64, fromType, toType models.InvestmentType) error
+	FetchPortfolioAllocation(ctx context.Context, userID int64, currency string) (*models.PortfolioAllocation, error)
 }
 
 type InvestmentService struct {
@@ -1812,4 +1814,128 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 	}
 
 	return tx.Commit().Error
+}
+
+func investmentTypeLabel(t models.InvestmentType) string {
+	switch t {
+	case models.InvestmentStock:
+		return "Stock"
+	case models.InvestmentETF:
+		return "ETF"
+	case models.InvestmentCrypto:
+		return "Crypto"
+	default:
+		return string(t)
+	}
+}
+
+// allocationBuckets sums values under a key while remembering the order keys
+// first appeared, so ties sort the same way on every request.
+type allocationBuckets struct {
+	order  []string
+	labels map[string]string
+	values map[string]decimal.Decimal
+}
+
+func newAllocationBuckets() *allocationBuckets {
+	return &allocationBuckets{
+		labels: make(map[string]string),
+		values: make(map[string]decimal.Decimal),
+	}
+}
+
+func (b *allocationBuckets) add(key, label string, value decimal.Decimal) {
+	if _, ok := b.values[key]; !ok {
+		b.order = append(b.order, key)
+		b.labels[key] = label
+		b.values[key] = decimal.Zero
+	}
+	b.values[key] = b.values[key].Add(value)
+}
+
+func (b *allocationBuckets) rows(total decimal.Decimal) []models.AllocationRow {
+	rows := make([]models.AllocationRow, 0, len(b.order))
+	for _, key := range b.order {
+		value := b.values[key]
+		weight := decimal.Zero
+		if total.IsPositive() {
+			weight = value.Div(total).Round(6)
+		}
+		rows = append(rows, models.AllocationRow{
+			Key:    key,
+			Label:  b.labels[key],
+			Value:  value,
+			Weight: weight,
+		})
+	}
+
+	sort.SliceStable(rows, func(i, j int) bool {
+		if !rows[i].Value.Equal(rows[j].Value) {
+			return rows[i].Value.GreaterThan(rows[j].Value)
+		}
+		return rows[i].Key < rows[j].Key
+	})
+
+	return rows
+}
+
+// FetchPortfolioAllocation splits the current value of every open holding by
+// investment type, ticker, currency and account. Weights are fractions of the
+// invested total, so cash balances do not dilute them.
+func (s *InvestmentService) FetchPortfolioAllocation(ctx context.Context, userID int64, currency string) (*models.PortfolioAllocation, error) {
+
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	if currency == "" {
+		settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
+		if err != nil {
+			return nil, err
+		}
+		currency = settings.DefaultCurrency
+	}
+
+	rows, err := s.repo.FetchPortfolioAllocation(ctx, nil, userID, currency)
+	if err != nil {
+		return nil, err
+	}
+
+	byType := newAllocationBuckets()
+	byTicker := newAllocationBuckets()
+	byCurrency := newAllocationBuckets()
+	byAccount := newAllocationBuckets()
+
+	total := decimal.Zero
+	unpriced := 0
+
+	for _, row := range rows {
+		if !row.Priced {
+			unpriced++
+			continue
+		}
+
+		value, err := decimal.NewFromString(row.ValueText)
+		if err != nil {
+			return nil, fmt.Errorf("invalid allocation value for %s: %w", row.Ticker, err)
+		}
+		if !value.IsPositive() {
+			continue
+		}
+
+		total = total.Add(value)
+		byType.add(string(row.InvestmentType), investmentTypeLabel(row.InvestmentType), value)
+		byTicker.add(row.Ticker, row.Name, value)
+		byCurrency.add(row.SourceCurrency, row.SourceCurrency, value)
+		byAccount.add(strconv.FormatInt(row.AccountID, 10), row.AccountName, value)
+	}
+
+	return &models.PortfolioAllocation{
+		Currency:       currency,
+		TotalValue:     total,
+		UnpricedAssets: unpriced,
+		Groups: map[string][]models.AllocationRow{
+			"type":     byType.rows(total),
+			"ticker":   byTicker.rows(total),
+			"currency": byCurrency.rows(total),
+			"account":  byAccount.rows(total),
+		},
+	}, nil
 }

@@ -201,3 +201,32 @@ type InvestmentTradeReq struct {
 	Fee          *decimal.Decimal `json:"fee"`
 	Description  *string          `json:"description,omitempty"`
 }
+
+// AllocationAssetRow is one priced holding, already converted to the requested
+// currency by the repository query.
+type AllocationAssetRow struct {
+	Ticker         string
+	Name           string
+	InvestmentType InvestmentType
+	SourceCurrency string
+	AccountID      int64
+	AccountName    string
+	Priced         bool
+	ValueText      string
+}
+
+type AllocationRow struct {
+	Key    string          `json:"key"`
+	Label  string          `json:"label"`
+	Value  decimal.Decimal `json:"value"`
+	Weight decimal.Decimal `json:"weight"`
+}
+
+// PortfolioAllocation holds the same total split four ways. Groups always has
+// the keys "type", "ticker", "currency" and "account".
+type PortfolioAllocation struct {
+	Currency       string                     `json:"currency"`
+	TotalValue     decimal.Decimal            `json:"total_value"`
+	UnpricedAssets int                        `json:"unpriced_assets"`
+	Groups         map[string][]AllocationRow `json:"groups"`
+}

@@ -63,6 +63,7 @@ type InvestmentRepositoryInterface interface {
 	DeleteTaxBracket(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	FindTaxSettings(ctx context.Context, tx *gorm.DB, userID int64) (models.InvestmentTaxSettings, error)
 	UpsertTaxSettings(ctx context.Context, tx *gorm.DB, record models.InvestmentTaxSettings) error
+	FetchPortfolioAllocation(ctx context.Context, tx *gorm.DB, userID int64, currency string) ([]models.AllocationAssetRow, error)
 }
 
 type InvestmentRepository struct {
@@ -1086,4 +1087,58 @@ func (r *InvestmentRepository) UpsertTaxSettings(ctx context.Context, tx *gorm.D
 			DoUpdates: clause.AssignmentColumns([]string{"loss_offsetting_enabled", "updated_at"}),
 		}).
 		Create(&record).Error
+}
+
+// FetchPortfolioAllocation returns one row per open holding, with current_value
+// converted to the target currency. Conversion uses the newest cached rate on or
+// before today and falls back to 1, the same way UpdateSnapshotMarketValues does,
+// so the allocation can never disagree with net worth.
+func (r *InvestmentRepository) FetchPortfolioAllocation(ctx context.Context, tx *gorm.DB, userID int64, currency string) ([]models.AllocationAssetRow, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var rows []models.AllocationAssetRow
+
+	query := `
+		SELECT
+			ia.ticker,
+			ia.name,
+			ia.investment_type,
+			a.id   AS account_id,
+			a.name AS account_name,
+			COALESCE(ph_latest.currency, ia.currency) AS source_currency,
+			(ia.current_price IS NOT NULL AND ia.current_price <> 0) AS priced,
+			(ia.current_value * COALESCE(erh_latest.rate, 1))::text  AS value_text
+		FROM investment_assets ia
+		JOIN accounts a ON a.id = ia.account_id
+		LEFT JOIN LATERAL (
+			SELECT ph.currency
+			FROM asset_price_history ph
+			WHERE ph.asset_id = ia.id
+			ORDER BY ph.as_of DESC
+			LIMIT 1
+		) ph_latest ON true
+		LEFT JOIN LATERAL (
+			SELECT erh.rate
+			FROM exchange_rate_history erh
+			WHERE erh.from_currency = COALESCE(ph_latest.currency, ia.currency)
+			  AND erh.to_currency   = ?
+			  AND erh.as_of        <= CURRENT_DATE
+			ORDER BY erh.as_of DESC
+			LIMIT 1
+		) erh_latest ON COALESCE(ph_latest.currency, ia.currency) <> ?
+		WHERE ia.user_id  = ?
+		  AND ia.quantity > 0
+		  AND a.is_active = TRUE
+		  AND a.closed_at IS NULL
+	`
+
+	if err := db.Raw(query, currency, currency, userID).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	return rows, nil
 }

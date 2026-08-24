@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import apiClient from "../api/api_client.ts";
+import type { PortfolioAllocation } from "../../models/investment_models.ts";
 
 export const useInvestmentStore = defineStore("investment", {
   state: () => ({
@@ -9,6 +10,15 @@ export const useInvestmentStore = defineStore("investment", {
   actions: {
     async getAllAssets() {
       const response = await apiClient.get(`${this.apiPrefix}/all`);
+      return response.data;
+    },
+    async getAllocation(currency?: string) {
+      const response = await apiClient.get<PortfolioAllocation>(
+        `${this.apiPrefix}/allocation`,
+        {
+          params: { currency: currency || undefined },
+        },
+      );
       return response.data;
     },
     async createIncome(req: object) {

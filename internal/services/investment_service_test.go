@@ -1970,3 +1970,169 @@ func (s *InvestmentServiceTestSuite) TestRecalculateAssetPnL_WritesTodaysPriceHi
 		"asset holds price %s but today's history row still says %s",
 		asset.CurrentPrice.String(), history.Price.String())
 }
+
+// Seeds a cached rate and removes it afterwards, so the shared exchange rate
+// cache does not leak into other tests in the suite.
+func (s *InvestmentServiceTestSuite) seedExchangeRate(from, to string, rate float64) {
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	err := s.TC.DB.WithContext(s.Ctx).Exec(`
+		INSERT INTO exchange_rate_history (from_currency, to_currency, as_of, rate)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (from_currency, to_currency, as_of) DO UPDATE SET rate = EXCLUDED.rate
+	`, from, to, today, rate).Error
+	s.Require().NoError(err)
+
+	s.T().Cleanup(func() {
+		s.TC.DB.Exec(`
+			DELETE FROM exchange_rate_history
+			WHERE from_currency = ? AND to_currency = ? AND as_of = ?
+		`, from, to, today)
+	})
+}
+
+func (s *InvestmentServiceTestSuite) newInvestmentAccount(userID int64, name string) int64 {
+	balance := decimal.NewFromInt(1000000)
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          name,
+		AccountTypeID: 5,
+		Balance:       &balance,
+		OpenedAt:      time.Now().UTC().Truncate(24 * time.Hour),
+	})
+	s.Require().NoError(err)
+	return accID
+}
+
+// Buys quantity of ticker at price in EUR and returns the asset id
+func (s *InvestmentServiceTestSuite) newHolding(userID, accID int64, ticker, name string, invType models.InvestmentType, quantity, price decimal.Decimal) int64 {
+	svc := s.TC.App.InvestmentService
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	assetID, err := svc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: invType,
+		Name:           name,
+		Ticker:         ticker,
+		Currency:       "EUR",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+
+	if quantity.IsPositive() {
+		_, err = svc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+			AssetID:      assetID,
+			TxnDate:      today,
+			TradeType:    models.InvestmentBuy,
+			Quantity:     quantity,
+			PricePerUnit: price,
+			Currency:     "EUR",
+		})
+		s.Require().NoError(err)
+	}
+
+	return assetID
+}
+
+func (s *InvestmentServiceTestSuite) allocationRow(rows []models.AllocationRow, key string) *models.AllocationRow {
+	for i := range rows {
+		if rows[i].Key == key {
+			return &rows[i]
+		}
+	}
+	return nil
+}
+
+// A holding priced in USD converts with the cached rate, and every group splits
+// the same total four ways
+func (s *InvestmentServiceTestSuite) TestFetchPortfolioAllocation_ConvertsAndWeights() {
+	userID := int64(1)
+
+	// The mock prices BTC-USD in USD, so this asset needs conversion to EUR
+	s.seedExchangeRate("USD", "EUR", 0.9)
+
+	accID := s.newInvestmentAccount(userID, "Investment Account")
+
+	// 10 x IWDA.AS at 100 EUR -> 1000 EUR, no conversion
+	s.newHolding(userID, accID, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock,
+		decimal.NewFromInt(10), decimal.NewFromInt(100))
+
+	// 0.02 x BTC-USD at 50000 USD -> 1000 USD -> 900 EUR
+	s.newHolding(userID, accID, "BTC-USD", "Bitcoin", models.InvestmentCrypto,
+		decimal.NewFromFloat(0.02), decimal.NewFromInt(1000))
+
+	alloc, err := s.TC.App.InvestmentService.FetchPortfolioAllocation(s.Ctx, userID, "EUR")
+	s.Require().NoError(err)
+
+	s.Assert().Equal("EUR", alloc.Currency)
+	s.Assert().Equal(0, alloc.UnpricedAssets)
+	s.Assert().True(decimal.NewFromInt(1900).Equal(alloc.TotalValue),
+		"total should be 1900 EUR, got %s", alloc.TotalValue.String())
+
+	byCurrency := alloc.Groups["currency"]
+	s.Require().Len(byCurrency, 2)
+	usd := s.allocationRow(byCurrency, "USD")
+	s.Require().NotNil(usd)
+	s.Assert().True(decimal.NewFromInt(900).Equal(usd.Value),
+		"USD holding should convert to 900 EUR, got %s", usd.Value.String())
+
+	byType := alloc.Groups["type"]
+	s.Require().Len(byType, 2)
+	// Largest slice first
+	s.Assert().Equal("stock", byType[0].Key)
+	s.Assert().Equal("Stock", byType[0].Label)
+
+	s.Require().Len(alloc.Groups["ticker"], 2)
+
+	// One account holds everything, so its weight is the whole portfolio
+	byAccount := alloc.Groups["account"]
+	s.Require().Len(byAccount, 1)
+	s.Assert().True(decimal.NewFromInt(1).Equal(byAccount[0].Weight))
+	s.Assert().Equal("Investment Account", byAccount[0].Label)
+
+	for name, rows := range alloc.Groups {
+		sum := decimal.Zero
+		for _, row := range rows {
+			sum = sum.Add(row.Weight)
+		}
+		s.Assert().True(decimal.NewFromInt(1).Equal(sum),
+			"weights in group %q should sum to 1, got %s", name, sum.String())
+	}
+}
+
+// Closed accounts, empty positions and unpriced assets stay out of the total
+func (s *InvestmentServiceTestSuite) TestFetchPortfolioAllocation_ExcludesUnpricedAndClosed() {
+	userID := int64(1)
+
+	accID := s.newInvestmentAccount(userID, "Open Account")
+	closedAccID := s.newInvestmentAccount(userID, "Closed Account")
+
+	s.newHolding(userID, accID, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock,
+		decimal.NewFromInt(10), decimal.NewFromInt(100))
+
+	// Held, but never priced
+	unpricedID := s.newHolding(userID, accID, "BTC-USD", "Bitcoin", models.InvestmentCrypto,
+		decimal.NewFromInt(1), decimal.NewFromInt(50000))
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Exec(
+		`UPDATE investment_assets SET current_price = NULL WHERE id = ?`, unpricedID).Error)
+
+	// Priced, but the position is empty
+	s.newHolding(userID, accID, "BTC-EUR", "Bitcoin EUR", models.InvestmentCrypto,
+		decimal.Zero, decimal.Zero)
+
+	// Priced and held, but the account is closed
+	s.newHolding(userID, closedAccID, "BTC-EUR", "Bitcoin EUR", models.InvestmentCrypto,
+		decimal.NewFromInt(1), decimal.NewFromInt(45000))
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Exec(
+		`UPDATE accounts SET is_active = FALSE WHERE id = ?`, closedAccID).Error)
+
+	alloc, err := s.TC.App.InvestmentService.FetchPortfolioAllocation(s.Ctx, userID, "EUR")
+	s.Require().NoError(err)
+
+	s.Assert().Equal(1, alloc.UnpricedAssets)
+	s.Assert().True(decimal.NewFromInt(1000).Equal(alloc.TotalValue),
+		"only the priced, open holding counts, got %s", alloc.TotalValue.String())
+
+	tickers := alloc.Groups["ticker"]
+	s.Require().Len(tickers, 1)
+	s.Assert().Equal("IWDA.AS", tickers[0].Key)
+}

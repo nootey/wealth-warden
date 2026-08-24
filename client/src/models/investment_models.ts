@@ -101,3 +101,19 @@ export interface AssetTaxSummary {
   estimated_tax_due: string;
   after_tax_pnl: string;
 }
+
+export type AllocationGroupKey = "type" | "ticker" | "currency" | "account";
+
+export interface AllocationRow {
+  key: string;
+  label: string;
+  value: string;
+  weight: string;
+}
+
+export interface PortfolioAllocation {
+  currency: string;
+  total_value: string;
+  unpriced_assets: number;
+  groups: Record<AllocationGroupKey, AllocationRow[]>;
+}
