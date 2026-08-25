@@ -2,6 +2,7 @@ package scheduler_jobs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -9,6 +10,7 @@ import (
 	"wealth-warden/internal/joblog"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue/queue_jobs"
+	"wealth-warden/internal/services"
 
 	"go.uber.org/zap"
 )
@@ -97,10 +99,15 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 	}
 
 	successCount := 0
+	alreadyRan := 0
 	failures := joblog.NewErrorGroup("templateID")
 	userResults := make(map[int64]*userSummary)
 
 	for r := range results {
+		if errors.Is(r.err, services.ErrTemplateAlreadyRanToday) {
+			alreadyRan++
+			continue
+		}
 		s, ok := userResults[r.template.UserID]
 		if !ok {
 			s = &userSummary{}
@@ -119,6 +126,7 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 
 	j.logger.Info("Template processing completed",
 		zap.Int("success", successCount),
+		zap.Int("already_ran", alreadyRan),
 		zap.Int("failed", failures.Count()))
 
 	if j.notifDispatcher != nil {

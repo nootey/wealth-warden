@@ -531,6 +531,16 @@ func (s *SavingsService) AutoFundGoal(ctx context.Context, goal models.SavingGoa
 		}
 	}()
 
+	goal, err = s.repo.FindGoalByIDForUpdate(ctx, tx, goal.ID, goal.UserID)
+	if err != nil {
+		tx.Rollback()
+		return false, "", fmt.Errorf("goal not found: %w", err)
+	}
+	if goal.Status != models.SavingGoalStatusActive || goal.MonthlyAllocation == nil {
+		tx.Rollback()
+		return false, "not_fundable", nil
+	}
+
 	alreadyFunded, err := s.repo.HasContributionForMonth(ctx, tx, goal.ID, monthStart)
 	if err != nil {
 		tx.Rollback()

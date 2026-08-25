@@ -2408,6 +2408,8 @@ func (s *TransactionService) ExecuteTemplateEarly(ctx context.Context, userID in
 	})
 }
 
+var ErrTemplateAlreadyRanToday = errors.New("template already executed today")
+
 // executeNow dates the transaction today instead of the template's scheduled date; the next run
 // date is always computed from the original NextRunAt so the cadence doesn't drift.
 func (s *TransactionService) runTemplate(ctx context.Context, template *models.TransactionTemplate, executeNow bool) (int, time.Time, error) {
@@ -2449,12 +2451,12 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		}
 	}
 
-	if executeNow && currentTemplate.LastRunAt != nil {
+	if currentTemplate.LastRunAt != nil {
 		lastRun := currentTemplate.LastRunAt.In(loc)
 		now := time.Now().In(loc)
 		if lastRun.Year() == now.Year() && lastRun.YearDay() == now.YearDay() {
 			tx.Rollback()
-			return 0, time.Time{}, fmt.Errorf("template already executed today")
+			return 0, time.Time{}, ErrTemplateAlreadyRanToday
 		}
 	}
 

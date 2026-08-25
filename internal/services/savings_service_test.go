@@ -8,6 +8,7 @@ import (
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/suite"
+	"gorm.io/gorm/clause"
 )
 
 type SavingsServiceTestSuite struct {
@@ -440,4 +441,73 @@ func (s *SavingsServiceTestSuite) TestInsertGoal_InitialAmountRespectsSiblingAll
 		InitialAmount: &withinRemaining,
 	})
 	s.Require().NoError(err)
+}
+
+func (s *SavingsServiceTestSuite) TestAutoFundGoal_ConcurrentRunsFundOnce() {
+	svc := s.TC.App.SavingsService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	balance := decimal.NewFromInt(500)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Race Savings",
+		AccountTypeID:  2,
+		Type:           "cash",
+		Subtype:        "savings",
+		Classification: "asset",
+		Balance:        &balance,
+		OpenedAt:       time.Now(),
+	})
+	s.Require().NoError(err)
+
+	alloc := decimal.NewFromInt(100)
+	goalID, err := svc.InsertGoal(s.Ctx, userID, &models.SavingGoalReq{
+		AccountID:         accID,
+		Name:              "Race Goal",
+		TargetAmount:      decimal.NewFromInt(1000),
+		MonthlyAllocation: &alloc,
+	})
+	s.Require().NoError(err)
+
+	goalWithProgress, err := svc.FetchGoalByID(s.Ctx, userID, goalID)
+	s.Require().NoError(err)
+	goal := goalWithProgress.SavingGoal
+
+	month := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+
+	blocker := s.TC.DB.WithContext(s.Ctx).Begin()
+	s.Require().NoError(blocker.Error)
+	var locked models.SavingGoal
+	s.Require().NoError(blocker.
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ?", goalID).First(&locked).Error)
+
+	var funded bool
+	var reason string
+	done := make(chan error, 1)
+	go func() {
+		var runErr error
+		funded, reason, runErr = svc.AutoFundGoal(s.Ctx, goal, month)
+		done <- runErr
+	}()
+
+	time.Sleep(300 * time.Millisecond)
+
+	s.Require().NoError(blocker.Create(&models.SavingContribution{
+		UserID: userID,
+		GoalID: goalID,
+		Amount: alloc,
+		Month:  month,
+		Source: models.SavingContributionSourceAuto,
+	}).Error)
+	s.Require().NoError(blocker.Commit().Error)
+
+	s.Require().NoError(<-done)
+	s.False(funded, "the second runner must not fund a goal already funded this month")
+	s.Equal("already_funded", reason)
+
+	var contributions int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.SavingContribution{}).
+		Where("goal_id = ? AND month = ?", goalID, month).Count(&contributions).Error)
+	s.Equal(int64(1), contributions, "the month must hold a single contribution")
 }
