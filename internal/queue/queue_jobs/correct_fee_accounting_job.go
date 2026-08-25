@@ -46,8 +46,8 @@ func (j *CorrectFeeAccountingJob) Process(ctx context.Context) error {
 		return fmt.Errorf("failed to take investment rebuild lock: %w", err)
 	}
 	if !acquired {
-		j.logger.Info("Another investment rebuild holds the lock, skipping this run")
-		return nil
+		j.logger.Info("Another investment rebuild holds the lock, retrying later")
+		return ErrRebuildLockHeld
 	}
 	defer release()
 

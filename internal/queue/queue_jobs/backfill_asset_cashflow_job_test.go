@@ -116,7 +116,7 @@ func TestBackfillAssetCashFlowsJob_FailsRunButFinishesOtherUsers(t *testing.T) {
 	}
 }
 
-func TestBackfillAssetCashFlowsJob_SkipsWhenLockHeld(t *testing.T) {
+func TestBackfillAssetCashFlowsJob_RetriesWhenLockHeld(t *testing.T) {
 	invSvc := &mockInvestmentRebuildSvc{userIDs: []int64{1, 2, 3}}
 	job := queue_jobs.NewBackfillAssetCashFlowsJob(
 		zaptest.NewLogger(t),
@@ -125,8 +125,9 @@ func TestBackfillAssetCashFlowsJob_SkipsWhenLockHeld(t *testing.T) {
 		2,
 	)
 
-	if err := job.Process(context.Background()); err != nil {
-		t.Fatalf("a held lock should not fail the job, got: %v", err)
+	err := job.Process(context.Background())
+	if !errors.Is(err, queue_jobs.ErrRebuildLockHeld) {
+		t.Fatalf("a held lock must keep the job on the retry path, got: %v", err)
 	}
 
 	if len(invSvc.rebuiltIDs()) != 0 {

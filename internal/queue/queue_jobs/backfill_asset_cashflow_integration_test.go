@@ -138,7 +138,7 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_RepeatRunIsIdempotent()
 
 // Without the lock the two clear-then-add sequences interleave and every trade
 // is counted twice.
-func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_SkipsWhileLockHeld() {
+func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_RetriesWhileLockHeld() {
 	userID := int64(1)
 	accID := s.seedTradedAccount(userID, "Brokerage")
 
@@ -152,7 +152,7 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_SkipsWhileLockHeld() {
 	s.Require().NoError(err)
 	s.Require().True(acquired)
 
-	s.Require().NoError(job.Process(s.Ctx), "a held lock should not fail the job")
+	s.Require().ErrorIs(job.Process(s.Ctx), queue_jobs.ErrRebuildLockHeld)
 	s.Assert().Equal(before, s.balances(accID), "the skipped run touched the balances")
 
 	release()

@@ -3,6 +3,7 @@ package queue_jobs
 import (
 	"context"
 	"database/sql/driver"
+	"errors"
 	"time"
 
 	"gorm.io/gorm"
@@ -13,6 +14,11 @@ import (
 // not only with themselves: two runs that both clear before either adds count
 // each trade twice.
 const LockKeyInvestmentRebuild int64 = 8110001
+
+// ErrRebuildLockHeld keeps a skipped run on the queue's retry path. Returning nil
+// would delete the job, so a rebuild someone asked for would report success
+// having done nothing.
+var ErrRebuildLockHeld = errors.New("another investment rebuild holds the lock")
 
 type JobLock interface {
 	TryLock(ctx context.Context, key int64) (release func(), acquired bool, err error)
