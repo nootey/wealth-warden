@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue"
 	"wealth-warden/internal/queue/queue_jobs"
@@ -9,6 +11,8 @@ import (
 
 	"go.uber.org/zap"
 )
+
+var ErrInvestmentRebuildBusy = errors.New("an investment rebuild is already running")
 
 type BackofficeServiceInterface interface {
 	BackfillAssetCashFlows(ctx context.Context) error
@@ -21,8 +25,8 @@ type BackofficeService struct {
 	jobDispatcher     queue.JobDispatcher
 	repo              repositories.BackofficeRepositoryInterface
 	investmentService InvestmentServiceInterface
-	accountService    AccountServiceInterface
 	userService       UserServiceInterface
+	rebuildLock       queue_jobs.JobLock
 }
 
 func NewBackofficeService(
@@ -30,16 +34,16 @@ func NewBackofficeService(
 	jobDispatcher queue.JobDispatcher,
 	repo *repositories.BackofficeRepository,
 	investmentService InvestmentServiceInterface,
-	accountService AccountServiceInterface,
 	userService UserServiceInterface,
+	rebuildLock queue_jobs.JobLock,
 ) *BackofficeService {
 	return &BackofficeService{
 		logger:            logger,
 		jobDispatcher:     jobDispatcher,
 		repo:              repo,
 		investmentService: investmentService,
-		accountService:    accountService,
 		userService:       userService,
+		rebuildLock:       rebuildLock,
 	}
 }
 
@@ -48,8 +52,8 @@ var _ BackofficeServiceInterface = (*BackofficeService)(nil)
 func (s *BackofficeService) BackfillAssetCashFlows(ctx context.Context) error {
 	return s.jobDispatcher.Dispatch(ctx, queue_jobs.NewBackfillAssetCashFlowsJob(
 		s.logger.Named("backfill_asset_cash_flows"),
+		nil, // the worker's registry attaches the lock
 		s.investmentService,
-		s.accountService,
 		s.userService,
 	))
 }
@@ -57,13 +61,22 @@ func (s *BackofficeService) BackfillAssetCashFlows(ctx context.Context) error {
 func (s *BackofficeService) CorrectFeeAccounting(ctx context.Context) error {
 	return s.jobDispatcher.Dispatch(ctx, queue_jobs.NewCorrectFeeAccountingJob(
 		s.logger.Named("correct_fee_accounting"),
+		nil, // the worker's registry attaches the lock
 		s.investmentService,
-		s.accountService,
 		s.userService,
 	))
 }
 
 func (s *BackofficeService) MigrateZeroCostTrades(ctx context.Context) (*models.ZeroCostMigrationResult, error) {
+	release, acquired, err := s.rebuildLock.TryLock(ctx, queue_jobs.LockKeyInvestmentRebuild)
+	if err != nil {
+		return nil, fmt.Errorf("failed to take investment rebuild lock: %w", err)
+	}
+	if !acquired {
+		return nil, ErrInvestmentRebuildBusy
+	}
+	defer release()
+
 	trades, err := s.repo.GetZeroCostBuyTrades(ctx)
 	if err != nil {
 		return nil, err

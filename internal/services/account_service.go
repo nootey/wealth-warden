@@ -43,9 +43,6 @@ type AccountServiceInterface interface {
 	FetchAccountTypesWithoutDefaults(ctx context.Context, userID int64) ([]models.AccountType, error)
 	SetDefaultAccount(ctx context.Context, userID, accountID int64) error
 	UnsetDefaultAccount(ctx context.Context, userID, accountID int64) error
-	ClearInvestmentCashFlows(ctx context.Context, userID int64) error
-	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
-	RebuildSnapshotsForUser(ctx context.Context, userID int64) error
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
 	SyncForUser(ctx context.Context, userID int64) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
@@ -1190,59 +1187,6 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 	}
 
 	return nil
-}
-
-func (s *AccountService) ClearInvestmentCashFlows(ctx context.Context, userID int64) error {
-	return s.repo.ClearInvestmentCashFlows(ctx, userID)
-}
-
-func (s *AccountService) ClearInvestmentSnapshots(ctx context.Context, userID int64) error {
-	return s.repo.ClearInvestmentSnapshots(ctx, userID)
-}
-
-func (s *AccountService) RebuildSnapshotsForUser(ctx context.Context, userID int64) error {
-	tx, err := s.repo.BeginTx(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p)
-		}
-	}()
-
-	accounts, err := s.repo.FindAllAccounts(ctx, tx, userID, true, false)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-
-	for _, acc := range accounts {
-		earliest, err := s.repo.GetAccountOpeningAsOf(ctx, tx, acc.ID)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to get opening date for account %d: %w", acc.ID, err)
-		}
-
-		if err := s.repo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, earliest); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to frontfill balances for account %d: %w", acc.ID, err)
-		}
-
-		if err := s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, earliest, today); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to rebuild snapshots for account %d: %w", acc.ID, err)
-		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return err
-	}
-
-	return s.UpdateSnapshotMarketValues(ctx, userID)
 }
 
 func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {

@@ -26,6 +26,7 @@ func newRegistry(c *bootstrap.ServiceContainer, logger *zap.Logger) *registry {
 	loggingRepo := repositories.NewLoggingRepository(c.DB)
 	notificationRepo := repositories.NewNotificationRepository(c.DB)
 	analyticsRepo := repositories.NewAnalyticsRepository(c.DB)
+	rebuildLock := queue_jobs.NewAdvisoryLock(c.DB)
 	transactionRepo := repositories.NewTransactionRepository(c.DB)
 
 	factories := map[string]jobFactory{
@@ -81,10 +82,10 @@ func newRegistry(c *bootstrap.ServiceContainer, logger *zap.Logger) *registry {
 
 		// Payload-less maintenance jobs: deps only.
 		queue_jobs.TypeBackfillAssetCashFlows: func([]byte) (queue.Job, error) {
-			return queue_jobs.NewBackfillAssetCashFlowsJob(logger.Named("cashflow_backfill"), c.InvestmentService, c.AccountService, c.UserService), nil
+			return queue_jobs.NewBackfillAssetCashFlowsJob(logger.Named("cashflow_backfill"), rebuildLock, c.InvestmentService, c.UserService), nil
 		},
 		queue_jobs.TypeCorrectFeeAccounting: func([]byte) (queue.Job, error) {
-			return queue_jobs.NewCorrectFeeAccountingJob(logger.Named("fee_correction"), c.InvestmentService, c.AccountService, c.UserService), nil
+			return queue_jobs.NewCorrectFeeAccountingJob(logger.Named("fee_correction"), rebuildLock, c.InvestmentService, c.UserService), nil
 		},
 	}
 

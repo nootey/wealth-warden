@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"wealth-warden/internal/services"
@@ -52,6 +53,10 @@ func (h *BackofficeHandler) CorrectFeeAccounting(c *gin.Context) {
 
 func (h *BackofficeHandler) MigrateZeroCostTrades(c *gin.Context) {
 	result, err := h.service.MigrateZeroCostTrades(c.Request.Context())
+	if errors.Is(err, services.ErrInvestmentRebuildBusy) {
+		utils.ErrorMessage(c, "Migration failed", err.Error(), http.StatusConflict, err)
+		return
+	}
 	if err != nil {
 		utils.ErrorMessage(c, "Migration failed", err.Error(), http.StatusInternalServerError, err)
 		return

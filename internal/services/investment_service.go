@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"regexp"
@@ -22,8 +23,8 @@ import (
 )
 
 type InvestmentServiceInterface interface {
-	BackfillInvestmentCashFlows(ctx context.Context, userID int64) error
-	CorrectTradeFeeAccounting(ctx context.Context, userID int64) error
+	RebuildInvestmentDerivedData(ctx context.Context, userID int64) error
+	CorrectFeeAccountingAndRebuild(ctx context.Context, userID int64) error
 	FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error)
 	FetchAllInvestmentAssets(ctx context.Context, userID int64) ([]models.InvestmentAsset, error)
 	FetchInvestmentAssetByID(ctx context.Context, userID int64, id int64) (*models.InvestmentAsset, error)
@@ -626,7 +627,51 @@ func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, as
 	return s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_inflows", proceedsInAccountCurrency)
 }
 
-func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, userID int64) error {
+type rateKey struct {
+	from, to string
+	day      string
+}
+
+func newRateKey(trade models.InvestmentTrade) rateKey {
+	return rateKey{
+		from: trade.Currency,
+		to:   trade.Asset.Account.Currency,
+		day:  trade.TxnDate.UTC().Format("2006-01-02"),
+	}
+}
+
+// A cache miss here is an HTTP call, so this must finish before the rebuild
+// transaction opens.
+func (s *InvestmentService) resolveUserTradeRates(ctx context.Context, userID int64) (map[rateKey]decimal.Decimal, error) {
+	trades, err := s.repo.FindAllTradesByUserID(ctx, nil, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	rates := make(map[rateKey]decimal.Decimal)
+	for _, trade := range trades {
+		if trade.Currency == trade.Asset.Account.Currency {
+			continue
+		}
+		key := newRateKey(trade)
+		if _, ok := rates[key]; ok {
+			continue
+		}
+		rate, err := s.GetExchangeRate(ctx, key.from, key.to, &trade.TxnDate)
+		if err != nil {
+			return nil, err
+		}
+		rates[key] = rate
+	}
+	return rates, nil
+}
+
+func (s *InvestmentService) RebuildInvestmentDerivedData(ctx context.Context, userID int64) error {
+	rates, err := s.resolveUserTradeRates(ctx, userID)
+	if err != nil {
+		return err
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -644,8 +689,89 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		return err
 	}
 
+	if err := s.rebuildDerivedData(ctx, tx, userID, trades, rates); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func (s *InvestmentService) CorrectFeeAccountingAndRebuild(ctx context.Context, userID int64) error {
+	// The correction changes value_at_buy only, so the uncorrected trades name
+	// the same rates.
+	rates, err := s.resolveUserTradeRates(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	if err := s.correctTradeFeeAccounting(ctx, tx, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	corrected, err := s.repo.FindAllTradesByUserID(ctx, tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.rebuildDerivedData(ctx, tx, userID, corrected, rates); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func (s *InvestmentService) rebuildDerivedData(
+	ctx context.Context,
+	tx *gorm.DB,
+	userID int64,
+	trades []models.InvestmentTrade,
+	rates map[rateKey]decimal.Decimal,
+) error {
+	if err := s.accRepo.ClearInvestmentCashFlows(ctx, tx, userID); err != nil {
+		return err
+	}
+
+	if err := s.accRepo.ClearInvestmentSnapshots(ctx, tx, userID); err != nil {
+		return err
+	}
+
+	if err := s.addTradeCashFlows(ctx, tx, userID, trades, rates); err != nil {
+		return err
+	}
+
+	if err := s.rebuildSnapshots(ctx, tx, userID); err != nil {
+		return err
+	}
+
+	// Must take the tx: on its own connection this blocks on rows the open
+	// transaction holds, and that transaction waits for it to return.
+	return s.accRepo.UpdateSnapshotMarketValues(ctx, tx, userID, nil)
+}
+
+func (s *InvestmentService) addTradeCashFlows(
+	ctx context.Context,
+	tx *gorm.DB,
+	userID int64,
+	trades []models.InvestmentTrade,
+	rates map[rateKey]decimal.Decimal,
+) error {
 	if len(trades) == 0 {
-		return tx.Commit().Error
+		return nil
 	}
 
 	// Track earliest date and currency per account for frontfill
@@ -654,48 +780,41 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 
 	for _, trade := range trades {
 		txnDate := trade.TxnDate.UTC().Truncate(24 * time.Hour)
+		accCurrency := trade.Asset.Account.Currency
 
-		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, trade.Asset.AccountID, txnDate, trade.Asset.Account.Currency); err != nil {
-			tx.Rollback()
+		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, trade.Asset.AccountID, txnDate, accCurrency); err != nil {
 			return err
 		}
 
-		exchangeRate, err := s.GetExchangeRate(ctx, trade.Currency, trade.Asset.Account.Currency, &trade.TxnDate)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
+		field := "cash_inflows"
+		amount := trade.RealizedValue
 
 		if trade.TradeType == models.InvestmentBuy {
+			field = "cash_outflows"
 			// Not quantity * price_per_unit: NUMERIC(19,4) rounds a sub-cent
 			// asset to 0 and its cost vanishes.
-			grossCost := trade.ValueAtBuy
+			amount = trade.ValueAtBuy
 			if trade.Asset.InvestmentType != models.InvestmentCrypto {
-				grossCost = grossCost.Add(trade.Fee)
+				amount = amount.Add(trade.Fee)
 			}
-			purchaseCost := grossCost
-			if trade.Currency != trade.Asset.Account.Currency {
-				purchaseCost = grossCost.Mul(exchangeRate)
+		}
+
+		if trade.Currency != accCurrency {
+			rate, ok := rates[newRateKey(trade)]
+			if !ok {
+				return fmt.Errorf("no exchange rate resolved for trade %d (%s to %s)", trade.ID, trade.Currency, accCurrency)
 			}
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, trade.Asset.AccountID, txnDate, "cash_outflows", purchaseCost); err != nil {
-				tx.Rollback()
-				return err
-			}
-		} else {
-			proceeds := trade.RealizedValue
-			if trade.Currency != trade.Asset.Account.Currency {
-				proceeds = trade.RealizedValue.Mul(exchangeRate)
-			}
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, trade.Asset.AccountID, txnDate, "cash_inflows", proceeds); err != nil {
-				tx.Rollback()
-				return err
-			}
+			amount = amount.Mul(rate)
+		}
+
+		if err := s.accRepo.AddToDailyBalance(ctx, tx, trade.Asset.AccountID, txnDate, field, amount); err != nil {
+			return err
 		}
 
 		if earliest, ok := earliestByAccount[trade.Asset.AccountID]; !ok || txnDate.Before(earliest) {
 			earliestByAccount[trade.Asset.AccountID] = txnDate
 		}
-		accountCurrency[trade.Asset.AccountID] = trade.Asset.Account.Currency
+		accountCurrency[trade.Asset.AccountID] = accCurrency
 	}
 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
@@ -704,37 +823,52 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		currency := accountCurrency[accountID]
 
 		if err := s.accRepo.FrontfillBalances(ctx, tx, accountID, currency, earliestDate); err != nil {
-			tx.Rollback()
 			return err
 		}
 
 		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accountID, currency, earliestDate, today); err != nil {
-			tx.Rollback()
 			return err
 		}
 	}
 
-	return tx.Commit().Error
+	return nil
 }
 
-// CorrectTradeFeeAccounting fixes stock/ETF buy trades that were not stored with
-// value_at_buy = qty*price (pure trade value). Updates them and recalculates each
-// affected asset's aggregates from the corrected trades.
-func (s *InvestmentService) CorrectTradeFeeAccounting(ctx context.Context, userID int64) error {
-	tx, err := s.repo.BeginTx(ctx)
+func (s *InvestmentService) rebuildSnapshots(ctx context.Context, tx *gorm.DB, userID int64) error {
+	accounts, err := s.accRepo.FindAllAccounts(ctx, tx, userID, true, false)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p)
-		}
-	}()
 
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	for _, acc := range accounts {
+		earliest, err := s.accRepo.GetAccountOpeningAsOf(ctx, tx, acc.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue // no balance rows, nothing to rebuild from
+		}
+		if err != nil {
+			return fmt.Errorf("failed to get opening date for account %d: %w", acc.ID, err)
+		}
+
+		if err := s.accRepo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, earliest); err != nil {
+			return fmt.Errorf("failed to frontfill balances for account %d: %w", acc.ID, err)
+		}
+
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, earliest, today); err != nil {
+			return fmt.Errorf("failed to rebuild snapshots for account %d: %w", acc.ID, err)
+		}
+	}
+
+	return nil
+}
+
+// correctTradeFeeAccounting fixes stock/ETF buy trades that were not stored with
+// value_at_buy = qty*price (pure trade value). Updates them and recalculates each
+// affected asset's aggregates from the corrected trades.
+func (s *InvestmentService) correctTradeFeeAccounting(ctx context.Context, tx *gorm.DB, userID int64) error {
 	trades, err := s.repo.FindAllTradesByUserID(ctx, tx, userID)
 	if err != nil {
-		tx.Rollback()
 		return err
 	}
 
@@ -753,7 +887,6 @@ func (s *InvestmentService) CorrectTradeFeeAccounting(ctx context.Context, userI
 
 		corrected := trade.Quantity.Mul(trade.PricePerUnit)
 		if err := s.repo.CorrectTradeValueAtBuy(ctx, tx, trade.ID, corrected); err != nil {
-			tx.Rollback()
 			return err
 		}
 		affectedAssetIDs[trade.AssetID] = true
@@ -761,12 +894,11 @@ func (s *InvestmentService) CorrectTradeFeeAccounting(ctx context.Context, userI
 
 	for assetID := range affectedAssetIDs {
 		if err := s.repo.RecalculateAssetFromTrades(ctx, tx, assetID, userID); err != nil {
-			tx.Rollback()
 			return err
 		}
 	}
 
-	return tx.Commit().Error
+	return nil
 }
 
 func (s *InvestmentService) GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string, date *time.Time) (decimal.Decimal, error) {

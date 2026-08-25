@@ -8,14 +8,13 @@ import (
 )
 
 type feeAccountingCorrectionSvc interface {
-	CorrectTradeFeeAccounting(ctx context.Context, userID int64) error
-	BackfillInvestmentCashFlows(ctx context.Context, userID int64) error
+	CorrectFeeAccountingAndRebuild(ctx context.Context, userID int64) error
 }
 
 type CorrectFeeAccountingJob struct {
 	logger            *zap.Logger
+	lock              JobLock
 	InvestmentService feeAccountingCorrectionSvc `json:"-"`
-	AccountService    accountBackfillSvc         `json:"-"`
 	UserService       userBackfillSvc            `json:"-"`
 }
 
@@ -23,19 +22,33 @@ func (j *CorrectFeeAccountingJob) Type() string { return TypeCorrectFeeAccountin
 
 func NewCorrectFeeAccountingJob(
 	logger *zap.Logger,
+	lock JobLock,
 	investmentService feeAccountingCorrectionSvc,
-	accountService accountBackfillSvc,
 	userService userBackfillSvc,
 ) *CorrectFeeAccountingJob {
 	return &CorrectFeeAccountingJob{
 		logger:            logger,
+		lock:              lock,
 		InvestmentService: investmentService,
-		AccountService:    accountService,
 		UserService:       userService,
 	}
 }
 
 func (j *CorrectFeeAccountingJob) Process(ctx context.Context) error {
+	if j.lock == nil {
+		return fmt.Errorf("correct fee accounting: no job lock wired")
+	}
+
+	release, acquired, err := j.lock.TryLock(ctx, LockKeyInvestmentRebuild)
+	if err != nil {
+		return fmt.Errorf("failed to take investment rebuild lock: %w", err)
+	}
+	if !acquired {
+		j.logger.Info("Another investment rebuild holds the lock, skipping this run")
+		return nil
+	}
+	defer release()
+
 	userIDs, err := j.UserService.GetAllActiveUserIDs(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get user IDs: %w", err)
@@ -51,34 +64,8 @@ func (j *CorrectFeeAccountingJob) Process(ctx context.Context) error {
 	failCount := 0
 
 	for _, userID := range userIDs {
-		// Step 1: fix trade value_at_buy and recalculate asset aggregates
-		if err := j.InvestmentService.CorrectTradeFeeAccounting(ctx, userID); err != nil {
-			j.logger.Error("Failed to correct trade fee accounting", zap.Int64("userID", userID), zap.Error(err))
-			failCount++
-			continue
-		}
-
-		// Step 2: clear and rebuild cash flows with corrected values
-		if err := j.AccountService.ClearInvestmentCashFlows(ctx, userID); err != nil {
-			j.logger.Error("Failed to clear investment cash flows", zap.Int64("userID", userID), zap.Error(err))
-			failCount++
-			continue
-		}
-
-		if err := j.AccountService.ClearInvestmentSnapshots(ctx, userID); err != nil {
-			j.logger.Error("Failed to clear investment snapshots", zap.Int64("userID", userID), zap.Error(err))
-			failCount++
-			continue
-		}
-
-		if err := j.InvestmentService.BackfillInvestmentCashFlows(ctx, userID); err != nil {
-			j.logger.Error("Failed to backfill cash flows", zap.Int64("userID", userID), zap.Error(err))
-			failCount++
-			continue
-		}
-
-		if err := j.AccountService.RebuildSnapshotsForUser(ctx, userID); err != nil {
-			j.logger.Error("Failed to rebuild snapshots", zap.Int64("userID", userID), zap.Error(err))
+		if err := j.InvestmentService.CorrectFeeAccountingAndRebuild(ctx, userID); err != nil {
+			j.logger.Error("Failed to correct fee accounting", zap.Int64("userID", userID), zap.Error(err))
 			failCount++
 			continue
 		}
@@ -87,5 +74,9 @@ func (j *CorrectFeeAccountingJob) Process(ctx context.Context) error {
 	}
 
 	j.logger.Info("Completed", zap.Int("success", len(userIDs)-failCount), zap.Int("failed", failCount))
+
+	if failCount > 0 {
+		return fmt.Errorf("%d of %d users failed", failCount, len(userIDs))
+	}
 	return nil
 }
