@@ -93,7 +93,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 	investmentService := services.NewInvestmentService(logger.Named("investment_sev"), investmentRepo, accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetcher)
 	notesService := services.NewNotesService(notesRepo, loggingRepo, jobDispatcher)
 	analyticsService := services.NewAnalyticsService(logger.Named("analytics_svc"), analyticsRepo, accountRepo, transactionRepo, settingsRepo, jobDispatcher)
-	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService, userService, queue_jobs.NewAdvisoryLock(db))
+	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService, queue_jobs.NewAdvisoryLock(db))
 	savingsService := services.NewSavingsService(savingsRepo, accountRepo, loggingRepo, jobDispatcher)
 	notificationService := services.NewNotificationService(notificationRepo)
 	notifDispatcher := queue_jobs.NewNotificationDispatcher(notificationRepo, jobDispatcher)

@@ -25,7 +25,6 @@ type BackofficeService struct {
 	jobDispatcher     queue.JobDispatcher
 	repo              repositories.BackofficeRepositoryInterface
 	investmentService InvestmentServiceInterface
-	userService       UserServiceInterface
 	rebuildLock       queue_jobs.JobLock
 }
 
@@ -34,7 +33,6 @@ func NewBackofficeService(
 	jobDispatcher queue.JobDispatcher,
 	repo *repositories.BackofficeRepository,
 	investmentService InvestmentServiceInterface,
-	userService UserServiceInterface,
 	rebuildLock queue_jobs.JobLock,
 ) *BackofficeService {
 	return &BackofficeService{
@@ -42,7 +40,6 @@ func NewBackofficeService(
 		jobDispatcher:     jobDispatcher,
 		repo:              repo,
 		investmentService: investmentService,
-		userService:       userService,
 		rebuildLock:       rebuildLock,
 	}
 }
@@ -52,18 +49,18 @@ var _ BackofficeServiceInterface = (*BackofficeService)(nil)
 func (s *BackofficeService) BackfillAssetCashFlows(ctx context.Context) error {
 	return s.jobDispatcher.Dispatch(ctx, queue_jobs.NewBackfillAssetCashFlowsJob(
 		s.logger.Named("backfill_asset_cash_flows"),
-		nil, // the worker's registry attaches the lock
+		nil, // the worker's registry attaches the lock and the worker count
 		s.investmentService,
-		s.userService,
+		0,
 	))
 }
 
 func (s *BackofficeService) CorrectFeeAccounting(ctx context.Context) error {
 	return s.jobDispatcher.Dispatch(ctx, queue_jobs.NewCorrectFeeAccountingJob(
 		s.logger.Named("correct_fee_accounting"),
-		nil, // the worker's registry attaches the lock
+		nil, // the worker's registry attaches the lock and the worker count
 		s.investmentService,
-		s.userService,
+		0,
 	))
 }
 

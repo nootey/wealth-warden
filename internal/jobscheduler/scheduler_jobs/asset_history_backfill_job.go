@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"time"
+	"wealth-warden/internal/joblog"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 
@@ -12,20 +13,23 @@ import (
 )
 
 type AssetPriceHistoryBackfillJob struct {
-	logger        *zap.Logger
-	investmentSvc services.InvestmentServiceInterface
-	db            *gorm.DB
+	logger            *zap.Logger
+	investmentSvc     services.InvestmentServiceInterface
+	db                *gorm.DB
+	concurrentWorkers int
 }
 
 func NewAssetPriceHistoryBackfillJob(
 	logger *zap.Logger,
 	investmentSvc services.InvestmentServiceInterface,
 	db *gorm.DB,
+	concurrentWorkers int,
 ) *AssetPriceHistoryBackfillJob {
 	return &AssetPriceHistoryBackfillJob{
-		logger:        logger,
-		investmentSvc: investmentSvc,
-		db:            db,
+		logger:            logger,
+		investmentSvc:     investmentSvc,
+		db:                db,
+		concurrentWorkers: workerCount(concurrentWorkers),
 	}
 }
 
@@ -63,32 +67,27 @@ func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
+	type result struct {
+		assetID int64
+		err     error
+	}
+
 	jobs := make(chan assetRow, len(assets))
-	errs := make(chan error, len(assets))
+	results := make(chan result, len(assets))
 
 	var wg sync.WaitGroup
-	for i := 0; i < 2; i++ {
+	for i := 0; i < j.concurrentWorkers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for asset := range jobs {
-				assetCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-				err := j.investmentSvc.BackfillAssetPriceHistory(assetCtx, asset.ID, asset.Ticker, asset.InvestmentType, asset.EarliestTrade, today)
-				cancel()
-				if err != nil {
-					j.logger.Error("Failed to backfill asset",
-						zap.Int64("asset_id", asset.ID),
-						zap.String("ticker", asset.Ticker),
-						zap.Error(err),
-					)
-					errs <- err
-				} else {
-					j.logger.Info("Asset backfill complete",
-						zap.Int64("asset_id", asset.ID),
-						zap.String("ticker", asset.Ticker),
-					)
-					errs <- nil
+				select {
+				case <-ctx.Done():
+					return
+				default:
 				}
+				err := j.investmentSvc.BackfillAssetPriceHistory(ctx, asset.ID, asset.Ticker, asset.InvestmentType, asset.EarliestTrade, today)
+				results <- result{assetID: asset.ID, err: err}
 			}
 		}()
 	}
@@ -99,19 +98,26 @@ func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
 	close(jobs)
 
 	wg.Wait()
-	close(errs)
+	close(results)
 
-	failed := 0
-	for err := range errs {
-		if err != nil {
-			failed++
-		}
+	failures := joblog.NewErrorGroup("asset_id")
+	processed := 0
+	for r := range results {
+		processed++
+		failures.Add(r.assetID, r.err)
 	}
+
+	failures.Log(j.logger, "Failed to backfill asset price history")
 
 	j.logger.Info("Price history backfill completed",
 		zap.Int("total", len(assets)),
-		zap.Int("failed", failed),
+		zap.Int("success", processed-failures.Count()),
+		zap.Int("failed", failures.Count()),
+		zap.Int("not_run", len(assets)-processed),
 	)
 
+	if processed < len(assets) {
+		return joblog.StoppedEarly(ctx, processed, len(assets), "assets")
+	}
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"wealth-warden/internal/bootstrap"
+	"wealth-warden/internal/joblog"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue/queue_jobs"
 
@@ -24,7 +25,7 @@ func NewAutomateTemplateJob(logger *zap.Logger, container *bootstrap.ServiceCont
 		logger:            logger,
 		container:         container,
 		notifDispatcher:   notifDispatcher,
-		concurrentWorkers: concurrentWorkers,
+		concurrentWorkers: workerCount(concurrentWorkers),
 	}
 }
 
@@ -96,7 +97,7 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 	}
 
 	successCount := 0
-	failCount := 0
+	failures := joblog.NewErrorGroup("templateID")
 	userResults := make(map[int64]*userSummary)
 
 	for r := range results {
@@ -106,21 +107,19 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 			userResults[r.template.UserID] = s
 		}
 		if r.err != nil {
-			j.logger.Error("Failed to process template",
-				zap.Int64("templateID", r.template.ID),
-				zap.String("templateName", r.template.Name),
-				zap.Error(r.err))
+			failures.Add(r.template.ID, r.err)
 			s.failed = append(s.failed, r.template.Name)
-			failCount++
 		} else {
 			s.succeeded = append(s.succeeded, r.template.Name)
 			successCount++
 		}
 	}
 
+	failures.Log(j.logger, "Failed to process template")
+
 	j.logger.Info("Template processing completed",
 		zap.Int("success", successCount),
-		zap.Int("failed", failCount))
+		zap.Int("failed", failures.Count()))
 
 	if j.notifDispatcher != nil {
 		for userID, s := range userResults {
@@ -137,5 +136,8 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("template processing stopped early: %w", err)
+	}
 	return nil
 }

@@ -24,6 +24,7 @@ type InvestmentRepositoryInterface interface {
 	FindInvestmentTradeByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTrade, error)
 	FindInvestmentTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.InvestmentTrade, error)
 	FindAllTradesByUserID(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTrade, error)
+	GetUserIDsWithInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error)
 	FindInvestmentAssetsByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentAsset, error)
 	InsertAsset(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentAsset) (int64, error)
 	InsertInvestmentTrade(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTrade) (int64, error)
@@ -774,6 +775,21 @@ func (r *InvestmentRepository) FindAllTradesByUserID(ctx context.Context, tx *go
 		Find(&trades).Error
 
 	return trades, err
+}
+
+// Deliberately unfiltered by account state: a rebuild must still reach a user
+// whose investment account was closed or deactivated.
+func (r *InvestmentRepository) GetUserIDsWithInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var userIDs []int64
+	err := db.Raw(`SELECT DISTINCT user_id FROM investment_assets ORDER BY user_id`).Scan(&userIDs).Error
+
+	return userIDs, err
 }
 
 func (r *InvestmentRepository) DeleteAllTradesForAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64) error {

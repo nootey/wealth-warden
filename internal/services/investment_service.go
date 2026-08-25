@@ -40,6 +40,7 @@ type InvestmentServiceInterface interface {
 	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
+	GetUserIDsWithInvestments(ctx context.Context) ([]int64, error)
 	BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, investmentType models.InvestmentType, from, to time.Time) error
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
 	CreateInvestmentIncome(ctx context.Context, userID int64, req *models.InvestmentIncomeReq) (int64, error)
@@ -1397,6 +1398,10 @@ func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, userID, ass
 
 func (s *InvestmentService) GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error) {
 	return s.repo.GetAssetIDsForAccount(ctx, nil, accountID, userID)
+}
+
+func (s *InvestmentService) GetUserIDsWithInvestments(ctx context.Context) ([]int64, error) {
+	return s.repo.GetUserIDsWithInvestments(ctx, nil)
 }
 
 func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {

@@ -82,10 +82,10 @@ func newRegistry(c *bootstrap.ServiceContainer, logger *zap.Logger) *registry {
 
 		// Payload-less maintenance jobs: deps only.
 		queue_jobs.TypeBackfillAssetCashFlows: func([]byte) (queue.Job, error) {
-			return queue_jobs.NewBackfillAssetCashFlowsJob(logger.Named("cashflow_backfill"), rebuildLock, c.InvestmentService, c.UserService), nil
+			return queue_jobs.NewBackfillAssetCashFlowsJob(logger.Named("cashflow_backfill"), rebuildLock, c.InvestmentService, c.Config.Scheduler.ConcurrentWorkers), nil
 		},
 		queue_jobs.TypeCorrectFeeAccounting: func([]byte) (queue.Job, error) {
-			return queue_jobs.NewCorrectFeeAccountingJob(logger.Named("fee_correction"), rebuildLock, c.InvestmentService, c.UserService), nil
+			return queue_jobs.NewCorrectFeeAccountingJob(logger.Named("fee_correction"), rebuildLock, c.InvestmentService, c.Config.Scheduler.ConcurrentWorkers), nil
 		},
 	}
 

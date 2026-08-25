@@ -63,7 +63,7 @@ func (s *BackfillCashFlowsIntegrationSuite) newBackfillJob() *queue_jobs.Backfil
 		zaptest.NewLogger(s.T()),
 		queue_jobs.NewAdvisoryLock(s.TC.DB),
 		s.TC.App.InvestmentService,
-		s.TC.App.UserService,
+		2,
 	)
 }
 

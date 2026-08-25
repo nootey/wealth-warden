@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 	"wealth-warden/internal/bootstrap"
+	"wealth-warden/internal/joblog"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue/queue_jobs"
 
@@ -26,7 +27,7 @@ func NewAutoFundGoalsJob(logger *zap.Logger, container *bootstrap.ServiceContain
 		logger:            logger,
 		container:         container,
 		notifDispatcher:   notifDispatcher,
-		concurrentWorkers: concurrentWorkers,
+		concurrentWorkers: workerCount(concurrentWorkers),
 	}
 }
 
@@ -136,10 +137,12 @@ func (j *AutoFundGoalsJob) Run(ctx context.Context) error {
 		failed              []string
 	}
 
-	funded, skipped, failed := 0, 0, 0
+	funded, insufficient, alreadyFunded, processed := 0, 0, 0, 0
+	failures := joblog.NewErrorGroup("goalID")
 	userResults := make(map[int64]*userSummary)
 
 	for r := range results {
+		processed++
 		s, ok := userResults[r.userID]
 		if !ok {
 			s = &userSummary{}
@@ -147,38 +150,28 @@ func (j *AutoFundGoalsJob) Run(ctx context.Context) error {
 		}
 		switch {
 		case r.err != nil:
-			j.logger.Error("Failed to auto-fund goal",
-				zap.Int64("goalID", r.goalID),
-				zap.String("goalName", r.goalName),
-				zap.Int64("accountID", r.accountID),
-				zap.Error(r.err))
+			failures.Add(r.goalID, r.err)
 			s.failed = append(s.failed, r.goalName)
-			failed++
 		case r.funded:
-			j.logger.Info("Auto-funded goal",
-				zap.Int64("goalID", r.goalID),
-				zap.String("goalName", r.goalName))
 			s.funded = append(s.funded, r.goalName)
 			funded++
 		case r.skipReason == "insufficient_balance":
-			j.logger.Warn("Skipped goal - insufficient uncategorized balance",
-				zap.Int64("goalID", r.goalID),
-				zap.String("goalName", r.goalName),
-				zap.Int64("accountID", r.accountID))
 			s.insufficientBalance = append(s.insufficientBalance, r.goalName)
-			skipped++
+			insufficient++
 		default:
-			j.logger.Debug("Skipped goal - already funded this month",
-				zap.Int64("goalID", r.goalID),
-				zap.String("goalName", r.goalName))
-			skipped++
+			alreadyFunded++
 		}
 	}
 
+	failures.Log(j.logger, "Failed to auto-fund goal")
+
 	j.logger.Info("Savings goals auto-fund completed",
 		zap.Int("funded", funded),
-		zap.Int("skipped", skipped),
-		zap.Int("failed", failed))
+		zap.Int("insufficient_balance", insufficient),
+		zap.Int("already_funded", alreadyFunded),
+		zap.Int("failed", failures.Count()),
+		zap.Int("goals_seen", processed),
+		zap.Int("goals_total", len(goals)))
 
 	if j.notifDispatcher != nil {
 		for userID, s := range userResults {
@@ -197,5 +190,8 @@ func (j *AutoFundGoalsJob) Run(ctx context.Context) error {
 		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("auto-fund stopped early: %w", err)
+	}
 	return nil
 }

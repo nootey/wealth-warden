@@ -188,7 +188,7 @@ func (s *Scheduler) registerJobs() error {
 func (s *Scheduler) registerAssetPriceHistoryBackfillJob() error {
 
 	logger := s.logger.Named(jobNameAssetHistoryBackfill)
-	job := scheduler_jobs.NewAssetPriceHistoryBackfillJob(logger, s.container.InvestmentService, s.container.DB)
+	job := scheduler_jobs.NewAssetPriceHistoryBackfillJob(logger, s.container.InvestmentService, s.container.DB, s.concurrentWorkers)
 
 	var opts []gocron.JobOption
 	if s.flags.StartAssetHistoryBackfillImmediately {
