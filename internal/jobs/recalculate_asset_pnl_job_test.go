@@ -13,15 +13,21 @@ import (
 )
 
 type mockPnLSvc struct {
+	attempted    []int64
 	recalculated []int64
 	assetIDs     []int64
 	recalcErr    error
+	failOn       map[int64]error
 	assetIDsErr  error
 }
 
 func (m *mockPnLSvc) RecalculateAssetPnL(_ context.Context, _ int64, assetID int64) error {
+	m.attempted = append(m.attempted, assetID)
 	if m.recalcErr != nil {
 		return m.recalcErr
+	}
+	if err := m.failOn[assetID]; err != nil {
+		return err
 	}
 	m.recalculated = append(m.recalculated, assetID)
 	return nil
@@ -117,5 +123,34 @@ func TestRecalculateAssetPnLJob_GetAssetIDsError(t *testing.T) {
 
 	if err := worker.Work(context.Background(), &river.Job[jobqueue.RecalculateAssetPnLArgs]{Args: args}); err == nil {
 		t.Error("expected error to propagate from GetAssetIDsForAccount")
+	}
+}
+
+// A broken asset must not strand the ones behind it: River restarts from the
+// top, so an abort would leave every later asset stale on every attempt.
+func TestRecalculateAssetPnLJob_PartialFailureStillRunsRemaining(t *testing.T) {
+	svc := &mockPnLSvc{
+		assetIDs: []int64{10, 20, 30},
+		failOn:   map[int64]error{20: errors.New("broken asset")},
+	}
+	broadcaster := &recordingBroadcaster{}
+	worker := jobs.NewRecalculateAssetPnLWorker(zaptest.NewLogger(t), svc, broadcaster)
+	args := jobqueue.RecalculateAssetPnLArgs{UserID: 1, AccountID: ptr(int64(5))}
+
+	if err := worker.Work(context.Background(), &river.Job[jobqueue.RecalculateAssetPnLArgs]{Args: args}); err == nil {
+		t.Fatal("expected an error so River retries the run")
+	}
+
+	if len(svc.attempted) != 3 {
+		t.Errorf("attempted = %v, want all 3 assets tried", svc.attempted)
+	}
+	for i, id := range []int64{10, 30} {
+		if len(svc.recalculated) != 2 || svc.recalculated[i] != id {
+			t.Fatalf("recalculated = %v, want [10 30]", svc.recalculated)
+		}
+	}
+
+	if len(broadcaster.events[1]) != 0 {
+		t.Errorf("events = %#v, want none while an asset is still stale", broadcaster.events[1])
 	}
 }

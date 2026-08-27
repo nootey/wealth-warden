@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +19,8 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
+
+const priceBackfillFlushSize = 100
 
 type InvestmentServiceInterface interface {
 	RebuildInvestmentDerivedData(ctx context.Context, userID int64) error
@@ -36,10 +37,14 @@ type InvestmentServiceInterface interface {
 	DeleteInvestmentAsset(ctx context.Context, userID int64, id int64) error
 	DeleteInvestmentTrade(ctx context.Context, userID int64, id int64) error
 	GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string, date *time.Time) (decimal.Decimal, error)
-	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
 	GetUserIDsWithInvestments(ctx context.Context) ([]int64, error)
+	GetAssetsForPriceBackfill(ctx context.Context) ([]models.AssetBackfillRow, error)
+	GetTickersForPriceSync(ctx context.Context) ([]models.AssetPriceSyncRow, error)
+	ApplyTickerPrice(ctx context.Context, ticker string, price decimal.Decimal, currency string, now time.Time) ([]models.AssetPriceChange, error)
+	GetActiveCurrencyPairs(ctx context.Context) ([]models.CurrencyPair, error)
+	GetUserIDsWithActiveInvestments(ctx context.Context) ([]int64, error)
 	BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, investmentType models.InvestmentType, from, to time.Time) error
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
 	CreateInvestmentIncome(ctx context.Context, userID int64, req *models.InvestmentIncomeReq) (int64, error)
@@ -620,37 +625,22 @@ func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, as
 	return s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_inflows", proceedsInAccountCurrency)
 }
 
-type rateKey struct {
-	from, to string
-	day      string
-}
-
-func newRateKey(trade models.InvestmentTrade) rateKey {
-	return rateKey{
-		from: trade.Currency,
-		to:   trade.Asset.Account.Currency,
-		day:  trade.TxnDate.UTC().Format("2006-01-02"),
-	}
-}
-
-// A cache miss here is an HTTP call, so this must finish before the rebuild
-// transaction opens.
-func (s *InvestmentService) resolveUserTradeRates(ctx context.Context, userID int64) (map[rateKey]decimal.Decimal, error) {
+func (s *InvestmentService) resolveUserTradeRates(ctx context.Context, userID int64) (map[utils.TradeExchangeRateKey]decimal.Decimal, error) {
 	trades, err := s.repo.FindAllTradesByUserID(ctx, nil, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	rates := make(map[rateKey]decimal.Decimal)
+	rates := make(map[utils.TradeExchangeRateKey]decimal.Decimal)
 	for _, trade := range trades {
 		if trade.Currency == trade.Asset.Account.Currency {
 			continue
 		}
-		key := newRateKey(trade)
+		key := utils.NewTradeExchangeRateKey(trade)
 		if _, ok := rates[key]; ok {
 			continue
 		}
-		rate, err := s.GetExchangeRate(ctx, key.from, key.to, &trade.TxnDate)
+		rate, err := s.GetExchangeRate(ctx, key.From, key.To, &trade.TxnDate)
 		if err != nil {
 			return nil, err
 		}
@@ -733,7 +723,7 @@ func (s *InvestmentService) rebuildDerivedData(
 	tx *gorm.DB,
 	userID int64,
 	trades []models.InvestmentTrade,
-	rates map[rateKey]decimal.Decimal,
+	rates map[utils.TradeExchangeRateKey]decimal.Decimal,
 ) error {
 	if err := s.accRepo.ClearInvestmentCashFlows(ctx, tx, userID); err != nil {
 		return err
@@ -761,7 +751,7 @@ func (s *InvestmentService) addTradeCashFlows(
 	tx *gorm.DB,
 	userID int64,
 	trades []models.InvestmentTrade,
-	rates map[rateKey]decimal.Decimal,
+	rates map[utils.TradeExchangeRateKey]decimal.Decimal,
 ) error {
 	if len(trades) == 0 {
 		return nil
@@ -793,7 +783,7 @@ func (s *InvestmentService) addTradeCashFlows(
 		}
 
 		if trade.Currency != accCurrency {
-			rate, ok := rates[newRateKey(trade)]
+			rate, ok := rates[utils.NewTradeExchangeRateKey(trade)]
 			if !ok {
 				return fmt.Errorf("no exchange rate resolved for trade %d (%s to %s)", trade.ID, trade.Currency, accCurrency)
 			}
@@ -856,9 +846,6 @@ func (s *InvestmentService) rebuildSnapshots(ctx context.Context, tx *gorm.DB, u
 	return nil
 }
 
-// correctTradeFeeAccounting fixes stock/ETF buy trades that were not stored with
-// value_at_buy = qty*price (pure trade value). Updates them and recalculates each
-// affected asset's aggregates from the corrected trades.
 func (s *InvestmentService) correctTradeFeeAccounting(ctx context.Context, tx *gorm.DB, userID int64) error {
 	trades, err := s.repo.FindAllTradesByUserID(ctx, tx, userID)
 	if err != nil {
@@ -1353,10 +1340,6 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 	return nil
 }
 
-func (s *InvestmentService) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error {
-	return s.repo.UpsertAssetPrice(ctx, tx, entries)
-}
-
 func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error {
 	if s.priceFetchClient != nil {
 		asset, err := s.repo.FindInvestmentAssetByID(ctx, nil, assetID, userID)
@@ -1390,6 +1373,102 @@ func (s *InvestmentService) GetAssetIDsForAccount(ctx context.Context, userID, a
 
 func (s *InvestmentService) GetUserIDsWithInvestments(ctx context.Context) ([]int64, error) {
 	return s.repo.GetUserIDsWithInvestments(ctx, nil)
+}
+
+func (s *InvestmentService) GetAssetsForPriceBackfill(ctx context.Context) ([]models.AssetBackfillRow, error) {
+	return s.repo.FindAssetsForPriceBackfill(ctx, nil)
+}
+
+func (s *InvestmentService) GetTickersForPriceSync(ctx context.Context) ([]models.AssetPriceSyncRow, error) {
+	return s.repo.FindTickersForPriceSync(ctx, nil)
+}
+
+func (s *InvestmentService) ApplyTickerPrice(ctx context.Context, ticker string, price decimal.Decimal, currency string, now time.Time) ([]models.AssetPriceChange, error) {
+	if price.IsZero() || price.IsNegative() {
+		return nil, fmt.Errorf("invalid price for ticker %s: %s", ticker, price.String())
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
+
+	assets, err := s.repo.FindActiveAssetsByTicker(ctx, tx, ticker)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	today := now.UTC().Truncate(24 * time.Hour)
+	changes := make([]models.AssetPriceChange, 0, len(assets))
+
+	for _, asset := range assets {
+		if utils.IsExtremePriceDrop(asset.CurrentPrice, price) {
+			s.logger.Warn("Extreme price drop detected — skipping update to prevent data corruption",
+				zap.Int64("asset_id", asset.ID),
+				zap.String("ticker", asset.Ticker),
+				zap.String("old_price", asset.CurrentPrice.String()),
+				zap.String("new_price", price.String()))
+			continue
+		}
+
+		currentValue := asset.Quantity.Mul(price)
+		costBasis := asset.ValueAtBuy
+		if asset.InvestmentType != models.InvestmentCrypto {
+			costBasis = asset.ValueAtBuy.Add(asset.TotalFees)
+		}
+		profitLoss := currentValue.Sub(costBasis)
+		var profitLossPercent decimal.Decimal
+		if !costBasis.IsZero() {
+			profitLossPercent = profitLoss.Div(costBasis)
+		}
+
+		if err := s.repo.UpdateAssetPriceAndValue(ctx, tx, asset.ID, price, currentValue, profitLoss, profitLossPercent, now); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
+		if err := s.repo.UpdateTradesPnLForAsset(ctx, tx, asset.ID, price, asset.InvestmentType, now); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
+		if err := s.repo.UpsertAssetPrice(ctx, tx, []models.AssetPriceHistory{
+			{AssetID: asset.ID, AsOf: today, Price: price, Currency: currency},
+		}); err != nil {
+			s.logger.Warn("Failed to upsert asset price history",
+				zap.Int64("asset_id", asset.ID),
+				zap.Error(err))
+		}
+
+		changes = append(changes, models.AssetPriceChange{
+			AssetID:  asset.ID,
+			UserID:   asset.UserID,
+			Ticker:   asset.Ticker,
+			OldPrice: asset.CurrentPrice,
+			NewPrice: price,
+		})
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return changes, nil
+}
+
+func (s *InvestmentService) GetActiveCurrencyPairs(ctx context.Context) ([]models.CurrencyPair, error) {
+	return s.repo.FindActiveCurrencyPairs(ctx, nil)
+}
+
+func (s *InvestmentService) GetUserIDsWithActiveInvestments(ctx context.Context) ([]int64, error) {
+	return s.repo.FindUserIDsWithActiveInvestments(ctx, nil)
 }
 
 func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
@@ -1647,17 +1726,32 @@ func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, asset
 
 	current := from
 	var batch []models.AssetPriceHistory
-	requestCount := 0
+	requestCount, written, fetched, fetchFailures := 0, 0, 0, 0
+	var firstFetchErr error
+
+	flush := func() error {
+		if len(batch) == 0 {
+			return nil
+		}
+		if err := s.repo.UpsertAssetPrice(ctx, nil, batch); err != nil {
+			return err
+		}
+		written += len(batch)
+		batch = nil
+		return nil
+	}
 
 	for !current.After(to) {
-		dateKey := current.Format("2006-01-02")
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 
 		if current.Weekday() == time.Saturday || current.Weekday() == time.Sunday {
 			current = current.AddDate(0, 0, 1)
 			continue
 		}
 
-		if existingSet[dateKey] {
+		if existingSet[current.Format("2006-01-02")] {
 			current = current.AddDate(0, 0, 1)
 			continue
 		}
@@ -1671,17 +1765,20 @@ func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, asset
 		}
 
 		priceData, err := s.priceFetchClient.GetAssetPriceOnDate(ctx, ticker, investmentType, current)
+		requestCount++
+		fetched++
 		if err != nil {
-			s.logger.Debug("Failed to fetch historical price", zap.String("ticker", ticker), zap.String("date", dateKey), zap.Error(err))
+			fetchFailures++
+			if firstFetchErr == nil {
+				firstFetchErr = err
+			}
 			current = current.AddDate(0, 0, 1)
-			requestCount++
 			continue
 		}
 
 		price := decimal.NewFromFloat(priceData.Price)
 		if price.IsZero() || price.IsNegative() {
 			current = current.AddDate(0, 0, 1)
-			requestCount++
 			continue
 		}
 
@@ -1692,13 +1789,32 @@ func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, asset
 			Currency: priceData.Currency,
 		})
 
-		requestCount++
+		if len(batch) >= priceBackfillFlushSize {
+			if err := flush(); err != nil {
+				return err
+			}
+		}
+
 		current = current.AddDate(0, 0, 1)
 	}
 
-	if len(batch) > 0 {
-		return s.repo.UpsertAssetPrice(ctx, nil, batch)
+	if err := flush(); err != nil {
+		return err
 	}
+
+	if fetchFailures > 0 {
+		s.logger.Warn("Failed to fetch historical prices",
+			zap.String("ticker", ticker),
+			zap.Int("failed", fetchFailures),
+			zap.Int("fetched", fetched),
+			zap.Int("written", written),
+			zap.Error(firstFetchErr))
+
+		if written == 0 {
+			return fmt.Errorf("no prices fetched for %s: %d of %d requests failed: %w", ticker, fetchFailures, fetched, firstFetchErr)
+		}
+	}
+
 	return nil
 }
 
@@ -1941,74 +2057,7 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 	return tx.Commit().Error
 }
 
-func investmentTypeLabel(t models.InvestmentType) string {
-	switch t {
-	case models.InvestmentStock:
-		return "Stock"
-	case models.InvestmentETF:
-		return "ETF"
-	case models.InvestmentCrypto:
-		return "Crypto"
-	default:
-		return string(t)
-	}
-}
-
-// allocationBuckets sums values under a key while remembering the order keys
-// first appeared, so ties sort the same way on every request.
-type allocationBuckets struct {
-	order  []string
-	labels map[string]string
-	values map[string]decimal.Decimal
-}
-
-func newAllocationBuckets() *allocationBuckets {
-	return &allocationBuckets{
-		labels: make(map[string]string),
-		values: make(map[string]decimal.Decimal),
-	}
-}
-
-func (b *allocationBuckets) add(key, label string, value decimal.Decimal) {
-	if _, ok := b.values[key]; !ok {
-		b.order = append(b.order, key)
-		b.labels[key] = label
-		b.values[key] = decimal.Zero
-	}
-	b.values[key] = b.values[key].Add(value)
-}
-
-func (b *allocationBuckets) rows(total decimal.Decimal) []models.AllocationRow {
-	rows := make([]models.AllocationRow, 0, len(b.order))
-	for _, key := range b.order {
-		value := b.values[key]
-		weight := decimal.Zero
-		if total.IsPositive() {
-			weight = value.Div(total).Round(6)
-		}
-		rows = append(rows, models.AllocationRow{
-			Key:    key,
-			Label:  b.labels[key],
-			Value:  value,
-			Weight: weight,
-		})
-	}
-
-	sort.SliceStable(rows, func(i, j int) bool {
-		if !rows[i].Value.Equal(rows[j].Value) {
-			return rows[i].Value.GreaterThan(rows[j].Value)
-		}
-		return rows[i].Key < rows[j].Key
-	})
-
-	return rows
-}
-
-// FetchPortfolioAllocation splits the current value of every open holding by
-// investment type, ticker, currency and account. Weights are fractions of the
-// invested total, so cash balances do not dilute them.
 func (s *InvestmentService) FetchPortfolioAllocation(ctx context.Context, userID int64, currency string) (*models.PortfolioAllocation, error) {
-
 	currency = strings.ToUpper(strings.TrimSpace(currency))
 	if currency == "" {
 		settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
@@ -2023,10 +2072,10 @@ func (s *InvestmentService) FetchPortfolioAllocation(ctx context.Context, userID
 		return nil, err
 	}
 
-	byType := newAllocationBuckets()
-	byTicker := newAllocationBuckets()
-	byCurrency := newAllocationBuckets()
-	byAccount := newAllocationBuckets()
+	byType := make(map[string]*models.AllocationRow)
+	byTicker := make(map[string]*models.AllocationRow)
+	byCurrency := make(map[string]*models.AllocationRow)
+	byAccount := make(map[string]*models.AllocationRow)
 
 	total := decimal.Zero
 	unpriced := 0
@@ -2045,11 +2094,22 @@ func (s *InvestmentService) FetchPortfolioAllocation(ctx context.Context, userID
 			continue
 		}
 
+		var investmentTypeLabels = map[models.InvestmentType]string{
+			models.InvestmentStock:  "Stock",
+			models.InvestmentETF:    "ETF",
+			models.InvestmentCrypto: "Crypto",
+		}
+
+		label, ok := investmentTypeLabels[row.InvestmentType]
+		if !ok {
+			label = string(row.InvestmentType)
+		}
+
 		total = total.Add(value)
-		byType.add(string(row.InvestmentType), investmentTypeLabel(row.InvestmentType), value)
-		byTicker.add(row.Ticker, row.Name, value)
-		byCurrency.add(row.SourceCurrency, row.SourceCurrency, value)
-		byAccount.add(strconv.FormatInt(row.AccountID, 10), row.AccountName, value)
+		utils.AddAllocation(byType, string(row.InvestmentType), label, value)
+		utils.AddAllocation(byTicker, row.Ticker, row.Name, value)
+		utils.AddAllocation(byCurrency, row.SourceCurrency, row.SourceCurrency, value)
+		utils.AddAllocation(byAccount, strconv.FormatInt(row.AccountID, 10), row.AccountName, value)
 	}
 
 	return &models.PortfolioAllocation{
@@ -2057,10 +2117,10 @@ func (s *InvestmentService) FetchPortfolioAllocation(ctx context.Context, userID
 		TotalValue:     total,
 		UnpricedAssets: unpriced,
 		Groups: map[string][]models.AllocationRow{
-			"type":     byType.rows(total),
-			"ticker":   byTicker.rows(total),
-			"currency": byCurrency.rows(total),
-			"account":  byAccount.rows(total),
+			"type":     utils.AllocationRows(byType, total),
+			"ticker":   utils.AllocationRows(byTicker, total),
+			"currency": utils.AllocationRows(byCurrency, total),
+			"account":  utils.AllocationRows(byAccount, total),
 		},
 	}, nil
 }

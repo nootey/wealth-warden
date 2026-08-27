@@ -29,7 +29,6 @@ func (w *MigrateZeroCostTradesWorker) Work(ctx context.Context, _ *river.Job[job
 		return err
 	}
 
-	// The endpoint answers 202, so this log line is the only report of the run.
 	w.logger.Info("Zero-cost trade migration completed",
 		zap.Int("trades_processed", result.TotalProcessed),
 		zap.Int("assets_processed", result.AssetsProcessed),

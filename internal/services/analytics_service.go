@@ -34,6 +34,11 @@ type AnalyticsServiceInterface interface {
 	DownloadReport(ctx context.Context, id, userID int64) ([]byte, string, error)
 	ListReportsPaginated(ctx context.Context, userID int64, p utils.PaginationParams) ([]models.Report, *utils.Paginator, error)
 	DeleteReport(ctx context.Context, userID, id int64) error
+	MarkReportProcessing(ctx context.Context, reportID int64) error
+	MarkReportCompleted(ctx context.Context, reportID int64, name, filePath string, fileSize int64, completedAt time.Time) error
+	MarkReportFailed(ctx context.Context, reportID int64, reason string) error
+	FetchCategoryReportData(ctx context.Context, userID int64, params models.CategoryReportParams) ([]models.CategoryReportDataRow, error)
+	FindReportAccountScope(ctx context.Context, userID, accountID int64) (*models.ReportAccountScope, error)
 }
 type AnalyticsService struct {
 	repo          repositories.AnalyticsRepositoryInterface
@@ -1370,6 +1375,35 @@ func (s *AnalyticsService) GenerateCategoryReport(
 	}
 
 	return record, nil
+}
+
+func (s *AnalyticsService) MarkReportProcessing(ctx context.Context, reportID int64) error {
+	return s.repo.UpdateReport(ctx, nil, reportID, map[string]interface{}{"status": "processing"})
+}
+
+func (s *AnalyticsService) MarkReportCompleted(ctx context.Context, reportID int64, name, filePath string, fileSize int64, completedAt time.Time) error {
+	return s.repo.UpdateReport(ctx, nil, reportID, map[string]interface{}{
+		"status":       "completed",
+		"name":         name,
+		"file_path":    filePath,
+		"file_size":    fileSize,
+		"completed_at": completedAt,
+	})
+}
+
+func (s *AnalyticsService) MarkReportFailed(ctx context.Context, reportID int64, reason string) error {
+	return s.repo.UpdateReport(ctx, nil, reportID, map[string]interface{}{
+		"status": "failed",
+		"error":  reason,
+	})
+}
+
+func (s *AnalyticsService) FetchCategoryReportData(ctx context.Context, userID int64, params models.CategoryReportParams) ([]models.CategoryReportDataRow, error) {
+	return s.repo.FetchCategoryReportData(ctx, nil, userID, params)
+}
+
+func (s *AnalyticsService) FindReportAccountScope(ctx context.Context, userID, accountID int64) (*models.ReportAccountScope, error) {
+	return s.repo.FindReportAccountScope(ctx, nil, userID, accountID)
 }
 
 func (s *AnalyticsService) DownloadReport(ctx context.Context, id, userID int64) ([]byte, string, error) {

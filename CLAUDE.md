@@ -6,7 +6,7 @@ Ledger based personal finance manager with an included web based client (separat
 
 - Jobs: `internal/jobqueue` holds the contract (args, kinds, dispatcher) and is safe for services to import; `internal/jobs` holds the runtime (job code, workers, River client, periodic schedule)
 - Exchange rates: `GetExchangeRate` with a date caches to `exchange_rate_history`; without a date it's a live rate and never cached
-
+- *_models contain constants, DB models and schemas, for each domain
 ## Workflow
 
 Before implementing:

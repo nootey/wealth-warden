@@ -3,68 +3,22 @@ package jobs
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
-	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/jobqueue"
 
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
-type BalanceBackfillJob struct {
-	logger            *zap.Logger
-	container         *bootstrap.ServiceContainer
-	concurrentWorkers int
+type balanceUserSvc interface {
+	GetAllActiveUserIDs(ctx context.Context) ([]int64, error)
 }
 
-func NewBalanceBackfillJob(logger *zap.Logger, container *bootstrap.ServiceContainer, concurrentWorkers int) *BalanceBackfillJob {
-	return &BalanceBackfillJob{
-		logger:            logger,
-		container:         container,
-		concurrentWorkers: concurrentWorkers,
-	}
-}
-
-func (j *BalanceBackfillJob) Run(ctx context.Context) error {
-
-	userIDs, err := j.container.UserService.GetAllActiveUserIDs(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get user IDs: %w", err)
-	}
-
-	if len(userIDs) == 0 {
-		j.logger.Info("No users to backfill")
-		return nil
-	}
-
-	investmentUserIDs, err := j.container.InvestmentService.GetUserIDsWithInvestments(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get users with investments: %w", err)
-	}
-	hasInvestments := make(map[int64]bool, len(investmentUserIDs))
-	for _, uid := range investmentUserIDs {
-		hasInvestments[uid] = true
-	}
-
-	j.logger.Info("Backfilling balances", zap.Int("userCount", len(userIDs)))
-
-	to := time.Now().Format("2006-01-02")
-	from := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
-
-	res := runPool(ctx, userIDs, j.concurrentWorkers, "users", func(ctx context.Context, uid int64) error {
-		if err := j.container.AccountService.BackfillBalancesForUser(ctx, uid, from, to); err != nil {
-			return err
-		}
-		if hasInvestments[uid] {
-			if err := j.container.AccountService.UpdateSnapshotMarketValues(ctx, uid); err != nil {
-				return fmt.Errorf("market value update: %w", err)
-			}
-		}
-		return nil
-	})
-	res.log(j.logger, "Backfill failed for user")
-
-	return res.err(ctx)
+type balanceAccountSvc interface {
+	BackfillBalancesForUser(ctx context.Context, userID int64, from, to string) error
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
 }
 
 type BalanceBackfillWorker struct {
@@ -88,5 +42,95 @@ func (w *BalanceBackfillWorker) Work(ctx context.Context, _ *river.Job[jobqueue.
 		return err
 	}
 	w.logger.Info("Backfill completed successfully")
+	return nil
+}
+
+type BalanceBackfillJob struct {
+	logger            *zap.Logger
+	userSvc           balanceUserSvc
+	accountSvc        balanceAccountSvc
+	concurrentWorkers int
+}
+
+func NewBalanceBackfillJob(
+	logger *zap.Logger,
+	userSvc balanceUserSvc,
+	accountSvc balanceAccountSvc,
+	concurrentWorkers int,
+) *BalanceBackfillJob {
+	if concurrentWorkers < 1 {
+		concurrentWorkers = defaultWorkers
+	}
+	return &BalanceBackfillJob{
+		logger:            logger,
+		userSvc:           userSvc,
+		accountSvc:        accountSvc,
+		concurrentWorkers: concurrentWorkers,
+	}
+}
+
+func (j *BalanceBackfillJob) Run(ctx context.Context) error {
+
+	userIDs, err := j.userSvc.GetAllActiveUserIDs(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get user IDs: %w", err)
+	}
+
+	if len(userIDs) == 0 {
+		j.logger.Info("No users to backfill")
+		return nil
+	}
+
+	j.logger.Info("Backfilling balances", zap.Int("userCount", len(userIDs)))
+
+	to := time.Now().Format("2006-01-02")
+	from := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+
+	var (
+		mu     sync.Mutex
+		failed int
+	)
+
+	g := new(errgroup.Group)
+	g.SetLimit(j.concurrentWorkers)
+
+	for _, userID := range userIDs {
+		g.Go(func() error {
+			if ctx.Err() != nil {
+				return nil
+			}
+			if err := j.backfillUser(ctx, userID, from, to); err != nil {
+				mu.Lock()
+				failed++
+				mu.Unlock()
+				return fmt.Errorf("user %d: %w", userID, err)
+			}
+			return nil
+		})
+	}
+	firstErr := g.Wait()
+
+	j.logger.Info("Balance backfill completed",
+		zap.Int("total", len(userIDs)),
+		zap.Int("failed", failed))
+
+	if firstErr != nil {
+		j.logger.Error("Balance backfill had failures",
+			zap.Int("failed", failed),
+			zap.Error(firstErr))
+	}
+
+	return ctx.Err()
+}
+
+// The market value update is scoped to investment and crypto accounts, so a user
+// without them matches no rows.
+func (j *BalanceBackfillJob) backfillUser(ctx context.Context, userID int64, from, to string) error {
+	if err := j.accountSvc.BackfillBalancesForUser(ctx, userID, from, to); err != nil {
+		return err
+	}
+	if err := j.accountSvc.UpdateSnapshotMarketValues(ctx, userID); err != nil {
+		return fmt.Errorf("market value update: %w", err)
+	}
 	return nil
 }

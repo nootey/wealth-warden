@@ -45,8 +45,9 @@ type TransactionServiceInterface interface {
 	DeleteTransactionTemplate(ctx context.Context, userID int64, id int64) error
 	GetTransactionTemplateCount(ctx context.Context, userID int64, templateType string) (int64, error)
 	GetTemplateSummary(ctx context.Context, userID int64) (*models.TemplateSummary, error)
-	GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error)
+	GetTemplatesReadyToRun(ctx context.Context) ([]*models.TransactionTemplate, error)
 	ProcessTemplate(ctx context.Context, template *models.TransactionTemplate) error
+	RecalculateTemplateTimezones(ctx context.Context, userID int64, loc *time.Location) (int, error)
 	FetchAllCategoryGroups(ctx context.Context, userID int64) ([]models.CategoryGroup, error)
 	FetchAllCategoriesWithGroups(ctx context.Context, userID int64) ([]models.CategoryOrGroup, error)
 	FetchCategoryGroupByID(ctx context.Context, userID int64, id int64) (*models.CategoryGroup, error)
@@ -2344,8 +2345,37 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 	return summary, nil
 }
 
-func (s *TransactionService) GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error) {
-	return s.repo.GetTemplatesReadyToRun(ctx, tx)
+func (s *TransactionService) GetTemplatesReadyToRun(ctx context.Context) ([]*models.TransactionTemplate, error) {
+	return s.repo.GetTemplatesReadyToRun(ctx, nil)
+}
+
+func (s *TransactionService) RecalculateTemplateTimezones(ctx context.Context, userID int64, loc *time.Location) (int, error) {
+	templates, err := s.repo.GetActiveTemplatesForUser(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+	if len(templates) == 0 {
+		return 0, nil
+	}
+
+	updates := reanchorTemplates(templates, loc)
+	if err := s.repo.BulkUpdateTemplateTimezone(ctx, updates); err != nil {
+		return 0, err
+	}
+	return len(updates), nil
+}
+
+func reanchorTemplates(templates []models.TransactionTemplate, loc *time.Location) []models.TemplateTimezoneUpdate {
+	updates := make([]models.TemplateTimezoneUpdate, 0, len(templates))
+	for _, t := range templates {
+		y, m, d := t.NextRunAt.In(loc).Date()
+		updates = append(updates, models.TemplateTimezoneUpdate{
+			ID:         t.ID,
+			NextRunAt:  time.Date(y, m, d, 0, 0, 0, 0, loc).UTC(),
+			DayOfMonth: t.DayOfMonth,
+		})
+	}
+	return updates
 }
 
 func (s *TransactionService) ProcessTemplate(ctx context.Context, template *models.TransactionTemplate) error {
@@ -2386,10 +2416,6 @@ func (s *TransactionService) ExecuteTemplateEarly(ctx context.Context, userID in
 	})
 }
 
-var ErrTemplateAlreadyRanToday = errors.New("template already executed today")
-
-// executeNow dates the transaction today instead of the template's scheduled date; the next run
-// date is always computed from the original NextRunAt so the cadence doesn't drift.
 func (s *TransactionService) runTemplate(ctx context.Context, template *models.TransactionTemplate, executeNow bool) (int, time.Time, error) {
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -2434,7 +2460,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		now := time.Now().In(loc)
 		if lastRun.Year() == now.Year() && lastRun.YearDay() == now.YearDay() {
 			tx.Rollback()
-			return 0, time.Time{}, ErrTemplateAlreadyRanToday
+			return 0, time.Time{}, models.ErrTemplateAlreadyRanToday
 		}
 	}
 

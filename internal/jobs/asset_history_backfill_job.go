@@ -2,78 +2,16 @@ package jobs
 
 import (
 	"context"
+	"fmt"
+	"github.com/riverqueue/river"
+	"sync"
 	"time"
 	"wealth-warden/internal/jobqueue"
-	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 
-	"github.com/riverqueue/river"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
+	"golang.org/x/sync/errgroup"
 )
-
-type AssetPriceHistoryBackfillJob struct {
-	logger            *zap.Logger
-	investmentSvc     services.InvestmentServiceInterface
-	db                *gorm.DB
-	concurrentWorkers int
-}
-
-func NewAssetPriceHistoryBackfillJob(
-	logger *zap.Logger,
-	investmentSvc services.InvestmentServiceInterface,
-	db *gorm.DB,
-	concurrentWorkers int,
-) *AssetPriceHistoryBackfillJob {
-	return &AssetPriceHistoryBackfillJob{
-		logger:            logger,
-		investmentSvc:     investmentSvc,
-		db:                db,
-		concurrentWorkers: concurrentWorkers,
-	}
-}
-
-func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
-	type assetRow struct {
-		ID             int64
-		Ticker         string
-		InvestmentType models.InvestmentType
-		Currency       string
-		EarliestTrade  time.Time
-	}
-
-	var assets []assetRow
-	err := j.db.WithContext(ctx).Raw(`
-		SELECT
-			ia.id,
-			ia.ticker,
-			ia.investment_type,
-			ia.currency,
-			MIN(it.txn_date) AS earliest_trade
-		FROM investment_assets ia
-		JOIN investment_trades it ON it.asset_id = ia.id
-		JOIN accounts a ON a.id = ia.account_id
-		WHERE a.is_active = TRUE AND a.closed_at IS NULL
-		GROUP BY ia.id, ia.ticker, ia.investment_type, ia.currency
-	`).Scan(&assets).Error
-	if err != nil {
-		return err
-	}
-
-	if len(assets) == 0 {
-		j.logger.Info("No assets to backfill price history for")
-		return nil
-	}
-
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-
-	res := runPool(ctx, assets, j.concurrentWorkers, "assets", func(ctx context.Context, asset assetRow) error {
-		return j.investmentSvc.BackfillAssetPriceHistory(ctx, asset.ID, asset.Ticker, asset.InvestmentType, asset.EarliestTrade, today)
-	})
-	res.log(j.logger, "Failed to backfill asset price history")
-
-	return res.stoppedErr(ctx)
-}
 
 type AssetPriceHistoryBackfillWorker struct {
 	river.WorkerDefaults[jobqueue.AssetPriceHistoryBackfillArgs]
@@ -97,4 +35,77 @@ func (w *AssetPriceHistoryBackfillWorker) Work(ctx context.Context, _ *river.Job
 	}
 	w.logger.Info("Price history backfill completed")
 	return nil
+}
+
+type AssetPriceHistoryBackfillJob struct {
+	logger            *zap.Logger
+	investmentSvc     services.InvestmentServiceInterface
+	concurrentWorkers int
+}
+
+func NewAssetPriceHistoryBackfillJob(
+	logger *zap.Logger,
+	investmentSvc services.InvestmentServiceInterface,
+	concurrentWorkers int,
+) *AssetPriceHistoryBackfillJob {
+	if concurrentWorkers < 1 {
+		concurrentWorkers = defaultWorkers
+	}
+	return &AssetPriceHistoryBackfillJob{
+		logger:            logger,
+		investmentSvc:     investmentSvc,
+		concurrentWorkers: concurrentWorkers,
+	}
+}
+
+func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
+	assets, err := j.investmentSvc.GetAssetsForPriceBackfill(ctx)
+	if err != nil {
+		return err
+	}
+
+	if len(assets) == 0 {
+		j.logger.Info("No assets to backfill price history for")
+		return nil
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	var (
+		mu     sync.Mutex
+		failed int
+	)
+
+	g := new(errgroup.Group)
+	g.SetLimit(j.concurrentWorkers)
+
+	for _, asset := range assets {
+		g.Go(func() error {
+			if ctx.Err() != nil {
+				return nil
+			}
+			err := j.investmentSvc.BackfillAssetPriceHistory(
+				ctx, asset.ID, asset.Ticker, asset.InvestmentType, asset.EarliestTrade, today)
+			if err != nil {
+				mu.Lock()
+				failed++
+				mu.Unlock()
+				return fmt.Errorf("asset %d (%s): %w", asset.ID, asset.Ticker, err)
+			}
+			return nil
+		})
+	}
+	firstErr := g.Wait()
+
+	j.logger.Info("Backfill completed",
+		zap.Int("total", len(assets)),
+		zap.Int("failed", failed))
+
+	if firstErr != nil {
+		j.logger.Error("Backfill had failures",
+			zap.Int("failed", failed),
+			zap.Error(firstErr))
+	}
+
+	return ctx.Err()
 }

@@ -10,16 +10,12 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// Job is River's job-args contract: data fields only. Kind() is persisted on
-// river_job rows, so it must stay constant across struct renames.
 type Job = river.JobArgs
 
 type Dispatcher interface {
 	Dispatch(ctx context.Context, job Job) error
 }
 
-// NoopDispatcher drops dispatched jobqueue. Intended for seeders and tests where the
-// async side effects (activity logs, etc.) are noise rather than work to run.
 type NoopDispatcher struct{}
 
 func (NoopDispatcher) Dispatch(context.Context, Job) error { return nil }

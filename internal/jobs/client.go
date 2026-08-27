@@ -25,13 +25,9 @@ const (
 	defaultPollInterval = time.Second
 	defaultJobTimeout   = 15 * time.Minute
 
-	// Few and long. Two slots let a daily run overlap a price sync without
-	// crowding out the default queue.
 	schedulerQueueWorkers = 2
 )
 
-// The worker bundle starts empty: the service container needs the dispatcher,
-// which needs this client, so RegisterWorkers fills it afterwards.
 func NewClient(pool *pgxpool.Pool, logger *zap.Logger, cfg config.QueueConfig, serviceName string, periodicJobs []*river.PeriodicJob) (*river.Client[pgx.Tx], *river.Workers, error) {
 	if cfg.Workers <= 0 {
 		cfg.Workers = 1
@@ -67,9 +63,7 @@ func NewClient(pool *pgxpool.Pool, logger *zap.Logger, cfg config.QueueConfig, s
 		MaxAttempts:       cfg.MaxAttempts,
 		FetchPollInterval: pollInterval,
 		JobTimeout:        jobTimeout,
-		// Trace middleware first, so otelriver's work span nests under the
-		// enqueuing span instead of starting a new trace. Metrics last, so it
-		// times the work alone.
+
 		Middleware: []rivertype.Middleware{
 			&traceMiddleware{logger: logger},
 			otelriver.NewMiddleware(&otelriver.MiddlewareConfig{
@@ -86,7 +80,6 @@ func NewClient(pool *pgxpool.Pool, logger *zap.Logger, cfg config.QueueConfig, s
 	return client, workers, nil
 }
 
-// Restores the enqueue-time trace context so job spans nest under the dispatcher.
 type traceMiddleware struct {
 	river.MiddlewareDefaults
 	logger *zap.Logger
@@ -100,8 +93,6 @@ func (m *traceMiddleware) Work(ctx context.Context, job *rivertype.JobRow, doInn
 	return doInner(jobCtx)
 }
 
-// otelriver emits its own work metrics under library-owned names. These are the
-// names the Grafana dashboard queries, carried over from the previous consumer.
 type metricsMiddleware struct {
 	river.MiddlewareDefaults
 	jobDuration metric.Float64Histogram

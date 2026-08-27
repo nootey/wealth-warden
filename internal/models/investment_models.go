@@ -7,12 +7,46 @@ import (
 )
 
 type InvestmentType string
+type TradeType string
+type IncomeType string
 
 const (
 	InvestmentStock  InvestmentType = "stock"
 	InvestmentETF    InvestmentType = "etf"
 	InvestmentCrypto InvestmentType = "crypto"
+
+	InvestmentBuy  TradeType = "buy"
+	InvestmentSell TradeType = "sell"
+
+	IncomeTypeStaking  IncomeType = "staking_reward"
+	IncomeTypeDividend IncomeType = "dividend"
 )
+
+type AssetBackfillRow struct {
+	ID             int64
+	Ticker         string
+	InvestmentType InvestmentType
+	Currency       string
+	EarliestTrade  time.Time
+}
+
+type AssetPriceSyncRow struct {
+	Ticker         string
+	InvestmentType InvestmentType
+}
+
+type CurrencyPair struct {
+	FromCurrency string
+	ToCurrency   string
+}
+
+type AssetPriceChange struct {
+	AssetID  int64
+	UserID   int64
+	Ticker   string
+	OldPrice *decimal.Decimal
+	NewPrice decimal.Decimal
+}
 
 type InvestmentAsset struct {
 	ID                int64            `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -37,13 +71,6 @@ type InvestmentAsset struct {
 	CreatedAt         time.Time        `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
 }
-
-type TradeType string
-
-const (
-	InvestmentBuy  TradeType = "buy"
-	InvestmentSell TradeType = "sell"
-)
 
 type InvestmentTrade struct {
 	ID                int64           `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -97,13 +124,6 @@ func (InvestmentIncome) TableName() string {
 	return "investment_income"
 }
 
-type IncomeType string
-
-const (
-	IncomeTypeStaking  IncomeType = "staking_reward"
-	IncomeTypeDividend IncomeType = "dividend"
-)
-
 type InvestmentIncome struct {
 	ID                  int64            `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserID              int64            `gorm:"not null;index:idx_inv_income_user" json:"user_id"`
@@ -135,15 +155,15 @@ type AssetTaxSummary struct {
 }
 
 type InvestmentTaxBracket struct {
-	ID             int64          `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID         int64          `gorm:"not null;index:idx_tax_brackets_user" json:"user_id"`
-	InvestmentType InvestmentType `gorm:"type:investment_type;not null" json:"investment_type"`
-	MinDaysHeld    int            `gorm:"not null" json:"min_days_held"`
-	ToDays         *int           `json:"to_days"`
+	ID             int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID         int64           `gorm:"not null;index:idx_tax_brackets_user" json:"user_id"`
+	InvestmentType InvestmentType  `gorm:"type:investment_type;not null" json:"investment_type"`
+	MinDaysHeld    int             `gorm:"not null" json:"min_days_held"`
+	ToDays         *int            `json:"to_days"`
 	TaxablePercent decimal.Decimal `gorm:"type:decimal(5,2);not null" json:"taxable_percent"`
-	Label          *string        `gorm:"type:varchar(100)" json:"label"`
-	CreatedAt      time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt      time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	Label          *string         `gorm:"type:varchar(100)" json:"label"`
+	CreatedAt      time.Time       `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt      time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type InvestmentTaxSettings struct {
@@ -202,8 +222,6 @@ type InvestmentTradeReq struct {
 	Description  *string          `json:"description,omitempty"`
 }
 
-// AllocationAssetRow is one priced holding, already converted to the requested
-// currency by the repository query.
 type AllocationAssetRow struct {
 	Ticker         string
 	Name           string
@@ -222,8 +240,6 @@ type AllocationRow struct {
 	Weight decimal.Decimal `json:"weight"`
 }
 
-// PortfolioAllocation holds the same total split four ways. Groups always has
-// the keys "type", "ticker", "currency" and "account".
 type PortfolioAllocation struct {
 	Currency       string                     `json:"currency"`
 	TotalValue     decimal.Decimal            `json:"total_value"`

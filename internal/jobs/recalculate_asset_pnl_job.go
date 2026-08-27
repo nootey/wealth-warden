@@ -30,38 +30,52 @@ func NewRecalculateAssetPnLWorker(logger *zap.Logger, investmentService pnlSvc, 
 func (w *RecalculateAssetPnLWorker) Work(ctx context.Context, job *river.Job[jobqueue.RecalculateAssetPnLArgs]) error {
 	args := job.Args
 
-	if args.AssetID != nil {
-		w.logger.Info("Recalculating asset PnL", zap.Int64("assetID", *args.AssetID))
-		if err := w.investmentService.RecalculateAssetPnL(ctx, args.UserID, *args.AssetID); err != nil {
-			w.logger.Error("Failed to recalculate asset PnL", zap.Int64("assetID", *args.AssetID), zap.Error(err))
-			return fmt.Errorf("failed to recalculate PnL for asset %d: %w", *args.AssetID, err)
-		}
-		w.logger.Info("Asset PnL recalculated", zap.Int64("assetID", *args.AssetID))
-		w.refreshSnapshots(ctx, args.UserID)
-		w.broadcaster.Send(args.UserID, ws.Event{Type: ws.TypeAssetPnLSynced, Payload: ws.AssetPnLPayload{AssetID: args.AssetID}})
-		return nil
+	assetIDs, payload, err := w.resolveScope(ctx, args)
+	if err != nil {
+		return err
 	}
 
-	if args.AccountID != nil {
+	var failed int
+	for _, id := range assetIDs {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err := w.investmentService.RecalculateAssetPnL(ctx, args.UserID, id); err != nil {
+			if failed == 0 {
+				w.logger.Error("Failed to recalculate asset PnL", zap.Int64("assetID", id), zap.Error(err))
+			}
+			failed++
+		}
+	}
+
+	if failed > 0 {
+		return fmt.Errorf("failed to recalculate PnL for %d of %d assets", failed, len(assetIDs))
+	}
+
+	w.logger.Info("Asset PnL recalculated", zap.Int("assets", len(assetIDs)))
+	w.refreshSnapshots(ctx, args.UserID)
+	w.broadcaster.Send(args.UserID, ws.Event{Type: ws.TypeAssetPnLSynced, Payload: payload})
+	return nil
+}
+
+func (w *RecalculateAssetPnLWorker) resolveScope(ctx context.Context, args jobqueue.RecalculateAssetPnLArgs) ([]int64, ws.AssetPnLPayload, error) {
+	switch {
+	case args.AssetID != nil:
+		w.logger.Info("Recalculating asset PnL", zap.Int64("assetID", *args.AssetID))
+		return []int64{*args.AssetID}, ws.AssetPnLPayload{AssetID: args.AssetID}, nil
+
+	case args.AccountID != nil:
 		w.logger.Info("Recalculating PnL for all assets in account", zap.Int64("accountID", *args.AccountID))
 		assetIDs, err := w.investmentService.GetAssetIDsForAccount(ctx, args.UserID, *args.AccountID)
 		if err != nil {
 			w.logger.Error("Failed to fetch assets for account", zap.Int64("accountID", *args.AccountID), zap.Error(err))
-			return fmt.Errorf("failed to get assets for account %d: %w", *args.AccountID, err)
+			return nil, ws.AssetPnLPayload{}, fmt.Errorf("failed to get assets for account %d: %w", *args.AccountID, err)
 		}
-		for _, id := range assetIDs {
-			if err := w.investmentService.RecalculateAssetPnL(ctx, args.UserID, id); err != nil {
-				w.logger.Error("Failed to recalculate asset PnL", zap.Int64("assetID", id), zap.Error(err))
-				return fmt.Errorf("failed to recalculate PnL for asset %d: %w", id, err)
-			}
-		}
-		w.logger.Info("Account PnL recalculated", zap.Int64("accountID", *args.AccountID), zap.Int("assets", len(assetIDs)))
-		w.refreshSnapshots(ctx, args.UserID)
-		w.broadcaster.Send(args.UserID, ws.Event{Type: ws.TypeAssetPnLSynced, Payload: ws.AssetPnLPayload{AccountID: args.AccountID}})
-		return nil
-	}
+		return assetIDs, ws.AssetPnLPayload{AccountID: args.AccountID}, nil
 
-	return fmt.Errorf("recalculate asset PnL: neither AssetID nor AccountID provided")
+	default:
+		return nil, ws.AssetPnLPayload{}, fmt.Errorf("recalculate asset PnL: neither AssetID nor AccountID provided")
+	}
 }
 
 func (w *RecalculateAssetPnLWorker) refreshSnapshots(ctx context.Context, userID int64) {

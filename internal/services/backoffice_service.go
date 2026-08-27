@@ -51,7 +51,6 @@ func (s *BackofficeService) MigrateZeroCostTrades(ctx context.Context) error {
 	return s.jobDispatcher.Dispatch(ctx, jobqueue.MigrateZeroCostTradesArgs{})
 }
 
-// Runs on the rebuild queue, which serialises it against the rebuild jobqueue.
 func (s *BackofficeService) RunZeroCostTradeMigration(ctx context.Context) (*models.ZeroCostMigrationResult, error) {
 	trades, err := s.repo.GetZeroCostBuyTrades(ctx)
 	if err != nil {
@@ -73,6 +72,10 @@ func (s *BackofficeService) RunZeroCostTradeMigration(ctx context.Context) (*mod
 	result := &models.ZeroCostMigrationResult{}
 
 	for _, assetID := range assetOrder {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
 		group := assetGroups[assetID]
 		userID := group[0].UserID
 
@@ -89,11 +92,6 @@ func (s *BackofficeService) RunZeroCostTradeMigration(ctx context.Context) (*mod
 				zap.Error(err),
 			)
 			result.AssetsFailed++
-			result.Errors = append(result.Errors, models.ZeroCostMigrationError{
-				AssetID: assetID,
-				Ticker:  assetTicker[assetID],
-				Error:   err.Error(),
-			})
 			continue
 		}
 

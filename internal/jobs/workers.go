@@ -10,14 +10,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// Must run before the client starts. Workers are long-lived and hold only deps;
-// per-job data arrives as River args.
+const defaultWorkers = 4
+
 func RegisterWorkers(workers *river.Workers, c *bootstrap.ServiceContainer, logger *zap.Logger) error {
-	// Infra, not domain services — built here rather than widening the container.
 	loggingRepo := repositories.NewLoggingRepository(c.DB)
 	notificationRepo := repositories.NewNotificationRepository(c.DB)
-	analyticsRepo := repositories.NewAnalyticsRepository(c.DB)
-	transactionRepo := repositories.NewTransactionRepository(c.DB)
 	concurrentWorkers := c.Config.Scheduler.ConcurrentWorkers
 
 	priceLogger := logger.Named(jobqueue.TypeAssetPriceSync)
@@ -44,10 +41,10 @@ func RegisterWorkers(workers *river.Workers, c *bootstrap.ServiceContainer, logg
 			return river.AddWorkerSafely(workers, NewSyncAssetAfterTradeWorker(logger.Named("asset_sync"), c.InvestmentService))
 		},
 		func() error {
-			return river.AddWorkerSafely(workers, NewRecalculateTemplateTimezoneWorker(logger.Named("template_tz"), transactionRepo))
+			return river.AddWorkerSafely(workers, NewRecalculateTemplateTimezoneWorker(logger.Named("template_tz"), c.TransactionService))
 		},
 		func() error {
-			return river.AddWorkerSafely(workers, NewGenerateCategoryReportWorker(logger.Named("category_report"), analyticsRepo, c.Hub))
+			return river.AddWorkerSafely(workers, NewGenerateCategoryReportWorker(logger.Named("category_report"), c.AnalyticsService, c.Hub))
 		},
 		func() error {
 			return river.AddWorkerSafely(workers, NewBackfillAssetCashFlowsWorker(logger.Named("cashflow_backfill"), c.InvestmentService, concurrentWorkers))
@@ -59,20 +56,20 @@ func RegisterWorkers(workers *river.Workers, c *bootstrap.ServiceContainer, logg
 			return river.AddWorkerSafely(workers, NewMigrateZeroCostTradesWorker(logger.Named("zero_cost_migration"), c.BackofficeService))
 		},
 		func() error {
-			job := NewAssetPriceHistoryBackfillJob(historyLogger, c.InvestmentService, c.DB, concurrentWorkers)
+			job := NewAssetPriceHistoryBackfillJob(historyLogger, c.InvestmentService, concurrentWorkers)
 			return river.AddWorkerSafely(workers, NewAssetPriceHistoryBackfillWorker(historyLogger, job))
 		},
 		func() error {
-			job := NewBalanceBackfillJob(balanceLogger, c, concurrentWorkers)
+			job := NewBalanceBackfillJob(balanceLogger, c.UserService, c.AccountService, concurrentWorkers)
 			return river.AddWorkerSafely(workers, NewBalanceBackfillWorker(balanceLogger, job))
 		},
 		func() error {
-			templates := NewAutomateTemplateJob(recurringLogger.Named("templates"), c, c.NotifDispatcher, concurrentWorkers)
-			goals := NewAutoFundGoalsJob(recurringLogger.Named("savings_goals"), c, c.NotifDispatcher, concurrentWorkers)
+			templates := NewAutomateTemplateJob(recurringLogger.Named("templates"), c.TransactionService, c.NotifDispatcher, concurrentWorkers)
+			goals := NewAutoFundGoalsJob(recurringLogger.Named("savings_goals"), c.SavingsService, c.NotifDispatcher, concurrentWorkers)
 			return river.AddWorkerSafely(workers, NewRecurringTransactionsWorker(recurringLogger, templates.Run, goals.Run))
 		},
 		func() error {
-			job := NewAssetPriceSyncJob(priceLogger, c.InvestmentService, c.AccountService, c.DB, priceClient, c.NotifDispatcher, concurrentWorkers)
+			job := NewAssetPriceSyncJob(priceLogger, c.InvestmentService, priceClient, c.NotifDispatcher, concurrentWorkers)
 			return river.AddWorkerSafely(workers, NewAssetPriceSyncWorker(priceLogger, job))
 		},
 	}

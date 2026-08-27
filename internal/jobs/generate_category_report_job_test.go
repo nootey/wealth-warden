@@ -28,97 +28,88 @@ func (b *recordingBroadcaster) Send(userID int64, event ws.Event) {
 	b.events[userID] = append(b.events[userID], event)
 }
 
-type mockAnalyticsRepo struct {
-	fetchRows   []models.CategoryReportDataRow
-	fetchErr    error
-	scope       *models.ReportAccountScope
-	scopeErr    error
-	updateErr   error
-	updateErrOn int // which call (1-indexed) should fail; 0 = always fail
-	updateCalls int
-	updates     []map[string]interface{}
+type mockCategoryReportSvc struct {
+	fetchRows []models.CategoryReportDataRow
+	fetchErr  error
+	scope     *models.ReportAccountScope
+	scopeErr  error
+
+	processingErr error
+	completedErr  error
+	failedErr     error
+
+	markCalls    int
+	statuses     []string
+	name         string
+	filePath     string
+	fileSize     int64
+	failedReason string
 }
 
-func (m *mockAnalyticsRepo) UpdateReport(_ context.Context, _ *gorm.DB, _ int64, fields map[string]interface{}) error {
-	m.updateCalls++
-	m.updates = append(m.updates, fields)
-	if m.updateErr != nil && (m.updateErrOn == 0 || m.updateCalls == m.updateErrOn) {
-		return m.updateErr
+func (m *mockCategoryReportSvc) MarkReportProcessing(_ context.Context, _ int64) error {
+	m.markCalls++
+	if m.processingErr != nil {
+		return m.processingErr
 	}
+	m.statuses = append(m.statuses, "processing")
 	return nil
 }
 
-func (m *mockAnalyticsRepo) FetchCategoryReportData(_ context.Context, _ *gorm.DB, _ int64, _ models.CategoryReportParams) ([]models.CategoryReportDataRow, error) {
+func (m *mockCategoryReportSvc) MarkReportCompleted(_ context.Context, _ int64, name, filePath string, fileSize int64, _ time.Time) error {
+	m.markCalls++
+	if m.completedErr != nil {
+		return m.completedErr
+	}
+	m.statuses = append(m.statuses, "completed")
+	m.name, m.filePath, m.fileSize = name, filePath, fileSize
+	return nil
+}
+
+func (m *mockCategoryReportSvc) MarkReportFailed(_ context.Context, _ int64, reason string) error {
+	m.markCalls++
+	if m.failedErr != nil {
+		return m.failedErr
+	}
+	m.statuses = append(m.statuses, "failed")
+	m.failedReason = reason
+	return nil
+}
+
+func (m *mockCategoryReportSvc) FetchCategoryReportData(_ context.Context, _ int64, _ models.CategoryReportParams) ([]models.CategoryReportDataRow, error) {
 	return m.fetchRows, m.fetchErr
 }
 
-func (m *mockAnalyticsRepo) FindReportAccountScope(_ context.Context, _ *gorm.DB, _, _ int64) (*models.ReportAccountScope, error) {
+func (m *mockCategoryReportSvc) FindReportAccountScope(_ context.Context, _, _ int64) (*models.ReportAccountScope, error) {
 	if m.scopeErr != nil {
 		return nil, m.scopeErr
 	}
 	if m.scope != nil {
 		return m.scope, nil
 	}
-	return &models.ReportAccountScope{Name: "Main Checking", Type: "cash", Subtype: "checking"}, nil
+	return &models.ReportAccountScope{Name: "Main", Subtype: "checking_account"}, nil
 }
 
-func (m *mockAnalyticsRepo) BeginTx(_ context.Context) (*gorm.DB, error) { return nil, nil }
-func (m *mockAnalyticsRepo) CountReports(_ context.Context, _ *gorm.DB, _ int64) (int64, error) {
-	return 0, nil
-}
-func (m *mockAnalyticsRepo) FindReports(_ context.Context, _ *gorm.DB, _ int64, _, _ int) ([]models.Report, error) {
-	return nil, nil
-}
-func (m *mockAnalyticsRepo) FindReportByID(_ context.Context, _ *gorm.DB, _, _ int64) (*models.Report, error) {
-	return nil, nil
-}
-func (m *mockAnalyticsRepo) InsertReport(_ context.Context, _ *gorm.DB, _ *models.Report) error {
-	return nil
-}
-func (m *mockAnalyticsRepo) DeleteReport(_ context.Context, _ *gorm.DB, _, _ int64) error {
-	return nil
-}
-func (m *mockAnalyticsRepo) FetchNetWorthSeries(_ context.Context, _ *gorm.DB, _ int64, _ string, _, _ time.Time, _ string, _ *int64) ([]models.ChartPoint, error) {
-	return nil, nil
-}
-func (m *mockAnalyticsRepo) FetchAssetChartSeries(_ context.Context, _ *gorm.DB, _, _ int64, _, _ time.Time, _ string) (string, []models.ChartPoint, []models.ChartPoint, error) {
-	return "", nil, nil, nil
-}
-func (m *mockAnalyticsRepo) FetchLatestNetWorth(_ context.Context, _ *gorm.DB, _ int64, _ string, _ *int64) (time.Time, string, error) {
-	return time.Time{}, "", nil
-}
-func (m *mockAnalyticsRepo) FetchDailyTotals(_ context.Context, _ *gorm.DB, _ int64, _ *int64, _ time.Time) (*models.MonthlyTotalsRow, error) {
-	return nil, nil
-}
-func (m *mockAnalyticsRepo) FetchDailyTotalsCheckingOnly(_ context.Context, _ *gorm.DB, _ int64, _ []int64, _ time.Time) (*models.MonthlyTotalsRow, error) {
-	return nil, nil
-}
-func (m *mockAnalyticsRepo) FetchYearlyTotals(_ context.Context, _ *gorm.DB, _ int64, _ *int64, _ int) (models.YearlyTotalsRow, error) {
-	return models.YearlyTotalsRow{}, nil
-}
-func (m *mockAnalyticsRepo) FetchYearlyCategoryTotals(_ context.Context, _ *gorm.DB, _ int64, _ *int64, _ int) ([]models.YearlyCategoryRow, error) {
-	return nil, nil
-}
-func (m *mockAnalyticsRepo) FetchMonthlyCategoryTotals(_ context.Context, _ *gorm.DB, _ int64, _ *int64, _, _ int) ([]models.YearlyCategoryRow, error) {
-	return nil, nil
-}
-func (m *mockAnalyticsRepo) FetchMonthlyTotals(_ context.Context, _ *gorm.DB, _ int64, _ *int64, _ int) ([]models.MonthlyTotalsRow, error) {
-	return nil, nil
-}
-func (m *mockAnalyticsRepo) FetchMonthlyTotalsCheckingOnly(_ context.Context, _ *gorm.DB, _ int64, _ []int64, _ int) ([]models.MonthlyTotalsRow, error) {
-	return nil, nil
-}
-func (m *mockAnalyticsRepo) FetchMonthlyCategoryTotalsCheckingOnly(_ context.Context, _ *gorm.DB, _ int64, _ []int64, _, _ int) ([]models.YearlyCategoryRow, error) {
-	return nil, nil
-}
-func (m *mockAnalyticsRepo) GetAvailableStatsYears(_ context.Context, _ *gorm.DB, _ *int64, _ int64, _ bool) ([]models.AvailableStatsYear, error) {
-	return nil, nil
+func (m *mockCategoryReportSvc) lastStatus() string {
+	if len(m.statuses) == 0 {
+		return ""
+	}
+	return m.statuses[len(m.statuses)-1]
 }
 
 var sampleRows = []models.CategoryReportDataRow{
 	{Year: 2024, Month: 1, CategoryName: "Salary", Classification: "inflow", Total: decimal.NewFromInt(5000)},
 	{Year: 2024, Month: 2, CategoryName: "Salary", Classification: "inflow", Total: decimal.NewFromInt(5200)},
 	{Year: 2024, Month: 3, CategoryName: "Salary", Classification: "inflow", Total: decimal.NewFromInt(5100)},
+}
+
+func runReportJob(t *testing.T, svc *mockCategoryReportSvc, b ws.Broadcaster, args jobqueue.GenerateCategoryReportArgs) error {
+	t.Helper()
+	worker := jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), svc, b)
+	return worker.Work(context.Background(), &river.Job[jobqueue.GenerateCategoryReportArgs]{Args: args})
+}
+
+func yearParams() models.CategoryReportParams {
+	return models.CategoryReportParams{InflowCategoryIDs: []int64{1}, Years: []int{2024}}
 }
 
 func TestMain(m *testing.M) {
@@ -130,147 +121,123 @@ func TestMain(m *testing.M) {
 }
 
 func TestGenerateCategoryReportJob_HappyPath(t *testing.T) {
-	repo := &mockAnalyticsRepo{fetchRows: sampleRows}
-	worker := jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{})
-	params := models.CategoryReportParams{
-		InflowCategoryIDs: []int64{1},
-		Years:             []int{2024},
-	}
-	args := jobqueue.GenerateCategoryReportArgs{ReportID: 1, UserID: 1, Params: params}
+	svc := &mockCategoryReportSvc{fetchRows: sampleRows}
+	args := jobqueue.GenerateCategoryReportArgs{ReportID: 1, UserID: 1, Params: yearParams()}
 
-	if err := worker.Work(context.Background(), &river.Job[jobqueue.GenerateCategoryReportArgs]{Args: args}); err != nil {
+	if err := runReportJob(t, svc, ws.NoopBroadcaster{}, args); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if repo.updateCalls < 2 {
-		t.Errorf("expected at least 2 UpdateReport calls, got %d", repo.updateCalls)
+	if got := svc.statuses; len(got) != 2 || got[0] != "processing" || got[1] != "completed" {
+		t.Fatalf("statuses = %v, want [processing completed]", got)
 	}
-	if s, _ := repo.updates[0]["status"].(string); s != "processing" {
-		t.Errorf("first update status = %q, want \"processing\"", s)
-	}
-	last := repo.updates[len(repo.updates)-1]
-	if s, _ := last["status"].(string); s != "completed" {
-		t.Errorf("last update status = %q, want \"completed\"", s)
-	}
-	if last["file_path"] == nil {
+	if svc.filePath == "" {
 		t.Error("expected file_path to be set on completion")
 	}
+	if svc.fileSize <= 0 {
+		t.Errorf("file_size = %d, want > 0", svc.fileSize)
+	}
+	if svc.name == "" {
+		t.Error("expected a report name on completion")
+	}
 }
 
-func TestGenerateCategoryReportJob_FetchError_SetsFailedStatus(t *testing.T) {
-	repo := &mockAnalyticsRepo{fetchErr: errors.New("db unavailable")}
-	worker := jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{})
-	params := models.CategoryReportParams{
-		InflowCategoryIDs: []int64{1},
-		Years:             []int{2024},
+// A permanent failure must not come back to River: a retry would replay the same
+// bad input, flap the row back to "processing", and re-notify the user.
+func TestGenerateCategoryReportJob_RecordedFailureIsNotRetried(t *testing.T) {
+	cases := []struct {
+		name       string
+		svc        *mockCategoryReportSvc
+		wantReason string
+	}{
+		{"fetch error", &mockCategoryReportSvc{fetchErr: errors.New("db unavailable")}, "db unavailable"},
+		{"no data", &mockCategoryReportSvc{fetchRows: nil}, jobs.ErrNoCategoryData.Error()},
 	}
-	args := jobqueue.GenerateCategoryReportArgs{ReportID: 42, UserID: 1, Params: params}
 
-	if err := worker.Work(context.Background(), &river.Job[jobqueue.GenerateCategoryReportArgs]{Args: args}); err == nil {
-		t.Fatal("expected error, got nil")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := jobqueue.GenerateCategoryReportArgs{ReportID: 7, UserID: 3, Params: yearParams()}
+			if err := runReportJob(t, tc.svc, ws.NoopBroadcaster{}, args); err != nil {
+				t.Fatalf("error = %v, want nil so River does not retry", err)
+			}
+			if got := tc.svc.lastStatus(); got != "failed" {
+				t.Errorf("last status = %q, want \"failed\"", got)
+			}
+			if tc.svc.failedReason != tc.wantReason {
+				t.Errorf("reason = %q, want %q", tc.svc.failedReason, tc.wantReason)
+			}
+			for _, s := range tc.svc.statuses {
+				if s == "completed" {
+					t.Error("report was marked completed despite failing")
+				}
+			}
+			if tc.svc.filePath != "" || tc.svc.name != "" {
+				t.Error("completion fields were written despite failing")
+			}
+		})
 	}
-	for _, u := range repo.updates {
-		if s, _ := u["status"].(string); s == "failed" {
-			return
-		}
-	}
-	t.Error("expected a failed status update")
 }
 
-func TestGenerateCategoryReportJob_NoData_FailsWithoutWritingReport(t *testing.T) {
-	repo := &mockAnalyticsRepo{fetchRows: nil}
+// The one failure worth retrying: the run ended without the row being marked, so
+// it would otherwise sit in "processing" forever.
+func TestGenerateCategoryReportJob_UnrecordedFailureIsRetried(t *testing.T) {
+	svc := &mockCategoryReportSvc{
+		fetchErr:  errors.New("db unavailable"),
+		failedErr: errors.New("write failed"),
+	}
 	broadcaster := &recordingBroadcaster{}
-	worker := jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), repo, broadcaster)
-	params := models.CategoryReportParams{
-		InflowCategoryIDs: []int64{1},
-		Years:             []int{2024},
-	}
-	args := jobqueue.GenerateCategoryReportArgs{ReportID: 7, UserID: 3, Params: params}
+	args := jobqueue.GenerateCategoryReportArgs{ReportID: 7, UserID: 3, Params: yearParams()}
 
-	err := worker.Work(context.Background(), &river.Job[jobqueue.GenerateCategoryReportArgs]{Args: args})
-	if !errors.Is(err, jobs.ErrNoCategoryData) {
-		t.Fatalf("error = %v, want ErrNoCategoryData", err)
+	if err := runReportJob(t, svc, broadcaster, args); err == nil {
+		t.Fatal("expected an error when the failure could not be recorded")
 	}
-
-	last := repo.updates[len(repo.updates)-1]
-	if s, _ := last["status"].(string); s != "failed" {
-		t.Errorf("last update status = %q, want \"failed\"", s)
-	}
-	for _, u := range repo.updates {
-		if s, _ := u["status"].(string); s == "completed" {
-			t.Error("report was marked completed despite having no data")
-		}
-		if _, ok := u["name"]; ok {
-			t.Error("report name was written despite having no data")
-		}
-		if _, ok := u["file_path"]; ok {
-			t.Error("report file was written despite having no data")
-		}
-	}
-
-	events := broadcaster.events[3]
-	if len(events) != 1 || events[0].Type != ws.TypeReportFailed {
-		t.Errorf("events = %#v, want a single %q", events, ws.TypeReportFailed)
+	if len(broadcaster.events[3]) != 0 {
+		t.Errorf("events = %#v, want none when the failure was not recorded", broadcaster.events[3])
 	}
 }
 
 func TestGenerateCategoryReportJob_UnknownAccount_Fails(t *testing.T) {
 	accountID := int64(99)
-	repo := &mockAnalyticsRepo{fetchRows: sampleRows, scopeErr: gorm.ErrRecordNotFound}
-	worker := jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{})
-	params := models.CategoryReportParams{
-		InflowCategoryIDs: []int64{1},
-		Years:             []int{2024},
-		AccountID:         &accountID,
-	}
+	svc := &mockCategoryReportSvc{fetchRows: sampleRows, scopeErr: gorm.ErrRecordNotFound}
+	params := yearParams()
+	params.AccountID = &accountID
 	args := jobqueue.GenerateCategoryReportArgs{ReportID: 1, UserID: 1, Params: params}
 
-	if err := worker.Work(context.Background(), &river.Job[jobqueue.GenerateCategoryReportArgs]{Args: args}); err == nil {
-		t.Fatal("expected error for an account the user does not own")
+	if err := runReportJob(t, svc, ws.NoopBroadcaster{}, args); err != nil {
+		t.Fatalf("error = %v, want nil", err)
 	}
-	last := repo.updates[len(repo.updates)-1]
-	if s, _ := last["status"].(string); s != "failed" {
-		t.Errorf("last update status = %q, want \"failed\"", s)
+	if got := svc.lastStatus(); got != "failed" {
+		t.Errorf("last status = %q, want \"failed\"", got)
 	}
 }
 
 func TestGenerateCategoryReportJob_InitialUpdateError_ReturnsImmediately(t *testing.T) {
-	repo := &mockAnalyticsRepo{updateErr: errors.New("write failed"), updateErrOn: 1}
-	worker := jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{})
-	params := models.CategoryReportParams{
-		InflowCategoryIDs: []int64{1},
-		Years:             []int{2024},
-	}
-	args := jobqueue.GenerateCategoryReportArgs{ReportID: 1, UserID: 1, Params: params}
+	svc := &mockCategoryReportSvc{processingErr: errors.New("write failed")}
+	args := jobqueue.GenerateCategoryReportArgs{ReportID: 1, UserID: 1, Params: yearParams()}
 
-	if err := worker.Work(context.Background(), &river.Job[jobqueue.GenerateCategoryReportArgs]{Args: args}); err == nil {
-		t.Error("expected error when initial UpdateReport fails")
+	if err := runReportJob(t, svc, ws.NoopBroadcaster{}, args); err == nil {
+		t.Error("expected error when the initial status write fails")
 	}
-	if repo.updateCalls != 1 {
-		t.Errorf("expected exactly 1 UpdateReport call, got %d", repo.updateCalls)
+	if svc.markCalls != 1 {
+		t.Errorf("mark calls = %d, want 1", svc.markCalls)
 	}
 }
 
 func TestGenerateCategoryReportJob_BroadcastsOutcome(t *testing.T) {
 	cases := []struct {
 		name      string
-		repo      *mockAnalyticsRepo
+		svc       *mockCategoryReportSvc
 		wantEvent string
 	}{
-		{"completed", &mockAnalyticsRepo{fetchRows: sampleRows}, ws.TypeReportCompleted},
-		{"failed", &mockAnalyticsRepo{fetchErr: errors.New("db unavailable")}, ws.TypeReportFailed},
+		{"completed", &mockCategoryReportSvc{fetchRows: sampleRows}, ws.TypeReportCompleted},
+		{"failed", &mockCategoryReportSvc{fetchErr: errors.New("db unavailable")}, ws.TypeReportFailed},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			broadcaster := &recordingBroadcaster{}
-			worker := jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), tc.repo, broadcaster)
-			params := models.CategoryReportParams{
-				InflowCategoryIDs: []int64{1},
-				Years:             []int{2024},
-			}
-			args := jobqueue.GenerateCategoryReportArgs{ReportID: 9, UserID: 3, Params: params}
+			args := jobqueue.GenerateCategoryReportArgs{ReportID: 9, UserID: 3, Params: yearParams()}
 
-			_ = worker.Work(context.Background(), &river.Job[jobqueue.GenerateCategoryReportArgs]{Args: args})
+			_ = runReportJob(t, tc.svc, broadcaster, args)
 
 			events := broadcaster.events[3]
 			if len(events) != 1 {
@@ -287,24 +254,18 @@ func TestGenerateCategoryReportJob_BroadcastsOutcome(t *testing.T) {
 }
 
 func TestGenerateCategoryReportJob_AllTime_MultipleYears(t *testing.T) {
-	rows := []models.CategoryReportDataRow{
+	svc := &mockCategoryReportSvc{fetchRows: []models.CategoryReportDataRow{
 		{Year: 2022, Month: 1, CategoryName: "Salary", Classification: "inflow", Total: decimal.NewFromInt(4000)},
 		{Year: 2023, Month: 1, CategoryName: "Salary", Classification: "inflow", Total: decimal.NewFromInt(4500)},
 		{Year: 2024, Month: 1, CategoryName: "Salary", Classification: "inflow", Total: decimal.NewFromInt(5000)},
-	}
-	repo := &mockAnalyticsRepo{fetchRows: rows}
-	worker := jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{})
-	params := models.CategoryReportParams{
-		InflowCategoryIDs: []int64{1},
-		AllTime:           true,
-	}
+	}}
+	params := models.CategoryReportParams{InflowCategoryIDs: []int64{1}, AllTime: true}
 	args := jobqueue.GenerateCategoryReportArgs{ReportID: 2, UserID: 1, Params: params}
 
-	if err := worker.Work(context.Background(), &river.Job[jobqueue.GenerateCategoryReportArgs]{Args: args}); err != nil {
+	if err := runReportJob(t, svc, ws.NoopBroadcaster{}, args); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	last := repo.updates[len(repo.updates)-1]
-	if s, _ := last["status"].(string); s != "completed" {
-		t.Errorf("status = %q, want \"completed\"", s)
+	if got := svc.lastStatus(); got != "completed" {
+		t.Errorf("last status = %q, want \"completed\"", got)
 	}
 }

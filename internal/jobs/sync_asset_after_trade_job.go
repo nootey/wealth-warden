@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"errors"
 	"time"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
@@ -29,12 +30,15 @@ func (w *SyncAssetAfterTradeWorker) Work(ctx context.Context, job *river.Job[job
 	args := job.Args
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
+	var errs []error
+
 	if err := w.investmentService.BackfillAssetPriceHistory(ctx, args.AssetID, args.Ticker, args.InvestmentType, args.TradeDate, today); err != nil {
 		w.logger.Warn("Failed to backfill asset price history",
 			zap.Int64("assetID", args.AssetID),
 			zap.String("ticker", args.Ticker),
 			zap.Error(err),
 		)
+		errs = append(errs, err)
 	}
 
 	if err := w.investmentService.UpdateSnapshotMarketValues(ctx, args.UserID); err != nil {
@@ -42,7 +46,8 @@ func (w *SyncAssetAfterTradeWorker) Work(ctx context.Context, job *river.Job[job
 			zap.Int64("userID", args.UserID),
 			zap.Error(err),
 		)
+		errs = append(errs, err)
 	}
 
-	return nil
+	return errors.Join(errs...)
 }

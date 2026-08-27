@@ -20,7 +20,7 @@ func TestBalanceBackfillJobSuite(t *testing.T) {
 // Test that backfill job runs
 func (s *BalanceBackfillJobTestSuite) TestBalanceBackfillJob_Success() {
 	logger := zaptest.NewLogger(s.T())
-	job := jobs.NewBalanceBackfillJob(logger, s.TC.App, 0)
+	job := jobs.NewBalanceBackfillJob(logger, s.TC.App.UserService, s.TC.App.AccountService, 0)
 
 	err := job.Run(s.Ctx)
 	s.NoError(err)

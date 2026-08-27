@@ -3,6 +3,7 @@ package jobs_test
 import (
 	"testing"
 	"time"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/tests"
@@ -63,10 +64,14 @@ func (s *AutoFundGoalsJobTestSuite) createSavingsAccount(name string, balance de
 }
 
 func (s *AutoFundGoalsJobTestSuite) createGoal(accountID int64, allocation decimal.Decimal, priority int, fundDayOfMonth *int) models.SavingGoal {
+	return s.createNamedGoal("Test Goal", accountID, allocation, priority, fundDayOfMonth)
+}
+
+func (s *AutoFundGoalsJobTestSuite) createNamedGoal(name string, accountID int64, allocation decimal.Decimal, priority int, fundDayOfMonth *int) models.SavingGoal {
 	goal := models.SavingGoal{
 		UserID:            s.memberUserID,
 		AccountID:         accountID,
-		Name:              "Test Goal",
+		Name:              name,
 		TargetAmount:      decimal.NewFromInt(10000),
 		Status:            models.SavingGoalStatusActive,
 		Priority:          priority,
@@ -86,8 +91,12 @@ func (s *AutoFundGoalsJobTestSuite) countContributions(goalID int64) int64 {
 }
 
 func (s *AutoFundGoalsJobTestSuite) runJob() {
+	s.runJobWithDispatcher(nil)
+}
+
+func (s *AutoFundGoalsJobTestSuite) runJobWithDispatcher(disp jobqueue.NotificationDispatcher) {
 	logger := zaptest.NewLogger(s.T())
-	job := jobs.NewAutoFundGoalsJob(logger, s.TC.App, nil, 2)
+	job := jobs.NewAutoFundGoalsJob(logger, s.TC.App.SavingsService, disp, 2)
 	s.Require().NoError(job.Run(s.Ctx))
 }
 
@@ -246,4 +255,23 @@ func (s *AutoFundGoalsJobTestSuite) TestFundGoals_ManualContributionDoesNotBlock
 
 	// Both manual and auto contributions should exist
 	s.Equal(int64(2), s.countContributions(goal.ID))
+}
+
+// The goals below the blocked one are never tried. They must still reach the
+// user, grouped into the one warning, not dropped without a trace.
+func (s *AutoFundGoalsJobTestSuite) TestFundGoals_InsufficientBalance_ReportsBlockedGoals() {
+	acc := s.createSavingsAccount(s.T().Name(), decimal.NewFromInt(100))
+
+	s.createNamedGoal("Rent buffer", acc.ID, decimal.NewFromInt(500), 10, nil)
+	s.createNamedGoal("Holiday", acc.ID, decimal.NewFromInt(50), 5, nil)
+	s.createNamedGoal("Laptop", acc.ID, decimal.NewFromInt(10), 1, nil)
+
+	disp := &recordingDispatcher{}
+	s.runJobWithDispatcher(disp)
+
+	warnings := disp.ofType(models.NotificationTypeWarning)
+	s.Require().Len(warnings, 1)
+	s.Equal("3 goal(s) skipped - insufficient balance", warnings[0].title)
+	s.Equal("Rent buffer, Holiday, Laptop", warnings[0].message)
+	s.Empty(disp.ofType(models.NotificationTypeSuccess))
 }

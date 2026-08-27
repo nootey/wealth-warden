@@ -3,29 +3,50 @@ package jobs
 import (
 	"context"
 	"fmt"
+	"github.com/riverqueue/river"
+	"sync"
 	"time"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/finance"
 
-	"github.com/riverqueue/river"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
+	"golang.org/x/sync/errgroup"
 )
 
-type accService interface {
-	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+const priceSurgeThreshold = 0.10
+
+type AssetPriceSyncWorker struct {
+	river.WorkerDefaults[jobqueue.AssetPriceSyncArgs]
+	logger *zap.Logger
+	job    *AssetPriceSyncJob
 }
 
-const priceSurgeThreshold = 0.10
+func NewAssetPriceSyncWorker(logger *zap.Logger, job *AssetPriceSyncJob) *AssetPriceSyncWorker {
+	return &AssetPriceSyncWorker{logger: logger, job: job}
+}
+
+// Fetching paces itself at one ticker per second, so the ceiling has to clear
+// the whole ticker list plus the writes that follow.
+func (w *AssetPriceSyncWorker) Timeout(*river.Job[jobqueue.AssetPriceSyncArgs]) time.Duration {
+	return 30 * time.Minute
+}
+
+func (w *AssetPriceSyncWorker) Work(ctx context.Context, _ *river.Job[jobqueue.AssetPriceSyncArgs]) error {
+	w.logger.Info("Starting asset price sync ...")
+	if err := w.job.Run(ctx); err != nil {
+		w.logger.Error("Price sync failed", zap.Error(err))
+		return err
+	}
+	w.logger.Info("Price sync completed")
+	return nil
+}
 
 type AssetPriceSyncJob struct {
 	logger            *zap.Logger
 	investmentSvc     services.InvestmentServiceInterface
-	accService        accService
-	db                *gorm.DB
 	priceFetchClient  finance.PriceFetcher
 	notifDispatcher   jobqueue.NotificationDispatcher
 	concurrentWorkers int
@@ -34,17 +55,16 @@ type AssetPriceSyncJob struct {
 func NewAssetPriceSyncJob(
 	logger *zap.Logger,
 	investmentSvc services.InvestmentServiceInterface,
-	accService accService,
-	db *gorm.DB,
 	priceFetchClient finance.PriceFetcher,
 	notifDispatcher jobqueue.NotificationDispatcher,
 	concurrentWorkers int,
 ) *AssetPriceSyncJob {
+	if concurrentWorkers < 1 {
+		concurrentWorkers = defaultWorkers
+	}
 	return &AssetPriceSyncJob{
 		logger:            logger,
 		investmentSvc:     investmentSvc,
-		accService:        accService,
-		db:                db,
 		priceFetchClient:  priceFetchClient,
 		notifDispatcher:   notifDispatcher,
 		concurrentWorkers: concurrentWorkers,
@@ -91,21 +111,8 @@ func (j *AssetPriceSyncJob) Run(ctx context.Context) error {
 func (j *AssetPriceSyncJob) refreshSnapshotMarketValues(ctx context.Context) error {
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	// Warm today's exchange rates for all active price→account currency pairs
-	// so the SQL in UpdateSnapshotMarketValues has fresh rates to work with.
-	type currencyPair struct {
-		FromCurrency string
-		ToCurrency   string
-	}
-	var pairs []currencyPair
-	if err := j.db.WithContext(ctx).Raw(`
-		SELECT DISTINCT ph.currency AS from_currency, a.currency AS to_currency
-		FROM investment_assets ia
-		JOIN accounts a ON a.id = ia.account_id
-		JOIN asset_price_history ph ON ph.asset_id = ia.id
-		WHERE a.is_active = TRUE AND a.closed_at IS NULL
-		  AND ph.currency != a.currency
-	`).Scan(&pairs).Error; err != nil {
+	pairs, err := j.investmentSvc.GetActiveCurrencyPairs(ctx)
+	if err != nil {
 		j.logger.Warn("Failed to query currency pairs for rate refresh", zap.Error(err))
 	}
 	for _, p := range pairs {
@@ -117,41 +124,50 @@ func (j *AssetPriceSyncJob) refreshSnapshotMarketValues(ctx context.Context) err
 		}
 	}
 
-	var userIDs []int64
-	err := j.db.WithContext(ctx).Raw(`
-		SELECT DISTINCT a.user_id
-		FROM investment_assets ia
-		JOIN accounts a ON a.id = ia.account_id
-		WHERE a.is_active = TRUE AND a.closed_at IS NULL
-	`).Scan(&userIDs).Error
+	userIDs, err := j.investmentSvc.GetUserIDsWithActiveInvestments(ctx)
 	if err != nil {
 		return err
 	}
 
-	res := runPool(ctx, userIDs, j.concurrentWorkers, "users", j.accService.UpdateSnapshotMarketValues)
-	res.logFailures(j.logger, "Failed to update snapshot market values")
+	var (
+		mu     sync.Mutex
+		failed int
+	)
 
-	return nil
-}
+	g := new(errgroup.Group)
+	g.SetLimit(j.concurrentWorkers)
 
-func (j *AssetPriceSyncJob) getAssetsToUpdate(ctx context.Context) ([]struct {
-	Ticker         string
-	InvestmentType models.InvestmentType
-}, error) {
-	var assets []struct {
-		Ticker         string
-		InvestmentType models.InvestmentType
+	for _, userID := range userIDs {
+		g.Go(func() error {
+			if ctx.Err() != nil {
+				return nil
+			}
+			if err := j.investmentSvc.UpdateSnapshotMarketValues(ctx, userID); err != nil {
+				mu.Lock()
+				failed++
+				mu.Unlock()
+				return fmt.Errorf("user %d: %w", userID, err)
+			}
+			return nil
+		})
+	}
+	firstErr := g.Wait()
+
+	j.logger.Info("Snapshot market values refreshed",
+		zap.Int("total", len(userIDs)),
+		zap.Int("failed", failed))
+
+	if firstErr != nil {
+		j.logger.Error("Snapshot market value refresh had failures",
+			zap.Int("failed", failed),
+			zap.Error(firstErr))
 	}
 
-	err := j.db.WithContext(ctx).
-		Model(&models.InvestmentAsset{}).
-		Joins("JOIN accounts ON accounts.id = investment_assets.account_id").
-		Select("DISTINCT investment_assets.ticker, investment_assets.investment_type").
-		Where("investment_assets.quantity > 0").
-		Where("accounts.is_active = ?", true).
-		Where("accounts.closed_at IS NULL").
-		Find(&assets).Error
+	return ctx.Err()
+}
 
+func (j *AssetPriceSyncJob) getAssetsToUpdate(ctx context.Context) ([]models.AssetPriceSyncRow, error) {
+	assets, err := j.investmentSvc.GetTickersForPriceSync(ctx)
 	if err != nil {
 		j.logger.Error("Failed to fetch assets", zap.Error(err))
 		return nil, err
@@ -161,12 +177,10 @@ func (j *AssetPriceSyncJob) getAssetsToUpdate(ctx context.Context) ([]struct {
 	return assets, nil
 }
 
-func (j *AssetPriceSyncJob) fetchPrices(ctx context.Context, assets []struct {
-	Ticker         string
-	InvestmentType models.InvestmentType
-}) (map[string]*finance.PriceData, error) {
+func (j *AssetPriceSyncJob) fetchPrices(ctx context.Context, assets []models.AssetPriceSyncRow) (map[string]*finance.PriceData, error) {
 
 	priceData := make(map[string]*finance.PriceData)
+	start := time.Now()
 
 	for i, asset := range assets {
 		// Add delay between requests to avoid rate limiting
@@ -174,7 +188,7 @@ func (j *AssetPriceSyncJob) fetchPrices(ctx context.Context, assets []struct {
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
-			case <-time.After(2 * time.Second):
+			case <-time.After(1 * time.Second):
 			}
 		}
 
@@ -186,7 +200,12 @@ func (j *AssetPriceSyncJob) fetchPrices(ctx context.Context, assets []struct {
 			continue
 		}
 
-		if price == nil || price.Price <= 0 {
+		if price == nil {
+			j.logger.Error("No price received", zap.String("ticker", asset.Ticker))
+			continue
+		}
+
+		if price.Price <= 0 {
 			j.logger.Error("Invalid price received",
 				zap.String("ticker", asset.Ticker),
 				zap.Float64("price", price.Price))
@@ -196,7 +215,10 @@ func (j *AssetPriceSyncJob) fetchPrices(ctx context.Context, assets []struct {
 		priceData[asset.Ticker] = price
 	}
 
-	j.logger.Info("Prices fetched", zap.Int("successful", len(priceData)))
+	j.logger.Info("Prices fetched",
+		zap.Int("successful", len(priceData)),
+		zap.Int("tickers", len(assets)),
+		zap.Duration("took", time.Since(start)))
 
 	failedCount := len(assets) - len(priceData)
 	if failedCount > 0 {
@@ -209,186 +231,68 @@ func (j *AssetPriceSyncJob) fetchPrices(ctx context.Context, assets []struct {
 }
 
 func (j *AssetPriceSyncJob) updateAssetsAndTrades(ctx context.Context, priceData map[string]*finance.PriceData) (int, error) {
-	tx := j.db.WithContext(ctx).Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
 	now := time.Now()
-	today := now.UTC().Truncate(24 * time.Hour)
+
 	updatedCount := 0
+	failed := 0
 
 	for ticker, price := range priceData {
-		count, err := j.updateAssetsByTicker(ctx, tx, ticker, price, now, today)
+		if ctx.Err() != nil {
+			return updatedCount, ctx.Err()
+		}
+
+		changes, err := j.investmentSvc.ApplyTickerPrice(ctx, ticker, decimal.NewFromFloat(price.Price), price.Currency, now)
 		if err != nil {
+			failed++
 			j.logger.Error("Failed to update assets for ticker",
 				zap.String("ticker", ticker),
 				zap.Error(err))
-			tx.Rollback()
-			return 0, err
+			continue
 		}
-		updatedCount += count
+
+		updatedCount += len(changes)
+		j.notifyPriceSurges(ctx, changes)
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		j.logger.Error("Failed to commit transaction", zap.Error(err))
-		return 0, err
+	if failed > 0 {
+		j.logger.Warn("Some tickers failed to update",
+			zap.Int("failed", failed),
+			zap.Int("total", len(priceData)))
 	}
 
 	return updatedCount, nil
 }
 
-func (j *AssetPriceSyncJob) updateAssetsByTicker(ctx context.Context, tx *gorm.DB, ticker string, price *finance.PriceData, now time.Time, today time.Time) (int, error) {
-	var assets []models.InvestmentAsset
-	err := tx.
-		Preload("Account").
-		Joins("JOIN accounts ON accounts.id = investment_assets.account_id").
-		Where("investment_assets.ticker = ? AND investment_assets.quantity > 0", ticker).
-		Where("accounts.is_active = ?", true).
-		Where("accounts.closed_at IS NULL").
-		Find(&assets).Error
-
-	if err != nil {
-		return 0, err
+// The prices are already written when this runs, so a cancelled ctx must not
+// swallow the notifications for them.
+func (j *AssetPriceSyncJob) notifyPriceSurges(ctx context.Context, changes []models.AssetPriceChange) {
+	if j.notifDispatcher == nil {
+		return
 	}
+	ctx = context.WithoutCancel(ctx)
 
-	priceDecimal := decimal.NewFromFloat(price.Price)
-
-	for _, asset := range assets {
-		if err := j.updateAsset(ctx, tx, asset, priceDecimal, now); err != nil {
-			return 0, err
+	for _, c := range changes {
+		if c.OldPrice == nil || c.OldPrice.IsZero() {
+			continue
 		}
 
-		if err := j.updateTrades(tx, asset.ID, priceDecimal, now, asset.InvestmentType); err != nil {
-			return 0, err
+		changePercent := c.NewPrice.Sub(*c.OldPrice).Div(*c.OldPrice).Abs()
+		if changePercent.LessThan(decimal.NewFromFloat(priceSurgeThreshold)) {
+			continue
 		}
 
-		// Persist to price history
-		if err := j.investmentSvc.UpsertAssetPrice(ctx, tx, []models.AssetPriceHistory{{AssetID: asset.ID, AsOf: today, Price: priceDecimal, Currency: price.Currency}}); err != nil {
-			j.logger.Warn("Failed to upsert asset price history",
-				zap.Int64("asset_id", asset.ID),
+		direction := "surged"
+		if c.NewPrice.LessThan(*c.OldPrice) {
+			direction = "dropped"
+		}
+		pct := changePercent.Mul(decimal.NewFromInt(100)).StringFixed(1)
+		title := fmt.Sprintf("%s %s %s%%", c.Ticker, direction, pct)
+		msg := fmt.Sprintf("%s has %s by %s%% (from %s to %s).", c.Ticker, direction, pct, c.OldPrice.StringFixed(2), c.NewPrice.StringFixed(2))
+		if err := j.notifDispatcher.Dispatch(ctx, c.UserID, title, msg, models.NotificationTypeWarning); err != nil {
+			j.logger.Error("Failed to dispatch notification",
+				zap.Int64("user_id", c.UserID),
+				zap.String("title", title),
 				zap.Error(err))
-			// non-fatal, continue
 		}
 	}
-
-	return len(assets), nil
-}
-
-func (j *AssetPriceSyncJob) updateAsset(ctx context.Context, tx *gorm.DB, asset models.InvestmentAsset, price decimal.Decimal, now time.Time) error {
-
-	if price.IsZero() || price.IsNegative() {
-		j.logger.Error("Refusing to update asset with invalid price",
-			zap.Int64("asset_id", asset.ID),
-			zap.String("ticker", asset.Ticker),
-			zap.String("price", price.String()))
-		return fmt.Errorf("invalid price for asset %d: %s", asset.ID, price.String())
-	}
-
-	if asset.CurrentPrice != nil && !asset.CurrentPrice.IsZero() {
-		changePercent := price.Sub(*asset.CurrentPrice).Div(*asset.CurrentPrice).Abs()
-		if changePercent.GreaterThan(decimal.NewFromFloat(0.90)) && price.LessThan(*asset.CurrentPrice) {
-			j.logger.Warn("Extreme price drop detected — skipping update to prevent data corruption",
-				zap.Int64("asset_id", asset.ID),
-				zap.String("ticker", asset.Ticker),
-				zap.String("old_price", asset.CurrentPrice.String()),
-				zap.String("new_price", price.String()),
-				zap.String("change_percent", changePercent.Mul(decimal.NewFromInt(100)).StringFixed(2)+"%"))
-			return nil
-		}
-
-		if j.notifDispatcher != nil && changePercent.GreaterThanOrEqual(decimal.NewFromFloat(priceSurgeThreshold)) {
-			direction := "surged"
-			if price.LessThan(*asset.CurrentPrice) {
-				direction = "dropped"
-			}
-			pct := changePercent.Mul(decimal.NewFromInt(100)).StringFixed(1)
-			title := fmt.Sprintf("%s %s %s%%", asset.Ticker, direction, pct)
-			msg := fmt.Sprintf("%s has %s by %s%% (from %s to %s).", asset.Ticker, direction, pct, asset.CurrentPrice.StringFixed(2), price.StringFixed(2))
-			_ = j.notifDispatcher.Dispatch(ctx, asset.UserID, title, msg, models.NotificationTypeWarning)
-		}
-	}
-
-	newCurrentValue := asset.Quantity.Mul(price)
-	costBasis := asset.ValueAtBuy
-	if asset.InvestmentType != models.InvestmentCrypto {
-		costBasis = asset.ValueAtBuy.Add(asset.TotalFees)
-	}
-	newProfitLoss := newCurrentValue.Sub(costBasis)
-	var newProfitLossPercent decimal.Decimal
-	if !costBasis.IsZero() {
-		newProfitLossPercent = newProfitLoss.Div(costBasis)
-	}
-
-	err := tx.Model(&models.InvestmentAsset{}).
-		Where("id = ?", asset.ID).
-		Updates(map[string]interface{}{
-			"current_price":       price,
-			"current_value":       newCurrentValue,
-			"profit_loss":         newProfitLoss,
-			"profit_loss_percent": newProfitLossPercent,
-			"last_price_update":   now,
-			"updated_at":          now,
-		}).Error
-
-	if err != nil {
-		j.logger.Error("Failed to update asset",
-			zap.Int64("asset_id", asset.ID),
-			zap.Error(err))
-		return err
-	}
-
-	return nil
-}
-
-func (j *AssetPriceSyncJob) updateTrades(tx *gorm.DB, assetID int64, price decimal.Decimal, now time.Time, investmentType models.InvestmentType) error {
-	includeFees := investmentType != models.InvestmentCrypto
-	err := tx.Exec(`
-        UPDATE investment_trades
-        SET
-            current_value = quantity * ?,
-            profit_loss = (quantity * ?) - (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END),
-            profit_loss_percent = CASE
-                WHEN (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END) > 0
-                THEN ((quantity * ?) - (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END)) / (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END)
-                ELSE 0
-            END,
-            updated_at = ?
-        WHERE asset_id = ? AND trade_type = 'buy'
-    `, price, price, includeFees, includeFees, price, includeFees, includeFees, now, assetID).Error
-
-	if err != nil {
-		j.logger.Error("Failed to update trades",
-			zap.Int64("asset_id", assetID),
-			zap.Error(err))
-		return err
-	}
-
-	return nil
-}
-
-type AssetPriceSyncWorker struct {
-	river.WorkerDefaults[jobqueue.AssetPriceSyncArgs]
-	logger *zap.Logger
-	job    *AssetPriceSyncJob
-}
-
-func NewAssetPriceSyncWorker(logger *zap.Logger, job *AssetPriceSyncJob) *AssetPriceSyncWorker {
-	return &AssetPriceSyncWorker{logger: logger, job: job}
-}
-
-func (w *AssetPriceSyncWorker) Timeout(*river.Job[jobqueue.AssetPriceSyncArgs]) time.Duration {
-	return 5 * time.Minute
-}
-
-func (w *AssetPriceSyncWorker) Work(ctx context.Context, _ *river.Job[jobqueue.AssetPriceSyncArgs]) error {
-	w.logger.Info("Starting asset price sync ...")
-	if err := w.job.Run(ctx); err != nil {
-		w.logger.Error("Price sync failed", zap.Error(err))
-		return err
-	}
-	w.logger.Info("Price sync completed")
-	return nil
 }

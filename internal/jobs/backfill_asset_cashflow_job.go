@@ -3,10 +3,12 @@ package jobs
 import (
 	"context"
 	"fmt"
+	"sync"
 	"wealth-warden/internal/jobqueue"
 
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 type investmentRebuildSvc interface {
@@ -22,6 +24,9 @@ type BackfillAssetCashFlowsWorker struct {
 }
 
 func NewBackfillAssetCashFlowsWorker(logger *zap.Logger, investmentService investmentRebuildSvc, workers int) *BackfillAssetCashFlowsWorker {
+	if workers < 1 {
+		workers = defaultWorkers
+	}
 	return &BackfillAssetCashFlowsWorker{
 		logger:            logger,
 		workers:           workers,
@@ -42,8 +47,50 @@ func (w *BackfillAssetCashFlowsWorker) Work(ctx context.Context, _ *river.Job[jo
 
 	w.logger.Info("Processing users", zap.Int("count", len(userIDs)))
 
-	res := runPool(ctx, userIDs, w.workers, "users", w.investmentService.RebuildInvestmentDerivedData)
-	res.log(w.logger, "Failed to rebuild investment derived data")
+	var (
+		mu      sync.Mutex
+		rebuilt int
+		failed  int
+	)
 
-	return res.err(ctx)
+	g := new(errgroup.Group)
+	g.SetLimit(w.workers)
+
+	for _, userID := range userIDs {
+		g.Go(func() error {
+			if ctx.Err() != nil {
+				return nil
+			}
+			err := w.investmentService.RebuildInvestmentDerivedData(ctx, userID)
+
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				failed++
+				return fmt.Errorf("user %d: %w", userID, err)
+			}
+			rebuilt++
+			return nil
+		})
+	}
+	firstErr := g.Wait()
+
+	w.logger.Info("Investment rebuild completed",
+		zap.Int("rebuilt", rebuilt),
+		zap.Int("failed", failed),
+		zap.Int("users_total", len(userIDs)))
+
+	if firstErr != nil {
+		w.logger.Error("Failed to rebuild investment derived data",
+			zap.Int("failed", failed),
+			zap.Error(firstErr))
+	}
+
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("rebuild stopped after %d of %d users: %w", rebuilt+failed, len(userIDs), err)
+	}
+	if firstErr != nil {
+		return fmt.Errorf("%d of %d users failed to rebuild, first: %w", failed, len(userIDs), firstErr)
+	}
+	return nil
 }

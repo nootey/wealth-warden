@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
 	"wealth-warden/pkg/utils"
 
@@ -3760,7 +3759,7 @@ func (s *TransactionServiceTestSuite) TestProcessTemplate_SkipsCycleAlreadyRunEa
 
 	err = svc.ProcessTemplate(s.Ctx, &staleCopy)
 	s.Require().Error(err, "the scheduled run should refuse a cycle that already ran today")
-	s.True(errors.Is(err, services.ErrTemplateAlreadyRanToday), "got: %v", err)
+	s.True(errors.Is(err, models.ErrTemplateAlreadyRanToday), "got: %v", err)
 
 	var txnCount int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).

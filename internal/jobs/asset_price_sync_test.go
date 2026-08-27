@@ -7,6 +7,7 @@ import (
 	"time"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
 
 	"github.com/shopspring/decimal"
@@ -25,7 +26,7 @@ func TestAssetPriceSyncJobSuite(t *testing.T) {
 // Test that job runs with no assets
 func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_Success() {
 	logger := zaptest.NewLogger(s.T())
-	job := jobs.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.App.AccountService, s.TC.DB, &tests.MockPriceFetcher{}, nil, 0)
+	job := jobs.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, &tests.MockPriceFetcher{}, nil, 0)
 
 	err := job.Run(s.Ctx)
 	s.NoError(err)
@@ -65,7 +66,7 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_SkipsExtremePriceDrop
 	s.Require().NoError(err)
 
 	logger := zaptest.NewLogger(s.T())
-	job := jobs.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.App.AccountService, s.TC.DB, &tests.MockPriceFetcher{}, nil, 0)
+	job := jobs.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, &tests.MockPriceFetcher{}, nil, 0)
 
 	err = job.Run(s.Ctx)
 	s.Require().NoError(err)
@@ -144,7 +145,7 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalan
 
 	// Run price sync job
 	logger := zaptest.NewLogger(s.T())
-	job := jobs.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, s.TC.App.AccountService, s.TC.DB, &tests.MockPriceFetcher{}, nil, 0)
+	job := jobs.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, &tests.MockPriceFetcher{}, nil, 0)
 
 	ctx3, cancel3 := context.WithTimeout(s.Ctx, 30*time.Second)
 	defer cancel3()
@@ -182,4 +183,84 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalan
 		First(&balance).Error
 	s.Require().NoError(err)
 	s.Assert().True(balance.CashOutflows.GreaterThan(decimal.Zero), "buy should have written cash outflows")
+}
+
+type tickerFailingInvestmentService struct {
+	services.InvestmentServiceInterface
+	failTicker string
+}
+
+func (f *tickerFailingInvestmentService) ApplyTickerPrice(ctx context.Context, ticker string, price decimal.Decimal, currency string, now time.Time) ([]models.AssetPriceChange, error) {
+	if ticker == f.failTicker {
+		return nil, errors.New("simulated database failure")
+	}
+	return f.InvestmentServiceInterface.ApplyTickerPrice(ctx, ticker, price, currency, now)
+}
+
+// Tests that one failing ticker does not roll back the tickers that already succeeded
+func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_FailedTickerDoesNotRollBackOthers() {
+	accSvc := s.TC.App.AccountService
+	invSvc := s.TC.App.InvestmentService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	btcID, err := invSvc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentCrypto,
+		Name:           "Bitcoin",
+		Ticker:         "BTC-USD",
+		Quantity:       decimal.NewFromInt(1),
+	})
+	s.Require().NoError(err)
+
+	etfID, err := invSvc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: models.InvestmentETF,
+		Name:           "iShares MSCI World",
+		Ticker:         "IWDA.AS",
+		Quantity:       decimal.NewFromInt(1),
+	})
+	s.Require().NoError(err)
+
+	// Prices close to the mock's so the extreme-drop guard does not skip either asset
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentAsset{}).
+		Where("id = ?", btcID).Update("current_price", decimal.NewFromInt(45000)).Error
+	s.Require().NoError(err)
+
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentAsset{}).
+		Where("id = ?", etfID).Update("current_price", decimal.NewFromInt(90)).Error
+	s.Require().NoError(err)
+
+	failingSvc := &tickerFailingInvestmentService{
+		InvestmentServiceInterface: invSvc,
+		failTicker:                 "BTC-USD",
+	}
+
+	logger := zaptest.NewLogger(s.T())
+	job := jobs.NewAssetPriceSyncJob(logger, failingSvc, &tests.MockPriceFetcher{}, nil, 0)
+
+	err = job.Run(s.Ctx)
+	s.Require().NoError(err, "one bad ticker must not fail the whole run")
+
+	var etf models.InvestmentAsset
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", etfID).First(&etf).Error
+	s.Require().NoError(err)
+	s.Assert().True(decimal.NewFromInt(100).Equal(*etf.CurrentPrice),
+		"the healthy ticker must stay committed: expected 100, got %s", etf.CurrentPrice.String())
+
+	var btc models.InvestmentAsset
+	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", btcID).First(&btc).Error
+	s.Require().NoError(err)
+	s.Assert().True(decimal.NewFromInt(45000).Equal(*btc.CurrentPrice),
+		"the failed ticker must stay at its old price: expected 45000, got %s", btc.CurrentPrice.String())
 }
