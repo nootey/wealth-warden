@@ -23,18 +23,15 @@ type RolePermissionServiceInterface interface {
 }
 type RolePermissionService struct {
 	repo          repositories.RolePermissionRepositoryInterface
-	loggingRepo   repositories.LoggingRepositoryInterface
 	jobDispatcher queue.JobDispatcher
 }
 
 func NewRolePermissionService(
 	repo *repositories.RolePermissionRepository,
-	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher queue.JobDispatcher,
 ) *RolePermissionService {
 	return &RolePermissionService{
 		repo:          repo,
-		loggingRepo:   loggingRepo,
 		jobDispatcher: jobDispatcher,
 	}
 }
@@ -118,8 +115,7 @@ func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, re
 
 	utils.CompareChanges("", permString, changes, "permissions")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "create",
 		Category:    "role",
 		Description: nil,
@@ -206,8 +202,7 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(roleID, 10))
-		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 			Event:       "update",
 			Category:    "role",
 			Description: nil,
@@ -270,8 +265,7 @@ func (s *RolePermissionService) DeleteRole(ctx context.Context, userID, id int64
 	utils.CompareChanges(utils.SafeString(role.Description), "", changes, "description")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 			Event:       "delete",
 			Category:    "user",
 			Description: nil,

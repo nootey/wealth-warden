@@ -5,20 +5,31 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/ws"
+
+	"github.com/riverqueue/river"
 )
 
-type NotificationJob struct {
-	Repo        repositories.NotificationRepositoryInterface `json:"-"`
-	Broadcaster ws.Broadcaster                               `json:"-"`
-	Payload     models.Notification
+type NotificationArgs struct {
+	Payload models.Notification
 }
 
-func (j *NotificationJob) Type() string { return TypeNotification }
+func (NotificationArgs) Kind() string { return TypeNotification }
 
-func (j *NotificationJob) Process(ctx context.Context) error {
-	if err := j.Repo.Insert(ctx, &j.Payload); err != nil {
+type NotificationWorker struct {
+	river.WorkerDefaults[NotificationArgs]
+	repo        repositories.NotificationRepositoryInterface
+	broadcaster ws.Broadcaster
+}
+
+func NewNotificationWorker(repo repositories.NotificationRepositoryInterface, broadcaster ws.Broadcaster) *NotificationWorker {
+	return &NotificationWorker{repo: repo, broadcaster: broadcaster}
+}
+
+func (w *NotificationWorker) Work(ctx context.Context, job *river.Job[NotificationArgs]) error {
+	notification := job.Args.Payload
+	if err := w.repo.Insert(ctx, &notification); err != nil {
 		return err
 	}
-	j.Broadcaster.Send(j.Payload.UserID, ws.Event{Type: ws.TypeNotificationCreated})
+	w.broadcaster.Send(notification.UserID, ws.Event{Type: ws.TypeNotificationCreated})
 	return nil
 }

@@ -1,14 +1,14 @@
 package queue
 
-import "context"
+import (
+	"context"
 
-type Job interface {
-	Process(ctx context.Context) error
-	// Type returns the stable registry key for this job. It is persisted on the
-	// jobs row and reused as the metric/trace job_type label, so it must stay
-	// constant across struct renames.
-	Type() string
-}
+	"github.com/riverqueue/river"
+)
+
+// Job is River's job-args contract: data fields only. Kind() is persisted on
+// river_job rows, so it must stay constant across struct renames.
+type Job = river.JobArgs
 
 type JobDispatcher interface {
 	Dispatch(ctx context.Context, job Job) error

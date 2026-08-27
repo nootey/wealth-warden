@@ -31,8 +31,7 @@ func SeedInvestments(ctx context.Context, db *gorm.DB, cfg *config.Config) error
 	accRepo := repositories.NewAccountRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
-	loggingRepo := repositories.NewLoggingRepository(db)
-	invService := services.NewInvestmentService(zap.NewNop(), invRepo, accRepo, txnRepo, settingsRepo, loggingRepo, queue.NoopDispatcher{}, priceClient)
+	invService := services.NewInvestmentService(zap.NewNop(), invRepo, accRepo, txnRepo, settingsRepo, queue.NoopDispatcher{}, priceClient)
 
 	var users []models.User
 	if err := db.WithContext(ctx).Find(&users).Error; err != nil {

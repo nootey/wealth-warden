@@ -35,20 +35,17 @@ type SavingsServiceInterface interface {
 type SavingsService struct {
 	repo          repositories.SavingsRepositoryInterface
 	accountRepo   repositories.AccountRepositoryInterface
-	loggingRepo   repositories.LoggingRepositoryInterface
 	jobDispatcher queue.JobDispatcher
 }
 
 func NewSavingsService(
 	repo *repositories.SavingsRepository,
 	accountRepo *repositories.AccountRepository,
-	loggingRepo *repositories.LoggingRepository,
 	jobDispatcher queue.JobDispatcher,
 ) *SavingsService {
 	return &SavingsService{
 		repo:          repo,
 		accountRepo:   accountRepo,
-		loggingRepo:   loggingRepo,
 		jobDispatcher: jobDispatcher,
 	}
 }
@@ -172,8 +169,7 @@ func (s *SavingsService) InsertGoal(ctx context.Context, userID int64, req *mode
 	utils.CompareDecimalChange(nil, &record.TargetAmount, changes, "target_amount", 2)
 	utils.CompareDecimalChange(nil, record.MonthlyAllocation, changes, "monthly_allocation", 2)
 	utils.CompareDateChange(nil, record.TargetDate, changes, "target_date")
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "create",
 		Category:    "saving_goal",
 		Description: nil,
@@ -242,8 +238,7 @@ func (s *SavingsService) UpdateGoal(ctx context.Context, userID, id int64, req *
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(existing.ID, 10))
-		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 			Event:       "update",
 			Category:    "saving_goal",
 			Description: nil,
@@ -290,8 +285,7 @@ func (s *SavingsService) DeleteGoal(ctx context.Context, userID, id int64) error
 	utils.CompareChanges(goal.Name, "", changes, "name")
 	utils.CompareDecimalChange(&goal.TargetAmount, nil, changes, "target_amount", 2)
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 			Event:       "delete",
 			Category:    "saving_goal",
 			Description: nil,
@@ -434,8 +428,7 @@ func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID 
 	utils.CompareChanges("", goal.Name, changes, "goal")
 	utils.CompareDecimalChange(nil, &req.Amount, changes, "amount", 2)
 	utils.CompareChanges("", record.Month.Format("2006-01-02"), changes, "month")
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "create",
 		Category:    "saving_contribution",
 		Description: req.Note,
@@ -497,8 +490,7 @@ func (s *SavingsService) DeleteContribution(ctx context.Context, userID, goalID,
 	utils.CompareDecimalChange(&contrib.Amount, nil, changes, "amount", 2)
 	utils.CompareChanges(contrib.Month.Format("2006-01-02"), "", changes, "month")
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 			Event:       "delete",
 			Category:    "saving_contribution",
 			Description: nil,
@@ -530,6 +522,16 @@ func (s *SavingsService) AutoFundGoal(ctx context.Context, goal models.SavingGoa
 			panic(p)
 		}
 	}()
+
+	goal, err = s.repo.FindGoalByIDForUpdate(ctx, tx, goal.ID, goal.UserID)
+	if err != nil {
+		tx.Rollback()
+		return false, "", fmt.Errorf("goal not found: %w", err)
+	}
+	if goal.Status != models.SavingGoalStatusActive || goal.MonthlyAllocation == nil {
+		tx.Rollback()
+		return false, "not_fundable", nil
+	}
 
 	alreadyFunded, err := s.repo.HasContributionForMonth(ctx, tx, goal.ID, monthStart)
 	if err != nil {
@@ -579,11 +581,10 @@ func (s *SavingsService) AutoFundGoal(ctx context.Context, goal models.SavingGoa
 	utils.CompareChanges("", goal.Name, changes, "goal")
 	utils.CompareDecimalChange(nil, goal.MonthlyAllocation, changes, "amount", 2)
 	utils.CompareChanges("", monthStart.Format("2006-01-02"), changes, "month")
-	_ = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
-		Event:       "create",
-		Category:    "saving_contribution",
-		Payload:     changes,
+	_ = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		Event:    "create",
+		Category: "saving_contribution",
+		Payload:  changes,
 	})
 
 	return true, "", nil

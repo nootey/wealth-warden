@@ -10,6 +10,7 @@ import (
 	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/ws"
 
+	"github.com/riverqueue/river"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap/zaptest"
 	"gorm.io/gorm"
@@ -129,12 +130,14 @@ func TestMain(m *testing.M) {
 
 func TestGenerateCategoryReportJob_HappyPath(t *testing.T) {
 	repo := &mockAnalyticsRepo{fetchRows: sampleRows}
-	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{}, 1, 1, models.CategoryReportParams{
+	worker := queue_jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{})
+	params := models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		Years:             []int{2024},
-	})
+	}
+	args := queue_jobs.GenerateCategoryReportArgs{ReportID: 1, UserID: 1, Params: params}
 
-	if err := job.Process(context.Background()); err != nil {
+	if err := worker.Work(context.Background(), &river.Job[queue_jobs.GenerateCategoryReportArgs]{Args: args}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if repo.updateCalls < 2 {
@@ -154,12 +157,14 @@ func TestGenerateCategoryReportJob_HappyPath(t *testing.T) {
 
 func TestGenerateCategoryReportJob_FetchError_SetsFailedStatus(t *testing.T) {
 	repo := &mockAnalyticsRepo{fetchErr: errors.New("db unavailable")}
-	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{}, 42, 1, models.CategoryReportParams{
+	worker := queue_jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{})
+	params := models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		Years:             []int{2024},
-	})
+	}
+	args := queue_jobs.GenerateCategoryReportArgs{ReportID: 42, UserID: 1, Params: params}
 
-	if err := job.Process(context.Background()); err == nil {
+	if err := worker.Work(context.Background(), &river.Job[queue_jobs.GenerateCategoryReportArgs]{Args: args}); err == nil {
 		t.Fatal("expected error, got nil")
 	}
 	for _, u := range repo.updates {
@@ -173,12 +178,14 @@ func TestGenerateCategoryReportJob_FetchError_SetsFailedStatus(t *testing.T) {
 func TestGenerateCategoryReportJob_NoData_FailsWithoutWritingReport(t *testing.T) {
 	repo := &mockAnalyticsRepo{fetchRows: nil}
 	broadcaster := &recordingBroadcaster{}
-	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, broadcaster, 7, 3, models.CategoryReportParams{
+	worker := queue_jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), repo, broadcaster)
+	params := models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		Years:             []int{2024},
-	})
+	}
+	args := queue_jobs.GenerateCategoryReportArgs{ReportID: 7, UserID: 3, Params: params}
 
-	err := job.Process(context.Background())
+	err := worker.Work(context.Background(), &river.Job[queue_jobs.GenerateCategoryReportArgs]{Args: args})
 	if !errors.Is(err, queue_jobs.ErrNoCategoryData) {
 		t.Fatalf("error = %v, want ErrNoCategoryData", err)
 	}
@@ -208,13 +215,15 @@ func TestGenerateCategoryReportJob_NoData_FailsWithoutWritingReport(t *testing.T
 func TestGenerateCategoryReportJob_UnknownAccount_Fails(t *testing.T) {
 	accountID := int64(99)
 	repo := &mockAnalyticsRepo{fetchRows: sampleRows, scopeErr: gorm.ErrRecordNotFound}
-	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{}, 1, 1, models.CategoryReportParams{
+	worker := queue_jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{})
+	params := models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		Years:             []int{2024},
 		AccountID:         &accountID,
-	})
+	}
+	args := queue_jobs.GenerateCategoryReportArgs{ReportID: 1, UserID: 1, Params: params}
 
-	if err := job.Process(context.Background()); err == nil {
+	if err := worker.Work(context.Background(), &river.Job[queue_jobs.GenerateCategoryReportArgs]{Args: args}); err == nil {
 		t.Fatal("expected error for an account the user does not own")
 	}
 	last := repo.updates[len(repo.updates)-1]
@@ -225,12 +234,14 @@ func TestGenerateCategoryReportJob_UnknownAccount_Fails(t *testing.T) {
 
 func TestGenerateCategoryReportJob_InitialUpdateError_ReturnsImmediately(t *testing.T) {
 	repo := &mockAnalyticsRepo{updateErr: errors.New("write failed"), updateErrOn: 1}
-	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{}, 1, 1, models.CategoryReportParams{
+	worker := queue_jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{})
+	params := models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		Years:             []int{2024},
-	})
+	}
+	args := queue_jobs.GenerateCategoryReportArgs{ReportID: 1, UserID: 1, Params: params}
 
-	if err := job.Process(context.Background()); err == nil {
+	if err := worker.Work(context.Background(), &river.Job[queue_jobs.GenerateCategoryReportArgs]{Args: args}); err == nil {
 		t.Error("expected error when initial UpdateReport fails")
 	}
 	if repo.updateCalls != 1 {
@@ -251,12 +262,14 @@ func TestGenerateCategoryReportJob_BroadcastsOutcome(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			broadcaster := &recordingBroadcaster{}
-			job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), tc.repo, broadcaster, 9, 3, models.CategoryReportParams{
+			worker := queue_jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), tc.repo, broadcaster)
+			params := models.CategoryReportParams{
 				InflowCategoryIDs: []int64{1},
 				Years:             []int{2024},
-			})
+			}
+			args := queue_jobs.GenerateCategoryReportArgs{ReportID: 9, UserID: 3, Params: params}
 
-			_ = job.Process(context.Background())
+			_ = worker.Work(context.Background(), &river.Job[queue_jobs.GenerateCategoryReportArgs]{Args: args})
 
 			events := broadcaster.events[3]
 			if len(events) != 1 {
@@ -279,12 +292,14 @@ func TestGenerateCategoryReportJob_AllTime_MultipleYears(t *testing.T) {
 		{Year: 2024, Month: 1, CategoryName: "Salary", Classification: "inflow", Total: decimal.NewFromInt(5000)},
 	}
 	repo := &mockAnalyticsRepo{fetchRows: rows}
-	job := queue_jobs.NewGenerateCategoryReportJob(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{}, 2, 1, models.CategoryReportParams{
+	worker := queue_jobs.NewGenerateCategoryReportWorker(zaptest.NewLogger(t), repo, ws.NoopBroadcaster{})
+	params := models.CategoryReportParams{
 		InflowCategoryIDs: []int64{1},
 		AllTime:           true,
-	})
+	}
+	args := queue_jobs.GenerateCategoryReportArgs{ReportID: 2, UserID: 1, Params: params}
 
-	if err := job.Process(context.Background()); err != nil {
+	if err := worker.Work(context.Background(), &river.Job[queue_jobs.GenerateCategoryReportArgs]{Args: args}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	last := repo.updates[len(repo.updates)-1]

@@ -5,6 +5,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 
+	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 )
 
@@ -13,51 +14,41 @@ type postTradeSyncSvc interface {
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
 }
 
-type SyncAssetAfterTradeJob struct {
+type SyncAssetAfterTradeArgs struct {
+	UserID         int64
+	AssetID        int64
+	Ticker         string
+	InvestmentType models.InvestmentType
+	TradeDate      time.Time
+}
+
+func (SyncAssetAfterTradeArgs) Kind() string { return TypeSyncAssetAfterTrade }
+
+type SyncAssetAfterTradeWorker struct {
+	river.WorkerDefaults[SyncAssetAfterTradeArgs]
 	logger            *zap.Logger
-	InvestmentService postTradeSyncSvc `json:"-"`
-	UserID            int64
-	AssetID           int64
-	Ticker            string
-	InvestmentType    models.InvestmentType
-	TradeDate         time.Time
+	investmentService postTradeSyncSvc
 }
 
-func (j *SyncAssetAfterTradeJob) Type() string { return TypeSyncAssetAfterTrade }
-
-func NewSyncAssetAfterTradeJob(
-	logger *zap.Logger,
-	investmentService postTradeSyncSvc,
-	userID, assetID int64,
-	ticker string,
-	investmentType models.InvestmentType,
-	tradeDate time.Time,
-) *SyncAssetAfterTradeJob {
-	return &SyncAssetAfterTradeJob{
-		logger:            logger,
-		InvestmentService: investmentService,
-		UserID:            userID,
-		AssetID:           assetID,
-		Ticker:            ticker,
-		InvestmentType:    investmentType,
-		TradeDate:         tradeDate,
-	}
+func NewSyncAssetAfterTradeWorker(logger *zap.Logger, investmentService postTradeSyncSvc) *SyncAssetAfterTradeWorker {
+	return &SyncAssetAfterTradeWorker{logger: logger, investmentService: investmentService}
 }
 
-func (j *SyncAssetAfterTradeJob) Process(ctx context.Context) error {
+func (w *SyncAssetAfterTradeWorker) Work(ctx context.Context, job *river.Job[SyncAssetAfterTradeArgs]) error {
+	args := job.Args
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	if err := j.InvestmentService.BackfillAssetPriceHistory(ctx, j.AssetID, j.Ticker, j.InvestmentType, j.TradeDate, today); err != nil {
-		j.logger.Warn("Failed to backfill asset price history",
-			zap.Int64("assetID", j.AssetID),
-			zap.String("ticker", j.Ticker),
+	if err := w.investmentService.BackfillAssetPriceHistory(ctx, args.AssetID, args.Ticker, args.InvestmentType, args.TradeDate, today); err != nil {
+		w.logger.Warn("Failed to backfill asset price history",
+			zap.Int64("assetID", args.AssetID),
+			zap.String("ticker", args.Ticker),
 			zap.Error(err),
 		)
 	}
 
-	if err := j.InvestmentService.UpdateSnapshotMarketValues(ctx, j.UserID); err != nil {
-		j.logger.Warn("Failed to update snapshot market values",
-			zap.Int64("userID", j.UserID),
+	if err := w.investmentService.UpdateSnapshotMarketValues(ctx, args.UserID); err != nil {
+		w.logger.Warn("Failed to update snapshot market values",
+			zap.Int64("userID", args.UserID),
 			zap.Error(err),
 		)
 	}

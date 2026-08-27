@@ -5,6 +5,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 
+	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 )
 
@@ -13,39 +14,34 @@ type templateRescheduler interface {
 	BulkUpdateTemplateTimezone(ctx context.Context, updates []models.TemplateTimezoneUpdate) error
 }
 
-type RecalculateTemplateTimezoneJob struct {
-	logger      *zap.Logger
-	repo        templateRescheduler
+type RecalculateTemplateTimezoneArgs struct {
 	UserID      int64
 	OldTimezone string
 	NewTimezone string
 }
 
-func (j *RecalculateTemplateTimezoneJob) Type() string { return TypeRecalculateTemplateTZ }
+func (RecalculateTemplateTimezoneArgs) Kind() string { return TypeRecalculateTemplateTZ }
 
-func NewRecalculateTemplateTimezoneJob(
-	logger *zap.Logger,
-	repo templateRescheduler,
-	userID int64,
-	oldTimezone, newTimezone string,
-) *RecalculateTemplateTimezoneJob {
-	return &RecalculateTemplateTimezoneJob{
-		logger:      logger,
-		repo:        repo,
-		UserID:      userID,
-		OldTimezone: oldTimezone,
-		NewTimezone: newTimezone,
-	}
+type RecalculateTemplateTimezoneWorker struct {
+	river.WorkerDefaults[RecalculateTemplateTimezoneArgs]
+	logger *zap.Logger
+	repo   templateRescheduler
 }
 
-func (j *RecalculateTemplateTimezoneJob) Process(ctx context.Context) error {
-	newLoc, err := time.LoadLocation(j.NewTimezone)
+func NewRecalculateTemplateTimezoneWorker(logger *zap.Logger, repo templateRescheduler) *RecalculateTemplateTimezoneWorker {
+	return &RecalculateTemplateTimezoneWorker{logger: logger, repo: repo}
+}
+
+func (w *RecalculateTemplateTimezoneWorker) Work(ctx context.Context, job *river.Job[RecalculateTemplateTimezoneArgs]) error {
+	args := job.Args
+
+	newLoc, err := time.LoadLocation(args.NewTimezone)
 	if err != nil {
-		j.logger.Error("Invalid new timezone", zap.String("timezone", j.NewTimezone), zap.Error(err))
+		w.logger.Error("Invalid new timezone", zap.String("timezone", args.NewTimezone), zap.Error(err))
 		return err
 	}
 
-	templates, err := j.repo.GetActiveTemplatesForUser(ctx, j.UserID)
+	templates, err := w.repo.GetActiveTemplatesForUser(ctx, args.UserID)
 	if err != nil {
 		return err
 	}
@@ -68,15 +64,15 @@ func (j *RecalculateTemplateTimezoneJob) Process(ctx context.Context) error {
 		})
 	}
 
-	if err := j.repo.BulkUpdateTemplateTimezone(ctx, updates); err != nil {
-		j.logger.Error("Failed to bulk update template timezones", zap.Int64("userID", j.UserID), zap.Error(err))
+	if err := w.repo.BulkUpdateTemplateTimezone(ctx, updates); err != nil {
+		w.logger.Error("Failed to bulk update template timezones", zap.Int64("userID", args.UserID), zap.Error(err))
 		return err
 	}
 
-	j.logger.Info("Recalculated template timezones",
-		zap.Int64("userID", j.UserID),
-		zap.String("oldTZ", j.OldTimezone),
-		zap.String("newTZ", j.NewTimezone),
+	w.logger.Info("Recalculated template timezones",
+		zap.Int64("userID", args.UserID),
+		zap.String("oldTZ", args.OldTimezone),
+		zap.String("newTZ", args.NewTimezone),
 		zap.Int("count", len(updates)),
 	)
 	return nil

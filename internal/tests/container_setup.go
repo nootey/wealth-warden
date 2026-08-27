@@ -27,6 +27,8 @@ type TestContainer struct {
 	container *postgres.PostgresContainer
 	DB        *gorm.DB
 	App       *bootstrap.ServiceContainer
+	// For code that bypasses GORM (River's pgx pool).
+	DSN string
 }
 
 type ServiceIntegrationSuite struct {
@@ -111,6 +113,7 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 		container: container,
 		DB:        db,
 		App:       appContainer,
+		DSN:       connStr,
 	}
 }
 

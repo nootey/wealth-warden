@@ -12,13 +12,11 @@ import (
 	"wealth-warden/pkg/utils"
 )
 
-// payloadKeys marshals a job the way DBDispatcher does and returns the top-level
-// JSON keys. Dependency fields must never appear here.
-func payloadKeys(t *testing.T, job queue.Job) []string {
+func payloadKeys(t *testing.T, args queue.Job) []string {
 	t.Helper()
-	raw, err := json.Marshal(job)
+	raw, err := json.Marshal(args)
 	if err != nil {
-		t.Fatalf("marshal %s: %v", job.Type(), err)
+		t.Fatalf("marshal %s: %v", args.Kind(), err)
 	}
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &m); err != nil {
@@ -32,28 +30,26 @@ func payloadKeys(t *testing.T, job queue.Job) []string {
 	return keys
 }
 
-func assertKeys(t *testing.T, job queue.Job, want ...string) {
+func assertKeys(t *testing.T, args queue.Job, want ...string) {
 	t.Helper()
-	got := payloadKeys(t, job)
+	got := payloadKeys(t, args)
 	sort.Strings(want)
 	if len(got) == 0 && len(want) == 0 {
 		return
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("%s payload keys = %v, want %v", job.Type(), got, want)
+		t.Errorf("%s payload keys = %v, want %v", args.Kind(), got, want)
 	}
 }
 
-// TestPayloadContract is the core invariant of the durable queue: serialized
-// payloads carry data fields only — never the live deps that jobs embed. A new
-// dep without `json:"-"` adds a key here; an unexported data field drops one.
+// Args carry data fields only: a dep on an args struct adds a key here.
 func TestPayloadContract(t *testing.T) {
 	desc := "moved"
 	causer := int64(7)
 	assetID := int64(12)
 	accountID := int64(3)
 
-	assertKeys(t, &queue_jobs.ActivityLogJob{
+	assertKeys(t, queue_jobs.ActivityLogArgs{
 		Event:       "account.update",
 		Category:    "account",
 		Description: &desc,
@@ -61,13 +57,13 @@ func TestPayloadContract(t *testing.T) {
 		Causer:      &causer,
 	}, "Event", "Category", "Description", "Payload", "Causer")
 
-	assertKeys(t, &queue_jobs.RecalculateAssetPnLJob{
+	assertKeys(t, queue_jobs.RecalculateAssetPnLArgs{
 		UserID:    1,
 		AssetID:   &assetID,
 		AccountID: &accountID,
 	}, "UserID", "AssetID", "AccountID")
 
-	assertKeys(t, &queue_jobs.SyncAssetAfterTradeJob{
+	assertKeys(t, queue_jobs.SyncAssetAfterTradeArgs{
 		UserID:         1,
 		AssetID:        12,
 		Ticker:         "AAPL",
@@ -75,32 +71,29 @@ func TestPayloadContract(t *testing.T) {
 		TradeDate:      time.Now(),
 	}, "UserID", "AssetID", "Ticker", "InvestmentType", "TradeDate")
 
-	assertKeys(t, &queue_jobs.RecalculateTemplateTimezoneJob{
+	assertKeys(t, queue_jobs.RecalculateTemplateTimezoneArgs{
 		UserID:      1,
 		OldTimezone: "Europe/Paris",
 		NewTimezone: "America/New_York",
 	}, "UserID", "OldTimezone", "NewTimezone")
 
-	assertKeys(t, &queue_jobs.NotificationJob{
+	assertKeys(t, queue_jobs.NotificationArgs{
 		Payload: models.Notification{UserID: 1, Title: "hi"},
 	}, "Payload")
 
-	assertKeys(t, &queue_jobs.GenerateCategoryReportJob{
+	assertKeys(t, queue_jobs.GenerateCategoryReportArgs{
 		ReportID: 9,
 		UserID:   1,
 		Params:   models.CategoryReportParams{Years: []int{2026}, Description: "d"},
 	}, "ReportID", "UserID", "Params")
 
-	// Payload-less maintenance jobs serialize to an empty object — deps dropped.
-	assertKeys(t, &queue_jobs.BackfillAssetCashFlowsJob{})
-	assertKeys(t, &queue_jobs.CorrectFeeAccountingJob{})
+	assertKeys(t, queue_jobs.BackfillAssetCashFlowsArgs{})
+	assertKeys(t, queue_jobs.CorrectFeeAccountingArgs{})
 }
 
-// TestPayloadRoundTrip confirms data survives marshal → unmarshal unchanged, the
-// path the consumer's registry relies on to rebuild jobs.
 func TestPayloadRoundTrip(t *testing.T) {
 	assetID := int64(12)
-	orig := &queue_jobs.GenerateCategoryReportJob{
+	orig := queue_jobs.GenerateCategoryReportArgs{
 		ReportID: 9,
 		UserID:   1,
 		Params: models.CategoryReportParams{
@@ -115,41 +108,44 @@ func TestPayloadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	var got queue_jobs.GenerateCategoryReportJob
+	var got queue_jobs.GenerateCategoryReportArgs
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if !reflect.DeepEqual(orig.Params, got.Params) || got.ReportID != orig.ReportID || got.UserID != orig.UserID {
-		t.Errorf("round-trip mismatch: got %+v, want %+v", got, *orig)
+	if !reflect.DeepEqual(orig, got) {
+		t.Errorf("round-trip mismatch: got %+v, want %+v", got, orig)
 	}
 
-	sync := &queue_jobs.SyncAssetAfterTradeJob{UserID: 1, AssetID: assetID, Ticker: "AAPL", InvestmentType: models.InvestmentStock, TradeDate: time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)}
+	sync := queue_jobs.SyncAssetAfterTradeArgs{UserID: 1, AssetID: assetID, Ticker: "AAPL", InvestmentType: models.InvestmentStock, TradeDate: time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)}
 	raw, _ = json.Marshal(sync)
-	var gotSync queue_jobs.SyncAssetAfterTradeJob
+	var gotSync queue_jobs.SyncAssetAfterTradeArgs
 	if err := json.Unmarshal(raw, &gotSync); err != nil {
 		t.Fatalf("unmarshal sync: %v", err)
 	}
 	if !gotSync.TradeDate.Equal(sync.TradeDate) || gotSync.Ticker != sync.Ticker {
-		t.Errorf("sync round-trip mismatch: got %+v, want %+v", gotSync, *sync)
+		t.Errorf("sync round-trip mismatch: got %+v, want %+v", gotSync, sync)
 	}
 }
 
-// TestJobTypeTags guards the stable type tags persisted on rows — a rename here
-// would orphan in-flight jobs.
-func TestJobTypeTags(t *testing.T) {
-	cases := map[queue.Job]string{
-		&queue_jobs.ActivityLogJob{}:                 queue_jobs.TypeActivityLog,
-		&queue_jobs.RecalculateAssetPnLJob{}:         queue_jobs.TypeRecalculateAssetPnL,
-		&queue_jobs.BackfillAssetCashFlowsJob{}:      queue_jobs.TypeBackfillAssetCashFlows,
-		&queue_jobs.SyncAssetAfterTradeJob{}:         queue_jobs.TypeSyncAssetAfterTrade,
-		&queue_jobs.RecalculateTemplateTimezoneJob{}: queue_jobs.TypeRecalculateTemplateTZ,
-		&queue_jobs.NotificationJob{}:                queue_jobs.TypeNotification,
-		&queue_jobs.CorrectFeeAccountingJob{}:        queue_jobs.TypeCorrectFeeAccounting,
-		&queue_jobs.GenerateCategoryReportJob{}:      queue_jobs.TypeGenerateCategoryReport,
+// Kinds are persisted on river_job rows; a rename orphans in-flight jobs.
+func TestJobKinds(t *testing.T) {
+	// Slice, not map: args holding slices are not hashable.
+	cases := []struct {
+		args queue.Job
+		want string
+	}{
+		{queue_jobs.ActivityLogArgs{}, queue_jobs.TypeActivityLog},
+		{queue_jobs.RecalculateAssetPnLArgs{}, queue_jobs.TypeRecalculateAssetPnL},
+		{queue_jobs.BackfillAssetCashFlowsArgs{}, queue_jobs.TypeBackfillAssetCashFlows},
+		{queue_jobs.SyncAssetAfterTradeArgs{}, queue_jobs.TypeSyncAssetAfterTrade},
+		{queue_jobs.RecalculateTemplateTimezoneArgs{}, queue_jobs.TypeRecalculateTemplateTZ},
+		{queue_jobs.NotificationArgs{}, queue_jobs.TypeNotification},
+		{queue_jobs.CorrectFeeAccountingArgs{}, queue_jobs.TypeCorrectFeeAccounting},
+		{queue_jobs.GenerateCategoryReportArgs{}, queue_jobs.TypeGenerateCategoryReport},
 	}
-	for job, want := range cases {
-		if got := job.Type(); got != want {
-			t.Errorf("Type() = %q, want %q", got, want)
+	for _, tc := range cases {
+		if got := tc.args.Kind(); got != tc.want {
+			t.Errorf("Kind() = %q, want %q", got, tc.want)
 		}
 	}
 }

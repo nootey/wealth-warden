@@ -16,6 +16,7 @@ import (
 	"wealth-warden/internal/ws"
 	"wealth-warden/pkg/utils"
 
+	"github.com/riverqueue/river"
 	"github.com/shopspring/decimal"
 	"github.com/xuri/excelize/v2"
 	"go.uber.org/zap"
@@ -34,7 +35,46 @@ type xlsxStyles struct {
 	LabelCell    int
 }
 
-type GenerateCategoryReportJob struct {
+type GenerateCategoryReportArgs struct {
+	ReportID int64
+	UserID   int64
+	Params   models.CategoryReportParams
+}
+
+func (GenerateCategoryReportArgs) Kind() string { return TypeGenerateCategoryReport }
+
+type GenerateCategoryReportWorker struct {
+	river.WorkerDefaults[GenerateCategoryReportArgs]
+	logger        *zap.Logger
+	analyticsRepo repositories.AnalyticsRepositoryInterface
+	broadcaster   ws.Broadcaster
+}
+
+func NewGenerateCategoryReportWorker(
+	logger *zap.Logger,
+	analyticsRepo repositories.AnalyticsRepositoryInterface,
+	broadcaster ws.Broadcaster,
+) *GenerateCategoryReportWorker {
+	return &GenerateCategoryReportWorker{
+		logger:        logger,
+		analyticsRepo: analyticsRepo,
+		broadcaster:   broadcaster,
+	}
+}
+
+func (w *GenerateCategoryReportWorker) Work(ctx context.Context, job *river.Job[GenerateCategoryReportArgs]) error {
+	return (&categoryReportRun{
+		logger:        w.logger,
+		analyticsRepo: w.analyticsRepo,
+		broadcaster:   w.broadcaster,
+		ReportID:      job.Args.ReportID,
+		UserID:        job.Args.UserID,
+		Params:        job.Args.Params,
+	}).run(ctx)
+}
+
+// The worker is shared across jobs, so per-run state lives here.
+type categoryReportRun struct {
 	logger        *zap.Logger
 	analyticsRepo repositories.AnalyticsRepositoryInterface
 	broadcaster   ws.Broadcaster
@@ -43,26 +83,7 @@ type GenerateCategoryReportJob struct {
 	Params        models.CategoryReportParams
 }
 
-func (j *GenerateCategoryReportJob) Type() string { return TypeGenerateCategoryReport }
-
-func NewGenerateCategoryReportJob(
-	logger *zap.Logger,
-	analyticsRepo repositories.AnalyticsRepositoryInterface,
-	broadcaster ws.Broadcaster,
-	reportID, userID int64,
-	params models.CategoryReportParams,
-) *GenerateCategoryReportJob {
-	return &GenerateCategoryReportJob{
-		logger:        logger,
-		analyticsRepo: analyticsRepo,
-		broadcaster:   broadcaster,
-		ReportID:      reportID,
-		UserID:        userID,
-		Params:        params,
-	}
-}
-
-func (j *GenerateCategoryReportJob) Process(ctx context.Context) error {
+func (j *categoryReportRun) run(ctx context.Context) error {
 	if err := j.analyticsRepo.UpdateReport(ctx, nil, j.ReportID, map[string]interface{}{
 		"status": "processing",
 	}); err != nil {
@@ -109,7 +130,7 @@ func (j *GenerateCategoryReportJob) Process(ctx context.Context) error {
 	return nil
 }
 
-func (j *GenerateCategoryReportJob) fail(ctx context.Context, err error) error {
+func (j *categoryReportRun) fail(ctx context.Context, err error) error {
 	j.logger.Error("category report generation failed", zap.Int64("reportID", j.ReportID), zap.Error(err))
 	msg := err.Error()
 	_ = j.analyticsRepo.UpdateReport(ctx, nil, j.ReportID, map[string]interface{}{
@@ -120,7 +141,7 @@ func (j *GenerateCategoryReportJob) fail(ctx context.Context, err error) error {
 	return err
 }
 
-func (j *GenerateCategoryReportJob) accountScopeLabel(ctx context.Context) (string, error) {
+func (j *categoryReportRun) accountScopeLabel(ctx context.Context) (string, error) {
 	if j.Params.AccountID == nil {
 		return "All accounts", nil
 	}
@@ -145,7 +166,7 @@ func humanizeSubtype(subtype string) string {
 	return strings.Join(words, " ")
 }
 
-func (j *GenerateCategoryReportJob) buildXLSX(rows []models.CategoryReportDataRow, scopeLabel string) ([]byte, error) {
+func (j *categoryReportRun) buildXLSX(rows []models.CategoryReportDataRow, scopeLabel string) ([]byte, error) {
 	byYear := make(map[int][]models.CategoryReportDataRow)
 	for _, r := range rows {
 		byYear[r.Year] = append(byYear[r.Year], r)
@@ -193,7 +214,7 @@ func (j *GenerateCategoryReportJob) buildXLSX(rows []models.CategoryReportDataRo
 	return buf.Bytes(), nil
 }
 
-func (j *GenerateCategoryReportJob) makeStyles(f *excelize.File) xlsxStyles {
+func (j *categoryReportRun) makeStyles(f *excelize.File) xlsxStyles {
 	thin := []excelize.Border{
 		{Type: "left", Color: "BFBFBF", Style: 1},
 		{Type: "right", Color: "BFBFBF", Style: 1},
@@ -222,7 +243,7 @@ func (j *GenerateCategoryReportJob) makeStyles(f *excelize.File) xlsxStyles {
 	return xlsxStyles{SectionTitle: titleID, ColHeader: headerID, DataCell: dataID, LabelCell: labelID}
 }
 
-func (j *GenerateCategoryReportJob) writeSummarySheet(f *excelize.File, sheet string, styles xlsxStyles, rows []models.CategoryReportDataRow, years []int, scopeLabel string) {
+func (j *categoryReportRun) writeSummarySheet(f *excelize.File, sheet string, styles xlsxStyles, rows []models.CategoryReportDataRow, years []int, scopeLabel string) {
 	type yearTotals struct {
 		primary   decimal.Decimal
 		secondary decimal.Decimal
@@ -310,7 +331,7 @@ func (j *GenerateCategoryReportJob) writeSummarySheet(f *excelize.File, sheet st
 	}
 }
 
-func (j *GenerateCategoryReportJob) writeYearSheet(f *excelize.File, sheet string, styles xlsxStyles, year int, rows []models.CategoryReportDataRow) {
+func (j *categoryReportRun) writeYearSheet(f *excelize.File, sheet string, styles xlsxStyles, year int, rows []models.CategoryReportDataRow) {
 	monthSet := make(map[int]struct{})
 	catMonthly := make(map[catKey]map[int]decimal.Decimal)
 	catMonthlyCount := make(map[catKey]map[int]int)
@@ -579,7 +600,7 @@ func (j *GenerateCategoryReportJob) writeYearSheet(f *excelize.File, sheet strin
 	}
 }
 
-func (j *GenerateCategoryReportJob) writeAllTimeSheet(f *excelize.File, sheet string, styles xlsxStyles, rows []models.CategoryReportDataRow, years []int) {
+func (j *categoryReportRun) writeAllTimeSheet(f *excelize.File, sheet string, styles xlsxStyles, rows []models.CategoryReportDataRow, years []int) {
 	catYearly := make(map[catKey]map[int]decimal.Decimal)
 	catYearlyCount := make(map[catKey]map[int]int)
 	catDisplayClass := make(map[catKey]string)
@@ -786,7 +807,7 @@ func (j *GenerateCategoryReportJob) writeAllTimeSheet(f *excelize.File, sheet st
 	}
 }
 
-func (j *GenerateCategoryReportJob) addYearCharts(
+func (j *categoryReportRun) addYearCharts(
 	f *excelize.File,
 	sheet string,
 	months []int,
@@ -840,7 +861,7 @@ func (j *GenerateCategoryReportJob) addYearCharts(
 	}
 }
 
-func (j *GenerateCategoryReportJob) addAllTimeChart(
+func (j *categoryReportRun) addAllTimeChart(
 	f *excelize.File,
 	sheet string,
 	years []int,
@@ -878,7 +899,7 @@ func (j *GenerateCategoryReportJob) addAllTimeChart(
 	})
 }
 
-func (j *GenerateCategoryReportJob) reportName(generatedAt time.Time) string {
+func (j *categoryReportRun) reportName(generatedAt time.Time) string {
 	categoryPart := pluralize(len(j.Params.InflowCategoryIDs)+len(j.Params.OutflowCategoryIDs), "category", "categories")
 
 	yearPart := "All Time"
@@ -900,7 +921,7 @@ func pluralize(count int, singular, plural string) string {
 	return fmt.Sprintf("%d %s", count, plural)
 }
 
-func (j *GenerateCategoryReportJob) saveFile(data []byte) (string, error) {
+func (j *categoryReportRun) saveFile(data []byte) (string, error) {
 	dir := filepath.Join("storage", "reports", fmt.Sprintf("%d", j.UserID))
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err

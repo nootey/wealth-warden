@@ -13,7 +13,8 @@ import (
 type BackofficeServiceInterface interface {
 	BackfillAssetCashFlows(ctx context.Context) error
 	CorrectFeeAccounting(ctx context.Context) error
-	MigrateZeroCostTrades(ctx context.Context) (*models.ZeroCostMigrationResult, error)
+	MigrateZeroCostTrades(ctx context.Context) error
+	RunZeroCostTradeMigration(ctx context.Context) (*models.ZeroCostMigrationResult, error)
 }
 
 type BackofficeService struct {
@@ -21,8 +22,6 @@ type BackofficeService struct {
 	jobDispatcher     queue.JobDispatcher
 	repo              repositories.BackofficeRepositoryInterface
 	investmentService InvestmentServiceInterface
-	accountService    AccountServiceInterface
-	userService       UserServiceInterface
 }
 
 func NewBackofficeService(
@@ -30,40 +29,31 @@ func NewBackofficeService(
 	jobDispatcher queue.JobDispatcher,
 	repo *repositories.BackofficeRepository,
 	investmentService InvestmentServiceInterface,
-	accountService AccountServiceInterface,
-	userService UserServiceInterface,
 ) *BackofficeService {
 	return &BackofficeService{
 		logger:            logger,
 		jobDispatcher:     jobDispatcher,
 		repo:              repo,
 		investmentService: investmentService,
-		accountService:    accountService,
-		userService:       userService,
 	}
 }
 
 var _ BackofficeServiceInterface = (*BackofficeService)(nil)
 
 func (s *BackofficeService) BackfillAssetCashFlows(ctx context.Context) error {
-	return s.jobDispatcher.Dispatch(ctx, queue_jobs.NewBackfillAssetCashFlowsJob(
-		s.logger.Named("backfill_asset_cash_flows"),
-		s.investmentService,
-		s.accountService,
-		s.userService,
-	))
+	return s.jobDispatcher.Dispatch(ctx, queue_jobs.BackfillAssetCashFlowsArgs{})
 }
 
 func (s *BackofficeService) CorrectFeeAccounting(ctx context.Context) error {
-	return s.jobDispatcher.Dispatch(ctx, queue_jobs.NewCorrectFeeAccountingJob(
-		s.logger.Named("correct_fee_accounting"),
-		s.investmentService,
-		s.accountService,
-		s.userService,
-	))
+	return s.jobDispatcher.Dispatch(ctx, queue_jobs.CorrectFeeAccountingArgs{})
 }
 
-func (s *BackofficeService) MigrateZeroCostTrades(ctx context.Context) (*models.ZeroCostMigrationResult, error) {
+func (s *BackofficeService) MigrateZeroCostTrades(ctx context.Context) error {
+	return s.jobDispatcher.Dispatch(ctx, queue_jobs.MigrateZeroCostTradesArgs{})
+}
+
+// Runs on the rebuild queue, which serialises it against the rebuild jobs.
+func (s *BackofficeService) RunZeroCostTradeMigration(ctx context.Context) (*models.ZeroCostMigrationResult, error) {
 	trades, err := s.repo.GetZeroCostBuyTrades(ctx)
 	if err != nil {
 		return nil, err

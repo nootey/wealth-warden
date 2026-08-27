@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"time"
 	"wealth-warden/pkg/config"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -23,11 +25,15 @@ func ConnectToPostgres(cfg *config.Config, zapLogger *zap.Logger) (*gorm.DB, err
 	return ConnectToDatabase(cfg, cfg.Postgres.Database, zapLogger)
 }
 
+func buildDSN(cfg *config.Config, targetDB string) string {
+	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=UTC",
+		cfg.Postgres.Host, cfg.Postgres.User, cfg.Postgres.Password, targetDB, cfg.Postgres.Port)
+}
+
 func ConnectToDatabase(cfg *config.Config, targetDB string, zapLogger *zap.Logger) (*gorm.DB, error) {
 	host := cfg.Postgres.Host
 
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=UTC",
-		host, cfg.Postgres.User, cfg.Postgres.Password, targetDB, cfg.Postgres.Port)
+	dsn := buildDSN(cfg, targetDB)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: logger.New(
@@ -78,6 +84,31 @@ func ConnectToDatabase(cfg *config.Config, targetDB string, zapLogger *zap.Logge
 		zap.String("host", host),
 		zap.String("database", targetDB))
 	return db, nil
+}
+
+// A separate pool keeps River's LISTEN/NOTIFY and fetches from starving requests.
+func ConnectRiverPool(ctx context.Context, cfg *config.Config, zapLogger *zap.Logger) (*pgxpool.Pool, error) {
+	poolCfg, err := pgxpool.ParseConfig(buildDSN(cfg, cfg.Postgres.Database))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse River pool config: %w", err)
+	}
+	poolCfg.MaxConns = 10
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create River pool: %w", err)
+	}
+
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("failed to ping River pool: %w", err)
+	}
+
+	zapLogger.Info("Connected River pool",
+		zap.String("host", cfg.Postgres.Host),
+		zap.String("database", cfg.Postgres.Database),
+		zap.Int32("max_conns", poolCfg.MaxConns))
+	return pool, nil
 }
 
 func DisconnectPostgres() error {

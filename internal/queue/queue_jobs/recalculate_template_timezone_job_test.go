@@ -8,6 +8,7 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue/queue_jobs"
 
+	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -30,37 +31,37 @@ func (m *mockTemplateRescheduler) BulkUpdateTemplateTimezone(_ context.Context, 
 }
 
 func TestRecalculateTemplateTimezoneJob_InvalidTimezone(t *testing.T) {
-	job := queue_jobs.NewRecalculateTemplateTimezoneJob(
+	worker := queue_jobs.NewRecalculateTemplateTimezoneWorker(
 		zaptest.NewLogger(t),
 		&mockTemplateRescheduler{},
-		1, "UTC", "Not/ATimezone",
 	)
+	args := queue_jobs.RecalculateTemplateTimezoneArgs{UserID: 1, OldTimezone: "UTC", NewTimezone: "Not/ATimezone"}
 
-	err := job.Process(context.Background())
+	err := worker.Work(context.Background(), &river.Job[queue_jobs.RecalculateTemplateTimezoneArgs]{Args: args})
 	assert.Error(t, err)
 }
 
 func TestRecalculateTemplateTimezoneJob_GetTemplatesError(t *testing.T) {
 	repo := &mockTemplateRescheduler{getErr: errors.New("db error")}
-	job := queue_jobs.NewRecalculateTemplateTimezoneJob(
+	worker := queue_jobs.NewRecalculateTemplateTimezoneWorker(
 		zaptest.NewLogger(t),
 		repo,
-		1, "UTC", "Europe/Ljubljana",
 	)
+	args := queue_jobs.RecalculateTemplateTimezoneArgs{UserID: 1, OldTimezone: "UTC", NewTimezone: "Europe/Ljubljana"}
 
-	err := job.Process(context.Background())
+	err := worker.Work(context.Background(), &river.Job[queue_jobs.RecalculateTemplateTimezoneArgs]{Args: args})
 	assert.Error(t, err)
 }
 
 func TestRecalculateTemplateTimezoneJob_NoTemplates(t *testing.T) {
 	repo := &mockTemplateRescheduler{templates: []models.TransactionTemplate{}}
-	job := queue_jobs.NewRecalculateTemplateTimezoneJob(
+	worker := queue_jobs.NewRecalculateTemplateTimezoneWorker(
 		zaptest.NewLogger(t),
 		repo,
-		1, "UTC", "Europe/Ljubljana",
 	)
+	args := queue_jobs.RecalculateTemplateTimezoneArgs{UserID: 1, OldTimezone: "UTC", NewTimezone: "Europe/Ljubljana"}
 
-	err := job.Process(context.Background())
+	err := worker.Work(context.Background(), &river.Job[queue_jobs.RecalculateTemplateTimezoneArgs]{Args: args})
 	require.NoError(t, err)
 	assert.Nil(t, repo.capturedUpdates)
 }
@@ -72,13 +73,13 @@ func TestRecalculateTemplateTimezoneJob_BulkUpdateError(t *testing.T) {
 		},
 		updateErr: errors.New("update failed"),
 	}
-	job := queue_jobs.NewRecalculateTemplateTimezoneJob(
+	worker := queue_jobs.NewRecalculateTemplateTimezoneWorker(
 		zaptest.NewLogger(t),
 		repo,
-		1, "UTC", "Europe/Ljubljana",
 	)
+	args := queue_jobs.RecalculateTemplateTimezoneArgs{UserID: 1, OldTimezone: "UTC", NewTimezone: "Europe/Ljubljana"}
 
-	err := job.Process(context.Background())
+	err := worker.Work(context.Background(), &river.Job[queue_jobs.RecalculateTemplateTimezoneArgs]{Args: args})
 	assert.Error(t, err)
 }
 
@@ -92,13 +93,13 @@ func TestRecalculateTemplateTimezoneJob_ReanchorsToSameLocalDate(t *testing.T) {
 			{ID: 1, NextRunAt: utcMidnight, DayOfMonth: 15},
 		},
 	}
-	job := queue_jobs.NewRecalculateTemplateTimezoneJob(
+	worker := queue_jobs.NewRecalculateTemplateTimezoneWorker(
 		zaptest.NewLogger(t),
 		repo,
-		1, "UTC", "Europe/Ljubljana",
 	)
+	args := queue_jobs.RecalculateTemplateTimezoneArgs{UserID: 1, OldTimezone: "UTC", NewTimezone: "Europe/Ljubljana"}
 
-	require.NoError(t, job.Process(context.Background()))
+	require.NoError(t, worker.Work(context.Background(), &river.Job[queue_jobs.RecalculateTemplateTimezoneArgs]{Args: args}))
 	require.Len(t, repo.capturedUpdates, 1)
 
 	u := repo.capturedUpdates[0]
@@ -127,13 +128,13 @@ func TestRecalculateTemplateTimezoneJob_MultipleTemplates(t *testing.T) {
 			{ID: 2, NextRunAt: t2, DayOfMonth: 20},
 		},
 	}
-	job := queue_jobs.NewRecalculateTemplateTimezoneJob(
+	worker := queue_jobs.NewRecalculateTemplateTimezoneWorker(
 		zaptest.NewLogger(t),
 		repo,
-		1, "UTC", "Europe/Paris",
 	)
+	args := queue_jobs.RecalculateTemplateTimezoneArgs{UserID: 1, OldTimezone: "UTC", NewTimezone: "Europe/Paris"}
 
-	require.NoError(t, job.Process(context.Background()))
+	require.NoError(t, worker.Work(context.Background(), &river.Job[queue_jobs.RecalculateTemplateTimezoneArgs]{Args: args}))
 	require.Len(t, repo.capturedUpdates, 2)
 
 	for _, u := range repo.capturedUpdates {

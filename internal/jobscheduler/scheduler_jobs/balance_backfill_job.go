@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 	"wealth-warden/internal/bootstrap"
+	"wealth-warden/internal/joblog"
 
 	"go.uber.org/zap"
 )
@@ -20,7 +21,7 @@ func NewBalanceBackfillJob(logger *zap.Logger, container *bootstrap.ServiceConta
 	return &BalanceBackfillJob{
 		logger:            logger,
 		container:         container,
-		concurrentWorkers: concurrentWorkers,
+		concurrentWorkers: workerCount(concurrentWorkers),
 	}
 }
 
@@ -36,6 +37,15 @@ func (j *BalanceBackfillJob) Run(ctx context.Context) error {
 		return nil
 	}
 
+	investmentUserIDs, err := j.container.InvestmentService.GetUserIDsWithInvestments(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get users with investments: %w", err)
+	}
+	hasInvestments := make(map[int64]bool, len(investmentUserIDs))
+	for _, uid := range investmentUserIDs {
+		hasInvestments[uid] = true
+	}
+
 	j.logger.Info("Backfilling balances", zap.Int("userCount", len(userIDs)))
 
 	to := time.Now().Format("2006-01-02")
@@ -44,6 +54,7 @@ func (j *BalanceBackfillJob) Run(ctx context.Context) error {
 	type result struct {
 		userID int64
 		err    error
+		mvErr  error
 	}
 
 	jobs := make(chan int64, len(userIDs))
@@ -60,15 +71,12 @@ func (j *BalanceBackfillJob) Run(ctx context.Context) error {
 					return
 				default:
 				}
-				err := j.container.AccountService.BackfillBalancesForUser(ctx, uid, from, to)
-				if err == nil {
-					if mvErr := j.container.AccountService.UpdateSnapshotMarketValues(ctx, uid); mvErr != nil {
-						j.logger.Warn("Failed to update snapshot market values after backfill",
-							zap.Int64("userID", uid),
-							zap.Error(mvErr))
-					}
+				r := result{userID: uid}
+				r.err = j.container.AccountService.BackfillBalancesForUser(ctx, uid, from, to)
+				if r.err == nil && hasInvestments[uid] {
+					r.mvErr = j.container.AccountService.UpdateSnapshotMarketValues(ctx, uid)
 				}
-				results <- result{userID: uid, err: err}
+				results <- r
 			}
 		}()
 	}
@@ -81,22 +89,31 @@ func (j *BalanceBackfillJob) Run(ctx context.Context) error {
 	wg.Wait()
 	close(results)
 
-	successCount := 0
-	failCount := 0
+	failures := joblog.NewErrorGroup("userID")
+	mvFailures := joblog.NewErrorGroup("userID")
+	processed := 0
 	for r := range results {
-		if r.err != nil {
-			j.logger.Error("Backfill failed for user",
-				zap.Int64("userID", r.userID),
-				zap.Error(r.err))
-			failCount++
-		} else {
-			successCount++
-		}
+		processed++
+		failures.Add(r.userID, r.err)
+		mvFailures.Add(r.userID, r.mvErr)
 	}
 
-	j.logger.Info("Backfill completed",
-		zap.Int("success", successCount),
-		zap.Int("failed", failCount))
+	failures.Log(j.logger, "Backfill failed for user")
+	mvFailures.Log(j.logger, "Failed to update snapshot market values after backfill")
 
+	failCount := failures.Count()
+	j.logger.Info("Backfill completed",
+		zap.Int("total", len(userIDs)),
+		zap.Int("success", processed-failCount),
+		zap.Int("failed", failCount),
+		zap.Int("not_run", len(userIDs)-processed))
+
+	if processed < len(userIDs) {
+		return joblog.StoppedEarly(ctx, processed, len(userIDs), "users")
+	}
+	if failCount > 0 || mvFailures.Count() > 0 {
+		return fmt.Errorf("%d of %d users failed to backfill, %d failed the market value update",
+			failCount, len(userIDs), mvFailures.Count())
+	}
 	return nil
 }

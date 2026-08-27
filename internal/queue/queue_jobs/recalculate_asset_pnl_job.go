@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"wealth-warden/internal/ws"
 
+	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 )
 
@@ -14,80 +15,64 @@ type pnlSvc interface {
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
 }
 
-type RecalculateAssetPnLJob struct {
+type RecalculateAssetPnLArgs struct {
+	UserID    int64
+	AssetID   *int64 // nil = all assets for the account
+	AccountID *int64 // nil = single asset mode
+}
+
+func (RecalculateAssetPnLArgs) Kind() string { return TypeRecalculateAssetPnL }
+
+type RecalculateAssetPnLWorker struct {
+	river.WorkerDefaults[RecalculateAssetPnLArgs]
 	logger            *zap.Logger
-	InvestmentService pnlSvc         `json:"-"`
-	broadcaster       ws.Broadcaster `json:"-"`
-	UserID            int64
-	AssetID           *int64 // nil = all assets for the account
-	AccountID         *int64 // nil = single asset mode
+	investmentService pnlSvc
+	broadcaster       ws.Broadcaster
 }
 
-func (j *RecalculateAssetPnLJob) Type() string { return TypeRecalculateAssetPnL }
-
-func NewRecalculateAssetPnLJob(
-	logger *zap.Logger,
-	investmentService pnlSvc,
-	broadcaster ws.Broadcaster,
-	userID int64,
-	assetID *int64,
-	accountID *int64,
-) *RecalculateAssetPnLJob {
-	return &RecalculateAssetPnLJob{
-		logger:            logger,
-		InvestmentService: investmentService,
-		broadcaster:       broadcaster,
-		UserID:            userID,
-		AssetID:           assetID,
-		AccountID:         accountID,
-	}
+func NewRecalculateAssetPnLWorker(logger *zap.Logger, investmentService pnlSvc, broadcaster ws.Broadcaster) *RecalculateAssetPnLWorker {
+	return &RecalculateAssetPnLWorker{logger: logger, investmentService: investmentService, broadcaster: broadcaster}
 }
 
-func (j *RecalculateAssetPnLJob) Process(ctx context.Context) error {
-	if j.AssetID != nil {
-		j.logger.Info("Recalculating asset PnL", zap.Int64("assetID", *j.AssetID))
-		if err := j.InvestmentService.RecalculateAssetPnL(ctx, j.UserID, *j.AssetID); err != nil {
-			j.logger.Error("Failed to recalculate asset PnL", zap.Int64("assetID", *j.AssetID), zap.Error(err))
-			return fmt.Errorf("failed to recalculate PnL for asset %d: %w", *j.AssetID, err)
+func (w *RecalculateAssetPnLWorker) Work(ctx context.Context, job *river.Job[RecalculateAssetPnLArgs]) error {
+	args := job.Args
+
+	if args.AssetID != nil {
+		w.logger.Info("Recalculating asset PnL", zap.Int64("assetID", *args.AssetID))
+		if err := w.investmentService.RecalculateAssetPnL(ctx, args.UserID, *args.AssetID); err != nil {
+			w.logger.Error("Failed to recalculate asset PnL", zap.Int64("assetID", *args.AssetID), zap.Error(err))
+			return fmt.Errorf("failed to recalculate PnL for asset %d: %w", *args.AssetID, err)
 		}
-		j.logger.Info("Asset PnL recalculated", zap.Int64("assetID", *j.AssetID))
-		j.refreshSnapshots(ctx)
-		j.notify(ws.AssetPnLPayload{AssetID: j.AssetID})
+		w.logger.Info("Asset PnL recalculated", zap.Int64("assetID", *args.AssetID))
+		w.refreshSnapshots(ctx, args.UserID)
+		w.broadcaster.Send(args.UserID, ws.Event{Type: ws.TypeAssetPnLSynced, Payload: ws.AssetPnLPayload{AssetID: args.AssetID}})
 		return nil
 	}
 
-	if j.AccountID != nil {
-		j.logger.Info("Recalculating PnL for all assets in account", zap.Int64("accountID", *j.AccountID))
-		assetIDs, err := j.InvestmentService.GetAssetIDsForAccount(ctx, j.UserID, *j.AccountID)
+	if args.AccountID != nil {
+		w.logger.Info("Recalculating PnL for all assets in account", zap.Int64("accountID", *args.AccountID))
+		assetIDs, err := w.investmentService.GetAssetIDsForAccount(ctx, args.UserID, *args.AccountID)
 		if err != nil {
-			j.logger.Error("Failed to fetch assets for account", zap.Int64("accountID", *j.AccountID), zap.Error(err))
-			return fmt.Errorf("failed to get assets for account %d: %w", *j.AccountID, err)
+			w.logger.Error("Failed to fetch assets for account", zap.Int64("accountID", *args.AccountID), zap.Error(err))
+			return fmt.Errorf("failed to get assets for account %d: %w", *args.AccountID, err)
 		}
 		for _, id := range assetIDs {
-			if err := j.InvestmentService.RecalculateAssetPnL(ctx, j.UserID, id); err != nil {
-				j.logger.Error("Failed to recalculate asset PnL", zap.Int64("assetID", id), zap.Error(err))
+			if err := w.investmentService.RecalculateAssetPnL(ctx, args.UserID, id); err != nil {
+				w.logger.Error("Failed to recalculate asset PnL", zap.Int64("assetID", id), zap.Error(err))
 				return fmt.Errorf("failed to recalculate PnL for asset %d: %w", id, err)
 			}
 		}
-		j.logger.Info("Account PnL recalculated", zap.Int64("accountID", *j.AccountID), zap.Int("assets", len(assetIDs)))
-		j.refreshSnapshots(ctx)
-		j.notify(ws.AssetPnLPayload{AccountID: j.AccountID})
+		w.logger.Info("Account PnL recalculated", zap.Int64("accountID", *args.AccountID), zap.Int("assets", len(assetIDs)))
+		w.refreshSnapshots(ctx, args.UserID)
+		w.broadcaster.Send(args.UserID, ws.Event{Type: ws.TypeAssetPnLSynced, Payload: ws.AssetPnLPayload{AccountID: args.AccountID}})
 		return nil
 	}
 
-	return fmt.Errorf("RecalculateAssetPnLJob: neither AssetID nor AccountID provided")
+	return fmt.Errorf("recalculate asset PnL: neither AssetID nor AccountID provided")
 }
 
-// The dispatch site builds this job without a hub; only the worker's rebuild has one.
-func (j *RecalculateAssetPnLJob) notify(payload ws.AssetPnLPayload) {
-	if j.broadcaster == nil {
-		return
-	}
-	j.broadcaster.Send(j.UserID, ws.Event{Type: ws.TypeAssetPnLSynced, Payload: payload})
-}
-
-func (j *RecalculateAssetPnLJob) refreshSnapshots(ctx context.Context) {
-	if err := j.InvestmentService.UpdateSnapshotMarketValues(ctx, j.UserID); err != nil {
-		j.logger.Warn("Failed to refresh snapshot market values", zap.Int64("userID", j.UserID), zap.Error(err))
+func (w *RecalculateAssetPnLWorker) refreshSnapshots(ctx context.Context, userID int64) {
+	if err := w.investmentService.UpdateSnapshotMarketValues(ctx, userID); err != nil {
+		w.logger.Warn("Failed to refresh snapshot market values", zap.Int64("userID", userID), zap.Error(err))
 	}
 }

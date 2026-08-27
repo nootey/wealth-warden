@@ -47,7 +47,7 @@ func NewAssetPriceSyncJob(
 		db:                db,
 		priceFetchClient:  priceFetchClient,
 		notifDispatcher:   notifDispatcher,
-		concurrentWorkers: concurrentWorkers,
+		concurrentWorkers: workerCount(concurrentWorkers),
 	}
 }
 

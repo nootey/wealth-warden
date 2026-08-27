@@ -60,7 +60,6 @@ type TransactionService struct {
 	repo          repositories.TransactionRepositoryInterface
 	accRepo       repositories.AccountRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
-	loggingRepo   repositories.LoggingRepositoryInterface
 	savingsRepo   repositories.SavingsRepositoryInterface
 	jobDispatcher queue.JobDispatcher
 }
@@ -69,7 +68,6 @@ func NewTransactionService(
 	repo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
 	settingsRepo *repositories.SettingsRepository,
-	loggingRepo *repositories.LoggingRepository,
 	savingsRepo *repositories.SavingsRepository,
 	jobDispatcher queue.JobDispatcher,
 ) *TransactionService {
@@ -77,7 +75,6 @@ func NewTransactionService(
 		repo:          repo,
 		accRepo:       accRepo,
 		settingsRepo:  settingsRepo,
-		loggingRepo:   loggingRepo,
 		savingsRepo:   savingsRepo,
 		jobDispatcher: jobDispatcher,
 	}
@@ -405,8 +402,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	utils.CompareChanges("", category.Name, changes, "category")
 	utils.CompareChanges("", utils.SafeString(tr.Description), changes, "description")
 
-	err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "create",
 		Category:    "transaction",
 		Description: nil,
@@ -590,8 +586,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	utils.CompareChanges("", req.Amount.StringFixed(2), changes, "amount")
 	utils.CompareChanges("", transfer.Currency, changes, "currency")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "create",
 		Category:    "transfer",
 		Description: req.Notes,
@@ -649,8 +644,7 @@ func (s *TransactionService) InsertCategory(ctx context.Context, userID int64, r
 	utils.CompareChanges("", rec.DisplayName, changes, "name")
 	utils.CompareChanges("", rec.Classification, changes, "classification")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "create",
 		Category:    "category",
 		Description: nil,
@@ -892,8 +886,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(txnID, 10))
-		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 
 			Event:       "update",
 			Category:    "transaction",
@@ -955,8 +948,7 @@ func (s *TransactionService) UpdateCategory(ctx context.Context, userID int64, i
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(catID, 10))
-		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 
 			Event:       "update",
 			Category:    "category",
@@ -1076,8 +1068,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	utils.CompareChanges(utils.SafeString(tr.Description), "", changes, "description")
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 
 			Event:       "delete",
 			Category:    "transaction",
@@ -1268,12 +1259,11 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 	utils.CompareChanges(oldDate.UTC().Format(time.RFC3339), newDate.UTC().Format(time.RFC3339), changes, "date")
 	utils.CompareChanges(oldNotesStr, newNotesStr, changes, "notes")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
-		Event:       "update",
-		Category:    "transfer",
-		Payload:     changes,
-		Causer:      &userID,
+	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		Event:    "update",
+		Category: "transfer",
+		Payload:  changes,
+		Causer:   &userID,
 	}); err != nil {
 		return err
 	}
@@ -1407,8 +1397,7 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 	utils.CompareChanges(utils.SafeString(transfer.Notes), "", changes, "description")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 
 			Event:       "delete",
 			Category:    "transfer",
@@ -1495,8 +1484,7 @@ func (s *TransactionService) DeleteCategory(ctx context.Context, userID int64, i
 	utils.CompareChanges(cat.Classification, "", changes, "classification")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 
 			Event:       "delete",
 			Category:    "category",
@@ -1596,8 +1584,7 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 	utils.CompareChanges("", tr.Amount.StringFixed(2), changes, "amount")
 	utils.CompareChanges("", tr.Currency, changes, "currency")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "restore",
 		Category:    "transaction",
 		Description: nil,
@@ -1651,8 +1638,7 @@ func (s *TransactionService) RestoreCategory(ctx context.Context, userID int64, 
 	utils.CompareChanges("", cat.DisplayName, changes, "name")
 	utils.CompareChanges("", cat.Classification, changes, "classification")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "restore",
 		Category:    "category",
 		Description: nil,
@@ -1699,8 +1685,7 @@ func (s *TransactionService) RestoreCategoryName(ctx context.Context, userID int
 		return err
 	}
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "restore",
 		Category:    "category",
 		Description: nil,
@@ -1922,8 +1907,7 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		utils.CompareChanges("", maxRunsStr, changes, "max_runs")
 	}
 
-	err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "create",
 		Category:    "txn_template",
 		Description: nil,
@@ -2067,8 +2051,7 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 		utils.CompareChanges(exMaxRunsStr, maxRunsStr, changes, "max_runs")
 	}
 
-	err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "update",
 		Category:    "txn_template",
 		Description: nil,
@@ -2136,8 +2119,7 @@ func (s *TransactionService) ToggleTransactionTemplateActiveState(ctx context.Co
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(tp.ID, 10))
-		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 			Event:       "update",
 			Category:    "txn_template",
 			Description: nil,
@@ -2189,8 +2171,7 @@ func (s *TransactionService) RenameTransactionTemplate(ctx context.Context, user
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(id, 10))
-		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 			Event:       "update",
 			Category:    "txn_template",
 			Description: nil,
@@ -2265,8 +2246,7 @@ func (s *TransactionService) DeleteTransactionTemplate(ctx context.Context, user
 		utils.CompareChanges(maxRunsStr, "", changes, "max_runs")
 	}
 
-	err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "delete",
 		Category:    "txn_template",
 		Description: nil,
@@ -2398,8 +2378,7 @@ func (s *TransactionService) ExecuteTemplateEarly(ctx context.Context, userID in
 	utils.CompareChanges(oldNextRunAt.Format(time.RFC3339), newNextRunAt.Format(time.RFC3339), changes, "next_run_at")
 	changes.Stamp("id", strconv.FormatInt(template.ID, 10))
 
-	return s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	return s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "execute",
 		Category:    "txn_template",
 		Description: nil,
@@ -2407,6 +2386,8 @@ func (s *TransactionService) ExecuteTemplateEarly(ctx context.Context, userID in
 		Causer:      &userID,
 	})
 }
+
+var ErrTemplateAlreadyRanToday = errors.New("template already executed today")
 
 // executeNow dates the transaction today instead of the template's scheduled date; the next run
 // date is always computed from the original NextRunAt so the cadence doesn't drift.
@@ -2449,12 +2430,12 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		}
 	}
 
-	if executeNow && currentTemplate.LastRunAt != nil {
+	if currentTemplate.LastRunAt != nil {
 		lastRun := currentTemplate.LastRunAt.In(loc)
 		now := time.Now().In(loc)
 		if lastRun.Year() == now.Year() && lastRun.YearDay() == now.YearDay() {
 			tx.Rollback()
-			return 0, time.Time{}, fmt.Errorf("template already executed today")
+			return 0, time.Time{}, ErrTemplateAlreadyRanToday
 		}
 	}
 
@@ -2621,8 +2602,7 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		utils.CompareChanges("", transferLog.Amount.StringFixed(2), changes, "amount")
 		utils.CompareChanges("", transferLog.Currency, changes, "currency")
 
-		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 			Event:       "create",
 			Category:    "transfer",
 			Description: &desc,
@@ -2755,8 +2735,7 @@ func (s *TransactionService) InsertCategoryGroup(ctx context.Context, userID int
 	utils.CompareChanges("", rec.Classification, changes, "classification")
 	utils.CompareChanges("", fmt.Sprintf("%d categories", len(categoryIDs)), changes, "categories_count")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 		Event:       "create",
 		Category:    "category_group",
 		Description: nil,
@@ -2844,8 +2823,7 @@ func (s *TransactionService) UpdateCategoryGroup(ctx context.Context, userID int
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(groupID, 10))
-		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 			Event:       "update",
 			Category:    "category_group",
 			Description: nil,
@@ -2901,8 +2879,7 @@ func (s *TransactionService) DeleteCategoryGroup(ctx context.Context, userID int
 	utils.CompareChanges(group.Classification, "", changes, "classification")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
 			Event:       "delete",
 			Category:    "category_group",
 			Description: nil,

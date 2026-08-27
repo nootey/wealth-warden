@@ -14,11 +14,9 @@ import (
 	"wealth-warden/internal/queue"
 	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/internal/ws"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
-	"go.uber.org/zap"
 )
 
 type AnalyticsServiceInterface interface {
@@ -39,7 +37,6 @@ type AnalyticsServiceInterface interface {
 	DeleteReport(ctx context.Context, userID, id int64) error
 }
 type AnalyticsService struct {
-	logger        *zap.Logger
 	repo          repositories.AnalyticsRepositoryInterface
 	accRepo       repositories.AccountRepositoryInterface
 	txnRepo       repositories.TransactionRepositoryInterface
@@ -48,7 +45,6 @@ type AnalyticsService struct {
 }
 
 func NewAnalyticsService(
-	logger *zap.Logger,
 	repo *repositories.AnalyticsRepository,
 	accRepo *repositories.AccountRepository,
 	txRepo *repositories.TransactionRepository,
@@ -56,7 +52,6 @@ func NewAnalyticsService(
 	jobDispatcher queue.JobDispatcher,
 ) *AnalyticsService {
 	return &AnalyticsService{
-		logger:        logger,
 		repo:          repo,
 		accRepo:       accRepo,
 		txnRepo:       txRepo,
@@ -1367,9 +1362,11 @@ func (s *AnalyticsService) GenerateCategoryReport(
 		return nil, err
 	}
 
-	// Only the serialized fields survive Dispatch; the job registry re-attaches live deps before Process.
-	job := queue_jobs.NewGenerateCategoryReportJob(s.logger, s.repo, ws.NoopBroadcaster{}, record.ID, userID, params)
-	if err := s.jobDispatcher.Dispatch(ctx, job); err != nil {
+	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.GenerateCategoryReportArgs{
+		ReportID: record.ID,
+		UserID:   userID,
+		Params:   params,
+	}); err != nil {
 		return nil, err
 	}
 

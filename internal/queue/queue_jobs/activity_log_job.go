@@ -4,10 +4,11 @@ import (
 	"context"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
+
+	"github.com/riverqueue/river"
 )
 
-type ActivityLogJob struct {
-	LoggingRepo repositories.LoggingRepositoryInterface `json:"-"`
+type ActivityLogArgs struct {
 	Event       string
 	Category    string
 	Description *string
@@ -15,16 +16,25 @@ type ActivityLogJob struct {
 	Causer      *int64
 }
 
-func (j *ActivityLogJob) Type() string { return TypeActivityLog }
+func (ActivityLogArgs) Kind() string { return TypeActivityLog }
 
-func (j *ActivityLogJob) Process(ctx context.Context) error {
-	return j.LoggingRepo.InsertActivityLog(
+type ActivityLogWorker struct {
+	river.WorkerDefaults[ActivityLogArgs]
+	loggingRepo repositories.LoggingRepositoryInterface
+}
+
+func NewActivityLogWorker(loggingRepo repositories.LoggingRepositoryInterface) *ActivityLogWorker {
+	return &ActivityLogWorker{loggingRepo: loggingRepo}
+}
+
+func (w *ActivityLogWorker) Work(ctx context.Context, job *river.Job[ActivityLogArgs]) error {
+	return w.loggingRepo.InsertActivityLog(
 		ctx,
 		nil, // tx
-		j.Event,
-		j.Category,
-		j.Description,
-		j.Payload,
-		j.Causer,
+		job.Args.Event,
+		job.Args.Category,
+		job.Args.Description,
+		job.Args.Payload,
+		job.Args.Causer,
 	)
 }

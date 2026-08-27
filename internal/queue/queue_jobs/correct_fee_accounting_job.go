@@ -3,89 +3,61 @@ package queue_jobs
 import (
 	"context"
 	"fmt"
+	"wealth-warden/internal/joblog"
 
+	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 )
 
 type feeAccountingCorrectionSvc interface {
-	CorrectTradeFeeAccounting(ctx context.Context, userID int64) error
-	BackfillInvestmentCashFlows(ctx context.Context, userID int64) error
+	CorrectFeeAccountingAndRebuild(ctx context.Context, userID int64) error
+	GetUserIDsWithInvestments(ctx context.Context) ([]int64, error)
 }
 
-type CorrectFeeAccountingJob struct {
+type CorrectFeeAccountingArgs struct{}
+
+func (CorrectFeeAccountingArgs) Kind() string { return TypeCorrectFeeAccounting }
+
+func (CorrectFeeAccountingArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{Queue: QueueRebuild}
+}
+
+type CorrectFeeAccountingWorker struct {
+	river.WorkerDefaults[CorrectFeeAccountingArgs]
 	logger            *zap.Logger
-	InvestmentService feeAccountingCorrectionSvc `json:"-"`
-	AccountService    accountBackfillSvc         `json:"-"`
-	UserService       userBackfillSvc            `json:"-"`
+	workers           int
+	investmentService feeAccountingCorrectionSvc
 }
 
-func (j *CorrectFeeAccountingJob) Type() string { return TypeCorrectFeeAccounting }
-
-func NewCorrectFeeAccountingJob(
-	logger *zap.Logger,
-	investmentService feeAccountingCorrectionSvc,
-	accountService accountBackfillSvc,
-	userService userBackfillSvc,
-) *CorrectFeeAccountingJob {
-	return &CorrectFeeAccountingJob{
+func NewCorrectFeeAccountingWorker(logger *zap.Logger, investmentService feeAccountingCorrectionSvc, workers int) *CorrectFeeAccountingWorker {
+	return &CorrectFeeAccountingWorker{
 		logger:            logger,
-		InvestmentService: investmentService,
-		AccountService:    accountService,
-		UserService:       userService,
+		workers:           workers,
+		investmentService: investmentService,
 	}
 }
 
-func (j *CorrectFeeAccountingJob) Process(ctx context.Context) error {
-	userIDs, err := j.UserService.GetAllActiveUserIDs(ctx)
+func (w *CorrectFeeAccountingWorker) Work(ctx context.Context, _ *river.Job[CorrectFeeAccountingArgs]) error {
+	userIDs, err := w.investmentService.GetUserIDsWithInvestments(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get user IDs: %w", err)
 	}
 
 	if len(userIDs) == 0 {
-		j.logger.Info("No users to process")
+		w.logger.Info("No users to process")
 		return nil
 	}
 
-	j.logger.Info("Processing users", zap.Int("count", len(userIDs)))
+	w.logger.Info("Processing users", zap.Int("count", len(userIDs)))
 
-	failCount := 0
+	res := runPerUser(ctx, userIDs, w.workers, w.investmentService.CorrectFeeAccountingAndRebuild)
+	res.log(w.logger, "Failed to correct fee accounting", len(userIDs))
 
-	for _, userID := range userIDs {
-		// Step 1: fix trade value_at_buy and recalculate asset aggregates
-		if err := j.InvestmentService.CorrectTradeFeeAccounting(ctx, userID); err != nil {
-			j.logger.Error("Failed to correct trade fee accounting", zap.Int64("userID", userID), zap.Error(err))
-			failCount++
-			continue
-		}
-
-		// Step 2: clear and rebuild cash flows with corrected values
-		if err := j.AccountService.ClearInvestmentCashFlows(ctx, userID); err != nil {
-			j.logger.Error("Failed to clear investment cash flows", zap.Int64("userID", userID), zap.Error(err))
-			failCount++
-			continue
-		}
-
-		if err := j.AccountService.ClearInvestmentSnapshots(ctx, userID); err != nil {
-			j.logger.Error("Failed to clear investment snapshots", zap.Int64("userID", userID), zap.Error(err))
-			failCount++
-			continue
-		}
-
-		if err := j.InvestmentService.BackfillInvestmentCashFlows(ctx, userID); err != nil {
-			j.logger.Error("Failed to backfill cash flows", zap.Int64("userID", userID), zap.Error(err))
-			failCount++
-			continue
-		}
-
-		if err := j.AccountService.RebuildSnapshotsForUser(ctx, userID); err != nil {
-			j.logger.Error("Failed to rebuild snapshots", zap.Int64("userID", userID), zap.Error(err))
-			failCount++
-			continue
-		}
-
-		j.logger.Info("User correction complete", zap.Int64("userID", userID))
+	if res.processed < len(userIDs) {
+		return joblog.StoppedEarly(ctx, res.processed, len(userIDs), "users")
 	}
-
-	j.logger.Info("Completed", zap.Int("success", len(userIDs)-failCount), zap.Int("failed", failCount))
+	if failCount := res.failures.Count(); failCount > 0 {
+		return fmt.Errorf("%d of %d users failed", failCount, len(userIDs))
+	}
 	return nil
 }
