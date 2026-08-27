@@ -3,6 +3,7 @@ package jobworker
 import (
 	"context"
 	"time"
+	"wealth-warden/internal/jobscheduler"
 	"wealth-warden/internal/queue"
 	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
@@ -25,11 +26,15 @@ const (
 
 	defaultPollInterval = time.Second
 	defaultJobTimeout   = 15 * time.Minute
+
+	// Few and long. Two slots let a daily run overlap a price sync without
+	// crowding out the default queue.
+	schedulerQueueWorkers = 2
 )
 
 // The worker bundle starts empty: the service container needs the dispatcher,
 // which needs this client, so RegisterWorkers fills it afterwards.
-func NewClient(pool *pgxpool.Pool, logger *zap.Logger, cfg config.QueueConfig, serviceName string) (*river.Client[pgx.Tx], *river.Workers, error) {
+func NewClient(pool *pgxpool.Pool, logger *zap.Logger, cfg config.QueueConfig, serviceName string, periodicJobs []*river.PeriodicJob) (*river.Client[pgx.Tx], *river.Workers, error) {
 	if cfg.Workers <= 0 {
 		cfg.Workers = 1
 	}
@@ -55,10 +60,12 @@ func NewClient(pool *pgxpool.Pool, logger *zap.Logger, cfg config.QueueConfig, s
 	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Workers: workers,
 		Queues: map[string]river.QueueConfig{
-			river.QueueDefault: {MaxWorkers: cfg.Workers},
+			river.QueueDefault:          {MaxWorkers: cfg.Workers},
+			jobscheduler.QueueScheduler: {MaxWorkers: schedulerQueueWorkers},
 			// One worker is what serialises the investment rebuilds.
 			queue_jobs.QueueRebuild: {MaxWorkers: 1},
 		},
+		PeriodicJobs:      periodicJobs,
 		MaxAttempts:       cfg.MaxAttempts,
 		FetchPollInterval: pollInterval,
 		JobTimeout:        jobTimeout,
@@ -134,9 +141,13 @@ func (m *metricsMiddleware) Work(ctx context.Context, job *rivertype.JobRow, doI
 		status = "failure"
 	}
 
-	jobType := attribute.String("job_type", job.Kind)
-	m.jobDuration.Record(ctx, duration, metric.WithAttributes(jobType))
-	m.jobRuns.Add(ctx, 1, metric.WithAttributes(jobType, attribute.String("status", status)))
+	// The queue label is what splits the scheduler and async panels in Grafana.
+	attrs := []attribute.KeyValue{
+		attribute.String("job_type", job.Kind),
+		attribute.String("queue", job.Queue),
+	}
+	m.jobDuration.Record(ctx, duration, metric.WithAttributes(attrs...))
+	m.jobRuns.Add(ctx, 1, metric.WithAttributes(append(attrs, attribute.String("status", status))...))
 
 	return err
 }

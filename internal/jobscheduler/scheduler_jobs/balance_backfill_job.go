@@ -3,11 +3,11 @@ package scheduler_jobs
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/joblog"
 
+	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 )
 
@@ -21,7 +21,7 @@ func NewBalanceBackfillJob(logger *zap.Logger, container *bootstrap.ServiceConta
 	return &BalanceBackfillJob{
 		logger:            logger,
 		container:         container,
-		concurrentWorkers: workerCount(concurrentWorkers),
+		concurrentWorkers: concurrentWorkers,
 	}
 }
 
@@ -57,43 +57,20 @@ func (j *BalanceBackfillJob) Run(ctx context.Context) error {
 		mvErr  error
 	}
 
-	jobs := make(chan int64, len(userIDs))
 	results := make(chan result, len(userIDs))
-
-	var wg sync.WaitGroup
-	for i := 0; i < j.concurrentWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for uid := range jobs {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-				r := result{userID: uid}
-				r.err = j.container.AccountService.BackfillBalancesForUser(ctx, uid, from, to)
-				if r.err == nil && hasInvestments[uid] {
-					r.mvErr = j.container.AccountService.UpdateSnapshotMarketValues(ctx, uid)
-				}
-				results <- r
-			}
-		}()
-	}
-
-	for _, uid := range userIDs {
-		jobs <- uid
-	}
-	close(jobs)
-
-	wg.Wait()
+	processed := joblog.RunPool(ctx, userIDs, j.concurrentWorkers, func(ctx context.Context, uid int64) {
+		r := result{userID: uid}
+		r.err = j.container.AccountService.BackfillBalancesForUser(ctx, uid, from, to)
+		if r.err == nil && hasInvestments[uid] {
+			r.mvErr = j.container.AccountService.UpdateSnapshotMarketValues(ctx, uid)
+		}
+		results <- r
+	})
 	close(results)
 
 	failures := joblog.NewErrorGroup("userID")
 	mvFailures := joblog.NewErrorGroup("userID")
-	processed := 0
 	for r := range results {
-		processed++
 		failures.Add(r.userID, r.err)
 		mvFailures.Add(r.userID, r.mvErr)
 	}
@@ -115,5 +92,33 @@ func (j *BalanceBackfillJob) Run(ctx context.Context) error {
 		return fmt.Errorf("%d of %d users failed to backfill, %d failed the market value update",
 			failCount, len(userIDs), mvFailures.Count())
 	}
+	return nil
+}
+
+type BalanceBackfillArgs struct{}
+
+func (BalanceBackfillArgs) Kind() string { return TypeBalanceBackfill }
+
+type BalanceBackfillWorker struct {
+	river.WorkerDefaults[BalanceBackfillArgs]
+	logger *zap.Logger
+	job    *BalanceBackfillJob
+}
+
+func NewBalanceBackfillWorker(logger *zap.Logger, job *BalanceBackfillJob) *BalanceBackfillWorker {
+	return &BalanceBackfillWorker{logger: logger, job: job}
+}
+
+func (w *BalanceBackfillWorker) Timeout(*river.Job[BalanceBackfillArgs]) time.Duration {
+	return 3 * time.Minute
+}
+
+func (w *BalanceBackfillWorker) Work(ctx context.Context, _ *river.Job[BalanceBackfillArgs]) error {
+	w.logger.Info("Starting scheduled backfill job...")
+	if err := w.job.Run(ctx); err != nil {
+		w.logger.Error("Backfill failed", zap.Error(err))
+		return err
+	}
+	w.logger.Info("Backfill completed successfully")
 	return nil
 }

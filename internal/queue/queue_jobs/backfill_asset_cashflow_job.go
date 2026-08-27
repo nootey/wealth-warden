@@ -50,13 +50,13 @@ func (w *BackfillAssetCashFlowsWorker) Work(ctx context.Context, _ *river.Job[Ba
 
 	w.logger.Info("Processing users", zap.Int("count", len(userIDs)))
 
-	res := runPerUser(ctx, userIDs, w.workers, w.investmentService.RebuildInvestmentDerivedData)
-	res.log(w.logger, "Failed to rebuild investment derived data", len(userIDs))
+	res := joblog.RunPerUser(ctx, userIDs, w.workers, w.investmentService.RebuildInvestmentDerivedData)
+	res.Log(w.logger, "Failed to rebuild investment derived data", len(userIDs))
 
-	if res.processed < len(userIDs) {
-		return joblog.StoppedEarly(ctx, res.processed, len(userIDs), "users")
+	if res.Processed < len(userIDs) {
+		return joblog.StoppedEarly(ctx, res.Processed, len(userIDs), "users")
 	}
-	if failCount := res.failures.Count(); failCount > 0 {
+	if failCount := res.Failures.Count(); failCount > 0 {
 		return fmt.Errorf("%d of %d users failed", failCount, len(userIDs))
 	}
 	return nil

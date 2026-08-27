@@ -26,7 +26,6 @@ import (
 type App struct {
 	logger    *zap.Logger
 	http      *http.HttpServer
-	scheduler *jobscheduler.Scheduler
 	jobWorker *jobworker.Service
 	telemetry *telemetry.Provider
 	health    *health.Service
@@ -67,7 +66,7 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		}
 	}()
 
-	riverClient, riverWorkers, err := jobworker.NewClient(riverPool, logger.Named("job-worker"), cfg.Queue, cfg.Otel.ServiceName)
+	riverClient, riverWorkers, err := jobworker.NewClient(riverPool, logger.Named("job-worker"), cfg.Queue, cfg.Otel.ServiceName, jobscheduler.PeriodicJobs(cfg.Scheduler))
 	if err != nil {
 		return nil, fmt.Errorf("river client initialization failed: %w", err)
 	}
@@ -88,13 +87,12 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		return nil, fmt.Errorf("job worker registration failed: %w", err)
 	}
 
-	if err := jobworker.RegisterQueueLagGauge(repositories.NewJobRepository(dbClient), meter); err != nil {
-		return nil, fmt.Errorf("queue lag gauge registration failed: %w", err)
+	if err := jobscheduler.RegisterWorkers(riverWorkers, container, logger.Named("scheduler")); err != nil {
+		return nil, fmt.Errorf("scheduler worker registration failed: %w", err)
 	}
 
-	scheduler, err := jobscheduler.NewScheduler(logger.Named("scheduler"), container, jobscheduler.FlagsFromConfig(cfg.Scheduler), cfg.Scheduler.ConcurrentWorkers)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create scheduler: %w", err)
+	if err := jobworker.RegisterQueueLagGauge(repositories.NewJobRepository(dbClient), meter); err != nil {
+		return nil, fmt.Errorf("queue lag gauge registration failed: %w", err)
 	}
 
 	healthSvc, err := health.New(logger.Named("health"))
@@ -112,7 +110,6 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 	return &App{
 		logger:    logger,
 		http:      http.NewServer(container, logger.Named("http"), healthSvc.Handler()),
-		scheduler: scheduler,
 		jobWorker: jobworker.NewService(riverClient, logger.Named("job-worker")),
 		telemetry: tel,
 		health:    healthSvc,
@@ -148,14 +145,6 @@ func (a *App) Run(ctx context.Context) error {
 			cancel()
 		}
 		_ = a.http.Shutdown()
-	}))
-
-	supervisor.Add(worker.NewService("scheduler", func(ctx context.Context) {
-		if err := a.scheduler.Start(ctx); err != nil {
-			a.logger.Error("scheduler failed", zap.Error(err))
-			cancel()
-		}
-		_ = a.scheduler.Shutdown()
 	}))
 
 	supervisor.Add(worker.NewService("job-worker", a.jobWorker.Run))

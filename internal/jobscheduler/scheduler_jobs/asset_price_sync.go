@@ -3,13 +3,14 @@ package scheduler_jobs
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
+	"wealth-warden/internal/joblog"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/finance"
 
+	"github.com/riverqueue/river"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -47,7 +48,7 @@ func NewAssetPriceSyncJob(
 		db:                db,
 		priceFetchClient:  priceFetchClient,
 		notifDispatcher:   notifDispatcher,
-		concurrentWorkers: workerCount(concurrentWorkers),
+		concurrentWorkers: concurrentWorkers,
 	}
 }
 
@@ -128,32 +129,13 @@ func (j *AssetPriceSyncJob) refreshSnapshotMarketValues(ctx context.Context) err
 		return err
 	}
 
-	jobs := make(chan int64, len(userIDs))
-	var wg sync.WaitGroup
-	for i := 0; i < j.concurrentWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for uid := range jobs {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-				if err := j.accService.UpdateSnapshotMarketValues(ctx, uid); err != nil {
-					j.logger.Warn("Failed to update snapshot market values",
-						zap.Int64("userID", uid),
-						zap.Error(err))
-				}
-			}
-		}()
-	}
-
-	for _, uid := range userIDs {
-		jobs <- uid
-	}
-	close(jobs)
-	wg.Wait()
+	joblog.RunPool(ctx, userIDs, j.concurrentWorkers, func(ctx context.Context, uid int64) {
+		if err := j.accService.UpdateSnapshotMarketValues(ctx, uid); err != nil {
+			j.logger.Warn("Failed to update snapshot market values",
+				zap.Int64("userID", uid),
+				zap.Error(err))
+		}
+	})
 
 	return nil
 }
@@ -390,5 +372,33 @@ func (j *AssetPriceSyncJob) updateTrades(tx *gorm.DB, assetID int64, price decim
 		return err
 	}
 
+	return nil
+}
+
+type AssetPriceSyncArgs struct{}
+
+func (AssetPriceSyncArgs) Kind() string { return TypeAssetPriceSync }
+
+type AssetPriceSyncWorker struct {
+	river.WorkerDefaults[AssetPriceSyncArgs]
+	logger *zap.Logger
+	job    *AssetPriceSyncJob
+}
+
+func NewAssetPriceSyncWorker(logger *zap.Logger, job *AssetPriceSyncJob) *AssetPriceSyncWorker {
+	return &AssetPriceSyncWorker{logger: logger, job: job}
+}
+
+func (w *AssetPriceSyncWorker) Timeout(*river.Job[AssetPriceSyncArgs]) time.Duration {
+	return 5 * time.Minute
+}
+
+func (w *AssetPriceSyncWorker) Work(ctx context.Context, _ *river.Job[AssetPriceSyncArgs]) error {
+	w.logger.Info("Starting asset price sync ...")
+	if err := w.job.Run(ctx); err != nil {
+		w.logger.Error("Price sync failed", zap.Error(err))
+		return err
+	}
+	w.logger.Info("Price sync completed")
 	return nil
 }

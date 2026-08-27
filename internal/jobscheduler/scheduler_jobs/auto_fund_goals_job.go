@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/joblog"
@@ -27,7 +26,7 @@ func NewAutoFundGoalsJob(logger *zap.Logger, container *bootstrap.ServiceContain
 		logger:            logger,
 		container:         container,
 		notifDispatcher:   notifDispatcher,
-		concurrentWorkers: workerCount(concurrentWorkers),
+		concurrentWorkers: concurrentWorkers,
 	}
 }
 
@@ -83,52 +82,32 @@ func (j *AutoFundGoalsJob) Run(ctx context.Context) error {
 		groupSlice = append(groupSlice, group)
 	}
 
-	jobs := make(chan []models.SavingGoal, len(groupSlice))
 	results := make(chan result, len(goals))
 
-	var wg sync.WaitGroup
-	for i := 0; i < j.concurrentWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for group := range jobs {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-				// Process goals in this account sequentially so each successive
-				// goal sees the updated uncategorized balance from prior inserts.
-				for _, goal := range group {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-					}
-					funded, skipReason, err := j.container.SavingsService.AutoFundGoal(ctx, goal, month)
-					results <- result{
-						goalID:     goal.ID,
-						goalName:   goal.Name,
-						userID:     goal.UserID,
-						accountID:  goal.AccountID,
-						funded:     funded,
-						skipReason: skipReason,
-						err:        err,
-					}
-					if skipReason == "insufficient_balance" {
-						break
-					}
-				}
+	joblog.RunPool(ctx, groupSlice, j.concurrentWorkers, func(ctx context.Context, group []models.SavingGoal) {
+		// Process goals in this account sequentially so each successive goal
+		// sees the updated uncategorized balance from prior inserts.
+		for _, goal := range group {
+			select {
+			case <-ctx.Done():
+				return
+			default:
 			}
-		}()
-	}
-
-	for _, group := range groupSlice {
-		jobs <- group
-	}
-	close(jobs)
-
-	wg.Wait()
+			funded, skipReason, err := j.container.SavingsService.AutoFundGoal(ctx, goal, month)
+			results <- result{
+				goalID:     goal.ID,
+				goalName:   goal.Name,
+				userID:     goal.UserID,
+				accountID:  goal.AccountID,
+				funded:     funded,
+				skipReason: skipReason,
+				err:        err,
+			}
+			if skipReason == "insufficient_balance" {
+				break
+			}
+		}
+	})
 	close(results)
 
 	type userSummary struct {

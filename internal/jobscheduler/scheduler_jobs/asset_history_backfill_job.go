@@ -2,12 +2,12 @@ package scheduler_jobs
 
 import (
 	"context"
-	"sync"
 	"time"
 	"wealth-warden/internal/joblog"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 
+	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -29,7 +29,7 @@ func NewAssetPriceHistoryBackfillJob(
 		logger:            logger,
 		investmentSvc:     investmentSvc,
 		db:                db,
-		concurrentWorkers: workerCount(concurrentWorkers),
+		concurrentWorkers: concurrentWorkers,
 	}
 }
 
@@ -72,38 +72,15 @@ func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
 		err     error
 	}
 
-	jobs := make(chan assetRow, len(assets))
 	results := make(chan result, len(assets))
-
-	var wg sync.WaitGroup
-	for i := 0; i < j.concurrentWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for asset := range jobs {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-				err := j.investmentSvc.BackfillAssetPriceHistory(ctx, asset.ID, asset.Ticker, asset.InvestmentType, asset.EarliestTrade, today)
-				results <- result{assetID: asset.ID, err: err}
-			}
-		}()
-	}
-
-	for _, asset := range assets {
-		jobs <- asset
-	}
-	close(jobs)
-
-	wg.Wait()
+	processed := joblog.RunPool(ctx, assets, j.concurrentWorkers, func(ctx context.Context, asset assetRow) {
+		err := j.investmentSvc.BackfillAssetPriceHistory(ctx, asset.ID, asset.Ticker, asset.InvestmentType, asset.EarliestTrade, today)
+		results <- result{assetID: asset.ID, err: err}
+	})
 	close(results)
 
 	failures := joblog.NewErrorGroup("asset_id")
-	processed := 0
 	for r := range results {
-		processed++
 		failures.Add(r.assetID, r.err)
 	}
 
@@ -119,5 +96,33 @@ func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
 	if processed < len(assets) {
 		return joblog.StoppedEarly(ctx, processed, len(assets), "assets")
 	}
+	return nil
+}
+
+type AssetPriceHistoryBackfillArgs struct{}
+
+func (AssetPriceHistoryBackfillArgs) Kind() string { return TypeAssetHistoryBackfill }
+
+type AssetPriceHistoryBackfillWorker struct {
+	river.WorkerDefaults[AssetPriceHistoryBackfillArgs]
+	logger *zap.Logger
+	job    *AssetPriceHistoryBackfillJob
+}
+
+func NewAssetPriceHistoryBackfillWorker(logger *zap.Logger, job *AssetPriceHistoryBackfillJob) *AssetPriceHistoryBackfillWorker {
+	return &AssetPriceHistoryBackfillWorker{logger: logger, job: job}
+}
+
+func (w *AssetPriceHistoryBackfillWorker) Timeout(*river.Job[AssetPriceHistoryBackfillArgs]) time.Duration {
+	return 5 * time.Minute
+}
+
+func (w *AssetPriceHistoryBackfillWorker) Work(ctx context.Context, _ *river.Job[AssetPriceHistoryBackfillArgs]) error {
+	w.logger.Info("Starting asset price history backfill ...")
+	if err := w.job.Run(ctx); err != nil {
+		w.logger.Error("Price history backfill failed", zap.Error(err))
+		return err
+	}
+	w.logger.Info("Price history backfill completed")
 	return nil
 }

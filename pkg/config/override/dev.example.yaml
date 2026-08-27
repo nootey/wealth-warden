@@ -53,8 +53,7 @@ scheduler:
     - asset_price_sync
 #    - asset_history_backfill
 #    - balance_backfill
-#    - templates
-#    - savings_goal_fund
+#    - recurring_transactions
 
 otel:
   service_name: "wealth-warden"

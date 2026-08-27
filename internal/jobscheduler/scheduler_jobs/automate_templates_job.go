@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/joblog"
 	"wealth-warden/internal/models"
@@ -27,7 +26,7 @@ func NewAutomateTemplateJob(logger *zap.Logger, container *bootstrap.ServiceCont
 		logger:            logger,
 		container:         container,
 		notifDispatcher:   notifDispatcher,
-		concurrentWorkers: workerCount(concurrentWorkers),
+		concurrentWorkers: concurrentWorkers,
 	}
 }
 
@@ -61,31 +60,9 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 	}
 
 	runPhase := func(phase []*models.TransactionTemplate, out chan<- result) {
-		if len(phase) == 0 {
-			return
-		}
-		jobs := make(chan *models.TransactionTemplate, len(phase))
-		var wg sync.WaitGroup
-		for i := 0; i < j.concurrentWorkers; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for tmpl := range jobs {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-					}
-					err := j.container.TransactionService.ProcessTemplate(ctx, tmpl)
-					out <- result{template: tmpl, err: err}
-				}
-			}()
-		}
-		for _, tmpl := range phase {
-			jobs <- tmpl
-		}
-		close(jobs)
-		wg.Wait()
+		joblog.RunPool(ctx, phase, j.concurrentWorkers, func(ctx context.Context, tmpl *models.TransactionTemplate) {
+			out <- result{template: tmpl, err: j.container.TransactionService.ProcessTemplate(ctx, tmpl)}
+		})
 	}
 
 	results := make(chan result, len(templates))
