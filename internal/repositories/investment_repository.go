@@ -24,6 +24,13 @@ type InvestmentRepositoryInterface interface {
 	FindInvestmentTradeByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTrade, error)
 	FindInvestmentTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.InvestmentTrade, error)
 	FindAllTradesByUserID(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTrade, error)
+	GetUserIDsWithInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error)
+	FindAssetsForPriceBackfill(ctx context.Context, tx *gorm.DB) ([]models.AssetBackfillRow, error)
+	FindTickersForPriceSync(ctx context.Context, tx *gorm.DB) ([]models.AssetPriceSyncRow, error)
+	FindActiveCurrencyPairs(ctx context.Context, tx *gorm.DB) ([]models.CurrencyPair, error)
+	FindUserIDsWithActiveInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error)
+	FindActiveAssetsByTicker(ctx context.Context, tx *gorm.DB, ticker string) ([]models.InvestmentAsset, error)
+	UpdateAssetPriceAndValue(ctx context.Context, tx *gorm.DB, assetID int64, price, currentValue, profitLoss, profitLossPercent decimal.Decimal, now time.Time) error
 	FindInvestmentAssetsByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentAsset, error)
 	InsertAsset(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentAsset) (int64, error)
 	InsertInvestmentTrade(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTrade) (int64, error)
@@ -774,6 +781,139 @@ func (r *InvestmentRepository) FindAllTradesByUserID(ctx context.Context, tx *go
 		Find(&trades).Error
 
 	return trades, err
+}
+
+// Deliberately unfiltered by account state: a rebuild must still reach a user
+// whose investment account was closed or deactivated.
+func (r *InvestmentRepository) GetUserIDsWithInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var userIDs []int64
+	err := db.Raw(`SELECT DISTINCT user_id FROM investment_assets ORDER BY user_id`).Scan(&userIDs).Error
+
+	return userIDs, err
+}
+
+func (r *InvestmentRepository) FindAssetsForPriceBackfill(ctx context.Context, tx *gorm.DB) ([]models.AssetBackfillRow, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var rows []models.AssetBackfillRow
+	err := db.Raw(`
+		SELECT
+			ia.id,
+			ia.ticker,
+			ia.investment_type,
+			ia.currency,
+			MIN(it.txn_date) AS earliest_trade
+		FROM investment_assets ia
+		JOIN investment_trades it ON it.asset_id = ia.id
+		JOIN accounts a ON a.id = ia.account_id
+		WHERE a.is_active = TRUE AND a.closed_at IS NULL
+		GROUP BY ia.id, ia.ticker, ia.investment_type, ia.currency
+	`).Scan(&rows).Error
+
+	return rows, err
+}
+
+func (r *InvestmentRepository) FindTickersForPriceSync(ctx context.Context, tx *gorm.DB) ([]models.AssetPriceSyncRow, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var rows []models.AssetPriceSyncRow
+	err := db.Model(&models.InvestmentAsset{}).
+		Joins("JOIN accounts ON accounts.id = investment_assets.account_id").
+		Select("DISTINCT investment_assets.ticker, investment_assets.investment_type").
+		Where("investment_assets.quantity > 0").
+		Where("accounts.is_active = ?", true).
+		Where("accounts.closed_at IS NULL").
+		Find(&rows).Error
+
+	return rows, err
+}
+
+func (r *InvestmentRepository) FindActiveCurrencyPairs(ctx context.Context, tx *gorm.DB) ([]models.CurrencyPair, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var pairs []models.CurrencyPair
+	err := db.Raw(`
+		SELECT DISTINCT ph.currency AS from_currency, a.currency AS to_currency
+		FROM investment_assets ia
+		JOIN accounts a ON a.id = ia.account_id
+		JOIN asset_price_history ph ON ph.asset_id = ia.id
+		WHERE a.is_active = TRUE AND a.closed_at IS NULL
+		  AND ph.currency != a.currency
+	`).Scan(&pairs).Error
+
+	return pairs, err
+}
+
+func (r *InvestmentRepository) FindUserIDsWithActiveInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var userIDs []int64
+	err := db.Raw(`
+		SELECT DISTINCT a.user_id
+		FROM investment_assets ia
+		JOIN accounts a ON a.id = ia.account_id
+		WHERE a.is_active = TRUE AND a.closed_at IS NULL
+	`).Scan(&userIDs).Error
+
+	return userIDs, err
+}
+
+func (r *InvestmentRepository) FindActiveAssetsByTicker(ctx context.Context, tx *gorm.DB, ticker string) ([]models.InvestmentAsset, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var assets []models.InvestmentAsset
+	err := db.Preload("Account").
+		Joins("JOIN accounts ON accounts.id = investment_assets.account_id").
+		Where("investment_assets.ticker = ? AND investment_assets.quantity > 0", ticker).
+		Where("accounts.is_active = ?", true).
+		Where("accounts.closed_at IS NULL").
+		Find(&assets).Error
+
+	return assets, err
+}
+
+func (r *InvestmentRepository) UpdateAssetPriceAndValue(ctx context.Context, tx *gorm.DB, assetID int64, price, currentValue, profitLoss, profitLossPercent decimal.Decimal, now time.Time) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	return db.WithContext(ctx).Model(&models.InvestmentAsset{}).
+		Where("id = ?", assetID).
+		Updates(map[string]interface{}{
+			"current_price":       price,
+			"current_value":       currentValue,
+			"profit_loss":         profitLoss,
+			"profit_loss_percent": profitLossPercent,
+			"last_price_update":   now,
+			"updated_at":          now,
+		}).Error
 }
 
 func (r *InvestmentRepository) DeleteAllTradesForAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64) error {

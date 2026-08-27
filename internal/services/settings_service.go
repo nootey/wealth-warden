@@ -12,9 +12,8 @@ import (
 	"strconv"
 	"time"
 	_ "time/tzdata"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/sessions"
 	"wealth-warden/pkg/config"
@@ -36,14 +35,12 @@ type SettingsServiceInterface interface {
 }
 
 type SettingsService struct {
-	cfg             *config.Config
-	logger          *zap.Logger
-	repo            repositories.SettingsRepositoryInterface
-	userRepo        repositories.UserRepositoryInterface
-	loggingRepo     repositories.LoggingRepositoryInterface
-	transactionRepo repositories.TransactionRepositoryInterface
-	jobDispatcher   queue.JobDispatcher
-	sessionStore    *sessions.Store
+	cfg           *config.Config
+	logger        *zap.Logger
+	repo          repositories.SettingsRepositoryInterface
+	userRepo      repositories.UserRepositoryInterface
+	jobDispatcher jobqueue.Dispatcher
+	sessionStore  *sessions.Store
 }
 
 func NewSettingsService(
@@ -51,20 +48,16 @@ func NewSettingsService(
 	logger *zap.Logger,
 	repo *repositories.SettingsRepository,
 	userRepo *repositories.UserRepository,
-	loggingRepo *repositories.LoggingRepository,
-	transactionRepo *repositories.TransactionRepository,
-	jobDispatcher queue.JobDispatcher,
+	jobDispatcher jobqueue.Dispatcher,
 	sessionStore *sessions.Store,
 ) *SettingsService {
 	return &SettingsService{
-		cfg:             cfg,
-		logger:          logger,
-		repo:            repo,
-		userRepo:        userRepo,
-		loggingRepo:     loggingRepo,
-		transactionRepo: transactionRepo,
-		jobDispatcher:   jobDispatcher,
-		sessionStore:    sessionStore,
+		cfg:           cfg,
+		logger:        logger,
+		repo:          repo,
+		userRepo:      userRepo,
+		jobDispatcher: jobDispatcher,
+		sessionStore:  sessionStore,
 	}
 }
 
@@ -202,8 +195,7 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 	utils.CompareChanges(existingSettings.DefaultCurrency, settings.DefaultCurrency, changes, "default_currency")
 	utils.CompareChanges(existingSettings.DefaultSheetSeparator, settings.DefaultSheetSeparator, changes, "default_sheet_separator")
 
-	err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "update",
 		Category:    "user_settings",
 		Description: nil,
@@ -215,13 +207,11 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 	}
 
 	if req.Timezone != "" && req.Timezone != existingSettings.Timezone {
-		err = s.jobDispatcher.Dispatch(ctx, queue_jobs.NewRecalculateTemplateTimezoneJob(
-			s.logger,
-			s.transactionRepo,
-			userID,
-			existingSettings.Timezone,
-			req.Timezone,
-		))
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.RecalculateTemplateTimezoneArgs{
+			UserID:      userID,
+			OldTimezone: existingSettings.Timezone,
+			NewTimezone: req.Timezone,
+		})
 		if err != nil {
 			s.logger.Warn("Failed to dispatch template timezone recalculation job", zap.Error(err))
 		}
@@ -305,8 +295,7 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 		description = &d
 	}
 
-	err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "update",
 		Category:    "user",
 		Description: description,

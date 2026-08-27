@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -51,11 +50,10 @@ func (h *BackofficeHandler) CorrectFeeAccounting(c *gin.Context) {
 }
 
 func (h *BackofficeHandler) MigrateZeroCostTrades(c *gin.Context) {
-	result, err := h.service.MigrateZeroCostTrades(c.Request.Context())
-	if err != nil {
+	if err := h.service.MigrateZeroCostTrades(c.Request.Context()); err != nil {
 		utils.ErrorMessage(c, "Migration failed", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.SuccessMessage(c, fmt.Sprintf("Migrated %d trade(s) across %d asset(s).", result.TotalProcessed, result.AssetsProcessed), "Success", http.StatusOK)
+	c.JSON(202, gin.H{"message": "zero-cost trade migration queued"})
 }

@@ -3721,3 +3721,52 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenInacti
 		Where("account_id = ?", accID).Count(&txnCount).Error)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should be created for a blocked execution")
 }
+
+func (s *TransactionServiceTestSuite) TestProcessTemplate_SkipsCycleAlreadyRunEarly() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	initialBalance := decimal.NewFromInt(50000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Early Run Account",
+		AccountTypeID: 1,
+		Balance:       &initialBalance,
+		OpenedAt:      time.Now().AddDate(0, -2, 0),
+	})
+	s.Require().NoError(err)
+
+	overdue := utils.LocalMidnightUTC(time.Now().AddDate(0, 0, -21), time.UTC)
+	txnType := "income"
+
+	template := models.TransactionTemplate{
+		Name:            "Salary",
+		UserID:          userID,
+		AccountID:       accID,
+		TemplateType:    "transaction",
+		TransactionType: &txnType,
+		Amount:          decimal.NewFromInt(5000),
+		Frequency:       "weekly",
+		DayOfMonth:      overdue.Day(),
+		NextRunAt:       overdue,
+		IsActive:        true,
+	}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
+
+	staleCopy := template
+
+	s.Require().NoError(svc.ExecuteTemplateEarly(s.Ctx, userID, template.ID))
+
+	err = svc.ProcessTemplate(s.Ctx, &staleCopy)
+	s.Require().Error(err, "the scheduled run should refuse a cycle that already ran today")
+	s.True(errors.Is(err, models.ErrTemplateAlreadyRanToday), "got: %v", err)
+
+	var txnCount int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("account_id = ?", accID).Count(&txnCount).Error)
+	s.Equal(int64(1), txnCount, "the cycle must produce a single transaction")
+
+	var updated models.TransactionTemplate
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", template.ID).First(&updated).Error)
+	s.Equal(1, updated.RunCount, "the scheduled run must not advance run_count a second time")
+}

@@ -55,8 +55,8 @@ type AccountRepositoryInterface interface {
 	HasDefaultForAccountType(ctx context.Context, tx *gorm.DB, userID, accountTypeID int64) (bool, error)
 	SetDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, value decimal.Decimal) error
 	GetBalancesInRange(ctx context.Context, tx *gorm.DB, accountID int64, fromDate, toDate time.Time) ([]models.Balance, error)
-	ClearInvestmentCashFlows(ctx context.Context, userID int64) error
-	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
+	ClearInvestmentCashFlows(ctx context.Context, tx *gorm.DB, userID int64) error
+	ClearInvestmentSnapshots(ctx context.Context, tx *gorm.DB, userID int64) error
 	UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, date *time.Time) error
 	HasSnapshotForDate(ctx context.Context, userID int64, date time.Time) (bool, error)
 	GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.AccountDailySnapshot, error)
@@ -924,11 +924,14 @@ func (r *AccountRepository) GetAccountOpeningAsOf(ctx context.Context, tx *gorm.
 	}
 	db = db.WithContext(ctx)
 
-	// MIN(as_of) is the opening day; if no balance rows exist, return sql.ErrNoRows
+	// Row().Scan, not gorm's Scan: only the former reads a NULL into a *time.Time.
 	var open *time.Time
 	if err := db.Raw(`
         SELECT MIN(as_of) FROM balances WHERE account_id = ?
-    `, accountID).Scan(&open).Error; err != nil {
+    `, accountID).Row().Scan(&open); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return time.Time{}, sql.ErrNoRows
+		}
 		return time.Time{}, err
 	}
 	if open == nil {
@@ -1198,8 +1201,12 @@ func (r *AccountRepository) GetBalancesInRange(ctx context.Context, tx *gorm.DB,
 	return balances, err
 }
 
-func (r *AccountRepository) ClearInvestmentCashFlows(ctx context.Context, userID int64) error {
-	db := r.db.WithContext(ctx)
+func (r *AccountRepository) ClearInvestmentCashFlows(ctx context.Context, tx *gorm.DB, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
 	// Reset every balance row for this user to only what the transactions table
 	// actually records. This makes the state safe for BackfillInvestmentCashFlows
 	// to add trade flows on top without double-counting or losing regular txns.
@@ -1228,12 +1235,16 @@ func (r *AccountRepository) ClearInvestmentCashFlows(ctx context.Context, userID
 	`, userID).Error
 }
 
-func (r *AccountRepository) ClearInvestmentSnapshots(ctx context.Context, userID int64) error {
-	db := r.db.WithContext(ctx)
+func (r *AccountRepository) ClearInvestmentSnapshots(ctx context.Context, tx *gorm.DB, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
 	return db.Exec(`
         DELETE FROM account_daily_snapshots
         WHERE account_id IN (
-            SELECT id FROM accounts WHERE user_id = ?
+            SELECT id FROM accounts WHERE user_id = ? AND closed_at IS NULL
         )
     `, userID).Error
 }

@@ -2,8 +2,7 @@ package bootstrap
 
 import (
 	"time"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/sessions"
@@ -38,7 +37,7 @@ type ServiceContainer struct {
 	AnalyticsService    *services.AnalyticsService
 	SavingsService      *services.SavingsService
 	NotificationService *services.NotificationService
-	NotifDispatcher     queue_jobs.NotificationDispatcher
+	NotifDispatcher     jobqueue.NotificationDispatcher
 	SessionsService     *services.SessionsService
 	Hub                 *ws.Hub
 }
@@ -46,7 +45,7 @@ type ServiceContainer struct {
 // NewServiceContainer initialises the application service layer.
 // Pass a non-nil priceFetcher to override the default client (e.g. a mock in tests).
 // Pass nil to have the real Yahoo Finance client created from cfg.FinanceAPIBaseURL.
-func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *zap.Logger, jobDispatcher queue.JobDispatcher, priceFetcher finance.PriceFetcher) (*ServiceContainer, error) {
+func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *zap.Logger, jobDispatcher jobqueue.Dispatcher, priceFetcher finance.PriceFetcher) (*ServiceContainer, error) {
 	if priceFetcher == nil {
 		var err error
 		priceFetcher, err = finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
@@ -82,21 +81,21 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 
 	// Initialize services
 	loggingService := services.NewLoggingService(loggingRepo)
-	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, loggingRepo, jobDispatcher, mail, sessionStore)
-	roleService := services.NewRolePermissionService(roleRepo, loggingRepo, jobDispatcher)
-	userService := services.NewUserService(userRepo, roleRepo, loggingRepo, jobDispatcher, mail)
-	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, transactionRepo, settingsRepo, loggingRepo, savingsRepo, investmentRepo, jobDispatcher, priceFetcher)
-	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, loggingRepo, savingsRepo, jobDispatcher)
-	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, loggingRepo, transactionRepo, jobDispatcher, sessionStore)
-	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, investmentRepo, settingsRepo, loggingRepo, jobDispatcher)
-	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, loggingRepo, jobDispatcher)
-	investmentService := services.NewInvestmentService(logger.Named("investment_sev"), investmentRepo, accountRepo, transactionRepo, settingsRepo, loggingRepo, jobDispatcher, priceFetcher)
-	notesService := services.NewNotesService(notesRepo, loggingRepo, jobDispatcher)
-	analyticsService := services.NewAnalyticsService(logger.Named("analytics_svc"), analyticsRepo, accountRepo, transactionRepo, settingsRepo, jobDispatcher)
-	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService, accountService, userService)
-	savingsService := services.NewSavingsService(savingsRepo, accountRepo, loggingRepo, jobDispatcher)
+	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, jobDispatcher, mail, sessionStore)
+	roleService := services.NewRolePermissionService(roleRepo, jobDispatcher)
+	userService := services.NewUserService(userRepo, roleRepo, jobDispatcher, mail)
+	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, transactionRepo, settingsRepo, savingsRepo, investmentRepo, jobDispatcher, priceFetcher)
+	transactionService := services.NewTransactionService(transactionRepo, accountRepo, settingsRepo, savingsRepo, jobDispatcher)
+	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, jobDispatcher, sessionStore)
+	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, investmentRepo, settingsRepo, jobDispatcher)
+	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, jobDispatcher)
+	investmentService := services.NewInvestmentService(logger.Named("investment_sev"), investmentRepo, accountRepo, transactionRepo, settingsRepo, jobDispatcher, priceFetcher)
+	notesService := services.NewNotesService(notesRepo, jobDispatcher)
+	analyticsService := services.NewAnalyticsService(analyticsRepo, accountRepo, transactionRepo, settingsRepo, jobDispatcher)
+	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService)
+	savingsService := services.NewSavingsService(savingsRepo, accountRepo, jobDispatcher)
 	notificationService := services.NewNotificationService(notificationRepo)
-	notifDispatcher := queue_jobs.NewNotificationDispatcher(notificationRepo, jobDispatcher)
+	notifDispatcher := jobqueue.NewNotificationDispatcher(jobDispatcher)
 	hub := ws.NewHub(logger.Named("ws"))
 	sessionsService := services.NewSessionsService(sessionStore, hub)
 

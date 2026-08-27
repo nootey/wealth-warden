@@ -59,9 +59,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("queue.workers", 1)
 	v.SetDefault("queue.max_attempts", 5)
 	v.SetDefault("queue.poll_interval_ms", 1000)
-	v.SetDefault("queue.retry_initial_backoff_sec", 60)
-	v.SetDefault("queue.retry_subsequent_backoff_sec", 120)
-	v.SetDefault("queue.visibility_timeout_sec", 900)
+	v.SetDefault("queue.job_timeout_sec", 900)
 }
 
 func LoadConfig(configPath *string, configName ...string) (*Config, error) {

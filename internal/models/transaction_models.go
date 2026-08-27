@@ -1,10 +1,13 @@
 package models
 
 import (
+	"errors"
 	"time"
 
 	"github.com/shopspring/decimal"
 )
+
+var ErrTemplateAlreadyRanToday = errors.New("template already executed today")
 
 type Transaction struct {
 	ID              int64           `gorm:"primaryKey;autoIncrement" json:"id"`

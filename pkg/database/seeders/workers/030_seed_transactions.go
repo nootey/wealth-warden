@@ -6,8 +6,8 @@ import (
 	"math"
 	"math/rand"
 	"time"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/config"
@@ -29,12 +29,11 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 	accRepo := repositories.NewAccountRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
-	loggingRepo := repositories.NewLoggingRepository(db)
-	jobDispatcher := queue.NoopDispatcher{}
+	jobDispatcher := jobqueue.NoopDispatcher{}
 
 	investmentRepo := repositories.NewInvestmentRepository(db)
 	savingsRepo := repositories.NewSavingsRepository(db)
-	accService := services.NewAccountService(zap.NewNop(), accRepo, txnRepo, settingsRepo, loggingRepo, savingsRepo, investmentRepo, jobDispatcher, nil)
+	accService := services.NewAccountService(zap.NewNop(), accRepo, txnRepo, settingsRepo, savingsRepo, investmentRepo, jobDispatcher, nil)
 
 	var incCats, expCats []models.Category
 	_ = db.WithContext(ctx).Where("classification = ?", "income").Find(&incCats).Error

@@ -79,10 +79,8 @@ type OtelConfig struct {
 }
 
 type QueueConfig struct {
-	Workers                   int `mapstructure:"workers"`
-	MaxAttempts               int `mapstructure:"max_attempts"`
-	PollIntervalMs            int `mapstructure:"poll_interval_ms"`
-	RetryInitialBackoffSec    int `mapstructure:"retry_initial_backoff_sec"`
-	RetrySubsequentBackoffSec int `mapstructure:"retry_subsequent_backoff_sec"`
-	VisibilityTimeoutSec      int `mapstructure:"visibility_timeout_sec"` // reclaims jobs stuck in 'processing' after a crash.
+	Workers        int `mapstructure:"workers"`
+	MaxAttempts    int `mapstructure:"max_attempts"`
+	PollIntervalMs int `mapstructure:"poll_interval_ms"`
+	JobTimeoutSec  int `mapstructure:"job_timeout_sec"` // past this, a job is cancelled; River's rescuer requeues it.
 }

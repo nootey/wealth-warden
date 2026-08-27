@@ -3,6 +3,7 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 	"wealth-warden/internal/models"
@@ -107,8 +108,6 @@ func AdjustToWeekday(date time.Time) time.Time {
 	}
 }
 
-// CheckGoalAllocation returns an error if amountBeingRemoved would eat into
-// goal-allocated balance. Pass the uncategorizedBalance from GetUncategorizedBalance.
 func CheckGoalAllocation(amountBeingRemoved, uncategorizedBalance decimal.Decimal, classification string) error {
 	if strings.EqualFold(classification, "liability") {
 		return nil
@@ -142,4 +141,55 @@ func AccountLimitError(balance decimal.Decimal, acc *models.Account) error {
 func IsUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+func IsExtremePriceDrop(oldPrice *decimal.Decimal, newPrice decimal.Decimal) bool {
+	if oldPrice == nil || oldPrice.IsZero() {
+		return false
+	}
+	if !newPrice.LessThan(*oldPrice) {
+		return false
+	}
+	drop := newPrice.Sub(*oldPrice).Div(*oldPrice).Abs()
+	return drop.GreaterThan(decimal.NewFromFloat(0.90))
+}
+
+func AddAllocation(buckets map[string]*models.AllocationRow, key, label string, value decimal.Decimal) {
+	if bucket, ok := buckets[key]; ok {
+		bucket.Value = bucket.Value.Add(value)
+		return
+	}
+	buckets[key] = &models.AllocationRow{Key: key, Label: label, Value: value}
+}
+
+func AllocationRows(buckets map[string]*models.AllocationRow, total decimal.Decimal) []models.AllocationRow {
+	rows := make([]models.AllocationRow, 0, len(buckets))
+	for _, bucket := range buckets {
+		if total.IsPositive() {
+			bucket.Weight = bucket.Value.Div(total).Round(6)
+		}
+		rows = append(rows, *bucket)
+	}
+
+	sort.SliceStable(rows, func(i, j int) bool {
+		if !rows[i].Value.Equal(rows[j].Value) {
+			return rows[i].Value.GreaterThan(rows[j].Value)
+		}
+		return rows[i].Key < rows[j].Key
+	})
+
+	return rows
+}
+
+type TradeExchangeRateKey struct {
+	From, To string
+	Day      string
+}
+
+func NewTradeExchangeRateKey(trade models.InvestmentTrade) TradeExchangeRateKey {
+	return TradeExchangeRateKey{
+		From: trade.Currency,
+		To:   trade.Asset.Account.Currency,
+		Day:  trade.TxnDate.UTC().Format("2006-01-02"),
+	}
 }

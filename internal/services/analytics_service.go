@@ -10,15 +10,12 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
-	"wealth-warden/internal/ws"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
-	"go.uber.org/zap"
 )
 
 type AnalyticsServiceInterface interface {
@@ -37,26 +34,28 @@ type AnalyticsServiceInterface interface {
 	DownloadReport(ctx context.Context, id, userID int64) ([]byte, string, error)
 	ListReportsPaginated(ctx context.Context, userID int64, p utils.PaginationParams) ([]models.Report, *utils.Paginator, error)
 	DeleteReport(ctx context.Context, userID, id int64) error
+	MarkReportProcessing(ctx context.Context, reportID int64) error
+	MarkReportCompleted(ctx context.Context, reportID int64, name, filePath string, fileSize int64, completedAt time.Time) error
+	MarkReportFailed(ctx context.Context, reportID int64, reason string) error
+	FetchCategoryReportData(ctx context.Context, userID int64, params models.CategoryReportParams) ([]models.CategoryReportDataRow, error)
+	FindReportAccountScope(ctx context.Context, userID, accountID int64) (*models.ReportAccountScope, error)
 }
 type AnalyticsService struct {
-	logger        *zap.Logger
 	repo          repositories.AnalyticsRepositoryInterface
 	accRepo       repositories.AccountRepositoryInterface
 	txnRepo       repositories.TransactionRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
-	jobDispatcher queue.JobDispatcher
+	jobDispatcher jobqueue.Dispatcher
 }
 
 func NewAnalyticsService(
-	logger *zap.Logger,
 	repo *repositories.AnalyticsRepository,
 	accRepo *repositories.AccountRepository,
 	txRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
-	jobDispatcher queue.JobDispatcher,
+	jobDispatcher jobqueue.Dispatcher,
 ) *AnalyticsService {
 	return &AnalyticsService{
-		logger:        logger,
 		repo:          repo,
 		accRepo:       accRepo,
 		txnRepo:       txRepo,
@@ -1367,13 +1366,44 @@ func (s *AnalyticsService) GenerateCategoryReport(
 		return nil, err
 	}
 
-	// Only the serialized fields survive Dispatch; the job registry re-attaches live deps before Process.
-	job := queue_jobs.NewGenerateCategoryReportJob(s.logger, s.repo, ws.NoopBroadcaster{}, record.ID, userID, params)
-	if err := s.jobDispatcher.Dispatch(ctx, job); err != nil {
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.GenerateCategoryReportArgs{
+		ReportID: record.ID,
+		UserID:   userID,
+		Params:   params,
+	}); err != nil {
 		return nil, err
 	}
 
 	return record, nil
+}
+
+func (s *AnalyticsService) MarkReportProcessing(ctx context.Context, reportID int64) error {
+	return s.repo.UpdateReport(ctx, nil, reportID, map[string]interface{}{"status": "processing"})
+}
+
+func (s *AnalyticsService) MarkReportCompleted(ctx context.Context, reportID int64, name, filePath string, fileSize int64, completedAt time.Time) error {
+	return s.repo.UpdateReport(ctx, nil, reportID, map[string]interface{}{
+		"status":       "completed",
+		"name":         name,
+		"file_path":    filePath,
+		"file_size":    fileSize,
+		"completed_at": completedAt,
+	})
+}
+
+func (s *AnalyticsService) MarkReportFailed(ctx context.Context, reportID int64, reason string) error {
+	return s.repo.UpdateReport(ctx, nil, reportID, map[string]interface{}{
+		"status": "failed",
+		"error":  reason,
+	})
+}
+
+func (s *AnalyticsService) FetchCategoryReportData(ctx context.Context, userID int64, params models.CategoryReportParams) ([]models.CategoryReportDataRow, error) {
+	return s.repo.FetchCategoryReportData(ctx, nil, userID, params)
+}
+
+func (s *AnalyticsService) FindReportAccountScope(ctx context.Context, userID, accountID int64) (*models.ReportAccountScope, error) {
+	return s.repo.FindReportAccountScope(ctx, nil, userID, accountID)
 }
 
 func (s *AnalyticsService) DownloadReport(ctx context.Context, id, userID int64) ([]byte, string, error) {
