@@ -12,9 +12,8 @@ import (
 	"strconv"
 	"time"
 	_ "time/tzdata"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/sessions"
 	"wealth-warden/pkg/config"
@@ -40,7 +39,7 @@ type SettingsService struct {
 	logger        *zap.Logger
 	repo          repositories.SettingsRepositoryInterface
 	userRepo      repositories.UserRepositoryInterface
-	jobDispatcher queue.JobDispatcher
+	jobDispatcher jobqueue.Dispatcher
 	sessionStore  *sessions.Store
 }
 
@@ -49,7 +48,7 @@ func NewSettingsService(
 	logger *zap.Logger,
 	repo *repositories.SettingsRepository,
 	userRepo *repositories.UserRepository,
-	jobDispatcher queue.JobDispatcher,
+	jobDispatcher jobqueue.Dispatcher,
 	sessionStore *sessions.Store,
 ) *SettingsService {
 	return &SettingsService{
@@ -196,7 +195,7 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 	utils.CompareChanges(existingSettings.DefaultCurrency, settings.DefaultCurrency, changes, "default_currency")
 	utils.CompareChanges(existingSettings.DefaultSheetSeparator, settings.DefaultSheetSeparator, changes, "default_sheet_separator")
 
-	err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "update",
 		Category:    "user_settings",
 		Description: nil,
@@ -208,7 +207,7 @@ func (s *SettingsService) UpdatePreferenceSettings(ctx context.Context, userID i
 	}
 
 	if req.Timezone != "" && req.Timezone != existingSettings.Timezone {
-		err = s.jobDispatcher.Dispatch(ctx, queue_jobs.RecalculateTemplateTimezoneArgs{
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.RecalculateTemplateTimezoneArgs{
 			UserID:      userID,
 			OldTimezone: existingSettings.Timezone,
 			NewTimezone: req.Timezone,
@@ -296,7 +295,7 @@ func (s *SettingsService) UpdateProfileSettings(ctx context.Context, userID int6
 		description = &d
 	}
 
-	err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "update",
 		Category:    "user",
 		Description: description,

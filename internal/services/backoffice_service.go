@@ -2,9 +2,8 @@ package services
 
 import (
 	"context"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 
 	"go.uber.org/zap"
@@ -19,14 +18,14 @@ type BackofficeServiceInterface interface {
 
 type BackofficeService struct {
 	logger            *zap.Logger
-	jobDispatcher     queue.JobDispatcher
+	jobDispatcher     jobqueue.Dispatcher
 	repo              repositories.BackofficeRepositoryInterface
 	investmentService InvestmentServiceInterface
 }
 
 func NewBackofficeService(
 	logger *zap.Logger,
-	jobDispatcher queue.JobDispatcher,
+	jobDispatcher jobqueue.Dispatcher,
 	repo *repositories.BackofficeRepository,
 	investmentService InvestmentServiceInterface,
 ) *BackofficeService {
@@ -41,18 +40,18 @@ func NewBackofficeService(
 var _ BackofficeServiceInterface = (*BackofficeService)(nil)
 
 func (s *BackofficeService) BackfillAssetCashFlows(ctx context.Context) error {
-	return s.jobDispatcher.Dispatch(ctx, queue_jobs.BackfillAssetCashFlowsArgs{})
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.BackfillAssetCashFlowsArgs{})
 }
 
 func (s *BackofficeService) CorrectFeeAccounting(ctx context.Context) error {
-	return s.jobDispatcher.Dispatch(ctx, queue_jobs.CorrectFeeAccountingArgs{})
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.CorrectFeeAccountingArgs{})
 }
 
 func (s *BackofficeService) MigrateZeroCostTrades(ctx context.Context) error {
-	return s.jobDispatcher.Dispatch(ctx, queue_jobs.MigrateZeroCostTradesArgs{})
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.MigrateZeroCostTradesArgs{})
 }
 
-// Runs on the rebuild queue, which serialises it against the rebuild jobs.
+// Runs on the rebuild queue, which serialises it against the rebuild jobqueue.
 func (s *BackofficeService) RunZeroCostTradeMigration(ctx context.Context) (*models.ZeroCostMigrationResult, error) {
 	trades, err := s.repo.GetZeroCostBuyTrades(ctx)
 	if err != nil {

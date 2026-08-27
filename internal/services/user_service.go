@@ -6,9 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/mailer"
 	"wealth-warden/pkg/utils"
@@ -31,14 +30,14 @@ type UserServiceInterface interface {
 type UserService struct {
 	repo          *repositories.UserRepository
 	roleRepo      repositories.RolePermissionRepositoryInterface
-	jobDispatcher queue.JobDispatcher
+	jobDispatcher jobqueue.Dispatcher
 	mailer        *mailer.Mailer
 }
 
 func NewUserService(
 	repo *repositories.UserRepository,
 	roleRepo *repositories.RolePermissionRepository,
-	jobDispatcher queue.JobDispatcher,
+	jobDispatcher jobqueue.Dispatcher,
 	mailer *mailer.Mailer,
 ) *UserService {
 	return &UserService{
@@ -220,7 +219,7 @@ func (s *UserService) InsertInvitation(ctx context.Context, userID int64, req mo
 		return 0, err
 	}
 
-	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "invitation",
 		Description: nil,
@@ -318,7 +317,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID, id int64, req *mod
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(uID, 10))
-		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "user",
 			Description: nil,
@@ -376,7 +375,7 @@ func (s *UserService) DeleteUser(ctx context.Context, userID, id int64) error {
 	utils.CompareChanges(usr.Email, "", changes, "email")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "delete",
 			Category:    "user",
 			Description: nil,
@@ -456,7 +455,7 @@ func (s *UserService) ResendInvitation(ctx context.Context, userID, id int64) (i
 		}
 	}
 
-	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "resend",
 		Category:    "invitation",
 		Description: nil,
@@ -509,7 +508,7 @@ func (s *UserService) DeleteInvitation(ctx context.Context, userID, id int64) er
 	utils.CompareChanges(role.Name, "", changes, "role")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "delete",
 			Category:    "invitation",
 			Description: nil,

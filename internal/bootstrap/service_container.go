@@ -2,8 +2,7 @@ package bootstrap
 
 import (
 	"time"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/sessions"
@@ -38,7 +37,7 @@ type ServiceContainer struct {
 	AnalyticsService    *services.AnalyticsService
 	SavingsService      *services.SavingsService
 	NotificationService *services.NotificationService
-	NotifDispatcher     queue_jobs.NotificationDispatcher
+	NotifDispatcher     jobqueue.NotificationDispatcher
 	SessionsService     *services.SessionsService
 	Hub                 *ws.Hub
 }
@@ -46,7 +45,7 @@ type ServiceContainer struct {
 // NewServiceContainer initialises the application service layer.
 // Pass a non-nil priceFetcher to override the default client (e.g. a mock in tests).
 // Pass nil to have the real Yahoo Finance client created from cfg.FinanceAPIBaseURL.
-func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *zap.Logger, jobDispatcher queue.JobDispatcher, priceFetcher finance.PriceFetcher) (*ServiceContainer, error) {
+func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *zap.Logger, jobDispatcher jobqueue.Dispatcher, priceFetcher finance.PriceFetcher) (*ServiceContainer, error) {
 	if priceFetcher == nil {
 		var err error
 		priceFetcher, err = finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
@@ -96,7 +95,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService)
 	savingsService := services.NewSavingsService(savingsRepo, accountRepo, jobDispatcher)
 	notificationService := services.NewNotificationService(notificationRepo)
-	notifDispatcher := queue_jobs.NewNotificationDispatcher(jobDispatcher)
+	notifDispatcher := jobqueue.NewNotificationDispatcher(jobDispatcher)
 	hub := ws.NewHub(logger.Named("ws"))
 	sessionsService := services.NewSessionsService(sessionStore, hub)
 

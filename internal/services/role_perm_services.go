@@ -6,9 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
 )
@@ -23,12 +22,12 @@ type RolePermissionServiceInterface interface {
 }
 type RolePermissionService struct {
 	repo          repositories.RolePermissionRepositoryInterface
-	jobDispatcher queue.JobDispatcher
+	jobDispatcher jobqueue.Dispatcher
 }
 
 func NewRolePermissionService(
 	repo *repositories.RolePermissionRepository,
-	jobDispatcher queue.JobDispatcher,
+	jobDispatcher jobqueue.Dispatcher,
 ) *RolePermissionService {
 	return &RolePermissionService{
 		repo:          repo,
@@ -115,7 +114,7 @@ func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, re
 
 	utils.CompareChanges("", permString, changes, "permissions")
 
-	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "role",
 		Description: nil,
@@ -202,7 +201,7 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(roleID, 10))
-		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "role",
 			Description: nil,
@@ -265,7 +264,7 @@ func (s *RolePermissionService) DeleteRole(ctx context.Context, userID, id int64
 	utils.CompareChanges(utils.SafeString(role.Description), "", changes, "description")
 
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "delete",
 			Category:    "user",
 			Description: nil,

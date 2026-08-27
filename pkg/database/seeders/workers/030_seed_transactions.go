@@ -6,8 +6,8 @@ import (
 	"math"
 	"math/rand"
 	"time"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/config"
@@ -29,7 +29,7 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 	accRepo := repositories.NewAccountRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
-	jobDispatcher := queue.NoopDispatcher{}
+	jobDispatcher := jobqueue.NoopDispatcher{}
 
 	investmentRepo := repositories.NewInvestmentRepository(db)
 	savingsRepo := repositories.NewSavingsRepository(db)

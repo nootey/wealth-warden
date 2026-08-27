@@ -4,7 +4,7 @@
 
 Ledger based personal finance manager with an included web based client (separate CLAUDE.md file in /client).
 
-- Jobs: `internal/jobscheduler` for scheduled/recurring jobs, `internal/queue` for async HTTP-triggered jobs
+- Jobs: `internal/jobqueue` holds the contract (args, kinds, dispatcher) and is safe for services to import; `internal/jobs` holds the runtime (job code, workers, River client, periodic schedule)
 - Exchange rates: `GetExchangeRate` with a date caches to `exchange_rate_history`; without a date it's a live rate and never cached
 
 ## Workflow

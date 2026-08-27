@@ -7,9 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
@@ -58,7 +57,7 @@ type AccountService struct {
 	settingsRepo     repositories.SettingsRepositoryInterface
 	savingsRepo      repositories.SavingsRepositoryInterface
 	investmentRepo   repositories.InvestmentRepositoryInterface
-	jobDispatcher    queue.JobDispatcher
+	jobDispatcher    jobqueue.Dispatcher
 	priceFetchClient finance.PriceFetcher
 	logger           *zap.Logger
 }
@@ -70,7 +69,7 @@ func NewAccountService(
 	settingsRepo *repositories.SettingsRepository,
 	savingsRepo *repositories.SavingsRepository,
 	investmentRepo *repositories.InvestmentRepository,
-	jobDispatcher queue.JobDispatcher,
+	jobDispatcher jobqueue.Dispatcher,
 	priceFetchClient finance.PriceFetcher,
 ) *AccountService {
 	return &AccountService{
@@ -104,7 +103,7 @@ func (s *AccountService) LogBalanceChange(ctx context.Context, account *models.A
 	utils.CompareChanges("", account.Currency, changes, "currency")
 	changes.Stamp("id", strconv.FormatInt(account.ID, 10))
 
-	return s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "update",
 		Category:    "balance",
 		Description: nil,
@@ -339,7 +338,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 		return 0, err
 	}
 
-	err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "account",
 		Description: nil,
@@ -623,7 +622,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(acc.ID, 10))
-		err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "account",
 			Description: nil,
@@ -698,7 +697,7 @@ func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID in
 		}
 
 		changes.Stamp("id", strconv.FormatInt(acc.ID, 10))
-		err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       event,
 			Category:    "account",
 			Description: nil,
@@ -778,7 +777,7 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 	utils.CompareChanges(acc.AccountType.Subtype, "", changes, "sub_type")
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "close",
 			Category:    "account",
 			Description: nil,
@@ -1027,7 +1026,7 @@ func (s *AccountService) SaveAccountProjection(ctx context.Context, id, userID i
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "account_projection",
 			Description: nil,
@@ -1088,7 +1087,7 @@ func (s *AccountService) RevertAccountProjection(ctx context.Context, id, userID
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "account_projection",
 			Description: nil,
@@ -1164,7 +1163,7 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(account.ID, 10))
-		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "account",
 			Description: nil,
@@ -1244,11 +1243,11 @@ func (s *AccountService) GetAssetIDsForAccount(ctx context.Context, userID, acco
 }
 
 func (s *AccountService) SyncAssetPnL(ctx context.Context, userID, assetID int64) error {
-	return s.jobDispatcher.Dispatch(ctx, queue_jobs.RecalculateAssetPnLArgs{UserID: userID, AssetID: &assetID})
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.RecalculateAssetPnLArgs{UserID: userID, AssetID: &assetID})
 }
 
 func (s *AccountService) SyncAccountPnL(ctx context.Context, userID, accountID int64) error {
-	return s.jobDispatcher.Dispatch(ctx, queue_jobs.RecalculateAssetPnLArgs{UserID: userID, AccountID: &accountID})
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.RecalculateAssetPnLArgs{UserID: userID, AccountID: &accountID})
 }
 
 func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, destinationID int64) error {
@@ -1453,7 +1452,7 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 	utils.CompareChanges("", strconv.FormatInt(int64(len(transfers)), 10), changes, "transfers_removed")
 	changes.Stamp("id", strconv.FormatInt(dstAcc.ID, 10))
 
-	return s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "merge",
 		Category:    "account",
 		Description: nil,

@@ -7,9 +7,8 @@ import (
 	"wealth-warden/internal/bootstrap"
 	"wealth-warden/internal/health"
 	"wealth-warden/internal/http"
-	"wealth-warden/internal/jobscheduler"
-	"wealth-warden/internal/jobworker"
-	"wealth-warden/internal/queue"
+	"wealth-warden/internal/jobqueue"
+	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/worker"
 	"wealth-warden/internal/ws"
@@ -26,7 +25,7 @@ import (
 type App struct {
 	logger    *zap.Logger
 	http      *http.HttpServer
-	jobWorker *jobworker.Service
+	jobWorker *jobs.Service
 	telemetry *telemetry.Provider
 	health    *health.Service
 	hub       *ws.Hub
@@ -66,14 +65,14 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		}
 	}()
 
-	riverClient, riverWorkers, err := jobworker.NewClient(riverPool, logger.Named("job-worker"), cfg.Queue, cfg.Otel.ServiceName, jobscheduler.PeriodicJobs(cfg.Scheduler))
+	riverClient, riverWorkers, err := jobs.NewClient(riverPool, logger.Named("job-worker"), cfg.Queue, cfg.Otel.ServiceName, jobs.PeriodicJobs(cfg.Scheduler))
 	if err != nil {
 		return nil, fmt.Errorf("river client initialization failed: %w", err)
 	}
 
 	meter := otel.GetMeterProvider().Meter(cfg.Otel.ServiceName)
 
-	jobDispatcher, err := queue.NewRiverDispatcher(riverClient, meter)
+	jobDispatcher, err := jobqueue.NewRiverDispatcher(riverClient, meter)
 	if err != nil {
 		return nil, fmt.Errorf("job dispatcher initialization failed: %w", err)
 	}
@@ -83,15 +82,11 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		return nil, fmt.Errorf("container initialization failed: %w", err)
 	}
 
-	if err := jobworker.RegisterWorkers(riverWorkers, container, logger.Named("job-worker")); err != nil {
+	if err := jobs.RegisterWorkers(riverWorkers, container, logger.Named("job-worker")); err != nil {
 		return nil, fmt.Errorf("job worker registration failed: %w", err)
 	}
 
-	if err := jobscheduler.RegisterWorkers(riverWorkers, container, logger.Named("scheduler")); err != nil {
-		return nil, fmt.Errorf("scheduler worker registration failed: %w", err)
-	}
-
-	if err := jobworker.RegisterQueueLagGauge(repositories.NewJobRepository(dbClient), meter); err != nil {
+	if err := jobs.RegisterQueueLagGauge(repositories.NewJobRepository(dbClient), meter); err != nil {
 		return nil, fmt.Errorf("queue lag gauge registration failed: %w", err)
 	}
 
@@ -110,7 +105,7 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 	return &App{
 		logger:    logger,
 		http:      http.NewServer(container, logger.Named("http"), healthSvc.Handler()),
-		jobWorker: jobworker.NewService(riverClient, logger.Named("job-worker")),
+		jobWorker: jobs.NewService(riverClient, logger.Named("job-worker")),
 		telemetry: tel,
 		health:    healthSvc,
 		hub:       container.Hub,

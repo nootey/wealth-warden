@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"math/rand"
 	"time"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/config"
@@ -31,7 +31,7 @@ func SeedInvestments(ctx context.Context, db *gorm.DB, cfg *config.Config) error
 	accRepo := repositories.NewAccountRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
-	invService := services.NewInvestmentService(zap.NewNop(), invRepo, accRepo, txnRepo, settingsRepo, queue.NoopDispatcher{}, priceClient)
+	invService := services.NewInvestmentService(zap.NewNop(), invRepo, accRepo, txnRepo, settingsRepo, jobqueue.NoopDispatcher{}, priceClient)
 
 	var users []models.User
 	if err := db.WithContext(ctx).Find(&users).Error; err != nil {

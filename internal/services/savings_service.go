@@ -6,9 +6,8 @@ import (
 	"math"
 	"strconv"
 	"time"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
 
@@ -35,13 +34,13 @@ type SavingsServiceInterface interface {
 type SavingsService struct {
 	repo          repositories.SavingsRepositoryInterface
 	accountRepo   repositories.AccountRepositoryInterface
-	jobDispatcher queue.JobDispatcher
+	jobDispatcher jobqueue.Dispatcher
 }
 
 func NewSavingsService(
 	repo *repositories.SavingsRepository,
 	accountRepo *repositories.AccountRepository,
-	jobDispatcher queue.JobDispatcher,
+	jobDispatcher jobqueue.Dispatcher,
 ) *SavingsService {
 	return &SavingsService{
 		repo:          repo,
@@ -169,7 +168,7 @@ func (s *SavingsService) InsertGoal(ctx context.Context, userID int64, req *mode
 	utils.CompareDecimalChange(nil, &record.TargetAmount, changes, "target_amount", 2)
 	utils.CompareDecimalChange(nil, record.MonthlyAllocation, changes, "monthly_allocation", 2)
 	utils.CompareDateChange(nil, record.TargetDate, changes, "target_date")
-	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "saving_goal",
 		Description: nil,
@@ -238,7 +237,7 @@ func (s *SavingsService) UpdateGoal(ctx context.Context, userID, id int64, req *
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(existing.ID, 10))
-		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "saving_goal",
 			Description: nil,
@@ -285,7 +284,7 @@ func (s *SavingsService) DeleteGoal(ctx context.Context, userID, id int64) error
 	utils.CompareChanges(goal.Name, "", changes, "name")
 	utils.CompareDecimalChange(&goal.TargetAmount, nil, changes, "target_amount", 2)
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "delete",
 			Category:    "saving_goal",
 			Description: nil,
@@ -428,7 +427,7 @@ func (s *SavingsService) InsertContribution(ctx context.Context, userID, goalID 
 	utils.CompareChanges("", goal.Name, changes, "goal")
 	utils.CompareDecimalChange(nil, &req.Amount, changes, "amount", 2)
 	utils.CompareChanges("", record.Month.Format("2006-01-02"), changes, "month")
-	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "saving_contribution",
 		Description: req.Note,
@@ -490,7 +489,7 @@ func (s *SavingsService) DeleteContribution(ctx context.Context, userID, goalID,
 	utils.CompareDecimalChange(&contrib.Amount, nil, changes, "amount", 2)
 	utils.CompareChanges(contrib.Month.Format("2006-01-02"), "", changes, "month")
 	if !changes.IsEmpty() {
-		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "delete",
 			Category:    "saving_contribution",
 			Description: nil,
@@ -581,7 +580,7 @@ func (s *SavingsService) AutoFundGoal(ctx context.Context, goal models.SavingGoa
 	utils.CompareChanges("", goal.Name, changes, "goal")
 	utils.CompareDecimalChange(nil, goal.MonthlyAllocation, changes, "amount", 2)
 	utils.CompareChanges("", monthStart.Format("2006-01-02"), changes, "month")
-	_ = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	_ = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:    "create",
 		Category: "saving_contribution",
 		Payload:  changes,

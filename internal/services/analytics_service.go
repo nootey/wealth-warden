@@ -10,9 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
 
@@ -41,7 +40,7 @@ type AnalyticsService struct {
 	accRepo       repositories.AccountRepositoryInterface
 	txnRepo       repositories.TransactionRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
-	jobDispatcher queue.JobDispatcher
+	jobDispatcher jobqueue.Dispatcher
 }
 
 func NewAnalyticsService(
@@ -49,7 +48,7 @@ func NewAnalyticsService(
 	accRepo *repositories.AccountRepository,
 	txRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
-	jobDispatcher queue.JobDispatcher,
+	jobDispatcher jobqueue.Dispatcher,
 ) *AnalyticsService {
 	return &AnalyticsService{
 		repo:          repo,
@@ -1362,7 +1361,7 @@ func (s *AnalyticsService) GenerateCategoryReport(
 		return nil, err
 	}
 
-	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.GenerateCategoryReportArgs{
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.GenerateCategoryReportArgs{
 		ReportID: record.ID,
 		UserID:   userID,
 		Params:   params,

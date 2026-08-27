@@ -10,9 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
@@ -63,7 +62,7 @@ type InvestmentService struct {
 	accRepo          repositories.AccountRepositoryInterface
 	txnRepo          repositories.TransactionRepositoryInterface
 	settingsRepo     *repositories.SettingsRepository
-	jobDispatcher    queue.JobDispatcher
+	jobDispatcher    jobqueue.Dispatcher
 	priceFetchClient finance.PriceFetcher
 }
 
@@ -73,7 +72,7 @@ func NewInvestmentService(
 	accRepo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
-	jobDispatcher queue.JobDispatcher,
+	jobDispatcher jobqueue.Dispatcher,
 	priceFetchClient finance.PriceFetcher,
 ) *InvestmentService {
 	return &InvestmentService{
@@ -336,7 +335,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	utils.CompareChanges("", string(hold.InvestmentType), changes, "type")
 	utils.CompareChanges("", quantityString, changes, "quantity")
 
-	err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "investment_asset",
 		Description: nil,
@@ -571,7 +570,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		utils.CompareChanges("", *txn.Description, changes, "description")
 	}
 
-	err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "investment_trade",
 		Description: nil,
@@ -582,7 +581,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, err
 	}
 
-	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.SyncAssetAfterTradeArgs{
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.SyncAssetAfterTradeArgs{
 		UserID:         userID,
 		AssetID:        asset.ID,
 		Ticker:         asset.Ticker,
@@ -1016,7 +1015,7 @@ func (s *InvestmentService) UpdateInvestmentAsset(ctx context.Context, userID in
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(holdID, 10))
 		changes.Stamp("asset", exHold.Ticker)
-		err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "investment_asset",
 			Description: nil,
@@ -1091,7 +1090,7 @@ func (s *InvestmentService) UpdateInvestmentTrade(ctx context.Context, userID in
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(txnID, 10))
 		changes.Stamp("asset", asset.Ticker)
-		err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "investment_trade",
 			Description: nil,
@@ -1210,7 +1209,7 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 	utils.CompareChanges(asset.Ticker, "", changes, "ticker")
 	utils.CompareChanges(asset.Name, "", changes, "name")
 
-	err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "delete",
 		Category:    "investment_asset",
 		Description: nil,
@@ -1340,7 +1339,7 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 	utils.CompareChanges(exTxn.PricePerUnit.StringFixed(2), "", changes, "price_per_unit")
 	utils.CompareChanges(string(exTxn.TradeType), "", changes, "type")
 
-	err = s.jobDispatcher.Dispatch(ctx, queue_jobs.ActivityLogArgs{
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "delete",
 		Category:    "investment_trade",
 		Description: nil,
@@ -1550,7 +1549,7 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 
 	if req.IncomeType == models.IncomeTypeStaking {
 		txnDate := req.TxnDate.UTC().Truncate(24 * time.Hour)
-		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.SyncAssetAfterTradeArgs{
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.SyncAssetAfterTradeArgs{
 			UserID:         userID,
 			AssetID:        asset.ID,
 			Ticker:         asset.Ticker,

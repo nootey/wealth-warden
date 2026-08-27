@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"time"
 	"wealth-warden/internal/bootstrap"
-	"wealth-warden/internal/queue"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database/seeders"
 
@@ -40,7 +40,7 @@ type ServiceIntegrationSuite struct {
 
 type NoOpDispatcher struct{}
 
-func (d *NoOpDispatcher) Dispatch(_ context.Context, _ queue.Job) error {
+func (d *NoOpDispatcher) Dispatch(_ context.Context, _ jobqueue.Job) error {
 	return nil
 }
 
