@@ -60,29 +60,14 @@ func handleTestRequest(w http.ResponseWriter, r *http.Request) {
 func setupChartResponse(symbol, currency string, price float64, timestamp int64) {
 	mockStatusCode = 0
 	response := finance.ChartResponse{}
-	response.Chart.Result = make([]struct {
-		Meta struct {
-			Symbol             string  `json:"symbol"`
-			Currency           string  `json:"currency"`
-			RegularMarketPrice float64 `json:"regularMarketPrice"`
-			RegularMarketTime  int64   `json:"regularMarketTime"`
-		} `json:"meta"`
-		Timestamp  []int64 `json:"timestamp"`
-		Indicators struct {
-			Quote []struct {
-				Close []*float64 `json:"close"`
-			} `json:"quote"`
-		} `json:"indicators"`
-	}, 1)
+	response.Chart.Result = make([]finance.ChartResult, 1)
 
 	response.Chart.Result[0].Meta.Symbol = symbol
 	response.Chart.Result[0].Meta.Currency = currency
 	response.Chart.Result[0].Meta.RegularMarketPrice = price
 	response.Chart.Result[0].Meta.RegularMarketTime = timestamp
 	response.Chart.Result[0].Timestamp = []int64{timestamp}
-	response.Chart.Result[0].Indicators.Quote = make([]struct {
-		Close []*float64 `json:"close"`
-	}, 1)
+	response.Chart.Result[0].Indicators.Quote = make([]finance.ChartQuote, 1)
 	response.Chart.Result[0].Indicators.Quote[0].Close = []*float64{&price}
 
 	mockResponse = &response
@@ -228,29 +213,14 @@ func TestGetAssetPrice_WeekendHandling(t *testing.T) {
 	fridayPrice := 150.25
 
 	response := finance.ChartResponse{}
-	response.Chart.Result = make([]struct {
-		Meta struct {
-			Symbol             string  `json:"symbol"`
-			Currency           string  `json:"currency"`
-			RegularMarketPrice float64 `json:"regularMarketPrice"`
-			RegularMarketTime  int64   `json:"regularMarketTime"`
-		} `json:"meta"`
-		Timestamp  []int64 `json:"timestamp"`
-		Indicators struct {
-			Quote []struct {
-				Close []*float64 `json:"close"`
-			} `json:"quote"`
-		} `json:"indicators"`
-	}, 1)
+	response.Chart.Result = make([]finance.ChartResult, 1)
 
 	response.Chart.Result[0].Meta.Symbol = "AAPL"
 	response.Chart.Result[0].Meta.Currency = "USD"
 	response.Chart.Result[0].Meta.RegularMarketPrice = 0 // Weekend - market closed
 	response.Chart.Result[0].Meta.RegularMarketTime = time.Now().Unix()
 	response.Chart.Result[0].Timestamp = []int64{fridayTimestamp}
-	response.Chart.Result[0].Indicators.Quote = make([]struct {
-		Close []*float64 `json:"close"`
-	}, 1)
+	response.Chart.Result[0].Indicators.Quote = make([]finance.ChartQuote, 1)
 	response.Chart.Result[0].Indicators.Quote[0].Close = []*float64{&fridayPrice}
 
 	mockStatusCode = 0
@@ -334,25 +304,10 @@ func TestGetAssetPriceOnDate_NoDataAvailable(t *testing.T) {
 	historicalDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 
 	response := finance.ChartResponse{}
-	response.Chart.Result = make([]struct {
-		Meta struct {
-			Symbol             string  `json:"symbol"`
-			Currency           string  `json:"currency"`
-			RegularMarketPrice float64 `json:"regularMarketPrice"`
-			RegularMarketTime  int64   `json:"regularMarketTime"`
-		} `json:"meta"`
-		Timestamp  []int64 `json:"timestamp"`
-		Indicators struct {
-			Quote []struct {
-				Close []*float64 `json:"close"`
-			} `json:"quote"`
-		} `json:"indicators"`
-	}, 1)
+	response.Chart.Result = make([]finance.ChartResult, 1)
 
 	response.Chart.Result[0].Timestamp = []int64{}
-	response.Chart.Result[0].Indicators.Quote = make([]struct {
-		Close []*float64 `json:"close"`
-	}, 1)
+	response.Chart.Result[0].Indicators.Quote = make([]finance.ChartQuote, 1)
 	response.Chart.Result[0].Indicators.Quote[0].Close = []*float64{}
 
 	mockStatusCode = 0
@@ -639,5 +594,71 @@ func TestNewPriceFetchClient_EmptyBaseURL(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("Expected error for empty base URL, got nil")
+	}
+}
+
+func setupChartSeries(symbol, currency string, gmtOffset int64, timestamps []int64, closes []*float64) {
+	mockStatusCode = 0
+	response := finance.ChartResponse{}
+	response.Chart.Result = make([]finance.ChartResult, 1)
+	response.Chart.Result[0].Meta.Symbol = symbol
+	response.Chart.Result[0].Meta.Currency = currency
+	response.Chart.Result[0].Meta.GMTOffset = gmtOffset
+	response.Chart.Result[0].Timestamp = timestamps
+	response.Chart.Result[0].Indicators.Quote = make([]finance.ChartQuote, 1)
+	response.Chart.Result[0].Indicators.Quote[0].Close = closes
+
+	mockResponse = &response
+}
+
+func TestGetAssetPriceRange_SkipsGapsAndDaysOutsideRange(t *testing.T) {
+	resetMocks()
+
+	// Amsterdam opens 09:00 local, which is 07:00 UTC in summer
+	session := func(day int) int64 {
+		return time.Date(2026, 8, day, 7, 0, 0, 0, time.UTC).Unix()
+	}
+	monday := 100.0
+	wednesday := 102.0
+	thursday := 103.0
+
+	setupChartSeries("IWDA.AS", "EUR", 7200,
+		[]int64{session(24), session(25), session(26), session(27)},
+		[]*float64{&monday, nil, &wednesday, &thursday})
+
+	from := time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 8, 26, 0, 0, 0, 0, time.UTC)
+
+	prices, err := fetcher.GetAssetPriceRange(context.Background(), "IWDA.AS", from, to)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if len(prices) != 2 {
+		t.Fatalf("Expected 2 prices, got %d: %+v", len(prices), prices)
+	}
+
+	if !prices[0].Date.Equal(from) || prices[0].Price != monday || prices[0].Currency != "EUR" {
+		t.Errorf("Unexpected first price: %+v", prices[0])
+	}
+
+	if !prices[1].Date.Equal(to) || prices[1].Price != wednesday {
+		t.Errorf("Unexpected second price: %+v", prices[1])
+	}
+}
+
+func TestGetAssetPriceRange_ClosedMarketIsNotAnError(t *testing.T) {
+	resetMocks()
+	setupChartSeries("IWDA.AS", "EUR", 7200, []int64{}, []*float64{})
+
+	christmas := time.Date(2025, 12, 25, 0, 0, 0, 0, time.UTC)
+
+	prices, err := fetcher.GetAssetPriceRange(context.Background(), "IWDA.AS", christmas, christmas)
+	if err != nil {
+		t.Fatalf("Expected no error for a closed market, got: %v", err)
+	}
+
+	if len(prices) != 0 {
+		t.Errorf("Expected no prices, got %+v", prices)
 	}
 }

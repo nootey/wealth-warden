@@ -32,6 +32,7 @@ var ExchangeMap = map[string]string{
 type PriceFetcher interface {
 	GetAssetPrice(ctx context.Context, ticker string, investmentType models.InvestmentType) (*PriceData, error)
 	GetAssetPriceOnDate(ctx context.Context, ticker string, investmentType models.InvestmentType, date time.Time) (*PriceData, error)
+	GetAssetPriceRange(ctx context.Context, ticker string, from, to time.Time) ([]DatedPrice, error)
 	GetPricesForMultipleAssets(ctx context.Context, assets []AssetRequest) (map[string]*PriceData, error)
 	GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string) (float64, error)
 	GetExchangeRateOnDate(ctx context.Context, fromCurrency, toCurrency string, date time.Time) (float64, error)
@@ -248,6 +249,81 @@ func (c *PriceFetchClient) GetAssetPriceOnDate(ctx context.Context, ticker strin
 		Currency:   result.Meta.Currency,
 		LastUpdate: closestTime,
 	}, nil
+}
+
+// A closed market yields no bars, which is not an error.
+func (c *PriceFetchClient) GetAssetPriceRange(ctx context.Context, ticker string, from, to time.Time) ([]DatedPrice, error) {
+	ticker = strings.ToUpper(strings.TrimSpace(ticker))
+
+	from = from.UTC().Truncate(24 * time.Hour)
+	to = to.UTC().Truncate(24 * time.Hour)
+	if from.After(to) {
+		return nil, fmt.Errorf("invalid range for %s: %s is after %s",
+			ticker, from.Format(time.DateOnly), to.Format(time.DateOnly))
+	}
+
+	// period2 is exclusive, so cover the last day with a one day margin
+	url := fmt.Sprintf("%s/v8/finance/chart/%s?period1=%d&period2=%d&interval=1d",
+		c.baseURL, ticker, from.Unix(), to.AddDate(0, 0, 1).Unix())
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch prices: %w", err)
+	}
+	defer func(Body io.ReadCloser) {
+		closeErr := Body.Close()
+		if closeErr != nil {
+			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ticker '%s' not found on Yahoo Finance (status %d)", ticker, resp.StatusCode)
+	}
+
+	var data ChartResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(data.Chart.Result) == 0 {
+		return nil, fmt.Errorf("no price data found for ticker '%s'", ticker)
+	}
+
+	result := data.Chart.Result[0]
+	if len(result.Indicators.Quote) == 0 {
+		return nil, nil
+	}
+
+	closes := result.Indicators.Quote[0].Close
+	prices := make([]DatedPrice, 0, len(result.Timestamp))
+
+	for i, ts := range result.Timestamp {
+		if i >= len(closes) || closes[i] == nil || *closes[i] <= 0 {
+			continue
+		}
+
+		// Timestamps mark the session start in exchange local time
+		day := time.Unix(ts+result.Meta.GMTOffset, 0).UTC().Truncate(24 * time.Hour)
+		if day.Before(from) || day.After(to) {
+			continue
+		}
+
+		prices = append(prices, DatedPrice{
+			Date:     day,
+			Price:    *closes[i],
+			Currency: result.Meta.Currency,
+		})
+	}
+
+	return prices, nil
 }
 
 func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, assets []AssetRequest) (map[string]*PriceData, error) {

@@ -2,7 +2,6 @@ package jobs
 
 import (
 	"context"
-	"fmt"
 	"github.com/riverqueue/river"
 	"sync"
 	"time"
@@ -85,12 +84,12 @@ func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
 				return nil
 			}
 			err := j.investmentSvc.BackfillAssetPriceHistory(
-				ctx, asset.ID, asset.Ticker, asset.InvestmentType, asset.EarliestTrade, today)
+				ctx, asset.ID, asset.Ticker, asset.EarliestTrade, today)
 			if err != nil {
 				mu.Lock()
 				failed++
 				mu.Unlock()
-				return fmt.Errorf("asset %d (%s): %w", asset.ID, asset.Ticker, err)
+				return err
 			}
 			return nil
 		})

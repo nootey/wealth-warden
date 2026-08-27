@@ -1,6 +1,9 @@
 package finance
 
-import "wealth-warden/internal/models"
+import (
+	"time"
+	"wealth-warden/internal/models"
+)
 
 type PriceData struct {
 	Symbol     string
@@ -17,23 +20,36 @@ type AssetRequest struct {
 	Currency       string // For crypto
 }
 
+type ChartMeta struct {
+	Symbol             string  `json:"symbol"`
+	Currency           string  `json:"currency"`
+	RegularMarketPrice float64 `json:"regularMarketPrice"`
+	RegularMarketTime  int64   `json:"regularMarketTime"`
+	GMTOffset          int64   `json:"gmtoffset"`
+}
+
+type ChartQuote struct {
+	Close []*float64 `json:"close"`
+}
+
+type ChartResult struct {
+	Meta       ChartMeta `json:"meta"`
+	Timestamp  []int64   `json:"timestamp"`
+	Indicators struct {
+		Quote []ChartQuote `json:"quote"`
+	} `json:"indicators"`
+}
+
 type ChartResponse struct {
 	Chart struct {
-		Result []struct {
-			Meta struct {
-				Symbol             string  `json:"symbol"`
-				Currency           string  `json:"currency"`
-				RegularMarketPrice float64 `json:"regularMarketPrice"`
-				RegularMarketTime  int64   `json:"regularMarketTime"`
-			} `json:"meta"`
-			Timestamp  []int64 `json:"timestamp"`
-			Indicators struct {
-				Quote []struct {
-					Close []*float64 `json:"close"`
-				} `json:"quote"`
-			} `json:"indicators"`
-		} `json:"result"`
+		Result []ChartResult `json:"result"`
 	} `json:"chart"`
+}
+
+type DatedPrice struct {
+	Date     time.Time
+	Price    float64
+	Currency string
 }
 
 type QuoteResponse struct {

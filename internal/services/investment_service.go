@@ -45,7 +45,7 @@ type InvestmentServiceInterface interface {
 	ApplyTickerPrice(ctx context.Context, ticker string, price decimal.Decimal, currency string, now time.Time) ([]models.AssetPriceChange, error)
 	GetActiveCurrencyPairs(ctx context.Context) ([]models.CurrencyPair, error)
 	GetUserIDsWithActiveInvestments(ctx context.Context) ([]int64, error)
-	BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, investmentType models.InvestmentType, from, to time.Time) error
+	BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, from, to time.Time) error
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
 	CreateInvestmentIncome(ctx context.Context, userID int64, req *models.InvestmentIncomeReq) (int64, error)
 	DeleteInvestmentIncome(ctx context.Context, userID int64, id int64) error
@@ -1706,13 +1706,16 @@ func (s *InvestmentService) DeleteInvestmentIncome(ctx context.Context, userID i
 	return tx.Commit().Error
 }
 
-func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, investmentType models.InvestmentType, from, to time.Time) error {
+func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, from, to time.Time) error {
 	if s.priceFetchClient == nil {
 		return nil
 	}
 
 	from = from.UTC().Truncate(24 * time.Hour)
 	to = to.UTC().Truncate(24 * time.Hour)
+	if from.After(to) {
+		return nil
+	}
 
 	existing, err := s.repo.GetPriceHistoryForAsset(ctx, nil, assetID)
 	if err != nil {
@@ -1721,13 +1724,16 @@ func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, asset
 
 	existingSet := make(map[string]bool, len(existing))
 	for _, p := range existing {
-		existingSet[p.AsOf.UTC().Truncate(24*time.Hour).Format("2006-01-02")] = true
+		existingSet[p.AsOf.UTC().Truncate(24*time.Hour).Format(time.DateOnly)] = true
 	}
 
-	current := from
+	prices, err := s.priceFetchClient.GetAssetPriceRange(ctx, ticker, from, to)
+	if err != nil {
+		return fmt.Errorf("asset %d (%s): %w", assetID, ticker, err)
+	}
+
 	var batch []models.AssetPriceHistory
-	requestCount, written, fetched, fetchFailures := 0, 0, 0, 0
-	var firstFetchErr error
+	written := 0
 
 	flush := func() error {
 		if len(batch) == 0 {
@@ -1741,52 +1747,21 @@ func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, asset
 		return nil
 	}
 
-	for !current.After(to) {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-
-		if current.Weekday() == time.Saturday || current.Weekday() == time.Sunday {
-			current = current.AddDate(0, 0, 1)
+	for _, p := range prices {
+		if existingSet[p.Date.Format(time.DateOnly)] {
 			continue
 		}
 
-		if existingSet[current.Format("2006-01-02")] {
-			current = current.AddDate(0, 0, 1)
-			continue
-		}
-
-		if requestCount > 0 && requestCount%10 == 0 {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(500 * time.Millisecond):
-			}
-		}
-
-		priceData, err := s.priceFetchClient.GetAssetPriceOnDate(ctx, ticker, investmentType, current)
-		requestCount++
-		fetched++
-		if err != nil {
-			fetchFailures++
-			if firstFetchErr == nil {
-				firstFetchErr = err
-			}
-			current = current.AddDate(0, 0, 1)
-			continue
-		}
-
-		price := decimal.NewFromFloat(priceData.Price)
+		price := decimal.NewFromFloat(p.Price)
 		if price.IsZero() || price.IsNegative() {
-			current = current.AddDate(0, 0, 1)
 			continue
 		}
 
 		batch = append(batch, models.AssetPriceHistory{
 			AssetID:  assetID,
-			AsOf:     current,
+			AsOf:     p.Date,
 			Price:    price,
-			Currency: priceData.Currency,
+			Currency: p.Currency,
 		})
 
 		if len(batch) >= priceBackfillFlushSize {
@@ -1794,26 +1769,16 @@ func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, asset
 				return err
 			}
 		}
-
-		current = current.AddDate(0, 0, 1)
 	}
 
 	if err := flush(); err != nil {
 		return err
 	}
 
-	if fetchFailures > 0 {
-		s.logger.Warn("Failed to fetch historical prices",
-			zap.String("ticker", ticker),
-			zap.Int("failed", fetchFailures),
-			zap.Int("fetched", fetched),
-			zap.Int("written", written),
-			zap.Error(firstFetchErr))
-
-		if written == 0 {
-			return fmt.Errorf("no prices fetched for %s: %d of %d requests failed: %w", ticker, fetchFailures, fetched, firstFetchErr)
-		}
-	}
+	s.logger.Debug("Price history backfilled",
+		zap.String("ticker", ticker),
+		zap.Int("fetched", len(prices)),
+		zap.Int("written", written))
 
 	return nil
 }
