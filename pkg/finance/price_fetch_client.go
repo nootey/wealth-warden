@@ -63,20 +63,6 @@ func NewPriceFetchClient(baseURL string) (PriceFetcher, error) {
 	}, nil
 }
 
-func (c *PriceFetchClient) normalizeExchange(exchange string) string {
-	if exchange == "" {
-		return ""
-	}
-
-	normalized := strings.ToUpper(strings.TrimSpace(exchange))
-
-	if code, exists := ExchangeMap[normalized]; exists {
-		return code
-	}
-
-	return normalized
-}
-
 func (c *PriceFetchClient) GetAssetPrice(ctx context.Context, ticker string, investmentType models.InvestmentType) (*PriceData, error) {
 
 	ticker = strings.ToUpper(strings.TrimSpace(ticker))
@@ -332,36 +318,31 @@ func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, asset
 	}
 
 	symbols := make([]string, 0, len(assets))
-	symbolMap := make(map[string]string) // maps yahoo symbol to original identifier
 
 	for _, asset := range assets {
-		ticker := strings.ToUpper(strings.TrimSpace(asset.Ticker))
-		var symbol string
-		var identifier string
-
 		switch asset.InvestmentType {
-		case models.InvestmentCrypto:
-			currency := strings.ToUpper(strings.TrimSpace(asset.Currency))
-			if currency == "" {
-				currency = "USD"
-			}
-			symbol = fmt.Sprintf("%s-%s", ticker, currency)
-			identifier = symbol
-
-		case models.InvestmentStock, models.InvestmentETF:
-			exchange := c.normalizeExchange(asset.Exchange)
-			if exchange == "" {
-				continue // Skip assets without exchange
-			}
-			symbol = fmt.Sprintf("%s.%s", ticker, exchange)
-			identifier = symbol
-
+		case models.InvestmentCrypto, models.InvestmentStock, models.InvestmentETF:
 		default:
 			continue // Skip invalid types
 		}
 
+		parts := ParseSymbol(asset.Ticker, asset.InvestmentType)
+		if asset.Exchange != "" {
+			parts.Exchange = asset.Exchange
+		}
+		if asset.Currency != "" {
+			parts.Currency = asset.Currency
+		}
+
+		symbol := BuildSymbol(parts, asset.InvestmentType)
+		if symbol == "" {
+			continue
+		}
+		if asset.InvestmentType != models.InvestmentCrypto && !strings.Contains(symbol, ".") {
+			continue // Skip stocks/ETFs without an exchange suffix
+		}
+
 		symbols = append(symbols, symbol)
-		symbolMap[symbol] = identifier
 	}
 
 	if len(symbols) == 0 {

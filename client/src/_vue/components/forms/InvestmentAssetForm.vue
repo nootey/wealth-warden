@@ -8,6 +8,7 @@ import type { Account } from "../../../models/account_models.ts";
 import type { AssetPnLPayload } from "../../../models/ws_models.ts";
 import type {
   InvestmentAsset,
+  InvestmentType,
   TickerData,
 } from "../../../models/investment_models.ts";
 import currencyHelper from "../../../utils/currency_helper.ts";
@@ -29,6 +30,7 @@ import InvestmentAssetWidget from "../../features/widgets/InvestmentAssetWidget.
 import InvestmentIncomeForm from "./InvestmentIncomeForm.vue";
 import InvestmentIncomePaginated from "../data/InvestmentIncomePaginated.vue";
 import searchHelper from "../../../utils/search_helper.ts";
+import tickerHelper from "../../../utils/ticker_helper.ts";
 
 const props = defineProps<{
   mode?: "create" | "update";
@@ -190,19 +192,11 @@ async function loadRecord(id: number) {
     loading.value = true;
     const data = await sharedStore.getRecordByID(apiPrefix, id);
 
-    // Parse ticker based on format
     if (data.ticker) {
-      if (data.ticker.includes("-")) {
-        // Crypto: "BTC-USD"
-        const [name] = data.ticker.split("-");
-        tickerData.value = { name, exchange: "", currency: data.currency };
-      } else if (data.ticker.includes(".")) {
-        // Stock/ETF: "IWDA.L"
-        const [name, exchange] = data.ticker.split(".");
-        tickerData.value = { name, exchange, currency: "" };
-      } else {
-        tickerData.value = { name: data.ticker, exchange: "", currency: "" };
-      }
+      tickerData.value = tickerHelper.parseTicker(
+        data.ticker,
+        data.investment_type,
+      );
     }
 
     record.value = {
@@ -222,21 +216,21 @@ async function manageRecord() {
   if (!record.value.account) return;
 
   loading.value = true;
-  let ticker = tickerData.value.name;
 
-  if (selectedInvestmentType.value.toLowerCase() === "crypto") {
-    // Crypto: "BTC-USD"
-    ticker = `${ticker}-${record.value.currency}`;
-  } else {
-    // Stock/ETF: "IWDA.L"
-    if (tickerData.value.exchange) {
-      ticker = `${ticker}.${tickerData.value.exchange.toUpperCase()}`;
-    }
-  }
+  const investmentType =
+    selectedInvestmentType.value.toLowerCase() as InvestmentType;
+  const ticker = tickerHelper.buildTicker(
+    {
+      name: tickerData.value.name,
+      exchange: tickerData.value.exchange ?? "",
+      currency: record.value.currency,
+    },
+    investmentType,
+  );
 
   const recordData = {
     account_id: record.value.account.id,
-    investment_type: selectedInvestmentType.value.toLowerCase(),
+    investment_type: investmentType,
     quantity: record.value.quantity,
     name: record.value.name,
     ticker: ticker,

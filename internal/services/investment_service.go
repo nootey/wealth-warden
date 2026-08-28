@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -92,20 +91,6 @@ func NewInvestmentService(
 }
 
 var _ InvestmentServiceInterface = (*InvestmentService)(nil)
-
-// stockTickerRegex is built from finance.ExchangeMap so the two stay in sync.
-// Matches US tickers (e.g. AAPL) or TICKER.EXCHANGE (e.g. IWDA.AS).
-var stockTickerRegex = func() *regexp.Regexp {
-	seen := make(map[string]struct{})
-	codes := make([]string, 0)
-	for _, code := range finance.ExchangeMap {
-		if _, ok := seen[code]; !ok {
-			seen[code] = struct{}{}
-			codes = append(codes, code)
-		}
-	}
-	return regexp.MustCompile(`^[A-Z]{1,7}(\.(` + strings.Join(codes, "|") + `))?$`)
-}()
 
 func (s *InvestmentService) FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error) {
 
@@ -266,22 +251,10 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 
 	if s.priceFetchClient != nil {
 
-		formattedTicker = strings.ToUpper(req.Ticker)
-		switch req.InvestmentType {
-		case models.InvestmentCrypto:
-			// Ensure format: BTC-USD
-			if !strings.Contains(formattedTicker, "-") {
-				formattedTicker = formattedTicker + "-USD"
-			}
-
-		case models.InvestmentStock, models.InvestmentETF:
-			// Allow either:
-			//   - pure ticker: AAPL
-			//   - ticker + exchange: IWDA.AS
-			if !stockTickerRegex.MatchString(formattedTicker) {
-				tx.Rollback()
-				return 0, fmt.Errorf("invalid stock/ETF ticker: must look like AAPL or IWDA.AS")
-			}
+		formattedTicker, err = finance.NormalizeTicker(req.Ticker, req.InvestmentType)
+		if err != nil {
+			tx.Rollback()
+			return 0, err
 		}
 
 		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, formattedTicker, req.InvestmentType)

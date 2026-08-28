@@ -1842,24 +1842,25 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		txDayAdjusted := utils.AdjustToWeekday(txDay)
 
 		var asset models.InvestmentAsset
-		var formattedTicker string
 
 		// Determine investment type and format ticker
 		var investmentType models.InvestmentType
+		rawTicker := txn.Category
 		if toAccount.AccountType.Type == "crypto" {
 			investmentType = models.InvestmentCrypto
-			formattedTicker = txn.Category
-			// Ensure format: BTC-USD for crypto
-			if !strings.Contains(formattedTicker, "-") {
-				formattedTicker = formattedTicker + "-USD"
-			}
 		} else {
 			investmentType = models.InvestmentETF
-			formattedTicker = txn.Category
-			// For European ETFs like IWDA, append .AS for Amsterdam
-			if !strings.Contains(formattedTicker, ".") {
-				formattedTicker = formattedTicker + ".AS"
+			// This importer targets Amsterdam-listed ETFs; default the exchange when absent.
+			if !strings.Contains(rawTicker, ".") {
+				rawTicker = rawTicker + ".AS"
 			}
+		}
+
+		formattedTicker, err := finance.NormalizeTicker(rawTicker, investmentType)
+		if err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return fmt.Errorf("invalid ticker %q: %w", txn.Category, err)
 		}
 
 		// Check if asset exists by ticker and account
