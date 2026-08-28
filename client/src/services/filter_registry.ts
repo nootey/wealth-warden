@@ -15,6 +15,7 @@ export type Column = {
   optionValue?: string;
   hideOnMobile?: boolean;
   hideFromFilter?: boolean;
+  sortable?: boolean;
 };
 
 export type PanelDef<M = any> = {

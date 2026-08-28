@@ -295,7 +295,6 @@ defineExpose({ refresh });
             <template
               v-else-if="
                 [
-                  'current_price',
                   'value_at_buy',
                   'current_value',
                   'price_per_unit',

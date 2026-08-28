@@ -270,25 +270,23 @@ var summaryBrackets = []models.InvestmentTaxBracket{
 	bracket(1826, 0),
 }
 
-func assetWithPrice(pnl, price float64, invType models.InvestmentType) models.InvestmentAsset {
-	p := df(price)
+func assetWithPrice(pnl, price float64, invType models.InvestmentType) (models.InvestmentAsset, decimal.Decimal) {
 	return models.InvestmentAsset{
 		ProfitLoss:     df(pnl),
-		CurrentPrice:   &p,
 		InvestmentType: invType,
-	}
+	}, df(price)
 }
 
 func TestComputeAssetTaxSummary_NoBrackets(t *testing.T) {
-	asset := assetWithPrice(100, 15, models.InvestmentStock)
-	info := utils.ComputeAssetTaxSummary(asset, nil, nil, models.InvestmentTaxSettings{}, taxToday)
+	asset, price := assetWithPrice(100, 15, models.InvestmentStock)
+	info := utils.ComputeAssetTaxSummary(asset, price, nil, nil, models.InvestmentTaxSettings{}, taxToday)
 	assert.True(t, df(100).Equal(info.AfterTaxPnL))
 	assert.True(t, info.EstimatedTaxDue.IsZero())
 }
 
-func TestComputeAssetTaxSummary_NilCurrentPrice(t *testing.T) {
+func TestComputeAssetTaxSummary_ZeroCurrentPrice(t *testing.T) {
 	asset := models.InvestmentAsset{ProfitLoss: df(100), InvestmentType: models.InvestmentStock}
-	info := utils.ComputeAssetTaxSummary(asset, nil, summaryBrackets, models.InvestmentTaxSettings{}, taxToday)
+	info := utils.ComputeAssetTaxSummary(asset, df(0), nil, summaryBrackets, models.InvestmentTaxSettings{}, taxToday)
 	assert.True(t, df(100).Equal(info.AfterTaxPnL))
 	assert.True(t, info.EstimatedTaxDue.IsZero())
 }
@@ -297,9 +295,9 @@ func TestComputeAssetTaxSummary_WithoutLossOffsetting_GainTaxed(t *testing.T) {
 	// 10 units bought 500 days ago at price 10 (valueAtBuy=100)
 	// current price = 20 → lot pnl = 200-100 = 100, taxed at 100%
 	trades := []models.InvestmentTrade{buyTrade(1, 500, 10, 100, 0, 0)}
-	asset := assetWithPrice(100, 20, models.InvestmentStock)
+	asset, price := assetWithPrice(100, 20, models.InvestmentStock)
 
-	info := utils.ComputeAssetTaxSummary(asset, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: false}, taxToday)
+	info := utils.ComputeAssetTaxSummary(asset, price, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: false}, taxToday)
 
 	assert.True(t, df(100).Equal(info.EstimatedTaxDue))
 	assert.True(t, df(0).Equal(info.AfterTaxPnL))
@@ -308,9 +306,9 @@ func TestComputeAssetTaxSummary_WithoutLossOffsetting_GainTaxed(t *testing.T) {
 func TestComputeAssetTaxSummary_WithoutLossOffsetting_LossNotTaxed(t *testing.T) {
 	// lot at a loss is skipped
 	trades := []models.InvestmentTrade{buyTrade(1, 500, 10, 200, 0, 0)}
-	asset := assetWithPrice(-100, 10, models.InvestmentStock)
+	asset, price := assetWithPrice(-100, 10, models.InvestmentStock)
 
-	info := utils.ComputeAssetTaxSummary(asset, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: false}, taxToday)
+	info := utils.ComputeAssetTaxSummary(asset, price, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: false}, taxToday)
 
 	assert.True(t, info.EstimatedTaxDue.IsZero())
 	assert.True(t, df(-100).Equal(info.AfterTaxPnL))
@@ -323,9 +321,9 @@ func TestComputeAssetTaxSummary_WithoutLossOffsetting_MixedLots(t *testing.T) {
 		buyTrade(1, 500, 10, 100, 0, 0),
 		buyTrade(2, 2000, 10, 100, 0, 0),
 	}
-	asset := assetWithPrice(200, 20, models.InvestmentStock)
+	asset, price := assetWithPrice(200, 20, models.InvestmentStock)
 
-	info := utils.ComputeAssetTaxSummary(asset, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: false}, taxToday)
+	info := utils.ComputeAssetTaxSummary(asset, price, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: false}, taxToday)
 
 	assert.True(t, df(100).Equal(info.EstimatedTaxDue))
 	assert.True(t, df(100).Equal(info.AfterTaxPnL))
@@ -339,9 +337,9 @@ func TestComputeAssetTaxSummary_LossOffsetting_NetGainZero(t *testing.T) {
 		buyTrade(1, 100, 10, 200, 0, 0),
 		buyTrade(2, 200, 10, 400, 0, 0),
 	}
-	asset := assetWithPrice(0, 30, models.InvestmentStock)
+	asset, price := assetWithPrice(0, 30, models.InvestmentStock)
 
-	info := utils.ComputeAssetTaxSummary(asset, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: true}, taxToday)
+	info := utils.ComputeAssetTaxSummary(asset, price, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: true}, taxToday)
 
 	assert.True(t, info.EstimatedTaxDue.IsZero())
 	assert.True(t, df(0).Equal(info.AfterTaxPnL))
@@ -354,10 +352,10 @@ func TestComputeAssetTaxSummary_LossOffsetting_ReducesTax(t *testing.T) {
 		buyTrade(1, 100, 10, 200, 0, 0),
 		buyTrade(2, 200, 10, 400, 0, 0),
 	}
-	asset := assetWithPrice(0, 30, models.InvestmentStock)
+	asset, price := assetWithPrice(0, 30, models.InvestmentStock)
 
-	without := utils.ComputeAssetTaxSummary(asset, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: false}, taxToday)
-	with := utils.ComputeAssetTaxSummary(asset, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: true}, taxToday)
+	without := utils.ComputeAssetTaxSummary(asset, price, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: false}, taxToday)
+	with := utils.ComputeAssetTaxSummary(asset, price, trades, summaryBrackets, models.InvestmentTaxSettings{LossOffsettingEnabled: true}, taxToday)
 
 	assert.True(t, without.EstimatedTaxDue.GreaterThan(with.EstimatedTaxDue))
 }

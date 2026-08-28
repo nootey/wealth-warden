@@ -21,7 +21,7 @@ type stubPostTradeSync struct {
 	snapshotted bool
 }
 
-func (s *stubPostTradeSync) BackfillAssetPriceHistory(context.Context, int64, string, time.Time, time.Time) error {
+func (s *stubPostTradeSync) BackfillTickerPriceHistory(context.Context, string, time.Time, time.Time) error {
 	s.backfilled = true
 	return s.backfillErr
 }

@@ -23,6 +23,27 @@ func TestAssetPriceSyncJobSuite(t *testing.T) {
 	suite.Run(t, new(AssetPriceSyncJobTestSuite))
 }
 
+// setTickerPrice overwrites the newest ticker_price_history row for a ticker.
+func (s *AssetPriceSyncJobTestSuite) setTickerPrice(ticker string, price decimal.Decimal) {
+	s.T().Helper()
+	err := s.TC.DB.WithContext(s.Ctx).Model(&models.TickerPriceHistory{}).
+		Where("ticker = ?", ticker).
+		Update("price", price).Error
+	s.Require().NoError(err)
+}
+
+// latestTickerPrice returns the newest ticker_price_history price for a ticker.
+func (s *AssetPriceSyncJobTestSuite) latestTickerPrice(ticker string) decimal.Decimal {
+	s.T().Helper()
+	var ph models.TickerPriceHistory
+	err := s.TC.DB.WithContext(s.Ctx).
+		Where("ticker = ?", ticker).
+		Order("as_of DESC").
+		First(&ph).Error
+	s.Require().NoError(err)
+	return ph.Price
+}
+
 // Test that job runs with no assets
 func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_Success() {
 	logger := zaptest.NewLogger(s.T())
@@ -49,7 +70,7 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_SkipsExtremePriceDrop
 	})
 	s.Require().NoError(err)
 
-	assetID, err := invSvc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+	_, err = invSvc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
 		AccountID:      accID,
 		InvestmentType: models.InvestmentCrypto,
 		Name:           "Bitcoin",
@@ -58,12 +79,9 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_SkipsExtremePriceDrop
 	})
 	s.Require().NoError(err)
 
-	// Mock returns BTC-USD at 50,000 — set current price to 1,000,000 so the "new" price is a >90% drop
+	// Mock returns BTC-USD at 50,000 — set the last known ticker price to 1,000,000 so the "new" price is a >90% drop
 	inflatedPrice := decimal.NewFromInt(1000000)
-	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentAsset{}).
-		Where("id = ?", assetID).
-		Update("current_price", inflatedPrice).Error
-	s.Require().NoError(err)
+	s.setTickerPrice("BTC-USD", inflatedPrice)
 
 	logger := zaptest.NewLogger(s.T())
 	job := jobs.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, &tests.MockPriceFetcher{}, nil, 0)
@@ -71,13 +89,9 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_SkipsExtremePriceDrop
 	err = job.Run(s.Ctx)
 	s.Require().NoError(err)
 
-	var asset models.InvestmentAsset
-	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
-	s.Require().NoError(err)
-
-	s.Assert().True(inflatedPrice.Equal(*asset.CurrentPrice),
-		"price should not have been updated on extreme drop: expected %s, got %s",
-		inflatedPrice.String(), asset.CurrentPrice.String())
+	s.Assert().True(inflatedPrice.Equal(s.latestTickerPrice("BTC-USD")),
+		"ticker price should not have been updated on extreme drop: expected %s, got %s",
+		inflatedPrice.String(), s.latestTickerPrice("BTC-USD").String())
 }
 
 // Tests that the job updates asset prices, values, P&L, and account balance non-cash flows
@@ -132,16 +146,9 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalan
 		s.Require().NoError(err)
 	}
 
-	// Manually set an old price to simulate price change
+	// Manually set an old ticker price to simulate a price change on the next sync
 	oldPrice := decimal.NewFromInt(60000)
-	err = s.TC.DB.Model(&models.InvestmentAsset{}).
-		Where("id = ?", assetID).
-		Updates(map[string]interface{}{
-			"current_price": oldPrice,
-			"current_value": oldPrice,
-			"profit_loss":   decimal.NewFromInt(10000),
-		}).Error
-	s.Require().NoError(err)
+	s.setTickerPrice("BTC-USD", oldPrice)
 
 	// Run price sync job
 	logger := zaptest.NewLogger(s.T())
@@ -158,23 +165,22 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalan
 		s.Require().NoError(err)
 	}
 
-	// Verify asset price updated
+	// Verify asset value updated
 	var assetAfter models.InvestmentAsset
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&assetAfter).Error
 	s.Require().NoError(err)
 
-	s.Assert().NotNil(assetAfter.CurrentPrice, "price should be updated")
 	s.Assert().NotNil(assetAfter.LastPriceUpdate, "last update should be set")
 	s.Assert().True(assetAfter.CurrentValue.GreaterThan(decimal.Zero), "current value should be updated")
-	s.Assert().NotEqual(oldPrice, assetAfter.CurrentPrice, "price should have changed")
 
-	// Verify price history populated
-	var priceHistory models.AssetPriceHistory
+	// Verify ticker price history refreshed away from the stale old price
+	var priceHistory models.TickerPriceHistory
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("asset_id = ? AND as_of = ?", assetID, today).
+		Where("ticker = ? AND as_of = ?", "BTC-USD", today).
 		First(&priceHistory).Error
 	s.Require().NoError(err)
 	s.Assert().True(priceHistory.Price.GreaterThan(decimal.Zero), "price history should be recorded")
+	s.Assert().False(oldPrice.Equal(priceHistory.Price), "price sync should have replaced the stale price")
 
 	// Verify cash balance reduced by purchase cost (buy wrote cash_outflows)
 	var balance models.Balance
@@ -214,7 +220,7 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_FailedTickerDoesNotRo
 	})
 	s.Require().NoError(err)
 
-	btcID, err := invSvc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+	_, err = invSvc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
 		AccountID:      accID,
 		InvestmentType: models.InvestmentCrypto,
 		Name:           "Bitcoin",
@@ -223,7 +229,7 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_FailedTickerDoesNotRo
 	})
 	s.Require().NoError(err)
 
-	etfID, err := invSvc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+	_, err = invSvc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
 		AccountID:      accID,
 		InvestmentType: models.InvestmentETF,
 		Name:           "iShares MSCI World",
@@ -233,13 +239,8 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_FailedTickerDoesNotRo
 	s.Require().NoError(err)
 
 	// Prices close to the mock's so the extreme-drop guard does not skip either asset
-	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentAsset{}).
-		Where("id = ?", btcID).Update("current_price", decimal.NewFromInt(45000)).Error
-	s.Require().NoError(err)
-
-	err = s.TC.DB.WithContext(s.Ctx).Model(&models.InvestmentAsset{}).
-		Where("id = ?", etfID).Update("current_price", decimal.NewFromInt(90)).Error
-	s.Require().NoError(err)
+	s.setTickerPrice("BTC-USD", decimal.NewFromInt(45000))
+	s.setTickerPrice("IWDA.AS", decimal.NewFromInt(90))
 
 	failingSvc := &tickerFailingInvestmentService{
 		InvestmentServiceInterface: invSvc,
@@ -252,15 +253,9 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_FailedTickerDoesNotRo
 	err = job.Run(s.Ctx)
 	s.Require().NoError(err, "one bad ticker must not fail the whole run")
 
-	var etf models.InvestmentAsset
-	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", etfID).First(&etf).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(100).Equal(*etf.CurrentPrice),
-		"the healthy ticker must stay committed: expected 100, got %s", etf.CurrentPrice.String())
+	s.Assert().True(decimal.NewFromInt(100).Equal(s.latestTickerPrice("IWDA.AS")),
+		"the healthy ticker must stay committed: expected 100, got %s", s.latestTickerPrice("IWDA.AS").String())
 
-	var btc models.InvestmentAsset
-	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", btcID).First(&btc).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(45000).Equal(*btc.CurrentPrice),
-		"the failed ticker must stay at its old price: expected 45000, got %s", btc.CurrentPrice.String())
+	s.Assert().True(decimal.NewFromInt(45000).Equal(s.latestTickerPrice("BTC-USD")),
+		"the failed ticker must stay at its old price: expected 45000, got %s", s.latestTickerPrice("BTC-USD").String())
 }

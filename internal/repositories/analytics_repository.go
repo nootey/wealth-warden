@@ -908,10 +908,11 @@ func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gor
 	db = db.WithContext(ctx)
 
 	var meta struct {
+		Ticker         string
 		Currency       string
 		InvestmentType models.InvestmentType
 	}
-	if err := db.Raw(`SELECT currency, investment_type FROM investment_assets WHERE id = ? AND user_id = ?`, assetID, userID).Scan(&meta).Error; err != nil || meta.Currency == "" {
+	if err := db.Raw(`SELECT ticker, currency, investment_type FROM investment_assets WHERE id = ? AND user_id = ?`, assetID, userID).Scan(&meta).Error; err != nil || meta.Currency == "" {
 		if err != nil {
 			return "", nil, nil, err
 		}
@@ -936,23 +937,23 @@ func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gor
 		               SELECT SUM(CASE WHEN it.trade_type = 'buy'  THEN it.quantity
 		                              WHEN it.trade_type = 'sell' THEN -it.quantity END)
 		               FROM investment_trades it
-		               WHERE it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
+		               WHERE it.asset_id = ? AND it.txn_date <= ph.as_of
 		             ), 0)
 		             +
 		             COALESCE((
 		               SELECT SUM(ii.quantity)
 		               FROM investment_income ii
-		               WHERE ii.asset_id = ph.asset_id AND ii.txn_date <= ph.as_of
+		               WHERE ii.asset_id = ? AND ii.txn_date <= ph.as_of
 		                 AND ii.income_type = 'staking_reward' AND ii.quantity IS NOT NULL
 		             ), 0)
 		           )) AS value
-		    FROM asset_price_history ph
-		    WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
+		    FROM ticker_price_history ph
+		    WHERE ph.ticker = ? AND ph.as_of BETWEEN ? AND ?
 		  ),
 		  b AS (SELECT date_trunc('week', as_of)::date AS bucket, as_of, value FROM s)
 		  SELECT DISTINCT ON (bucket) as_of::date AS date, value::text AS value
 		  FROM b ORDER BY bucket, as_of DESC`
-		if err := db.Raw(mvSQL, assetID, from, to).Scan(&mvRows).Error; err != nil {
+		if err := db.Raw(mvSQL, assetID, assetID, meta.Ticker, from, to).Scan(&mvRows).Error; err != nil {
 			return "", nil, nil, err
 		}
 	case "month":
@@ -964,23 +965,23 @@ func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gor
 		               SELECT SUM(CASE WHEN it.trade_type = 'buy'  THEN it.quantity
 		                              WHEN it.trade_type = 'sell' THEN -it.quantity END)
 		               FROM investment_trades it
-		               WHERE it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
+		               WHERE it.asset_id = ? AND it.txn_date <= ph.as_of
 		             ), 0)
 		             +
 		             COALESCE((
 		               SELECT SUM(ii.quantity)
 		               FROM investment_income ii
-		               WHERE ii.asset_id = ph.asset_id AND ii.txn_date <= ph.as_of
+		               WHERE ii.asset_id = ? AND ii.txn_date <= ph.as_of
 		                 AND ii.income_type = 'staking_reward' AND ii.quantity IS NOT NULL
 		             ), 0)
 		           )) AS value
-		    FROM asset_price_history ph
-		    WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
+		    FROM ticker_price_history ph
+		    WHERE ph.ticker = ? AND ph.as_of BETWEEN ? AND ?
 		  ),
 		  b AS (SELECT date_trunc('month', as_of)::date AS bucket, as_of, value FROM s)
 		  SELECT DISTINCT ON (bucket) as_of::date AS date, value::text AS value
 		  FROM b ORDER BY bucket, as_of DESC`
-		if err := db.Raw(mvSQL, assetID, from, to).Scan(&mvRows).Error; err != nil {
+		if err := db.Raw(mvSQL, assetID, assetID, meta.Ticker, from, to).Scan(&mvRows).Error; err != nil {
 			return "", nil, nil, err
 		}
 	default:
@@ -991,20 +992,20 @@ func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gor
 		             SELECT SUM(CASE WHEN it.trade_type = 'buy'  THEN it.quantity
 		                            WHEN it.trade_type = 'sell' THEN -it.quantity END)
 		             FROM investment_trades it
-		             WHERE it.asset_id = ph.asset_id AND it.txn_date <= ph.as_of
+		             WHERE it.asset_id = ? AND it.txn_date <= ph.as_of
 		           ), 0)
 		           +
 		           COALESCE((
 		             SELECT SUM(ii.quantity)
 		             FROM investment_income ii
-		             WHERE ii.asset_id = ph.asset_id AND ii.txn_date <= ph.as_of
+		             WHERE ii.asset_id = ? AND ii.txn_date <= ph.as_of
 		               AND ii.income_type = 'staking_reward' AND ii.quantity IS NOT NULL
 		           ), 0)
 		         ))::text AS value
-		  FROM asset_price_history ph
-		  WHERE ph.asset_id = ? AND ph.as_of BETWEEN ? AND ?
+		  FROM ticker_price_history ph
+		  WHERE ph.ticker = ? AND ph.as_of BETWEEN ? AND ?
 		  ORDER BY ph.as_of`
-		if err := db.Raw(mvSQL, assetID, from, to).Scan(&mvRows).Error; err != nil {
+		if err := db.Raw(mvSQL, assetID, assetID, meta.Ticker, from, to).Scan(&mvRows).Error; err != nil {
 			return "", nil, nil, err
 		}
 	}

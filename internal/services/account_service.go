@@ -1221,15 +1221,12 @@ func (s *AccountService) RecalculateAssetPnL(ctx context.Context, userID, assetI
 		if err == nil && priceData != nil && priceData.Price > 0 {
 			now := time.Now().UTC()
 			price := decimal.NewFromFloat(priceData.Price)
-			if err := s.investmentRepo.UpdateAssetCurrentPrice(ctx, nil, assetID, price, now); err != nil {
-				return err
-			}
 			if err := s.investmentRepo.UpdateTradesPnLForAsset(ctx, nil, assetID, price, asset.InvestmentType, now); err != nil {
 				return err
 			}
 			today := now.Truncate(24 * time.Hour)
-			if err := s.investmentRepo.UpsertAssetPrice(ctx, nil, []models.AssetPriceHistory{
-				{AssetID: assetID, AsOf: today, Price: price, Currency: priceData.Currency},
+			if err := s.investmentRepo.UpsertTickerPrice(ctx, nil, []models.TickerPriceHistory{
+				{Ticker: asset.Ticker, AsOf: today, Price: price, Currency: priceData.Currency},
 			}); err != nil {
 				return err
 			}

@@ -1876,7 +1876,6 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 				Quantity:        decimal.Zero,
 				Currency:        txn.Currency,
 				AverageBuyPrice: decimal.Zero,
-				CurrentPrice:    nil,
 				LastPriceUpdate: nil,
 			}
 
@@ -1997,18 +1996,18 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		}
 
 		// Upsert price history: trade date (historical) + today (current)
-		priceEntries := []models.AssetPriceHistory{
-			{AssetID: asset.ID, AsOf: txDayAdjusted, Price: pricePerUnit, Currency: priceData.Currency},
+		priceEntries := []models.TickerPriceHistory{
+			{Ticker: asset.Ticker, AsOf: txDayAdjusted, Price: pricePerUnit, Currency: priceData.Currency},
 		}
 		if !txDayAdjusted.Equal(today) {
-			priceEntries = append(priceEntries, models.AssetPriceHistory{
-				AssetID:  asset.ID,
+			priceEntries = append(priceEntries, models.TickerPriceHistory{
+				Ticker:   asset.Ticker,
 				AsOf:     today,
 				Price:    currentPrice,
 				Currency: currentPriceData.Currency,
 			})
 		}
-		if err := s.investmentRepo.UpsertAssetPrice(ctx, tx, priceEntries); err != nil {
+		if err := s.investmentRepo.UpsertTickerPrice(ctx, tx, priceEntries); err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return fmt.Errorf("failed to upsert asset price history for %s: %w", asset.Ticker, err)

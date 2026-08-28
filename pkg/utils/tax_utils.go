@@ -149,8 +149,8 @@ func ComputeSellTradeTaxInfo(sell models.InvestmentTrade, allAssetTrades []model
 
 // ComputeAssetTaxSummary computes after-tax PnL for an asset across all open lots.
 // allAssetTrades must be sorted (txn_date ASC, id ASC).
-func ComputeAssetTaxSummary(asset models.InvestmentAsset, allAssetTrades []models.InvestmentTrade, brackets []models.InvestmentTaxBracket, settings models.InvestmentTaxSettings, today time.Time) models.AssetTaxSummary {
-	if len(brackets) == 0 || asset.CurrentPrice == nil || asset.CurrentPrice.IsZero() {
+func ComputeAssetTaxSummary(asset models.InvestmentAsset, currentPrice decimal.Decimal, allAssetTrades []models.InvestmentTrade, brackets []models.InvestmentTaxBracket, settings models.InvestmentTaxSettings, today time.Time) models.AssetTaxSummary {
+	if len(brackets) == 0 || currentPrice.IsZero() {
 		return models.AssetTaxSummary{AfterTaxPnL: asset.ProfitLoss}
 	}
 
@@ -182,7 +182,7 @@ func ComputeAssetTaxSummary(asset models.InvestmentAsset, allAssetTrades []model
 			if bracket == nil {
 				continue
 			}
-			pnl := lot.quantity.Mul(*asset.CurrentPrice).Sub(lot.costBasis)
+			pnl := lot.quantity.Mul(currentPrice).Sub(lot.costBasis)
 			if pnl.IsPositive() {
 				totalTax = totalTax.Add(pnl.Mul(bracket.TaxablePercent).Div(decimal.NewFromInt(100)))
 			}
@@ -198,7 +198,7 @@ func ComputeAssetTaxSummary(asset models.InvestmentAsset, allAssetTrades []model
 	totalQty := decimal.Zero
 	for _, lot := range openLots {
 		daysHeld := int(today.UTC().Sub(lot.txnDate.UTC()) / (24 * time.Hour))
-		pnl := lot.quantity.Mul(*asset.CurrentPrice).Sub(lot.costBasis)
+		pnl := lot.quantity.Mul(currentPrice).Sub(lot.costBasis)
 		totalPnL = totalPnL.Add(pnl)
 		weightedDays = weightedDays.Add(lot.quantity.Mul(decimal.NewFromInt(int64(daysHeld))))
 		totalQty = totalQty.Add(lot.quantity)

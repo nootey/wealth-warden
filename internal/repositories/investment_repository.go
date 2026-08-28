@@ -25,7 +25,7 @@ type InvestmentRepositoryInterface interface {
 	FindInvestmentTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.InvestmentTrade, error)
 	FindAllTradesByUserID(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTrade, error)
 	GetUserIDsWithInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error)
-	FindAssetsForPriceBackfill(ctx context.Context, tx *gorm.DB) ([]models.AssetBackfillRow, error)
+	FindTickersForPriceBackfill(ctx context.Context, tx *gorm.DB) ([]models.AssetBackfillRow, error)
 	FindTickersForPriceSync(ctx context.Context, tx *gorm.DB) ([]models.AssetPriceSyncRow, error)
 	FindActiveCurrencyPairs(ctx context.Context, tx *gorm.DB) ([]models.CurrencyPair, error)
 	FindUserIDsWithActiveInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error)
@@ -49,13 +49,13 @@ type InvestmentRepositoryInterface interface {
 	FindAssetByTicker(ctx context.Context, tx *gorm.DB, ticker string, accID, userID int64) (models.InvestmentAsset, error)
 	FindInvestmentTradesByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentTrade, error)
 	GetInvestmentTradesDateRange(ctx context.Context, tx *gorm.DB, accountID int64) (time.Time, time.Time, error)
-	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error
-	GetPriceHistoryForAsset(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.AssetPriceHistory, error)
+	UpsertTickerPrice(ctx context.Context, tx *gorm.DB, entries []models.TickerPriceHistory) error
+	GetTickerPriceHistory(ctx context.Context, tx *gorm.DB, ticker string) ([]models.TickerPriceHistory, error)
+	GetLatestTickerPrice(ctx context.Context, tx *gorm.DB, ticker string) (decimal.Decimal, string, bool, error)
 	GetAssetIDsForAccount(ctx context.Context, tx *gorm.DB, accountID, userID int64) ([]int64, error)
 	UpsertExchangeRate(ctx context.Context, tx *gorm.DB, entry models.ExchangeRateHistory) error
 	GetCachedExchangeRate(ctx context.Context, tx *gorm.DB, from, to string, asOf time.Time) (decimal.Decimal, bool, error)
 	BulkUpdateAssetAccountID(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error
-	UpdateAssetCurrentPrice(ctx context.Context, tx *gorm.DB, assetID int64, price decimal.Decimal, now time.Time) error
 	UpdateTradesPnLForAsset(ctx context.Context, tx *gorm.DB, assetID int64, price decimal.Decimal, investmentType models.InvestmentType, now time.Time) error
 	CreateInvestmentIncome(ctx context.Context, tx *gorm.DB, record *models.InvestmentIncome) (int64, error)
 	FindInvestmentIncomeByID(ctx context.Context, tx *gorm.DB, id, userID int64) (models.InvestmentIncome, error)
@@ -458,9 +458,6 @@ func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *go
 		"profit_loss_percent": newProfitLossPercent,
 	}
 
-	if currentPrice != nil {
-		updates["current_price"] = currentPrice
-	}
 	if lastPriceUpdate != nil {
 		updates["last_price_update"] = lastPriceUpdate
 	}
@@ -664,9 +661,14 @@ func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, t
 
 	costBasis := CostBasis(totalValueAtBuy, totalFees, asset.InvestmentType)
 
+	latestPrice, _, priceFound, err := r.GetLatestTickerPrice(ctx, db, asset.Ticker)
+	if err != nil {
+		return err
+	}
+
 	var currentValue, profitLoss, profitLossPercent decimal.Decimal
-	if asset.CurrentPrice != nil && !asset.CurrentPrice.IsZero() && totalQuantity.GreaterThan(decimal.Zero) {
-		currentValue = totalQuantity.Mul(*asset.CurrentPrice)
+	if priceFound && !latestPrice.IsZero() && totalQuantity.GreaterThan(decimal.Zero) {
+		currentValue = totalQuantity.Mul(latestPrice)
 		profitLoss = currentValue.Sub(costBasis)
 		if !costBasis.IsZero() {
 			profitLossPercent = profitLoss.Div(costBasis)
@@ -685,20 +687,6 @@ func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, t
 			"profit_loss":         profitLoss,
 			"profit_loss_percent": profitLossPercent,
 			"updated_at":          time.Now().UTC(),
-		}).Error
-}
-
-func (r *InvestmentRepository) UpdateAssetCurrentPrice(ctx context.Context, tx *gorm.DB, assetID int64, price decimal.Decimal, now time.Time) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	return db.WithContext(ctx).Model(&models.InvestmentAsset{}).
-		Where("id = ?", assetID).
-		Updates(map[string]interface{}{
-			"current_price":     price,
-			"last_price_update": now,
-			"updated_at":        now,
 		}).Error
 }
 
@@ -798,7 +786,7 @@ func (r *InvestmentRepository) GetUserIDsWithInvestments(ctx context.Context, tx
 	return userIDs, err
 }
 
-func (r *InvestmentRepository) FindAssetsForPriceBackfill(ctx context.Context, tx *gorm.DB) ([]models.AssetBackfillRow, error) {
+func (r *InvestmentRepository) FindTickersForPriceBackfill(ctx context.Context, tx *gorm.DB) ([]models.AssetBackfillRow, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -808,16 +796,18 @@ func (r *InvestmentRepository) FindAssetsForPriceBackfill(ctx context.Context, t
 	var rows []models.AssetBackfillRow
 	err := db.Raw(`
 		SELECT
-			ia.id,
 			ia.ticker,
 			ia.investment_type,
 			ia.currency,
-			MIN(it.txn_date) AS earliest_trade
+			MIN(it.txn_date) AS earliest_trade,
+			MAX(tph.as_of) AS last_price_date
 		FROM investment_assets ia
 		JOIN investment_trades it ON it.asset_id = ia.id
 		JOIN accounts a ON a.id = ia.account_id
+		LEFT JOIN ticker_price_history tph ON tph.ticker = ia.ticker
 		WHERE a.is_active = TRUE AND a.closed_at IS NULL
-		GROUP BY ia.id, ia.ticker, ia.investment_type, ia.currency
+		GROUP BY ia.ticker, ia.investment_type, ia.currency
+		HAVING MAX(tph.as_of) IS NULL OR MAX(tph.as_of) < CURRENT_DATE
 	`).Scan(&rows).Error
 
 	return rows, err
@@ -854,7 +844,7 @@ func (r *InvestmentRepository) FindActiveCurrencyPairs(ctx context.Context, tx *
 		SELECT DISTINCT ph.currency AS from_currency, a.currency AS to_currency
 		FROM investment_assets ia
 		JOIN accounts a ON a.id = ia.account_id
-		JOIN asset_price_history ph ON ph.asset_id = ia.id
+		JOIN ticker_price_history ph ON ph.ticker = ia.ticker
 		WHERE a.is_active = TRUE AND a.closed_at IS NULL
 		  AND ph.currency != a.currency
 	`).Scan(&pairs).Error
@@ -907,7 +897,6 @@ func (r *InvestmentRepository) UpdateAssetPriceAndValue(ctx context.Context, tx 
 	return db.WithContext(ctx).Model(&models.InvestmentAsset{}).
 		Where("id = ?", assetID).
 		Updates(map[string]interface{}{
-			"current_price":       price,
 			"current_value":       currentValue,
 			"profit_loss":         profitLoss,
 			"profit_loss_percent": profitLossPercent,
@@ -997,20 +986,39 @@ func (r *InvestmentRepository) GetAssetIDsForAccount(ctx context.Context, tx *go
 	return ids, err
 }
 
-func (r *InvestmentRepository) GetPriceHistoryForAsset(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.AssetPriceHistory, error) {
+func (r *InvestmentRepository) GetTickerPriceHistory(ctx context.Context, tx *gorm.DB, ticker string) ([]models.TickerPriceHistory, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
-	var prices []models.AssetPriceHistory
+	var prices []models.TickerPriceHistory
 	err := db.WithContext(ctx).
-		Where("asset_id = ?", assetID).
+		Where("ticker = ?", ticker).
 		Order("as_of ASC").
 		Find(&prices).Error
 	return prices, err
 }
 
-func (r *InvestmentRepository) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error {
+func (r *InvestmentRepository) GetLatestTickerPrice(ctx context.Context, tx *gorm.DB, ticker string) (decimal.Decimal, string, bool, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	var row models.TickerPriceHistory
+	err := db.WithContext(ctx).
+		Where("ticker = ?", ticker).
+		Order("as_of DESC").
+		First(&row).Error
+	if err == gorm.ErrRecordNotFound {
+		return decimal.Zero, "", false, nil
+	}
+	if err != nil {
+		return decimal.Zero, "", false, err
+	}
+	return row.Price, row.Currency, true, nil
+}
+
+func (r *InvestmentRepository) UpsertTickerPrice(ctx context.Context, tx *gorm.DB, entries []models.TickerPriceHistory) error {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -1021,7 +1029,7 @@ func (r *InvestmentRepository) UpsertAssetPrice(ctx context.Context, tx *gorm.DB
 	db = db.WithContext(ctx)
 
 	return db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "asset_id"}, {Name: "as_of"}},
+		Columns:   []clause.Column{{Name: "ticker"}, {Name: "as_of"}},
 		DoUpdates: clause.AssignmentColumns([]string{"price", "currency"}),
 	}).Create(&entries).Error
 }
@@ -1250,14 +1258,14 @@ func (r *InvestmentRepository) FetchPortfolioAllocation(ctx context.Context, tx 
 			a.id   AS account_id,
 			a.name AS account_name,
 			COALESCE(ph_latest.currency, ia.currency) AS source_currency,
-			(ia.current_price IS NOT NULL AND ia.current_price <> 0) AS priced,
+			(ph_latest.price IS NOT NULL AND ph_latest.price <> 0) AS priced,
 			(ia.current_value * COALESCE(erh_latest.rate, 1))::text  AS value_text
 		FROM investment_assets ia
 		JOIN accounts a ON a.id = ia.account_id
 		LEFT JOIN LATERAL (
-			SELECT ph.currency
-			FROM asset_price_history ph
-			WHERE ph.asset_id = ia.id
+			SELECT ph.currency, ph.price
+			FROM ticker_price_history ph
+			WHERE ph.ticker = ia.ticker
 			ORDER BY ph.as_of DESC
 			LIMIT 1
 		) ph_latest ON true

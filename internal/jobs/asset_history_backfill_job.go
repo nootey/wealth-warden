@@ -58,13 +58,13 @@ func NewAssetPriceHistoryBackfillJob(
 }
 
 func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
-	assets, err := j.investmentSvc.GetAssetsForPriceBackfill(ctx)
+	tickers, err := j.investmentSvc.GetTickersForPriceBackfill(ctx)
 	if err != nil {
 		return err
 	}
 
-	if len(assets) == 0 {
-		j.logger.Info("No assets to backfill price history for")
+	if len(tickers) == 0 {
+		j.logger.Info("No tickers to backfill price history for")
 		return nil
 	}
 
@@ -78,13 +78,16 @@ func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
 	g := new(errgroup.Group)
 	g.SetLimit(j.concurrentWorkers)
 
-	for _, asset := range assets {
+	for _, row := range tickers {
 		g.Go(func() error {
 			if ctx.Err() != nil {
 				return nil
 			}
-			err := j.investmentSvc.BackfillAssetPriceHistory(
-				ctx, asset.ID, asset.Ticker, asset.EarliestTrade, today)
+			from := row.EarliestTrade
+			if row.LastPriceDate != nil {
+				from = row.LastPriceDate.AddDate(0, 0, 1)
+			}
+			err := j.investmentSvc.BackfillTickerPriceHistory(ctx, row.Ticker, from, today)
 			if err != nil {
 				mu.Lock()
 				failed++
@@ -97,7 +100,7 @@ func (j *AssetPriceHistoryBackfillJob) Run(ctx context.Context) error {
 	firstErr := g.Wait()
 
 	j.logger.Info("Backfill completed",
-		zap.Int("total", len(assets)),
+		zap.Int("total", len(tickers)),
 		zap.Int("failed", failed))
 
 	if firstErr != nil {

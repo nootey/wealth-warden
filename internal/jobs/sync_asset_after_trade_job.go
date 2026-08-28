@@ -11,7 +11,7 @@ import (
 )
 
 type postTradeSyncSvc interface {
-	BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, from, to time.Time) error
+	BackfillTickerPriceHistory(ctx context.Context, ticker string, from, to time.Time) error
 	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
 }
 
@@ -31,9 +31,8 @@ func (w *SyncAssetAfterTradeWorker) Work(ctx context.Context, job *river.Job[job
 
 	var errs []error
 
-	if err := w.investmentService.BackfillAssetPriceHistory(ctx, args.AssetID, args.Ticker, args.TradeDate, today); err != nil {
-		w.logger.Warn("Failed to backfill asset price history",
-			zap.Int64("assetID", args.AssetID),
+	if err := w.investmentService.BackfillTickerPriceHistory(ctx, args.Ticker, args.TradeDate, today); err != nil {
+		w.logger.Warn("Failed to backfill ticker price history",
 			zap.String("ticker", args.Ticker),
 			zap.Error(err),
 		)

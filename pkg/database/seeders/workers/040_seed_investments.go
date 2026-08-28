@@ -115,8 +115,10 @@ func seedTradesForAsset(
 		}
 
 		basePrice := decimal.NewFromInt(100)
-		if asset.CurrentPrice != nil && asset.CurrentPrice.IsPositive() {
-			basePrice = *asset.CurrentPrice
+		if latest, _, found, err := invRepo.GetLatestTickerPrice(ctx, nil, asset.Ticker); err != nil {
+			return err
+		} else if found && latest.IsPositive() {
+			basePrice = latest
 		}
 		price := basePrice.Mul(decimal.NewFromFloat(0.8 + rng.Float64()*0.4)).Round(4)
 

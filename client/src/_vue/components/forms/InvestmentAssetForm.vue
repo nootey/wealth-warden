@@ -499,7 +499,12 @@ async function syncAssetAccountBalance(acc_id: number | null) {
         <div class="flex flex-col gap-1 w-6/12">
           <label class="text-sm">Current price</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
-            vueHelper.displayAsCurrency(record.current_price!, record.currency)
+            vueHelper.displayDerivedAssetPrice(
+              record.current_value!,
+              record.quantity,
+              record.investment_type,
+              record.currency,
+            )
           }}</span>
         </div>
         <div class="flex flex-col gap-1 w-6/12">

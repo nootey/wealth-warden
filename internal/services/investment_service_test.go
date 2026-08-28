@@ -18,6 +18,18 @@ func TestInvestmentServiceTestSuite(t *testing.T) {
 	suite.Run(t, new(InvestmentServiceTestSuite))
 }
 
+// assertTickerPriced checks that ticker_price_history holds a positive latest price for the ticker.
+func (s *InvestmentServiceTestSuite) assertTickerPriced(ticker string) {
+	s.T().Helper()
+	var ph models.TickerPriceHistory
+	err := s.TC.DB.WithContext(s.Ctx).
+		Where("ticker = ?", ticker).
+		Order("as_of DESC").
+		First(&ph).Error
+	s.Require().NoError(err)
+	s.Assert().True(ph.Price.GreaterThan(decimal.Zero))
+}
+
 // Creates a stock asset with a valid ticker format (TICKER.EXCHANGE)
 func (s *InvestmentServiceTestSuite) TestInsertAsset_ValidStockWithExchange() {
 	svc := s.TC.App.InvestmentService
@@ -59,12 +71,11 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_ValidStockWithExchange() {
 	s.Assert().True(qty.Equal(asset.Quantity))
 	s.Assert().True(asset.AverageBuyPrice.Equal(decimal.Zero))
 	s.Assert().Equal(accID, asset.AccountID)
-	s.Assert().NotNil(asset.CurrentPrice)
 	s.Assert().NotNil(asset.LastPriceUpdate)
-	s.Assert().True(asset.CurrentPrice.GreaterThan(decimal.Zero))
+	s.assertTickerPriced(asset.Ticker)
 }
 
-// Verifies that creating an asset seeds today's price into asset_price_history
+// Verifies that creating an asset seeds today's price into ticker_price_history
 func (s *InvestmentServiceTestSuite) TestInsertAsset_SeedsPriceHistory() {
 	svc := s.TC.App.InvestmentService
 	accSvc := s.TC.App.AccountService
@@ -88,16 +99,16 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_SeedsPriceHistory() {
 		Quantity:       decimal.NewFromInt(0),
 	}
 
-	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
+	_, err = svc.InsertAsset(s.Ctx, userID, assetReq)
 	s.Require().NoError(err)
 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	var ph models.AssetPriceHistory
+	var ph models.TickerPriceHistory
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("asset_id = ? AND as_of = ?", assetID, today).
+		Where("ticker = ? AND as_of = ?", "BTC-USD", today).
 		First(&ph).Error
-	s.Require().NoError(err, "asset_price_history should have a row for today after asset creation")
+	s.Require().NoError(err, "ticker_price_history should have a row for today after asset creation")
 	s.Assert().True(ph.Price.GreaterThan(decimal.Zero), "seeded price should be > 0")
 	s.Assert().NotEmpty(ph.Currency, "seeded price should have a currency")
 }
@@ -180,8 +191,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_CryptoWithoutCurrency() {
 	s.Assert().Equal("BTC-USD", asset.Ticker) // Should auto-format to BTC-USD
 	s.Assert().Equal(models.InvestmentCrypto, asset.InvestmentType)
 	s.Assert().True(qty.Equal(asset.Quantity))
-	s.Assert().NotNil(asset.CurrentPrice)
-	s.Assert().True(asset.CurrentPrice.GreaterThan(decimal.Zero))
+	s.assertTickerPriced(asset.Ticker)
 }
 
 // Tests inserting crypto with a specific currency pair (e.g., BTC-USDT)
@@ -223,8 +233,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_CryptoWithValidCurrency() {
 	s.Assert().Equal("BTC-EUR", asset.Ticker)
 	s.Assert().Equal(models.InvestmentCrypto, asset.InvestmentType)
 	s.Assert().True(qty.Equal(asset.Quantity))
-	s.Assert().NotNil(asset.CurrentPrice)
-	s.Assert().True(asset.CurrentPrice.GreaterThan(decimal.Zero))
+	s.assertTickerPriced(asset.Ticker)
 }
 
 // Tests that a buy trade correctly updates the asset's quantity and average buy price, and creates
@@ -1911,7 +1920,7 @@ func (s *InvestmentServiceTestSuite) TestSellWithStakingRewards_BasisAgreesAcros
 		"average buy price drifted on recalc: %s -> %s", afterSell.AverageBuyPrice.String(), afterRecalc.AverageBuyPrice.String())
 }
 
-// A recalculation refreshes current_price, so it must write the matching price history row
+// A recalculation refreshes the ticker price, so it must write today's history row
 // or the chart keeps replaying a stale price while the asset index moves on.
 func (s *InvestmentServiceTestSuite) TestRecalculateAssetPnL_WritesTodaysPriceHistory() {
 	svc := s.TC.App.InvestmentService
@@ -1948,8 +1957,8 @@ func (s *InvestmentServiceTestSuite) TestRecalculateAssetPnL_WritesTodaysPriceHi
 	})
 	s.Require().NoError(err)
 
-	err = s.TC.DB.WithContext(s.Ctx).Model(&models.AssetPriceHistory{}).
-		Where("asset_id = ? AND as_of = ?", assetID, today).
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.TickerPriceHistory{}).
+		Where("ticker = ? AND as_of = ?", "IWDA.AS", today).
 		Update("price", decimal.NewFromInt(42)).Error
 	s.Require().NoError(err)
 
@@ -1960,15 +1969,17 @@ func (s *InvestmentServiceTestSuite) TestRecalculateAssetPnL_WritesTodaysPriceHi
 	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
 	s.Require().NoError(err)
 
-	var history models.AssetPriceHistory
+	var history models.TickerPriceHistory
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("asset_id = ? AND as_of = ?", assetID, today).
+		Where("ticker = ? AND as_of = ?", "IWDA.AS", today).
 		First(&history).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(asset.CurrentPrice.Equal(history.Price),
-		"asset holds price %s but today's history row still says %s",
-		asset.CurrentPrice.String(), history.Price.String())
+	s.Assert().False(history.Price.Equal(decimal.NewFromInt(42)),
+		"recalc left today's history row at the stale forced price")
+	s.Assert().True(asset.CurrentValue.Equal(history.Price.Mul(asset.Quantity)),
+		"asset current_value %s does not match today's history price %s * qty %s",
+		asset.CurrentValue.String(), history.Price.String(), asset.Quantity.String())
 }
 
 // Seeds a cached rate and removes it afterwards, so the shared exchange rate
@@ -2110,10 +2121,10 @@ func (s *InvestmentServiceTestSuite) TestFetchPortfolioAllocation_ExcludesUnpric
 		decimal.NewFromInt(10), decimal.NewFromInt(100))
 
 	// Held, but never priced
-	unpricedID := s.newHolding(userID, accID, "BTC-USD", "Bitcoin", models.InvestmentCrypto,
+	s.newHolding(userID, accID, "BTC-USD", "Bitcoin", models.InvestmentCrypto,
 		decimal.NewFromInt(1), decimal.NewFromInt(50000))
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Exec(
-		`UPDATE investment_assets SET current_price = NULL WHERE id = ?`, unpricedID).Error)
+		`DELETE FROM ticker_price_history WHERE ticker = ?`, "BTC-USD").Error)
 
 	// Priced, but the position is empty
 	s.newHolding(userID, accID, "BTC-EUR", "Bitcoin EUR", models.InvestmentCrypto,
@@ -2135,4 +2146,35 @@ func (s *InvestmentServiceTestSuite) TestFetchPortfolioAllocation_ExcludesUnpric
 	tickers := alloc.Groups["ticker"]
 	s.Require().Len(tickers, 1)
 	s.Assert().Equal("IWDA.AS", tickers[0].Key)
+}
+
+// Two accounts hold the same ticker. A price sync must write exactly one
+// ticker_price_history row for that ticker/day and still refresh every holder's value.
+func (s *InvestmentServiceTestSuite) TestApplyTickerPrice_OneRowPerTickerManyHolders() {
+	userID := int64(1)
+	accA := s.newInvestmentAccount(userID, "Account A")
+	accB := s.newInvestmentAccount(userID, "Account B")
+
+	idA := s.newHolding(userID, accA, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock,
+		decimal.NewFromInt(10), decimal.NewFromInt(100))
+	idB := s.newHolding(userID, accB, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock,
+		decimal.NewFromInt(4), decimal.NewFromInt(100))
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	changes, err := s.TC.App.InvestmentService.ApplyTickerPrice(
+		s.Ctx, "IWDA.AS", decimal.NewFromInt(120), "EUR", time.Now().UTC())
+	s.Require().NoError(err)
+	s.Require().Len(changes, 2)
+
+	var rowCount int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.TickerPriceHistory{}).
+		Where("ticker = ? AND as_of = ?", "IWDA.AS", today).Count(&rowCount).Error)
+	s.Assert().Equal(int64(1), rowCount, "one ticker/day row for all holders")
+
+	var a, b models.InvestmentAsset
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&a, idA).Error)
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&b, idB).Error)
+	s.Assert().True(decimal.NewFromInt(1200).Equal(a.CurrentValue), "holder A value = 10 * 120, got %s", a.CurrentValue.String())
+	s.Assert().True(decimal.NewFromInt(480).Equal(b.CurrentValue), "holder B value = 4 * 120, got %s", b.CurrentValue.String())
 }

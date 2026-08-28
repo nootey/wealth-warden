@@ -23,11 +23,11 @@ const (
 )
 
 type AssetBackfillRow struct {
-	ID             int64
 	Ticker         string
 	InvestmentType InvestmentType
 	Currency       string
 	EarliestTrade  time.Time
+	LastPriceDate  *time.Time
 }
 
 type AssetPriceSyncRow struct {
@@ -59,7 +59,6 @@ type InvestmentAsset struct {
 	AverageBuyPrice   decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"average_buy_price"`
 	ValueAtBuy        decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
 	CurrentValue      decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"current_value"`
-	CurrentPrice      *decimal.Decimal `gorm:"type:decimal(19,4)" json:"current_price"`
 	TotalFees         decimal.Decimal  `gorm:"type:decimal(19,6);not null;default:0" json:"total_fees"`
 	ProfitLoss        decimal.Decimal  `gorm:"type:decimal(19,4);not null;default:0" json:"profit_loss"`
 	ProfitLossPercent decimal.Decimal  `gorm:"type:decimal(10,2);not null;default:0" json:"profit_loss_percent"`
@@ -96,16 +95,16 @@ type InvestmentTrade struct {
 	UpdatedAt         time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
-type AssetPriceHistory struct {
-	AssetID   int64           `gorm:"primaryKey" json:"asset_id"`
+type TickerPriceHistory struct {
+	Ticker    string          `gorm:"primaryKey;type:varchar(20)" json:"ticker"`
 	AsOf      time.Time       `gorm:"type:date;primaryKey" json:"as_of"`
 	Price     decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"price"`
 	Currency  string          `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
 	CreatedAt time.Time       `gorm:"autoCreateTime" json:"created_at"`
 }
 
-func (AssetPriceHistory) TableName() string {
-	return "asset_price_history"
+func (TickerPriceHistory) TableName() string {
+	return "ticker_price_history"
 }
 
 type ExchangeRateHistory struct {

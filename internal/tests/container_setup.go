@@ -126,7 +126,8 @@ TRUNCATE TABLE
     transfers,
     balances,
     accounts,
-    account_daily_snapshots
+    account_daily_snapshots,
+    ticker_price_history
 RESTART IDENTITY CASCADE;
 `
 

@@ -1277,9 +1277,9 @@ func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *
 			FROM investment_assets ia
 			JOIN LATERAL (
 				SELECT ph.price, ph.currency
-				FROM asset_price_history ph
-				WHERE ph.asset_id = ia.id
-				  AND ph.as_of   <= s.as_of
+				FROM ticker_price_history ph
+				WHERE ph.ticker = ia.ticker
+				  AND ph.as_of <= s.as_of
 				ORDER BY ph.as_of DESC
 				LIMIT 1
 			) ph_latest ON true
