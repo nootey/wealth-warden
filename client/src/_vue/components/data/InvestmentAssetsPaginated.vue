@@ -188,19 +188,16 @@ defineExpose({ refresh });
           <template v-else-if="col.field === 'price'">
             <div class="flex flex-row gap-2 items-center">
               <span>{{
-                vueHelper.displayDerivedAssetPrice(
-                  data.current_value,
-                  data.quantity,
+                vueHelper.displayAssetPrice(
+                  data.latest_price,
                   data.investment_type,
-                  data.currency,
+                  data.latest_price_currency,
                 )
               }}</span>
             </div>
           </template>
           <template
-            v-else-if="
-              ['value_at_buy', 'current_value'].includes(col.field)
-            "
+            v-else-if="['value_at_buy', 'current_value'].includes(col.field)"
           >
             <div class="flex flex-row gap-2 items-center">
               <span>{{

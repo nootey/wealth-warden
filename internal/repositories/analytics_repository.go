@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 	"wealth-warden/internal/models"
+	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -899,7 +900,6 @@ func (r *AnalyticsRepository) FindReportAccountScope(ctx context.Context, tx *go
 	return &scope, nil
 }
 
-
 func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gorm.DB, userID, assetID int64, from, to time.Time, gran string) (string, []models.ChartPoint, []models.ChartPoint, error) {
 	db := tx
 	if db == nil {
@@ -1010,7 +1010,7 @@ func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gor
 		}
 	}
 
-	// Cost basis is replayed from the trades with walkTradeTotals - the same walk that produces
+	// Cost basis is replayed from the trades with utils.WalkTradeTotals - the same walk that produces
 	// investment_assets.profit_loss - so the chart and the asset index can never disagree.
 	var trades []models.InvestmentTrade
 	if err := db.Where("asset_id = ?", assetID).
@@ -1025,16 +1025,16 @@ func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gor
 		Find(&stakingIncome).Error; err != nil {
 		return "", nil, nil, err
 	}
-	trades = MergeStakingIntoTrades(trades, stakingIncome)
+	trades = utils.MergeStakingIntoTrades(trades, stakingIncome)
 
 	// One basis point per market value point, keeping the two series index-aligned.
 	cbPoints := make([]models.ChartPoint, 0, len(mvRows))
 	for _, r := range mvRows {
 		asOf := r.Date
-		_, valueAtBuy, fees := walkTradeTotals(trades, &asOf)
+		_, valueAtBuy, fees := utils.WalkTradeTotals(trades, &asOf)
 		cbPoints = append(cbPoints, models.ChartPoint{
 			Date:  r.Date,
-			Value: CostBasis(valueAtBuy, fees, meta.InvestmentType),
+			Value: utils.CostBasis(valueAtBuy, fees, meta.InvestmentType),
 		})
 	}
 

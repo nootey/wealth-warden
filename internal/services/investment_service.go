@@ -261,7 +261,6 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 
 	// Validate ticker and fetch price
 	var currentPrice *decimal.Decimal
-	var lastPriceUpdate *time.Time
 	var formattedTicker string
 	var fetchedPriceCurrency string
 
@@ -292,15 +291,12 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 		}
 
 		price := decimal.NewFromFloat(priceData.Price)
-		now := time.Unix(priceData.LastUpdate, 0)
 		currentPrice = &price
-		lastPriceUpdate = &now
 		fetchedPriceCurrency = priceData.Currency
 
 	} else {
 		// Client not available - allow creation but without price
 		currentPrice = nil
-		lastPriceUpdate = nil
 	}
 
 	hold := models.InvestmentAsset{
@@ -312,7 +308,6 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 		Quantity:        req.Quantity,
 		Currency:        req.Currency,
 		AverageBuyPrice: decimal.Zero,
-		LastPriceUpdate: lastPriceUpdate,
 	}
 
 	holdID, err := s.repo.InsertAsset(ctx, tx, &hold)
@@ -357,25 +352,22 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	return holdID, nil
 }
 
-func (s *InvestmentService) fetchCurrentPrice(ctx context.Context, tx *gorm.DB, asset models.InvestmentAsset) (*decimal.Decimal, *time.Time) {
+func (s *InvestmentService) recordCurrentPrice(ctx context.Context, asset models.InvestmentAsset) {
 	if s.priceFetchClient == nil {
-		return nil, nil
+		return
 	}
 
 	priceData, err := s.priceFetchClient.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
 	if err != nil {
-		return nil, nil
+		return
 	}
 
 	price := decimal.NewFromFloat(priceData.Price)
-	lastUpdate := time.Unix(priceData.LastUpdate, 0)
-	asOf := lastUpdate.UTC().Truncate(24 * time.Hour)
+	asOf := time.Unix(priceData.LastUpdate, 0).UTC().Truncate(24 * time.Hour)
 
 	if err := s.repo.UpsertTickerPrice(ctx, nil, []models.TickerPriceHistory{{Ticker: asset.Ticker, AsOf: asOf, Price: price, Currency: priceData.Currency}}); err != nil {
 		fmt.Printf("warn: failed to upsert ticker price history for %s: %v\n", asset.Ticker, err)
 	}
-
-	return &price, &lastUpdate
 }
 
 func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID int64, req *models.InvestmentTradeReq) (int64, error) {
@@ -455,7 +447,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	}
 
 	effectiveQuantity, valueAtBuy := s.calculateTradeValue(req, asset.InvestmentType, fee)
-	currentPrice, lastPriceUpdate := s.fetchCurrentPrice(ctx, tx, asset)
+	s.recordCurrentPrice(ctx, asset)
 
 	// The full req.Quantity leaves holdings on a sell; the fee (in coin units for
 	// crypto) only reduces cash proceeds, it does not stay in the position.
@@ -464,8 +456,11 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		holdingsQuantity = req.Quantity
 	}
 
-	// Calculate trade PnL
-	var txnCurrentValue, txnProfitLoss, txnProfitLossPercent, txnRealizedValue decimal.Decimal
+	// A sell records the proceeds it realises and the basis it removes; both are
+	// historical facts. A buy carries only its cost basis. Value and PnL are
+	// derived from the latest ticker price at read time.
+	var txnRealizedValue decimal.Decimal
+	txnValueAtBuy := valueAtBuy
 
 	if req.TradeType == models.InvestmentSell {
 		if asset.InvestmentType == models.InvestmentCrypto {
@@ -473,22 +468,6 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		} else {
 			txnRealizedValue = req.Quantity.Mul(req.PricePerUnit).Sub(fee)
 		}
-		costBasis := asset.AverageBuyPrice.Mul(req.Quantity)
-		txnProfitLoss = txnRealizedValue.Sub(costBasis)
-		txnCurrentValue, _, _ = s.calculateTradePnL(req.Quantity, currentPrice, costBasis)
-		if !costBasis.IsZero() {
-			txnProfitLossPercent = txnProfitLoss.Div(costBasis)
-		}
-	} else {
-		basis := valueAtBuy
-		if asset.InvestmentType != models.InvestmentCrypto {
-			basis = valueAtBuy.Add(fee)
-		}
-		txnCurrentValue, txnProfitLoss, txnProfitLossPercent = s.calculateTradePnL(effectiveQuantity, currentPrice, basis)
-	}
-
-	txnValueAtBuy := valueAtBuy
-	if req.TradeType == models.InvestmentSell {
 		txnValueAtBuy = asset.AverageBuyPrice.Mul(req.Quantity)
 	}
 
@@ -501,10 +480,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		PricePerUnit:      req.PricePerUnit,
 		Fee:               fee,
 		ValueAtBuy:        txnValueAtBuy,
-		CurrentValue:      txnCurrentValue,
 		RealizedValue:     txnRealizedValue,
-		ProfitLoss:        txnProfitLoss,
-		ProfitLossPercent: txnProfitLossPercent,
 		Currency:          req.Currency,
 		ExchangeRateToUSD: exchangeRateToUSD,
 		Description:       req.Description,
@@ -556,7 +532,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, err
 	}
 
-	if err := s.repo.UpdateAssetAfterTrade(ctx, tx, asset.ID, holdingsQuantity, req.PricePerUnit, currentPrice, lastPriceUpdate, req.TradeType, valueAtBuy, fee); err != nil {
+	if err := s.repo.UpdateAssetAfterTrade(ctx, tx, asset.ID, holdingsQuantity, req.TradeType, valueAtBuy, fee); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -945,22 +921,6 @@ func (s *InvestmentService) calculateTradeValue(req *models.InvestmentTradeReq, 
 	}
 
 	return effectiveQuantity, valueAtBuy
-}
-
-func (s *InvestmentService) calculateTradePnL(quantity decimal.Decimal, currentPrice *decimal.Decimal, valueAtBuy decimal.Decimal) (decimal.Decimal, decimal.Decimal, decimal.Decimal) {
-	if currentPrice != nil && !currentPrice.IsZero() {
-		currentValue := quantity.Mul(*currentPrice)
-		profitLoss := currentValue.Sub(valueAtBuy)
-
-		var profitLossPercent decimal.Decimal
-		if !valueAtBuy.IsZero() {
-			profitLossPercent = profitLoss.Div(valueAtBuy)
-		}
-
-		return currentValue, profitLoss, profitLossPercent
-	}
-
-	return decimal.Zero, decimal.Zero, decimal.Zero
 }
 
 func (s *InvestmentService) UpdateInvestmentAsset(ctx context.Context, userID int64, id int64, req *models.InvestmentAssetReq) (int64, error) {
@@ -1352,12 +1312,8 @@ func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, userID, ass
 		}
 		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
 		if err == nil && priceData != nil && priceData.Price > 0 {
-			now := time.Now().UTC()
+			today := time.Now().UTC().Truncate(24 * time.Hour)
 			price := decimal.NewFromFloat(priceData.Price)
-			if err := s.repo.UpdateTradesPnLForAsset(ctx, nil, assetID, price, asset.InvestmentType, now); err != nil {
-				return err
-			}
-			today := now.Truncate(24 * time.Hour)
 			if err := s.repo.UpsertTickerPrice(ctx, nil, []models.TickerPriceHistory{
 				{Ticker: asset.Ticker, AsOf: today, Price: price, Currency: priceData.Currency},
 			}); err != nil {
@@ -1434,30 +1390,10 @@ func (s *InvestmentService) ApplyTickerPrice(ctx context.Context, ticker string,
 		return nil, err
 	}
 
+	// One ticker row is written; per-holder value and PnL are derived at read
+	// time. The holder list is still returned so callers can notify price surges.
 	changes := make([]models.AssetPriceChange, 0, len(assets))
-
 	for _, asset := range assets {
-		currentValue := asset.Quantity.Mul(price)
-		costBasis := asset.ValueAtBuy
-		if asset.InvestmentType != models.InvestmentCrypto {
-			costBasis = asset.ValueAtBuy.Add(asset.TotalFees)
-		}
-		profitLoss := currentValue.Sub(costBasis)
-		var profitLossPercent decimal.Decimal
-		if !costBasis.IsZero() {
-			profitLossPercent = profitLoss.Div(costBasis)
-		}
-
-		if err := s.repo.UpdateAssetPriceAndValue(ctx, tx, asset.ID, price, currentValue, profitLoss, profitLossPercent, now); err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-
-		if err := s.repo.UpdateTradesPnLForAsset(ctx, tx, asset.ID, price, asset.InvestmentType, now); err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-
 		changes = append(changes, models.AssetPriceChange{
 			AssetID:  asset.ID,
 			UserID:   asset.UserID,

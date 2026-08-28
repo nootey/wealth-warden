@@ -23,6 +23,8 @@ export interface InvestmentAsset {
   current_value?: string;
   profit_loss?: string;
   profit_loss_percent?: string;
+  latest_price?: string | null;
+  latest_price_currency?: string | null;
   last_price_update?: Date | null;
   currency: string;
   created_at?: Date;

@@ -128,17 +128,6 @@ const vueHelper = {
       return num.toFixed(decimals) + " " + cur;
     }
   },
-  displayDerivedAssetPrice: (
-    currentValue: Decimal | number | string | null,
-    quantity: Decimal | number | string | null,
-    investmentType?: string,
-    currency?: string,
-  ) => {
-    const value = Number(currentValue);
-    const qty = Number(quantity);
-    if (!isFinite(value) || !isFinite(qty) || qty === 0) return null;
-    return vueHelper.displayAssetPrice(value / qty, investmentType, currency);
-  },
   formatChanges(payload: unknown): Change[] | null {
     if (!payload) return null;
 

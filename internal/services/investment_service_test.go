@@ -5,6 +5,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/tests"
+	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/suite"
@@ -59,10 +60,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_ValidStockWithExchange() {
 	s.Require().NoError(err)
 	s.Assert().Greater(assetID, int64(0))
 
-	var asset models.InvestmentAsset
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ? AND user_id = ?", assetID, userID).
-		First(&asset).Error
+	asset, err := svc.FetchInvestmentAssetByID(s.Ctx, userID, assetID)
 	s.Require().NoError(err)
 
 	s.Assert().Equal("iShares Core MSCI World", asset.Name)
@@ -1965,8 +1963,7 @@ func (s *InvestmentServiceTestSuite) TestRecalculateAssetPnL_WritesTodaysPriceHi
 	err = svc.RecalculateAssetPnL(s.Ctx, userID, assetID)
 	s.Require().NoError(err)
 
-	var asset models.InvestmentAsset
-	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
+	asset, err := svc.FetchInvestmentAssetByID(s.Ctx, userID, assetID)
 	s.Require().NoError(err)
 
 	var history models.TickerPriceHistory
@@ -2172,9 +2169,88 @@ func (s *InvestmentServiceTestSuite) TestApplyTickerPrice_OneRowPerTickerManyHol
 		Where("ticker = ? AND as_of = ?", "IWDA.AS", today).Count(&rowCount).Error)
 	s.Assert().Equal(int64(1), rowCount, "one ticker/day row for all holders")
 
-	var a, b models.InvestmentAsset
-	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&a, idA).Error)
-	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).First(&b, idB).Error)
+	a, err := s.TC.App.InvestmentService.FetchInvestmentAssetByID(s.Ctx, userID, idA)
+	s.Require().NoError(err)
+	b, err := s.TC.App.InvestmentService.FetchInvestmentAssetByID(s.Ctx, userID, idB)
+	s.Require().NoError(err)
 	s.Assert().True(decimal.NewFromInt(1200).Equal(a.CurrentValue), "holder A value = 10 * 120, got %s", a.CurrentValue.String())
 	s.Assert().True(decimal.NewFromInt(480).Equal(b.CurrentValue), "holder B value = 4 * 120, got %s", b.CurrentValue.String())
+}
+
+// setLatestTickerPrice overwrites today's ticker_price_history row for a ticker.
+func (s *InvestmentServiceTestSuite) setLatestTickerPrice(ticker string, price decimal.Decimal) {
+	s.T().Helper()
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.TickerPriceHistory{}).
+		Where("ticker = ? AND as_of = ?", ticker, today).
+		Update("price", price).Error)
+}
+
+// The asset list derives current_value from the latest ticker price and can sort by it.
+func (s *InvestmentServiceTestSuite) TestFetchInvestmentAssetsPaginated_DerivesValueAndSorts() {
+	userID := int64(1)
+	accID := s.newInvestmentAccount(userID, "Investment Account")
+
+	small := s.newHolding(userID, accID, "BTC-EUR", "Bitcoin EUR", models.InvestmentCrypto,
+		decimal.NewFromFloat(0.01), decimal.NewFromInt(45000)) // 0.01 * 45000 = 450
+	big := s.newHolding(userID, accID, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock,
+		decimal.NewFromInt(10), decimal.NewFromInt(100)) // 10 * 100 = 1000
+
+	page := utils.PaginationParams{PageNumber: 1, RowsPerPage: 10, SortField: "current_value", SortOrder: "asc"}
+	rows, _, err := s.TC.App.InvestmentService.FetchInvestmentAssetsPaginated(s.Ctx, userID, page, &accID)
+	s.Require().NoError(err)
+	s.Require().Len(rows, 2)
+
+	s.Assert().Equal(small, rows[0].ID, "ascending: smaller current_value first")
+	s.Assert().Equal(big, rows[1].ID)
+	s.Assert().True(decimal.NewFromInt(450).Equal(rows[0].CurrentValue), "got %s", rows[0].CurrentValue.String())
+	s.Assert().True(decimal.NewFromInt(1000).Equal(rows[1].CurrentValue), "got %s", rows[1].CurrentValue.String())
+
+	page.SortOrder = "desc"
+	rows, _, err = s.TC.App.InvestmentService.FetchInvestmentAssetsPaginated(s.Ctx, userID, page, &accID)
+	s.Require().NoError(err)
+	s.Assert().Equal(big, rows[0].ID, "descending: larger current_value first")
+}
+
+// A buy trade's PnL follows the latest ticker price; a sell trade's PnL is the
+// realized figure and does not move when the price moves.
+func (s *InvestmentServiceTestSuite) TestFetchInvestmentTradesPaginated_BuyTracksPriceSellIsFixed() {
+	userID := int64(1)
+	accID := s.newInvestmentAccount(userID, "Investment Account")
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	assetID := s.newHolding(userID, accID, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock,
+		decimal.NewFromInt(10), decimal.NewFromInt(100)) // buy 10 @ 100, value_at_buy 1000
+
+	_, err := s.TC.App.InvestmentService.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      today,
+		TradeType:    models.InvestmentSell,
+		Quantity:     decimal.NewFromInt(4),
+		PricePerUnit: decimal.NewFromInt(120),
+		Currency:     "EUR",
+	}) // realized 480, basis removed 4*100 = 400, sell PnL = 80
+	s.Require().NoError(err)
+
+	s.setLatestTickerPrice("IWDA.AS", decimal.NewFromInt(150))
+
+	page := utils.PaginationParams{PageNumber: 1, RowsPerPage: 10, SortField: "id", SortOrder: "asc"}
+	rows, _, err := s.TC.App.InvestmentService.FetchInvestmentTradesPaginated(s.Ctx, userID, page, &assetID)
+	s.Require().NoError(err)
+	s.Require().Len(rows, 2)
+
+	var buy, sell models.InvestmentTrade
+	for _, r := range rows {
+		if r.TradeType == models.InvestmentBuy {
+			buy = r
+		} else {
+			sell = r
+		}
+	}
+
+	// buy: 10 * 150 - 1000 = 500
+	s.Assert().True(decimal.NewFromInt(500).Equal(buy.ProfitLoss), "buy PnL tracks price, got %s", buy.ProfitLoss.String())
+	s.Assert().True(decimal.NewFromInt(1500).Equal(buy.CurrentValue), "buy value tracks price, got %s", buy.CurrentValue.String())
+	// sell: realized 480 - basis 400 = 80, independent of the 150 price
+	s.Assert().True(decimal.NewFromInt(80).Equal(sell.ProfitLoss), "sell PnL is the realized figure, got %s", sell.ProfitLoss.String())
 }

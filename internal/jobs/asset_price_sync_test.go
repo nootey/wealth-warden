@@ -165,9 +165,8 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalan
 		s.Require().NoError(err)
 	}
 
-	// Verify asset value updated
-	var assetAfter models.InvestmentAsset
-	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&assetAfter).Error
+	// Verify asset value updated (value and PnL are derived from the latest ticker price)
+	assetAfter, err := s.TC.App.InvestmentService.FetchInvestmentAssetByID(s.Ctx, userID, assetID)
 	s.Require().NoError(err)
 
 	s.Assert().NotNil(assetAfter.LastPriceUpdate, "last update should be set")

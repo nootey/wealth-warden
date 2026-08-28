@@ -294,11 +294,9 @@ defineExpose({ refresh });
             </template>
             <template
               v-else-if="
-                [
-                  'value_at_buy',
-                  'current_value',
-                  'price_per_unit',
-                ].includes(col.field)
+                ['value_at_buy', 'current_value', 'price_per_unit'].includes(
+                  col.field,
+                )
               "
             >
               <div class="flex flex-row gap-2 items-center">

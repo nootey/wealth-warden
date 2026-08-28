@@ -1876,7 +1876,6 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 				Quantity:        decimal.Zero,
 				Currency:        txn.Currency,
 				AverageBuyPrice: decimal.Zero,
-				LastPriceUpdate: nil,
 			}
 
 			assetID, err := s.investmentRepo.InsertAsset(ctx, tx, &newAsset)
@@ -1928,15 +1927,12 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		}
 
 		currentPrice := decimal.NewFromFloat(currentPriceData.Price)
-		lastPriceUpdate := time.Unix(currentPriceData.LastUpdate, 0)
 
 		exchangeRate := decimal.NewFromFloat(1.0)
 		rate, err := client.GetExchangeRateOnDate(ctx, txn.Currency, "USD", txDayAdjusted)
 		if err == nil {
 			exchangeRate = decimal.NewFromFloat(rate)
 		}
-
-		txnCurrentValue := effectiveQuantity.Mul(currentPrice)
 
 		var txnRealizedValue decimal.Decimal
 		if models.TradeType(txn.TransactionType) == models.InvestmentSell {
@@ -1949,15 +1945,6 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			valueAtBuy = asset.AverageBuyPrice.Mul(effectiveQuantity)
 		}
 
-		txnProfitLoss := txnCurrentValue.Sub(valueAtBuy)
-		if models.TradeType(txn.TransactionType) == models.InvestmentSell {
-			txnProfitLoss = txnRealizedValue.Sub(valueAtBuy)
-		}
-		var txnProfitLossPercent decimal.Decimal
-		if !valueAtBuy.IsZero() {
-			txnProfitLossPercent = txnProfitLoss.Div(valueAtBuy)
-		}
-
 		trade := models.InvestmentTrade{
 			UserID:            userID,
 			AssetID:           asset.ID,
@@ -1968,10 +1955,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			PricePerUnit:      pricePerUnit,
 			Fee:               fee,
 			ValueAtBuy:        valueAtBuy,
-			CurrentValue:      txnCurrentValue,
 			RealizedValue:     txnRealizedValue,
-			ProfitLoss:        txnProfitLoss,
-			ProfitLossPercent: txnProfitLossPercent,
 			Currency:          txn.Currency,
 			ExchangeRateToUSD: exchangeRate,
 			Description:       nil,
@@ -1986,8 +1970,8 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 
 		// Update asset after trade
 		err = s.investmentRepo.UpdateAssetAfterTrade(
-			ctx, tx, asset.ID, effectiveQuantity, pricePerUnit,
-			&currentPrice, &lastPriceUpdate, models.TradeType(txn.TransactionType), valueAtBuy, fee,
+			ctx, tx, asset.ID, effectiveQuantity,
+			models.TradeType(txn.TransactionType), valueAtBuy, fee,
 		)
 		if err != nil {
 			s.markImportFailed(ctx, importID, err)
@@ -2532,10 +2516,6 @@ func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, im
 	return s.backfillInvestmentCashFlows(ctx, userID, accountIDList)
 }
 
-// backfillInvestmentCashFlows rebuilds cash flows and snapshots for the given accounts only,
-// leaving all other accounts untouched. It resets each account's balance rows to
-// transaction-only cash flows, then re-applies all remaining investment trade cash flows
-// for those accounts.
 func (s *ImportService) backfillInvestmentCashFlows(ctx context.Context, userID int64, accountIDs []int64) error {
 	if len(accountIDs) == 0 {
 		return nil

@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"context"
-	"sort"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
@@ -30,12 +29,10 @@ type InvestmentRepositoryInterface interface {
 	FindActiveCurrencyPairs(ctx context.Context, tx *gorm.DB) ([]models.CurrencyPair, error)
 	FindUserIDsWithActiveInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error)
 	FindActiveAssetsByTicker(ctx context.Context, tx *gorm.DB, ticker string) ([]models.InvestmentAsset, error)
-	UpdateAssetPriceAndValue(ctx context.Context, tx *gorm.DB, assetID int64, price, currentValue, profitLoss, profitLossPercent decimal.Decimal, now time.Time) error
 	FindInvestmentAssetsByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.InvestmentAsset, error)
 	InsertAsset(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentAsset) (int64, error)
 	InsertInvestmentTrade(ctx context.Context, tx *gorm.DB, newRecord *models.InvestmentTrade) (int64, error)
-	UpdateAssetAfterTrade(ctx context.Context, tx *gorm.DB, assetID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, TradeType models.TradeType, TradeValueAtBuy decimal.Decimal, tradeFee decimal.Decimal) error
-	FindTotalInvestmentValue(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error)
+	UpdateAssetAfterTrade(ctx context.Context, tx *gorm.DB, assetID int64, quantity decimal.Decimal, TradeType models.TradeType, TradeValueAtBuy decimal.Decimal, tradeFee decimal.Decimal) error
 	UpdateInvestmentAsset(ctx context.Context, tx *gorm.DB, record models.InvestmentAsset) (int64, error)
 	UpdateInvestmentTrade(ctx context.Context, tx *gorm.DB, record models.InvestmentTrade) (int64, error)
 	CorrectTradeValueAtBuy(ctx context.Context, tx *gorm.DB, tradeID int64, valueAtBuy decimal.Decimal) error
@@ -56,7 +53,6 @@ type InvestmentRepositoryInterface interface {
 	UpsertExchangeRate(ctx context.Context, tx *gorm.DB, entry models.ExchangeRateHistory) error
 	GetCachedExchangeRate(ctx context.Context, tx *gorm.DB, from, to string, asOf time.Time) (decimal.Decimal, bool, error)
 	BulkUpdateAssetAccountID(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error
-	UpdateTradesPnLForAsset(ctx context.Context, tx *gorm.DB, assetID int64, price decimal.Decimal, investmentType models.InvestmentType, now time.Time) error
 	CreateInvestmentIncome(ctx context.Context, tx *gorm.DB, record *models.InvestmentIncome) (int64, error)
 	FindInvestmentIncomeByID(ctx context.Context, tx *gorm.DB, id, userID int64) (models.InvestmentIncome, error)
 	CountInvestmentIncome(ctx context.Context, tx *gorm.DB, assetID, userID int64) (int64, error)
@@ -156,6 +152,7 @@ func (r *InvestmentRepository) FindInvestmentAssets(ctx context.Context, tx *gor
 	db = db.WithContext(ctx)
 
 	q := db.WithContext(ctx).Model(&models.InvestmentAsset{}).
+		Table("investment_assets_valued AS investment_assets").
 		Where("investment_assets.user_id = ?", userID).
 		Preload("Account")
 
@@ -192,7 +189,9 @@ func (r *InvestmentRepository) FindAllInvestmentAssets(ctx context.Context, tx *
 	db = db.WithContext(ctx)
 
 	var records []models.InvestmentAsset
-	query := db.Where("user_id = ?", userID)
+	query := db.Model(&models.InvestmentAsset{}).
+		Table("investment_assets_valued AS investment_assets").
+		Where("investment_assets.user_id = ?", userID)
 
 	if err := query.Find(&records).Error; err != nil {
 		return nil, err
@@ -209,11 +208,12 @@ func (r *InvestmentRepository) FindInvestmentAssetByID(ctx context.Context, tx *
 	db = db.WithContext(ctx)
 
 	var record models.InvestmentAsset
-	q := db.
+	q := db.Model(&models.InvestmentAsset{}).
+		Table("investment_assets_valued AS investment_assets").
 		Preload("Account.Balance", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at DESC").Limit(1)
 		}).
-		Where("id = ? AND user_id = ?", ID, userID)
+		Where("investment_assets.id = ? AND investment_assets.user_id = ?", ID, userID)
 
 	q = q.First(&record)
 
@@ -265,6 +265,7 @@ func (r *InvestmentRepository) FindInvestmentTrades(ctx context.Context, tx *gor
 	db = db.WithContext(ctx)
 
 	q := db.WithContext(ctx).Model(&models.InvestmentTrade{}).
+		Table("investment_trades_valued AS investment_trades").
 		Where("investment_trades.user_id = ?", userID).
 		Preload("Asset")
 
@@ -301,9 +302,10 @@ func (r *InvestmentRepository) FindInvestmentTradeByID(ctx context.Context, tx *
 	db = db.WithContext(ctx)
 
 	var record models.InvestmentTrade
-	q := db.
+	q := db.Model(&models.InvestmentTrade{}).
+		Table("investment_trades_valued AS investment_trades").
 		Preload("Asset").
-		Where("id = ? AND user_id = ?", ID, userID)
+		Where("investment_trades.id = ? AND investment_trades.user_id = ?", ID, userID)
 
 	q = q.First(&record)
 
@@ -388,7 +390,7 @@ func (r *InvestmentRepository) InsertInvestmentTrade(ctx context.Context, tx *go
 	return newRecord.ID, nil
 }
 
-func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *gorm.DB, assetID int64, quantity decimal.Decimal, pricePerUnit decimal.Decimal, currentPrice *decimal.Decimal, lastPriceUpdate *time.Time, tradeType models.TradeType, tradeValueAtBuy decimal.Decimal, tradeFee decimal.Decimal) error {
+func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *gorm.DB, assetID int64, quantity decimal.Decimal, tradeType models.TradeType, tradeValueAtBuy decimal.Decimal, tradeFee decimal.Decimal) error {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -400,11 +402,7 @@ func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *go
 		return err
 	}
 
-	// Update quantity based on trade type
-	var newQuantity decimal.Decimal
-	var newAverageBuyPrice decimal.Decimal
-	var newTotalValueAtBuy decimal.Decimal
-	var newTotalFees decimal.Decimal
+	var newQuantity, newAverageBuyPrice, newTotalValueAtBuy, newTotalFees decimal.Decimal
 
 	if tradeType == models.InvestmentBuy {
 		newQuantity = asset.Quantity.Add(quantity)
@@ -425,71 +423,14 @@ func (r *InvestmentRepository) UpdateAssetAfterTrade(ctx context.Context, tx *go
 		newTotalFees = asset.TotalFees.Sub(asset.TotalFees.Mul(soldProportion))
 	}
 
-	// Calculate current value
-	var newCurrentValue decimal.Decimal
-	var newProfitLoss decimal.Decimal
-	var newProfitLossPercent decimal.Decimal
-
-	costBasis := newTotalValueAtBuy
-	if asset.InvestmentType != models.InvestmentCrypto {
-		costBasis = newTotalValueAtBuy.Add(newTotalFees)
-	}
-
-	if currentPrice != nil && !currentPrice.IsZero() {
-		newCurrentValue = newQuantity.Mul(*currentPrice)
-		newProfitLoss = newCurrentValue.Sub(costBasis)
-
-		if !costBasis.IsZero() {
-			newProfitLossPercent = newProfitLoss.Div(costBasis)
-		}
-	} else {
-		newCurrentValue = decimal.Zero
-		newProfitLoss = decimal.Zero
-		newProfitLossPercent = decimal.Zero
-	}
-
-	updates := map[string]interface{}{
-		"quantity":            newQuantity,
-		"average_buy_price":   newAverageBuyPrice,
-		"value_at_buy":        newTotalValueAtBuy,
-		"total_fees":          newTotalFees,
-		"current_value":       newCurrentValue,
-		"profit_loss":         newProfitLoss,
-		"profit_loss_percent": newProfitLossPercent,
-	}
-
-	if lastPriceUpdate != nil {
-		updates["last_price_update"] = lastPriceUpdate
-	}
-
 	return db.Model(&models.InvestmentAsset{}).
 		Where("id = ?", assetID).
-		Updates(updates).Error
-}
-
-func (r *InvestmentRepository) FindTotalInvestmentValue(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error) {
-
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	var assets []models.InvestmentAsset
-	err := db.WithContext(ctx).
-		Where("account_id = ? AND user_id = ? AND quantity > 0", accountID, userID).
-		Find(&assets).Error
-
-	if err != nil {
-		return decimal.Zero, err
-	}
-
-	total := decimal.Zero
-	for _, a := range assets {
-		total = total.Add(a.CurrentValue)
-	}
-
-	return total, nil
+		Updates(map[string]interface{}{
+			"quantity":          newQuantity,
+			"average_buy_price": newAverageBuyPrice,
+			"value_at_buy":      newTotalValueAtBuy,
+			"total_fees":        newTotalFees,
+		}).Error
 }
 
 func (r *InvestmentRepository) UpdateInvestmentAsset(ctx context.Context, tx *gorm.DB, record models.InvestmentAsset) (int64, error) {
@@ -552,79 +493,6 @@ func (r *InvestmentRepository) CorrectTradeValueAtBuy(ctx context.Context, tx *g
 		}).Error
 }
 
-// MergeStakingIntoTrades folds staking rewards in as zero-fee buys at their value on receipt.
-// Every walkTradeTotals caller must feed it this stream, or quantity and basis drift apart.
-func MergeStakingIntoTrades(trades []models.InvestmentTrade, income []models.InvestmentIncome) []models.InvestmentTrade {
-	if len(income) == 0 {
-		return trades
-	}
-
-	merged := make([]models.InvestmentTrade, 0, len(trades)+len(income))
-	merged = append(merged, trades...)
-	for _, inc := range income {
-		if inc.IncomeType != models.IncomeTypeStaking || inc.Quantity == nil {
-			continue
-		}
-		merged = append(merged, models.InvestmentTrade{
-			TradeType:  models.InvestmentBuy,
-			TxnDate:    inc.TxnDate,
-			Quantity:   *inc.Quantity,
-			ValueAtBuy: inc.Amount,
-			CreatedAt:  inc.CreatedAt,
-		})
-	}
-
-	// txn_date is a date, so same-day events fall back to entry order
-	sort.SliceStable(merged, func(i, j int) bool {
-		if !merged[i].TxnDate.Equal(merged[j].TxnDate) {
-			return merged[i].TxnDate.Before(merged[j].TxnDate)
-		}
-		return merged[i].CreatedAt.Before(merged[j].CreatedAt)
-	})
-
-	return merged
-}
-
-// walkTradeTotals replays trades in order and returns holdings as of asOf (nil = all trades).
-// Single source of truth for cost basis - the asset aggregates and the chart series both use it.
-// Trades must be ordered by txn_date ASC, id ASC, with staking already merged in.
-func walkTradeTotals(trades []models.InvestmentTrade, asOf *time.Time) (quantity, valueAtBuy, fees decimal.Decimal) {
-	for _, txn := range trades {
-		if asOf != nil && txn.TxnDate.After(*asOf) {
-			break
-		}
-
-		if txn.TradeType == models.InvestmentBuy {
-			quantity = quantity.Add(txn.Quantity)
-			valueAtBuy = valueAtBuy.Add(txn.ValueAtBuy)
-			fees = fees.Add(txn.Fee)
-			continue
-		}
-
-		// Sell: reduce proportionally
-		quantity = quantity.Sub(txn.Quantity)
-		if quantity.GreaterThan(decimal.Zero) {
-			soldProportion := txn.Quantity.Div(quantity.Add(txn.Quantity))
-			remaining := decimal.NewFromInt(1).Sub(soldProportion)
-			valueAtBuy = valueAtBuy.Mul(remaining)
-			fees = fees.Mul(remaining)
-		} else {
-			valueAtBuy = decimal.Zero
-			fees = decimal.Zero
-		}
-	}
-
-	return quantity, valueAtBuy, fees
-}
-
-// CostBasis applies the fee rule: fees count toward basis for everything but crypto.
-func CostBasis(valueAtBuy, fees decimal.Decimal, investmentType models.InvestmentType) decimal.Decimal {
-	if investmentType == models.InvestmentCrypto {
-		return valueAtBuy
-	}
-	return valueAtBuy.Add(fees)
-}
-
 func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error {
 	db := tx
 	if db == nil {
@@ -652,63 +520,23 @@ func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, t
 		return err
 	}
 
-	totalQuantity, totalValueAtBuy, totalFees := walkTradeTotals(MergeStakingIntoTrades(trades, stakingIncome), nil)
+	totalQuantity, totalValueAtBuy, totalFees := utils.WalkTradeTotals(utils.MergeStakingIntoTrades(trades, stakingIncome), nil)
 
 	var avgBuyPrice decimal.Decimal
 	if totalQuantity.GreaterThan(decimal.Zero) {
 		avgBuyPrice = totalValueAtBuy.Div(totalQuantity)
 	}
 
-	costBasis := CostBasis(totalValueAtBuy, totalFees, asset.InvestmentType)
-
-	latestPrice, _, priceFound, err := r.GetLatestTickerPrice(ctx, db, asset.Ticker)
-	if err != nil {
-		return err
-	}
-
-	var currentValue, profitLoss, profitLossPercent decimal.Decimal
-	if priceFound && !latestPrice.IsZero() && totalQuantity.GreaterThan(decimal.Zero) {
-		currentValue = totalQuantity.Mul(latestPrice)
-		profitLoss = currentValue.Sub(costBasis)
-		if !costBasis.IsZero() {
-			profitLossPercent = profitLoss.Div(costBasis)
-		}
-	}
-
-	// Update asset
+	// Update asset — cost-basis fields only. Value and PnL are read-time derived.
 	return db.Model(&models.InvestmentAsset{}).
 		Where("id = ?", assetID).
 		Updates(map[string]interface{}{
-			"quantity":            totalQuantity,
-			"average_buy_price":   avgBuyPrice,
-			"value_at_buy":        totalValueAtBuy,
-			"total_fees":          totalFees,
-			"current_value":       currentValue,
-			"profit_loss":         profitLoss,
-			"profit_loss_percent": profitLossPercent,
-			"updated_at":          time.Now().UTC(),
+			"quantity":          totalQuantity,
+			"average_buy_price": avgBuyPrice,
+			"value_at_buy":      totalValueAtBuy,
+			"total_fees":        totalFees,
+			"updated_at":        time.Now().UTC(),
 		}).Error
-}
-
-func (r *InvestmentRepository) UpdateTradesPnLForAsset(ctx context.Context, tx *gorm.DB, assetID int64, price decimal.Decimal, investmentType models.InvestmentType, now time.Time) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	includeFees := investmentType != models.InvestmentCrypto
-	return db.WithContext(ctx).Exec(`
-		UPDATE investment_trades
-		SET
-			current_value = quantity * ?,
-			profit_loss = (quantity * ?) - (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END),
-			profit_loss_percent = CASE
-				WHEN (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END) > 0
-				THEN ((quantity * ?) - (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END)) / (value_at_buy + CASE WHEN ? THEN fee ELSE 0 END)
-				ELSE 0
-			END,
-			updated_at = ?
-		WHERE asset_id = ? AND trade_type = 'buy'
-	`, price, price, includeFees, includeFees, price, includeFees, includeFees, now, assetID).Error
 }
 
 func (r *InvestmentRepository) DeleteInvestmentTrade(ctx context.Context, tx *gorm.DB, id int64) error {
@@ -771,8 +599,6 @@ func (r *InvestmentRepository) FindAllTradesByUserID(ctx context.Context, tx *go
 	return trades, err
 }
 
-// Deliberately unfiltered by account state: a rebuild must still reach a user
-// whose investment account was closed or deactivated.
 func (r *InvestmentRepository) GetUserIDsWithInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error) {
 	db := tx
 	if db == nil {
@@ -824,7 +650,6 @@ func (r *InvestmentRepository) FindTickersForPriceSync(ctx context.Context, tx *
 	err := db.Model(&models.InvestmentAsset{}).
 		Joins("JOIN accounts ON accounts.id = investment_assets.account_id").
 		Select("DISTINCT investment_assets.ticker, investment_assets.investment_type").
-		Where("investment_assets.quantity > 0").
 		Where("accounts.is_active = ?", true).
 		Where("accounts.closed_at IS NULL").
 		Find(&rows).Error
@@ -879,6 +704,7 @@ func (r *InvestmentRepository) FindActiveAssetsByTicker(ctx context.Context, tx 
 
 	var assets []models.InvestmentAsset
 	err := db.Preload("Account").
+		Select("investment_assets.*").
 		Joins("JOIN accounts ON accounts.id = investment_assets.account_id").
 		Where("investment_assets.ticker = ? AND investment_assets.quantity > 0", ticker).
 		Where("accounts.is_active = ?", true).
@@ -886,23 +712,6 @@ func (r *InvestmentRepository) FindActiveAssetsByTicker(ctx context.Context, tx 
 		Find(&assets).Error
 
 	return assets, err
-}
-
-func (r *InvestmentRepository) UpdateAssetPriceAndValue(ctx context.Context, tx *gorm.DB, assetID int64, price, currentValue, profitLoss, profitLossPercent decimal.Decimal, now time.Time) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-
-	return db.WithContext(ctx).Model(&models.InvestmentAsset{}).
-		Where("id = ?", assetID).
-		Updates(map[string]interface{}{
-			"current_value":       currentValue,
-			"profit_loss":         profitLoss,
-			"profit_loss_percent": profitLossPercent,
-			"last_price_update":   now,
-			"updated_at":          now,
-		}).Error
 }
 
 func (r *InvestmentRepository) DeleteAllTradesForAsset(ctx context.Context, tx *gorm.DB, assetID, userID int64) error {
@@ -1237,10 +1046,6 @@ func (r *InvestmentRepository) UpsertTaxSettings(ctx context.Context, tx *gorm.D
 		Create(&record).Error
 }
 
-// FetchPortfolioAllocation returns one row per open holding, with current_value
-// converted to the target currency. Conversion uses the newest cached rate on or
-// before today and falls back to 1, the same way UpdateSnapshotMarketValues does,
-// so the allocation can never disagree with net worth.
 func (r *InvestmentRepository) FetchPortfolioAllocation(ctx context.Context, tx *gorm.DB, userID int64, currency string) ([]models.AllocationAssetRow, error) {
 	db := tx
 	if db == nil {
@@ -1259,16 +1064,10 @@ func (r *InvestmentRepository) FetchPortfolioAllocation(ctx context.Context, tx 
 			a.name AS account_name,
 			COALESCE(ph_latest.currency, ia.currency) AS source_currency,
 			(ph_latest.price IS NOT NULL AND ph_latest.price <> 0) AS priced,
-			(ia.current_value * COALESCE(erh_latest.rate, 1))::text  AS value_text
+			(COALESCE(ph_latest.price, 0) * ia.quantity * COALESCE(erh_latest.rate, 1))::text  AS value_text
 		FROM investment_assets ia
 		JOIN accounts a ON a.id = ia.account_id
-		LEFT JOIN LATERAL (
-			SELECT ph.currency, ph.price
-			FROM ticker_price_history ph
-			WHERE ph.ticker = ia.ticker
-			ORDER BY ph.as_of DESC
-			LIMIT 1
-		) ph_latest ON true
+		LEFT JOIN ticker_latest_price ph_latest ON ph_latest.ticker = ia.ticker
 		LEFT JOIN LATERAL (
 			SELECT erh.rate
 			FROM exchange_rate_history erh
