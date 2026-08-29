@@ -76,3 +76,9 @@ type AccountProjectionReq struct {
 	ExpectedBalance   decimal.Decimal `json:"expected_balance" validate:"required"`
 	BalanceProjection string          `json:"balance_projection" validate:"required"`
 }
+
+type DailyCashDelta struct {
+	AsOf     time.Time
+	Inflows  decimal.Decimal
+	Outflows decimal.Decimal
+}

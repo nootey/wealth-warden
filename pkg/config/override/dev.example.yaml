@@ -46,6 +46,12 @@ seed:
   super_admin_password: "password"
   member_user_email: ""
   member_user_password: ""
+  bulk:
+    users: 1000
+    years: 2
+    txns_per_user: 500
+    email_domain: "local.seed"
+    password: "password"
 
 scheduler:
   concurrent_workers: 5

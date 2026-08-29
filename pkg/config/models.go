@@ -55,10 +55,19 @@ type CorsConfig struct {
 }
 
 type SeedConfig struct {
-	SuperAdminEmail    string `mapstructure:"super_admin_email" validate:"required"`
-	SuperAdminPassword string `mapstructure:"super_admin_password" validate:"required"`
-	MemberUserEmail    string `mapstructure:"member_user_email"`
-	MemberUserPassword string `mapstructure:"member_user_password"`
+	SuperAdminEmail    string         `mapstructure:"super_admin_email" validate:"required"`
+	SuperAdminPassword string         `mapstructure:"super_admin_password" validate:"required"`
+	MemberUserEmail    string         `mapstructure:"member_user_email"`
+	MemberUserPassword string         `mapstructure:"member_user_password"`
+	Bulk               BulkSeedConfig `mapstructure:"bulk"`
+}
+
+type BulkSeedConfig struct {
+	Users       int    `mapstructure:"users"`
+	Years       int    `mapstructure:"years"`
+	TxnsPerUser int    `mapstructure:"txns_per_user"`
+	EmailDomain string `mapstructure:"email_domain"`
+	Password    string `mapstructure:"password"`
 }
 
 type MailerConfig struct {

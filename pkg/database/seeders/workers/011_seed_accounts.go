@@ -33,7 +33,7 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 		{Name: "Gambling debt", Type: "other_liability", Subtype: "other", Classification: "liability", Currency: "eur", BalanceProjection: "fixed", StartBalance: decimal.NewFromInt(-50000)},
 	}
 
-	usernames := []string{"Support", "Member"}
+	usernames := seededUsernames
 
 	var users []models.User
 	if err := db.WithContext(ctx).

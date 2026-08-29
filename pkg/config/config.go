@@ -50,6 +50,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("seed.member_user_email", "")
 	v.SetDefault("seed.member_user_password", "")
 
+	v.SetDefault("seed.bulk.users", 1000)
+	v.SetDefault("seed.bulk.years", 2)
+	v.SetDefault("seed.bulk.txns_per_user", 500)
+	v.SetDefault("seed.bulk.email_domain", "local.seed")
+	v.SetDefault("seed.bulk.password", "password")
+
 	v.SetDefault("scheduler.concurrent_workers", 5)
 	v.SetDefault("scheduler.immediate_jobs", []string{})
 

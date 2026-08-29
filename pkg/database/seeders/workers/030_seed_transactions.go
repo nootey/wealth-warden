@@ -21,8 +21,9 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 	rng := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
+	// Demo users only: bulk users are seeded far more cheaply by SeedBulkUsers
 	var users []models.User
-	if err := db.WithContext(ctx).Find(&users).Error; err != nil {
+	if err := db.WithContext(ctx).Where("display_name IN ?", seededUsernames).Find(&users).Error; err != nil {
 		return err
 	}
 

@@ -44,7 +44,7 @@ func SeedSavingGoals(ctx context.Context, db *gorm.DB, cfg *config.Config) error
 	}
 
 	var users []models.User
-	if err := db.WithContext(ctx).Find(&users).Error; err != nil {
+	if err := db.WithContext(ctx).Where("display_name IN ?", seededUsernames).Find(&users).Error; err != nil {
 		return err
 	}
 
