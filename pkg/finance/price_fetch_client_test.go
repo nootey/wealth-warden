@@ -16,7 +16,7 @@ var (
 	testServer        *httptest.Server
 	fetcher           finance.PriceFetcher
 	mockResponse      *finance.ChartResponse
-	mockQuoteResponse *finance.QuoteResponse
+	mockSparkResponse finance.SparkResponse
 	mockStatusCode    int
 )
 
@@ -44,8 +44,8 @@ func handleTestRequest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	if mockQuoteResponse != nil {
-		err := json.NewEncoder(w).Encode(mockQuoteResponse)
+	if mockSparkResponse != nil {
+		err := json.NewEncoder(w).Encode(mockSparkResponse)
 		if err != nil {
 			return
 		}
@@ -73,41 +73,26 @@ func setupChartResponse(symbol, currency string, price float64, timestamp int64)
 	mockResponse = &response
 }
 
-func setupQuoteResponse(quotes map[string]struct {
+func setupSparkResponse(closes map[string]struct {
 	Price     float64
-	Currency  string
 	Timestamp int64
 }) {
 	mockStatusCode = 0
-	response := finance.QuoteResponse{}
-	response.QuoteResponse.Result = make([]struct {
-		Symbol             string  `json:"symbol"`
-		RegularMarketPrice float64 `json:"regularMarketPrice"`
-		RegularMarketTime  int64   `json:"regularMarketTime"`
-		Currency           string  `json:"currency"`
-	}, 0)
-
-	for symbol, data := range quotes {
-		quote := struct {
-			Symbol             string  `json:"symbol"`
-			RegularMarketPrice float64 `json:"regularMarketPrice"`
-			RegularMarketTime  int64   `json:"regularMarketTime"`
-			Currency           string  `json:"currency"`
-		}{
-			Symbol:             symbol,
-			RegularMarketPrice: data.Price,
-			RegularMarketTime:  data.Timestamp,
-			Currency:           data.Currency,
+	response := make(finance.SparkResponse, len(closes))
+	for symbol, data := range closes {
+		price := data.Price
+		response[symbol] = finance.SparkEntry{
+			Symbol:    symbol,
+			Timestamp: []int64{data.Timestamp},
+			Close:     []*float64{&price},
 		}
-		response.QuoteResponse.Result = append(response.QuoteResponse.Result, quote)
 	}
-
-	mockQuoteResponse = &response
+	mockSparkResponse = response
 }
 
 func resetMocks() {
 	mockResponse = nil
-	mockQuoteResponse = nil
+	mockSparkResponse = nil
 	mockStatusCode = 0
 }
 
@@ -348,13 +333,12 @@ func TestGetPricesForMultipleAssets_ValidTickers(t *testing.T) {
 	resetMocks()
 
 	timestamp := time.Now().Unix()
-	setupQuoteResponse(map[string]struct {
+	setupSparkResponse(map[string]struct {
 		Price     float64
-		Currency  string
 		Timestamp int64
 	}{
-		"AAPL.L": {Price: 150.25, Currency: "GBP", Timestamp: timestamp},
-		"MSFT.L": {Price: 380.50, Currency: "GBP", Timestamp: timestamp},
+		"AAPL.L": {Price: 150.25, Timestamp: timestamp},
+		"MSFT.L": {Price: 380.50, Timestamp: timestamp},
 	})
 
 	ctx := context.Background()
@@ -386,12 +370,11 @@ func TestGetPricesForMultipleAssets_MixedValidInvalid(t *testing.T) {
 	resetMocks()
 
 	timestamp := time.Now().Unix()
-	setupQuoteResponse(map[string]struct {
+	setupSparkResponse(map[string]struct {
 		Price     float64
-		Currency  string
 		Timestamp int64
 	}{
-		"AAPL.L": {Price: 150.25, Currency: "GBP", Timestamp: timestamp},
+		"AAPL.L": {Price: 150.25, Timestamp: timestamp},
 	})
 
 	ctx := context.Background()
@@ -440,13 +423,12 @@ func TestGetPricesForMultipleAssets_DifferentTypes(t *testing.T) {
 	resetMocks()
 
 	timestamp := time.Now().Unix()
-	setupQuoteResponse(map[string]struct {
+	setupSparkResponse(map[string]struct {
 		Price     float64
-		Currency  string
 		Timestamp int64
 	}{
-		"AAPL.L":  {Price: 150.25, Currency: "GBP", Timestamp: timestamp},
-		"BTC-USD": {Price: 45000.50, Currency: "USD", Timestamp: timestamp},
+		"AAPL.L":  {Price: 150.25, Timestamp: timestamp},
+		"BTC-USD": {Price: 45000.50, Timestamp: timestamp},
 	})
 
 	ctx := context.Background()
@@ -472,13 +454,39 @@ func TestGetPricesForMultipleAssets_DifferentTypes(t *testing.T) {
 	if results["BTC-USD"].Price != 45000.50 {
 		t.Errorf("Expected BTC price 45000.50, got %f", results["BTC-USD"].Price)
 	}
+}
 
-	if results["AAPL.L"].Currency != "GBP" {
-		t.Errorf("Expected GBP currency, got %s", results["AAPL.L"].Currency)
+// A closed market leaves today's spark close nil; the price must come from the
+// last usable bar rather than being dropped.
+func TestGetPricesForMultipleAssets_NilTrailingCloseFallsBack(t *testing.T) {
+	resetMocks()
+
+	older := 100.0
+	newer := 105.0
+	mockSparkResponse = finance.SparkResponse{
+		"IWDA.AS": finance.SparkEntry{
+			Symbol:    "IWDA.AS",
+			Timestamp: []int64{1000, 2000, 3000},
+			Close:     []*float64{&older, &newer, nil},
+		},
 	}
 
-	if results["BTC-USD"].Currency != "USD" {
-		t.Errorf("Expected USD currency, got %s", results["BTC-USD"].Currency)
+	results, err := fetcher.GetPricesForMultipleAssets(context.Background(), []finance.AssetRequest{
+		{Ticker: "IWDA", InvestmentType: models.InvestmentETF, Exchange: "AS"},
+	})
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	got := results["IWDA.AS"]
+	if got == nil || got.Error != nil {
+		t.Fatalf("Expected a price for IWDA.AS, got %+v", got)
+	}
+	if got.Price != 105.0 {
+		t.Errorf("Expected fallback to last non-nil close 105.0, got %f", got.Price)
+	}
+	if got.LastUpdate != 2000 {
+		t.Errorf("Expected timestamp 2000 for that bar, got %d", got.LastUpdate)
 	}
 }
 
@@ -502,7 +510,7 @@ func TestGetExchangeRate_ValidCurrency(t *testing.T) {
 
 	timestamp := time.Now().Unix()
 	setupChartResponse("EUR=X", "USD", 1.18, timestamp)
-	mockQuoteResponse = nil
+	mockSparkResponse = nil
 
 	ctx := context.Background()
 	rate, err := fetcher.GetExchangeRate(ctx, "EUR", "USD")
@@ -553,13 +561,12 @@ func TestGetPricesForMultipleAssets_ExchangeNormalization(t *testing.T) {
 	resetMocks()
 
 	timestamp := time.Now().Unix()
-	setupQuoteResponse(map[string]struct {
+	setupSparkResponse(map[string]struct {
 		Price     float64
-		Currency  string
 		Timestamp int64
 	}{
-		"AAPL.L": {Price: 150.25, Currency: "GBP", Timestamp: timestamp},
-		"MSFT.L": {Price: 380.50, Currency: "GBP", Timestamp: timestamp},
+		"AAPL.L": {Price: 150.25, Timestamp: timestamp},
+		"MSFT.L": {Price: 380.50, Timestamp: timestamp},
 	})
 
 	ctx := context.Background()

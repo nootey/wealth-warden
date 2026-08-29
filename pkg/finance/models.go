@@ -52,13 +52,11 @@ type DatedPrice struct {
 	Currency string
 }
 
-type QuoteResponse struct {
-	QuoteResponse struct {
-		Result []struct {
-			Symbol             string  `json:"symbol"`
-			RegularMarketPrice float64 `json:"regularMarketPrice"`
-			RegularMarketTime  int64   `json:"regularMarketTime"`
-			Currency           string  `json:"currency"`
-		} `json:"result"`
-	} `json:"quoteResponse"`
+type SparkResponse map[string]SparkEntry
+
+type SparkEntry struct {
+	Symbol             string     `json:"symbol"`
+	Timestamp          []int64    `json:"timestamp"`
+	Close              []*float64 `json:"close"`
+	ChartPreviousClose float64    `json:"chartPreviousClose"`
 }

@@ -338,9 +338,6 @@ func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, asset
 		if symbol == "" {
 			continue
 		}
-		if asset.InvestmentType != models.InvestmentCrypto && !strings.Contains(symbol, ".") {
-			continue // Skip stocks/ETFs without an exchange suffix
-		}
 
 		symbols = append(symbols, symbol)
 	}
@@ -349,8 +346,8 @@ func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, asset
 		return nil, fmt.Errorf("no valid assets to fetch")
 	}
 
-	symbolsParam := strings.Join(symbols, ",")
-	url := fmt.Sprintf("%s/v7/finance/quote?symbols=%s", c.baseURL, symbolsParam)
+	url := fmt.Sprintf("%s/v8/finance/spark?symbols=%s&range=7d&interval=1d",
+		c.baseURL, strings.Join(symbols, ","))
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -371,36 +368,49 @@ func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, asset
 	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("yahoo finance returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("yahoo finance spark returned status %d", resp.StatusCode)
 	}
 
-	var data QuoteResponse
+	var data SparkResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	result := make(map[string]*PriceData)
-
-	for _, quote := range data.QuoteResponse.Result {
-		result[quote.Symbol] = &PriceData{
-			Symbol:     quote.Symbol,
-			Price:      quote.RegularMarketPrice,
-			Currency:   quote.Currency,
-			LastUpdate: quote.RegularMarketTime,
-		}
-	}
-
-	// Mark missing symbols
+	result := make(map[string]*PriceData, len(symbols))
 	for _, symbol := range symbols {
-		if _, exists := result[symbol]; !exists {
-			result[symbol] = &PriceData{
-				Symbol: symbol,
-				Error:  fmt.Errorf("no data returned"),
-			}
+		entry, ok := data[symbol]
+		if !ok {
+			result[symbol] = &PriceData{Symbol: symbol, Error: fmt.Errorf("no data returned")}
+			continue
 		}
+
+		price, ts := latestSparkClose(entry)
+		if price <= 0 {
+			result[symbol] = &PriceData{Symbol: symbol, Error: fmt.Errorf("no valid close price")}
+			continue
+		}
+
+		result[symbol] = &PriceData{Symbol: symbol, Price: price, LastUpdate: ts}
 	}
 
 	return result, nil
+}
+
+func latestSparkClose(entry SparkEntry) (float64, int64) {
+	for i := len(entry.Close) - 1; i >= 0; i-- {
+		if entry.Close[i] == nil || *entry.Close[i] <= 0 {
+			continue
+		}
+		var ts int64
+		if i < len(entry.Timestamp) {
+			ts = entry.Timestamp[i]
+		}
+		return *entry.Close[i], ts
+	}
+	if entry.ChartPreviousClose > 0 {
+		return entry.ChartPreviousClose, 0
+	}
+	return 0, 0
 }
 
 func (c *PriceFetchClient) GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string) (float64, error) {

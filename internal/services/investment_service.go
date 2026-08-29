@@ -1337,7 +1337,7 @@ func (s *InvestmentService) ApplyTickerPrice(ctx context.Context, ticker string,
 
 	today := now.UTC().Truncate(24 * time.Hour)
 
-	oldPrice, _, oldFound, err := s.repo.GetLatestTickerPrice(ctx, tx, ticker)
+	oldPrice, oldCurrency, oldFound, err := s.repo.GetLatestTickerPrice(ctx, tx, ticker)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -1345,6 +1345,16 @@ func (s *InvestmentService) ApplyTickerPrice(ctx context.Context, ticker string,
 	var oldPtr *decimal.Decimal
 	if oldFound {
 		oldPtr = &oldPrice
+	}
+
+	// The spark batch fetch has no currency; reuse the last known one for the
+	// ticker. A ticker with no price history yet is left for the backfill job.
+	if currency == "" {
+		currency = oldCurrency
+	}
+	if currency == "" {
+		tx.Rollback()
+		return nil, fmt.Errorf("no known currency for ticker %s; skipping until price history is seeded", ticker)
 	}
 
 	if utils.IsExtremePriceDrop(oldPtr, price) {

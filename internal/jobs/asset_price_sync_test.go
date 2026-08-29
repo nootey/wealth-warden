@@ -9,6 +9,7 @@ import (
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
+	"wealth-warden/pkg/finance"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/suite"
@@ -188,6 +189,71 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalan
 		First(&balance).Error
 	s.Require().NoError(err)
 	s.Assert().True(balance.CashOutflows.GreaterThan(decimal.Zero), "buy should have written cash outflows")
+}
+
+// countingPriceFetcher wraps the mock and records how the job reaches for prices.
+type countingPriceFetcher struct {
+	*tests.MockPriceFetcher
+	singleCalls int
+	batchCalls  int
+}
+
+func (c *countingPriceFetcher) GetAssetPrice(ctx context.Context, ticker string, t models.InvestmentType) (*finance.PriceData, error) {
+	c.singleCalls++
+	return c.MockPriceFetcher.GetAssetPrice(ctx, ticker, t)
+}
+
+func (c *countingPriceFetcher) GetPricesForMultipleAssets(ctx context.Context, assets []finance.AssetRequest) (map[string]*finance.PriceData, error) {
+	c.batchCalls++
+	return c.MockPriceFetcher.GetPricesForMultipleAssets(ctx, assets)
+}
+
+// The sync job must fetch every ticker in one batched request, not one call each.
+func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_FetchesPricesInOneBatch() {
+	invSvc := s.TC.App.InvestmentService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+
+	accID, err := s.TC.App.AccountService.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assets := []struct {
+		ticker string
+		typ    models.InvestmentType
+	}{
+		{"BTC-USD", models.InvestmentCrypto},
+		{"IWDA.AS", models.InvestmentETF},
+	}
+	for _, a := range assets {
+		_, err = invSvc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+			AccountID:      accID,
+			InvestmentType: a.typ,
+			Name:           a.ticker,
+			Ticker:         a.ticker,
+			Quantity:       decimal.NewFromInt(1),
+		})
+		s.Require().NoError(err)
+	}
+
+	fetcher := &countingPriceFetcher{MockPriceFetcher: &tests.MockPriceFetcher{}}
+	job := jobs.NewAssetPriceSyncJob(zaptest.NewLogger(s.T()), invSvc, fetcher, nil, 0)
+
+	s.Require().NoError(job.Run(s.Ctx))
+
+	s.Equal(0, fetcher.singleCalls, "job must not fetch tickers one by one")
+	s.Equal(1, fetcher.batchCalls, "the two tickers must go out in a single batched request")
+
+	s.Assert().True(decimal.NewFromInt(50000).Equal(s.latestTickerPrice("BTC-USD")),
+		"BTC-USD price should come from the batch response")
+	s.Assert().True(decimal.NewFromInt(100).Equal(s.latestTickerPrice("IWDA.AS")),
+		"IWDA.AS price should come from the batch response")
 }
 
 type tickerFailingInvestmentService struct {

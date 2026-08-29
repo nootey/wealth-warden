@@ -45,6 +45,7 @@ func (m *MockPriceFetcher) GetAssetPriceRange(_ context.Context, ticker string, 
 	return prices, nil
 }
 
+// Mirrors the spark endpoint: price only, no currency, missing symbols flagged.
 func (m *MockPriceFetcher) GetPricesForMultipleAssets(_ context.Context, assets []finance.AssetRequest) (map[string]*finance.PriceData, error) {
 	result := make(map[string]*finance.PriceData, len(assets))
 	for _, a := range assets {
@@ -53,7 +54,7 @@ func (m *MockPriceFetcher) GetPricesForMultipleAssets(_ context.Context, assets 
 			result[a.Ticker] = &finance.PriceData{Symbol: a.Ticker, Error: err}
 			continue
 		}
-		result[a.Ticker] = data
+		result[a.Ticker] = &finance.PriceData{Symbol: a.Ticker, Price: data.Price, LastUpdate: data.LastUpdate}
 	}
 	return result, nil
 }
