@@ -107,8 +107,6 @@ func AdjustToWeekday(date time.Time) time.Time {
 	}
 }
 
-// CheckGoalAllocation returns an error if amountBeingRemoved would eat into
-// goal-allocated balance. Pass the uncategorizedBalance from GetUncategorizedBalance.
 func CheckGoalAllocation(amountBeingRemoved, uncategorizedBalance decimal.Decimal, classification string) error {
 	if strings.EqualFold(classification, "liability") {
 		return nil
@@ -142,4 +140,11 @@ func AccountLimitError(balance decimal.Decimal, acc *models.Account) error {
 func IsUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+func SnapshotRecomputeFrom(from time.Time) *time.Time {
+	if from.IsZero() {
+		return nil
+	}
+	return &from
 }

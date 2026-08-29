@@ -111,120 +111,6 @@ func (_c *MockAccountServiceInterface_BackfillBalancesForUser_Call) RunAndReturn
 	return _c
 }
 
-// ClearInvestmentCashFlows provides a mock function for the type MockAccountServiceInterface
-func (_mock *MockAccountServiceInterface) ClearInvestmentCashFlows(ctx context.Context, userID int64) error {
-	ret := _mock.Called(ctx, userID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ClearInvestmentCashFlows")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) error); ok {
-		r0 = returnFunc(ctx, userID)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// MockAccountServiceInterface_ClearInvestmentCashFlows_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearInvestmentCashFlows'
-type MockAccountServiceInterface_ClearInvestmentCashFlows_Call struct {
-	*mock.Call
-}
-
-// ClearInvestmentCashFlows is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) ClearInvestmentCashFlows(ctx any, userID any) *MockAccountServiceInterface_ClearInvestmentCashFlows_Call {
-	return &MockAccountServiceInterface_ClearInvestmentCashFlows_Call{Call: _e.mock.On("ClearInvestmentCashFlows", ctx, userID)}
-}
-
-func (_c *MockAccountServiceInterface_ClearInvestmentCashFlows_Call) Run(run func(ctx context.Context, userID int64)) *MockAccountServiceInterface_ClearInvestmentCashFlows_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 int64
-		if args[1] != nil {
-			arg1 = args[1].(int64)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *MockAccountServiceInterface_ClearInvestmentCashFlows_Call) Return(err error) *MockAccountServiceInterface_ClearInvestmentCashFlows_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *MockAccountServiceInterface_ClearInvestmentCashFlows_Call) RunAndReturn(run func(ctx context.Context, userID int64) error) *MockAccountServiceInterface_ClearInvestmentCashFlows_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ClearInvestmentSnapshots provides a mock function for the type MockAccountServiceInterface
-func (_mock *MockAccountServiceInterface) ClearInvestmentSnapshots(ctx context.Context, userID int64) error {
-	ret := _mock.Called(ctx, userID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ClearInvestmentSnapshots")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) error); ok {
-		r0 = returnFunc(ctx, userID)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// MockAccountServiceInterface_ClearInvestmentSnapshots_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearInvestmentSnapshots'
-type MockAccountServiceInterface_ClearInvestmentSnapshots_Call struct {
-	*mock.Call
-}
-
-// ClearInvestmentSnapshots is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) ClearInvestmentSnapshots(ctx any, userID any) *MockAccountServiceInterface_ClearInvestmentSnapshots_Call {
-	return &MockAccountServiceInterface_ClearInvestmentSnapshots_Call{Call: _e.mock.On("ClearInvestmentSnapshots", ctx, userID)}
-}
-
-func (_c *MockAccountServiceInterface_ClearInvestmentSnapshots_Call) Run(run func(ctx context.Context, userID int64)) *MockAccountServiceInterface_ClearInvestmentSnapshots_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 int64
-		if args[1] != nil {
-			arg1 = args[1].(int64)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *MockAccountServiceInterface_ClearInvestmentSnapshots_Call) Return(err error) *MockAccountServiceInterface_ClearInvestmentSnapshots_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *MockAccountServiceInterface_ClearInvestmentSnapshots_Call) RunAndReturn(run func(ctx context.Context, userID int64) error) *MockAccountServiceInterface_ClearInvestmentSnapshots_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // CloseAccount provides a mock function for the type MockAccountServiceInterface
 func (_mock *MockAccountServiceInterface) CloseAccount(ctx context.Context, userID int64, id int64) error {
 	ret := _mock.Called(ctx, userID, id)
@@ -1341,63 +1227,6 @@ func (_c *MockAccountServiceInterface_MergeAccount_Call) RunAndReturn(run func(c
 	return _c
 }
 
-// RebuildSnapshotsForUser provides a mock function for the type MockAccountServiceInterface
-func (_mock *MockAccountServiceInterface) RebuildSnapshotsForUser(ctx context.Context, userID int64) error {
-	ret := _mock.Called(ctx, userID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for RebuildSnapshotsForUser")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) error); ok {
-		r0 = returnFunc(ctx, userID)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// MockAccountServiceInterface_RebuildSnapshotsForUser_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RebuildSnapshotsForUser'
-type MockAccountServiceInterface_RebuildSnapshotsForUser_Call struct {
-	*mock.Call
-}
-
-// RebuildSnapshotsForUser is a helper method to define mock.On call
-//   - ctx context.Context
-//   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) RebuildSnapshotsForUser(ctx any, userID any) *MockAccountServiceInterface_RebuildSnapshotsForUser_Call {
-	return &MockAccountServiceInterface_RebuildSnapshotsForUser_Call{Call: _e.mock.On("RebuildSnapshotsForUser", ctx, userID)}
-}
-
-func (_c *MockAccountServiceInterface_RebuildSnapshotsForUser_Call) Run(run func(ctx context.Context, userID int64)) *MockAccountServiceInterface_RebuildSnapshotsForUser_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 int64
-		if args[1] != nil {
-			arg1 = args[1].(int64)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *MockAccountServiceInterface_RebuildSnapshotsForUser_Call) Return(err error) *MockAccountServiceInterface_RebuildSnapshotsForUser_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *MockAccountServiceInterface_RebuildSnapshotsForUser_Call) RunAndReturn(run func(ctx context.Context, userID int64) error) *MockAccountServiceInterface_RebuildSnapshotsForUser_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // RecalculateAssetPnL provides a mock function for the type MockAccountServiceInterface
 func (_mock *MockAccountServiceInterface) RecalculateAssetPnL(ctx context.Context, userID int64, assetID int64) error {
 	ret := _mock.Called(ctx, userID, assetID)
@@ -2287,16 +2116,16 @@ func (_c *MockAccountServiceInterface_UpdateDailyCashNoSnapshot_Call) RunAndRetu
 }
 
 // UpdateSnapshotMarketValues provides a mock function for the type MockAccountServiceInterface
-func (_mock *MockAccountServiceInterface) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
-	ret := _mock.Called(ctx, userID)
+func (_mock *MockAccountServiceInterface) UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error {
+	ret := _mock.Called(ctx, userID, from)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateSnapshotMarketValues")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) error); ok {
-		r0 = returnFunc(ctx, userID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, time.Time) error); ok {
+		r0 = returnFunc(ctx, userID, from)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -2311,11 +2140,12 @@ type MockAccountServiceInterface_UpdateSnapshotMarketValues_Call struct {
 // UpdateSnapshotMarketValues is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) UpdateSnapshotMarketValues(ctx any, userID any) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
-	return &MockAccountServiceInterface_UpdateSnapshotMarketValues_Call{Call: _e.mock.On("UpdateSnapshotMarketValues", ctx, userID)}
+//   - from time.Time
+func (_e *MockAccountServiceInterface_Expecter) UpdateSnapshotMarketValues(ctx any, userID any, from any) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
+	return &MockAccountServiceInterface_UpdateSnapshotMarketValues_Call{Call: _e.mock.On("UpdateSnapshotMarketValues", ctx, userID, from)}
 }
 
-func (_c *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call) Run(run func(ctx context.Context, userID int64)) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
+func (_c *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call) Run(run func(ctx context.Context, userID int64, from time.Time)) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -2325,9 +2155,14 @@ func (_c *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call) Run(run f
 		if args[1] != nil {
 			arg1 = args[1].(int64)
 		}
+		var arg2 time.Time
+		if args[2] != nil {
+			arg2 = args[2].(time.Time)
+		}
 		run(
 			arg0,
 			arg1,
+			arg2,
 		)
 	})
 	return _c
@@ -2338,7 +2173,7 @@ func (_c *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call) Return(er
 	return _c
 }
 
-func (_c *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call) RunAndReturn(run func(ctx context.Context, userID int64) error) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
+func (_c *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call) RunAndReturn(run func(ctx context.Context, userID int64, from time.Time) error) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
 	_c.Call.Return(run)
 	return _c
 }

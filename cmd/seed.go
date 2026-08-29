@@ -31,13 +31,31 @@ var seedCmd = &cobra.Command{
 			seederName = args[1]
 		}
 
-		return runSeeders(seedType, seederName, cfg, seedLogger)
+		timeout, err := cmd.Flags().GetDuration("timeout")
+		if err != nil {
+			return err
+		}
+		users, err := cmd.Flags().GetInt("users")
+		if err != nil {
+			return err
+		}
+		if users > 0 {
+			cfg.Seed.Bulk.Users = users
+		}
+
+		return runSeeders(seedType, seederName, cfg, seedLogger, timeout)
 	},
+}
+
+func init() {
+	seedCmd.Flags().Duration("timeout", 30*time.Minute, "Maximum time the seeding run may take")
+	seedCmd.Flags().Int("users", 0, "Override seed.bulk.users for a bulk run")
 }
 
 var validSeedTypes = map[string]bool{
 	"full":       true,
 	"basic":      true,
+	"bulk":       true,
 	"individual": true,
 	"help":       true,
 }
@@ -46,14 +64,14 @@ func isValidSeedType(seedType string) bool {
 	return validSeedTypes[seedType]
 }
 
-func runSeeders(seedType string, seederName string, cfg *config.Config, logger *zap.Logger) error {
+func runSeeders(seedType string, seederName string, cfg *config.Config, logger *zap.Logger, timeout time.Duration) error {
 
 	if !isValidSeedType(seedType) {
 		return fmt.Errorf("invalid seed type: %s", seedType)
 	}
 
 	if seedType == "help" {
-		return fmt.Errorf("\n Provide an additional argument to the seeder function. Valid arguments are: full, basic, individual <name>")
+		return fmt.Errorf("\n Provide an additional argument to the seeder function. Valid arguments are: full, basic, bulk, individual <name>")
 	}
 
 	if seedType == "individual" && seederName == "" {
@@ -68,7 +86,7 @@ func runSeeders(seedType string, seederName string, cfg *config.Config, logger *
 		return fmt.Errorf("failed to connect to Postgres: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	args := []string{}

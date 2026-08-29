@@ -4157,8 +4157,8 @@ func (_c *MockTransactionServiceInterface_GetTemplateSummary_Call) RunAndReturn(
 }
 
 // GetTemplatesReadyToRun provides a mock function for the type MockTransactionServiceInterface
-func (_mock *MockTransactionServiceInterface) GetTemplatesReadyToRun(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error) {
-	ret := _mock.Called(ctx, tx)
+func (_mock *MockTransactionServiceInterface) GetTemplatesReadyToRun(ctx context.Context) ([]*models.TransactionTemplate, error) {
+	ret := _mock.Called(ctx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetTemplatesReadyToRun")
@@ -4166,18 +4166,18 @@ func (_mock *MockTransactionServiceInterface) GetTemplatesReadyToRun(ctx context
 
 	var r0 []*models.TransactionTemplate
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *gorm.DB) ([]*models.TransactionTemplate, error)); ok {
-		return returnFunc(ctx, tx)
+	if returnFunc, ok := ret.Get(0).(func(context.Context) ([]*models.TransactionTemplate, error)); ok {
+		return returnFunc(ctx)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *gorm.DB) []*models.TransactionTemplate); ok {
-		r0 = returnFunc(ctx, tx)
+	if returnFunc, ok := ret.Get(0).(func(context.Context) []*models.TransactionTemplate); ok {
+		r0 = returnFunc(ctx)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*models.TransactionTemplate)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *gorm.DB) error); ok {
-		r1 = returnFunc(ctx, tx)
+	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = returnFunc(ctx)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -4191,24 +4191,18 @@ type MockTransactionServiceInterface_GetTemplatesReadyToRun_Call struct {
 
 // GetTemplatesReadyToRun is a helper method to define mock.On call
 //   - ctx context.Context
-//   - tx *gorm.DB
-func (_e *MockTransactionServiceInterface_Expecter) GetTemplatesReadyToRun(ctx interface{}, tx interface{}) *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call {
-	return &MockTransactionServiceInterface_GetTemplatesReadyToRun_Call{Call: _e.mock.On("GetTemplatesReadyToRun", ctx, tx)}
+func (_e *MockTransactionServiceInterface_Expecter) GetTemplatesReadyToRun(ctx interface{}) *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call {
+	return &MockTransactionServiceInterface_GetTemplatesReadyToRun_Call{Call: _e.mock.On("GetTemplatesReadyToRun", ctx)}
 }
 
-func (_c *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call) Run(run func(ctx context.Context, tx *gorm.DB)) *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call {
+func (_c *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call) Run(run func(ctx context.Context)) *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 *gorm.DB
-		if args[1] != nil {
-			arg1 = args[1].(*gorm.DB)
-		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
@@ -4219,7 +4213,7 @@ func (_c *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call) Return(tr
 	return _c
 }
 
-func (_c *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call) RunAndReturn(run func(ctx context.Context, tx *gorm.DB) ([]*models.TransactionTemplate, error)) *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call {
+func (_c *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call) RunAndReturn(run func(ctx context.Context) ([]*models.TransactionTemplate, error)) *MockTransactionServiceInterface_GetTemplatesReadyToRun_Call {
 	_c.Call.Return(run)
 	return _c
 }

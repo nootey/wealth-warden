@@ -46,6 +46,12 @@ seed:
   super_admin_password: "password"
   member_user_email: ""
   member_user_password: ""
+  bulk:
+    users: 1000
+    years: 2
+    txns_per_user: 500
+    email_domain: "local.seed"
+    password: "password"
 
 scheduler:
   concurrent_workers: 5
@@ -53,8 +59,7 @@ scheduler:
     - asset_price_sync
 #    - asset_history_backfill
 #    - balance_backfill
-#    - templates
-#    - savings_goal_fund
+#    - recurring_transactions
 
 otel:
   service_name: "wealth-warden"
@@ -62,9 +67,7 @@ otel:
 # otlp_endpoint: "tempo:4317"      # prod / in-Docker (resolve via Docker network)
 
 queue:
-  workers: 1                          # concurrent claim-loop workers
+  workers: 1                          # jobs worked concurrently on the default queue
   max_attempts: 5
-  poll_interval_ms: 1000
-  retry_initial_backoff_sec: 60
-  retry_subsequent_backoff_sec: 120
-  visibility_timeout_sec: 900         # reclaim jobs stuck in 'processing' after a crash (> longest job runtime)
+  poll_interval_ms: 1000              # fallback only; LISTEN/NOTIFY wakes workers on insert
+  job_timeout_sec: 900                # cancel a job past this, then let River's rescuer requeue it (> longest job runtime)

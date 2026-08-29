@@ -8,6 +8,7 @@ import (
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type SavingsRepositoryInterface interface {
@@ -15,6 +16,7 @@ type SavingsRepositoryInterface interface {
 	FindGoals(ctx context.Context, tx *gorm.DB, userID int64) ([]models.SavingGoal, error)
 	FindActiveGoalsWithAllocation(ctx context.Context, tx *gorm.DB, dayOfMonth int) ([]models.SavingGoal, error)
 	FindGoalByID(ctx context.Context, tx *gorm.DB, id, userID int64) (models.SavingGoal, error)
+	FindGoalByIDForUpdate(ctx context.Context, tx *gorm.DB, id, userID int64) (models.SavingGoal, error)
 	InsertGoal(ctx context.Context, tx *gorm.DB, record *models.SavingGoal) (int64, error)
 	UpdateGoal(ctx context.Context, tx *gorm.DB, record models.SavingGoal) (int64, error)
 	DeleteGoal(ctx context.Context, tx *gorm.DB, id int64) error
@@ -108,6 +110,21 @@ func (r *SavingsRepository) FindGoalByID(ctx context.Context, tx *gorm.DB, id, u
 
 	var record models.SavingGoal
 	err := db.Where("id = ? AND user_id = ?", id, userID).First(&record).Error
+	return record, err
+}
+
+func (r *SavingsRepository) FindGoalByIDForUpdate(ctx context.Context, tx *gorm.DB, id, userID int64) (models.SavingGoal, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var record models.SavingGoal
+	err := db.
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND user_id = ?", id, userID).
+		First(&record).Error
 	return record, err
 }
 

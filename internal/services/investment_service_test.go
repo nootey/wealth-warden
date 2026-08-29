@@ -5,6 +5,7 @@ import (
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/tests"
+	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/suite"
@@ -16,6 +17,18 @@ type InvestmentServiceTestSuite struct {
 
 func TestInvestmentServiceTestSuite(t *testing.T) {
 	suite.Run(t, new(InvestmentServiceTestSuite))
+}
+
+// assertTickerPriced checks that ticker_price_history holds a positive latest price for the ticker.
+func (s *InvestmentServiceTestSuite) assertTickerPriced(ticker string) {
+	s.T().Helper()
+	var ph models.TickerPriceHistory
+	err := s.TC.DB.WithContext(s.Ctx).
+		Where("ticker = ?", ticker).
+		Order("as_of DESC").
+		First(&ph).Error
+	s.Require().NoError(err)
+	s.Assert().True(ph.Price.GreaterThan(decimal.Zero))
 }
 
 // Creates a stock asset with a valid ticker format (TICKER.EXCHANGE)
@@ -47,10 +60,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_ValidStockWithExchange() {
 	s.Require().NoError(err)
 	s.Assert().Greater(assetID, int64(0))
 
-	var asset models.InvestmentAsset
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ? AND user_id = ?", assetID, userID).
-		First(&asset).Error
+	asset, err := svc.FetchInvestmentAssetByID(s.Ctx, userID, assetID)
 	s.Require().NoError(err)
 
 	s.Assert().Equal("iShares Core MSCI World", asset.Name)
@@ -59,12 +69,11 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_ValidStockWithExchange() {
 	s.Assert().True(qty.Equal(asset.Quantity))
 	s.Assert().True(asset.AverageBuyPrice.Equal(decimal.Zero))
 	s.Assert().Equal(accID, asset.AccountID)
-	s.Assert().NotNil(asset.CurrentPrice)
 	s.Assert().NotNil(asset.LastPriceUpdate)
-	s.Assert().True(asset.CurrentPrice.GreaterThan(decimal.Zero))
+	s.assertTickerPriced(asset.Ticker)
 }
 
-// Verifies that creating an asset seeds today's price into asset_price_history
+// Verifies that creating an asset seeds today's price into ticker_price_history
 func (s *InvestmentServiceTestSuite) TestInsertAsset_SeedsPriceHistory() {
 	svc := s.TC.App.InvestmentService
 	accSvc := s.TC.App.AccountService
@@ -88,16 +97,16 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_SeedsPriceHistory() {
 		Quantity:       decimal.NewFromInt(0),
 	}
 
-	assetID, err := svc.InsertAsset(s.Ctx, userID, assetReq)
+	_, err = svc.InsertAsset(s.Ctx, userID, assetReq)
 	s.Require().NoError(err)
 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	var ph models.AssetPriceHistory
+	var ph models.TickerPriceHistory
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("asset_id = ? AND as_of = ?", assetID, today).
+		Where("ticker = ? AND as_of = ?", "BTC-USD", today).
 		First(&ph).Error
-	s.Require().NoError(err, "asset_price_history should have a row for today after asset creation")
+	s.Require().NoError(err, "ticker_price_history should have a row for today after asset creation")
 	s.Assert().True(ph.Price.GreaterThan(decimal.Zero), "seeded price should be > 0")
 	s.Assert().NotEmpty(ph.Currency, "seeded price should have a currency")
 }
@@ -180,8 +189,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_CryptoWithoutCurrency() {
 	s.Assert().Equal("BTC-USD", asset.Ticker) // Should auto-format to BTC-USD
 	s.Assert().Equal(models.InvestmentCrypto, asset.InvestmentType)
 	s.Assert().True(qty.Equal(asset.Quantity))
-	s.Assert().NotNil(asset.CurrentPrice)
-	s.Assert().True(asset.CurrentPrice.GreaterThan(decimal.Zero))
+	s.assertTickerPriced(asset.Ticker)
 }
 
 // Tests inserting crypto with a specific currency pair (e.g., BTC-USDT)
@@ -223,8 +231,7 @@ func (s *InvestmentServiceTestSuite) TestInsertAsset_CryptoWithValidCurrency() {
 	s.Assert().Equal("BTC-EUR", asset.Ticker)
 	s.Assert().Equal(models.InvestmentCrypto, asset.InvestmentType)
 	s.Assert().True(qty.Equal(asset.Quantity))
-	s.Assert().NotNil(asset.CurrentPrice)
-	s.Assert().True(asset.CurrentPrice.GreaterThan(decimal.Zero))
+	s.assertTickerPriced(asset.Ticker)
 }
 
 // Tests that a buy trade correctly updates the asset's quantity and average buy price, and creates
@@ -1911,7 +1918,7 @@ func (s *InvestmentServiceTestSuite) TestSellWithStakingRewards_BasisAgreesAcros
 		"average buy price drifted on recalc: %s -> %s", afterSell.AverageBuyPrice.String(), afterRecalc.AverageBuyPrice.String())
 }
 
-// A recalculation refreshes current_price, so it must write the matching price history row
+// A recalculation refreshes the ticker price, so it must write today's history row
 // or the chart keeps replaying a stale price while the asset index moves on.
 func (s *InvestmentServiceTestSuite) TestRecalculateAssetPnL_WritesTodaysPriceHistory() {
 	svc := s.TC.App.InvestmentService
@@ -1948,27 +1955,28 @@ func (s *InvestmentServiceTestSuite) TestRecalculateAssetPnL_WritesTodaysPriceHi
 	})
 	s.Require().NoError(err)
 
-	err = s.TC.DB.WithContext(s.Ctx).Model(&models.AssetPriceHistory{}).
-		Where("asset_id = ? AND as_of = ?", assetID, today).
+	err = s.TC.DB.WithContext(s.Ctx).Model(&models.TickerPriceHistory{}).
+		Where("ticker = ? AND as_of = ?", "IWDA.AS", today).
 		Update("price", decimal.NewFromInt(42)).Error
 	s.Require().NoError(err)
 
 	err = svc.RecalculateAssetPnL(s.Ctx, userID, assetID)
 	s.Require().NoError(err)
 
-	var asset models.InvestmentAsset
-	err = s.TC.DB.WithContext(s.Ctx).Where("id = ?", assetID).First(&asset).Error
+	asset, err := svc.FetchInvestmentAssetByID(s.Ctx, userID, assetID)
 	s.Require().NoError(err)
 
-	var history models.AssetPriceHistory
+	var history models.TickerPriceHistory
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("asset_id = ? AND as_of = ?", assetID, today).
+		Where("ticker = ? AND as_of = ?", "IWDA.AS", today).
 		First(&history).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(asset.CurrentPrice.Equal(history.Price),
-		"asset holds price %s but today's history row still says %s",
-		asset.CurrentPrice.String(), history.Price.String())
+	s.Assert().False(history.Price.Equal(decimal.NewFromInt(42)),
+		"recalc left today's history row at the stale forced price")
+	s.Assert().True(asset.CurrentValue.Equal(history.Price.Mul(asset.Quantity)),
+		"asset current_value %s does not match today's history price %s * qty %s",
+		asset.CurrentValue.String(), history.Price.String(), asset.Quantity.String())
 }
 
 // Seeds a cached rate and removes it afterwards, so the shared exchange rate
@@ -2110,10 +2118,10 @@ func (s *InvestmentServiceTestSuite) TestFetchPortfolioAllocation_ExcludesUnpric
 		decimal.NewFromInt(10), decimal.NewFromInt(100))
 
 	// Held, but never priced
-	unpricedID := s.newHolding(userID, accID, "BTC-USD", "Bitcoin", models.InvestmentCrypto,
+	s.newHolding(userID, accID, "BTC-USD", "Bitcoin", models.InvestmentCrypto,
 		decimal.NewFromInt(1), decimal.NewFromInt(50000))
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Exec(
-		`UPDATE investment_assets SET current_price = NULL WHERE id = ?`, unpricedID).Error)
+		`DELETE FROM ticker_price_history WHERE ticker = ?`, "BTC-USD").Error)
 
 	// Priced, but the position is empty
 	s.newHolding(userID, accID, "BTC-EUR", "Bitcoin EUR", models.InvestmentCrypto,
@@ -2135,4 +2143,249 @@ func (s *InvestmentServiceTestSuite) TestFetchPortfolioAllocation_ExcludesUnpric
 	tickers := alloc.Groups["ticker"]
 	s.Require().Len(tickers, 1)
 	s.Assert().Equal("IWDA.AS", tickers[0].Key)
+}
+
+// Two accounts hold the same ticker. A price sync must write exactly one
+// ticker_price_history row for that ticker/day and still refresh every holder's value.
+func (s *InvestmentServiceTestSuite) TestApplyTickerPrice_OneRowPerTickerManyHolders() {
+	userID := int64(1)
+	accA := s.newInvestmentAccount(userID, "Account A")
+	accB := s.newInvestmentAccount(userID, "Account B")
+
+	idA := s.newHolding(userID, accA, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock,
+		decimal.NewFromInt(10), decimal.NewFromInt(100))
+	idB := s.newHolding(userID, accB, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock,
+		decimal.NewFromInt(4), decimal.NewFromInt(100))
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	changes, err := s.TC.App.InvestmentService.ApplyTickerPrice(
+		s.Ctx, "IWDA.AS", decimal.NewFromInt(120), "EUR", time.Now().UTC())
+	s.Require().NoError(err)
+	s.Require().Len(changes, 2)
+
+	var rowCount int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.TickerPriceHistory{}).
+		Where("ticker = ? AND as_of = ?", "IWDA.AS", today).Count(&rowCount).Error)
+	s.Assert().Equal(int64(1), rowCount, "one ticker/day row for all holders")
+
+	a, err := s.TC.App.InvestmentService.FetchInvestmentAssetByID(s.Ctx, userID, idA)
+	s.Require().NoError(err)
+	b, err := s.TC.App.InvestmentService.FetchInvestmentAssetByID(s.Ctx, userID, idB)
+	s.Require().NoError(err)
+	s.Assert().True(decimal.NewFromInt(1200).Equal(a.CurrentValue), "holder A value = 10 * 120, got %s", a.CurrentValue.String())
+	s.Assert().True(decimal.NewFromInt(480).Equal(b.CurrentValue), "holder B value = 4 * 120, got %s", b.CurrentValue.String())
+}
+
+// setLatestTickerPrice overwrites today's ticker_price_history row for a ticker.
+func (s *InvestmentServiceTestSuite) setLatestTickerPrice(ticker string, price decimal.Decimal) {
+	s.T().Helper()
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.TickerPriceHistory{}).
+		Where("ticker = ? AND as_of = ?", ticker, today).
+		Update("price", price).Error)
+}
+
+// The asset list derives current_value from the latest ticker price and can sort by it.
+func (s *InvestmentServiceTestSuite) TestFetchInvestmentAssetsPaginated_DerivesValueAndSorts() {
+	userID := int64(1)
+	accID := s.newInvestmentAccount(userID, "Investment Account")
+
+	small := s.newHolding(userID, accID, "BTC-EUR", "Bitcoin EUR", models.InvestmentCrypto,
+		decimal.NewFromFloat(0.01), decimal.NewFromInt(45000)) // 0.01 * 45000 = 450
+	big := s.newHolding(userID, accID, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock,
+		decimal.NewFromInt(10), decimal.NewFromInt(100)) // 10 * 100 = 1000
+
+	page := utils.PaginationParams{PageNumber: 1, RowsPerPage: 10, SortField: "current_value", SortOrder: "asc"}
+	rows, _, err := s.TC.App.InvestmentService.FetchInvestmentAssetsPaginated(s.Ctx, userID, page, &accID)
+	s.Require().NoError(err)
+	s.Require().Len(rows, 2)
+
+	s.Assert().Equal(small, rows[0].ID, "ascending: smaller current_value first")
+	s.Assert().Equal(big, rows[1].ID)
+	s.Assert().True(decimal.NewFromInt(450).Equal(rows[0].CurrentValue), "got %s", rows[0].CurrentValue.String())
+	s.Assert().True(decimal.NewFromInt(1000).Equal(rows[1].CurrentValue), "got %s", rows[1].CurrentValue.String())
+
+	page.SortOrder = "desc"
+	rows, _, err = s.TC.App.InvestmentService.FetchInvestmentAssetsPaginated(s.Ctx, userID, page, &accID)
+	s.Require().NoError(err)
+	s.Assert().Equal(big, rows[0].ID, "descending: larger current_value first")
+}
+
+// A buy trade's PnL follows the latest ticker price; a sell trade's PnL is the
+// realized figure and does not move when the price moves.
+func (s *InvestmentServiceTestSuite) TestFetchInvestmentTradesPaginated_BuyTracksPriceSellIsFixed() {
+	userID := int64(1)
+	accID := s.newInvestmentAccount(userID, "Investment Account")
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	assetID := s.newHolding(userID, accID, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock,
+		decimal.NewFromInt(10), decimal.NewFromInt(100)) // buy 10 @ 100, value_at_buy 1000
+
+	_, err := s.TC.App.InvestmentService.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      today,
+		TradeType:    models.InvestmentSell,
+		Quantity:     decimal.NewFromInt(4),
+		PricePerUnit: decimal.NewFromInt(120),
+		Currency:     "EUR",
+	}) // realized 480, basis removed 4*100 = 400, sell PnL = 80
+	s.Require().NoError(err)
+
+	s.setLatestTickerPrice("IWDA.AS", decimal.NewFromInt(150))
+
+	page := utils.PaginationParams{PageNumber: 1, RowsPerPage: 10, SortField: "id", SortOrder: "asc"}
+	rows, _, err := s.TC.App.InvestmentService.FetchInvestmentTradesPaginated(s.Ctx, userID, page, &assetID)
+	s.Require().NoError(err)
+	s.Require().Len(rows, 2)
+
+	var buy, sell models.InvestmentTrade
+	for _, r := range rows {
+		if r.TradeType == models.InvestmentBuy {
+			buy = r
+		} else {
+			sell = r
+		}
+	}
+
+	// buy: 10 * 150 - 1000 = 500
+	s.Assert().True(decimal.NewFromInt(500).Equal(buy.ProfitLoss), "buy PnL tracks price, got %s", buy.ProfitLoss.String())
+	s.Assert().True(decimal.NewFromInt(1500).Equal(buy.CurrentValue), "buy value tracks price, got %s", buy.CurrentValue.String())
+	// sell: realized 480 - basis 400 = 80, independent of the 150 price
+	s.Assert().True(decimal.NewFromInt(80).Equal(sell.ProfitLoss), "sell PnL is the realized figure, got %s", sell.ProfitLoss.String())
+}
+
+// Creates a priced asset with no opening trade, so the caller can date its own
+func (s *InvestmentServiceTestSuite) newAsset(userID, accID int64, ticker, name string, invType models.InvestmentType) int64 {
+	assetID, err := s.TC.App.InvestmentService.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: invType,
+		Name:           name,
+		Ticker:         ticker,
+		Currency:       "EUR",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+	return assetID
+}
+
+// A double in one year is 100%/year. Cost-basis P&L says +100% either way.
+func (s *InvestmentServiceTestSuite) TestFetchPortfolioReturns_AnnualisesOverOneYear() {
+	userID := int64(1)
+	accID := s.newInvestmentAccount(userID, "Investment Account")
+	yearAgo := time.Now().UTC().Truncate(24*time.Hour).AddDate(-1, 0, 0)
+
+	assetID := s.newAsset(userID, accID, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock)
+
+	// 500 EUR out. The mock prices IWDA.AS at 100 EUR, so it holds 1000 EUR today.
+	_, err := s.TC.App.InvestmentService.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      yearAgo,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(10),
+		PricePerUnit: decimal.NewFromInt(50),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	returns, err := s.TC.App.InvestmentService.FetchPortfolioReturns(s.Ctx, userID, "EUR")
+	s.Require().NoError(err)
+
+	s.Assert().Equal("EUR", returns.Currency)
+	s.Require().NotNil(returns.Portfolio.Rate, "no rate: %s", returns.Portfolio.Reason)
+	s.Assert().True(returns.Portfolio.Rate.Sub(decimal.NewFromInt(1)).Abs().LessThan(decimal.NewFromFloat(0.01)),
+		"a double in one year should be about 100%%/year, got %s", returns.Portfolio.Rate.String())
+
+	s.Require().Len(returns.Assets, 1)
+	s.Assert().Equal("IWDA.AS", returns.Assets[0].Key)
+	s.Assert().True(decimal.NewFromInt(1000).Equal(returns.Assets[0].CurrentValue),
+		"closing value should be 1000 EUR, got %s", returns.Assets[0].CurrentValue.String())
+}
+
+// Staking pays in tokens, already inside the closing value - never an inflow.
+func (s *InvestmentServiceTestSuite) TestFetchPortfolioReturns_ExcludesStakingRewards() {
+	userID := int64(1)
+	accID := s.newInvestmentAccount(userID, "Investment Account")
+	yearAgo := time.Now().UTC().Truncate(24*time.Hour).AddDate(-1, 0, 0)
+
+	assetID := s.newAsset(userID, accID, "BTC-EUR", "Bitcoin", models.InvestmentCrypto)
+
+	_, err := s.TC.App.InvestmentService.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      yearAgo,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(1),
+		PricePerUnit: decimal.NewFromInt(30000),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	stakedQty := decimal.NewFromFloat(0.1)
+	_, err = s.TC.App.InvestmentService.CreateInvestmentIncome(s.Ctx, userID, &models.InvestmentIncomeReq{
+		AssetID:    assetID,
+		TxnDate:    yearAgo,
+		IncomeType: models.IncomeTypeStaking,
+		Quantity:   &stakedQty,
+		Currency:   "EUR",
+	})
+	s.Require().NoError(err)
+
+	returns, err := s.TC.App.InvestmentService.FetchPortfolioReturns(s.Ctx, userID, "EUR")
+	s.Require().NoError(err)
+
+	s.Require().Len(returns.Assets, 1)
+	s.Require().NotNil(returns.Assets[0].Rate, "no rate: %s", returns.Assets[0].Reason)
+
+	// 1.1 BTC x 45000 = 49500 EUR closing against 30000 EUR paid, over one year
+	s.Assert().True(decimal.NewFromInt(49500).Equal(returns.Assets[0].CurrentValue),
+		"closing value should be 49500 EUR, got %s", returns.Assets[0].CurrentValue.String())
+	s.Assert().True(returns.Assets[0].Rate.Sub(decimal.NewFromFloat(0.65)).Abs().LessThan(decimal.NewFromFloat(0.01)),
+		"rate should be about 65%%/year, got %s (counting the reward as cash gives about 80%%)",
+		returns.Assets[0].Rate.String())
+}
+
+// A held asset with no price has buys but no closing value. Counting it reads
+// the holding as a total loss and drags the portfolio rate down.
+func (s *InvestmentServiceTestSuite) TestFetchPortfolioReturns_ExcludesUnpricedHoldings() {
+	userID := int64(1)
+	accID := s.newInvestmentAccount(userID, "Investment Account")
+	yearAgo := time.Now().UTC().Truncate(24*time.Hour).AddDate(-1, 0, 0)
+
+	pricedID := s.newAsset(userID, accID, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock)
+	_, err := s.TC.App.InvestmentService.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      pricedID,
+		TxnDate:      yearAgo,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(10),
+		PricePerUnit: decimal.NewFromInt(50),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	unpricedID := s.newAsset(userID, accID, "BTC-EUR", "Bitcoin", models.InvestmentCrypto)
+	_, err = s.TC.App.InvestmentService.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      unpricedID,
+		TxnDate:      yearAgo,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(1),
+		PricePerUnit: decimal.NewFromInt(30000),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Exec(
+		`DELETE FROM ticker_price_history WHERE ticker = ?`, "BTC-EUR").Error)
+
+	returns, err := s.TC.App.InvestmentService.FetchPortfolioReturns(s.Ctx, userID, "EUR")
+	s.Require().NoError(err)
+
+	s.Assert().Equal(1, returns.UnpricedAssets)
+
+	s.Require().Len(returns.Assets, 1)
+	s.Assert().Equal("IWDA.AS", returns.Assets[0].Key)
+
+	s.Require().NotNil(returns.Portfolio.Rate, "no rate: %s", returns.Portfolio.Reason)
+	s.Assert().True(returns.Portfolio.Rate.Sub(decimal.NewFromInt(1)).Abs().LessThan(decimal.NewFromFloat(0.01)),
+		"the unpriced holding must not drag the portfolio rate down, got %s", returns.Portfolio.Rate.String())
+	s.Assert().True(decimal.NewFromInt(1000).Equal(returns.Portfolio.CurrentValue),
+		"only the priced holding counts, got %s", returns.Portfolio.CurrentValue.String())
 }

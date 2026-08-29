@@ -84,6 +84,9 @@ function hydrateFromFilters(list: FilterObj[] | undefined) {
         if (f.operator === "<=") m.to = f.value ?? null;
       }
       models[i.key] = m;
+    } else if (i.col.type === "int") {
+      const eq = rel.find((f) => f.operator === "=");
+      models[i.key] = eq?.value != null ? Number(eq.value) : null;
     } else if (
       i.col.type === "number" ||
       /^amount$|^balance$/.test(i.col.field)

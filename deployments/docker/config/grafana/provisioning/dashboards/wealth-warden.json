@@ -452,8 +452,8 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "increase(scheduler_job_runs_total[24h])",
-                        "legendFormat": "{{job_name}}",
+                        "expr": "increase(queue_job_runs_total{queue=\"scheduler\"}[24h])",
+                        "legendFormat": "{{job_type}}",
                         "range": true
                       }
                     },
@@ -571,9 +571,9 @@
                       "spec": {
                         "editorMode": "code",
                         "exemplar": false,
-                        "expr": "scheduler_job_duration_seconds_sum / scheduler_job_duration_seconds_count",
+                        "expr": "queue_job_duration_seconds_sum{queue=\"scheduler\"} / queue_job_duration_seconds_count{queue=\"scheduler\"}",
                         "instant": false,
-                        "legendFormat": "{{job_name}}",
+                        "legendFormat": "{{job_type}}",
                         "range": true
                       }
                     },
@@ -694,7 +694,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "queue_job_runs_total",
+                        "expr": "queue_job_runs_total{queue=\"default\"}",
                         "legendFormat": "{{job_type}} - {{status }}",
                         "range": true
                       }
@@ -813,7 +813,7 @@
                       "spec": {
                         "editorMode": "code",
                         "exemplar": false,
-                        "expr": "queue_job_duration_seconds_sum / queue_job_duration_seconds_count",
+                        "expr": "queue_job_duration_seconds_sum{queue=\"default\"} / queue_job_duration_seconds_count{queue=\"default\"}",
                         "instant": false,
                         "legendFormat": "{{job_type}}",
                         "range": true

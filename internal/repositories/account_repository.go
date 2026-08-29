@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
@@ -42,6 +43,7 @@ type AccountRepositoryInterface interface {
 	PurgeImportedAccounts(ctx context.Context, tx *gorm.DB, importID, userID int64) error
 	EnsureDailyBalanceRow(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, currency string) error
 	AddToDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, amt decimal.Decimal) error
+	UpsertDailyCashBatch(ctx context.Context, tx *gorm.DB, accountID int64, currency string, deltas []models.DailyCashDelta) error
 	UpsertSnapshotsFromBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error
 	GetUserFirstBalanceDate(ctx context.Context, tx *gorm.DB, userID int64) (time.Time, error)
 	GetUserFirstTxnDate(ctx context.Context, tx *gorm.DB, userID int64) (time.Time, error)
@@ -55,9 +57,10 @@ type AccountRepositoryInterface interface {
 	HasDefaultForAccountType(ctx context.Context, tx *gorm.DB, userID, accountTypeID int64) (bool, error)
 	SetDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, value decimal.Decimal) error
 	GetBalancesInRange(ctx context.Context, tx *gorm.DB, accountID int64, fromDate, toDate time.Time) ([]models.Balance, error)
-	ClearInvestmentCashFlows(ctx context.Context, userID int64) error
-	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
-	UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, date *time.Time) error
+	ClearInvestmentCashFlows(ctx context.Context, tx *gorm.DB, userID int64) error
+	ClearInvestmentSnapshots(ctx context.Context, tx *gorm.DB, userID int64) error
+	UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, from *time.Time) error
+	UpdateSnapshotMarketValuesForUsers(ctx context.Context, tx *gorm.DB, userIDs []int64, from *time.Time) error
 	HasSnapshotForDate(ctx context.Context, userID int64, date time.Time) (bool, error)
 	GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.AccountDailySnapshot, error)
 	SetSnapshotMarketValue(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, value decimal.Decimal) error
@@ -830,6 +833,69 @@ func (r *AccountRepository) AddToDailyBalance(ctx context.Context, tx *gorm.DB, 
     `, field, field), amt, accountID, asOf).Error
 }
 
+func (r *AccountRepository) UpsertDailyCashBatch(ctx context.Context, tx *gorm.DB, accountID int64, currency string, deltas []models.DailyCashDelta) error {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	if len(deltas) == 0 {
+		return nil
+	}
+
+	// ON CONFLICT DO UPDATE cannot touch the same row twice in one statement,
+	// so fold repeated days together first
+	merged := make(map[time.Time]*models.DailyCashDelta, len(deltas))
+	days := make([]time.Time, 0, len(deltas))
+	for _, d := range deltas {
+		day := d.AsOf.UTC().Truncate(24 * time.Hour)
+		if m, ok := merged[day]; ok {
+			m.Inflows = m.Inflows.Add(d.Inflows)
+			m.Outflows = m.Outflows.Add(d.Outflows)
+			continue
+		}
+		merged[day] = &models.DailyCashDelta{AsOf: day, Inflows: d.Inflows, Outflows: d.Outflows}
+		days = append(days, day)
+	}
+
+	// Postgres caps a statement at 65535 bind parameters, and each row uses 5
+	const chunkSize = 2000
+
+	for start := 0; start < len(days); start += chunkSize {
+		end := min(start+chunkSize, len(days))
+
+		placeholders := make([]string, 0, end-start)
+		args := make([]any, 0, (end-start)*5)
+		for _, day := range days[start:end] {
+			d := merged[day]
+			placeholders = append(placeholders, "(?, ?, 0, ?, ?, ?, NOW(), NOW())")
+			args = append(args, accountID, day, d.Inflows.Round(4), d.Outflows.Round(4), currency)
+		}
+
+		// New rows land with start_balance 0. FrontfillBalances rewrites every
+		// start_balance after its anchor day, so the chain is corrected there.
+		err := db.Exec(`
+			INSERT INTO balances (
+				account_id, as_of, start_balance,
+				cash_inflows, cash_outflows,
+				currency, created_at, updated_at
+			)
+			VALUES `+strings.Join(placeholders, ",")+`
+			ON CONFLICT (account_id, as_of) DO UPDATE
+			SET cash_inflows  = balances.cash_inflows  + EXCLUDED.cash_inflows,
+				cash_outflows = balances.cash_outflows + EXCLUDED.cash_outflows,
+				updated_at    = NOW()
+		`, args...).Error
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (r *AccountRepository) UpsertSnapshotsFromBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error {
 
 	db := tx
@@ -924,11 +990,14 @@ func (r *AccountRepository) GetAccountOpeningAsOf(ctx context.Context, tx *gorm.
 	}
 	db = db.WithContext(ctx)
 
-	// MIN(as_of) is the opening day; if no balance rows exist, return sql.ErrNoRows
+	// Row().Scan, not gorm's Scan: only the former reads a NULL into a *time.Time.
 	var open *time.Time
 	if err := db.Raw(`
         SELECT MIN(as_of) FROM balances WHERE account_id = ?
-    `, accountID).Scan(&open).Error; err != nil {
+    `, accountID).Row().Scan(&open); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return time.Time{}, sql.ErrNoRows
+		}
 		return time.Time{}, err
 	}
 	if open == nil {
@@ -1043,8 +1112,6 @@ func (r *AccountRepository) FindLatestBalance(ctx context.Context, tx *gorm.DB, 
 	return &balance, nil
 }
 
-// fillMarketValues batch-fetches the latest market_value from account_daily_snapshots
-// and sets it on each account's Balance. One query for all accounts.
 func (r *AccountRepository) fillMarketValues(ctx context.Context, db *gorm.DB, accounts []models.Account) {
 	if len(accounts) == 0 {
 		return
@@ -1198,8 +1265,12 @@ func (r *AccountRepository) GetBalancesInRange(ctx context.Context, tx *gorm.DB,
 	return balances, err
 }
 
-func (r *AccountRepository) ClearInvestmentCashFlows(ctx context.Context, userID int64) error {
-	db := r.db.WithContext(ctx)
+func (r *AccountRepository) ClearInvestmentCashFlows(ctx context.Context, tx *gorm.DB, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
 	// Reset every balance row for this user to only what the transactions table
 	// actually records. This makes the state safe for BackfillInvestmentCashFlows
 	// to add trade flows on top without double-counting or losing regular txns.
@@ -1228,17 +1299,21 @@ func (r *AccountRepository) ClearInvestmentCashFlows(ctx context.Context, userID
 	`, userID).Error
 }
 
-func (r *AccountRepository) ClearInvestmentSnapshots(ctx context.Context, userID int64) error {
-	db := r.db.WithContext(ctx)
+func (r *AccountRepository) ClearInvestmentSnapshots(ctx context.Context, tx *gorm.DB, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
 	return db.Exec(`
         DELETE FROM account_daily_snapshots
         WHERE account_id IN (
-            SELECT id FROM accounts WHERE user_id = ?
+            SELECT id FROM accounts WHERE user_id = ? AND closed_at IS NULL
         )
     `, userID).Error
 }
 
-func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, date *time.Time) error {
+func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, from *time.Time) error {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1247,14 +1322,16 @@ func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *
 
 	dateFilter := ""
 	args := []interface{}{userID}
-	if date != nil {
-		dateFilter = "AND s.as_of = ?"
-		args = append(args, date.UTC().Truncate(24*time.Hour))
+	if from != nil {
+		dateFilter = "AND s.as_of >= ?"
+		args = append(args, from.UTC().Truncate(24*time.Hour))
 	}
 
 	// For each investment/crypto account snapshot, sum (last known price × quantity held)
 	// across all assets for that account on that date, with inline currency conversion
 	// via the exchange_rate_history cache. Falls back to rate=1 if no cached rate exists.
+	// A nil `from` recomputes all of history; pass a date to recompute only from the
+	// earliest day that changed.
 	query := fmt.Sprintf(`
 		UPDATE account_daily_snapshots s
 		SET market_value = (
@@ -1266,9 +1343,9 @@ func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *
 			FROM investment_assets ia
 			JOIN LATERAL (
 				SELECT ph.price, ph.currency
-				FROM asset_price_history ph
-				WHERE ph.asset_id = ia.id
-				  AND ph.as_of   <= s.as_of
+				FROM ticker_price_history ph
+				WHERE ph.ticker = ia.ticker
+				  AND ph.as_of <= s.as_of
 				ORDER BY ph.as_of DESC
 				LIMIT 1
 			) ph_latest ON true
@@ -1305,6 +1382,81 @@ func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *
 		JOIN account_types at ON at.id = a.account_type_id
 		WHERE s.account_id = a.id
 		  AND a.user_id    = ?
+		  AND at.type IN ('investment', 'crypto')
+		  %s;
+	`, dateFilter)
+
+	return db.Exec(query, args...).Error
+}
+
+func (r *AccountRepository) UpdateSnapshotMarketValuesForUsers(ctx context.Context, tx *gorm.DB, userIDs []int64, from *time.Time) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	dateFilter := ""
+	args := []interface{}{userIDs}
+	if from != nil {
+		dateFilter = "AND s.as_of >= ?"
+		args = append(args, from.UTC().Truncate(24*time.Hour))
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE account_daily_snapshots s
+		SET market_value = (
+			SELECT COALESCE(SUM(
+				ph_latest.price
+				* COALESCE(erh_latest.rate, 1)
+				* GREATEST(qty.held, 0)
+			), 0)
+			FROM investment_assets ia
+			JOIN LATERAL (
+				SELECT ph.price, ph.currency
+				FROM ticker_price_history ph
+				WHERE ph.ticker = ia.ticker
+				  AND ph.as_of <= s.as_of
+				ORDER BY ph.as_of DESC
+				LIMIT 1
+			) ph_latest ON true
+			JOIN LATERAL (
+				SELECT
+					COALESCE(SUM(
+						CASE WHEN it.trade_type = 'buy'  THEN  it.quantity
+						     WHEN it.trade_type = 'sell' THEN -it.quantity
+						END
+					), 0)
+					+ COALESCE((
+						SELECT SUM(ii.quantity)
+						FROM investment_income ii
+						WHERE ii.asset_id    = ia.id
+						  AND ii.income_type = 'staking_reward'
+						  AND ii.txn_date   <= s.as_of
+					), 0) AS held
+				FROM investment_trades it
+				WHERE it.asset_id  = ia.id
+				  AND it.txn_date <= s.as_of
+			) qty ON true
+			LEFT JOIN LATERAL (
+				SELECT erh.rate
+				FROM exchange_rate_history erh
+				WHERE erh.from_currency = ph_latest.currency
+				  AND erh.to_currency   = a.currency
+				  AND erh.as_of        <= s.as_of
+				ORDER BY erh.as_of DESC
+				LIMIT 1
+			) erh_latest ON ph_latest.currency != a.currency
+			WHERE ia.account_id = s.account_id
+		)
+		FROM accounts a
+		JOIN account_types at ON at.id = a.account_type_id
+		WHERE s.account_id = a.id
+		  AND a.user_id IN ?
 		  AND at.type IN ('investment', 'crypto')
 		  %s;
 	`, dateFilter)

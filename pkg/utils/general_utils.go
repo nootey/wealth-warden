@@ -2,6 +2,7 @@ package utils
 
 import (
 	"strings"
+	"wealth-warden/internal/models"
 )
 
 func SafeString(s *string) string {
@@ -33,4 +34,26 @@ func NormalizeName(s string) string {
 	s = strings.ReplaceAll(strings.ToLower(s), " ", "_")
 	s = strings.ReplaceAll(strings.ToLower(s), ":", "_")
 	return s
+}
+
+func ParseStates(raw []string) []string {
+	var out []string
+	for _, v := range raw {
+		for _, part := range strings.Split(v, ",") {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				out = append(out, part)
+			}
+		}
+	}
+	return out
+}
+
+func ValidJobState(state string) bool {
+	for _, s := range models.RiverJobStates {
+		if s == state {
+			return true
+		}
+	}
+	return false
 }

@@ -40,6 +40,7 @@ type TransactionRepositoryInterface interface {
 	FindTransferByIdempotencyKey(ctx context.Context, tx *gorm.DB, userID int64, key string) (models.Transfer, error)
 	CountActiveTransactionsForCategory(ctx context.Context, tx *gorm.DB, userID, categoryID int64) (int64, error)
 	InsertTransaction(ctx context.Context, tx *gorm.DB, newRecord *models.Transaction) (int64, error)
+	InsertTransactionsBatch(ctx context.Context, tx *gorm.DB, records []models.Transaction, batchSize int) error
 	InsertTransfer(ctx context.Context, tx *gorm.DB, newRecord *models.Transfer) (int64, error)
 	UpdateTransferRecord(ctx context.Context, tx *gorm.DB, id int64, amount decimal.Decimal, notes *string, createdAt time.Time) error
 	InsertCategory(ctx context.Context, tx *gorm.DB, newRecord *models.Category) (int64, error)
@@ -571,6 +572,24 @@ func (r *TransactionRepository) InsertTransaction(ctx context.Context, tx *gorm.
 		return 0, err
 	}
 	return newRecord.ID, nil
+}
+
+func (r *TransactionRepository) InsertTransactionsBatch(ctx context.Context, tx *gorm.DB, records []models.Transaction, batchSize int) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	if len(records) == 0 {
+		return nil
+	}
+	if batchSize <= 0 {
+		batchSize = 1000
+	}
+
+	// pointer, so gorm writes the generated IDs back into the caller's slice
+	return db.CreateInBatches(&records, batchSize).Error
 }
 
 func (r *TransactionRepository) InsertTransfer(ctx context.Context, tx *gorm.DB, newRecord *models.Transfer) (int64, error) {

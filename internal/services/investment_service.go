@@ -2,16 +2,15 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
@@ -21,9 +20,12 @@ import (
 	"gorm.io/gorm"
 )
 
+const priceBackfillFlushSize = 100
+
 type InvestmentServiceInterface interface {
-	BackfillInvestmentCashFlows(ctx context.Context, userID int64) error
-	CorrectTradeFeeAccounting(ctx context.Context, userID int64) error
+	RebuildInvestmentDerivedData(ctx context.Context, userID int64) error
+	CorrectFeeAccountingAndRebuild(ctx context.Context, userID int64) error
+	BackfillIncomeExchangeRates(ctx context.Context, userID int64) (updated, skipped int, err error)
 	FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error)
 	FetchAllInvestmentAssets(ctx context.Context, userID int64) ([]models.InvestmentAsset, error)
 	FetchInvestmentAssetByID(ctx context.Context, userID int64, id int64) (*models.InvestmentAsset, error)
@@ -36,11 +38,16 @@ type InvestmentServiceInterface interface {
 	DeleteInvestmentAsset(ctx context.Context, userID int64, id int64) error
 	DeleteInvestmentTrade(ctx context.Context, userID int64, id int64) error
 	GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string, date *time.Time) (decimal.Decimal, error)
-	UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
-	BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, investmentType models.InvestmentType, from, to time.Time) error
-	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	GetUserIDsWithInvestments(ctx context.Context) ([]int64, error)
+	GetTickersForPriceBackfill(ctx context.Context) ([]models.AssetBackfillRow, error)
+	GetTickersForPriceSync(ctx context.Context) ([]models.AssetPriceSyncRow, error)
+	ApplyTickerPrice(ctx context.Context, ticker string, price decimal.Decimal, currency string, now time.Time) ([]models.AssetPriceChange, error)
+	GetActiveCurrencyPairs(ctx context.Context) ([]models.CurrencyPair, error)
+	GetUserIDsWithActiveInvestments(ctx context.Context) ([]int64, error)
+	BackfillTickerPriceHistory(ctx context.Context, ticker string, from, to time.Time) error
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error
 	CreateInvestmentIncome(ctx context.Context, userID int64, req *models.InvestmentIncomeReq) (int64, error)
 	DeleteInvestmentIncome(ctx context.Context, userID int64, id int64) error
 	FetchInvestmentIncomeByAsset(ctx context.Context, userID int64, assetID int64, p utils.PaginationParams) ([]models.InvestmentIncome, *utils.Paginator, error)
@@ -53,6 +60,7 @@ type InvestmentServiceInterface interface {
 	SaveTaxSettings(ctx context.Context, userID int64, req *models.InvestmentTaxSettingsReq) error
 	CopyTaxBrackets(ctx context.Context, userID int64, fromType, toType models.InvestmentType) error
 	FetchPortfolioAllocation(ctx context.Context, userID int64, currency string) (*models.PortfolioAllocation, error)
+	FetchPortfolioReturns(ctx context.Context, userID int64, currency string) (*models.PortfolioReturns, error)
 }
 
 type InvestmentService struct {
@@ -61,8 +69,7 @@ type InvestmentService struct {
 	accRepo          repositories.AccountRepositoryInterface
 	txnRepo          repositories.TransactionRepositoryInterface
 	settingsRepo     *repositories.SettingsRepository
-	loggingRepo      repositories.LoggingRepositoryInterface
-	jobDispatcher    queue.JobDispatcher
+	jobDispatcher    jobqueue.Dispatcher
 	priceFetchClient finance.PriceFetcher
 }
 
@@ -72,8 +79,7 @@ func NewInvestmentService(
 	accRepo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
-	loggingRepo *repositories.LoggingRepository,
-	jobDispatcher queue.JobDispatcher,
+	jobDispatcher jobqueue.Dispatcher,
 	priceFetchClient finance.PriceFetcher,
 ) *InvestmentService {
 	return &InvestmentService{
@@ -83,26 +89,11 @@ func NewInvestmentService(
 		txnRepo:          txnRepo,
 		settingsRepo:     settingsRepo,
 		jobDispatcher:    jobDispatcher,
-		loggingRepo:      loggingRepo,
 		priceFetchClient: priceFetchClient,
 	}
 }
 
 var _ InvestmentServiceInterface = (*InvestmentService)(nil)
-
-// stockTickerRegex is built from finance.ExchangeMap so the two stay in sync.
-// Matches US tickers (e.g. AAPL) or TICKER.EXCHANGE (e.g. IWDA.AS).
-var stockTickerRegex = func() *regexp.Regexp {
-	seen := make(map[string]struct{})
-	codes := make([]string, 0)
-	for _, code := range finance.ExchangeMap {
-		if _, ok := seen[code]; !ok {
-			seen[code] = struct{}{}
-			codes = append(codes, code)
-		}
-	}
-	return regexp.MustCompile(`^[A-Z]{1,7}(\.(` + strings.Join(codes, "|") + `))?$`)
-}()
 
 func (s *InvestmentService) FetchInvestmentAssetsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, accountID *int64) ([]models.InvestmentAsset, *utils.Paginator, error) {
 
@@ -163,7 +154,11 @@ func (s *InvestmentService) FetchInvestmentAssetByID(ctx context.Context, userID
 		if err != nil {
 			return nil, err
 		}
-		summary := utils.ComputeAssetTaxSummary(record, trades, brackets, settings, time.Now().UTC())
+		currentPrice, _, _, err := s.repo.GetLatestTickerPrice(ctx, nil, record.Ticker)
+		if err != nil {
+			return nil, err
+		}
+		summary := utils.ComputeAssetTaxSummary(record, currentPrice, trades, brackets, settings, time.Now().UTC())
 		record.TaxSummary = &summary
 	}
 
@@ -254,28 +249,15 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 
 	// Validate ticker and fetch price
 	var currentPrice *decimal.Decimal
-	var lastPriceUpdate *time.Time
 	var formattedTicker string
 	var fetchedPriceCurrency string
 
 	if s.priceFetchClient != nil {
 
-		formattedTicker = strings.ToUpper(req.Ticker)
-		switch req.InvestmentType {
-		case models.InvestmentCrypto:
-			// Ensure format: BTC-USD
-			if !strings.Contains(formattedTicker, "-") {
-				formattedTicker = formattedTicker + "-USD"
-			}
-
-		case models.InvestmentStock, models.InvestmentETF:
-			// Allow either:
-			//   - pure ticker: AAPL
-			//   - ticker + exchange: IWDA.AS
-			if !stockTickerRegex.MatchString(formattedTicker) {
-				tx.Rollback()
-				return 0, fmt.Errorf("invalid stock/ETF ticker: must look like AAPL or IWDA.AS")
-			}
+		formattedTicker, err = finance.NormalizeTicker(req.Ticker, req.InvestmentType)
+		if err != nil {
+			tx.Rollback()
+			return 0, err
 		}
 
 		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, formattedTicker, req.InvestmentType)
@@ -285,15 +267,12 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 		}
 
 		price := decimal.NewFromFloat(priceData.Price)
-		now := time.Unix(priceData.LastUpdate, 0)
 		currentPrice = &price
-		lastPriceUpdate = &now
 		fetchedPriceCurrency = priceData.Currency
 
 	} else {
 		// Client not available - allow creation but without price
 		currentPrice = nil
-		lastPriceUpdate = nil
 	}
 
 	hold := models.InvestmentAsset{
@@ -305,8 +284,6 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 		Quantity:        req.Quantity,
 		Currency:        req.Currency,
 		AverageBuyPrice: decimal.Zero,
-		CurrentPrice:    currentPrice,
-		LastPriceUpdate: lastPriceUpdate,
 	}
 
 	holdID, err := s.repo.InsertAsset(ctx, tx, &hold)
@@ -317,7 +294,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 
 	if currentPrice != nil && fetchedPriceCurrency != "" {
 		today := time.Now().UTC().Truncate(24 * time.Hour)
-		if err := s.repo.UpsertAssetPrice(ctx, tx, []models.AssetPriceHistory{{AssetID: holdID, AsOf: today, Price: *currentPrice, Currency: fetchedPriceCurrency}}); err != nil {
+		if err := s.repo.UpsertTickerPrice(ctx, tx, []models.TickerPriceHistory{{Ticker: formattedTicker, AsOf: today, Price: *currentPrice, Currency: fetchedPriceCurrency}}); err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to seed price history for new asset: %w", err)
 		}
@@ -337,8 +314,7 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	utils.CompareChanges("", string(hold.InvestmentType), changes, "type")
 	utils.CompareChanges("", quantityString, changes, "quantity")
 
-	err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "investment_asset",
 		Description: nil,
@@ -352,24 +328,22 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 	return holdID, nil
 }
 
-func (s *InvestmentService) fetchCurrentPrice(ctx context.Context, tx *gorm.DB, asset models.InvestmentAsset) (*decimal.Decimal, *time.Time) {
+func (s *InvestmentService) recordCurrentPrice(ctx context.Context, asset models.InvestmentAsset) {
 	if s.priceFetchClient == nil {
-		return nil, nil
+		return
 	}
 
 	priceData, err := s.priceFetchClient.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
 	if err != nil {
-		return nil, nil
+		return
 	}
 
 	price := decimal.NewFromFloat(priceData.Price)
-	now := time.Unix(priceData.LastUpdate, 0)
+	asOf := time.Unix(priceData.LastUpdate, 0).UTC().Truncate(24 * time.Hour)
 
-	if err := s.repo.UpsertAssetPrice(ctx, nil, []models.AssetPriceHistory{{AssetID: asset.ID, AsOf: now, Price: price, Currency: priceData.Currency}}); err != nil {
-		fmt.Printf("warn: failed to upsert asset price history for asset %d: %v\n", asset.ID, err)
+	if err := s.repo.UpsertTickerPrice(ctx, nil, []models.TickerPriceHistory{{Ticker: asset.Ticker, AsOf: asOf, Price: price, Currency: priceData.Currency}}); err != nil {
+		fmt.Printf("warn: failed to upsert ticker price history for %s: %v\n", asset.Ticker, err)
 	}
-
-	return &price, &now
 }
 
 func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID int64, req *models.InvestmentTradeReq) (int64, error) {
@@ -449,7 +423,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	}
 
 	effectiveQuantity, valueAtBuy := s.calculateTradeValue(req, asset.InvestmentType, fee)
-	currentPrice, lastPriceUpdate := s.fetchCurrentPrice(ctx, tx, asset)
+	s.recordCurrentPrice(ctx, asset)
 
 	// The full req.Quantity leaves holdings on a sell; the fee (in coin units for
 	// crypto) only reduces cash proceeds, it does not stay in the position.
@@ -458,8 +432,11 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		holdingsQuantity = req.Quantity
 	}
 
-	// Calculate trade PnL
-	var txnCurrentValue, txnProfitLoss, txnProfitLossPercent, txnRealizedValue decimal.Decimal
+	// A sell records the proceeds it realises and the basis it removes; both are
+	// historical facts. A buy carries only its cost basis. Value and PnL are
+	// derived from the latest ticker price at read time.
+	var txnRealizedValue decimal.Decimal
+	txnValueAtBuy := valueAtBuy
 
 	if req.TradeType == models.InvestmentSell {
 		if asset.InvestmentType == models.InvestmentCrypto {
@@ -467,22 +444,6 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		} else {
 			txnRealizedValue = req.Quantity.Mul(req.PricePerUnit).Sub(fee)
 		}
-		costBasis := asset.AverageBuyPrice.Mul(req.Quantity)
-		txnProfitLoss = txnRealizedValue.Sub(costBasis)
-		txnCurrentValue, _, _ = s.calculateTradePnL(req.Quantity, currentPrice, costBasis)
-		if !costBasis.IsZero() {
-			txnProfitLossPercent = txnProfitLoss.Div(costBasis)
-		}
-	} else {
-		basis := valueAtBuy
-		if asset.InvestmentType != models.InvestmentCrypto {
-			basis = valueAtBuy.Add(fee)
-		}
-		txnCurrentValue, txnProfitLoss, txnProfitLossPercent = s.calculateTradePnL(effectiveQuantity, currentPrice, basis)
-	}
-
-	txnValueAtBuy := valueAtBuy
-	if req.TradeType == models.InvestmentSell {
 		txnValueAtBuy = asset.AverageBuyPrice.Mul(req.Quantity)
 	}
 
@@ -495,10 +456,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		PricePerUnit:      req.PricePerUnit,
 		Fee:               fee,
 		ValueAtBuy:        txnValueAtBuy,
-		CurrentValue:      txnCurrentValue,
 		RealizedValue:     txnRealizedValue,
-		ProfitLoss:        txnProfitLoss,
-		ProfitLossPercent: txnProfitLossPercent,
 		Currency:          req.Currency,
 		ExchangeRateToUSD: exchangeRateToUSD,
 		Description:       req.Description,
@@ -550,7 +508,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, err
 	}
 
-	if err := s.repo.UpdateAssetAfterTrade(ctx, tx, asset.ID, holdingsQuantity, req.PricePerUnit, currentPrice, lastPriceUpdate, req.TradeType, valueAtBuy, fee); err != nil {
+	if err := s.repo.UpdateAssetAfterTrade(ctx, tx, asset.ID, holdingsQuantity, req.TradeType, valueAtBuy, fee); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -573,8 +531,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		utils.CompareChanges("", *txn.Description, changes, "description")
 	}
 
-	err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "investment_trade",
 		Description: nil,
@@ -585,15 +542,13 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, err
 	}
 
-	if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.NewSyncAssetAfterTradeJob(
-		s.logger.Named("sync_after_trade"),
-		s,
-		userID,
-		asset.ID,
-		asset.Ticker,
-		asset.InvestmentType,
-		txnDate,
-	)); err != nil {
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.SyncAssetAfterTradeArgs{
+		UserID:         userID,
+		AssetID:        asset.ID,
+		Ticker:         asset.Ticker,
+		InvestmentType: asset.InvestmentType,
+		TradeDate:      txnDate,
+	}); err != nil {
 		s.logger.Warn("Failed to dispatch post-trade sync job", zap.Error(err))
 	}
 
@@ -626,7 +581,36 @@ func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, as
 	return s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_inflows", proceedsInAccountCurrency)
 }
 
-func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, userID int64) error {
+func (s *InvestmentService) resolveUserTradeRates(ctx context.Context, userID int64) (map[utils.TradeExchangeRateKey]decimal.Decimal, error) {
+	trades, err := s.repo.FindAllTradesByUserID(ctx, nil, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	rates := make(map[utils.TradeExchangeRateKey]decimal.Decimal)
+	for _, trade := range trades {
+		if trade.Currency == trade.Asset.Account.Currency {
+			continue
+		}
+		key := utils.NewTradeExchangeRateKey(trade)
+		if _, ok := rates[key]; ok {
+			continue
+		}
+		rate, err := s.GetExchangeRate(ctx, key.From, key.To, &trade.TxnDate)
+		if err != nil {
+			return nil, err
+		}
+		rates[key] = rate
+	}
+	return rates, nil
+}
+
+func (s *InvestmentService) RebuildInvestmentDerivedData(ctx context.Context, userID int64) error {
+	rates, err := s.resolveUserTradeRates(ctx, userID)
+	if err != nil {
+		return err
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -644,8 +628,89 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		return err
 	}
 
+	if err := s.rebuildDerivedData(ctx, tx, userID, trades, rates); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func (s *InvestmentService) CorrectFeeAccountingAndRebuild(ctx context.Context, userID int64) error {
+	// The correction changes value_at_buy only, so the uncorrected trades name
+	// the same rates.
+	rates, err := s.resolveUserTradeRates(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	if err := s.correctTradeFeeAccounting(ctx, tx, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	corrected, err := s.repo.FindAllTradesByUserID(ctx, tx, userID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.rebuildDerivedData(ctx, tx, userID, corrected, rates); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+func (s *InvestmentService) rebuildDerivedData(
+	ctx context.Context,
+	tx *gorm.DB,
+	userID int64,
+	trades []models.InvestmentTrade,
+	rates map[utils.TradeExchangeRateKey]decimal.Decimal,
+) error {
+	if err := s.accRepo.ClearInvestmentCashFlows(ctx, tx, userID); err != nil {
+		return err
+	}
+
+	if err := s.accRepo.ClearInvestmentSnapshots(ctx, tx, userID); err != nil {
+		return err
+	}
+
+	if err := s.addTradeCashFlows(ctx, tx, userID, trades, rates); err != nil {
+		return err
+	}
+
+	if err := s.rebuildSnapshots(ctx, tx, userID); err != nil {
+		return err
+	}
+
+	// Must take the tx: on its own connection this blocks on rows the open
+	// transaction holds, and that transaction waits for it to return.
+	return s.accRepo.UpdateSnapshotMarketValues(ctx, tx, userID, nil)
+}
+
+func (s *InvestmentService) addTradeCashFlows(
+	ctx context.Context,
+	tx *gorm.DB,
+	userID int64,
+	trades []models.InvestmentTrade,
+	rates map[utils.TradeExchangeRateKey]decimal.Decimal,
+) error {
 	if len(trades) == 0 {
-		return tx.Commit().Error
+		return nil
 	}
 
 	// Track earliest date and currency per account for frontfill
@@ -654,46 +719,41 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 
 	for _, trade := range trades {
 		txnDate := trade.TxnDate.UTC().Truncate(24 * time.Hour)
+		accCurrency := trade.Asset.Account.Currency
 
-		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, trade.Asset.AccountID, txnDate, trade.Asset.Account.Currency); err != nil {
-			tx.Rollback()
+		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, trade.Asset.AccountID, txnDate, accCurrency); err != nil {
 			return err
 		}
 
-		exchangeRate, err := s.GetExchangeRate(ctx, trade.Currency, trade.Asset.Account.Currency, &trade.TxnDate)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
+		field := "cash_inflows"
+		amount := trade.RealizedValue
 
 		if trade.TradeType == models.InvestmentBuy {
-			grossCost := trade.Quantity.Mul(trade.PricePerUnit)
+			field = "cash_outflows"
+			// Not quantity * price_per_unit: NUMERIC(19,4) rounds a sub-cent
+			// asset to 0 and its cost vanishes.
+			amount = trade.ValueAtBuy
 			if trade.Asset.InvestmentType != models.InvestmentCrypto {
-				grossCost = grossCost.Add(trade.Fee)
+				amount = amount.Add(trade.Fee)
 			}
-			purchaseCost := grossCost
-			if trade.Currency != trade.Asset.Account.Currency {
-				purchaseCost = grossCost.Mul(exchangeRate)
+		}
+
+		if trade.Currency != accCurrency {
+			rate, ok := rates[utils.NewTradeExchangeRateKey(trade)]
+			if !ok {
+				return fmt.Errorf("no exchange rate resolved for trade %d (%s to %s)", trade.ID, trade.Currency, accCurrency)
 			}
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, trade.Asset.AccountID, txnDate, "cash_outflows", purchaseCost); err != nil {
-				tx.Rollback()
-				return err
-			}
-		} else {
-			proceeds := trade.RealizedValue
-			if trade.Currency != trade.Asset.Account.Currency {
-				proceeds = trade.RealizedValue.Mul(exchangeRate)
-			}
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, trade.Asset.AccountID, txnDate, "cash_inflows", proceeds); err != nil {
-				tx.Rollback()
-				return err
-			}
+			amount = amount.Mul(rate)
+		}
+
+		if err := s.accRepo.AddToDailyBalance(ctx, tx, trade.Asset.AccountID, txnDate, field, amount); err != nil {
+			return err
 		}
 
 		if earliest, ok := earliestByAccount[trade.Asset.AccountID]; !ok || txnDate.Before(earliest) {
 			earliestByAccount[trade.Asset.AccountID] = txnDate
 		}
-		accountCurrency[trade.Asset.AccountID] = trade.Asset.Account.Currency
+		accountCurrency[trade.Asset.AccountID] = accCurrency
 	}
 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
@@ -702,37 +762,49 @@ func (s *InvestmentService) BackfillInvestmentCashFlows(ctx context.Context, use
 		currency := accountCurrency[accountID]
 
 		if err := s.accRepo.FrontfillBalances(ctx, tx, accountID, currency, earliestDate); err != nil {
-			tx.Rollback()
 			return err
 		}
 
 		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accountID, currency, earliestDate, today); err != nil {
-			tx.Rollback()
 			return err
 		}
 	}
 
-	return tx.Commit().Error
+	return nil
 }
 
-// CorrectTradeFeeAccounting fixes stock/ETF buy trades that were not stored with
-// value_at_buy = qty*price (pure trade value). Updates them and recalculates each
-// affected asset's aggregates from the corrected trades.
-func (s *InvestmentService) CorrectTradeFeeAccounting(ctx context.Context, userID int64) error {
-	tx, err := s.repo.BeginTx(ctx)
+func (s *InvestmentService) rebuildSnapshots(ctx context.Context, tx *gorm.DB, userID int64) error {
+	accounts, err := s.accRepo.FindAllAccounts(ctx, tx, userID, true, false)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p)
-		}
-	}()
 
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	for _, acc := range accounts {
+		earliest, err := s.accRepo.GetAccountOpeningAsOf(ctx, tx, acc.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue // no balance rows, nothing to rebuild from
+		}
+		if err != nil {
+			return fmt.Errorf("failed to get opening date for account %d: %w", acc.ID, err)
+		}
+
+		if err := s.accRepo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, earliest); err != nil {
+			return fmt.Errorf("failed to frontfill balances for account %d: %w", acc.ID, err)
+		}
+
+		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, earliest, today); err != nil {
+			return fmt.Errorf("failed to rebuild snapshots for account %d: %w", acc.ID, err)
+		}
+	}
+
+	return nil
+}
+
+func (s *InvestmentService) correctTradeFeeAccounting(ctx context.Context, tx *gorm.DB, userID int64) error {
 	trades, err := s.repo.FindAllTradesByUserID(ctx, tx, userID)
 	if err != nil {
-		tx.Rollback()
 		return err
 	}
 
@@ -751,7 +823,6 @@ func (s *InvestmentService) CorrectTradeFeeAccounting(ctx context.Context, userI
 
 		corrected := trade.Quantity.Mul(trade.PricePerUnit)
 		if err := s.repo.CorrectTradeValueAtBuy(ctx, tx, trade.ID, corrected); err != nil {
-			tx.Rollback()
 			return err
 		}
 		affectedAssetIDs[trade.AssetID] = true
@@ -759,12 +830,11 @@ func (s *InvestmentService) CorrectTradeFeeAccounting(ctx context.Context, userI
 
 	for assetID := range affectedAssetIDs {
 		if err := s.repo.RecalculateAssetFromTrades(ctx, tx, assetID, userID); err != nil {
-			tx.Rollback()
 			return err
 		}
 	}
 
-	return tx.Commit().Error
+	return nil
 }
 
 func (s *InvestmentService) GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string, date *time.Time) (decimal.Decimal, error) {
@@ -829,22 +899,6 @@ func (s *InvestmentService) calculateTradeValue(req *models.InvestmentTradeReq, 
 	return effectiveQuantity, valueAtBuy
 }
 
-func (s *InvestmentService) calculateTradePnL(quantity decimal.Decimal, currentPrice *decimal.Decimal, valueAtBuy decimal.Decimal) (decimal.Decimal, decimal.Decimal, decimal.Decimal) {
-	if currentPrice != nil && !currentPrice.IsZero() {
-		currentValue := quantity.Mul(*currentPrice)
-		profitLoss := currentValue.Sub(valueAtBuy)
-
-		var profitLossPercent decimal.Decimal
-		if !valueAtBuy.IsZero() {
-			profitLossPercent = profitLoss.Div(valueAtBuy)
-		}
-
-		return currentValue, profitLoss, profitLossPercent
-	}
-
-	return decimal.Zero, decimal.Zero, decimal.Zero
-}
-
 func (s *InvestmentService) UpdateInvestmentAsset(ctx context.Context, userID int64, id int64, req *models.InvestmentAssetReq) (int64, error) {
 
 	tx, err := s.repo.BeginTx(ctx)
@@ -888,8 +942,7 @@ func (s *InvestmentService) UpdateInvestmentAsset(ctx context.Context, userID in
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(holdID, 10))
 		changes.Stamp("asset", exHold.Ticker)
-		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "investment_asset",
 			Description: nil,
@@ -964,8 +1017,7 @@ func (s *InvestmentService) UpdateInvestmentTrade(ctx context.Context, userID in
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(txnID, 10))
 		changes.Stamp("asset", asset.Ticker)
-		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "investment_trade",
 			Description: nil,
@@ -1084,8 +1136,7 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 	utils.CompareChanges(asset.Ticker, "", changes, "ticker")
 	utils.CompareChanges(asset.Name, "", changes, "name")
 
-	err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "delete",
 		Category:    "investment_asset",
 		Description: nil,
@@ -1215,8 +1266,7 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 	utils.CompareChanges(exTxn.PricePerUnit.StringFixed(2), "", changes, "price_per_unit")
 	utils.CompareChanges(string(exTxn.TradeType), "", changes, "type")
 
-	err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "delete",
 		Category:    "investment_trade",
 		Description: nil,
@@ -1230,10 +1280,6 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 	return nil
 }
 
-func (s *InvestmentService) UpsertAssetPrice(ctx context.Context, tx *gorm.DB, entries []models.AssetPriceHistory) error {
-	return s.repo.UpsertAssetPrice(ctx, tx, entries)
-}
-
 func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error {
 	if s.priceFetchClient != nil {
 		asset, err := s.repo.FindInvestmentAssetByID(ctx, nil, assetID, userID)
@@ -1242,17 +1288,10 @@ func (s *InvestmentService) RecalculateAssetPnL(ctx context.Context, userID, ass
 		}
 		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
 		if err == nil && priceData != nil && priceData.Price > 0 {
-			now := time.Now().UTC()
+			today := time.Now().UTC().Truncate(24 * time.Hour)
 			price := decimal.NewFromFloat(priceData.Price)
-			if err := s.repo.UpdateAssetCurrentPrice(ctx, nil, assetID, price, now); err != nil {
-				return err
-			}
-			if err := s.repo.UpdateTradesPnLForAsset(ctx, nil, assetID, price, asset.InvestmentType, now); err != nil {
-				return err
-			}
-			today := now.Truncate(24 * time.Hour)
-			if err := s.repo.UpsertAssetPrice(ctx, nil, []models.AssetPriceHistory{
-				{AssetID: assetID, AsOf: today, Price: price, Currency: priceData.Currency},
+			if err := s.repo.UpsertTickerPrice(ctx, nil, []models.TickerPriceHistory{
+				{Ticker: asset.Ticker, AsOf: today, Price: price, Currency: priceData.Currency},
 			}); err != nil {
 				return err
 			}
@@ -1265,8 +1304,108 @@ func (s *InvestmentService) GetAssetIDsForAccount(ctx context.Context, userID, a
 	return s.repo.GetAssetIDsForAccount(ctx, nil, accountID, userID)
 }
 
-func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
-	return s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID, nil)
+func (s *InvestmentService) GetUserIDsWithInvestments(ctx context.Context) ([]int64, error) {
+	return s.repo.GetUserIDsWithInvestments(ctx, nil)
+}
+
+func (s *InvestmentService) GetTickersForPriceBackfill(ctx context.Context) ([]models.AssetBackfillRow, error) {
+	return s.repo.FindTickersForPriceBackfill(ctx, nil)
+}
+
+func (s *InvestmentService) GetTickersForPriceSync(ctx context.Context) ([]models.AssetPriceSyncRow, error) {
+	return s.repo.FindTickersForPriceSync(ctx, nil)
+}
+
+func (s *InvestmentService) ApplyTickerPrice(ctx context.Context, ticker string, price decimal.Decimal, currency string, now time.Time) ([]models.AssetPriceChange, error) {
+	if price.IsZero() || price.IsNegative() {
+		return nil, fmt.Errorf("invalid price for ticker %s: %s", ticker, price.String())
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
+		}
+	}()
+
+	assets, err := s.repo.FindActiveAssetsByTicker(ctx, tx, ticker)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	today := now.UTC().Truncate(24 * time.Hour)
+
+	oldPrice, oldCurrency, oldFound, err := s.repo.GetLatestTickerPrice(ctx, tx, ticker)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	var oldPtr *decimal.Decimal
+	if oldFound {
+		oldPtr = &oldPrice
+	}
+
+	// The spark batch fetch has no currency; reuse the last known one for the
+	// ticker. A ticker with no price history yet is left for the backfill job.
+	if currency == "" {
+		currency = oldCurrency
+	}
+	if currency == "" {
+		tx.Rollback()
+		return nil, fmt.Errorf("no known currency for ticker %s; skipping until price history is seeded", ticker)
+	}
+
+	if utils.IsExtremePriceDrop(oldPtr, price) {
+		s.logger.Warn("Extreme price drop detected — skipping update to prevent data corruption",
+			zap.String("ticker", ticker),
+			zap.String("old_price", oldPrice.String()),
+			zap.String("new_price", price.String()))
+		tx.Rollback()
+		return nil, nil
+	}
+
+	if err := s.repo.UpsertTickerPrice(ctx, tx, []models.TickerPriceHistory{
+		{Ticker: ticker, AsOf: today, Price: price, Currency: currency},
+	}); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// One ticker row is written; per-holder value and PnL are derived at read
+	// time. The holder list is still returned so callers can notify price surges.
+	changes := make([]models.AssetPriceChange, 0, len(assets))
+	for _, asset := range assets {
+		changes = append(changes, models.AssetPriceChange{
+			AssetID:  asset.ID,
+			UserID:   asset.UserID,
+			Ticker:   asset.Ticker,
+			OldPrice: oldPtr,
+			NewPrice: price,
+		})
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return changes, nil
+}
+
+func (s *InvestmentService) GetActiveCurrencyPairs(ctx context.Context) ([]models.CurrencyPair, error) {
+	return s.repo.FindActiveCurrencyPairs(ctx, nil)
+}
+
+func (s *InvestmentService) GetUserIDsWithActiveInvestments(ctx context.Context) ([]int64, error) {
+	return s.repo.FindUserIDsWithActiveInvestments(ctx, nil)
+}
+
+func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error {
+	return s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID, utils.SnapshotRecomputeFrom(from))
 }
 
 func (s *InvestmentService) FetchInvestmentIncomeByAsset(ctx context.Context, userID int64, assetID int64, p utils.PaginationParams) ([]models.InvestmentIncome, *utils.Paginator, error) {
@@ -1349,16 +1488,23 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 		incomeAmount = *req.Amount
 	}
 
+	exchangeRateToUSD, err := s.GetExchangeRate(ctx, req.Currency, "USD", &req.TxnDate)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("failed to get exchange rate: %w", err)
+	}
+
 	record := models.InvestmentIncome{
-		UserID:      userID,
-		AssetID:     asset.ID,
-		TxnDate:     req.TxnDate.UTC().Truncate(24 * time.Hour),
-		IncomeType:  req.IncomeType,
-		Quantity:    req.Quantity,
-		Amount:      incomeAmount,
-		TaxWithheld: req.TaxWithheld,
-		Currency:    req.Currency,
-		Notes:       req.Notes,
+		UserID:            userID,
+		AssetID:           asset.ID,
+		TxnDate:           req.TxnDate.UTC().Truncate(24 * time.Hour),
+		IncomeType:        req.IncomeType,
+		Quantity:          req.Quantity,
+		Amount:            incomeAmount,
+		TaxWithheld:       req.TaxWithheld,
+		Currency:          req.Currency,
+		ExchangeRateToUSD: exchangeRateToUSD,
+		Notes:             req.Notes,
 	}
 
 	id, err := s.repo.CreateInvestmentIncome(ctx, tx, &record)
@@ -1422,15 +1568,13 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 
 	if req.IncomeType == models.IncomeTypeStaking {
 		txnDate := req.TxnDate.UTC().Truncate(24 * time.Hour)
-		if err := s.jobDispatcher.Dispatch(ctx, queue_jobs.NewSyncAssetAfterTradeJob(
-			s.logger.Named("sync_after_income"),
-			s,
-			userID,
-			asset.ID,
-			asset.Ticker,
-			asset.InvestmentType,
-			txnDate,
-		)); err != nil {
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.SyncAssetAfterTradeArgs{
+			UserID:         userID,
+			AssetID:        asset.ID,
+			Ticker:         asset.Ticker,
+			InvestmentType: asset.InvestmentType,
+			TradeDate:      txnDate,
+		}); err != nil {
 			s.logger.Warn("Failed to dispatch post-income sync job", zap.Error(err))
 		}
 	}
@@ -1502,78 +1646,80 @@ func (s *InvestmentService) DeleteInvestmentIncome(ctx context.Context, userID i
 	return tx.Commit().Error
 }
 
-func (s *InvestmentService) BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, investmentType models.InvestmentType, from, to time.Time) error {
+func (s *InvestmentService) BackfillTickerPriceHistory(ctx context.Context, ticker string, from, to time.Time) error {
 	if s.priceFetchClient == nil {
 		return nil
 	}
 
 	from = from.UTC().Truncate(24 * time.Hour)
 	to = to.UTC().Truncate(24 * time.Hour)
+	if from.After(to) {
+		return nil
+	}
 
-	existing, err := s.repo.GetPriceHistoryForAsset(ctx, nil, assetID)
+	existing, err := s.repo.GetTickerPriceHistory(ctx, nil, ticker)
 	if err != nil {
 		return err
 	}
 
 	existingSet := make(map[string]bool, len(existing))
 	for _, p := range existing {
-		existingSet[p.AsOf.UTC().Truncate(24*time.Hour).Format("2006-01-02")] = true
+		existingSet[p.AsOf.UTC().Truncate(24*time.Hour).Format(time.DateOnly)] = true
 	}
 
-	current := from
-	var batch []models.AssetPriceHistory
-	requestCount := 0
+	prices, err := s.priceFetchClient.GetAssetPriceRange(ctx, ticker, from, to)
+	if err != nil {
+		return fmt.Errorf("ticker %s: %w", ticker, err)
+	}
 
-	for !current.After(to) {
-		dateKey := current.Format("2006-01-02")
+	var batch []models.TickerPriceHistory
+	written := 0
 
-		if current.Weekday() == time.Saturday || current.Weekday() == time.Sunday {
-			current = current.AddDate(0, 0, 1)
+	flush := func() error {
+		if len(batch) == 0 {
+			return nil
+		}
+		if err := s.repo.UpsertTickerPrice(ctx, nil, batch); err != nil {
+			return err
+		}
+		written += len(batch)
+		batch = nil
+		return nil
+	}
+
+	for _, p := range prices {
+		if existingSet[p.Date.Format(time.DateOnly)] {
 			continue
 		}
 
-		if existingSet[dateKey] {
-			current = current.AddDate(0, 0, 1)
-			continue
-		}
-
-		if requestCount > 0 && requestCount%10 == 0 {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(500 * time.Millisecond):
-			}
-		}
-
-		priceData, err := s.priceFetchClient.GetAssetPriceOnDate(ctx, ticker, investmentType, current)
-		if err != nil {
-			s.logger.Debug("Failed to fetch historical price", zap.String("ticker", ticker), zap.String("date", dateKey), zap.Error(err))
-			current = current.AddDate(0, 0, 1)
-			requestCount++
-			continue
-		}
-
-		price := decimal.NewFromFloat(priceData.Price)
+		price := decimal.NewFromFloat(p.Price)
 		if price.IsZero() || price.IsNegative() {
-			current = current.AddDate(0, 0, 1)
-			requestCount++
 			continue
 		}
 
-		batch = append(batch, models.AssetPriceHistory{
-			AssetID:  assetID,
-			AsOf:     current,
+		batch = append(batch, models.TickerPriceHistory{
+			Ticker:   ticker,
+			AsOf:     p.Date,
 			Price:    price,
-			Currency: priceData.Currency,
+			Currency: p.Currency,
 		})
 
-		requestCount++
-		current = current.AddDate(0, 0, 1)
+		if len(batch) >= priceBackfillFlushSize {
+			if err := flush(); err != nil {
+				return err
+			}
+		}
 	}
 
-	if len(batch) > 0 {
-		return s.repo.UpsertAssetPrice(ctx, nil, batch)
+	if err := flush(); err != nil {
+		return err
 	}
+
+	s.logger.Debug("Price history backfilled",
+		zap.String("ticker", ticker),
+		zap.Int("fetched", len(prices)),
+		zap.Int("written", written))
+
 	return nil
 }
 
@@ -1816,74 +1962,136 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 	return tx.Commit().Error
 }
 
-func investmentTypeLabel(t models.InvestmentType) string {
-	switch t {
-	case models.InvestmentStock:
-		return "Stock"
-	case models.InvestmentETF:
-		return "ETF"
-	case models.InvestmentCrypto:
-		return "Crypto"
-	default:
-		return string(t)
+func (s *InvestmentService) BackfillIncomeExchangeRates(ctx context.Context, userID int64) (updated, skipped int, err error) {
+	records, err := s.repo.GetForeignCurrencyIncome(ctx, nil, userID)
+	if err != nil {
+		return 0, 0, err
 	}
-}
 
-// allocationBuckets sums values under a key while remembering the order keys
-// first appeared, so ties sort the same way on every request.
-type allocationBuckets struct {
-	order  []string
-	labels map[string]string
-	values map[string]decimal.Decimal
-}
-
-func newAllocationBuckets() *allocationBuckets {
-	return &allocationBuckets{
-		labels: make(map[string]string),
-		values: make(map[string]decimal.Decimal),
-	}
-}
-
-func (b *allocationBuckets) add(key, label string, value decimal.Decimal) {
-	if _, ok := b.values[key]; !ok {
-		b.order = append(b.order, key)
-		b.labels[key] = label
-		b.values[key] = decimal.Zero
-	}
-	b.values[key] = b.values[key].Add(value)
-}
-
-func (b *allocationBuckets) rows(total decimal.Decimal) []models.AllocationRow {
-	rows := make([]models.AllocationRow, 0, len(b.order))
-	for _, key := range b.order {
-		value := b.values[key]
-		weight := decimal.Zero
-		if total.IsPositive() {
-			weight = value.Div(total).Round(6)
+	for _, record := range records {
+		rate, err := s.GetExchangeRate(ctx, record.Currency, "USD", &record.TxnDate)
+		if err != nil {
+			s.logger.Warn("Failed to fetch income exchange rate",
+				zap.Int64("incomeID", record.ID),
+				zap.String("currency", record.Currency),
+				zap.Time("txn_date", record.TxnDate),
+				zap.Error(err))
+			skipped++
+			continue
 		}
-		rows = append(rows, models.AllocationRow{
-			Key:    key,
-			Label:  b.labels[key],
-			Value:  value,
-			Weight: weight,
-		})
+
+		if err := s.repo.UpdateInvestmentIncomeExchangeRate(ctx, nil, record.ID, userID, rate); err != nil {
+			return updated, skipped, err
+		}
+		updated++
 	}
 
-	sort.SliceStable(rows, func(i, j int) bool {
-		if !rows[i].Value.Equal(rows[j].Value) {
-			return rows[i].Value.GreaterThan(rows[j].Value)
+	return updated, skipped, nil
+}
+
+func (s *InvestmentService) FetchPortfolioReturns(ctx context.Context, userID int64, currency string) (*models.PortfolioReturns, error) {
+
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	if currency == "" {
+		settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
+		if err != nil {
+			return nil, err
 		}
-		return rows[i].Key < rows[j].Key
+		currency = settings.DefaultCurrency
+	}
+
+	rows, err := s.repo.FetchReturnFlows(ctx, nil, userID, currency)
+	if err != nil {
+		return nil, err
+	}
+
+	type holding struct {
+		ticker  string
+		name    string
+		flows   []utils.CashFlow
+		current decimal.Decimal
+	}
+
+	holdings := make(map[int64]*holding)
+	order := make([]int64, 0)
+	unpriced := make(map[int64]bool)
+	portfolioFlows := make([]utils.CashFlow, 0, len(rows))
+
+	for _, row := range rows {
+		// A held asset with no price has buys but no closing value. Counting its
+		// flows would read the holding as a total loss.
+		if row.HeldUnpriced {
+			unpriced[row.AssetID] = true
+			continue
+		}
+
+		amount, err := decimal.NewFromString(row.AmountText)
+		if err != nil {
+			return nil, fmt.Errorf("invalid flow amount for %s: %w", row.Ticker, err)
+		}
+
+		flow := utils.CashFlow{Date: row.FlowDate, Amount: amount}
+
+		item, ok := holdings[row.AssetID]
+		if !ok {
+			item = &holding{ticker: row.Ticker, name: row.Name}
+			holdings[row.AssetID] = item
+			order = append(order, row.AssetID)
+		}
+
+		item.flows = append(item.flows, flow)
+		if row.IsTerminal {
+			current, err := decimal.NewFromString(row.DisplayAmountText)
+			if err != nil {
+				return nil, fmt.Errorf("invalid current value for %s: %w", row.Ticker, err)
+			}
+			item.current = current
+		}
+
+		portfolioFlows = append(portfolioFlows, flow)
+	}
+
+	assets := make([]models.PortfolioReturnRow, 0, len(order))
+	for _, assetID := range order {
+		item := holdings[assetID]
+		row := models.PortfolioReturnRow{
+			Key:          item.ticker,
+			Label:        item.name,
+			CurrentValue: item.current,
+		}
+
+		if rate, err := utils.XIRR(item.flows); err != nil {
+			row.Reason = utils.XIRRReason(err)
+		} else {
+			row.Rate = &rate
+		}
+
+		assets = append(assets, row)
+	}
+
+	sort.SliceStable(assets, func(i, j int) bool {
+		return assets[i].CurrentValue.GreaterThan(assets[j].CurrentValue)
 	})
 
-	return rows
+	portfolio := models.PortfolioReturnRow{Key: "portfolio", Label: "Portfolio"}
+	for _, row := range assets {
+		portfolio.CurrentValue = portfolio.CurrentValue.Add(row.CurrentValue)
+	}
+	if rate, err := utils.XIRR(portfolioFlows); err != nil {
+		portfolio.Reason = utils.XIRRReason(err)
+	} else {
+		portfolio.Rate = &rate
+	}
+
+	return &models.PortfolioReturns{
+		Currency:       currency,
+		UnpricedAssets: len(unpriced),
+		Portfolio:      portfolio,
+		Assets:         assets,
+	}, nil
 }
 
-// FetchPortfolioAllocation splits the current value of every open holding by
-// investment type, ticker, currency and account. Weights are fractions of the
-// invested total, so cash balances do not dilute them.
 func (s *InvestmentService) FetchPortfolioAllocation(ctx context.Context, userID int64, currency string) (*models.PortfolioAllocation, error) {
-
 	currency = strings.ToUpper(strings.TrimSpace(currency))
 	if currency == "" {
 		settings, err := s.settingsRepo.FetchUserSettings(ctx, nil, userID)
@@ -1898,10 +2106,10 @@ func (s *InvestmentService) FetchPortfolioAllocation(ctx context.Context, userID
 		return nil, err
 	}
 
-	byType := newAllocationBuckets()
-	byTicker := newAllocationBuckets()
-	byCurrency := newAllocationBuckets()
-	byAccount := newAllocationBuckets()
+	byType := make(map[string]*models.AllocationRow)
+	byTicker := make(map[string]*models.AllocationRow)
+	byCurrency := make(map[string]*models.AllocationRow)
+	byAccount := make(map[string]*models.AllocationRow)
 
 	total := decimal.Zero
 	unpriced := 0
@@ -1920,11 +2128,22 @@ func (s *InvestmentService) FetchPortfolioAllocation(ctx context.Context, userID
 			continue
 		}
 
+		var investmentTypeLabels = map[models.InvestmentType]string{
+			models.InvestmentStock:  "Stock",
+			models.InvestmentETF:    "ETF",
+			models.InvestmentCrypto: "Crypto",
+		}
+
+		label, ok := investmentTypeLabels[row.InvestmentType]
+		if !ok {
+			label = string(row.InvestmentType)
+		}
+
 		total = total.Add(value)
-		byType.add(string(row.InvestmentType), investmentTypeLabel(row.InvestmentType), value)
-		byTicker.add(row.Ticker, row.Name, value)
-		byCurrency.add(row.SourceCurrency, row.SourceCurrency, value)
-		byAccount.add(strconv.FormatInt(row.AccountID, 10), row.AccountName, value)
+		utils.AddAllocation(byType, string(row.InvestmentType), label, value)
+		utils.AddAllocation(byTicker, row.Ticker, row.Name, value)
+		utils.AddAllocation(byCurrency, row.SourceCurrency, row.SourceCurrency, value)
+		utils.AddAllocation(byAccount, strconv.FormatInt(row.AccountID, 10), row.AccountName, value)
 	}
 
 	return &models.PortfolioAllocation{
@@ -1932,10 +2151,10 @@ func (s *InvestmentService) FetchPortfolioAllocation(ctx context.Context, userID
 		TotalValue:     total,
 		UnpricedAssets: unpriced,
 		Groups: map[string][]models.AllocationRow{
-			"type":     byType.rows(total),
-			"ticker":   byTicker.rows(total),
-			"currency": byCurrency.rows(total),
-			"account":  byAccount.rows(total),
+			"type":     utils.AllocationRows(byType, total),
+			"ticker":   utils.AllocationRows(byTicker, total),
+			"currency": utils.AllocationRows(byCurrency, total),
+			"account":  utils.AllocationRows(byAccount, total),
 		},
 	}, nil
 }

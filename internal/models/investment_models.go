@@ -7,43 +7,71 @@ import (
 )
 
 type InvestmentType string
+type TradeType string
+type IncomeType string
 
 const (
 	InvestmentStock  InvestmentType = "stock"
 	InvestmentETF    InvestmentType = "etf"
 	InvestmentCrypto InvestmentType = "crypto"
-)
 
-type InvestmentAsset struct {
-	ID                int64            `gorm:"primaryKey;autoIncrement" json:"id"`
-	AccountID         int64            `gorm:"not null;index:idx_assets_account" json:"account_id"`
-	UserID            int64            `gorm:"not null;index:idx_assets_user" json:"user_id"`
-	InvestmentType    InvestmentType   `gorm:"type:investment_type;not null" json:"investment_type"`
-	Name              string           `gorm:"type:varchar(255);not null" json:"name"`
-	Ticker            string           `gorm:"type:varchar(20);not null;index:idx_assets_ticker" json:"ticker"`
-	Quantity          decimal.Decimal  `gorm:"type:decimal(19,8);not null" json:"quantity"`
-	AverageBuyPrice   decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"average_buy_price"`
-	ValueAtBuy        decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
-	CurrentValue      decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"current_value"`
-	CurrentPrice      *decimal.Decimal `gorm:"type:decimal(19,4)" json:"current_price"`
-	TotalFees         decimal.Decimal  `gorm:"type:decimal(19,6);not null;default:0" json:"total_fees"`
-	ProfitLoss        decimal.Decimal  `gorm:"type:decimal(19,4);not null;default:0" json:"profit_loss"`
-	ProfitLossPercent decimal.Decimal  `gorm:"type:decimal(10,2);not null;default:0" json:"profit_loss_percent"`
-	LastPriceUpdate   *time.Time       `json:"last_price_update"`
-	Currency          string           `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
-	Account           Account          `json:"account"`
-	ImportID          *int64           `json:"import_id,omitempty"`
-	TaxSummary        *AssetTaxSummary `gorm:"-" json:"tax_summary,omitempty"`
-	CreatedAt         time.Time        `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt         time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
-}
-
-type TradeType string
-
-const (
 	InvestmentBuy  TradeType = "buy"
 	InvestmentSell TradeType = "sell"
+
+	IncomeTypeStaking  IncomeType = "staking_reward"
+	IncomeTypeDividend IncomeType = "dividend"
 )
+
+type AssetBackfillRow struct {
+	Ticker         string
+	InvestmentType InvestmentType
+	Currency       string
+	EarliestTrade  time.Time
+	LastPriceDate  *time.Time
+}
+
+type AssetPriceSyncRow struct {
+	Ticker         string
+	InvestmentType InvestmentType
+}
+
+type CurrencyPair struct {
+	FromCurrency string
+	ToCurrency   string
+}
+
+type AssetPriceChange struct {
+	AssetID  int64
+	UserID   int64
+	Ticker   string
+	OldPrice *decimal.Decimal
+	NewPrice decimal.Decimal
+}
+
+type InvestmentAsset struct {
+	ID                  int64            `gorm:"primaryKey;autoIncrement" json:"id"`
+	AccountID           int64            `gorm:"not null;index:idx_assets_account" json:"account_id"`
+	UserID              int64            `gorm:"not null;index:idx_assets_user" json:"user_id"`
+	InvestmentType      InvestmentType   `gorm:"type:investment_type;not null" json:"investment_type"`
+	Name                string           `gorm:"type:varchar(255);not null" json:"name"`
+	Ticker              string           `gorm:"type:varchar(20);not null;index:idx_assets_ticker" json:"ticker"`
+	Quantity            decimal.Decimal  `gorm:"type:decimal(19,8);not null" json:"quantity"`
+	AverageBuyPrice     decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"average_buy_price"`
+	ValueAtBuy          decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
+	TotalFees           decimal.Decimal  `gorm:"type:decimal(19,6);not null;default:0" json:"total_fees"`
+	CurrentValue        decimal.Decimal  `gorm:"->" json:"current_value"`
+	ProfitLoss          decimal.Decimal  `gorm:"->" json:"profit_loss"`
+	ProfitLossPercent   decimal.Decimal  `gorm:"->" json:"profit_loss_percent"`
+	LatestPrice         *decimal.Decimal `gorm:"->" json:"latest_price"`
+	LatestPriceCurrency *string          `gorm:"->" json:"latest_price_currency"`
+	LastPriceUpdate     *time.Time       `gorm:"->" json:"last_price_update"`
+	Currency            string           `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
+	Account             Account          `json:"account"`
+	ImportID            *int64           `json:"import_id,omitempty"`
+	TaxSummary          *AssetTaxSummary `gorm:"-" json:"tax_summary,omitempty"`
+	CreatedAt           time.Time        `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt           time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
+}
 
 type InvestmentTrade struct {
 	ID                int64           `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -55,10 +83,10 @@ type InvestmentTrade struct {
 	Fee               decimal.Decimal `gorm:"type:decimal(19,4);not null;default:0" json:"fee"`
 	PricePerUnit      decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"price_per_unit"`
 	ValueAtBuy        decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
-	CurrentValue      decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"current_value"`
 	RealizedValue     decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"realized_value"`
-	ProfitLoss        decimal.Decimal `gorm:"type:decimal(19,4);not null;default:0" json:"profit_loss"`
-	ProfitLossPercent decimal.Decimal `gorm:"type:decimal(10,2);not null;default:0" json:"profit_loss_percent"`
+	CurrentValue      decimal.Decimal `gorm:"->" json:"current_value"`
+	ProfitLoss        decimal.Decimal `gorm:"->" json:"profit_loss"`
+	ProfitLossPercent decimal.Decimal `gorm:"->" json:"profit_loss_percent"`
 	Currency          string          `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
 	ExchangeRateToUSD decimal.Decimal `gorm:"type:decimal(19,6);not null;default:1.0" json:"exchange_rate_to_usd"`
 	Description       *string         `gorm:"type:varchar(255)" json:"description"`
@@ -69,16 +97,16 @@ type InvestmentTrade struct {
 	UpdatedAt         time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
-type AssetPriceHistory struct {
-	AssetID   int64           `gorm:"primaryKey" json:"asset_id"`
+type TickerPriceHistory struct {
+	Ticker    string          `gorm:"primaryKey;type:varchar(20)" json:"ticker"`
 	AsOf      time.Time       `gorm:"type:date;primaryKey" json:"as_of"`
 	Price     decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"price"`
 	Currency  string          `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
 	CreatedAt time.Time       `gorm:"autoCreateTime" json:"created_at"`
 }
 
-func (AssetPriceHistory) TableName() string {
-	return "asset_price_history"
+func (TickerPriceHistory) TableName() string {
+	return "ticker_price_history"
 }
 
 type ExchangeRateHistory struct {
@@ -97,13 +125,6 @@ func (InvestmentIncome) TableName() string {
 	return "investment_income"
 }
 
-type IncomeType string
-
-const (
-	IncomeTypeStaking  IncomeType = "staking_reward"
-	IncomeTypeDividend IncomeType = "dividend"
-)
-
 type InvestmentIncome struct {
 	ID                  int64            `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserID              int64            `gorm:"not null;index:idx_inv_income_user" json:"user_id"`
@@ -114,6 +135,7 @@ type InvestmentIncome struct {
 	Amount              decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"amount"`
 	TaxWithheld         *decimal.Decimal `gorm:"type:decimal(19,4)" json:"tax_withheld"`
 	Currency            string           `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
+	ExchangeRateToUSD   decimal.Decimal  `gorm:"type:decimal(19,6);not null;default:1.0" json:"exchange_rate_to_usd"`
 	Notes               *string          `gorm:"type:varchar(255)" json:"notes"`
 	LinkedTransactionID *int64           `gorm:"index" json:"linked_transaction_id,omitempty"`
 	Asset               InvestmentAsset  `json:"asset"`
@@ -135,15 +157,15 @@ type AssetTaxSummary struct {
 }
 
 type InvestmentTaxBracket struct {
-	ID             int64          `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID         int64          `gorm:"not null;index:idx_tax_brackets_user" json:"user_id"`
-	InvestmentType InvestmentType `gorm:"type:investment_type;not null" json:"investment_type"`
-	MinDaysHeld    int            `gorm:"not null" json:"min_days_held"`
-	ToDays         *int           `json:"to_days"`
+	ID             int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID         int64           `gorm:"not null;index:idx_tax_brackets_user" json:"user_id"`
+	InvestmentType InvestmentType  `gorm:"type:investment_type;not null" json:"investment_type"`
+	MinDaysHeld    int             `gorm:"not null" json:"min_days_held"`
+	ToDays         *int            `json:"to_days"`
 	TaxablePercent decimal.Decimal `gorm:"type:decimal(5,2);not null" json:"taxable_percent"`
-	Label          *string        `gorm:"type:varchar(100)" json:"label"`
-	CreatedAt      time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt      time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	Label          *string         `gorm:"type:varchar(100)" json:"label"`
+	CreatedAt      time.Time       `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt      time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type InvestmentTaxSettings struct {
@@ -202,8 +224,6 @@ type InvestmentTradeReq struct {
 	Description  *string          `json:"description,omitempty"`
 }
 
-// AllocationAssetRow is one priced holding, already converted to the requested
-// currency by the repository query.
 type AllocationAssetRow struct {
 	Ticker         string
 	Name           string
@@ -222,11 +242,35 @@ type AllocationRow struct {
 	Weight decimal.Decimal `json:"weight"`
 }
 
-// PortfolioAllocation holds the same total split four ways. Groups always has
-// the keys "type", "ticker", "currency" and "account".
 type PortfolioAllocation struct {
 	Currency       string                     `json:"currency"`
 	TotalValue     decimal.Decimal            `json:"total_value"`
 	UnpricedAssets int                        `json:"unpriced_assets"`
 	Groups         map[string][]AllocationRow `json:"groups"`
+}
+
+type ReturnFlowRow struct {
+	AssetID           int64
+	Ticker            string
+	Name              string
+	FlowDate          time.Time
+	AmountText        string
+	DisplayAmountText string
+	IsTerminal        bool
+	HeldUnpriced      bool
+}
+
+type PortfolioReturnRow struct {
+	Key          string           `json:"key"`
+	Label        string           `json:"label"`
+	Rate         *decimal.Decimal `json:"rate"`
+	Reason       string           `json:"reason,omitempty"`
+	CurrentValue decimal.Decimal  `json:"current_value"`
+}
+
+type PortfolioReturns struct {
+	Currency       string               `json:"currency"`
+	UnpricedAssets int                  `json:"unpriced_assets"`
+	Portfolio      PortfolioReturnRow   `json:"portfolio"`
+	Assets         []PortfolioReturnRow `json:"assets"`
 }

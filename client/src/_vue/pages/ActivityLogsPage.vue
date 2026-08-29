@@ -248,7 +248,7 @@ provide("removeFilter", removeFilter);
         max-width: 1000px;
       "
     >
-      <div style="font-weight: bold">Activity logs</div>
+      <div style="font-weight: bold">Audit logs</div>
 
       <div
         class="flex flex-row justify-between items-center p-1 gap-4 w-full rounded-md"

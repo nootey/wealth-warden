@@ -50,6 +50,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("seed.member_user_email", "")
 	v.SetDefault("seed.member_user_password", "")
 
+	v.SetDefault("seed.bulk.users", 1000)
+	v.SetDefault("seed.bulk.years", 2)
+	v.SetDefault("seed.bulk.txns_per_user", 500)
+	v.SetDefault("seed.bulk.email_domain", "local.seed")
+	v.SetDefault("seed.bulk.password", "password")
+
 	v.SetDefault("scheduler.concurrent_workers", 5)
 	v.SetDefault("scheduler.immediate_jobs", []string{})
 
@@ -59,9 +65,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("queue.workers", 1)
 	v.SetDefault("queue.max_attempts", 5)
 	v.SetDefault("queue.poll_interval_ms", 1000)
-	v.SetDefault("queue.retry_initial_backoff_sec", 60)
-	v.SetDefault("queue.retry_subsequent_backoff_sec", 120)
-	v.SetDefault("queue.visibility_timeout_sec", 900)
+	v.SetDefault("queue.job_timeout_sec", 900)
 }
 
 func LoadConfig(configPath *string, configName ...string) (*Config, error) {

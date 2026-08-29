@@ -23,6 +23,7 @@ type SeederWorkers struct {
 	Func  SeederFunc
 	Basic bool
 	Full  bool
+	Bulk  bool
 	NoTx  bool // seeder drives services that begin their own transactions; must run on a raw DB handle
 }
 
@@ -63,16 +64,17 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 
 	// Order matters — dependencies must run before dependants
 	allSeeders := []SeederWorkers{
-		{Name: "SeedDefaultSettings", Func: workers.SeedDefaultSettings, Basic: true, Full: true},
-		{Name: "SeedRolesAndPermissions", Func: workers.SeedRolesAndPermissions, Basic: true, Full: true},
-		{Name: "SeedRootUser", Func: workers.SeedRootUser, Basic: true, Full: true},
+		{Name: "SeedDefaultSettings", Func: workers.SeedDefaultSettings, Basic: true, Full: true, Bulk: true},
+		{Name: "SeedRolesAndPermissions", Func: workers.SeedRolesAndPermissions, Basic: true, Full: true, Bulk: true},
+		{Name: "SeedRootUser", Func: workers.SeedRootUser, Basic: true, Full: true, Bulk: true},
 		{Name: "SeedMemberUser", Func: workers.SeedMemberUser, Basic: false, Full: true},
-		{Name: "SeedAccountTypes", Func: workers.SeedAccountTypes, Basic: true, Full: true},
+		{Name: "SeedAccountTypes", Func: workers.SeedAccountTypes, Basic: true, Full: true, Bulk: true},
 		{Name: "SeedAccounts", Func: workers.SeedAccounts, Basic: false, Full: true},
-		{Name: "SeedCategories", Func: workers.SeedCategories, Basic: true, Full: true},
+		{Name: "SeedCategories", Func: workers.SeedCategories, Basic: true, Full: true, Bulk: true},
 		{Name: "SeedTransactions", Func: workers.SeedTransactions, Basic: false, Full: true},
 		{Name: "SeedSavingGoals", Func: workers.SeedSavingGoals, Basic: false, Full: true},
 		{Name: "SeedInvestments", Func: workers.SeedInvestments, Basic: false, Full: true, NoTx: true},
+		{Name: "SeedBulkUsers", Func: workers.SeedBulkUsers, Basic: false, Full: false, Bulk: true, NoTx: true},
 	}
 
 	switch seederType {
@@ -91,6 +93,14 @@ func SeedDatabase(ctx context.Context, db *gorm.DB, logger *zap.Logger, cfg *con
 		}
 		for _, worker := range allSeeders {
 			if worker.Basic {
+				seeders = append(seeders, worker)
+			}
+		}
+	case "bulk":
+		// Deliberately no clearStorage: bulk runs on top of whatever is there,
+		// so it can be layered onto an existing full seed
+		for _, worker := range allSeeders {
+			if worker.Bulk {
 				seeders = append(seeders, worker)
 			}
 		}

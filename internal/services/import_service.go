@@ -11,9 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/finance"
@@ -47,8 +46,7 @@ type ImportService struct {
 	accRepo        repositories.AccountRepositoryInterface
 	investmentRepo repositories.InvestmentRepositoryInterface
 	settingsRepo   repositories.SettingsRepositoryInterface
-	loggingRepo    repositories.LoggingRepositoryInterface
-	jobDispatcher  queue.JobDispatcher
+	jobDispatcher  jobqueue.Dispatcher
 }
 
 func NewImportService(
@@ -57,8 +55,7 @@ func NewImportService(
 	accRepo *repositories.AccountRepository,
 	investmentRepo *repositories.InvestmentRepository,
 	settingsRepo *repositories.SettingsRepository,
-	loggingRepo *repositories.LoggingRepository,
-	jobDispatcher queue.JobDispatcher,
+	jobDispatcher jobqueue.Dispatcher,
 ) *ImportService {
 	return &ImportService{
 		repo:           repo,
@@ -66,7 +63,6 @@ func NewImportService(
 		accRepo:        accRepo,
 		investmentRepo: investmentRepo,
 		settingsRepo:   settingsRepo,
-		loggingRepo:    loggingRepo,
 		jobDispatcher:  jobDispatcher,
 	}
 }
@@ -466,8 +462,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	utils.CompareChanges("", settings.DefaultCurrency, changes, "currency")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Txns)), changes, "transactions_count")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "import",
 		Description: nil,
@@ -696,8 +691,7 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 	utils.CompareChanges("", settings.DefaultCurrency, changes, "currency")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Accounts)), changes, "accounts_count")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "import",
 		Description: nil,
@@ -880,8 +874,7 @@ func (s *ImportService) ImportCategories(ctx context.Context, userID int64, payl
 	utils.CompareChanges("", importName, changes, "name")
 	utils.CompareChanges("", strconv.Itoa(len(payload.Categories)), changes, "categories_count")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "import",
 		Description: nil,
@@ -1138,8 +1131,7 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 	}
 	utils.CompareChanges("", strings.Join(destNames, ", "), changes, "destination_accounts")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "transfer_investments",
 		Category:    "import",
 		Description: nil,
@@ -1409,8 +1401,7 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 	}
 	utils.CompareChanges("", strings.Join(destNames, ", "), changes, "destination_accounts")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "transfer_savings",
 		Category:    "import",
 		Description: nil,
@@ -1680,8 +1671,7 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 	}
 	utils.CompareChanges("", strings.Join(destNames, ", "), changes, "destination_accounts")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "transfer_repayments",
 		Category:    "import",
 		Description: nil,
@@ -1852,24 +1842,25 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		txDayAdjusted := utils.AdjustToWeekday(txDay)
 
 		var asset models.InvestmentAsset
-		var formattedTicker string
 
 		// Determine investment type and format ticker
 		var investmentType models.InvestmentType
+		rawTicker := txn.Category
 		if toAccount.AccountType.Type == "crypto" {
 			investmentType = models.InvestmentCrypto
-			formattedTicker = txn.Category
-			// Ensure format: BTC-USD for crypto
-			if !strings.Contains(formattedTicker, "-") {
-				formattedTicker = formattedTicker + "-USD"
-			}
 		} else {
 			investmentType = models.InvestmentETF
-			formattedTicker = txn.Category
-			// For European ETFs like IWDA, append .AS for Amsterdam
-			if !strings.Contains(formattedTicker, ".") {
-				formattedTicker = formattedTicker + ".AS"
+			// This importer targets Amsterdam-listed ETFs; default the exchange when absent.
+			if !strings.Contains(rawTicker, ".") {
+				rawTicker = rawTicker + ".AS"
 			}
+		}
+
+		formattedTicker, err := finance.NormalizeTicker(rawTicker, investmentType)
+		if err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return fmt.Errorf("invalid ticker %q: %w", txn.Category, err)
 		}
 
 		// Check if asset exists by ticker and account
@@ -1886,8 +1877,6 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 				Quantity:        decimal.Zero,
 				Currency:        txn.Currency,
 				AverageBuyPrice: decimal.Zero,
-				CurrentPrice:    nil,
-				LastPriceUpdate: nil,
 			}
 
 			assetID, err := s.investmentRepo.InsertAsset(ctx, tx, &newAsset)
@@ -1939,15 +1928,12 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		}
 
 		currentPrice := decimal.NewFromFloat(currentPriceData.Price)
-		lastPriceUpdate := time.Unix(currentPriceData.LastUpdate, 0)
 
 		exchangeRate := decimal.NewFromFloat(1.0)
 		rate, err := client.GetExchangeRateOnDate(ctx, txn.Currency, "USD", txDayAdjusted)
 		if err == nil {
 			exchangeRate = decimal.NewFromFloat(rate)
 		}
-
-		txnCurrentValue := effectiveQuantity.Mul(currentPrice)
 
 		var txnRealizedValue decimal.Decimal
 		if models.TradeType(txn.TransactionType) == models.InvestmentSell {
@@ -1960,15 +1946,6 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			valueAtBuy = asset.AverageBuyPrice.Mul(effectiveQuantity)
 		}
 
-		txnProfitLoss := txnCurrentValue.Sub(valueAtBuy)
-		if models.TradeType(txn.TransactionType) == models.InvestmentSell {
-			txnProfitLoss = txnRealizedValue.Sub(valueAtBuy)
-		}
-		var txnProfitLossPercent decimal.Decimal
-		if !valueAtBuy.IsZero() {
-			txnProfitLossPercent = txnProfitLoss.Div(valueAtBuy)
-		}
-
 		trade := models.InvestmentTrade{
 			UserID:            userID,
 			AssetID:           asset.ID,
@@ -1979,10 +1956,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			PricePerUnit:      pricePerUnit,
 			Fee:               fee,
 			ValueAtBuy:        valueAtBuy,
-			CurrentValue:      txnCurrentValue,
 			RealizedValue:     txnRealizedValue,
-			ProfitLoss:        txnProfitLoss,
-			ProfitLossPercent: txnProfitLossPercent,
 			Currency:          txn.Currency,
 			ExchangeRateToUSD: exchangeRate,
 			Description:       nil,
@@ -1997,8 +1971,8 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 
 		// Update asset after trade
 		err = s.investmentRepo.UpdateAssetAfterTrade(
-			ctx, tx, asset.ID, effectiveQuantity, pricePerUnit,
-			&currentPrice, &lastPriceUpdate, models.TradeType(txn.TransactionType), valueAtBuy, fee,
+			ctx, tx, asset.ID, effectiveQuantity,
+			models.TradeType(txn.TransactionType), valueAtBuy, fee,
 		)
 		if err != nil {
 			s.markImportFailed(ctx, importID, err)
@@ -2007,18 +1981,18 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		}
 
 		// Upsert price history: trade date (historical) + today (current)
-		priceEntries := []models.AssetPriceHistory{
-			{AssetID: asset.ID, AsOf: txDayAdjusted, Price: pricePerUnit, Currency: priceData.Currency},
+		priceEntries := []models.TickerPriceHistory{
+			{Ticker: asset.Ticker, AsOf: txDayAdjusted, Price: pricePerUnit, Currency: priceData.Currency},
 		}
 		if !txDayAdjusted.Equal(today) {
-			priceEntries = append(priceEntries, models.AssetPriceHistory{
-				AssetID:  asset.ID,
+			priceEntries = append(priceEntries, models.TickerPriceHistory{
+				Ticker:   asset.Ticker,
 				AsOf:     today,
 				Price:    currentPrice,
 				Currency: currentPriceData.Currency,
 			})
 		}
-		if err := s.investmentRepo.UpsertAssetPrice(ctx, tx, priceEntries); err != nil {
+		if err := s.investmentRepo.UpsertTickerPrice(ctx, tx, priceEntries); err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return fmt.Errorf("failed to upsert asset price history for %s: %w", asset.Ticker, err)
@@ -2132,8 +2106,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 	utils.CompareChanges("", strconv.Itoa(len(payload.TradeMappings)), changes, "trade_mappings_count")
 	utils.CompareChanges("", strconv.Itoa(len(txnPayload.TradeTransfers)), changes, "trades_imported_count")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "import",
 		Description: nil,
@@ -2183,8 +2156,7 @@ func (s *ImportService) DeleteImport(ctx context.Context, userID, id int64) erro
 	utils.CompareChanges(imp.Type, "", changes, "type")
 	utils.CompareChanges(imp.SubType, "", changes, "sub_type")
 
-	if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "delete",
 		Category:    "import",
 		Description: nil,
@@ -2545,10 +2517,6 @@ func (s *ImportService) deleteTradesImport(ctx context.Context, userID int64, im
 	return s.backfillInvestmentCashFlows(ctx, userID, accountIDList)
 }
 
-// backfillInvestmentCashFlows rebuilds cash flows and snapshots for the given accounts only,
-// leaving all other accounts untouched. It resets each account's balance rows to
-// transaction-only cash flows, then re-applies all remaining investment trade cash flows
-// for those accounts.
 func (s *ImportService) backfillInvestmentCashFlows(ctx context.Context, userID int64, accountIDs []int64) error {
 	if len(accountIDs) == 0 {
 		return nil
@@ -2638,7 +2606,9 @@ func (s *ImportService) backfillInvestmentCashFlows(ctx context.Context, userID 
 		}
 
 		if trade.TradeType == models.InvestmentBuy {
-			grossCost := trade.Quantity.Mul(trade.PricePerUnit)
+			// Not quantity * price_per_unit: NUMERIC(19,4) rounds a sub-cent
+			// asset to 0 and its cost vanishes.
+			grossCost := trade.ValueAtBuy
 			if trade.Asset.InvestmentType != models.InvestmentCrypto {
 				grossCost = grossCost.Add(trade.Fee)
 			}

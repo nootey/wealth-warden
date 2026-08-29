@@ -4,13 +4,15 @@ import { useBackofficeStore } from "../../services/stores/backoffice_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import ActivityLogsPage from "./ActivityLogsPage.vue";
+import JobMonitorPage from "./backoffice/JobMonitorPage.vue";
 
 const backofficeStore = useBackofficeStore();
 const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
 
 const tabs = [
-  { key: "logs", label: "Activity Logs", permission: "view_activity_logs" },
+  { key: "jobs", label: "Jobs", permission: "access_backoffice" },
+  { key: "logs", label: "Audit", permission: "view_activity_logs" },
   { key: "admin", label: "Admin", permission: "access_backoffice" },
 ];
 
@@ -38,6 +40,15 @@ async function triggerCorrectFeeAccounting() {
   }
 }
 
+async function triggerIncomeFXBackfill() {
+  try {
+    const res = await backofficeStore.backfillIncomeExchangeRates();
+    toastStore.successResponseToast(res);
+  } catch (err) {
+    toastStore.errorResponseToast(err);
+  }
+}
+
 async function runZeroCostMigration() {
   try {
     const res = await backofficeStore.migrateZeroCostTrades();
@@ -57,7 +68,9 @@ async function runZeroCostMigration() {
       id="mobile-container"
       class="flex flex-col justify-center w-full gap-4 rounded-md"
     >
-      <div class="w-full flex flex-row justify-between p-1 gap-2 items-center">
+      <div
+        class="w-full flex flex-row justify-between p-1 gap-2 items-center mt-2"
+      >
         <div class="w-full flex flex-col gap-2">
           <div style="font-weight: bold">Backoffice</div>
           <div>Watch your step - fragile grounds.</div>
@@ -84,6 +97,9 @@ async function runZeroCostMigration() {
       <Transition name="fade" mode="out-in">
         <div v-if="activeTab === 'logs'" key="logs">
           <ActivityLogsPage />
+        </div>
+        <div v-else-if="activeTab === 'jobs'" key="jobs" class="w-full">
+          <JobMonitorPage />
         </div>
         <div
           v-else-if="activeTab === null"
@@ -132,6 +148,23 @@ async function runZeroCostMigration() {
                 label="Run correction"
                 severity="danger"
                 @click="triggerCorrectFeeAccounting"
+              />
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-1 p-4 border rounded-md border-surface">
+            <div style="font-weight: bold">Income Exchange Rate Backfill</div>
+            <div class="text-sm text-muted-color">
+              Fills <code>exchange_rate_to_usd</code> on every investment income
+              row that is not already in USD, using the rate on the income date.
+              Return calculations need every cash flow on one scale. Safe to
+              re-run - it rewrites the rate from the cached history each time.
+            </div>
+            <div class="mt-2">
+              <Button
+                label="Run backfill"
+                severity="danger"
+                @click="triggerIncomeFXBackfill"
               />
             </div>
           </div>

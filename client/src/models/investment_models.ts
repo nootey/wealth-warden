@@ -23,7 +23,8 @@ export interface InvestmentAsset {
   current_value?: string;
   profit_loss?: string;
   profit_loss_percent?: string;
-  current_price?: string | null;
+  latest_price?: string | null;
+  latest_price_currency?: string | null;
   last_price_update?: Date | null;
   currency: string;
   created_at?: Date;
@@ -116,4 +117,19 @@ export interface PortfolioAllocation {
   total_value: string;
   unpriced_assets: number;
   groups: Record<AllocationGroupKey, AllocationRow[]>;
+}
+
+export interface PortfolioReturnRow {
+  key: string;
+  label: string;
+  rate: string | null;
+  reason?: string;
+  current_value: string;
+}
+
+export interface PortfolioReturns {
+  currency: string;
+  unpriced_assets: number;
+  portfolio: PortfolioReturnRow;
+  assets: PortfolioReturnRow[];
 }

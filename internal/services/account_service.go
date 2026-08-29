@@ -7,9 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/queue"
-	"wealth-warden/internal/queue/queue_jobs"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
@@ -43,10 +42,7 @@ type AccountServiceInterface interface {
 	FetchAccountTypesWithoutDefaults(ctx context.Context, userID int64) ([]models.AccountType, error)
 	SetDefaultAccount(ctx context.Context, userID, accountID int64) error
 	UnsetDefaultAccount(ctx context.Context, userID, accountID int64) error
-	ClearInvestmentCashFlows(ctx context.Context, userID int64) error
-	ClearInvestmentSnapshots(ctx context.Context, userID int64) error
-	RebuildSnapshotsForUser(ctx context.Context, userID int64) error
-	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error
 	SyncForUser(ctx context.Context, userID int64) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
@@ -59,10 +55,9 @@ type AccountService struct {
 	repo             repositories.AccountRepositoryInterface
 	txnRepo          repositories.TransactionRepositoryInterface
 	settingsRepo     repositories.SettingsRepositoryInterface
-	loggingRepo      repositories.LoggingRepositoryInterface
 	savingsRepo      repositories.SavingsRepositoryInterface
 	investmentRepo   repositories.InvestmentRepositoryInterface
-	jobDispatcher    queue.JobDispatcher
+	jobDispatcher    jobqueue.Dispatcher
 	priceFetchClient finance.PriceFetcher
 	logger           *zap.Logger
 }
@@ -72,17 +67,15 @@ func NewAccountService(
 	repo *repositories.AccountRepository,
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
-	loggingRepo *repositories.LoggingRepository,
 	savingsRepo *repositories.SavingsRepository,
 	investmentRepo *repositories.InvestmentRepository,
-	jobDispatcher queue.JobDispatcher,
+	jobDispatcher jobqueue.Dispatcher,
 	priceFetchClient finance.PriceFetcher,
 ) *AccountService {
 	return &AccountService{
 		repo:             repo,
 		txnRepo:          txnRepo,
 		settingsRepo:     settingsRepo,
-		loggingRepo:      loggingRepo,
 		savingsRepo:      savingsRepo,
 		investmentRepo:   investmentRepo,
 		jobDispatcher:    jobDispatcher,
@@ -110,8 +103,7 @@ func (s *AccountService) LogBalanceChange(ctx context.Context, account *models.A
 	utils.CompareChanges("", account.Currency, changes, "currency")
 	changes.Stamp("id", strconv.FormatInt(account.ID, 10))
 
-	return s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "update",
 		Category:    "balance",
 		Description: nil,
@@ -346,8 +338,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 		return 0, err
 	}
 
-	err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "create",
 		Category:    "account",
 		Description: nil,
@@ -631,8 +622,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(acc.ID, 10))
-		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "account",
 			Description: nil,
@@ -707,8 +697,7 @@ func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID in
 		}
 
 		changes.Stamp("id", strconv.FormatInt(acc.ID, 10))
-		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       event,
 			Category:    "account",
 			Description: nil,
@@ -788,8 +777,7 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 	utils.CompareChanges(acc.AccountType.Subtype, "", changes, "sub_type")
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "close",
 			Category:    "account",
 			Description: nil,
@@ -1038,8 +1026,7 @@ func (s *AccountService) SaveAccountProjection(ctx context.Context, id, userID i
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "account_projection",
 			Description: nil,
@@ -1100,8 +1087,7 @@ func (s *AccountService) RevertAccountProjection(ctx context.Context, id, userID
 	}
 
 	if !changes.IsEmpty() {
-		err = s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		err = s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "account_projection",
 			Description: nil,
@@ -1177,8 +1163,7 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 
 	if changes.HasChanges() {
 		changes.Stamp("id", strconv.FormatInt(account.ID, 10))
-		if err := s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-			LoggingRepo: s.loggingRepo,
+		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "update",
 			Category:    "account",
 			Description: nil,
@@ -1192,61 +1177,8 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 	return nil
 }
 
-func (s *AccountService) ClearInvestmentCashFlows(ctx context.Context, userID int64) error {
-	return s.repo.ClearInvestmentCashFlows(ctx, userID)
-}
-
-func (s *AccountService) ClearInvestmentSnapshots(ctx context.Context, userID int64) error {
-	return s.repo.ClearInvestmentSnapshots(ctx, userID)
-}
-
-func (s *AccountService) RebuildSnapshotsForUser(ctx context.Context, userID int64) error {
-	tx, err := s.repo.BeginTx(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p)
-		}
-	}()
-
-	accounts, err := s.repo.FindAllAccounts(ctx, tx, userID, true, false)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-
-	for _, acc := range accounts {
-		earliest, err := s.repo.GetAccountOpeningAsOf(ctx, tx, acc.ID)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to get opening date for account %d: %w", acc.ID, err)
-		}
-
-		if err := s.repo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, earliest); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to frontfill balances for account %d: %w", acc.ID, err)
-		}
-
-		if err := s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, earliest, today); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to rebuild snapshots for account %d: %w", acc.ID, err)
-		}
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return err
-	}
-
-	return s.UpdateSnapshotMarketValues(ctx, userID)
-}
-
-func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
-	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID, nil)
+func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error {
+	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID, utils.SnapshotRecomputeFrom(from))
 }
 
 func (s *AccountService) SyncForUser(ctx context.Context, userID int64) error {
@@ -1287,17 +1219,10 @@ func (s *AccountService) RecalculateAssetPnL(ctx context.Context, userID, assetI
 		}
 		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
 		if err == nil && priceData != nil && priceData.Price > 0 {
-			now := time.Now().UTC()
+			today := time.Now().UTC().Truncate(24 * time.Hour)
 			price := decimal.NewFromFloat(priceData.Price)
-			if err := s.investmentRepo.UpdateAssetCurrentPrice(ctx, nil, assetID, price, now); err != nil {
-				return err
-			}
-			if err := s.investmentRepo.UpdateTradesPnLForAsset(ctx, nil, assetID, price, asset.InvestmentType, now); err != nil {
-				return err
-			}
-			today := now.Truncate(24 * time.Hour)
-			if err := s.investmentRepo.UpsertAssetPrice(ctx, nil, []models.AssetPriceHistory{
-				{AssetID: assetID, AsOf: today, Price: price, Currency: priceData.Currency},
+			if err := s.investmentRepo.UpsertTickerPrice(ctx, nil, []models.TickerPriceHistory{
+				{Ticker: asset.Ticker, AsOf: today, Price: price, Currency: priceData.Currency},
 			}); err != nil {
 				return err
 			}
@@ -1311,17 +1236,11 @@ func (s *AccountService) GetAssetIDsForAccount(ctx context.Context, userID, acco
 }
 
 func (s *AccountService) SyncAssetPnL(ctx context.Context, userID, assetID int64) error {
-	return s.jobDispatcher.Dispatch(ctx, queue_jobs.NewRecalculateAssetPnLJob(
-		s.logger.Named("pnl_sync"),
-		s, nil, userID, &assetID, nil,
-	))
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.RecalculateAssetPnLArgs{UserID: userID, AssetID: &assetID})
 }
 
 func (s *AccountService) SyncAccountPnL(ctx context.Context, userID, accountID int64) error {
-	return s.jobDispatcher.Dispatch(ctx, queue_jobs.NewRecalculateAssetPnLJob(
-		s.logger.Named("pnl_sync"),
-		s, nil, userID, nil, &accountID,
-	))
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.RecalculateAssetPnLArgs{UserID: userID, AccountID: &accountID})
 }
 
 func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, destinationID int64) error {
@@ -1526,8 +1445,7 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 	utils.CompareChanges("", strconv.FormatInt(int64(len(transfers)), 10), changes, "transfers_removed")
 	changes.Stamp("id", strconv.FormatInt(dstAcc.ID, 10))
 
-	return s.jobDispatcher.Dispatch(ctx, &queue_jobs.ActivityLogJob{
-		LoggingRepo: s.loggingRepo,
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "merge",
 		Category:    "account",
 		Description: nil,

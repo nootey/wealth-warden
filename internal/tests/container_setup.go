@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"time"
 	"wealth-warden/internal/bootstrap"
-	"wealth-warden/internal/queue"
+	"wealth-warden/internal/jobqueue"
 	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database/seeders"
 
@@ -27,6 +27,8 @@ type TestContainer struct {
 	container *postgres.PostgresContainer
 	DB        *gorm.DB
 	App       *bootstrap.ServiceContainer
+	// For code that bypasses GORM (River's pgx pool).
+	DSN string
 }
 
 type ServiceIntegrationSuite struct {
@@ -38,7 +40,7 @@ type ServiceIntegrationSuite struct {
 
 type NoOpDispatcher struct{}
 
-func (d *NoOpDispatcher) Dispatch(_ context.Context, _ queue.Job) error {
+func (d *NoOpDispatcher) Dispatch(_ context.Context, _ jobqueue.Job) error {
 	return nil
 }
 
@@ -104,13 +106,14 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 
 	// Build application container
 	jobDispatcher := &NoOpDispatcher{}
-	appContainer, err := bootstrap.NewServiceContainer(cfg, db, redisClient, l, jobDispatcher, &MockPriceFetcher{})
+	appContainer, err := bootstrap.NewServiceContainer(cfg, db, redisClient, l, jobDispatcher, jobqueue.NoopJobManager{}, &MockPriceFetcher{})
 	s.Require().NoError(err, "failed to bootstrap app container")
 
 	s.TC = &TestContainer{
 		container: container,
 		DB:        db,
 		App:       appContainer,
+		DSN:       connStr,
 	}
 }
 
@@ -123,7 +126,8 @@ TRUNCATE TABLE
     transfers,
     balances,
     accounts,
-    account_daily_snapshots
+    account_daily_snapshots,
+    ticker_price_history
 RESTART IDENTITY CASCADE;
 `
 

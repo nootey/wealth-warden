@@ -55,7 +55,7 @@ const sort = ref(filterHelper.initSort());
 const activeColumns = computed<Column[]>(() => [
   { field: "ticker", header: "Ticker" },
   { field: "quantity", header: "Quantity" },
-  { field: "current_price", header: "Price", hideOnMobile: true },
+  { field: "price", header: "Price", hideOnMobile: true, sortable: false },
   { field: "value_at_buy", header: "Invested", hideOnMobile: true },
   { field: "current_value", header: "Current value", hideOnMobile: true },
   { field: "average_buy_price", header: "Average", hideOnMobile: true },
@@ -168,7 +168,7 @@ defineExpose({ refresh });
             :header="col.header"
             :field="col.field"
             :sort="sort"
-            :sortable="!!sort"
+            :sortable="!!sort && col.sortable !== false"
             @click="!sort"
           />
         </template>
@@ -185,12 +185,19 @@ defineExpose({ refresh });
               }}</span>
             </div>
           </template>
+          <template v-else-if="col.field === 'price'">
+            <div class="flex flex-row gap-2 items-center">
+              <span>{{
+                vueHelper.displayAssetPrice(
+                  data.latest_price,
+                  data.investment_type,
+                  data.latest_price_currency,
+                )
+              }}</span>
+            </div>
+          </template>
           <template
-            v-else-if="
-              ['current_price', 'value_at_buy', 'current_value'].includes(
-                col.field,
-              )
-            "
+            v-else-if="['value_at_buy', 'current_value'].includes(col.field)"
           >
             <div class="flex flex-row gap-2 items-center">
               <span>{{
