@@ -29,6 +29,23 @@ func (m *MockPriceFetcher) GetAssetPriceOnDate(_ context.Context, ticker string,
 	return m.GetAssetPrice(context.Background(), ticker, "")
 }
 
+func (m *MockPriceFetcher) GetAssetPriceRange(_ context.Context, ticker string, from, to time.Time) ([]finance.DatedPrice, error) {
+	data, ok := mockPrices[ticker]
+	if !ok {
+		return nil, fmt.Errorf("mock: unknown ticker %q", ticker)
+	}
+
+	var prices []finance.DatedPrice
+	for day := from.UTC().Truncate(24 * time.Hour); !day.After(to); day = day.AddDate(0, 0, 1) {
+		if day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {
+			continue
+		}
+		prices = append(prices, finance.DatedPrice{Date: day, Price: data.Price, Currency: data.Currency})
+	}
+	return prices, nil
+}
+
+// Mirrors the spark endpoint: price only, no currency, missing symbols flagged.
 func (m *MockPriceFetcher) GetPricesForMultipleAssets(_ context.Context, assets []finance.AssetRequest) (map[string]*finance.PriceData, error) {
 	result := make(map[string]*finance.PriceData, len(assets))
 	for _, a := range assets {
@@ -37,7 +54,7 @@ func (m *MockPriceFetcher) GetPricesForMultipleAssets(_ context.Context, assets 
 			result[a.Ticker] = &finance.PriceData{Symbol: a.Ticker, Error: err}
 			continue
 		}
-		result[a.Ticker] = data
+		result[a.Ticker] = &finance.PriceData{Symbol: a.Ticker, Price: data.Price, LastUpdate: data.LastUpdate}
 	}
 	return result, nil
 }

@@ -14,19 +14,12 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-type cancellingFetcher struct {
+type closedMarketFetcher struct {
 	tests.MockPriceFetcher
-	calls  int
-	limit  int
-	cancel context.CancelFunc
 }
 
-func (f *cancellingFetcher) GetAssetPriceOnDate(_ context.Context, ticker string, _ models.InvestmentType, _ time.Time) (*finance.PriceData, error) {
-	f.calls++
-	if f.calls >= f.limit {
-		f.cancel()
-	}
-	return &finance.PriceData{Symbol: ticker, Price: 100.0, Currency: "EUR", LastUpdate: 1700000000}, nil
+func (f *closedMarketFetcher) GetAssetPriceRange(context.Context, string, time.Time, time.Time) ([]finance.DatedPrice, error) {
+	return nil, nil
 }
 
 func (s *InvestmentServiceTestSuite) createAssetRow(ticker string) models.InvestmentAsset {
@@ -58,10 +51,10 @@ func (s *InvestmentServiceTestSuite) createAssetRow(ticker string) models.Invest
 	return asset
 }
 
-func (s *InvestmentServiceTestSuite) countPriceHistory(assetID int64) int64 {
+func (s *InvestmentServiceTestSuite) countPriceHistory(ticker string) int64 {
 	var count int64
 	s.Require().NoError(
-		s.TC.DB.Model(&models.AssetPriceHistory{}).Where("asset_id = ?", assetID).Count(&count).Error,
+		s.TC.DB.Model(&models.TickerPriceHistory{}).Where("ticker = ?", ticker).Count(&count).Error,
 	)
 	return count
 }
@@ -78,38 +71,34 @@ func (s *InvestmentServiceTestSuite) newInvestmentService(fetcher finance.PriceF
 	)
 }
 
-func (s *InvestmentServiceTestSuite) TestBackfillAssetPriceHistory_KeepsProgressOnCancel() {
+func (s *InvestmentServiceTestSuite) TestBackfillTickerPriceHistory_ClosedMarketIsNotAnError() {
 	asset := s.createAssetRow("IWDA.AS")
-
-	ctx, cancel := context.WithCancel(s.Ctx)
-	defer cancel()
-	fetcher := &cancellingFetcher{limit: 105, cancel: cancel}
-	svc := s.newInvestmentService(fetcher)
+	svc := s.newInvestmentService(&closedMarketFetcher{})
 
 	to := time.Now().UTC().Truncate(24 * time.Hour)
-	from := to.AddDate(0, 0, -250)
+	from := to.AddDate(0, 0, -10)
 
-	err := svc.BackfillAssetPriceHistory(ctx, asset.ID, asset.Ticker, asset.InvestmentType, from, to)
-
-	s.Require().ErrorIs(err, context.Canceled)
-	s.Equal(int64(100), s.countPriceHistory(asset.ID))
+	s.Require().NoError(
+		svc.BackfillTickerPriceHistory(s.Ctx, asset.Ticker, from, to),
+	)
+	s.Zero(s.countPriceHistory(asset.Ticker))
 }
 
-func (s *InvestmentServiceTestSuite) TestBackfillAssetPriceHistory_AllFetchesFailReturnsError() {
+func (s *InvestmentServiceTestSuite) TestBackfillTickerPriceHistory_FetchFailureReturnsError() {
 	asset := s.createAssetRow("NOSUCH.AS")
 	svc := s.newInvestmentService(&tests.MockPriceFetcher{})
 
 	to := time.Now().UTC().Truncate(24 * time.Hour)
 	from := to.AddDate(0, 0, -10)
 
-	err := svc.BackfillAssetPriceHistory(s.Ctx, asset.ID, asset.Ticker, asset.InvestmentType, from, to)
+	err := svc.BackfillTickerPriceHistory(s.Ctx, asset.Ticker, from, to)
 
 	s.Require().Error(err)
 	s.Contains(err.Error(), "NOSUCH.AS")
-	s.Zero(s.countPriceHistory(asset.ID))
+	s.Zero(s.countPriceHistory(asset.Ticker))
 }
 
-func (s *InvestmentServiceTestSuite) TestBackfillAssetPriceHistory_WritesKnownTicker() {
+func (s *InvestmentServiceTestSuite) TestBackfillTickerPriceHistory_WritesKnownTicker() {
 	asset := s.createAssetRow("IWDA.AS")
 	svc := s.newInvestmentService(&tests.MockPriceFetcher{})
 
@@ -117,7 +106,13 @@ func (s *InvestmentServiceTestSuite) TestBackfillAssetPriceHistory_WritesKnownTi
 	from := to.AddDate(0, 0, -10)
 
 	s.Require().NoError(
-		svc.BackfillAssetPriceHistory(s.Ctx, asset.ID, asset.Ticker, asset.InvestmentType, from, to),
+		svc.BackfillTickerPriceHistory(s.Ctx, asset.Ticker, from, to),
 	)
-	s.Positive(s.countPriceHistory(asset.ID))
+	s.Positive(s.countPriceHistory(asset.Ticker))
+
+	written := s.countPriceHistory(asset.Ticker)
+	s.Require().NoError(
+		svc.BackfillTickerPriceHistory(s.Ctx, asset.Ticker, from, to),
+	)
+	s.Equal(written, s.countPriceHistory(asset.Ticker))
 }

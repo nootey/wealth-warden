@@ -18,7 +18,7 @@ type balanceUserSvc interface {
 
 type balanceAccountSvc interface {
 	BackfillBalancesForUser(ctx context.Context, userID int64, from, to string) error
-	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error
 }
 
 type BalanceBackfillWorker struct {
@@ -83,8 +83,9 @@ func (j *BalanceBackfillJob) Run(ctx context.Context) error {
 
 	j.logger.Info("Backfilling balances", zap.Int("userCount", len(userIDs)))
 
+	fromDate := time.Now().AddDate(0, 0, -1)
 	to := time.Now().Format("2006-01-02")
-	from := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	from := fromDate.Format("2006-01-02")
 
 	var (
 		mu     sync.Mutex
@@ -99,7 +100,7 @@ func (j *BalanceBackfillJob) Run(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return nil
 			}
-			if err := j.backfillUser(ctx, userID, from, to); err != nil {
+			if err := j.backfillUser(ctx, userID, fromDate, from, to); err != nil {
 				mu.Lock()
 				failed++
 				mu.Unlock()
@@ -125,11 +126,11 @@ func (j *BalanceBackfillJob) Run(ctx context.Context) error {
 
 // The market value update is scoped to investment and crypto accounts, so a user
 // without them matches no rows.
-func (j *BalanceBackfillJob) backfillUser(ctx context.Context, userID int64, from, to string) error {
+func (j *BalanceBackfillJob) backfillUser(ctx context.Context, userID int64, fromDate time.Time, from, to string) error {
 	if err := j.accountSvc.BackfillBalancesForUser(ctx, userID, from, to); err != nil {
 		return err
 	}
-	if err := j.accountSvc.UpdateSnapshotMarketValues(ctx, userID); err != nil {
+	if err := j.accountSvc.UpdateSnapshotMarketValues(ctx, userID, fromDate); err != nil {
 		return fmt.Errorf("market value update: %w", err)
 	}
 	return nil

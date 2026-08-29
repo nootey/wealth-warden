@@ -57,7 +57,7 @@ type AccountRepositoryInterface interface {
 	GetBalancesInRange(ctx context.Context, tx *gorm.DB, accountID int64, fromDate, toDate time.Time) ([]models.Balance, error)
 	ClearInvestmentCashFlows(ctx context.Context, tx *gorm.DB, userID int64) error
 	ClearInvestmentSnapshots(ctx context.Context, tx *gorm.DB, userID int64) error
-	UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, date *time.Time) error
+	UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, from *time.Time) error
 	HasSnapshotForDate(ctx context.Context, userID int64, date time.Time) (bool, error)
 	GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.AccountDailySnapshot, error)
 	SetSnapshotMarketValue(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, value decimal.Decimal) error
@@ -1249,7 +1249,7 @@ func (r *AccountRepository) ClearInvestmentSnapshots(ctx context.Context, tx *go
     `, userID).Error
 }
 
-func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, date *time.Time) error {
+func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, from *time.Time) error {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -1258,14 +1258,16 @@ func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *
 
 	dateFilter := ""
 	args := []interface{}{userID}
-	if date != nil {
-		dateFilter = "AND s.as_of = ?"
-		args = append(args, date.UTC().Truncate(24*time.Hour))
+	if from != nil {
+		dateFilter = "AND s.as_of >= ?"
+		args = append(args, from.UTC().Truncate(24*time.Hour))
 	}
 
 	// For each investment/crypto account snapshot, sum (last known price × quantity held)
 	// across all assets for that account on that date, with inline currency conversion
 	// via the exchange_rate_history cache. Falls back to rate=1 if no cached rate exists.
+	// A nil `from` recomputes all of history; pass a date to recompute only from the
+	// earliest day that changed.
 	query := fmt.Sprintf(`
 		UPDATE account_daily_snapshots s
 		SET market_value = (
@@ -1277,9 +1279,9 @@ func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *
 			FROM investment_assets ia
 			JOIN LATERAL (
 				SELECT ph.price, ph.currency
-				FROM asset_price_history ph
-				WHERE ph.asset_id = ia.id
-				  AND ph.as_of   <= s.as_of
+				FROM ticker_price_history ph
+				WHERE ph.ticker = ia.ticker
+				  AND ph.as_of <= s.as_of
 				ORDER BY ph.as_of DESC
 				LIMIT 1
 			) ph_latest ON true

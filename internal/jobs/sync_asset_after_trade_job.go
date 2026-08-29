@@ -5,15 +5,14 @@ import (
 	"errors"
 	"time"
 	"wealth-warden/internal/jobqueue"
-	"wealth-warden/internal/models"
 
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 )
 
 type postTradeSyncSvc interface {
-	BackfillAssetPriceHistory(ctx context.Context, assetID int64, ticker string, investmentType models.InvestmentType, from, to time.Time) error
-	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	BackfillTickerPriceHistory(ctx context.Context, ticker string, from, to time.Time) error
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error
 }
 
 type SyncAssetAfterTradeWorker struct {
@@ -32,16 +31,15 @@ func (w *SyncAssetAfterTradeWorker) Work(ctx context.Context, job *river.Job[job
 
 	var errs []error
 
-	if err := w.investmentService.BackfillAssetPriceHistory(ctx, args.AssetID, args.Ticker, args.InvestmentType, args.TradeDate, today); err != nil {
-		w.logger.Warn("Failed to backfill asset price history",
-			zap.Int64("assetID", args.AssetID),
+	if err := w.investmentService.BackfillTickerPriceHistory(ctx, args.Ticker, args.TradeDate, today); err != nil {
+		w.logger.Warn("Failed to backfill ticker price history",
 			zap.String("ticker", args.Ticker),
 			zap.Error(err),
 		)
 		errs = append(errs, err)
 	}
 
-	if err := w.investmentService.UpdateSnapshotMarketValues(ctx, args.UserID); err != nil {
+	if err := w.investmentService.UpdateSnapshotMarketValues(ctx, args.UserID, args.TradeDate); err != nil {
 		w.logger.Warn("Failed to update snapshot market values",
 			zap.Int64("userID", args.UserID),
 			zap.Error(err),

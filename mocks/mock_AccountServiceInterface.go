@@ -2116,16 +2116,16 @@ func (_c *MockAccountServiceInterface_UpdateDailyCashNoSnapshot_Call) RunAndRetu
 }
 
 // UpdateSnapshotMarketValues provides a mock function for the type MockAccountServiceInterface
-func (_mock *MockAccountServiceInterface) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
-	ret := _mock.Called(ctx, userID)
+func (_mock *MockAccountServiceInterface) UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error {
+	ret := _mock.Called(ctx, userID, from)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateSnapshotMarketValues")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) error); ok {
-		r0 = returnFunc(ctx, userID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, time.Time) error); ok {
+		r0 = returnFunc(ctx, userID, from)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -2140,11 +2140,12 @@ type MockAccountServiceInterface_UpdateSnapshotMarketValues_Call struct {
 // UpdateSnapshotMarketValues is a helper method to define mock.On call
 //   - ctx context.Context
 //   - userID int64
-func (_e *MockAccountServiceInterface_Expecter) UpdateSnapshotMarketValues(ctx any, userID any) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
-	return &MockAccountServiceInterface_UpdateSnapshotMarketValues_Call{Call: _e.mock.On("UpdateSnapshotMarketValues", ctx, userID)}
+//   - from time.Time
+func (_e *MockAccountServiceInterface_Expecter) UpdateSnapshotMarketValues(ctx any, userID any, from any) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
+	return &MockAccountServiceInterface_UpdateSnapshotMarketValues_Call{Call: _e.mock.On("UpdateSnapshotMarketValues", ctx, userID, from)}
 }
 
-func (_c *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call) Run(run func(ctx context.Context, userID int64)) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
+func (_c *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call) Run(run func(ctx context.Context, userID int64, from time.Time)) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -2154,9 +2155,14 @@ func (_c *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call) Run(run f
 		if args[1] != nil {
 			arg1 = args[1].(int64)
 		}
+		var arg2 time.Time
+		if args[2] != nil {
+			arg2 = args[2].(time.Time)
+		}
 		run(
 			arg0,
 			arg1,
+			arg2,
 		)
 	})
 	return _c
@@ -2167,7 +2173,7 @@ func (_c *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call) Return(er
 	return _c
 }
 
-func (_c *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call) RunAndReturn(run func(ctx context.Context, userID int64) error) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
+func (_c *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call) RunAndReturn(run func(ctx context.Context, userID int64, from time.Time) error) *MockAccountServiceInterface_UpdateSnapshotMarketValues_Call {
 	_c.Call.Return(run)
 	return _c
 }

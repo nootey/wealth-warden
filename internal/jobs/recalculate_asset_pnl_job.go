@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"fmt"
+	"time"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/ws"
 
@@ -13,7 +14,7 @@ import (
 type pnlSvc interface {
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
-	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error
 }
 
 type RecalculateAssetPnLWorker struct {
@@ -79,7 +80,9 @@ func (w *RecalculateAssetPnLWorker) resolveScope(ctx context.Context, args jobqu
 }
 
 func (w *RecalculateAssetPnLWorker) refreshSnapshots(ctx context.Context, userID int64) {
-	if err := w.investmentService.UpdateSnapshotMarketValues(ctx, userID); err != nil {
+	// A PnL recalc can restate held quantity on any historical day (back-dated
+	// trade edits), so the whole snapshot series is recomputed here.
+	if err := w.investmentService.UpdateSnapshotMarketValues(ctx, userID, time.Time{}); err != nil {
 		w.logger.Warn("Failed to refresh snapshot market values", zap.Int64("userID", userID), zap.Error(err))
 	}
 }

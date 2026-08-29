@@ -42,7 +42,7 @@ type AccountServiceInterface interface {
 	FetchAccountTypesWithoutDefaults(ctx context.Context, userID int64) ([]models.AccountType, error)
 	SetDefaultAccount(ctx context.Context, userID, accountID int64) error
 	UnsetDefaultAccount(ctx context.Context, userID, accountID int64) error
-	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error
 	SyncForUser(ctx context.Context, userID int64) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
@@ -1177,8 +1177,8 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 	return nil
 }
 
-func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
-	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID, nil)
+func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error {
+	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID, utils.SnapshotRecomputeFrom(from))
 }
 
 func (s *AccountService) SyncForUser(ctx context.Context, userID int64) error {
@@ -1219,17 +1219,10 @@ func (s *AccountService) RecalculateAssetPnL(ctx context.Context, userID, assetI
 		}
 		priceData, err := s.priceFetchClient.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
 		if err == nil && priceData != nil && priceData.Price > 0 {
-			now := time.Now().UTC()
+			today := time.Now().UTC().Truncate(24 * time.Hour)
 			price := decimal.NewFromFloat(priceData.Price)
-			if err := s.investmentRepo.UpdateAssetCurrentPrice(ctx, nil, assetID, price, now); err != nil {
-				return err
-			}
-			if err := s.investmentRepo.UpdateTradesPnLForAsset(ctx, nil, assetID, price, asset.InvestmentType, now); err != nil {
-				return err
-			}
-			today := now.Truncate(24 * time.Hour)
-			if err := s.investmentRepo.UpsertAssetPrice(ctx, nil, []models.AssetPriceHistory{
-				{AssetID: assetID, AsOf: today, Price: price, Currency: priceData.Currency},
+			if err := s.investmentRepo.UpsertTickerPrice(ctx, nil, []models.TickerPriceHistory{
+				{Ticker: asset.Ticker, AsOf: today, Price: price, Currency: priceData.Currency},
 			}); err != nil {
 				return err
 			}

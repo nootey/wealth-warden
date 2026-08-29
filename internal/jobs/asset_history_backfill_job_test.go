@@ -88,14 +88,14 @@ func (s *AssetPriceHistoryBackfillJobTestSuite) TestAssetPriceHistoryBackfillJob
 	// Clear any price history that was inserted by InsertInvestmentTrade
 	// so we can verify the backfill job inserts it
 	err = s.TC.DB.WithContext(s.Ctx).
-		Exec("DELETE FROM asset_price_history WHERE asset_id = ?", assetID).Error
+		Exec("DELETE FROM ticker_price_history WHERE ticker = ?", "BTC-USD").Error
 	s.Require().NoError(err)
 
 	// Verify no price history exists yet
 	var countBefore int64
 	err = s.TC.DB.WithContext(s.Ctx).
-		Model(&models.AssetPriceHistory{}).
-		Where("asset_id = ?", assetID).
+		Model(&models.TickerPriceHistory{}).
+		Where("ticker = ?", "BTC-USD").
 		Count(&countBefore).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), countBefore, "no price history should exist before backfill")
@@ -118,16 +118,16 @@ func (s *AssetPriceHistoryBackfillJobTestSuite) TestAssetPriceHistoryBackfillJob
 	// Verify price history was created
 	var countAfter int64
 	err = s.TC.DB.WithContext(s.Ctx).
-		Model(&models.AssetPriceHistory{}).
-		Where("asset_id = ?", assetID).
+		Model(&models.TickerPriceHistory{}).
+		Where("ticker = ?", "BTC-USD").
 		Count(&countAfter).Error
 	s.Require().NoError(err)
 	s.Assert().Greater(countAfter, int64(0), "price history should be populated after backfill")
 
 	// Verify all prices are valid
-	var priceHistory []models.AssetPriceHistory
+	var priceHistory []models.TickerPriceHistory
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("asset_id = ?", assetID).
+		Where("ticker = ?", "BTC-USD").
 		Order("as_of ASC").
 		Find(&priceHistory).Error
 	s.Require().NoError(err)
@@ -212,8 +212,8 @@ func (s *AssetPriceHistoryBackfillJobTestSuite) TestAssetPriceHistoryBackfillJob
 
 	var countAfterFirst int64
 	err = s.TC.DB.WithContext(s.Ctx).
-		Model(&models.AssetPriceHistory{}).
-		Where("asset_id = ?", assetID).
+		Model(&models.TickerPriceHistory{}).
+		Where("ticker = ?", "BTC-USD").
 		Count(&countAfterFirst).Error
 	s.Require().NoError(err)
 
@@ -231,8 +231,8 @@ func (s *AssetPriceHistoryBackfillJobTestSuite) TestAssetPriceHistoryBackfillJob
 
 	var countAfterSecond int64
 	err = s.TC.DB.WithContext(s.Ctx).
-		Model(&models.AssetPriceHistory{}).
-		Where("asset_id = ?", assetID).
+		Model(&models.TickerPriceHistory{}).
+		Where("ticker = ?", "BTC-USD").
 		Count(&countAfterSecond).Error
 	s.Require().NoError(err)
 

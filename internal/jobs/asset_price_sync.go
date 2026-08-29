@@ -16,7 +16,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const priceSurgeThreshold = 0.10
+const (
+	priceSurgeThreshold = 0.10
+	priceFetchBatchSize = 20
+)
 
 type AssetPriceSyncWorker struct {
 	river.WorkerDefaults[jobqueue.AssetPriceSyncArgs]
@@ -28,8 +31,6 @@ func NewAssetPriceSyncWorker(logger *zap.Logger, job *AssetPriceSyncJob) *AssetP
 	return &AssetPriceSyncWorker{logger: logger, job: job}
 }
 
-// Fetching paces itself at one ticker per second, so the ceiling has to clear
-// the whole ticker list plus the writes that follow.
 func (w *AssetPriceSyncWorker) Timeout(*river.Job[jobqueue.AssetPriceSyncArgs]) time.Duration {
 	return 30 * time.Minute
 }
@@ -142,7 +143,7 @@ func (j *AssetPriceSyncJob) refreshSnapshotMarketValues(ctx context.Context) err
 			if ctx.Err() != nil {
 				return nil
 			}
-			if err := j.investmentSvc.UpdateSnapshotMarketValues(ctx, userID); err != nil {
+			if err := j.investmentSvc.UpdateSnapshotMarketValues(ctx, userID, today); err != nil {
 				mu.Lock()
 				failed++
 				mu.Unlock()
@@ -182,7 +183,7 @@ func (j *AssetPriceSyncJob) fetchPrices(ctx context.Context, assets []models.Ass
 	priceData := make(map[string]*finance.PriceData)
 	start := time.Now()
 
-	for i, asset := range assets {
+	for i := 0; i < len(assets); i += priceFetchBatchSize {
 		// Add delay between requests to avoid rate limiting
 		if i > 0 {
 			select {
@@ -192,27 +193,52 @@ func (j *AssetPriceSyncJob) fetchPrices(ctx context.Context, assets []models.Ass
 			}
 		}
 
-		price, err := j.priceFetchClient.GetAssetPrice(ctx, asset.Ticker, asset.InvestmentType)
+		batch := assets[i:min(i+priceFetchBatchSize, len(assets))]
+
+		reqs := make([]finance.AssetRequest, len(batch))
+		symbolToTicker := make(map[string]string, len(batch))
+		for k, a := range batch {
+			reqs[k] = finance.AssetRequest{Ticker: a.Ticker, InvestmentType: a.InvestmentType}
+			symbol := finance.BuildSymbol(finance.ParseSymbol(a.Ticker, a.InvestmentType), a.InvestmentType)
+			symbolToTicker[symbol] = a.Ticker
+		}
+
+		prices, err := j.priceFetchClient.GetPricesForMultipleAssets(ctx, reqs)
 		if err != nil {
-			j.logger.Warn("Failed to fetch price",
-				zap.String("ticker", asset.Ticker),
+			j.logger.Warn("Failed to fetch price batch",
+				zap.Int("batch_start", i),
+				zap.Int("batch_size", len(batch)),
 				zap.Error(err))
 			continue
 		}
 
-		if price == nil {
-			j.logger.Error("No price received", zap.String("ticker", asset.Ticker))
-			continue
-		}
+		for symbol, price := range prices {
+			ticker, ok := symbolToTicker[symbol]
+			if !ok {
+				continue
+			}
 
-		if price.Price <= 0 {
-			j.logger.Error("Invalid price received",
-				zap.String("ticker", asset.Ticker),
-				zap.Float64("price", price.Price))
-			continue
-		}
+			if price == nil {
+				j.logger.Error("No price received", zap.String("ticker", ticker))
+				continue
+			}
 
-		priceData[asset.Ticker] = price
+			if price.Error != nil {
+				j.logger.Warn("Failed to fetch price",
+					zap.String("ticker", ticker),
+					zap.Error(price.Error))
+				continue
+			}
+
+			if price.Price <= 0 {
+				j.logger.Error("Invalid price received",
+					zap.String("ticker", ticker),
+					zap.Float64("price", price.Price))
+				continue
+			}
+
+			priceData[ticker] = price
+		}
 	}
 
 	j.logger.Info("Prices fetched",
@@ -263,8 +289,6 @@ func (j *AssetPriceSyncJob) updateAssetsAndTrades(ctx context.Context, priceData
 	return updatedCount, nil
 }
 
-// The prices are already written when this runs, so a cancelled ctx must not
-// swallow the notifications for them.
 func (j *AssetPriceSyncJob) notifyPriceSurges(ctx context.Context, changes []models.AssetPriceChange) {
 	if j.notifDispatcher == nil {
 		return

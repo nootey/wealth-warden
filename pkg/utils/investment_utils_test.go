@@ -1,4 +1,4 @@
-package repositories
+package utils
 
 import (
 	"testing"
@@ -46,7 +46,7 @@ func TestWalkTradeTotals_BuysAccumulate(t *testing.T) {
 		basisBuy(2, 10, 1200, 5),
 	}
 
-	qty, valueAtBuy, fees := walkTradeTotals(trades, nil)
+	qty, valueAtBuy, fees := WalkTradeTotals(trades, nil)
 
 	assertTotals(t, qty, valueAtBuy, fees, 20, 2200, 10)
 }
@@ -59,7 +59,7 @@ func TestWalkTradeTotals_SellReducesBasisAndFeesProportionally(t *testing.T) {
 		basisSell(3, 5, 550, 2),
 	}
 
-	qty, valueAtBuy, fees := walkTradeTotals(trades, nil)
+	qty, valueAtBuy, fees := WalkTradeTotals(trades, nil)
 
 	assertTotals(t, qty, valueAtBuy, fees, 15, 1650, 7.5)
 }
@@ -74,8 +74,8 @@ func TestWalkTradeTotals_SellFeeDoesNotReduceBasis(t *testing.T) {
 		basisSell(2, 5, 500, 0),
 	}
 
-	_, valueAtBuyA, feesA := walkTradeTotals(withFee, nil)
-	_, valueAtBuyB, feesB := walkTradeTotals(withoutFee, nil)
+	_, valueAtBuyA, feesA := WalkTradeTotals(withFee, nil)
+	_, valueAtBuyB, feesB := WalkTradeTotals(withoutFee, nil)
 
 	assert.Equal(t, valueAtBuyB.String(), valueAtBuyA.String())
 	assert.Equal(t, feesB.String(), feesA.String())
@@ -87,7 +87,7 @@ func TestWalkTradeTotals_FullExitZeroesOut(t *testing.T) {
 		basisSell(2, 10, 1000, 5),
 	}
 
-	qty, valueAtBuy, fees := walkTradeTotals(trades, nil)
+	qty, valueAtBuy, fees := WalkTradeTotals(trades, nil)
 
 	assertTotals(t, qty, valueAtBuy, fees, 0, 0, 0)
 }
@@ -100,7 +100,7 @@ func TestWalkTradeTotals_AsOfExcludesLaterTrades(t *testing.T) {
 	}
 
 	asOf := day(5)
-	qty, valueAtBuy, fees := walkTradeTotals(trades, &asOf)
+	qty, valueAtBuy, fees := WalkTradeTotals(trades, &asOf)
 
 	assertTotals(t, qty, valueAtBuy, fees, 20, 2200, 10)
 }
@@ -109,7 +109,7 @@ func TestWalkTradeTotals_AsOfBeforeFirstTrade(t *testing.T) {
 	trades := []models.InvestmentTrade{basisBuy(5, 10, 1000, 5)}
 
 	asOf := day(1)
-	qty, valueAtBuy, fees := walkTradeTotals(trades, &asOf)
+	qty, valueAtBuy, fees := WalkTradeTotals(trades, &asOf)
 
 	assertTotals(t, qty, valueAtBuy, fees, 0, 0, 0)
 }

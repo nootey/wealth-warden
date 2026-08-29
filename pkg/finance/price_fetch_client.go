@@ -32,6 +32,7 @@ var ExchangeMap = map[string]string{
 type PriceFetcher interface {
 	GetAssetPrice(ctx context.Context, ticker string, investmentType models.InvestmentType) (*PriceData, error)
 	GetAssetPriceOnDate(ctx context.Context, ticker string, investmentType models.InvestmentType, date time.Time) (*PriceData, error)
+	GetAssetPriceRange(ctx context.Context, ticker string, from, to time.Time) ([]DatedPrice, error)
 	GetPricesForMultipleAssets(ctx context.Context, assets []AssetRequest) (map[string]*PriceData, error)
 	GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string) (float64, error)
 	GetExchangeRateOnDate(ctx context.Context, fromCurrency, toCurrency string, date time.Time) (float64, error)
@@ -60,20 +61,6 @@ func NewPriceFetchClient(baseURL string) (PriceFetcher, error) {
 		httpClient: client,
 		baseURL:    baseURL,
 	}, nil
-}
-
-func (c *PriceFetchClient) normalizeExchange(exchange string) string {
-	if exchange == "" {
-		return ""
-	}
-
-	normalized := strings.ToUpper(strings.TrimSpace(exchange))
-
-	if code, exists := ExchangeMap[normalized]; exists {
-		return code
-	}
-
-	return normalized
 }
 
 func (c *PriceFetchClient) GetAssetPrice(ctx context.Context, ticker string, investmentType models.InvestmentType) (*PriceData, error) {
@@ -250,50 +237,20 @@ func (c *PriceFetchClient) GetAssetPriceOnDate(ctx context.Context, ticker strin
 	}, nil
 }
 
-func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, assets []AssetRequest) (map[string]*PriceData, error) {
-	if len(assets) == 0 {
-		return nil, fmt.Errorf("no assets provided")
+// A closed market yields no bars, which is not an error.
+func (c *PriceFetchClient) GetAssetPriceRange(ctx context.Context, ticker string, from, to time.Time) ([]DatedPrice, error) {
+	ticker = strings.ToUpper(strings.TrimSpace(ticker))
+
+	from = from.UTC().Truncate(24 * time.Hour)
+	to = to.UTC().Truncate(24 * time.Hour)
+	if from.After(to) {
+		return nil, fmt.Errorf("invalid range for %s: %s is after %s",
+			ticker, from.Format(time.DateOnly), to.Format(time.DateOnly))
 	}
 
-	symbols := make([]string, 0, len(assets))
-	symbolMap := make(map[string]string) // maps yahoo symbol to original identifier
-
-	for _, asset := range assets {
-		ticker := strings.ToUpper(strings.TrimSpace(asset.Ticker))
-		var symbol string
-		var identifier string
-
-		switch asset.InvestmentType {
-		case models.InvestmentCrypto:
-			currency := strings.ToUpper(strings.TrimSpace(asset.Currency))
-			if currency == "" {
-				currency = "USD"
-			}
-			symbol = fmt.Sprintf("%s-%s", ticker, currency)
-			identifier = symbol
-
-		case models.InvestmentStock, models.InvestmentETF:
-			exchange := c.normalizeExchange(asset.Exchange)
-			if exchange == "" {
-				continue // Skip assets without exchange
-			}
-			symbol = fmt.Sprintf("%s.%s", ticker, exchange)
-			identifier = symbol
-
-		default:
-			continue // Skip invalid types
-		}
-
-		symbols = append(symbols, symbol)
-		symbolMap[symbol] = identifier
-	}
-
-	if len(symbols) == 0 {
-		return nil, fmt.Errorf("no valid assets to fetch")
-	}
-
-	symbolsParam := strings.Join(symbols, ",")
-	url := fmt.Sprintf("%s/v7/finance/quote?symbols=%s", c.baseURL, symbolsParam)
+	// period2 is exclusive, so cover the last day with a one day margin
+	url := fmt.Sprintf("%s/v8/finance/chart/%s?period1=%d&period2=%d&interval=1d",
+		c.baseURL, ticker, from.Unix(), to.AddDate(0, 0, 1).Unix())
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -314,36 +271,146 @@ func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, asset
 	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("yahoo finance returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("ticker '%s' not found on Yahoo Finance (status %d)", ticker, resp.StatusCode)
 	}
 
-	var data QuoteResponse
+	var data ChartResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	result := make(map[string]*PriceData)
-
-	for _, quote := range data.QuoteResponse.Result {
-		result[quote.Symbol] = &PriceData{
-			Symbol:     quote.Symbol,
-			Price:      quote.RegularMarketPrice,
-			Currency:   quote.Currency,
-			LastUpdate: quote.RegularMarketTime,
-		}
+	if len(data.Chart.Result) == 0 {
+		return nil, fmt.Errorf("no price data found for ticker '%s'", ticker)
 	}
 
-	// Mark missing symbols
-	for _, symbol := range symbols {
-		if _, exists := result[symbol]; !exists {
-			result[symbol] = &PriceData{
-				Symbol: symbol,
-				Error:  fmt.Errorf("no data returned"),
-			}
+	result := data.Chart.Result[0]
+	if len(result.Indicators.Quote) == 0 {
+		return nil, nil
+	}
+
+	closes := result.Indicators.Quote[0].Close
+	prices := make([]DatedPrice, 0, len(result.Timestamp))
+
+	for i, ts := range result.Timestamp {
+		if i >= len(closes) || closes[i] == nil || *closes[i] <= 0 {
+			continue
 		}
+
+		// Timestamps mark the session start in exchange local time
+		day := time.Unix(ts+result.Meta.GMTOffset, 0).UTC().Truncate(24 * time.Hour)
+		if day.Before(from) || day.After(to) {
+			continue
+		}
+
+		prices = append(prices, DatedPrice{
+			Date:     day,
+			Price:    *closes[i],
+			Currency: result.Meta.Currency,
+		})
+	}
+
+	return prices, nil
+}
+
+func (c *PriceFetchClient) GetPricesForMultipleAssets(ctx context.Context, assets []AssetRequest) (map[string]*PriceData, error) {
+	if len(assets) == 0 {
+		return nil, fmt.Errorf("no assets provided")
+	}
+
+	symbols := make([]string, 0, len(assets))
+
+	for _, asset := range assets {
+		switch asset.InvestmentType {
+		case models.InvestmentCrypto, models.InvestmentStock, models.InvestmentETF:
+		default:
+			continue // Skip invalid types
+		}
+
+		parts := ParseSymbol(asset.Ticker, asset.InvestmentType)
+		if asset.Exchange != "" {
+			parts.Exchange = asset.Exchange
+		}
+		if asset.Currency != "" {
+			parts.Currency = asset.Currency
+		}
+
+		symbol := BuildSymbol(parts, asset.InvestmentType)
+		if symbol == "" {
+			continue
+		}
+
+		symbols = append(symbols, symbol)
+	}
+
+	if len(symbols) == 0 {
+		return nil, fmt.Errorf("no valid assets to fetch")
+	}
+
+	url := fmt.Sprintf("%s/v8/finance/spark?symbols=%s&range=7d&interval=1d",
+		c.baseURL, strings.Join(symbols, ","))
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch prices: %w", err)
+	}
+	defer func(Body io.ReadCloser) {
+		closeErr := Body.Close()
+		if closeErr != nil {
+			fmt.Printf("warning: failed to close response body: %v\n", closeErr)
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("yahoo finance spark returned status %d", resp.StatusCode)
+	}
+
+	var data SparkResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	result := make(map[string]*PriceData, len(symbols))
+	for _, symbol := range symbols {
+		entry, ok := data[symbol]
+		if !ok {
+			result[symbol] = &PriceData{Symbol: symbol, Error: fmt.Errorf("no data returned")}
+			continue
+		}
+
+		price, ts := latestSparkClose(entry)
+		if price <= 0 {
+			result[symbol] = &PriceData{Symbol: symbol, Error: fmt.Errorf("no valid close price")}
+			continue
+		}
+
+		result[symbol] = &PriceData{Symbol: symbol, Price: price, LastUpdate: ts}
 	}
 
 	return result, nil
+}
+
+func latestSparkClose(entry SparkEntry) (float64, int64) {
+	for i := len(entry.Close) - 1; i >= 0; i-- {
+		if entry.Close[i] == nil || *entry.Close[i] <= 0 {
+			continue
+		}
+		var ts int64
+		if i < len(entry.Timestamp) {
+			ts = entry.Timestamp[i]
+		}
+		return *entry.Close[i], ts
+	}
+	if entry.ChartPreviousClose > 0 {
+		return entry.ChartPreviousClose, 0
+	}
+	return 0, 0
 }
 
 func (c *PriceFetchClient) GetExchangeRate(ctx context.Context, fromCurrency, toCurrency string) (float64, error) {

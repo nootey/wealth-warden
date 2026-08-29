@@ -23,11 +23,11 @@ const (
 )
 
 type AssetBackfillRow struct {
-	ID             int64
 	Ticker         string
 	InvestmentType InvestmentType
 	Currency       string
 	EarliestTrade  time.Time
+	LastPriceDate  *time.Time
 }
 
 type AssetPriceSyncRow struct {
@@ -49,27 +49,28 @@ type AssetPriceChange struct {
 }
 
 type InvestmentAsset struct {
-	ID                int64            `gorm:"primaryKey;autoIncrement" json:"id"`
-	AccountID         int64            `gorm:"not null;index:idx_assets_account" json:"account_id"`
-	UserID            int64            `gorm:"not null;index:idx_assets_user" json:"user_id"`
-	InvestmentType    InvestmentType   `gorm:"type:investment_type;not null" json:"investment_type"`
-	Name              string           `gorm:"type:varchar(255);not null" json:"name"`
-	Ticker            string           `gorm:"type:varchar(20);not null;index:idx_assets_ticker" json:"ticker"`
-	Quantity          decimal.Decimal  `gorm:"type:decimal(19,8);not null" json:"quantity"`
-	AverageBuyPrice   decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"average_buy_price"`
-	ValueAtBuy        decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
-	CurrentValue      decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"current_value"`
-	CurrentPrice      *decimal.Decimal `gorm:"type:decimal(19,4)" json:"current_price"`
-	TotalFees         decimal.Decimal  `gorm:"type:decimal(19,6);not null;default:0" json:"total_fees"`
-	ProfitLoss        decimal.Decimal  `gorm:"type:decimal(19,4);not null;default:0" json:"profit_loss"`
-	ProfitLossPercent decimal.Decimal  `gorm:"type:decimal(10,2);not null;default:0" json:"profit_loss_percent"`
-	LastPriceUpdate   *time.Time       `json:"last_price_update"`
-	Currency          string           `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
-	Account           Account          `json:"account"`
-	ImportID          *int64           `json:"import_id,omitempty"`
-	TaxSummary        *AssetTaxSummary `gorm:"-" json:"tax_summary,omitempty"`
-	CreatedAt         time.Time        `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt         time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
+	ID                  int64            `gorm:"primaryKey;autoIncrement" json:"id"`
+	AccountID           int64            `gorm:"not null;index:idx_assets_account" json:"account_id"`
+	UserID              int64            `gorm:"not null;index:idx_assets_user" json:"user_id"`
+	InvestmentType      InvestmentType   `gorm:"type:investment_type;not null" json:"investment_type"`
+	Name                string           `gorm:"type:varchar(255);not null" json:"name"`
+	Ticker              string           `gorm:"type:varchar(20);not null;index:idx_assets_ticker" json:"ticker"`
+	Quantity            decimal.Decimal  `gorm:"type:decimal(19,8);not null" json:"quantity"`
+	AverageBuyPrice     decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"average_buy_price"`
+	ValueAtBuy          decimal.Decimal  `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
+	TotalFees           decimal.Decimal  `gorm:"type:decimal(19,6);not null;default:0" json:"total_fees"`
+	CurrentValue        decimal.Decimal  `gorm:"->" json:"current_value"`
+	ProfitLoss          decimal.Decimal  `gorm:"->" json:"profit_loss"`
+	ProfitLossPercent   decimal.Decimal  `gorm:"->" json:"profit_loss_percent"`
+	LatestPrice         *decimal.Decimal `gorm:"->" json:"latest_price"`
+	LatestPriceCurrency *string          `gorm:"->" json:"latest_price_currency"`
+	LastPriceUpdate     *time.Time       `gorm:"->" json:"last_price_update"`
+	Currency            string           `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
+	Account             Account          `json:"account"`
+	ImportID            *int64           `json:"import_id,omitempty"`
+	TaxSummary          *AssetTaxSummary `gorm:"-" json:"tax_summary,omitempty"`
+	CreatedAt           time.Time        `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt           time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type InvestmentTrade struct {
@@ -82,10 +83,10 @@ type InvestmentTrade struct {
 	Fee               decimal.Decimal `gorm:"type:decimal(19,4);not null;default:0" json:"fee"`
 	PricePerUnit      decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"price_per_unit"`
 	ValueAtBuy        decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"value_at_buy"`
-	CurrentValue      decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"current_value"`
 	RealizedValue     decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"realized_value"`
-	ProfitLoss        decimal.Decimal `gorm:"type:decimal(19,4);not null;default:0" json:"profit_loss"`
-	ProfitLossPercent decimal.Decimal `gorm:"type:decimal(10,2);not null;default:0" json:"profit_loss_percent"`
+	CurrentValue      decimal.Decimal `gorm:"->" json:"current_value"`
+	ProfitLoss        decimal.Decimal `gorm:"->" json:"profit_loss"`
+	ProfitLossPercent decimal.Decimal `gorm:"->" json:"profit_loss_percent"`
 	Currency          string          `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
 	ExchangeRateToUSD decimal.Decimal `gorm:"type:decimal(19,6);not null;default:1.0" json:"exchange_rate_to_usd"`
 	Description       *string         `gorm:"type:varchar(255)" json:"description"`
@@ -96,16 +97,16 @@ type InvestmentTrade struct {
 	UpdatedAt         time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
-type AssetPriceHistory struct {
-	AssetID   int64           `gorm:"primaryKey" json:"asset_id"`
+type TickerPriceHistory struct {
+	Ticker    string          `gorm:"primaryKey;type:varchar(20)" json:"ticker"`
 	AsOf      time.Time       `gorm:"type:date;primaryKey" json:"as_of"`
 	Price     decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"price"`
 	Currency  string          `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
 	CreatedAt time.Time       `gorm:"autoCreateTime" json:"created_at"`
 }
 
-func (AssetPriceHistory) TableName() string {
-	return "asset_price_history"
+func (TickerPriceHistory) TableName() string {
+	return "ticker_price_history"
 }
 
 type ExchangeRateHistory struct {
