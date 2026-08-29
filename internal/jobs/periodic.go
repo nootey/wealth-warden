@@ -66,8 +66,8 @@ func periodicSpecs(cfg config.SchedulerConfig) []periodicSpec {
 
 	return []periodicSpec{
 		{dailyAt{0, 0}, jobqueue.AssetPriceHistoryBackfillArgs{}, immediate["asset_history_backfill"]},
-		{dailyAt{0, 6}, jobqueue.BalanceBackfillArgs{}, immediate["balance_backfill"]},
-		{dailyAt{0, 10}, jobqueue.RecurringTransactionsArgs{}, immediate["recurring_transactions"]},
+		{dailyAt{0, 10}, jobqueue.BalanceBackfillArgs{}, immediate["balance_backfill"]},
+		{dailyAt{0, 20}, jobqueue.RecurringTransactionsArgs{}, immediate["recurring_transactions"]},
 		{river.PeriodicInterval(8 * time.Hour), jobqueue.AssetPriceSyncArgs{}, immediate["asset_price_sync"]},
 	}
 }

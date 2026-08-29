@@ -26,7 +26,7 @@ func (s *stubPostTradeSync) BackfillTickerPriceHistory(context.Context, string, 
 	return s.backfillErr
 }
 
-func (s *stubPostTradeSync) UpdateSnapshotMarketValues(context.Context, int64) error {
+func (s *stubPostTradeSync) UpdateSnapshotMarketValues(context.Context, int64, time.Time) error {
 	s.snapshotted = true
 	return s.snapshotErr
 }

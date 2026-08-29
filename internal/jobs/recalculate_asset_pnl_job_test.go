@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/ws"
@@ -37,7 +38,7 @@ func (m *mockPnLSvc) GetAssetIDsForAccount(_ context.Context, _, _ int64) ([]int
 	return m.assetIDs, m.assetIDsErr
 }
 
-func (m *mockPnLSvc) UpdateSnapshotMarketValues(_ context.Context, _ int64) error {
+func (m *mockPnLSvc) UpdateSnapshotMarketValues(_ context.Context, _ int64, _ time.Time) error {
 	return nil
 }
 

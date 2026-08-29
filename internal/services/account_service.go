@@ -42,7 +42,7 @@ type AccountServiceInterface interface {
 	FetchAccountTypesWithoutDefaults(ctx context.Context, userID int64) ([]models.AccountType, error)
 	SetDefaultAccount(ctx context.Context, userID, accountID int64) error
 	UnsetDefaultAccount(ctx context.Context, userID, accountID int64) error
-	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error
 	SyncForUser(ctx context.Context, userID int64) error
 	RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
@@ -1177,8 +1177,8 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 	return nil
 }
 
-func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
-	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID, nil)
+func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error {
+	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID, utils.SnapshotRecomputeFrom(from))
 }
 
 func (s *AccountService) SyncForUser(ctx context.Context, userID int64) error {

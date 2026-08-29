@@ -12,7 +12,7 @@ import (
 
 type postTradeSyncSvc interface {
 	BackfillTickerPriceHistory(ctx context.Context, ticker string, from, to time.Time) error
-	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error
 }
 
 type SyncAssetAfterTradeWorker struct {
@@ -39,7 +39,7 @@ func (w *SyncAssetAfterTradeWorker) Work(ctx context.Context, job *river.Job[job
 		errs = append(errs, err)
 	}
 
-	if err := w.investmentService.UpdateSnapshotMarketValues(ctx, args.UserID); err != nil {
+	if err := w.investmentService.UpdateSnapshotMarketValues(ctx, args.UserID, args.TradeDate); err != nil {
 		w.logger.Warn("Failed to update snapshot market values",
 			zap.Int64("userID", args.UserID),
 			zap.Error(err),

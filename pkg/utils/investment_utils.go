@@ -8,6 +8,19 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type TradeExchangeRateKey struct {
+	From, To string
+	Day      string
+}
+
+func NewTradeExchangeRateKey(trade models.InvestmentTrade) TradeExchangeRateKey {
+	return TradeExchangeRateKey{
+		From: trade.Currency,
+		To:   trade.Asset.Account.Currency,
+		Day:  trade.TxnDate.UTC().Format("2006-01-02"),
+	}
+}
+
 func MergeStakingIntoTrades(trades []models.InvestmentTrade, income []models.InvestmentIncome) []models.InvestmentTrade {
 	if len(income) == 0 {
 		return trades
@@ -111,17 +124,4 @@ func AllocationRows(buckets map[string]*models.AllocationRow, total decimal.Deci
 	})
 
 	return rows
-}
-
-type TradeExchangeRateKey struct {
-	From, To string
-	Day      string
-}
-
-func NewTradeExchangeRateKey(trade models.InvestmentTrade) TradeExchangeRateKey {
-	return TradeExchangeRateKey{
-		From: trade.Currency,
-		To:   trade.Asset.Account.Currency,
-		Day:  trade.TxnDate.UTC().Format("2006-01-02"),
-	}
 }

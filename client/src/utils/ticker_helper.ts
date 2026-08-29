@@ -28,10 +28,7 @@ function buildTicker(
 
 // parseTicker splits a stored symbol back into its parts. Mirrors
 // finance.ParseSymbol on the server.
-function parseTicker(
-  raw: string,
-  investmentType: InvestmentType,
-): TickerParts {
+function parseTicker(raw: string, investmentType: InvestmentType): TickerParts {
   const value = (raw || "").trim().toUpperCase();
 
   if (investmentType === "crypto") {

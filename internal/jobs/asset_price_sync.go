@@ -142,7 +142,7 @@ func (j *AssetPriceSyncJob) refreshSnapshotMarketValues(ctx context.Context) err
 			if ctx.Err() != nil {
 				return nil
 			}
-			if err := j.investmentSvc.UpdateSnapshotMarketValues(ctx, userID); err != nil {
+			if err := j.investmentSvc.UpdateSnapshotMarketValues(ctx, userID, today); err != nil {
 				mu.Lock()
 				failed++
 				mu.Unlock()

@@ -494,9 +494,9 @@ async function syncAssetAccountBalance(acc_id: number | null) {
           <label class="text-sm">Current price</label>
           <span class="text-sm" style="color: var(--text-secondary)">{{
             vueHelper.displayAssetPrice(
-              record.latest_price,
+              record?.latest_price!,
               record.investment_type,
-              record.latest_price_currency,
+              record?.latest_price_currency!,
             )
           }}</span>
         </div>

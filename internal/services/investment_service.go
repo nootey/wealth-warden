@@ -45,7 +45,7 @@ type InvestmentServiceInterface interface {
 	GetActiveCurrencyPairs(ctx context.Context) ([]models.CurrencyPair, error)
 	GetUserIDsWithActiveInvestments(ctx context.Context) ([]int64, error)
 	BackfillTickerPriceHistory(ctx context.Context, ticker string, from, to time.Time) error
-	UpdateSnapshotMarketValues(ctx context.Context, userID int64) error
+	UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error
 	CreateInvestmentIncome(ctx context.Context, userID int64, req *models.InvestmentIncomeReq) (int64, error)
 	DeleteInvestmentIncome(ctx context.Context, userID int64, id int64) error
 	FetchInvestmentIncomeByAsset(ctx context.Context, userID int64, assetID int64, p utils.PaginationParams) ([]models.InvestmentIncome, *utils.Paginator, error)
@@ -1391,8 +1391,8 @@ func (s *InvestmentService) GetUserIDsWithActiveInvestments(ctx context.Context)
 	return s.repo.FindUserIDsWithActiveInvestments(ctx, nil)
 }
 
-func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, userID int64) error {
-	return s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID, nil)
+func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error {
+	return s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID, utils.SnapshotRecomputeFrom(from))
 }
 
 func (s *InvestmentService) FetchInvestmentIncomeByAsset(ctx context.Context, userID int64, assetID int64, p utils.PaginationParams) ([]models.InvestmentIncome, *utils.Paginator, error) {

@@ -141,3 +141,10 @@ func IsUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
+
+func SnapshotRecomputeFrom(from time.Time) *time.Time {
+	if from.IsZero() {
+		return nil
+	}
+	return &from
+}
