@@ -40,6 +40,15 @@ async function triggerCorrectFeeAccounting() {
   }
 }
 
+async function triggerIncomeFXBackfill() {
+  try {
+    const res = await backofficeStore.backfillIncomeExchangeRates();
+    toastStore.successResponseToast(res);
+  } catch (err) {
+    toastStore.errorResponseToast(err);
+  }
+}
+
 async function runZeroCostMigration() {
   try {
     const res = await backofficeStore.migrateZeroCostTrades();
@@ -139,6 +148,23 @@ async function runZeroCostMigration() {
                 label="Run correction"
                 severity="danger"
                 @click="triggerCorrectFeeAccounting"
+              />
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-1 p-4 border rounded-md border-surface">
+            <div style="font-weight: bold">Income Exchange Rate Backfill</div>
+            <div class="text-sm text-muted-color">
+              Fills <code>exchange_rate_to_usd</code> on every investment income
+              row that is not already in USD, using the rate on the income date.
+              Return calculations need every cash flow on one scale. Safe to
+              re-run - it rewrites the rate from the cached history each time.
+            </div>
+            <div class="mt-2">
+              <Button
+                label="Run backfill"
+                severity="danger"
+                @click="triggerIncomeFXBackfill"
               />
             </div>
           </div>

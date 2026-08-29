@@ -53,6 +53,9 @@ func RegisterWorkers(workers *river.Workers, c *bootstrap.ServiceContainer, logg
 			return river.AddWorkerSafely(workers, NewCorrectFeeAccountingWorker(logger.Named("fee_correction"), c.InvestmentService, concurrentWorkers))
 		},
 		func() error {
+			return river.AddWorkerSafely(workers, NewBackfillIncomeFXRatesWorker(logger.Named("income_fx_backfill"), c.InvestmentService, concurrentWorkers))
+		},
+		func() error {
 			return river.AddWorkerSafely(workers, NewMigrateZeroCostTradesWorker(logger.Named("zero_cost_migration"), c.BackofficeService))
 		},
 		func() error {

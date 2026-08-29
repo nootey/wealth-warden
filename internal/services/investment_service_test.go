@@ -2254,3 +2254,138 @@ func (s *InvestmentServiceTestSuite) TestFetchInvestmentTradesPaginated_BuyTrack
 	// sell: realized 480 - basis 400 = 80, independent of the 150 price
 	s.Assert().True(decimal.NewFromInt(80).Equal(sell.ProfitLoss), "sell PnL is the realized figure, got %s", sell.ProfitLoss.String())
 }
+
+// Creates a priced asset with no opening trade, so the caller can date its own
+func (s *InvestmentServiceTestSuite) newAsset(userID, accID int64, ticker, name string, invType models.InvestmentType) int64 {
+	assetID, err := s.TC.App.InvestmentService.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      accID,
+		InvestmentType: invType,
+		Name:           name,
+		Ticker:         ticker,
+		Currency:       "EUR",
+		Quantity:       decimal.Zero,
+	})
+	s.Require().NoError(err)
+	return assetID
+}
+
+// A double in one year is 100%/year. Cost-basis P&L says +100% either way.
+func (s *InvestmentServiceTestSuite) TestFetchPortfolioReturns_AnnualisesOverOneYear() {
+	userID := int64(1)
+	accID := s.newInvestmentAccount(userID, "Investment Account")
+	yearAgo := time.Now().UTC().Truncate(24*time.Hour).AddDate(-1, 0, 0)
+
+	assetID := s.newAsset(userID, accID, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock)
+
+	// 500 EUR out. The mock prices IWDA.AS at 100 EUR, so it holds 1000 EUR today.
+	_, err := s.TC.App.InvestmentService.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      yearAgo,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(10),
+		PricePerUnit: decimal.NewFromInt(50),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	returns, err := s.TC.App.InvestmentService.FetchPortfolioReturns(s.Ctx, userID, "EUR")
+	s.Require().NoError(err)
+
+	s.Assert().Equal("EUR", returns.Currency)
+	s.Require().NotNil(returns.Portfolio.Rate, "no rate: %s", returns.Portfolio.Reason)
+	s.Assert().True(returns.Portfolio.Rate.Sub(decimal.NewFromInt(1)).Abs().LessThan(decimal.NewFromFloat(0.01)),
+		"a double in one year should be about 100%%/year, got %s", returns.Portfolio.Rate.String())
+
+	s.Require().Len(returns.Assets, 1)
+	s.Assert().Equal("IWDA.AS", returns.Assets[0].Key)
+	s.Assert().True(decimal.NewFromInt(1000).Equal(returns.Assets[0].CurrentValue),
+		"closing value should be 1000 EUR, got %s", returns.Assets[0].CurrentValue.String())
+}
+
+// Staking pays in tokens, already inside the closing value - never an inflow.
+func (s *InvestmentServiceTestSuite) TestFetchPortfolioReturns_ExcludesStakingRewards() {
+	userID := int64(1)
+	accID := s.newInvestmentAccount(userID, "Investment Account")
+	yearAgo := time.Now().UTC().Truncate(24*time.Hour).AddDate(-1, 0, 0)
+
+	assetID := s.newAsset(userID, accID, "BTC-EUR", "Bitcoin", models.InvestmentCrypto)
+
+	_, err := s.TC.App.InvestmentService.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      yearAgo,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(1),
+		PricePerUnit: decimal.NewFromInt(30000),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	stakedQty := decimal.NewFromFloat(0.1)
+	_, err = s.TC.App.InvestmentService.CreateInvestmentIncome(s.Ctx, userID, &models.InvestmentIncomeReq{
+		AssetID:    assetID,
+		TxnDate:    yearAgo,
+		IncomeType: models.IncomeTypeStaking,
+		Quantity:   &stakedQty,
+		Currency:   "EUR",
+	})
+	s.Require().NoError(err)
+
+	returns, err := s.TC.App.InvestmentService.FetchPortfolioReturns(s.Ctx, userID, "EUR")
+	s.Require().NoError(err)
+
+	s.Require().Len(returns.Assets, 1)
+	s.Require().NotNil(returns.Assets[0].Rate, "no rate: %s", returns.Assets[0].Reason)
+
+	// 1.1 BTC x 45000 = 49500 EUR closing against 30000 EUR paid, over one year
+	s.Assert().True(decimal.NewFromInt(49500).Equal(returns.Assets[0].CurrentValue),
+		"closing value should be 49500 EUR, got %s", returns.Assets[0].CurrentValue.String())
+	s.Assert().True(returns.Assets[0].Rate.Sub(decimal.NewFromFloat(0.65)).Abs().LessThan(decimal.NewFromFloat(0.01)),
+		"rate should be about 65%%/year, got %s (counting the reward as cash gives about 80%%)",
+		returns.Assets[0].Rate.String())
+}
+
+// A held asset with no price has buys but no closing value. Counting it reads
+// the holding as a total loss and drags the portfolio rate down.
+func (s *InvestmentServiceTestSuite) TestFetchPortfolioReturns_ExcludesUnpricedHoldings() {
+	userID := int64(1)
+	accID := s.newInvestmentAccount(userID, "Investment Account")
+	yearAgo := time.Now().UTC().Truncate(24*time.Hour).AddDate(-1, 0, 0)
+
+	pricedID := s.newAsset(userID, accID, "IWDA.AS", "iShares Core MSCI World", models.InvestmentStock)
+	_, err := s.TC.App.InvestmentService.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      pricedID,
+		TxnDate:      yearAgo,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(10),
+		PricePerUnit: decimal.NewFromInt(50),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	unpricedID := s.newAsset(userID, accID, "BTC-EUR", "Bitcoin", models.InvestmentCrypto)
+	_, err = s.TC.App.InvestmentService.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      unpricedID,
+		TxnDate:      yearAgo,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(1),
+		PricePerUnit: decimal.NewFromInt(30000),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Exec(
+		`DELETE FROM ticker_price_history WHERE ticker = ?`, "BTC-EUR").Error)
+
+	returns, err := s.TC.App.InvestmentService.FetchPortfolioReturns(s.Ctx, userID, "EUR")
+	s.Require().NoError(err)
+
+	s.Assert().Equal(1, returns.UnpricedAssets)
+
+	s.Require().Len(returns.Assets, 1)
+	s.Assert().Equal("IWDA.AS", returns.Assets[0].Key)
+
+	s.Require().NotNil(returns.Portfolio.Rate, "no rate: %s", returns.Portfolio.Reason)
+	s.Assert().True(returns.Portfolio.Rate.Sub(decimal.NewFromInt(1)).Abs().LessThan(decimal.NewFromFloat(0.01)),
+		"the unpriced holding must not drag the portfolio rate down, got %s", returns.Portfolio.Rate.String())
+	s.Assert().True(decimal.NewFromInt(1000).Equal(returns.Portfolio.CurrentValue),
+		"only the priced holding counts, got %s", returns.Portfolio.CurrentValue.String())
+}

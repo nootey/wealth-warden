@@ -32,6 +32,7 @@ func (h *InvestmentHandler) Routes(ap *gin.RouterGroup) {
 	ap.GET("", authz.RequireAllMW("view_data"), h.GetInvestmentAssetsPaginated)
 	ap.GET("all", authz.RequireAllMW("view_data"), h.GetAllInvestmentAssets)
 	ap.GET("allocation", authz.RequireAllMW("view_data"), h.GetPortfolioAllocation)
+	ap.GET("returns", authz.RequireAllMW("view_data"), h.GetPortfolioReturns)
 	ap.GET(":id", authz.RequireAllMW("view_data"), h.GetInvestmentAssetByID)
 	ap.GET("trades", authz.RequireAllMW("view_data"), h.GetInvestmentTradesPaginated)
 	ap.GET("trades/:id", authz.RequireAllMW("view_data"), h.GetInvestmentTradeByID)
@@ -596,6 +597,19 @@ func (h *InvestmentHandler) GetPortfolioAllocation(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 
 	record, err := h.Service.FetchPortfolioAllocation(ctx, userID, c.Query("currency"))
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, record)
+}
+
+func (h *InvestmentHandler) GetPortfolioReturns(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	record, err := h.Service.FetchPortfolioReturns(ctx, userID, c.Query("currency"))
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
