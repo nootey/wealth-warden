@@ -23,6 +23,7 @@ type ServiceContainer struct {
 	SessionStore        *sessions.Store
 	AuthzService        *authz.Service
 	BackofficeService   *services.BackofficeService
+	JobAdminService     *services.JobAdminService
 	AuthService         *services.AuthService
 	UserService         *services.UserService
 	LoggingService      *services.LoggingService
@@ -42,10 +43,7 @@ type ServiceContainer struct {
 	Hub                 *ws.Hub
 }
 
-// NewServiceContainer initialises the application service layer.
-// Pass a non-nil priceFetcher to override the default client (e.g. a mock in tests).
-// Pass nil to have the real Yahoo Finance client created from cfg.FinanceAPIBaseURL.
-func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *zap.Logger, jobDispatcher jobqueue.Dispatcher, priceFetcher finance.PriceFetcher) (*ServiceContainer, error) {
+func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, logger *zap.Logger, jobDispatcher jobqueue.Dispatcher, jobManager jobqueue.JobManager, priceFetcher finance.PriceFetcher) (*ServiceContainer, error) {
 	if priceFetcher == nil {
 		var err error
 		priceFetcher, err = finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
@@ -65,6 +63,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 
 	// Initialize repositories
 	backOfficeRepo := repositories.NewBackofficeRepository(db)
+	jobRepo := repositories.NewJobRepository(db)
 	loggingRepo := repositories.NewLoggingRepository(db)
 	userRepo := repositories.NewUserRepository(db)
 	roleRepo := repositories.NewRolePermissionRepositoryRepository(db)
@@ -93,6 +92,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 	notesService := services.NewNotesService(notesRepo, jobDispatcher)
 	analyticsService := services.NewAnalyticsService(analyticsRepo, accountRepo, transactionRepo, settingsRepo, jobDispatcher)
 	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService)
+	jobAdminService := services.NewJobAdminService(logger.Named("job_admin_srv"), jobRepo, jobManager)
 	savingsService := services.NewSavingsService(savingsRepo, accountRepo, jobDispatcher)
 	notificationService := services.NewNotificationService(notificationRepo)
 	notifDispatcher := jobqueue.NewNotificationDispatcher(jobDispatcher)
@@ -104,6 +104,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 		DB:                  db,
 		SessionStore:        sessionStore,
 		BackofficeService:   backOfficeService,
+		JobAdminService:     jobAdminService,
 		AuthzService:        authzSvc,
 		AuthService:         authService,
 		UserService:         userService,

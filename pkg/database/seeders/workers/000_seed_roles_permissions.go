@@ -41,6 +41,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, cfg *config.Confi
 
 		// Backoffice
 		{"access_backoffice", "Access backoffice (global)", "backoffice"},
+		{"manage_jobs", "Manage durable queue jobs: retry, cancel, delete (global)", "backoffice"},
 
 		// User management
 		{"manage_users", "Manage users (global)", "users"},
@@ -84,6 +85,7 @@ func SeedRolesAndPermissions(ctx context.Context, db *gorm.DB, cfg *config.Confi
 			Role: "admin",
 			Permissions: []string{
 				"access_backoffice",
+				"manage_jobs",
 				"manage_users",
 				"delete_users",
 				"manage_subscriptions",

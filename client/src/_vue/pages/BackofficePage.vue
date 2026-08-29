@@ -4,13 +4,15 @@ import { useBackofficeStore } from "../../services/stores/backoffice_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import ActivityLogsPage from "./ActivityLogsPage.vue";
+import JobMonitorPage from "./backoffice/JobMonitorPage.vue";
 
 const backofficeStore = useBackofficeStore();
 const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
 
 const tabs = [
-  { key: "logs", label: "Activity Logs", permission: "view_activity_logs" },
+  { key: "jobs", label: "Jobs", permission: "access_backoffice" },
+  { key: "logs", label: "Audit", permission: "view_activity_logs" },
   { key: "admin", label: "Admin", permission: "access_backoffice" },
 ];
 
@@ -57,7 +59,9 @@ async function runZeroCostMigration() {
       id="mobile-container"
       class="flex flex-col justify-center w-full gap-4 rounded-md"
     >
-      <div class="w-full flex flex-row justify-between p-1 gap-2 items-center">
+      <div
+        class="w-full flex flex-row justify-between p-1 gap-2 items-center mt-2"
+      >
         <div class="w-full flex flex-col gap-2">
           <div style="font-weight: bold">Backoffice</div>
           <div>Watch your step - fragile grounds.</div>
@@ -84,6 +88,9 @@ async function runZeroCostMigration() {
       <Transition name="fade" mode="out-in">
         <div v-if="activeTab === 'logs'" key="logs">
           <ActivityLogsPage />
+        </div>
+        <div v-else-if="activeTab === 'jobs'" key="jobs" class="w-full">
+          <JobMonitorPage />
         </div>
         <div
           v-else-if="activeTab === null"

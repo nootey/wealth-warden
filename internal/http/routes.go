@@ -39,6 +39,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	// Register handlers
 	authHandler := httpHandlers.NewAuthHandler(r.Container.Config, wm, r.Container.AuthService)
 	backOfficeHandler := httpHandlers.NewBackofficeHandler(r.Container.BackofficeService, validator)
+	jobAdminHandler := httpHandlers.NewJobAdminHandler(r.Container.JobAdminService)
 	userHandler := httpHandlers.NewUserHandler(r.Container.UserService, validator)
 	loggingHandler := httpHandlers.NewLoggingHandler(r.Container.LoggingService)
 	accountHandler := httpHandlers.NewAccountHandler(r.Container.AccountService, validator)
@@ -78,6 +79,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	sessionsHandler.Routes(authenticated.Group("/auth/sessions"))
 	websocketHandler.Routes(authenticated.Group("/ws"))
 	backOfficeHandler.Routes(protected.Group("/backoffice"))
+	jobAdminHandler.Routes(protected.Group("/backoffice/jobs"))
 	accountHandler.Routes(protected.Group("/accounts"))
 	analyticsHandler.Routes(protected.Group("/analytics"))
 	exportHandler.Routes(protected.Group("/exports"))

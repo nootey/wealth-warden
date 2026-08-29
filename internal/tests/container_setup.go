@@ -106,7 +106,7 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 
 	// Build application container
 	jobDispatcher := &NoOpDispatcher{}
-	appContainer, err := bootstrap.NewServiceContainer(cfg, db, redisClient, l, jobDispatcher, &MockPriceFetcher{})
+	appContainer, err := bootstrap.NewServiceContainer(cfg, db, redisClient, l, jobDispatcher, jobqueue.NoopJobManager{}, &MockPriceFetcher{})
 	s.Require().NoError(err, "failed to bootstrap app container")
 
 	s.TC = &TestContainer{

@@ -9,7 +9,7 @@ dayjs.extend(utc);
 export type Column = {
   field: string;
   header: string;
-  type?: "text" | "number" | "date" | "enum";
+  type?: "text" | "number" | "date" | "enum" | "int";
   options?: any[];
   optionLabel?: string;
   optionValue?: string;
@@ -38,6 +38,9 @@ const RangePanel = defineAsyncComponent(
 const TextPanel = defineAsyncComponent(
   () => import("../_vue/components/filters/panels/TextPanel.vue"),
 ); // default
+const NumberPanel = defineAsyncComponent(
+  () => import("../_vue/components/filters/panels/NumberPanel.vue"),
+);
 
 export const defs = {
   date(): PanelDef<{ date: Date | null; from: Date | null; to: Date | null }> {
@@ -131,6 +134,21 @@ export const defs = {
     };
   },
 
+  // Exact scalar match for integer columns (ids, counts). Unlike numberRange it
+  // does no money formatting and offers no min/max.
+  numberExact(): PanelDef<number | null> {
+    return {
+      component: NumberPanel,
+      makeModel: () => null,
+      toFilters: (v, { field, source }) => {
+        if (v === null || v === undefined) return [];
+        const n = Number(v);
+        if (!Number.isFinite(n)) return [];
+        return [{ source, field, operator: "=", value: String(n) }];
+      },
+    };
+  },
+
   textLike(): PanelDef<string | null> {
     return {
       component: TextPanel,
@@ -162,6 +180,7 @@ const always = () => true;
 
 export const rules: Rule[] = [
   { test: byType("date"), use: () => defs.date(), icon: "pi pi-calendar" },
+  { test: byType("int"), use: () => defs.numberExact(), icon: "pi pi-hashtag" },
   {
     test: byField(/^amount$|^balance$/),
     use: () => defs.numberRange(),

@@ -77,7 +77,9 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		return nil, fmt.Errorf("job dispatcher initialization failed: %w", err)
 	}
 
-	container, err := bootstrap.NewServiceContainer(cfg, dbClient, redisClient, logger.Named("container"), jobDispatcher, nil)
+	jobManager := jobqueue.NewRiverJobManager(riverClient)
+
+	container, err := bootstrap.NewServiceContainer(cfg, dbClient, redisClient, logger.Named("container"), jobDispatcher, jobManager, nil)
 	if err != nil {
 		return nil, fmt.Errorf("container initialization failed: %w", err)
 	}

@@ -99,6 +99,10 @@ var FieldMap = map[string]map[string]FieldMetadata{
 		"event":     {Column: "event", OrEquals: true},
 		"category":  {Column: "category", OrEquals: true},
 	},
+	"jobs": {
+		"queue": {Column: "queue", OrEquals: true},
+		"kind":  {Column: "kind", OrEquals: true},
+	},
 }
 
 var reDateOnly = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
