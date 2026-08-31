@@ -1,0 +1,18 @@
+apiVersion: v2
+name: wealth-warden
+description: A Helm chart for Wealth Warden - an open-source finance tracker
+type: application
+version: 0.1.0
+appVersion: "1.3.2"
+keywords:
+  - finance
+  - wealth
+  - tracker
+home: https://github.com/nootey/wealth-warden
+maintainers:
+  - name: Wealth Warden Team
+
+dependencies:
+  - name: postgresql
+    version: 18.2.0
+    repository: https://charts.bitnami.com/bitnami
