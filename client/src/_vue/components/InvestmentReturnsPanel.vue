@@ -56,8 +56,8 @@ async function loadReturns(): Promise<void> {
     <div class="flex flex-col gap-1">
       <span class="font-bold">Return</span>
       <span class="text-sm" style="color: var(--text-secondary)">
-        Money-weighted return per year (XIRR). The rate is measured
-        in USD, but the values below are displayed in {{ returns?.currency ?? "native" }}
+        Money-weighted return per year (XIRR). The rate is measured in USD, but
+        the values below are displayed in {{ returns?.currency ?? "native" }}
         terms.
       </span>
     </div>
