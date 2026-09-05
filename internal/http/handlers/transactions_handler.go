@@ -51,6 +51,7 @@ func (h *TransactionHandler) Routes(ap *gin.RouterGroup) {
 	ap.PUT("categories/groups", authz.RequireAllMW("manage_data"), h.InsertCategoryGroup)
 	ap.PUT("categories/groups/:id", authz.RequireAllMW("manage_data"), h.UpdateCategoryGroup)
 	ap.DELETE("categories/groups/:id", authz.RequireAllMW("manage_data"), h.DeleteCategoryGroup)
+	ap.POST("categories/merge", authz.RequireAllMW("manage_data"), h.MergeCategories)
 	ap.POST("categories/restore", authz.RequireAllMW("manage_data"), h.RestoreCategory)
 	ap.POST("categories/restore/name", authz.RequireAllMW("manage_data"), h.RestoreCategoryName)
 	ap.GET("templates", authz.RequireAllMW("view_data"), h.GetTransactionTemplatesPaginated)
@@ -464,6 +465,34 @@ func (h *TransactionHandler) DeleteTransfer(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
+}
+
+func (h *TransactionHandler) MergeCategories(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	userID := c.GetInt64("user_id")
+
+	var req struct {
+		SourceID      int64 `json:"source_id" validate:"required"`
+		DestinationID int64 `json:"destination_id" validate:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.v.ValidateStruct(req); err != nil {
+		utils.ValidationFailed(c, err.Error(), err)
+		return
+	}
+
+	if err := h.Service.QueueCategoryMerge(ctx, userID, req.SourceID, req.DestinationID); err != nil {
+		utils.ErrorMessage(c, "Merge error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Merge queued", "Success", http.StatusOK)
 }
 
 func (h *TransactionHandler) DeleteCategory(c *gin.Context) {

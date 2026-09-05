@@ -87,6 +87,8 @@ type TransactionRepositoryInterface interface {
 	FindTransfersBetweenAccounts(ctx context.Context, tx *gorm.DB, accountAID, accountBID, userID int64) ([]models.Transfer, error)
 	BulkUpdateTransactionAccountID(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error
 	BulkUpdateTemplateAccountIDs(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error
+	BulkUpdateTransactionCategoryID(ctx context.Context, tx *gorm.DB, fromCategoryID, toCategoryID, userID int64) (int64, error)
+	BulkUpdateTemplateCategoryID(ctx context.Context, tx *gorm.DB, fromCategoryID, toCategoryID, userID int64) error
 }
 
 type TransactionRepository struct {
@@ -1351,9 +1353,15 @@ func (r *TransactionRepository) DeleteCategoryGroup(ctx context.Context, tx *gor
 }
 
 func (r *TransactionRepository) IsCategoryInGroup(ctx context.Context, tx *gorm.DB, categoryID int64) (bool, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
 	var exists bool
 	query := `SELECT EXISTS(SELECT 1 FROM category_group_members WHERE category_id = ?)`
-	err := tx.WithContext(ctx).Raw(query, categoryID).Scan(&exists).Error
+	err := db.Raw(query, categoryID).Scan(&exists).Error
 	return exists, err
 }
 
@@ -1529,6 +1537,34 @@ func (r *TransactionRepository) BulkUpdateTransactionAccountID(ctx context.Conte
 			"account_id": toAccountID,
 			"updated_at": time.Now().UTC(),
 		}).Error
+}
+
+func (r *TransactionRepository) BulkUpdateTransactionCategoryID(ctx context.Context, tx *gorm.DB, fromCategoryID, toCategoryID, userID int64) (int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	res := db.Model(&models.Transaction{}).
+		Where("category_id = ? AND user_id = ? AND deleted_at IS NULL", fromCategoryID, userID).
+		Updates(map[string]any{
+			"category_id": toCategoryID,
+			"updated_at":  time.Now().UTC(),
+		})
+	return res.RowsAffected, res.Error
+}
+
+func (r *TransactionRepository) BulkUpdateTemplateCategoryID(ctx context.Context, tx *gorm.DB, fromCategoryID, toCategoryID, userID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	return db.Model(&models.TransactionTemplate{}).
+		Where("category_id = ? AND user_id = ?", fromCategoryID, userID).
+		Update("category_id", toCategoryID).Error
 }
 
 func (r *TransactionRepository) BulkUpdateTemplateAccountIDs(ctx context.Context, tx *gorm.DB, fromAccountID, toAccountID, userID int64) error {

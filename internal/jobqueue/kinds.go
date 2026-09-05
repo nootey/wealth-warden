@@ -11,11 +11,11 @@ const (
 	TypeGenerateCategoryReport = "generate_category_report"
 	TypeMigrateZeroCostTrades  = "migrate_zero_cost_trades"
 	TypeBackfillIncomeFXRates  = "backfill_income_fx_rates"
-
-	TypeAssetHistoryBackfill  = "asset_history_backfill"
-	TypeBalanceBackfill       = "balance_backfill"
-	TypeRecurringTransactions = "recurring_transactions"
-	TypeAssetPriceSync        = "asset_price_sync"
+	TypeMergeCategories        = "merge_categories"
+	TypeAssetHistoryBackfill   = "asset_history_backfill"
+	TypeBalanceBackfill        = "balance_backfill"
+	TypeRecurringTransactions  = "recurring_transactions"
+	TypeAssetPriceSync         = "asset_price_sync"
 )
 
 // Kinds a user may see and act on from their own settings pages.

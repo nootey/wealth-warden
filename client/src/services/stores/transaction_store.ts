@@ -69,6 +69,13 @@ export const useTransactionStore = defineStore("transaction", {
       });
       return response.data;
     },
+    async mergeCategories(sourceID: number, destinationID: number) {
+      const response = await apiClient.post(
+        `${this.apiPrefix}/categories/merge`,
+        { source_id: sourceID, destination_id: destinationID },
+      );
+      return response.data;
+    },
     async restoreCategory(id: number) {
       const response = await apiClient.post(
         `${this.apiPrefix}/categories/restore`,

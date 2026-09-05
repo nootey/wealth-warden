@@ -12,6 +12,7 @@ import CategoryForm from "../../components/forms/CategoryForm.vue";
 import { usePermissions } from "../../../utils/use_permissions.ts";
 import CategoryGroupForm from "../../components/forms/CategoryGroupForm.vue";
 import CategoryGroupsDisplay from "../../components/data/CategoryGroupsDisplay.vue";
+import MergeCategories from "../../features/MergeCategories.vue";
 
 const transactionStore = useTransactionStore();
 const toastStore = useToastStore();
@@ -158,7 +159,11 @@ async function handleEmit(type: string) {
             @complete-delete="handleEmit('completeCatDelete')"
           />
         </div>
+      </div>
+    </SettingsSkeleton>
 
+    <SettingsSkeleton class="w-full">
+      <div id="main-col" class="w-full flex flex-col gap-4 p-2">
         <div class="w-full flex flex-col gap-4 p-2">
           <div class="flex flex-row justify-between items-center gap-4">
             <div class="w-full flex flex-col gap-2">
@@ -180,14 +185,18 @@ async function handleEmit(type: string) {
           </div>
         </div>
 
-        <div v-if="categoryGroups" class="w-full flex flex-col gap-2 w-full">
-          <CategoryGroupsDisplay
-            :categories="categories"
-            :category-groups="categoryGroups"
-            @complete-operation="handleEmit('completeGroupOperation')"
-            @complete-delete="handleEmit('completeGroupDelete')"
-          />
-        </div>
+        <CategoryGroupsDisplay
+          :categories="categories"
+          :category-groups="categoryGroups"
+          @complete-operation="handleEmit('completeGroupOperation')"
+          @complete-delete="handleEmit('completeGroupDelete')"
+        />
+      </div>
+    </SettingsSkeleton>
+
+    <SettingsSkeleton class="w-full">
+      <div id="main-col" class="w-full flex flex-col gap-4 p-2">
+        <MergeCategories :categories="categories" kind="merge_categories" />
       </div>
     </SettingsSkeleton>
   </div>

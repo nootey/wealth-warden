@@ -82,6 +82,17 @@ func (BackfillIncomeFXRatesArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{Queue: QueueRebuild}
 }
 
+// Internal* fields are worker-only and never rendered in the client.
+type MergeCategoriesArgs struct {
+	UserID                        int64
+	InternalSourceCategoryID      int64
+	InternalDestinationCategoryID int64
+	SourceCategory                string
+	DestinationCategory           string
+}
+
+func (MergeCategoriesArgs) Kind() string { return TypeMergeCategories }
+
 type MigrateZeroCostTradesArgs struct{}
 
 func (MigrateZeroCostTradesArgs) Kind() string { return TypeMigrateZeroCostTrades }
