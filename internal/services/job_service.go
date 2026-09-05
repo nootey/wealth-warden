@@ -41,7 +41,7 @@ type JobServiceInterface interface {
 	PauseQueue(ctx context.Context, name string) error
 	ResumeQueue(ctx context.Context, name string) error
 	FetchPeriodicJobs(ctx context.Context) ([]models.RiverPeriodicJob, error)
-	ListUserJobs(ctx context.Context, userID int64, kind string) ([]models.RiverJobRow, error)
+	ListUserJobs(ctx context.Context, userID int64, kind string, p utils.PaginationParams) ([]models.RiverJobRow, *utils.Paginator, error)
 	RetryUserJob(ctx context.Context, userID, id int64) error
 	CancelUserJob(ctx context.Context, userID, id int64) error
 }
@@ -82,17 +82,7 @@ func (s *JobService) FetchJobs(ctx context.Context, p JobQueryParams) ([]models.
 		sortOrder = "asc"
 	}
 
-	rowsPerPage := p.Pagination.RowsPerPage
-	if rowsPerPage <= 0 {
-		rowsPerPage = 10
-	}
-	if rowsPerPage > 200 {
-		rowsPerPage = 200
-	}
-	pageNumber := p.Pagination.PageNumber
-	if pageNumber < 1 {
-		pageNumber = 1
-	}
+	pageNumber, rowsPerPage := normalizeJobPagination(p.Pagination)
 
 	filter := repositories.JobListFilter{
 		States:  p.States,
@@ -110,23 +100,43 @@ func (s *JobService) FetchJobs(ctx context.Context, p JobQueryParams) ([]models.
 		return nil, nil, err
 	}
 
-	from := offset + 1
-	if from > int(total) {
-		from = int(total)
+	return rows, jobPaginator(pageNumber, rowsPerPage, int(total), len(rows)), nil
+}
+
+func normalizeJobPagination(p utils.PaginationParams) (pageNumber, rowsPerPage int) {
+	rowsPerPage = p.RowsPerPage
+	if rowsPerPage <= 0 {
+		rowsPerPage = 10
 	}
-	to := offset + len(rows)
-	if to > int(total) {
-		to = int(total)
+	if rowsPerPage > 200 {
+		rowsPerPage = 200
+	}
+	pageNumber = p.PageNumber
+	if pageNumber < 1 {
+		pageNumber = 1
+	}
+	return pageNumber, rowsPerPage
+}
+
+func jobPaginator(pageNumber, rowsPerPage, total, rowCount int) *utils.Paginator {
+	offset := (pageNumber - 1) * rowsPerPage
+
+	from := offset + 1
+	if from > total {
+		from = total
+	}
+	to := offset + rowCount
+	if to > total {
+		to = total
 	}
 
-	paginator := &utils.Paginator{
+	return &utils.Paginator{
 		CurrentPage:  pageNumber,
 		RowsPerPage:  rowsPerPage,
-		TotalRecords: int(total),
+		TotalRecords: total,
 		From:         from,
 		To:           to,
 	}
-	return rows, paginator, nil
 }
 
 func (s *JobService) FetchJobCounts(ctx context.Context) (map[string]int64, error) {
@@ -300,11 +310,25 @@ func (s *JobService) FetchPeriodicJobs(ctx context.Context) ([]models.RiverPerio
 	return out, nil
 }
 
-func (s *JobService) ListUserJobs(ctx context.Context, userID int64, kind string) ([]models.RiverJobRow, error) {
+func (s *JobService) ListUserJobs(ctx context.Context, userID int64, kind string, p utils.PaginationParams) ([]models.RiverJobRow, *utils.Paginator, error) {
 	if !jobqueue.SelfServiceKinds[kind] {
-		return nil, ErrJobKindNotAllowed
+		return nil, nil, ErrJobKindNotAllowed
 	}
-	return s.repo.FindUserJobs(ctx, []string{kind}, userID, nil, 20)
+
+	pageNumber, rowsPerPage := normalizeJobPagination(p)
+	kinds := []string{kind}
+
+	total, err := s.repo.CountUserJobs(ctx, kinds, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rows, err := s.repo.FindUserJobs(ctx, kinds, userID, nil, (pageNumber-1)*rowsPerPage, rowsPerPage)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return rows, jobPaginator(pageNumber, rowsPerPage, int(total), len(rows)), nil
 }
 
 func (s *JobService) RetryUserJob(ctx context.Context, userID, id int64) error {
@@ -339,7 +363,7 @@ func (s *JobService) findUserJob(ctx context.Context, userID, id int64) (*models
 		kinds = append(kinds, k)
 	}
 
-	jobs, err := s.repo.FindUserJobs(ctx, kinds, userID, &id, 1)
+	jobs, err := s.repo.FindUserJobs(ctx, kinds, userID, &id, 0, 1)
 	if err != nil {
 		return nil, err
 	}

@@ -173,12 +173,22 @@ func (h *JobHandler) ListUserJobs(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 	kind := c.Query("kind")
 
-	jobs, err := h.service.ListUserJobs(c.Request.Context(), userID, kind)
+	params := utils.GetPaginationParams(c.Request.URL.Query())
+
+	jobs, paginator, err := h.service.ListUserJobs(c.Request.Context(), userID, kind, params)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": jobs})
+
+	c.JSON(http.StatusOK, gin.H{
+		"current_page":  paginator.CurrentPage,
+		"rows_per_page": paginator.RowsPerPage,
+		"from":          paginator.From,
+		"to":            paginator.To,
+		"total_records": paginator.TotalRecords,
+		"data":          jobs,
+	})
 }
 
 func (h *JobHandler) RetryUserJob(c *gin.Context) {

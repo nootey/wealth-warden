@@ -3,7 +3,6 @@ import apiClient from "../api/api_client.ts";
 import type {
   JobCounts,
   JobListParams,
-  RiverJob,
   RiverJobDetail,
   RiverPeriodicJob,
   RiverQueue,
@@ -75,11 +74,11 @@ export const useJobsStore = defineStore("jobs", {
       );
       return response.data;
     },
-    async listJobs(kind: string): Promise<RiverJob[]> {
+    async listJobs(kind: string, rowsPerPage: number, page: number) {
       const response = await apiClient.get(this.userApiPrefix, {
-        params: { kind },
+        params: { kind, rowsPerPage, page },
       });
-      return response.data.data ?? [];
+      return response.data;
     },
     async startJob(kind: string) {
       const response = await apiClient.post(`${this.userApiPrefix}/start`, {

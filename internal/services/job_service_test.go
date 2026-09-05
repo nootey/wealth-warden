@@ -214,11 +214,36 @@ func (s *JobServiceTestSuite) TestFetchJobsIgnoresUnknownSortField() {
 	s.Equal(int64(1), count)
 }
 
-// No kind is registered in the self-service allowlist yet, so every kind is
-// rejected. This guards the gate itself, not any one kind.
+// Guards the allowlist gate itself, not any one kind.
 func (s *JobServiceTestSuite) TestListUserJobsRejectsUnregisteredKind() {
-	_, err := s.svc().ListUserJobs(s.Ctx, 1, "not_a_real_kind")
+	_, _, err := s.svc().ListUserJobs(s.Ctx, 1, "not_a_real_kind", utils.PaginationParams{})
 	s.Require().ErrorIs(err, services.ErrJobKindNotAllowed)
+}
+
+func (s *JobServiceTestSuite) TestListUserJobsPagesOwnJobsOnly() {
+	s.clearJobs()
+	var own []int64
+	for i := 0; i < 3; i++ {
+		own = append(own, s.insertUserJob(jobqueue.TypeMergeCategories, "completed", 1))
+	}
+	s.insertUserJob(jobqueue.TypeMergeCategories, "completed", 2)
+
+	first, paginator, err := s.svc().ListUserJobs(s.Ctx, 1, jobqueue.TypeMergeCategories,
+		utils.PaginationParams{PageNumber: 1, RowsPerPage: 2})
+	s.Require().NoError(err)
+	s.Require().Len(first, 2)
+	s.Equal(own[2], first[0].ID)
+	s.Equal(3, paginator.TotalRecords)
+	s.Equal(1, paginator.From)
+	s.Equal(2, paginator.To)
+
+	second, paginator, err := s.svc().ListUserJobs(s.Ctx, 1, jobqueue.TypeMergeCategories,
+		utils.PaginationParams{PageNumber: 2, RowsPerPage: 2})
+	s.Require().NoError(err)
+	s.Require().Len(second, 1)
+	s.Equal(own[0], second[0].ID)
+	s.Equal(3, paginator.From)
+	s.Equal(3, paginator.To)
 }
 
 func (s *JobServiceTestSuite) TestFindUserJobsScopesToOwnerNewestFirst() {
@@ -227,7 +252,7 @@ func (s *JobServiceTestSuite) TestFindUserJobsScopesToOwnerNewestFirst() {
 	second := s.insertUserJob(jobqueue.TypeGenerateCategoryReport, "running", 1)
 	s.insertUserJob(jobqueue.TypeGenerateCategoryReport, "running", 2)
 
-	rows, err := s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 1, nil, 20)
+	rows, err := s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 1, nil, 0, 20)
 	s.Require().NoError(err)
 	s.Require().Len(rows, 2)
 	s.Equal(second, rows[0].ID)
@@ -239,7 +264,7 @@ func (s *JobServiceTestSuite) TestFindUserJobsExcludesOtherKinds() {
 	s.insertUserJob(jobqueue.TypeGenerateCategoryReport, "running", 1)
 	s.insertUserJob(jobqueue.TypeRecalculateAssetPnL, "running", 1)
 
-	rows, err := s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 1, nil, 20)
+	rows, err := s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 1, nil, 0, 20)
 	s.Require().NoError(err)
 	s.Require().Len(rows, 1)
 	s.Equal(jobqueue.TypeGenerateCategoryReport, rows[0].Kind)
@@ -250,11 +275,11 @@ func (s *JobServiceTestSuite) TestFindUserJobsByIDRejectsOtherUsersJob() {
 	s.clearJobs()
 	id := s.insertUserJob(jobqueue.TypeGenerateCategoryReport, "running", 2)
 
-	rows, err := s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 1, &id, 1)
+	rows, err := s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 1, &id, 0, 1)
 	s.Require().NoError(err)
 	s.Empty(rows)
 
-	rows, err = s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 2, &id, 1)
+	rows, err = s.repo().FindUserJobs(s.Ctx, []string{jobqueue.TypeGenerateCategoryReport}, 2, &id, 0, 1)
 	s.Require().NoError(err)
 	s.Require().Len(rows, 1)
 	s.Equal(id, rows[0].ID)

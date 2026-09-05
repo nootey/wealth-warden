@@ -5,8 +5,10 @@ import { useJobsStore } from "../../services/stores/jobs_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
 import { useWsStore } from "../../services/stores/ws_store.ts";
 import dateHelper from "../../utils/date_helper.ts";
+import CustomPaginator from "../components/base/CustomPaginator.vue";
 import type { Column } from "../../services/filter_registry.ts";
 import type { JobState, RiverJob } from "../../models/job_models.ts";
+import type { PaginatorState } from "../../models/shared_models.ts";
 import type { UserJobPayload } from "../../models/ws_models.ts";
 
 const props = defineProps<{
@@ -23,6 +25,15 @@ const confirm = useConfirm();
 const jobs = ref<RiverJob[]>([]);
 const loading = ref(false);
 
+const rows = ref([5, 10, 25]);
+const page = ref(1);
+const paginator = ref<PaginatorState>({
+  total: 0,
+  from: 0,
+  to: 0,
+  rowsPerPage: rows.value[0]!,
+});
+
 // Job args are keyed by field names. UserID and anything named Internal* is excluded - worker only.
 const INTERNAL_ARG_PREFIX = "Internal";
 
@@ -37,7 +48,6 @@ const ACTIVE_STATES: JobState[] = [
 const RETRYABLE_STATES: JobState[] = ["discarded", "cancelled", "retryable"];
 
 const activeColumns = computed<Column[]>(() => [
-  { field: "id", header: "ID", hideOnMobile: true },
   { field: "state", header: "State" },
   { field: "attempt", header: "Attempt" },
   { field: "args", header: "Args" },
@@ -110,7 +120,15 @@ onBeforeUnmount(() => {
 async function refresh(silent = false) {
   if (!silent) loading.value = true;
   try {
-    jobs.value = await jobsStore.listJobs(props.kind);
+    const response = await jobsStore.listJobs(
+      props.kind,
+      paginator.value.rowsPerPage,
+      page.value,
+    );
+    jobs.value = response.data ?? [];
+    paginator.value.total = response.total_records;
+    paginator.value.from = response.from;
+    paginator.value.to = response.to;
   } catch (error) {
     toastStore.errorResponseToast(error);
   } finally {
@@ -118,9 +136,15 @@ async function refresh(silent = false) {
   }
 }
 
+async function onPage(event: any) {
+  paginator.value.rowsPerPage = event.rows;
+  page.value = event.page + 1;
+  await refresh();
+}
+
 function retry(job: RiverJob) {
   confirm.require({
-    header: `Retry job #${job.id}?`,
+    header: "Retry job?",
     message: `This will retry the ${props.label ?? job.kind} job.`,
     rejectProps: { label: "Cancel", severity: "secondary" },
     acceptProps: { label: "Retry" },
@@ -138,7 +162,7 @@ function retry(job: RiverJob) {
 
 function cancel(job: RiverJob) {
   confirm.require({
-    header: `Cancel job #${job.id}?`,
+    header: "Cancel job?",
     message: `This will cancel the ${props.label ?? job.kind} job.`,
     rejectProps: { label: "Back", severity: "secondary" },
     acceptProps: { label: "Cancel job", severity: "danger" },
@@ -156,6 +180,10 @@ function cancel(job: RiverJob) {
 </script>
 
 <template>
+  <span class="text-sm" style="color: var(--text-secondary)">
+    View your dispatched job status and history.
+  </span>
+
   <div class="flex flex-col gap-2 p-4 border rounded-md border-surface">
     <div v-if="label" class="font-bold">{{ label }}</div>
     <div v-if="description" class="text-sm text-muted-color">
@@ -172,6 +200,13 @@ function cancel(job: RiverJob) {
     >
       <template #empty>
         <div class="p-2 text-sm text-muted-color">No jobs run yet.</div>
+      </template>
+      <template #footer>
+        <CustomPaginator
+          :paginator="paginator"
+          :rows="rows"
+          @on-page="onPage"
+        />
       </template>
 
       <Column
