@@ -18,6 +18,11 @@ const (
 	TypeAssetPriceSync        = "asset_price_sync"
 )
 
+// Kinds a user may see and act on from their own settings pages.
+var SelfServiceKinds = map[string]bool{
+	TypeMergeCategories: true,
+}
+
 // Two rebuilds at once would count every trade twice, so this queue runs one job
 // at a time.
 const QueueRebuild = "rebuild"

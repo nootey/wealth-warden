@@ -55,8 +55,6 @@ const stateSeverity: Record<string, string> = {
   pending: "contrast",
 };
 
-
-
 function humanizeKey(key: string): string {
   return key
     .replace(/_/g, " ")
@@ -83,6 +81,8 @@ function argEntries(job: RiverJob): { label: string; value: string }[] {
       value: formatArgValue(value),
     }));
 }
+
+defineExpose({ refresh: () => refresh(true) });
 
 function canRetry(job: RiverJob): boolean {
   return RETRYABLE_STATES.includes(job.state);

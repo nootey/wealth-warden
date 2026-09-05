@@ -23,8 +23,6 @@ var (
 	}
 	ErrInvalidJobState   = errors.New("invalid job state")
 	ErrJobKindNotAllowed = errors.New("job kind is not user-triggerable")
-
-	selfServiceJobKinds = map[string]bool{}
 )
 
 type JobQueryParams struct {
@@ -303,7 +301,7 @@ func (s *JobService) FetchPeriodicJobs(ctx context.Context) ([]models.RiverPerio
 }
 
 func (s *JobService) ListUserJobs(ctx context.Context, userID int64, kind string) ([]models.RiverJobRow, error) {
-	if !selfServiceJobKinds[kind] {
+	if !jobqueue.SelfServiceKinds[kind] {
 		return nil, ErrJobKindNotAllowed
 	}
 	return s.repo.FindUserJobs(ctx, []string{kind}, userID, nil, 20)
@@ -336,8 +334,8 @@ func (s *JobService) applyToUserJob(ctx context.Context, userID, id int64, fn fu
 }
 
 func (s *JobService) findUserJob(ctx context.Context, userID, id int64) (*models.RiverJobRow, error) {
-	kinds := make([]string, 0, len(selfServiceJobKinds))
-	for k := range selfServiceJobKinds {
+	kinds := make([]string, 0, len(jobqueue.SelfServiceKinds))
+	for k := range jobqueue.SelfServiceKinds {
 		kinds = append(kinds, k)
 	}
 
