@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"strconv"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
 
@@ -22,6 +23,7 @@ type JobRepositoryInterface interface {
 	CountJobsByState(ctx context.Context) ([]models.RiverJobStateCount, error)
 	CountJobsByQueueState(ctx context.Context) ([]models.RiverQueueStateCount, error)
 	LastRunByKind(ctx context.Context, kinds []string) ([]models.RiverKindLastRun, error)
+	FindUserJobs(ctx context.Context, kinds []string, userID int64, id *int64, limit int) ([]models.RiverJobRow, error)
 }
 
 type JobRepository struct {
@@ -105,4 +107,23 @@ func (r *JobRepository) LastRunByKind(ctx context.Context, kinds []string) ([]mo
 		Group("kind").
 		Scan(&out).Error
 	return out, err
+}
+
+func (r *JobRepository) FindUserJobs(ctx context.Context, kinds []string, userID int64, id *int64, limit int) ([]models.RiverJobRow, error) {
+	var rows []models.RiverJobRow
+	query := r.db.WithContext(ctx).
+		Table("river_job").
+		Select(jobListColumns).
+		Where("kind IN ? AND args->>'UserID' = ?", kinds, strconv.FormatInt(userID, 10))
+	if id != nil {
+		query = query.Where("id = ?", *id)
+	}
+	err := query.
+		Order("id DESC").
+		Limit(limit).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
 }

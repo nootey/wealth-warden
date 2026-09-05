@@ -3,6 +3,7 @@ import apiClient from "../api/api_client.ts";
 import type {
   JobCounts,
   JobListParams,
+  RiverJob,
   RiverJobDetail,
   RiverPeriodicJob,
   RiverQueue,
@@ -10,7 +11,8 @@ import type {
 
 export const useJobsStore = defineStore("jobs", {
   state: () => ({
-    apiPrefix: "backoffice/jobs",
+    adminApiPrefix: "jobs/admin",
+    userApiPrefix: "jobs/user",
   }),
   actions: {
     async getJobsPaginated(params: JobListParams, page: number) {
@@ -22,52 +24,78 @@ export const useJobsStore = defineStore("jobs", {
       if (params.states.length > 0) queryParams.state = params.states.join(",");
       if (params.filters.length > 0) queryParams.filters = params.filters;
 
-      const response = await apiClient.get(this.apiPrefix, {
+      const response = await apiClient.get(this.adminApiPrefix, {
         params: queryParams,
       });
       return response.data;
     },
     async getCounts(): Promise<JobCounts> {
-      const response = await apiClient.get(`${this.apiPrefix}/counts`);
+      const response = await apiClient.get(`${this.adminApiPrefix}/counts`);
       return response.data.data;
     },
     async getJob(id: number): Promise<RiverJobDetail> {
-      const response = await apiClient.get(`${this.apiPrefix}/${id}`);
+      const response = await apiClient.get(`${this.adminApiPrefix}/${id}`);
       return response.data.data;
     },
     async getQueues(): Promise<RiverQueue[]> {
-      const response = await apiClient.get(`${this.apiPrefix}/queues`);
+      const response = await apiClient.get(`${this.adminApiPrefix}/queues`);
       return response.data.data ?? [];
     },
     async getPeriodic(): Promise<RiverPeriodicJob[]> {
-      const response = await apiClient.get(`${this.apiPrefix}/periodic`);
+      const response = await apiClient.get(`${this.adminApiPrefix}/periodic`);
       return response.data.data ?? [];
     },
     async retryJobs(ids: number[]) {
-      const response = await apiClient.post(`${this.apiPrefix}/retry`, { ids });
+      const response = await apiClient.post(`${this.adminApiPrefix}/retry`, {
+        ids,
+      });
       return response.data;
     },
     async cancelJobs(ids: number[]) {
-      const response = await apiClient.post(`${this.apiPrefix}/cancel`, {
+      const response = await apiClient.post(`${this.adminApiPrefix}/cancel`, {
         ids,
       });
       return response.data;
     },
     async deleteJobs(ids: number[]) {
-      const response = await apiClient.post(`${this.apiPrefix}/delete`, {
+      const response = await apiClient.post(`${this.adminApiPrefix}/delete`, {
         ids,
       });
       return response.data;
     },
     async pauseQueue(name: string) {
       const response = await apiClient.post(
-        `${this.apiPrefix}/queues/${encodeURIComponent(name)}/pause`,
+        `${this.adminApiPrefix}/queues/${encodeURIComponent(name)}/pause`,
       );
       return response.data;
     },
     async resumeQueue(name: string) {
       const response = await apiClient.post(
-        `${this.apiPrefix}/queues/${encodeURIComponent(name)}/resume`,
+        `${this.adminApiPrefix}/queues/${encodeURIComponent(name)}/resume`,
+      );
+      return response.data;
+    },
+    async listJobs(kind: string): Promise<RiverJob[]> {
+      const response = await apiClient.get(this.userApiPrefix, {
+        params: { kind },
+      });
+      return response.data.data ?? [];
+    },
+    async startJob(kind: string) {
+      const response = await apiClient.post(`${this.userApiPrefix}/start`, {
+        kind,
+      });
+      return response.data;
+    },
+    async retryJob(id: number) {
+      const response = await apiClient.post(
+        `${this.userApiPrefix}/${id}/retry`,
+      );
+      return response.data;
+    },
+    async cancelJob(id: number) {
+      const response = await apiClient.post(
+        `${this.userApiPrefix}/${id}/cancel`,
       );
       return response.data;
     },

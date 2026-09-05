@@ -7,6 +7,7 @@ const (
 	TypeReportFailed        = "report.failed"
 	TypeNotificationCreated = "notification.created"
 	TypeAssetPnLSynced      = "asset.pnl_synced"
+	TypeUserJobUpdated      = "user_job.updated"
 )
 
 type Event struct {
@@ -21,4 +22,8 @@ type ReportPayload struct {
 type AssetPnLPayload struct {
 	AssetID   *int64 `json:"asset_id,omitempty"`
 	AccountID *int64 `json:"account_id,omitempty"`
+}
+
+type UserJobPayload struct {
+	Kind string `json:"kind"`
 }
