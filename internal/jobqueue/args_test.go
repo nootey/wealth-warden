@@ -86,6 +86,22 @@ func TestPayloadContract(t *testing.T) {
 		Params:   models.CategoryReportParams{Years: []int{2026}, Description: "d"},
 	}, "ReportID", "UserID", "Params")
 
+	assertKeys(t, jobqueue.MergeCategoriesArgs{
+		UserID:                        1,
+		InternalSourceCategoryID:      4,
+		InternalDestinationCategoryID: 5,
+		SourceCategory:                "Groceries",
+		DestinationCategory:           "Food",
+	}, "UserID", "InternalSourceCategoryID", "InternalDestinationCategoryID", "SourceCategory", "DestinationCategory")
+
+	assertKeys(t, jobqueue.MergeAccountsArgs{
+		UserID:                       1,
+		InternalSourceAccountID:      4,
+		InternalDestinationAccountID: 5,
+		SourceAccount:                "Old Checking",
+		DestinationAccount:           "Checking",
+	}, "UserID", "InternalSourceAccountID", "InternalDestinationAccountID", "SourceAccount", "DestinationAccount")
+
 	assertKeys(t, jobqueue.BackfillAssetCashFlowsArgs{})
 	assertKeys(t, jobqueue.CorrectFeeAccountingArgs{})
 }
@@ -146,6 +162,8 @@ func TestJobKinds(t *testing.T) {
 		{jobqueue.BalanceBackfillArgs{}, jobqueue.TypeBalanceBackfill},
 		{jobqueue.RecurringTransactionsArgs{}, jobqueue.TypeRecurringTransactions},
 		{jobqueue.AssetPriceSyncArgs{}, jobqueue.TypeAssetPriceSync},
+		{jobqueue.MergeCategoriesArgs{}, jobqueue.TypeMergeCategories},
+		{jobqueue.MergeAccountsArgs{}, jobqueue.TypeMergeAccounts},
 	}
 	for _, tc := range cases {
 		if got := tc.args.Kind(); got != tc.want {

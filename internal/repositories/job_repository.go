@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"strconv"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
 
@@ -22,6 +23,8 @@ type JobRepositoryInterface interface {
 	CountJobsByState(ctx context.Context) ([]models.RiverJobStateCount, error)
 	CountJobsByQueueState(ctx context.Context) ([]models.RiverQueueStateCount, error)
 	LastRunByKind(ctx context.Context, kinds []string) ([]models.RiverKindLastRun, error)
+	CountUserJobs(ctx context.Context, kinds []string, userID int64) (int64, error)
+	FindUserJobs(ctx context.Context, kinds []string, userID int64, id *int64, offset, limit int) ([]models.RiverJobRow, error)
 }
 
 type JobRepository struct {
@@ -105,4 +108,34 @@ func (r *JobRepository) LastRunByKind(ctx context.Context, kinds []string) ([]mo
 		Group("kind").
 		Scan(&out).Error
 	return out, err
+}
+
+func (r *JobRepository) userJobsQuery(ctx context.Context, kinds []string, userID int64) *gorm.DB {
+	return r.db.WithContext(ctx).
+		Table("river_job").
+		Where("kind IN ? AND args->>'UserID' = ?", kinds, strconv.FormatInt(userID, 10))
+}
+
+func (r *JobRepository) CountUserJobs(ctx context.Context, kinds []string, userID int64) (int64, error) {
+	var total int64
+	err := r.userJobsQuery(ctx, kinds, userID).Count(&total).Error
+	return total, err
+}
+
+func (r *JobRepository) FindUserJobs(ctx context.Context, kinds []string, userID int64, id *int64, offset, limit int) ([]models.RiverJobRow, error) {
+	var rows []models.RiverJobRow
+	query := r.userJobsQuery(ctx, kinds, userID).Select(jobListColumns)
+	if id != nil {
+		query = query.Where("id = ?", *id)
+	}
+	err := query.
+		// id breaks ties so paging stays stable across jobs created in the same instant
+		Order("created_at DESC, id DESC").
+		Limit(limit).
+		Offset(offset).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
 }

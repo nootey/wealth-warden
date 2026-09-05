@@ -37,6 +37,10 @@ async function handleCreate() {
   await accRef.value?.refresh?.();
 }
 
+async function handleMerge() {
+  await accRef.value?.refresh?.();
+}
+
 async function toggleEnabled(
   acc: Account,
   nextValue: boolean,
@@ -129,7 +133,10 @@ async function closeAccount(id: number) {
 
     <SettingsSkeleton class="w-full">
       <div id="main-col" class="w-full flex flex-col gap-4 p-2">
-        <MergeAccounts />
+        <MergeAccounts
+          kind="merge_accounts"
+          @complete-operation="handleMerge"
+        />
       </div>
     </SettingsSkeleton>
   </div>

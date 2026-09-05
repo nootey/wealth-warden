@@ -7,27 +7,22 @@ import (
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
+	"wealth-warden/internal/ws"
 	"wealth-warden/pkg/utils"
 
 	"github.com/riverqueue/river/rivertype"
 	"go.uber.org/zap"
 )
 
-type periodicJobDisplay struct {
-	ID       string
-	Kind     string
-	Schedule string
-	Queue    string
-}
-
 var (
-	periodicJobDisplays = []periodicJobDisplay{
-		{jobqueue.TypeAssetHistoryBackfill, jobqueue.TypeAssetHistoryBackfill, "Daily at 00:00 UTC", jobqueue.QueueScheduler},
-		{jobqueue.TypeBalanceBackfill, jobqueue.TypeBalanceBackfill, "Daily at 00:10 UTC", jobqueue.QueueScheduler},
-		{jobqueue.TypeRecurringTransactions, jobqueue.TypeRecurringTransactions, "Daily at 00:20 UTC", jobqueue.QueueScheduler},
-		{jobqueue.TypeAssetPriceSync, jobqueue.TypeAssetPriceSync, "Every 8 hours", jobqueue.QueueScheduler},
+	periodicJobDisplays = []models.PeriodicJobDisplay{
+		{ID: jobqueue.TypeAssetHistoryBackfill, Kind: jobqueue.TypeAssetHistoryBackfill, Schedule: "Daily at 00:00 UTC", Queue: jobqueue.QueueScheduler},
+		{ID: jobqueue.TypeBalanceBackfill, Kind: jobqueue.TypeBalanceBackfill, Schedule: "Daily at 00:10 UTC", Queue: jobqueue.QueueScheduler},
+		{ID: jobqueue.TypeRecurringTransactions, Kind: jobqueue.TypeRecurringTransactions, Schedule: "Daily at 00:20 UTC", Queue: jobqueue.QueueScheduler},
+		{ID: jobqueue.TypeAssetPriceSync, Kind: jobqueue.TypeAssetPriceSync, Schedule: "Every 8 hours", Queue: jobqueue.QueueScheduler},
 	}
-	ErrInvalidJobState = errors.New("invalid job state")
+	ErrInvalidJobState   = errors.New("invalid job state")
+	ErrJobKindNotAllowed = errors.New("job kind is not user-triggerable")
 )
 
 type JobQueryParams struct {
@@ -35,7 +30,7 @@ type JobQueryParams struct {
 	States     []string
 }
 
-type JobAdminServiceInterface interface {
+type JobServiceInterface interface {
 	FetchJobs(ctx context.Context, p JobQueryParams) ([]models.RiverJobRow, *utils.Paginator, error)
 	FetchJobCounts(ctx context.Context) (map[string]int64, error)
 	FetchJob(ctx context.Context, id int64) (*models.RiverJobDetail, error)
@@ -46,25 +41,32 @@ type JobAdminServiceInterface interface {
 	PauseQueue(ctx context.Context, name string) error
 	ResumeQueue(ctx context.Context, name string) error
 	FetchPeriodicJobs(ctx context.Context) ([]models.RiverPeriodicJob, error)
+	ListUserJobs(ctx context.Context, userID int64, kind string, p utils.PaginationParams) ([]models.RiverJobRow, *utils.Paginator, error)
+	RetryUserJob(ctx context.Context, userID, id int64) error
+	CancelUserJob(ctx context.Context, userID, id int64) error
 }
 
-type JobAdminService struct {
-	logger *zap.Logger
-	repo   repositories.JobRepositoryInterface
-	jobs   jobqueue.JobManager
+type JobService struct {
+	logger        *zap.Logger
+	repo          repositories.JobRepositoryInterface
+	jobs          jobqueue.JobManager
+	jobDispatcher jobqueue.Dispatcher
+	broadcaster   ws.Broadcaster
 }
 
-func NewJobAdminService(
+func NewJobService(
 	logger *zap.Logger,
 	repo repositories.JobRepositoryInterface,
 	jobs jobqueue.JobManager,
-) *JobAdminService {
-	return &JobAdminService{logger: logger, repo: repo, jobs: jobs}
+	jobDispatcher jobqueue.Dispatcher,
+	broadcaster ws.Broadcaster,
+) *JobService {
+	return &JobService{logger: logger, repo: repo, jobs: jobs, jobDispatcher: jobDispatcher, broadcaster: broadcaster}
 }
 
-var _ JobAdminServiceInterface = (*JobAdminService)(nil)
+var _ JobServiceInterface = (*JobService)(nil)
 
-func (s *JobAdminService) FetchJobs(ctx context.Context, p JobQueryParams) ([]models.RiverJobRow, *utils.Paginator, error) {
+func (s *JobService) FetchJobs(ctx context.Context, p JobQueryParams) ([]models.RiverJobRow, *utils.Paginator, error) {
 	for _, st := range p.States {
 		if !utils.ValidJobState(st) {
 			return nil, nil, fmt.Errorf("%w: %q", ErrInvalidJobState, st)
@@ -80,17 +82,7 @@ func (s *JobAdminService) FetchJobs(ctx context.Context, p JobQueryParams) ([]mo
 		sortOrder = "asc"
 	}
 
-	rowsPerPage := p.Pagination.RowsPerPage
-	if rowsPerPage <= 0 {
-		rowsPerPage = 10
-	}
-	if rowsPerPage > 200 {
-		rowsPerPage = 200
-	}
-	pageNumber := p.Pagination.PageNumber
-	if pageNumber < 1 {
-		pageNumber = 1
-	}
+	pageNumber, rowsPerPage := normalizeJobPagination(p.Pagination)
 
 	filter := repositories.JobListFilter{
 		States:  p.States,
@@ -108,26 +100,46 @@ func (s *JobAdminService) FetchJobs(ctx context.Context, p JobQueryParams) ([]mo
 		return nil, nil, err
 	}
 
-	from := offset + 1
-	if from > int(total) {
-		from = int(total)
+	return rows, jobPaginator(pageNumber, rowsPerPage, int(total), len(rows)), nil
+}
+
+func normalizeJobPagination(p utils.PaginationParams) (pageNumber, rowsPerPage int) {
+	rowsPerPage = p.RowsPerPage
+	if rowsPerPage <= 0 {
+		rowsPerPage = 10
 	}
-	to := offset + len(rows)
-	if to > int(total) {
-		to = int(total)
+	if rowsPerPage > 200 {
+		rowsPerPage = 200
+	}
+	pageNumber = p.PageNumber
+	if pageNumber < 1 {
+		pageNumber = 1
+	}
+	return pageNumber, rowsPerPage
+}
+
+func jobPaginator(pageNumber, rowsPerPage, total, rowCount int) *utils.Paginator {
+	offset := (pageNumber - 1) * rowsPerPage
+
+	from := offset + 1
+	if from > total {
+		from = total
+	}
+	to := offset + rowCount
+	if to > total {
+		to = total
 	}
 
-	paginator := &utils.Paginator{
+	return &utils.Paginator{
 		CurrentPage:  pageNumber,
 		RowsPerPage:  rowsPerPage,
-		TotalRecords: int(total),
+		TotalRecords: total,
 		From:         from,
 		To:           to,
 	}
-	return rows, paginator, nil
 }
 
-func (s *JobAdminService) FetchJobCounts(ctx context.Context) (map[string]int64, error) {
+func (s *JobService) FetchJobCounts(ctx context.Context) (map[string]int64, error) {
 	buckets, err := s.repo.CountJobsByState(ctx)
 	if err != nil {
 		return nil, err
@@ -143,7 +155,7 @@ func (s *JobAdminService) FetchJobCounts(ctx context.Context) (map[string]int64,
 	return counts, nil
 }
 
-func (s *JobAdminService) FetchJob(ctx context.Context, id int64) (*models.RiverJobDetail, error) {
+func (s *JobService) FetchJob(ctx context.Context, id int64) (*models.RiverJobDetail, error) {
 	row, err := s.jobs.JobGet(ctx, id)
 	if err != nil {
 		return nil, err
@@ -180,28 +192,28 @@ func (s *JobAdminService) FetchJob(ctx context.Context, id int64) (*models.River
 	return detail, nil
 }
 
-func (s *JobAdminService) RetryJobs(ctx context.Context, ids []int64) error {
+func (s *JobService) RetryJobs(ctx context.Context, ids []int64) error {
 	return s.applyToJobs(ctx, "retry", ids, func(id int64) error {
 		_, err := s.jobs.JobRetry(ctx, id)
 		return err
 	})
 }
 
-func (s *JobAdminService) CancelJobs(ctx context.Context, ids []int64) error {
+func (s *JobService) CancelJobs(ctx context.Context, ids []int64) error {
 	return s.applyToJobs(ctx, "cancel", ids, func(id int64) error {
 		_, err := s.jobs.JobCancel(ctx, id)
 		return err
 	})
 }
 
-func (s *JobAdminService) DeleteJobs(ctx context.Context, ids []int64) error {
+func (s *JobService) DeleteJobs(ctx context.Context, ids []int64) error {
 	return s.applyToJobs(ctx, "delete", ids, func(id int64) error {
 		_, err := s.jobs.JobDelete(ctx, id)
 		return err
 	})
 }
 
-func (s *JobAdminService) applyToJobs(ctx context.Context, action string, ids []int64, fn func(int64) error) error {
+func (s *JobService) applyToJobs(ctx context.Context, action string, ids []int64, fn func(int64) error) error {
 	if len(ids) == 0 {
 		return errors.New("no job ids provided")
 	}
@@ -219,7 +231,7 @@ func (s *JobAdminService) applyToJobs(ctx context.Context, action string, ids []
 	return firstErr
 }
 
-func (s *JobAdminService) FetchQueues(ctx context.Context) ([]models.RiverQueueRow, error) {
+func (s *JobService) FetchQueues(ctx context.Context) ([]models.RiverQueueRow, error) {
 	queues, err := s.jobs.QueueList(ctx)
 	if err != nil {
 		return nil, err
@@ -258,15 +270,15 @@ func (s *JobAdminService) FetchQueues(ctx context.Context) ([]models.RiverQueueR
 	return rows, nil
 }
 
-func (s *JobAdminService) PauseQueue(ctx context.Context, name string) error {
+func (s *JobService) PauseQueue(ctx context.Context, name string) error {
 	return s.jobs.QueuePause(ctx, name)
 }
 
-func (s *JobAdminService) ResumeQueue(ctx context.Context, name string) error {
+func (s *JobService) ResumeQueue(ctx context.Context, name string) error {
 	return s.jobs.QueueResume(ctx, name)
 }
 
-func (s *JobAdminService) FetchPeriodicJobs(ctx context.Context) ([]models.RiverPeriodicJob, error) {
+func (s *JobService) FetchPeriodicJobs(ctx context.Context) ([]models.RiverPeriodicJob, error) {
 	kinds := make([]string, 0, len(periodicJobDisplays))
 	for _, d := range periodicJobDisplays {
 		kinds = append(kinds, d.Kind)
@@ -296,4 +308,72 @@ func (s *JobAdminService) FetchPeriodicJobs(ctx context.Context) ([]models.River
 		out = append(out, row)
 	}
 	return out, nil
+}
+
+func (s *JobService) ListUserJobs(ctx context.Context, userID int64, kind string, p utils.PaginationParams) ([]models.RiverJobRow, *utils.Paginator, error) {
+	if !jobqueue.SelfServiceKinds[kind] {
+		return nil, nil, ErrJobKindNotAllowed
+	}
+
+	pageNumber, rowsPerPage := normalizeJobPagination(p)
+	kinds := []string{kind}
+
+	total, err := s.repo.CountUserJobs(ctx, kinds, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rows, err := s.repo.FindUserJobs(ctx, kinds, userID, nil, (pageNumber-1)*rowsPerPage, rowsPerPage)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return rows, jobPaginator(pageNumber, rowsPerPage, int(total), len(rows)), nil
+}
+
+func (s *JobService) RetryUserJob(ctx context.Context, userID, id int64) error {
+	return s.applyToUserJob(ctx, userID, id, func() (*rivertype.JobRow, error) {
+		return s.jobs.JobRetry(ctx, id)
+	})
+}
+
+func (s *JobService) CancelUserJob(ctx context.Context, userID, id int64) error {
+	return s.applyToUserJob(ctx, userID, id, func() (*rivertype.JobRow, error) {
+		return s.jobs.JobCancel(ctx, id)
+	})
+}
+
+func (s *JobService) applyToUserJob(ctx context.Context, userID, id int64, fn func() (*rivertype.JobRow, error)) error {
+	job, err := s.findUserJob(ctx, userID, id)
+	if err != nil {
+		return err
+	}
+	row, err := fn()
+	if err != nil {
+		return err
+	}
+
+	state := job.State
+	if row != nil {
+		state = string(row.State)
+	}
+
+	s.broadcaster.Send(userID, ws.Event{Type: ws.TypeUserJobUpdated, Payload: ws.UserJobPayload{Kind: job.Kind, State: state}})
+	return nil
+}
+
+func (s *JobService) findUserJob(ctx context.Context, userID, id int64) (*models.RiverJobRow, error) {
+	kinds := make([]string, 0, len(jobqueue.SelfServiceKinds))
+	for k := range jobqueue.SelfServiceKinds {
+		kinds = append(kinds, k)
+	}
+
+	jobs, err := s.repo.FindUserJobs(ctx, kinds, userID, &id, 0, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(jobs) == 0 {
+		return nil, rivertype.ErrNotFound
+	}
+	return &jobs[0], nil
 }

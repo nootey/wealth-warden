@@ -3770,3 +3770,71 @@ func (s *TransactionServiceTestSuite) TestProcessTemplate_SkipsCycleAlreadyRunEa
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", template.ID).First(&updated).Error)
 	s.Equal(1, updated.RunCount, "the scheduled run must not advance run_count a second time")
 }
+
+func (s *TransactionServiceTestSuite) TestMergeCategories_MovesTransactionsAndArchivesSource() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	userID := int64(1)
+
+	initialBalance := decimal.NewFromInt(50000)
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Merge Category Account",
+		AccountTypeID: 1,
+		Balance:       &initialBalance,
+		OpenedAt:      time.Now().AddDate(0, -1, 0),
+	})
+	s.Require().NoError(err)
+
+	srcID, err := svc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "Merge Source Cat", Classification: "expense"})
+	s.Require().NoError(err)
+	dstID, err := svc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "Merge Dest Cat", Classification: "expense"})
+	s.Require().NoError(err)
+
+	_, err = svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:       accID,
+		CategoryID:      &srcID,
+		TransactionType: "expense",
+		Amount:          decimal.NewFromInt(1200),
+		TxnDate:         time.Now(),
+	})
+	s.Require().NoError(err)
+
+	moved, err := svc.MergeCategories(s.Ctx, userID, srcID, dstID)
+	s.Require().NoError(err)
+	s.Equal(int64(1), moved)
+
+	var count int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
+		Where("category_id = ? AND deleted_at IS NULL", dstID).Count(&count).Error)
+	s.Equal(int64(1), count, "the transaction should sit on the destination category")
+
+	var src models.Category
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Where("id = ?", srcID).First(&src).Error)
+	s.NotNil(src.DeletedAt, "the source category should be archived")
+}
+
+func (s *TransactionServiceTestSuite) TestMergeCategories_RejectsClassificationMismatch() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	srcID, err := svc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "Merge Income Cat", Classification: "income"})
+	s.Require().NoError(err)
+	dstID, err := svc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "Merge Expense Cat", Classification: "expense"})
+	s.Require().NoError(err)
+
+	_, err = svc.MergeCategories(s.Ctx, userID, srcID, dstID)
+	s.Require().Error(err)
+	s.Contains(err.Error(), "share a classification")
+}
+
+func (s *TransactionServiceTestSuite) TestQueueCategoryMerge_ValidatesWithoutTransaction() {
+	svc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	srcID, err := svc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "Queue Source Cat", Classification: "expense"})
+	s.Require().NoError(err)
+	dstID, err := svc.InsertCategory(s.Ctx, userID, &models.CategoryReq{DisplayName: "Queue Dest Cat", Classification: "expense"})
+	s.Require().NoError(err)
+
+	s.Require().NoError(svc.QueueCategoryMerge(s.Ctx, userID, srcID, dstID))
+}

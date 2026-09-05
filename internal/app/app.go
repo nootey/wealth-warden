@@ -26,6 +26,7 @@ type App struct {
 	logger    *zap.Logger
 	http      *http.HttpServer
 	jobWorker *jobs.Service
+	jobEvents *jobs.UserJobNotifier
 	telemetry *telemetry.Provider
 	health    *health.Service
 	hub       *ws.Hub
@@ -108,6 +109,7 @@ func New(cfg *config.Config, logger *zap.Logger) (*App, error) {
 		logger:    logger,
 		http:      http.NewServer(container, logger.Named("http"), healthSvc.Handler()),
 		jobWorker: jobs.NewService(riverClient, logger.Named("job-worker")),
+		jobEvents: jobs.NewUserJobNotifier(riverClient, container.Hub, logger.Named("user-job-events")),
 		telemetry: tel,
 		health:    healthSvc,
 		hub:       container.Hub,
@@ -145,6 +147,8 @@ func (a *App) Run(ctx context.Context) error {
 	}))
 
 	supervisor.Add(worker.NewService("job-worker", a.jobWorker.Run))
+
+	supervisor.Add(worker.NewService("user-job-events", a.jobEvents.Run))
 
 	supervisor.Add(worker.NewService("health", a.health.Run))
 

@@ -1798,6 +1798,84 @@ func (_c *MockTransactionServiceInterface_InsertTransfer_Call) RunAndReturn(run 
 	return _c
 }
 
+// MergeCategories provides a mock function for the type MockTransactionServiceInterface
+func (_mock *MockTransactionServiceInterface) MergeCategories(ctx context.Context, userID int64, sourceID int64, destinationID int64) (int64, error) {
+	ret := _mock.Called(ctx, userID, sourceID, destinationID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MergeCategories")
+	}
+
+	var r0 int64
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64, int64) (int64, error)); ok {
+		return returnFunc(ctx, userID, sourceID, destinationID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64, int64) int64); ok {
+		r0 = returnFunc(ctx, userID, sourceID, destinationID)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, int64, int64) error); ok {
+		r1 = returnFunc(ctx, userID, sourceID, destinationID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockTransactionServiceInterface_MergeCategories_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MergeCategories'
+type MockTransactionServiceInterface_MergeCategories_Call struct {
+	*mock.Call
+}
+
+// MergeCategories is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - sourceID int64
+//   - destinationID int64
+func (_e *MockTransactionServiceInterface_Expecter) MergeCategories(ctx any, userID any, sourceID any, destinationID any) *MockTransactionServiceInterface_MergeCategories_Call {
+	return &MockTransactionServiceInterface_MergeCategories_Call{Call: _e.mock.On("MergeCategories", ctx, userID, sourceID, destinationID)}
+}
+
+func (_c *MockTransactionServiceInterface_MergeCategories_Call) Run(run func(ctx context.Context, userID int64, sourceID int64, destinationID int64)) *MockTransactionServiceInterface_MergeCategories_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 int64
+		if args[2] != nil {
+			arg2 = args[2].(int64)
+		}
+		var arg3 int64
+		if args[3] != nil {
+			arg3 = args[3].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_MergeCategories_Call) Return(n int64, err error) *MockTransactionServiceInterface_MergeCategories_Call {
+	_c.Call.Return(n, err)
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_MergeCategories_Call) RunAndReturn(run func(ctx context.Context, userID int64, sourceID int64, destinationID int64) (int64, error)) *MockTransactionServiceInterface_MergeCategories_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ProcessTemplate provides a mock function for the type MockTransactionServiceInterface
 func (_mock *MockTransactionServiceInterface) ProcessTemplate(ctx context.Context, template *models.TransactionTemplate) error {
 	ret := _mock.Called(ctx, template)
@@ -1851,6 +1929,75 @@ func (_c *MockTransactionServiceInterface_ProcessTemplate_Call) Return(err error
 }
 
 func (_c *MockTransactionServiceInterface_ProcessTemplate_Call) RunAndReturn(run func(ctx context.Context, template *models.TransactionTemplate) error) *MockTransactionServiceInterface_ProcessTemplate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// QueueCategoryMerge provides a mock function for the type MockTransactionServiceInterface
+func (_mock *MockTransactionServiceInterface) QueueCategoryMerge(ctx context.Context, userID int64, sourceID int64, destinationID int64) error {
+	ret := _mock.Called(ctx, userID, sourceID, destinationID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for QueueCategoryMerge")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64, int64) error); ok {
+		r0 = returnFunc(ctx, userID, sourceID, destinationID)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockTransactionServiceInterface_QueueCategoryMerge_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'QueueCategoryMerge'
+type MockTransactionServiceInterface_QueueCategoryMerge_Call struct {
+	*mock.Call
+}
+
+// QueueCategoryMerge is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+//   - sourceID int64
+//   - destinationID int64
+func (_e *MockTransactionServiceInterface_Expecter) QueueCategoryMerge(ctx any, userID any, sourceID any, destinationID any) *MockTransactionServiceInterface_QueueCategoryMerge_Call {
+	return &MockTransactionServiceInterface_QueueCategoryMerge_Call{Call: _e.mock.On("QueueCategoryMerge", ctx, userID, sourceID, destinationID)}
+}
+
+func (_c *MockTransactionServiceInterface_QueueCategoryMerge_Call) Run(run func(ctx context.Context, userID int64, sourceID int64, destinationID int64)) *MockTransactionServiceInterface_QueueCategoryMerge_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 int64
+		if args[2] != nil {
+			arg2 = args[2].(int64)
+		}
+		var arg3 int64
+		if args[3] != nil {
+			arg3 = args[3].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_QueueCategoryMerge_Call) Return(err error) *MockTransactionServiceInterface_QueueCategoryMerge_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockTransactionServiceInterface_QueueCategoryMerge_Call) RunAndReturn(run func(ctx context.Context, userID int64, sourceID int64, destinationID int64) error) *MockTransactionServiceInterface_QueueCategoryMerge_Call {
 	_c.Call.Return(run)
 	return _c
 }

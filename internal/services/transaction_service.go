@@ -14,6 +14,7 @@ import (
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -32,6 +33,8 @@ type TransactionServiceInterface interface {
 	UpdateTransfer(ctx context.Context, userID int64, id int64, req *models.UpdateTransferReq) error
 	DeleteTransfer(ctx context.Context, userID int64, id int64) error
 	DeleteCategory(ctx context.Context, userID int64, id int64) error
+	QueueCategoryMerge(ctx context.Context, userID, sourceID, destinationID int64) error
+	MergeCategories(ctx context.Context, userID, sourceID, destinationID int64) (int64, error)
 	RestoreTransaction(ctx context.Context, userID int64, id int64) error
 	RestoreCategory(ctx context.Context, userID int64, id int64) error
 	RestoreCategoryName(ctx context.Context, userID int64, id int64) error
@@ -62,9 +65,11 @@ type TransactionService struct {
 	settingsRepo  repositories.SettingsRepositoryInterface
 	savingsRepo   repositories.SavingsRepositoryInterface
 	jobDispatcher jobqueue.Dispatcher
+	logger        *zap.Logger
 }
 
 func NewTransactionService(
+	logger *zap.Logger,
 	repo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
 	settingsRepo *repositories.SettingsRepository,
@@ -77,6 +82,7 @@ func NewTransactionService(
 		settingsRepo:  settingsRepo,
 		savingsRepo:   savingsRepo,
 		jobDispatcher: jobDispatcher,
+		logger:        logger,
 	}
 }
 
@@ -1595,6 +1601,113 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 	}
 
 	return nil
+}
+
+func (s *TransactionService) QueueCategoryMerge(ctx context.Context, userID, sourceID, destinationID int64) error {
+	src, dst, err := s.resolveCategoryMerge(ctx, nil, userID, sourceID, destinationID)
+	if err != nil {
+		return err
+	}
+
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.MergeCategoriesArgs{
+		UserID:                        userID,
+		InternalSourceCategoryID:      src.ID,
+		InternalDestinationCategoryID: dst.ID,
+		SourceCategory:                src.DisplayName,
+		DestinationCategory:           dst.DisplayName,
+	})
+}
+
+func (s *TransactionService) MergeCategories(ctx context.Context, userID, sourceID, destinationID int64) (int64, error) {
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	src, _, err := s.resolveCategoryMerge(ctx, tx, userID, sourceID, destinationID)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	moved, err := s.repo.BulkUpdateTransactionCategoryID(ctx, tx, sourceID, destinationID, userID)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	if err := s.repo.BulkUpdateTemplateCategoryID(ctx, tx, sourceID, destinationID, userID); err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	if err := s.repo.ArchiveCategory(ctx, tx, sourceID, userID); err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+
+	changes := utils.InitChanges()
+	utils.CompareChanges(strconv.FormatInt(sourceID, 10), strconv.FormatInt(destinationID, 10), changes, "category_id")
+	utils.CompareChanges(src.DisplayName, "", changes, "name")
+
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
+		Event:       "merge",
+		Category:    "category",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &userID,
+	}); err != nil {
+		s.logger.Error("category merge activity log failed",
+			zap.Error(err), zap.Int64("source_id", sourceID), zap.Int64("destination_id", destinationID))
+	}
+
+	return moved, nil
+}
+
+func (s *TransactionService) resolveCategoryMerge(ctx context.Context, tx *gorm.DB, userID, sourceID, destinationID int64) (models.Category, models.Category, error) {
+	if sourceID == destinationID {
+		return models.Category{}, models.Category{}, errors.New("source and destination categories must be different")
+	}
+
+	src, err := s.repo.FindCategoryByID(ctx, tx, sourceID, &userID, false)
+	if err != nil {
+		return models.Category{}, models.Category{}, fmt.Errorf("source category not found: %w", err)
+	}
+
+	dst, err := s.repo.FindCategoryByID(ctx, tx, destinationID, &userID, false)
+	if err != nil {
+		return models.Category{}, models.Category{}, fmt.Errorf("destination category not found: %w", err)
+	}
+
+	if src.Classification != dst.Classification {
+		return models.Category{}, models.Category{}, fmt.Errorf("categories must share a classification: %s cannot merge into %s", src.Classification, dst.Classification)
+	}
+
+	if src.IsDefault {
+		return models.Category{}, models.Category{}, errors.New("cannot merge a default category")
+	}
+
+	inGroup, err := s.repo.IsCategoryInGroup(ctx, tx, sourceID)
+	if err != nil {
+		return models.Category{}, models.Category{}, err
+	}
+	if inGroup {
+		return models.Category{}, models.Category{}, errors.New("cannot merge category: it is part of one or more category groups")
+	}
+
+	return src, dst, nil
 }
 
 func (s *TransactionService) RestoreCategory(ctx context.Context, userID int64, id int64) error {

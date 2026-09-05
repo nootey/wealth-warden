@@ -47,6 +47,12 @@ func RegisterWorkers(workers *river.Workers, c *bootstrap.ServiceContainer, logg
 			return river.AddWorkerSafely(workers, NewGenerateCategoryReportWorker(logger.Named("category_report"), c.AnalyticsService, c.Hub))
 		},
 		func() error {
+			return river.AddWorkerSafely(workers, NewMergeCategoriesWorker(logger.Named("category_merge"), c.TransactionService))
+		},
+		func() error {
+			return river.AddWorkerSafely(workers, NewMergeAccountsWorker(logger.Named("account_merge"), c.AccountService))
+		},
+		func() error {
 			return river.AddWorkerSafely(workers, NewBackfillAssetCashFlowsWorker(logger.Named("cashflow_backfill"), c.InvestmentService, concurrentWorkers))
 		},
 		func() error {

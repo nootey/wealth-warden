@@ -4,23 +4,40 @@ import { useConfirm } from "primevue/useconfirm";
 import type { Account } from "../../models/account_models.ts";
 import { useAccountStore } from "../../services/stores/account_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
+import UserJobsRunner from "./UserJobsRunner.vue";
+
+defineProps<{
+  kind: string;
+}>();
+
+const emit = defineEmits<{
+  (e: "completeOperation"): void;
+}>();
 
 const accStore = useAccountStore();
 const toastStore = useToastStore();
 const confirm = useConfirm();
 
 const merging = ref(false);
+const runner = ref<InstanceType<typeof UserJobsRunner> | null>(null);
 const accounts = ref<Account[]>([]);
 const sourceAccount = ref<Account | null>(null);
 const destinationAccount = ref<Account | null>(null);
 
-onMounted(async () => {
+onMounted(loadAccounts);
+
+async function loadAccounts(): Promise<void> {
   try {
     accounts.value = await accStore.getAllAccounts(true);
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
-});
+}
+
+async function onMergeCompleted(): Promise<void> {
+  await loadAccounts();
+  emit("completeOperation");
+}
 
 function confirmMerge() {
   confirm.require({
@@ -42,6 +59,7 @@ async function doMerge() {
     toastStore.successResponseToast(res);
     sourceAccount.value = null;
     destinationAccount.value = null;
+    await runner.value?.refresh();
   } catch (e) {
     toastStore.errorResponseToast(e);
   } finally {
@@ -101,6 +119,13 @@ async function doMerge() {
         />
       </div>
     </div>
+
+    <UserJobsRunner
+      ref="runner"
+      :kind="kind"
+      label="Account merge jobs"
+      @job-completed="onMergeCompleted"
+    />
   </div>
 </template>
 

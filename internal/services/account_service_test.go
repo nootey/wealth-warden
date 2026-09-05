@@ -873,6 +873,34 @@ func (s *AccountServiceTestSuite) TestMergeAccount_Success() {
 		"destination should have 200 outflows, got %s", bal.CashOutflows)
 }
 
+func (s *AccountServiceTestSuite) TestQueueAccountMerge_ValidatesWithoutTransaction() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+	zero := decimal.Zero
+
+	srcID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Queue Source Checking",
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	dstID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Queue Dest Checking",
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      time.Now(),
+	})
+	s.Require().NoError(err)
+
+	s.Require().NoError(svc.QueueAccountMerge(s.Ctx, userID, srcID, dstID))
+
+	err = svc.QueueAccountMerge(s.Ctx, userID, srcID, srcID)
+	s.Assert().Error(err)
+	s.Assert().Contains(err.Error(), "must be different")
+}
+
 // Merging an account into itself should return an error
 func (s *AccountServiceTestSuite) TestMergeAccount_SameAccount() {
 	svc := s.TC.App.AccountService
@@ -1114,6 +1142,64 @@ func (s *AccountServiceTestSuite) TestMergeAccount_BalancesAndSnapshotsWithTrans
 	s.Require().NoError(err)
 	s.Assert().True(srcBal5.CashInflows.IsZero(),
 		"source day-5 cash_inflows should be 0, got %s", srcBal5.CashInflows)
+}
+
+// A source opened before the destination pushes the destination's opening day back.
+// Both opening balances must survive that move.
+func (s *AccountServiceTestSuite) TestMergeAccount_SourceOlderThanDestination_KeepsTotal() {
+	svc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	srcOpened := today.AddDate(0, 0, -30)
+	dstOpened := today.AddDate(0, 0, -10)
+	txnDay := today.AddDate(0, 0, -20)
+
+	srcInitial := decimal.NewFromInt(11000)
+	dstInitial := decimal.NewFromInt(5000)
+
+	srcID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Merge Src Older", AccountTypeID: 1, Balance: &srcInitial, OpenedAt: srcOpened,
+	})
+	s.Require().NoError(err)
+
+	dstID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name: "Merge Dst Newer", AccountTypeID: 1, Balance: &dstInitial, OpenedAt: dstOpened,
+	})
+	s.Require().NoError(err)
+
+	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: srcID, TransactionType: "income", Amount: decimal.NewFromInt(400), TxnDate: txnDay,
+	})
+	s.Require().NoError(err)
+
+	expectedTotal := decimal.NewFromInt(16400)
+	totalBefore := s.mergeSnapshotTotal(srcID, dstID, today)
+	s.Require().True(expectedTotal.Equal(totalBefore), "setup total should be 16400, got %s", totalBefore)
+
+	s.Require().NoError(svc.MergeAccount(s.Ctx, userID, srcID, dstID))
+
+	totalAfter := s.mergeSnapshotTotal(srcID, dstID, today)
+	s.Assert().True(totalBefore.Equal(totalAfter),
+		"total should survive the merge: before %s, after %s", totalBefore, totalAfter)
+
+	var dstSnap models.AccountDailySnapshot
+	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", dstID, today).First(&dstSnap).Error
+	s.Require().NoError(err)
+	s.Assert().True(expectedTotal.Equal(dstSnap.EndBalance),
+		"dest today snapshot should hold the whole total, got %s", dstSnap.EndBalance)
+}
+
+func (s *AccountServiceTestSuite) mergeSnapshotTotal(srcID, dstID int64, day time.Time) decimal.Decimal {
+	total := decimal.Zero
+	for _, id := range []int64{srcID, dstID} {
+		var snap models.AccountDailySnapshot
+		err := s.TC.DB.WithContext(s.Ctx).Where("account_id = ? AND as_of = ?", id, day).First(&snap).Error
+		s.Require().NoError(err)
+		total = total.Add(snap.EndBalance)
+	}
+	return total
 }
 
 // Merging a source account that has only an initial balance (no transactions)

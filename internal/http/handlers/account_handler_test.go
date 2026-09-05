@@ -327,7 +327,7 @@ func (suite *AccountHandlerTestSuite) TestMergeAccounts_Success() {
 		Once()
 
 	suite.mockService.EXPECT().
-		MergeAccount(mock.Anything, int64(123), int64(1), int64(2)).
+		QueueAccountMerge(mock.Anything, int64(123), int64(1), int64(2)).
 		Return(nil).
 		Once()
 
@@ -341,7 +341,7 @@ func (suite *AccountHandlerTestSuite) TestMergeAccounts_Success() {
 	suite.Equal(http.StatusOK, w.Code)
 	var resp map[string]interface{}
 	suite.NoError(json.Unmarshal(w.Body.Bytes(), &resp))
-	suite.Equal("Accounts merged", resp["message"])
+	suite.Equal("Merge queued", resp["message"])
 }
 
 func (suite *AccountHandlerTestSuite) TestMergeAccounts_InvalidJSON() {
@@ -355,7 +355,7 @@ func (suite *AccountHandlerTestSuite) TestMergeAccounts_InvalidJSON() {
 
 	suite.Equal(http.StatusBadRequest, w.Code)
 	suite.mockValidator.AssertNotCalled(suite.T(), "ValidateStruct")
-	suite.mockService.AssertNotCalled(suite.T(), "MergeAccount")
+	suite.mockService.AssertNotCalled(suite.T(), "QueueAccountMerge")
 }
 
 func (suite *AccountHandlerTestSuite) TestMergeAccounts_ValidationFailed() {
@@ -376,7 +376,7 @@ func (suite *AccountHandlerTestSuite) TestMergeAccounts_ValidationFailed() {
 	suite.router.ServeHTTP(w, req)
 
 	suite.Equal(http.StatusUnprocessableEntity, w.Code)
-	suite.mockService.AssertNotCalled(suite.T(), "MergeAccount")
+	suite.mockService.AssertNotCalled(suite.T(), "QueueAccountMerge")
 }
 
 func (suite *AccountHandlerTestSuite) TestMergeAccounts_ServiceError() {
@@ -390,7 +390,7 @@ func (suite *AccountHandlerTestSuite) TestMergeAccounts_ServiceError() {
 		Once()
 
 	suite.mockService.EXPECT().
-		MergeAccount(mock.Anything, int64(123), int64(1), int64(2)).
+		QueueAccountMerge(mock.Anything, int64(123), int64(1), int64(2)).
 		Return(errors.New("liability accounts can only be merged into other liability accounts")).
 		Once()
 
@@ -401,5 +401,5 @@ func (suite *AccountHandlerTestSuite) TestMergeAccounts_ServiceError() {
 
 	suite.router.ServeHTTP(w, req)
 
-	suite.Equal(http.StatusInternalServerError, w.Code)
+	suite.Equal(http.StatusBadRequest, w.Code)
 }
