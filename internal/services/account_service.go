@@ -1474,11 +1474,16 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 	utils.CompareChanges("", strconv.FormatInt(int64(len(transfers)), 10), changes, "transfers_removed")
 	changes.Stamp("id", strconv.FormatInt(dstAcc.ID, 10))
 
-	return s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
+	if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 		Event:       "merge",
 		Category:    "account",
 		Description: nil,
 		Payload:     changes,
 		Causer:      &userID,
-	})
+	}); err != nil {
+		s.logger.Error("account merge activity log failed",
+			zap.Error(err), zap.Int64("source_id", sourceID), zap.Int64("destination_id", destinationID))
+	}
+
+	return nil
 }

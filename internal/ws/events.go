@@ -25,5 +25,6 @@ type AssetPnLPayload struct {
 }
 
 type UserJobPayload struct {
-	Kind string `json:"kind"`
+	Kind  string `json:"kind"`
+	State string `json:"state"`
 }

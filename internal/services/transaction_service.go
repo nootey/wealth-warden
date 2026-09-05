@@ -14,6 +14,7 @@ import (
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -64,9 +65,11 @@ type TransactionService struct {
 	settingsRepo  repositories.SettingsRepositoryInterface
 	savingsRepo   repositories.SavingsRepositoryInterface
 	jobDispatcher jobqueue.Dispatcher
+	logger        *zap.Logger
 }
 
 func NewTransactionService(
+	logger *zap.Logger,
 	repo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
 	settingsRepo *repositories.SettingsRepository,
@@ -79,6 +82,7 @@ func NewTransactionService(
 		settingsRepo:  settingsRepo,
 		savingsRepo:   savingsRepo,
 		jobDispatcher: jobDispatcher,
+		logger:        logger,
 	}
 }
 
@@ -1665,7 +1669,8 @@ func (s *TransactionService) MergeCategories(ctx context.Context, userID, source
 		Payload:     changes,
 		Causer:      &userID,
 	}); err != nil {
-		return moved, err
+		s.logger.Error("category merge activity log failed",
+			zap.Error(err), zap.Int64("source_id", sourceID), zap.Int64("destination_id", destinationID))
 	}
 
 	return moved, nil

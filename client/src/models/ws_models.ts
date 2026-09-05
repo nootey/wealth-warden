@@ -21,6 +21,7 @@ export interface AssetPnLPayload {
 
 export interface UserJobPayload {
   kind: string;
+  state: string;
 }
 
 export type WsHandler = (payload: unknown) => void;

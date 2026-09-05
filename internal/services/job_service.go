@@ -332,28 +332,33 @@ func (s *JobService) ListUserJobs(ctx context.Context, userID int64, kind string
 }
 
 func (s *JobService) RetryUserJob(ctx context.Context, userID, id int64) error {
-	return s.applyToUserJob(ctx, userID, id, func() error {
-		_, err := s.jobs.JobRetry(ctx, id)
-		return err
+	return s.applyToUserJob(ctx, userID, id, func() (*rivertype.JobRow, error) {
+		return s.jobs.JobRetry(ctx, id)
 	})
 }
 
 func (s *JobService) CancelUserJob(ctx context.Context, userID, id int64) error {
-	return s.applyToUserJob(ctx, userID, id, func() error {
-		_, err := s.jobs.JobCancel(ctx, id)
-		return err
+	return s.applyToUserJob(ctx, userID, id, func() (*rivertype.JobRow, error) {
+		return s.jobs.JobCancel(ctx, id)
 	})
 }
 
-func (s *JobService) applyToUserJob(ctx context.Context, userID, id int64, fn func() error) error {
+func (s *JobService) applyToUserJob(ctx context.Context, userID, id int64, fn func() (*rivertype.JobRow, error)) error {
 	job, err := s.findUserJob(ctx, userID, id)
 	if err != nil {
 		return err
 	}
-	if err := fn(); err != nil {
+	row, err := fn()
+	if err != nil {
 		return err
 	}
-	s.broadcaster.Send(userID, ws.Event{Type: ws.TypeUserJobUpdated, Payload: ws.UserJobPayload{Kind: job.Kind}})
+
+	state := job.State
+	if row != nil {
+		state = string(row.State)
+	}
+
+	s.broadcaster.Send(userID, ws.Event{Type: ws.TypeUserJobUpdated, Payload: ws.UserJobPayload{Kind: job.Kind, State: state}})
 	return nil
 }
 

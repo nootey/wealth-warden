@@ -1,9 +1,5 @@
 package models
 
-type StartJobBody struct {
-	Kind string `json:"kind"`
-}
-
 type PeriodicJobDisplay struct {
 	ID       string
 	Kind     string

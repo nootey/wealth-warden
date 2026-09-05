@@ -80,12 +80,6 @@ export const useJobsStore = defineStore("jobs", {
       });
       return response.data;
     },
-    async startJob(kind: string) {
-      const response = await apiClient.post(`${this.userApiPrefix}/start`, {
-        kind,
-      });
-      return response.data;
-    },
     async retryJob(id: number) {
       const response = await apiClient.post(
         `${this.userApiPrefix}/${id}/retry`,

@@ -17,6 +17,10 @@ const props = defineProps<{
   description?: string;
 }>();
 
+const emit = defineEmits<{
+  (e: "jobCompleted"): void;
+}>();
+
 const jobsStore = useJobsStore();
 const toastStore = useToastStore();
 const wsStore = useWsStore();
@@ -107,9 +111,12 @@ let unsubscribe: (() => void) | null = null;
 onMounted(async () => {
   await refresh();
   unsubscribe = wsStore.on("user_job.updated", (payload) => {
-    if ((payload as UserJobPayload | undefined)?.kind === props.kind) {
-      void refresh(true);
-    }
+    const event = payload as UserJobPayload | undefined;
+    if (event?.kind !== props.kind) return;
+
+    void refresh(true);
+    // Only a completed job changes the records the parent lists.
+    if (event.state === "completed") emit("jobCompleted");
   });
 });
 

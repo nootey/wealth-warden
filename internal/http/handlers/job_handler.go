@@ -177,6 +177,10 @@ func (h *JobHandler) ListUserJobs(c *gin.Context) {
 
 	jobs, paginator, err := h.service.ListUserJobs(c.Request.Context(), userID, kind, params)
 	if err != nil {
+		if errors.Is(err, services.ErrJobKindNotAllowed) {
+			utils.ErrorMessage(c, "Invalid kind", err.Error(), http.StatusBadRequest, err)
+			return
+		}
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -201,6 +205,10 @@ func (h *JobHandler) RetryUserJob(c *gin.Context) {
 
 	err = h.service.RetryUserJob(c.Request.Context(), userID, id)
 	if err != nil {
+		if errors.Is(err, rivertype.ErrNotFound) {
+			utils.ErrorMessage(c, "Not found", "job not found", http.StatusNotFound, err)
+			return
+		}
 		utils.ErrorMessage(c, "Retry failed", err.Error(), http.StatusInternalServerError, err)
 		return
 	}
@@ -218,6 +226,10 @@ func (h *JobHandler) CancelUserJob(c *gin.Context) {
 
 	err = h.service.CancelUserJob(c.Request.Context(), userID, id)
 	if err != nil {
+		if errors.Is(err, rivertype.ErrNotFound) {
+			utils.ErrorMessage(c, "Not found", "job not found", http.StatusNotFound, err)
+			return
+		}
 		utils.ErrorMessage(c, "Cancel failed", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

@@ -81,6 +81,10 @@ async function handleEmit(type: string) {
       await getCategories();
       break;
     }
+    case "completeCatMerge": {
+      await getCategories();
+      break;
+    }
     case "completeGroupDelete": {
       await getCategoryGroups();
       break;
@@ -196,7 +200,11 @@ async function handleEmit(type: string) {
 
     <SettingsSkeleton class="w-full">
       <div id="main-col" class="w-full flex flex-col gap-4 p-2">
-        <MergeCategories :categories="categories" kind="merge_categories" />
+        <MergeCategories
+          :categories="categories"
+          kind="merge_categories"
+          @complete-operation="handleEmit('completeCatMerge')"
+        />
       </div>
     </SettingsSkeleton>
   </div>

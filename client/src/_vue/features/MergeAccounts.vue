@@ -10,6 +10,10 @@ defineProps<{
   kind: string;
 }>();
 
+const emit = defineEmits<{
+  (e: "completeOperation"): void;
+}>();
+
 const accStore = useAccountStore();
 const toastStore = useToastStore();
 const confirm = useConfirm();
@@ -20,13 +24,20 @@ const accounts = ref<Account[]>([]);
 const sourceAccount = ref<Account | null>(null);
 const destinationAccount = ref<Account | null>(null);
 
-onMounted(async () => {
+onMounted(loadAccounts);
+
+async function loadAccounts(): Promise<void> {
   try {
     accounts.value = await accStore.getAllAccounts(true);
   } catch (error) {
     toastStore.errorResponseToast(error);
   }
-});
+}
+
+async function onMergeCompleted(): Promise<void> {
+  await loadAccounts();
+  emit("completeOperation");
+}
 
 function confirmMerge() {
   confirm.require({
@@ -109,7 +120,12 @@ async function doMerge() {
       </div>
     </div>
 
-    <UserJobsRunner ref="runner" :kind="kind" label="Account merge jobs" />
+    <UserJobsRunner
+      ref="runner"
+      :kind="kind"
+      label="Account merge jobs"
+      @job-completed="onMergeCompleted"
+    />
   </div>
 </template>
 

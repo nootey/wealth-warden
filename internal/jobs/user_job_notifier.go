@@ -64,6 +64,6 @@ func (n *UserJobNotifier) forward(event *river.Event) {
 
 	n.broadcaster.Send(args.UserID, ws.Event{
 		Type:    ws.TypeUserJobUpdated,
-		Payload: ws.UserJobPayload{Kind: event.Job.Kind},
+		Payload: ws.UserJobPayload{Kind: event.Job.Kind, State: string(event.Job.State)},
 	})
 }

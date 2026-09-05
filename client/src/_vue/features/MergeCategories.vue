@@ -12,6 +12,10 @@ const props = defineProps<{
   kind: string;
 }>();
 
+const emit = defineEmits<{
+  (e: "completeOperation"): void;
+}>();
+
 const transactionStore = useTransactionStore();
 const toastStore = useToastStore();
 const confirm = useConfirm();
@@ -146,7 +150,12 @@ async function doMerge() {
       </div>
     </div>
 
-    <UserJobsRunner ref="runner" :kind="kind" label="Category merge jobs" />
+    <UserJobsRunner
+      ref="runner"
+      :kind="kind"
+      label="Category merge jobs"
+      @job-completed="emit('completeOperation')"
+    />
   </div>
 </template>
 
