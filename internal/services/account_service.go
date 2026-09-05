@@ -48,6 +48,7 @@ type AccountServiceInterface interface {
 	GetAssetIDsForAccount(ctx context.Context, userID, accountID int64) ([]int64, error)
 	SyncAssetPnL(ctx context.Context, userID, assetID int64) error
 	SyncAccountPnL(ctx context.Context, userID, accountID int64) error
+	QueueAccountMerge(ctx context.Context, userID, sourceID, destinationID int64) error
 	MergeAccount(ctx context.Context, userID, sourceID, destinationID int64) error
 }
 
@@ -1243,11 +1244,57 @@ func (s *AccountService) SyncAccountPnL(ctx context.Context, userID, accountID i
 	return s.jobDispatcher.Dispatch(ctx, jobqueue.RecalculateAssetPnLArgs{UserID: userID, AccountID: &accountID})
 }
 
-func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, destinationID int64) error {
-	if sourceID == destinationID {
-		return errors.New("source and destination accounts must be different")
+func (s *AccountService) QueueAccountMerge(ctx context.Context, userID, sourceID, destinationID int64) error {
+	srcAcc, dstAcc, err := s.resolveAccountMerge(ctx, nil, userID, sourceID, destinationID)
+	if err != nil {
+		return err
 	}
 
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.MergeAccountsArgs{
+		UserID:                       userID,
+		InternalSourceAccountID:      srcAcc.ID,
+		InternalDestinationAccountID: dstAcc.ID,
+		SourceAccount:                srcAcc.Name,
+		DestinationAccount:           dstAcc.Name,
+	})
+}
+
+func (s *AccountService) resolveAccountMerge(ctx context.Context, tx *gorm.DB, userID, sourceID, destinationID int64) (*models.Account, *models.Account, error) {
+	if sourceID == destinationID {
+		return nil, nil, errors.New("source and destination accounts must be different")
+	}
+
+	srcAcc, err := s.repo.FindAccountByID(ctx, tx, sourceID, userID, false, true)
+	if err != nil {
+		return nil, nil, fmt.Errorf("source account not found: %w", err)
+	}
+	dstAcc, err := s.repo.FindAccountByID(ctx, tx, destinationID, userID, false, true)
+	if err != nil {
+		return nil, nil, fmt.Errorf("destination account not found: %w", err)
+	}
+
+	// Guard: investment and crypto accounts require the same type and sub-type (no cross-merging)
+	srcType := strings.ToLower(srcAcc.AccountType.Type)
+	if srcType == "investment" || srcType == "crypto" {
+		if srcAcc.AccountType.Type != dstAcc.AccountType.Type || srcAcc.AccountType.Subtype != dstAcc.AccountType.Subtype {
+			return nil, nil, fmt.Errorf(
+				"investment/crypto accounts can only be merged into an account with the same type and sub-type (%s / %s)",
+				srcAcc.AccountType.Type, srcAcc.AccountType.Subtype,
+			)
+		}
+	}
+
+	// Guard: liability accounts can only be merged into other liability accounts
+	srcIsLiability := strings.ToLower(srcAcc.AccountType.Classification) == "liability"
+	dstIsLiability := strings.ToLower(dstAcc.AccountType.Classification) == "liability"
+	if srcIsLiability != dstIsLiability {
+		return nil, nil, fmt.Errorf("liability accounts can only be merged into other liability accounts")
+	}
+
+	return srcAcc, dstAcc, nil
+}
+
+func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, destinationID int64) error {
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -1260,36 +1307,13 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 		}
 	}()
 
-	srcAcc, err := s.repo.FindAccountByID(ctx, tx, sourceID, userID, false, true)
+	srcAcc, dstAcc, err := s.resolveAccountMerge(ctx, tx, userID, sourceID, destinationID)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("source account not found: %w", err)
-	}
-	dstAcc, err := s.repo.FindAccountByID(ctx, tx, destinationID, userID, false, true)
-	if err != nil {
-		tx.Rollback()
-		return fmt.Errorf("destination account not found: %w", err)
+		return err
 	}
 
-	// Guard: investment and crypto accounts require the same type and sub-type (no cross-merging)
 	srcType := strings.ToLower(srcAcc.AccountType.Type)
-	if srcType == "investment" || srcType == "crypto" {
-		if srcAcc.AccountType.Type != dstAcc.AccountType.Type || srcAcc.AccountType.Subtype != dstAcc.AccountType.Subtype {
-			tx.Rollback()
-			return fmt.Errorf(
-				"investment/crypto accounts can only be merged into an account with the same type and sub-type (%s / %s)",
-				srcAcc.AccountType.Type, srcAcc.AccountType.Subtype,
-			)
-		}
-	}
-
-	// Guard: liability accounts can only be merged into other liability accounts
-	srcIsLiability := strings.ToLower(srcAcc.AccountType.Classification) == "liability"
-	dstIsLiability := strings.ToLower(dstAcc.AccountType.Classification) == "liability"
-	if srcIsLiability != dstIsLiability {
-		tx.Rollback()
-		return fmt.Errorf("liability accounts can only be merged into other liability accounts")
-	}
 
 	// Count transactions being moved before the bulk update
 	txnCount, err := s.txnRepo.CountTransactions(ctx, tx, userID, []utils.Filter{}, false, &sourceID)
@@ -1362,6 +1386,11 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 		if err := tx.WithContext(ctx).Model(&models.Account{}).
 			Where("id = ? AND user_id = ?", destinationID, userID).
 			Update("opened_at", dstOpeningDay).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if err := s.repo.EnsureDailyBalanceRow(ctx, tx, destinationID, dstOpeningDay, dstAcc.Currency); err != nil {
 			tx.Rollback()
 			return err
 		}

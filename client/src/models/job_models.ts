@@ -28,6 +28,7 @@ export const JOB_KINDS = [
   "recurring_transactions",
   "asset_price_sync",
   "merge_categories",
+  "merge_accounts",
 ] as const;
 
 export interface RiverJob {

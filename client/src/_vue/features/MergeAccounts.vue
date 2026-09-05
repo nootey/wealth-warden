@@ -4,12 +4,18 @@ import { useConfirm } from "primevue/useconfirm";
 import type { Account } from "../../models/account_models.ts";
 import { useAccountStore } from "../../services/stores/account_store.ts";
 import { useToastStore } from "../../services/stores/toast_store.ts";
+import UserJobsRunner from "./UserJobsRunner.vue";
+
+defineProps<{
+  kind: string;
+}>();
 
 const accStore = useAccountStore();
 const toastStore = useToastStore();
 const confirm = useConfirm();
 
 const merging = ref(false);
+const runner = ref<InstanceType<typeof UserJobsRunner> | null>(null);
 const accounts = ref<Account[]>([]);
 const sourceAccount = ref<Account | null>(null);
 const destinationAccount = ref<Account | null>(null);
@@ -42,6 +48,7 @@ async function doMerge() {
     toastStore.successResponseToast(res);
     sourceAccount.value = null;
     destinationAccount.value = null;
+    await runner.value?.refresh();
   } catch (e) {
     toastStore.errorResponseToast(e);
   } finally {
@@ -101,6 +108,8 @@ async function doMerge() {
         />
       </div>
     </div>
+
+    <UserJobsRunner ref="runner" :kind="kind" label="Account merge jobs" />
   </div>
 </template>
 

@@ -543,12 +543,12 @@ func (h *AccountHandler) MergeAccounts(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.MergeAccount(ctx, userID, req.SourceID, req.DestinationID); err != nil {
-		utils.ErrorMessage(c, "Merge error", err.Error(), http.StatusInternalServerError, err)
+	if err := h.service.QueueAccountMerge(ctx, userID, req.SourceID, req.DestinationID); err != nil {
+		utils.ErrorMessage(c, "Merge error", err.Error(), http.StatusBadRequest, err)
 		return
 	}
 
-	utils.SuccessMessage(c, "Accounts merged", "Success", http.StatusOK)
+	utils.SuccessMessage(c, "Merge queued", "Success", http.StatusOK)
 }
 
 func (h *AccountHandler) SyncAccountPnL(c *gin.Context) {
