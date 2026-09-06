@@ -427,11 +427,8 @@ func seedBulkChunk(
 		if err := accRepo.UpsertDailyCashBatch(ctx, tx, acc.ID, acc.Currency, deltas[acc.ID]); err != nil {
 			return fmt.Errorf("failed to write daily balances: %w", err)
 		}
-		if err := accRepo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, openedAt[i]); err != nil {
-			return fmt.Errorf("failed to frontfill balances: %w", err)
-		}
-		if err := accRepo.UpsertSnapshotsFromBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, openedAt[i], today); err != nil {
-			return fmt.Errorf("failed to build snapshots: %w", err)
+		if err := accRepo.RebuildBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, openedAt[i]); err != nil {
+			return fmt.Errorf("failed to rebuild balances: %w", err)
 		}
 	}
 
@@ -932,11 +929,8 @@ func seedBulkInvestments(
 				return fmt.Errorf("failed to write investment cash flows: %w", err)
 			}
 		}
-		if err := accRepo.FrontfillBalances(ctx, tx, acc.ID, m.currency, openedAt); err != nil {
-			return fmt.Errorf("failed to frontfill investment balances: %w", err)
-		}
-		if err := accRepo.UpsertSnapshotsFromBalances(ctx, tx, m.userID, acc.ID, m.currency, openedAt, today); err != nil {
-			return fmt.Errorf("failed to build investment snapshots: %w", err)
+		if err := accRepo.RebuildBalances(ctx, tx, m.userID, acc.ID, m.currency, openedAt); err != nil {
+			return fmt.Errorf("failed to rebuild investment balances: %w", err)
 		}
 	}
 

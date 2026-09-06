@@ -470,9 +470,8 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 
 	// Write cash flow to balances + update snapshots
 	txnDate := req.TxnDate.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency); err != nil {
+	if err := s.accRepo.PostCashDelta(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency, "", decimal.Zero); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -486,7 +485,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		if req.Currency != asset.Account.Currency {
 			purchaseCostInAccountCurrency = grossCost.Mul(exchangeRate)
 		}
-		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", purchaseCostInAccountCurrency); err != nil {
+		if err := s.accRepo.PostCashDelta(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency, "cash_outflows", purchaseCostInAccountCurrency); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
@@ -498,12 +497,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		}
 	}
 
-	if err := s.accRepo.FrontfillBalances(ctx, tx, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
-		tx.Rollback()
-		return 0, err
-	}
-
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, txnDate, today); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -573,12 +567,8 @@ func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, as
 		proceedsInAccountCurrency = proceeds.Mul(exchangeRate)
 	}
 
-	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency); err != nil {
-		return err
-	}
-
 	// Full proceeds return to cash — cost basis was already deducted on the buy
-	return s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_inflows", proceedsInAccountCurrency)
+	return s.accRepo.PostCashDelta(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency, "cash_inflows", proceedsInAccountCurrency)
 }
 
 func (s *InvestmentService) resolveUserTradeRates(ctx context.Context, userID int64) (map[utils.TradeExchangeRateKey]decimal.Decimal, error) {
@@ -721,7 +711,7 @@ func (s *InvestmentService) addTradeCashFlows(
 		txnDate := trade.TxnDate.UTC().Truncate(24 * time.Hour)
 		accCurrency := trade.Asset.Account.Currency
 
-		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, trade.Asset.AccountID, txnDate, accCurrency); err != nil {
+		if err := s.accRepo.PostCashDelta(ctx, tx, trade.Asset.AccountID, txnDate, accCurrency, "", decimal.Zero); err != nil {
 			return err
 		}
 
@@ -746,7 +736,7 @@ func (s *InvestmentService) addTradeCashFlows(
 			amount = amount.Mul(rate)
 		}
 
-		if err := s.accRepo.AddToDailyBalance(ctx, tx, trade.Asset.AccountID, txnDate, field, amount); err != nil {
+		if err := s.accRepo.PostCashDelta(ctx, tx, trade.Asset.AccountID, txnDate, accCurrency, field, amount); err != nil {
 			return err
 		}
 
@@ -756,16 +746,10 @@ func (s *InvestmentService) addTradeCashFlows(
 		accountCurrency[trade.Asset.AccountID] = accCurrency
 	}
 
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-
 	for accountID, earliestDate := range earliestByAccount {
 		currency := accountCurrency[accountID]
 
-		if err := s.accRepo.FrontfillBalances(ctx, tx, accountID, currency, earliestDate); err != nil {
-			return err
-		}
-
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accountID, currency, earliestDate, today); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, tx, userID, accountID, currency, earliestDate); err != nil {
 			return err
 		}
 	}
@@ -779,8 +763,6 @@ func (s *InvestmentService) rebuildSnapshots(ctx context.Context, tx *gorm.DB, u
 		return err
 	}
 
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-
 	for _, acc := range accounts {
 		earliest, err := s.accRepo.GetAccountOpeningAsOf(ctx, tx, acc.ID)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -790,12 +772,8 @@ func (s *InvestmentService) rebuildSnapshots(ctx context.Context, tx *gorm.DB, u
 			return fmt.Errorf("failed to get opening date for account %d: %w", acc.ID, err)
 		}
 
-		if err := s.accRepo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, earliest); err != nil {
-			return fmt.Errorf("failed to frontfill balances for account %d: %w", acc.ID, err)
-		}
-
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, earliest, today); err != nil {
-			return fmt.Errorf("failed to rebuild snapshots for account %d: %w", acc.ID, err)
+		if err := s.accRepo.RebuildBalances(ctx, tx, userID, acc.ID, acc.Currency, earliest); err != nil {
+			return fmt.Errorf("failed to rebuild balances for account %d: %w", acc.ID, err)
 		}
 	}
 
@@ -1066,7 +1044,7 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 	for _, trade := range allTrades {
 		txnDate := trade.TxnDate.UTC().Truncate(24 * time.Hour)
 
-		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency); err != nil {
+		if err := s.accRepo.PostCashDelta(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency, "", decimal.Zero); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1083,7 +1061,7 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 			if trade.Currency != asset.Account.Currency {
 				purchaseCost = trade.ValueAtBuy.Mul(exchangeRate)
 			}
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", purchaseCost.Neg()); err != nil {
+			if err := s.accRepo.PostCashDelta(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency, "cash_outflows", purchaseCost.Neg()); err != nil {
 				tx.Rollback()
 				return err
 			}
@@ -1094,7 +1072,7 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 			if trade.Currency != asset.Account.Currency {
 				proceedsInAccountCurrency = proceeds.Mul(exchangeRate)
 			}
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_inflows", proceedsInAccountCurrency.Neg()); err != nil {
+			if err := s.accRepo.PostCashDelta(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency, "cash_inflows", proceedsInAccountCurrency.Neg()); err != nil {
 				tx.Rollback()
 				return err
 			}
@@ -1115,14 +1093,8 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 
 	// Rebuild balances and snapshots from the earliest trade date
 	if !earliestTxnDate.IsZero() {
-		today := time.Now().UTC().Truncate(24 * time.Hour)
 
-		if err := s.accRepo.FrontfillBalances(ctx, tx, asset.AccountID, asset.Account.Currency, earliestTxnDate); err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestTxnDate, today); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestTxnDate); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1187,9 +1159,8 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 	}
 
 	txnDate := exTxn.TxnDate.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency); err != nil {
+	if err := s.accRepo.PostCashDelta(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency, "", decimal.Zero); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1206,7 +1177,7 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 		if exTxn.Currency != asset.Account.Currency {
 			purchaseCost = exTxn.ValueAtBuy.Mul(exchangeRate)
 		}
-		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", purchaseCost.Neg()); err != nil {
+		if err := s.accRepo.PostCashDelta(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency, "cash_outflows", purchaseCost.Neg()); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1222,7 +1193,7 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 			}
 			proceedsInAccountCurrency = proceeds.Mul(exchangeRate)
 		}
-		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_inflows", proceedsInAccountCurrency.Neg()); err != nil {
+		if err := s.accRepo.PostCashDelta(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency, "cash_inflows", proceedsInAccountCurrency.Neg()); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1239,19 +1210,7 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 		return err
 	}
 
-	if err := s.accRepo.FrontfillBalances(ctx, tx, asset.AccountID, asset.Account.Currency, exTxn.TxnDate); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := s.accRepo.UpsertSnapshotsFromBalances(
-		ctx, tx,
-		userID,
-		asset.AccountID,
-		asset.Account.Currency,
-		exTxn.TxnDate.UTC().Truncate(24*time.Hour),
-		today,
-	); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, exTxn.TxnDate); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1625,19 +1584,13 @@ func (s *InvestmentService) DeleteInvestmentIncome(ctx context.Context, userID i
 		}
 
 		incomeDate := income.TxnDate.UTC().Truncate(24 * time.Hour)
-		today := time.Now().UTC().Truncate(24 * time.Hour)
 
-		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, incomeDate, asset.Account.Currency); err != nil {
+		if err := s.accRepo.PostCashDelta(ctx, tx, asset.AccountID, incomeDate, asset.Account.Currency, "", decimal.Zero); err != nil {
 			tx.Rollback()
 			return err
 		}
 
-		if err := s.accRepo.FrontfillBalances(ctx, tx, asset.AccountID, asset.Account.Currency, incomeDate); err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, incomeDate, today); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, incomeDate); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1942,19 +1895,12 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 		return err
 	}
 
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-
-	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, earliestDate, asset.Account.Currency); err != nil {
+	if err := s.accRepo.PostCashDelta(ctx, tx, asset.AccountID, earliestDate, asset.Account.Currency, "", decimal.Zero); err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	if err := s.accRepo.FrontfillBalances(ctx, tx, asset.AccountID, asset.Account.Currency, earliestDate); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestDate, today); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestDate); err != nil {
 		tx.Rollback()
 		return err
 	}

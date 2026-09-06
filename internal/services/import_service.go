@@ -70,17 +70,13 @@ func NewImportService(
 var _ ImportServiceInterface = (*ImportService)(nil)
 
 func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal, snapshot bool) error {
-	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, acc.ID, asOf, acc.Currency); err != nil {
-		return err
-	}
-
 	amt = amt.Round(4)
 	column := map[string]string{
 		"expense": "cash_outflows",
 		"income":  "cash_inflows",
 	}[strings.ToLower(txnType)]
 
-	err := s.accRepo.AddToDailyBalance(ctx, tx, acc.ID, asOf, column, amt)
+	err := s.accRepo.PostCashDelta(ctx, tx, acc.ID, asOf, acc.Currency, column, amt)
 	if err != nil {
 		return err
 	}
@@ -105,13 +101,8 @@ func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *m
 
 func (s *ImportService) frontfillBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error {
 	from = from.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	if err := s.accRepo.FrontfillBalances(ctx, tx, accountID, currency, from); err != nil {
-		return err
-	}
-
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accountID, currency, from, today); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, accountID, currency, from); err != nil {
 		return err
 	}
 
@@ -2007,7 +1998,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			}
 		}
 
-		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, cAccID, txDayAdjusted, toAccount.Currency); err != nil {
+		if err := s.accRepo.PostCashDelta(ctx, tx, cAccID, txDayAdjusted, toAccount.Currency, "", decimal.Zero); err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return err
@@ -2016,14 +2007,14 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		if models.TradeType(txn.TransactionType) == models.InvestmentBuy {
 			vb := valueAtBuy.Add(fee)
 			purchaseCost := vb.Mul(accCashRate)
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, cAccID, txDayAdjusted, "cash_outflows", purchaseCost); err != nil {
+			if err := s.accRepo.PostCashDelta(ctx, tx, cAccID, txDayAdjusted, toAccount.Currency, "cash_outflows", purchaseCost); err != nil {
 				s.markImportFailed(ctx, importID, err)
 				_ = tx.Rollback()
 				return err
 			}
 		} else {
 			proceeds := txnRealizedValue.Mul(accCashRate)
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, cAccID, txDayAdjusted, "cash_inflows", proceeds); err != nil {
+			if err := s.accRepo.PostCashDelta(ctx, tx, cAccID, txDayAdjusted, toAccount.Currency, "cash_inflows", proceeds); err != nil {
 				s.markImportFailed(ctx, importID, err)
 				_ = tx.Rollback()
 				return err
@@ -2037,12 +2028,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 	for accID, from := range earliest {
 		acc := accCache[accID]
 
-		if err := s.accRepo.FrontfillBalances(ctx, tx, accID, acc.Currency, from); err != nil {
-			s.markImportFailed(ctx, importID, err)
-			_ = tx.Rollback()
-			return err
-		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, acc.Currency, from, today); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, tx, userID, accID, acc.Currency, from); err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return err
@@ -2592,7 +2578,7 @@ func (s *ImportService) backfillInvestmentCashFlows(ctx context.Context, userID 
 
 		txnDate := trade.TxnDate.UTC().Truncate(24 * time.Hour)
 
-		if err := s.accRepo.EnsureDailyBalanceRow(ctx, bfTx, trade.Asset.AccountID, txnDate, trade.Asset.Account.Currency); err != nil {
+		if err := s.accRepo.PostCashDelta(ctx, bfTx, trade.Asset.AccountID, txnDate, trade.Asset.Account.Currency, "", decimal.Zero); err != nil {
 			bfTx.Rollback()
 			return err
 		}
@@ -2616,7 +2602,7 @@ func (s *ImportService) backfillInvestmentCashFlows(ctx context.Context, userID 
 			if trade.Currency != trade.Asset.Account.Currency {
 				purchaseCost = grossCost.Mul(exchangeRate)
 			}
-			if err := s.accRepo.AddToDailyBalance(ctx, bfTx, trade.Asset.AccountID, txnDate, "cash_outflows", purchaseCost); err != nil {
+			if err := s.accRepo.PostCashDelta(ctx, bfTx, trade.Asset.AccountID, txnDate, trade.Asset.Account.Currency, "cash_outflows", purchaseCost); err != nil {
 				bfTx.Rollback()
 				return err
 			}
@@ -2625,7 +2611,7 @@ func (s *ImportService) backfillInvestmentCashFlows(ctx context.Context, userID 
 			if trade.Currency != trade.Asset.Account.Currency {
 				proceeds = trade.RealizedValue.Mul(exchangeRate)
 			}
-			if err := s.accRepo.AddToDailyBalance(ctx, bfTx, trade.Asset.AccountID, txnDate, "cash_inflows", proceeds); err != nil {
+			if err := s.accRepo.PostCashDelta(ctx, bfTx, trade.Asset.AccountID, txnDate, trade.Asset.Account.Currency, "cash_inflows", proceeds); err != nil {
 				bfTx.Rollback()
 				return err
 			}
@@ -2633,13 +2619,8 @@ func (s *ImportService) backfillInvestmentCashFlows(ctx context.Context, userID 
 	}
 
 	// Rebuild snapshots for affected accounts only.
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for id, info := range affected {
-		if err := s.accRepo.FrontfillBalances(ctx, bfTx, id, info.currency, info.opening); err != nil {
-			bfTx.Rollback()
-			return err
-		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, bfTx, userID, id, info.currency, info.opening, today); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, bfTx, userID, id, info.currency, info.opening); err != nil {
 			bfTx.Rollback()
 			return err
 		}

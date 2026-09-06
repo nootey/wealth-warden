@@ -117,10 +117,7 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 	}
 }
 
-// SetupTest empties mutable tables and the session store between tests, ensuring a clean slate
-func (s *ServiceIntegrationSuite) SetupTest() {
-
-	const truncateTestTablesSQL = `
+const truncateTestTablesSQL = `
 TRUNCATE TABLE
     transactions,
     transfers,
@@ -131,9 +128,17 @@ TRUNCATE TABLE
 RESTART IDENTITY CASCADE;
 `
 
+// TruncateMutableTables resets every table a test may write to. CASCADE also
+// clears investment_assets and investment_trades, which hang off accounts.
+// RESTART IDENTITY makes the ids repeatable, which the balance diff harness needs.
+func (s *ServiceIntegrationSuite) TruncateMutableTables() {
 	err := s.TC.DB.Exec(truncateTestTablesSQL).Error
 	s.Require().NoError(err, "failed to truncate test tables")
+}
 
+// SetupTest empties mutable tables and the session store between tests, ensuring a clean slate
+func (s *ServiceIntegrationSuite) SetupTest() {
+	s.TruncateMutableTables()
 	s.redis.FlushAll()
 }
 

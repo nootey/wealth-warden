@@ -453,23 +453,9 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			return 0, fmt.Errorf("failed to create new initial balance: %w", err)
 		}
 
-		if err := s.repo.FrontfillBalances(ctx, tx, id, exAcc.Currency, newOpenedAt); err != nil {
+		if err := s.repo.RebuildBalances(ctx, tx, userID, id, exAcc.Currency, newOpenedAt); err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("failed to rebuild balances from transactions: %w", err)
-		}
-
-		// Re-seed snapshots from the new opened date to today
-		if err := s.repo.UpsertSnapshotsFromBalances(
-			ctx,
-			tx,
-			userID,
-			id,
-			exAcc.Currency,
-			newOpenedAt,
-			time.Now().UTC().Truncate(24*time.Hour),
-		); err != nil {
-			tx.Rollback()
-			return 0, fmt.Errorf("failed to update snapshots: %w", err)
+			return 0, fmt.Errorf("failed to rebuild balances from the new opened date: %w", err)
 		}
 	}
 
@@ -894,39 +880,21 @@ func (s *AccountService) rebuildUserHistory(ctx context.Context, tx *gorm.DB, us
 }
 
 func (s *AccountService) UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal) error {
-	// ensure daily balance row exists for asOf
-	if err := s.repo.EnsureDailyBalanceRow(ctx, tx, acc.ID, asOf, acc.Currency); err != nil {
-		return err
-	}
-
 	amount = amount.Round(4)
 
 	// increment the correct field on balances(as_of)
 	switch strings.ToLower(transactionType) {
 	case "expense":
-		if err := s.repo.AddToDailyBalance(ctx, tx, acc.ID, asOf, "cash_outflows", amount); err != nil {
+		if err := s.repo.PostCashDelta(ctx, tx, acc.ID, asOf, acc.Currency, "cash_outflows", amount); err != nil {
 			return err
 		}
 	default:
-		if err := s.repo.AddToDailyBalance(ctx, tx, acc.ID, asOf, "cash_inflows", amount); err != nil {
+		if err := s.repo.PostCashDelta(ctx, tx, acc.ID, asOf, acc.Currency, "cash_inflows", amount); err != nil {
 			return err
 		}
 	}
 
-	// Frontfill balances before snapshots
-	if err := s.repo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, asOf); err != nil {
-		return err
-	}
-
-	if err := s.repo.UpsertSnapshotsFromBalances(
-		ctx,
-		tx,
-		acc.UserID,
-		acc.ID,
-		acc.Currency,
-		asOf.UTC().Truncate(24*time.Hour),
-		time.Now().UTC().Truncate(24*time.Hour),
-	); err != nil {
+	if err := s.repo.RebuildBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, asOf); err != nil {
 		return err
 	}
 
@@ -1054,15 +1022,8 @@ func (s *AccountService) backfillAccountRange(ctx context.Context, tx *gorm.DB, 
 func (s *AccountService) FrontfillBalancesForAccount(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error {
 
 	from = from.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	if err := s.repo.FrontfillBalances(ctx, tx, accountID, currency, from); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	// recompute snapshots
-	if err := s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, accountID, currency, from, today); err != nil {
+	if err := s.repo.RebuildBalances(ctx, tx, userID, accountID, currency, from); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1071,14 +1032,11 @@ func (s *AccountService) FrontfillBalancesForAccount(ctx context.Context, tx *go
 }
 
 func (s *AccountService) UpdateDailyCashNoSnapshot(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal) error {
-	if err := s.repo.EnsureDailyBalanceRow(ctx, tx, acc.ID, asOf, acc.Currency); err != nil {
-		return err
-	}
 	amt = amt.Round(4)
 	if strings.ToLower(txnType) == "expense" {
-		return s.repo.AddToDailyBalance(ctx, tx, acc.ID, asOf, "cash_outflows", amt)
+		return s.repo.PostCashDelta(ctx, tx, acc.ID, asOf, acc.Currency, "cash_outflows", amt)
 	}
-	return s.repo.AddToDailyBalance(ctx, tx, acc.ID, asOf, "cash_inflows", amt)
+	return s.repo.PostCashDelta(ctx, tx, acc.ID, asOf, acc.Currency, "cash_inflows", amt)
 }
 
 func (s *AccountService) SaveAccountProjection(ctx context.Context, id, userID int64, req *models.AccountProjectionReq) error {
@@ -1490,7 +1448,7 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 			return err
 		}
 
-		if err := s.repo.EnsureDailyBalanceRow(ctx, tx, destinationID, dstOpeningDay, dstAcc.Currency); err != nil {
+		if err := s.repo.PostCashDelta(ctx, tx, destinationID, dstOpeningDay, dstAcc.Currency, "", decimal.Zero); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1532,7 +1490,9 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 		}
 	}
 
-	// Propagate the updated chains for both accounts.
+	// Propagate the updated chains for both accounts. These stay split from the
+	// snapshot rebuild below because CloseAccount runs between them, so they cannot
+	// use RebuildBalances until phase 3 rewrites this function.
 	if err := s.repo.FrontfillBalances(ctx, tx, sourceID, srcAcc.Currency, srcOpeningDate); err != nil {
 		tx.Rollback()
 		return err

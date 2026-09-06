@@ -47,6 +47,8 @@ type AccountRepositoryInterface interface {
 	FindAccountsForUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.AccountLookup, error)
 	EnsureDailyBalanceRow(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, currency string) error
 	AddToDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, amt decimal.Decimal) error
+	PostCashDelta(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, currency, field string, amt decimal.Decimal) error
+	RebuildBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error
 	UpsertDailyCashBatch(ctx context.Context, tx *gorm.DB, accountID int64, currency string, deltas []models.DailyCashDelta) error
 	UpsertSnapshotsFromBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error
 	GetUserFirstBalanceDate(ctx context.Context, tx *gorm.DB, userID int64) (time.Time, error)
@@ -59,7 +61,6 @@ type AccountRepositoryInterface interface {
 	FindAccountTypesWithoutDefaults(ctx context.Context, tx *gorm.DB, userID int64) ([]models.AccountType, error)
 	UpdateDefaultAccount(ctx context.Context, tx *gorm.DB, account models.Account, setAsDefault bool) error
 	HasDefaultForAccountType(ctx context.Context, tx *gorm.DB, userID, accountTypeID int64) (bool, error)
-	SetDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, value decimal.Decimal) error
 	GetBalancesInRange(ctx context.Context, tx *gorm.DB, accountID int64, fromDate, toDate time.Time) ([]models.Balance, error)
 	ClearInvestmentCashFlows(ctx context.Context, tx *gorm.DB, userID int64) error
 	ClearInvestmentSnapshots(ctx context.Context, tx *gorm.DB, userID int64) error
@@ -998,6 +999,31 @@ func (r *AccountRepository) AddToDailyBalance(ctx context.Context, tx *gorm.DB, 
     `, field, field), amt, accountID, asOf).Error
 }
 
+// PostCashDelta and RebuildBalances are the two seams the balance schema migration
+// writes through. Every cash write goes through the first, every recompute through
+// the second, so the derivation can later change in one place instead of ~130.
+
+// A zero amt only anchors the day's row, which is what the callers that need a
+// frontfill target but no cash movement want. field is then ignored.
+func (r *AccountRepository) PostCashDelta(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, currency, field string, amt decimal.Decimal) error {
+	if err := r.EnsureDailyBalanceRow(ctx, tx, accountID, asOf, currency); err != nil {
+		return err
+	}
+	if amt.IsZero() {
+		return nil
+	}
+	return r.AddToDailyBalance(ctx, tx, accountID, asOf, field, amt)
+}
+
+func (r *AccountRepository) RebuildBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error {
+	if err := r.FrontfillBalances(ctx, tx, accountID, currency, from); err != nil {
+		return err
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	return r.UpsertSnapshotsFromBalances(ctx, tx, userID, accountID, currency, from, today)
+}
+
 func (r *AccountRepository) UpsertDailyCashBatch(ctx context.Context, tx *gorm.DB, accountID int64, currency string, deltas []models.DailyCashDelta) error {
 
 	db := tx
@@ -1392,28 +1418,6 @@ func (r *AccountRepository) HasDefaultForAccountType(ctx context.Context, tx *go
 		Count(&count).Error
 
 	return count > 0, err
-}
-
-func (r *AccountRepository) SetDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, value decimal.Decimal) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	asOf = asOf.UTC().Truncate(24 * time.Hour)
-
-	switch field {
-	case "cash_inflows", "cash_outflows":
-	default:
-		return fmt.Errorf("invalid balance field %q", field)
-	}
-
-	return db.Exec(fmt.Sprintf(`
-        UPDATE balances
-        SET %s = ?, updated_at = NOW()
-        WHERE account_id = ? AND as_of = ?
-    `, field), value, accountID, asOf).Error
 }
 
 func (r *AccountRepository) GetBalancesInRange(ctx context.Context, tx *gorm.DB, accountID int64, fromDate, toDate time.Time) ([]models.Balance, error) {

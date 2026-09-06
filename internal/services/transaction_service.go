@@ -89,16 +89,12 @@ func NewTransactionService(
 var _ TransactionServiceInterface = (*TransactionService)(nil)
 
 func (s *TransactionService) updateAccountBalance(ctx context.Context, tx *gorm.DB, account *models.Account, txnDate time.Time, direction string, amount decimal.Decimal) error {
-	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, account.ID, txnDate, account.Currency); err != nil {
-		return err
-	}
-
 	column := map[string]string{
 		"expense": "cash_outflows",
 		"income":  "cash_inflows",
 	}[direction]
 
-	if err := s.accRepo.AddToDailyBalance(ctx, tx, account.ID, txnDate, column, amount.Round(4)); err != nil {
+	if err := s.accRepo.PostCashDelta(ctx, tx, account.ID, txnDate, account.Currency, column, amount.Round(4)); err != nil {
 		return err
 	}
 
@@ -376,12 +372,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	if from.Before(today) {
 
 		from := tr.TxnDate.UTC().Truncate(24 * time.Hour)
-		today := time.Now().UTC().Truncate(24 * time.Hour)
-		if err := s.accRepo.FrontfillBalances(ctx, tx, account.ID, account.Currency, from); err != nil {
-			tx.Rollback()
-			return models.InsertResult{}, err
-		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, account.ID, account.Currency, from, today); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, tx, userID, account.ID, account.Currency, from); err != nil {
 			tx.Rollback()
 			return models.InsertResult{}, err
 		}
@@ -559,23 +550,14 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	}
 
 	from := txDate.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	// Frontfill and update snapshots for both accounts
-	if err := s.accRepo.FrontfillBalances(ctx, tx, fromAcc.ID, fromAcc.Currency, from); err != nil {
-		tx.Rollback()
-		return models.InsertResult{}, err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, from, today); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, from); err != nil {
 		tx.Rollback()
 		return models.InsertResult{}, err
 	}
 
-	if err := s.accRepo.FrontfillBalances(ctx, tx, toAcc.ID, toAcc.Currency, from); err != nil {
-		tx.Rollback()
-		return models.InsertResult{}, err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, from, today); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, from); err != nil {
 		tx.Rollback()
 		return models.InsertResult{}, err
 	}
@@ -834,8 +816,6 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		}
 	}
 
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-
 	// Determine the earliest affected date
 	earliestDate := oldDay
 	if newDay.Before(earliestDate) {
@@ -845,31 +825,19 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	// If account changed, we need to update both accounts
 	if oldAccount.ID != newAccount.ID {
 		// Update old account from old date forward
-		if err := s.accRepo.FrontfillBalances(ctx, tx, oldAccount.ID, oldAccount.Currency, oldDay); err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, oldAccount.ID, oldAccount.Currency, oldDay, today); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, tx, userID, oldAccount.ID, oldAccount.Currency, oldDay); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
 
 		// Update new account from new date forward
-		if err := s.accRepo.FrontfillBalances(ctx, tx, newAccount.ID, newAccount.Currency, newDay); err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, newAccount.ID, newAccount.Currency, newDay, today); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, tx, userID, newAccount.ID, newAccount.Currency, newDay); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
 	} else {
 		// Same account - update from earliest affected date forward
-		if err := s.accRepo.FrontfillBalances(ctx, tx, newAccount.ID, newAccount.Currency, earliestDate); err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, newAccount.ID, newAccount.Currency, earliestDate, today); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, tx, userID, newAccount.ID, newAccount.Currency, earliestDate); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
@@ -1047,12 +1015,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	}
 
 	from := tr.TxnDate.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	if err := s.accRepo.FrontfillBalances(ctx, tx, account.ID, account.Currency, from); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, account.ID, account.Currency, from, today); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, account.ID, account.Currency, from); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1226,22 +1189,13 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 	if newDate.Before(oldDate) {
 		recalcFrom = newDate
 	}
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	if err := s.accRepo.FrontfillBalances(ctx, tx, fromAcc.ID, fromAcc.Currency, recalcFrom); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, recalcFrom, today); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, recalcFrom); err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	if err := s.accRepo.FrontfillBalances(ctx, tx, toAcc.ID, toAcc.Currency, recalcFrom); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, recalcFrom, today); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, recalcFrom); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1352,23 +1306,14 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 	}
 
 	from := outflow.TxnDate.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	// frontfill from the transfer date forward
-	if err := s.accRepo.FrontfillBalances(ctx, tx, fromAcc.ID, fromAcc.Currency, from); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, from, today); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, from); err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	if err := s.accRepo.FrontfillBalances(ctx, tx, toAcc.ID, toAcc.Currency, from); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, from, today); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, from); err != nil {
 		tx.Rollback()
 		return err
 	}
