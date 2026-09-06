@@ -5,6 +5,7 @@ import { useToastStore } from "../../services/stores/toast_store.ts";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import ActivityLogsPage from "./ActivityLogsPage.vue";
 import JobMonitorPage from "./backoffice/JobMonitorPage.vue";
+import PurgeAccount from "../features/PurgeAccount.vue";
 
 const backofficeStore = useBackofficeStore();
 const toastStore = useToastStore();
@@ -184,6 +185,8 @@ async function runZeroCostMigration() {
               />
             </div>
           </div>
+
+          <PurgeAccount v-if="hasPermission('root_access')" />
         </div>
       </Transition>
     </div>

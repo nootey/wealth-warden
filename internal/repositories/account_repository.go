@@ -41,6 +41,10 @@ type AccountRepositoryInterface interface {
 	UpdateBalance(ctx context.Context, tx *gorm.DB, record models.Balance) (int64, error)
 	CloseAccount(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	PurgeImportedAccounts(ctx context.Context, tx *gorm.DB, importID, userID int64) error
+	PurgeAccount(ctx context.Context, tx *gorm.DB, accountID, userID int64) error
+	FindAccountForPurge(ctx context.Context, tx *gorm.DB, accountID int64) (*models.Account, error)
+	FindAllAccountsForRebuild(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Account, error)
+	FindAccountsForUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.AccountLookup, error)
 	EnsureDailyBalanceRow(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, currency string) error
 	AddToDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, amt decimal.Decimal) error
 	UpsertDailyCashBatch(ctx context.Context, tx *gorm.DB, accountID int64, currency string, deltas []models.DailyCashDelta) error
@@ -768,6 +772,167 @@ func (r *AccountRepository) PurgeImportedAccounts(ctx context.Context, tx *gorm.
     `, userID, importID)
 
 	return res.Error
+}
+
+func (r *AccountRepository) FindAccountForPurge(ctx context.Context, tx *gorm.DB, accountID int64) (*models.Account, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var record models.Account
+	if err := db.Where("id = ?", accountID).First(&record).Error; err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
+func (r *AccountRepository) FindAccountsForUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.AccountLookup, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	var accounts []models.AccountLookup
+	err := db.WithContext(ctx).
+		Model(&models.Account{}).
+		Select("id, name, currency, closed_at").
+		Where("user_id = ?", userID).
+		Order("name ASC").
+		Find(&accounts).Error
+	return accounts, err
+}
+
+func (r *AccountRepository) FindAllAccountsForRebuild(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Account, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var records []models.Account
+	if err := db.Where("user_id = ?", userID).Order("id ASC").Find(&records).Error; err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+// Hard deletes one account and everything hanging off it. The soft-delete triggers
+// on accounts, transactions and transfers all stand down for ww.hard_delete.
+func (r *AccountRepository) PurgeAccount(ctx context.Context, tx *gorm.DB, accountID, userID int64) error {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	if err := db.Exec("SET LOCAL ww.hard_delete = 'on'").Error; err != nil {
+		return err
+	}
+
+	// Both legs of every transfer that touches the account. A surviving far leg
+	// would point at a transfer that no longer exists.
+	var legIDs []int64
+	if err := db.Raw(`
+        SELECT DISTINCT leg.txn_id
+        FROM transfers tf
+        CROSS JOIN LATERAL (VALUES (tf.transaction_inflow_id), (tf.transaction_outflow_id)) AS leg(txn_id)
+        WHERE EXISTS (
+            SELECT 1 FROM transactions t
+            WHERE t.id IN (tf.transaction_inflow_id, tf.transaction_outflow_id)
+              AND t.account_id = ?
+        )
+    `, accountID).Scan(&legIDs).Error; err != nil {
+		return fmt.Errorf("failed to collect transfer legs: %w", err)
+	}
+
+	if len(legIDs) > 0 {
+		// Back the far legs out of their day rows by hand. Recomputing the whole
+		// account from the transactions table would wipe investment trade cash
+		// flows, which live in balances with no transaction behind them.
+		if err := db.Exec(`
+            UPDATE balances b
+            SET cash_inflows  = b.cash_inflows  - COALESCE(leg.income, 0),
+                cash_outflows = b.cash_outflows - COALESCE(leg.expense, 0),
+                updated_at    = NOW()
+            FROM (
+                SELECT t.account_id,
+                       t.txn_date::date AS as_of,
+                       SUM(t.amount) FILTER (WHERE t.transaction_type = 'income')  AS income,
+                       SUM(t.amount) FILTER (WHERE t.transaction_type = 'expense') AS expense
+                FROM transactions t
+                WHERE t.id IN ?
+                  AND t.account_id <> ?
+                  AND t.deleted_at IS NULL
+                GROUP BY t.account_id, t.txn_date::date
+            ) leg
+            WHERE b.account_id = leg.account_id AND b.as_of = leg.as_of
+        `, legIDs, accountID).Error; err != nil {
+			return fmt.Errorf("failed to reverse transfer legs: %w", err)
+		}
+
+		if err := db.Exec(`
+            DELETE FROM transfers
+            WHERE transaction_inflow_id IN ? OR transaction_outflow_id IN ?
+        `, legIDs, legIDs).Error; err != nil {
+			return fmt.Errorf("failed to delete transfers: %w", err)
+		}
+
+		if err := db.Exec(`DELETE FROM transactions WHERE id IN ?`, legIDs).Error; err != nil {
+			return fmt.Errorf("failed to delete transfer legs: %w", err)
+		}
+	}
+
+	if err := db.Exec(`DELETE FROM transactions WHERE account_id = ?`, accountID).Error; err != nil {
+		return fmt.Errorf("failed to delete transactions: %w", err)
+	}
+
+	// A transfer template pointing at the account has no destination left.
+	if err := db.Exec(`
+        DELETE FROM transaction_templates WHERE account_id = ? OR to_account_id = ?
+    `, accountID, accountID).Error; err != nil {
+		return fmt.Errorf("failed to delete transaction templates: %w", err)
+	}
+
+	// saving_contributions cascade off the goal.
+	if err := db.Exec(`DELETE FROM saving_goals WHERE account_id = ?`, accountID).Error; err != nil {
+		return fmt.Errorf("failed to delete saving goals: %w", err)
+	}
+
+	// investment_income cascades off the asset, trades do not.
+	if err := db.Exec(`
+        DELETE FROM investment_trades
+        WHERE asset_id IN (SELECT id FROM investment_assets WHERE account_id = ?)
+    `, accountID).Error; err != nil {
+		return fmt.Errorf("failed to delete investment trades: %w", err)
+	}
+
+	if err := db.Exec(`DELETE FROM investment_assets WHERE account_id = ?`, accountID).Error; err != nil {
+		return fmt.Errorf("failed to delete investment assets: %w", err)
+	}
+
+	if err := db.Exec(`DELETE FROM account_daily_snapshots WHERE account_id = ?`, accountID).Error; err != nil {
+		return fmt.Errorf("failed to delete snapshots: %w", err)
+	}
+
+	if err := db.Exec(`DELETE FROM balances WHERE account_id = ?`, accountID).Error; err != nil {
+		return fmt.Errorf("failed to delete balances: %w", err)
+	}
+
+	res := db.Exec(`DELETE FROM accounts WHERE id = ? AND user_id = ?`, accountID, userID)
+	if res.Error != nil {
+		return fmt.Errorf("failed to delete account: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("account %d was not deleted", accountID)
+	}
+
+	return nil
 }
 
 func (r *AccountRepository) EnsureDailyBalanceRow(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, currency string) error {

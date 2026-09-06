@@ -544,6 +544,74 @@ func (_c *MockAccountServiceInterface_FetchAccountsByType_Call) RunAndReturn(run
 	return _c
 }
 
+// FetchAccountsForUser provides a mock function for the type MockAccountServiceInterface
+func (_mock *MockAccountServiceInterface) FetchAccountsForUser(ctx context.Context, userID int64) ([]models.AccountLookup, error) {
+	ret := _mock.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FetchAccountsForUser")
+	}
+
+	var r0 []models.AccountLookup
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) ([]models.AccountLookup, error)); ok {
+		return returnFunc(ctx, userID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64) []models.AccountLookup); ok {
+		r0 = returnFunc(ctx, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.AccountLookup)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64) error); ok {
+		r1 = returnFunc(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockAccountServiceInterface_FetchAccountsForUser_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FetchAccountsForUser'
+type MockAccountServiceInterface_FetchAccountsForUser_Call struct {
+	*mock.Call
+}
+
+// FetchAccountsForUser is a helper method to define mock.On call
+//   - ctx context.Context
+//   - userID int64
+func (_e *MockAccountServiceInterface_Expecter) FetchAccountsForUser(ctx any, userID any) *MockAccountServiceInterface_FetchAccountsForUser_Call {
+	return &MockAccountServiceInterface_FetchAccountsForUser_Call{Call: _e.mock.On("FetchAccountsForUser", ctx, userID)}
+}
+
+func (_c *MockAccountServiceInterface_FetchAccountsForUser_Call) Run(run func(ctx context.Context, userID int64)) *MockAccountServiceInterface_FetchAccountsForUser_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_FetchAccountsForUser_Call) Return(accountLookups []models.AccountLookup, err error) *MockAccountServiceInterface_FetchAccountsForUser_Call {
+	_c.Call.Return(accountLookups, err)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_FetchAccountsForUser_Call) RunAndReturn(run func(ctx context.Context, userID int64) ([]models.AccountLookup, error)) *MockAccountServiceInterface_FetchAccountsForUser_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FetchAccountsPaginated provides a mock function for the type MockAccountServiceInterface
 func (_mock *MockAccountServiceInterface) FetchAccountsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeInactive bool, classification string) ([]models.Account, *utils.Paginator, error) {
 	ret := _mock.Called(ctx, userID, p, includeInactive, classification)
@@ -1223,6 +1291,69 @@ func (_c *MockAccountServiceInterface_MergeAccount_Call) Return(err error) *Mock
 }
 
 func (_c *MockAccountServiceInterface_MergeAccount_Call) RunAndReturn(run func(ctx context.Context, userID int64, sourceID int64, destinationID int64) error) *MockAccountServiceInterface_MergeAccount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// PurgeAccount provides a mock function for the type MockAccountServiceInterface
+func (_mock *MockAccountServiceInterface) PurgeAccount(ctx context.Context, actorID int64, accountID int64) error {
+	ret := _mock.Called(ctx, actorID, accountID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for PurgeAccount")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) error); ok {
+		r0 = returnFunc(ctx, actorID, accountID)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockAccountServiceInterface_PurgeAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PurgeAccount'
+type MockAccountServiceInterface_PurgeAccount_Call struct {
+	*mock.Call
+}
+
+// PurgeAccount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - actorID int64
+//   - accountID int64
+func (_e *MockAccountServiceInterface_Expecter) PurgeAccount(ctx any, actorID any, accountID any) *MockAccountServiceInterface_PurgeAccount_Call {
+	return &MockAccountServiceInterface_PurgeAccount_Call{Call: _e.mock.On("PurgeAccount", ctx, actorID, accountID)}
+}
+
+func (_c *MockAccountServiceInterface_PurgeAccount_Call) Run(run func(ctx context.Context, actorID int64, accountID int64)) *MockAccountServiceInterface_PurgeAccount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 int64
+		if args[2] != nil {
+			arg2 = args[2].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_PurgeAccount_Call) Return(err error) *MockAccountServiceInterface_PurgeAccount_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockAccountServiceInterface_PurgeAccount_Call) RunAndReturn(run func(ctx context.Context, actorID int64, accountID int64) error) *MockAccountServiceInterface_PurgeAccount_Call {
 	_c.Call.Return(run)
 	return _c
 }

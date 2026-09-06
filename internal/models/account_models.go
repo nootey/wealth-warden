@@ -82,3 +82,10 @@ type DailyCashDelta struct {
 	Inflows  decimal.Decimal
 	Outflows decimal.Decimal
 }
+
+type AccountLookup struct {
+	ID       int64      `json:"id"`
+	Name     string     `json:"name"`
+	Currency string     `json:"currency"`
+	ClosedAt *time.Time `json:"closed_at"`
+}
