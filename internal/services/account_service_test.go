@@ -598,6 +598,67 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		txnAmount.String(), yesterdayBalance.CashInflows.String())
 }
 
+// The close day is the account's last day in the net worth views, so a closed
+// account keeps its final balance instead of vanishing a day early.
+func (s *AccountServiceTestSuite) TestCloseAccount_CloseDayVisibleInNetWorthView() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+
+	initialBalance := decimal.NewFromInt(10000)
+	accID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Closed Day Account",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &initialBalance,
+		OpenedAt:       time.Now().AddDate(0, 0, -3),
+	})
+	s.Require().NoError(err)
+
+	s.Require().NoError(svc.CloseAccount(s.Ctx, userID, accID))
+
+	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
+	tomorrowMidnight := todayMidnight.AddDate(0, 0, 1)
+
+	// A snapshot past the close day must stay out of the view.
+	s.Require().NoError(s.TC.DB.Create(&models.AccountDailySnapshot{
+		UserID:     userID,
+		AccountID:  accID,
+		AsOf:       tomorrowMidnight,
+		EndBalance: initialBalance,
+		Currency:   "EUR",
+	}).Error)
+
+	var visible []struct {
+		AsOf       time.Time
+		EndBalance decimal.Decimal
+	}
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+		Raw(`SELECT as_of, end_balance
+		     FROM v_user_account_daily_snapshots
+		     WHERE account_id = ?
+		     ORDER BY as_of ASC`, accID).
+		Scan(&visible).Error)
+
+	s.Require().NotEmpty(visible)
+	last := visible[len(visible)-1]
+	s.Assert().Equal(todayMidnight, last.AsOf.UTC(), "close day should be the last visible day")
+	s.Assert().True(initialBalance.Equal(last.EndBalance),
+		"close day should keep the final balance %s, got %s",
+		initialBalance.String(), last.EndBalance.String())
+
+	var netWorthOnCloseDay decimal.Decimal
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+		Raw(`SELECT COALESCE(SUM(end_balance), 0)
+		     FROM v_user_daily_networth_snapshots
+		     WHERE user_id = ? AND as_of = ?`, userID, todayMidnight).
+		Scan(&netWorthOnCloseDay).Error)
+	s.Assert().True(initialBalance.Equal(netWorthOnCloseDay),
+		"net worth on the close day should be %s, got %s",
+		initialBalance.String(), netWorthOnCloseDay.String())
+}
+
 // Tests that inserting a transaction to a closed account fails
 func (s *AccountServiceTestSuite) TestInsertTransaction_OnClosedAccount() {
 	svc := s.TC.App.AccountService
