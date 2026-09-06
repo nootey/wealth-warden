@@ -36,7 +36,7 @@ require (
 	golang.org/x/crypto v0.53.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/time v0.14.0
-	google.golang.org/grpc v1.81.1
+	google.golang.org/grpc v1.83.1
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 	gorm.io/datatypes v1.2.7
 	gorm.io/driver/postgres v1.6.0
