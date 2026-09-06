@@ -29,3 +29,10 @@ export interface Account {
   is_default?: boolean;
   credit_limit?: string | null;
 }
+
+export interface AccountLookup {
+  id: number;
+  name: string;
+  currency: string;
+  closed_at: string | null;
+}

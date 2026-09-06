@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import type { AuthForm } from "../../models/auth_models.ts";
 import apiClient from "../api/api_client.ts";
-import type { Permission, Role } from "../../models/user_models.ts";
+import type { Permission, Role, UserLookup } from "../../models/user_models.ts";
 
 export const useUserStore = defineStore("user", {
   state: () => ({
@@ -21,6 +21,12 @@ export const useUserStore = defineStore("user", {
         `${this.apiPrefix}/roles/permissions`,
       );
       this.permissions = response.data;
+    },
+    async searchUsers(q: string): Promise<UserLookup[]> {
+      const response = await apiClient.get(`${this.apiPrefix}/search`, {
+        params: { q },
+      });
+      return response.data ?? [];
     },
     async getUserByToken(tokenType: string, tokenValue: string) {
       return await apiClient.get(`${this.apiPrefix}/token`, {

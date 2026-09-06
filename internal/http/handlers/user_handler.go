@@ -31,6 +31,7 @@ func NewUserHandler(
 
 func (h *UserHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.GET("", authz.RequireAllMW("manage_users"), h.GetUsersPaginated)
+	apiGroup.GET("/search", authz.RequireAllMW("access_backoffice"), h.SearchUsers)
 	apiGroup.GET("/:id", authz.RequireAllMW("manage_users"), h.GetUserById)
 	apiGroup.PUT(":id", authz.RequireAllMW("manage_users"), h.UpdateUser)
 	apiGroup.DELETE(":id", authz.RequireAllMW("delete_users"), h.DeleteUser)
@@ -44,6 +45,17 @@ func (h *UserHandler) Routes(apiGroup *gin.RouterGroup) {
 func (h *UserHandler) PublicRoutes(apiGroup *gin.RouterGroup) {
 	apiGroup.GET("/invitations/:hash", h.GetInvitationByHash)
 	apiGroup.GET("/token", h.GetUserByToken)
+}
+
+func (h *UserHandler) SearchUsers(c *gin.Context) {
+
+	users, err := h.Service.SearchUsersByEmail(c.Request.Context(), c.Query("q"))
+	if err != nil {
+		utils.ErrorMessage(c, "Search error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, users)
 }
 
 func (h *UserHandler) GetUsersPaginated(c *gin.Context) {

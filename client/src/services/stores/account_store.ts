@@ -1,5 +1,9 @@
 import { defineStore } from "pinia";
-import type { Account, AccountType } from "../../models/account_models.ts";
+import type {
+  Account,
+  AccountLookup,
+  AccountType,
+} from "../../models/account_models.ts";
 import apiClient from "../api/api_client.ts";
 
 export const useAccountStore = defineStore("account", {
@@ -111,6 +115,14 @@ export const useAccountStore = defineStore("account", {
     },
     async syncBalances() {
       await apiClient.post(`${this.apiPrefix}/sync/balances`);
+    },
+    async fetchAccountsForUser(userId: number): Promise<AccountLookup[]> {
+      const response = await apiClient.get(`${this.apiPrefix}/user/${userId}`);
+      return response.data ?? [];
+    },
+    async purgeAccount(id: number) {
+      const response = await apiClient.delete(`${this.apiPrefix}/${id}/purge`);
+      return response.data;
     },
     async mergeAccounts(sourceID: number, destinationID: number) {
       const response = await apiClient.post(`${this.apiPrefix}/merge`, {

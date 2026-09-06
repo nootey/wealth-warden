@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+type UserLookup struct {
+	ID    int64  `json:"id"`
+	Email string `json:"email"`
+}
+
 type User struct {
 	ID                int64          `gorm:"primaryKey;autoIncrement" json:"id"`
 	Password          string         `gorm:"not null" json:"-"` // do not output the password

@@ -159,7 +159,10 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_KeepsClosedAccountSnaps
 	closedBefore := s.snapshots(userID)
 	s.Require().NotEmpty(closedBefore)
 
-	s.Require().NoError(s.TC.App.AccountService.CloseAccount(s.Ctx, userID, closedAccID))
+	// Closed directly: the close flow needs an empty account, and this test only
+	// needs the closed flag.
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+		Exec("UPDATE accounts SET is_active = false, closed_at = NOW() WHERE id = ?", closedAccID).Error)
 
 	var countBefore int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
