@@ -63,7 +63,6 @@ jobs:
           images: |
             nootey/wealth-warden
           tags: |
-            type=ref,event=branch
             type=semver,pattern={{version}},value=${{ inputs.version }},enable=${{ inputs.version != '' }}
           flavor: |
             latest=${{ inputs.version != '' }}
@@ -115,7 +114,6 @@ jobs:
           images: |
             nootey/wealth-warden-client
           tags: |
-            type=ref,event=branch
             type=semver,pattern={{version}},value=${{ inputs.version }},enable=${{ inputs.version != '' }}
           flavor: |
             latest=${{ inputs.version != '' }}
