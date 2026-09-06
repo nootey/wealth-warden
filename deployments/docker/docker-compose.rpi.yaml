@@ -34,6 +34,7 @@ services:
 
   migrate:
     profiles: ["migrate"]
+    image: nootey/wealth-warden:latest
     build:
       context: ../..
       dockerfile: ./build/Dockerfile
@@ -54,11 +55,11 @@ services:
     volumes:
       - ../../logs:/app/logs
       - ../../pkg/config/override:/app/pkg/config/override:ro
-      - ../../storage/migrations:/app/storage/migrations:ro
     networks:
       - wealth-warden
 
   server:
+    image: nootey/wealth-warden:latest
     build:
       context: ../..
       dockerfile: ./build/Dockerfile
@@ -87,12 +88,11 @@ services:
     volumes:
       - ../../logs:/app/logs
       - ../../pkg/config/override:/app/pkg/config/override:ro
-      - ../../storage/mailer-templates:/app/storage/mailer-templates:ro
-      - ../../storage/migrations:/app/storage/migrations:ro
     networks:
       - wealth-warden
 
   client:
+    image: nootey/wealth-warden-client:latest
     build:
       context: ../../
       dockerfile: ./build/Dockerfile.client

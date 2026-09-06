@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM golang:1.26 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26 AS builder
 
 WORKDIR /app
 
@@ -14,8 +14,8 @@ ARG COMMIT_SHA=unknown
 ARG BUILD_TIME=unknown
 
 # Use build args to detect target platform
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+ARG TARGETOS
+ARG TARGETARCH
 
 ENV CGO_ENABLED=0
 ENV GOOS=$TARGETOS
@@ -42,8 +42,9 @@ RUN apk add --no-cache curl
 # Copy only what's needed at runtime
 COPY --from=builder /app/server /usr/local/bin/server
 
-# Copy migration files
-COPY storage/migrations /app/migrations
+# Copy runtime assets the app reads relative to /app
+COPY storage/migrations /app/storage/migrations
+COPY storage/mailer-templates /app/storage/mailer-templates
 
 RUN chmod +x /usr/local/bin/server
 ENV PATH="/usr/local/bin/server:${PATH}"
