@@ -5,12 +5,17 @@ on:
     branches:
       - main
       - development
-    tags:
-      - 'v*.*.*'
     paths-ignore:
       - 'docs/**'
       - 'deployments/**'
       - '*.md'
+
+  workflow_call:
+    inputs:
+      version:
+        description: "Release tag to build, e.g. v1.2.3"
+        type: string
+        required: true
 
   workflow_dispatch:
 
@@ -21,6 +26,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.version || github.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -57,11 +64,9 @@ jobs:
             nootey/wealth-warden
           tags: |
             type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,event=pr
+            type=semver,pattern={{version}},value=${{ inputs.version }},enable=${{ inputs.version != '' }}
           flavor: |
-            latest=true 
+            latest=${{ inputs.version != '' }}
 
       - name: Build and push
         uses: docker/build-push-action@v7
@@ -70,7 +75,7 @@ jobs:
           target: runtime
           file: ./build/Dockerfile
           platforms: linux/amd64
-          push: ${{ github.event_name == 'push' }}
+          push: ${{ github.event_name == 'push' || inputs.version != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -87,6 +92,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.version || github.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -109,11 +116,9 @@ jobs:
             nootey/wealth-warden-client
           tags: |
             type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,event=pr
+            type=semver,pattern={{version}},value=${{ inputs.version }},enable=${{ inputs.version != '' }}
           flavor: |
-            latest=true
+            latest=${{ inputs.version != '' }}
 
       - name: Build and push
         uses: docker/build-push-action@v7
@@ -121,7 +126,7 @@ jobs:
           context: .
           file: ./build/Dockerfile.client
           platforms: linux/amd64
-          push: ${{ github.event_name == 'push' }}
+          push: ${{ github.event_name == 'push' || inputs.version != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
