@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -18,6 +19,7 @@ type UserServiceInterface interface {
 	FetchUsersPaginated(ctx context.Context, p utils.PaginationParams, includeDeleted bool) ([]models.User, *utils.Paginator, error)
 	FetchInvitationsPaginated(ctx context.Context, p utils.PaginationParams) ([]models.Invitation, *utils.Paginator, error)
 	FetchUserByID(ctx context.Context, ID int64) (*models.User, error)
+	SearchUsersByEmail(ctx context.Context, q string) ([]models.UserLookup, error)
 	FetchUserByToken(ctx context.Context, tokenType, tokenValue string) (*models.User, error)
 	FetchInvitationByHash(ctx context.Context, hash string) (*models.Invitation, error)
 	InsertInvitation(ctx context.Context, userID int64, req models.InvitationReq) (int64, error)
@@ -52,6 +54,16 @@ var _ UserServiceInterface = (*UserService)(nil)
 
 func (s *UserService) GetAllActiveUserIDs(ctx context.Context) ([]int64, error) {
 	return s.repo.GetAllActiveUserIDs(ctx, nil)
+}
+
+func (s *UserService) SearchUsersByEmail(ctx context.Context, q string) ([]models.UserLookup, error) {
+
+	q = strings.TrimSpace(q)
+	if len(q) < 2 {
+		return nil, fmt.Errorf("search needs at least 2 characters")
+	}
+
+	return s.repo.SearchUsersByEmail(ctx, nil, q, 20)
 }
 
 func (s *UserService) FetchUsersPaginated(ctx context.Context, p utils.PaginationParams, includeDeleted bool) ([]models.User, *utils.Paginator, error) {

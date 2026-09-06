@@ -19,6 +19,7 @@ type UserRepositoryInterface interface {
 	GetPasswordByEmail(ctx context.Context, tx *gorm.DB, email string) (string, error)
 	FindUserByID(ctx context.Context, tx *gorm.DB, id int64) (*models.User, error)
 	FindUserByEmail(ctx context.Context, tx *gorm.DB, email string) (*models.User, error)
+	SearchUsersByEmail(ctx context.Context, tx *gorm.DB, q string, limit int) ([]models.UserLookup, error)
 	FindInvitationByID(ctx context.Context, tx *gorm.DB, id int64) (*models.Invitation, error)
 	FindUserInvitationByHash(ctx context.Context, tx *gorm.DB, hash string) (*models.Invitation, error)
 	FindTokenByValue(ctx context.Context, tx *gorm.DB, tokenType, tokenValue string) (*models.Token, error)
@@ -535,4 +536,22 @@ func (r *UserRepository) DeleteTokenByData(ctx context.Context, tx *gorm.DB, tok
 	fragment := datatypes.JSONMap{dataIndex: dataValue}
 	return db.Where("token_type = ? AND data @> ?", tokenType, fragment).
 		Delete(&models.Token{}).Error
+}
+
+func (r *UserRepository) SearchUsersByEmail(ctx context.Context, tx *gorm.DB, q string, limit int) ([]models.UserLookup, error) {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	var users []models.UserLookup
+	err := db.WithContext(ctx).
+		Model(&models.User{}).
+		Select("id, email").
+		Where("email ILIKE ?", "%"+q+"%").
+		Order("email ASC").
+		Limit(limit).
+		Find(&users).Error
+	return users, err
 }

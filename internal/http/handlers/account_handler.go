@@ -41,6 +41,8 @@ func (h *AccountHandler) Routes(apiGroup *gin.RouterGroup) {
 	apiGroup.PUT(":id", authz.RequireAllMW("manage_data"), h.UpdateAccount)
 	apiGroup.POST(":id/active", authz.RequireAllMW("manage_data"), h.ToggleAccountActiveState)
 	apiGroup.DELETE(":id", authz.RequireAllMW("manage_data"), h.CloseAccount)
+	apiGroup.DELETE(":id/purge", authz.RequireAllMW("root_access"), h.PurgeAccount)
+	apiGroup.GET("/user/:userID", authz.RequireAllMW("access_backoffice"), h.GetAccountsForUser)
 	apiGroup.POST(":id/projection/save", authz.RequireAllMW("manage_data"), h.SaveAccountProjection)
 	apiGroup.POST(":id/projection/revert", authz.RequireAllMW("manage_data"), h.RevertAccountProjection)
 	apiGroup.GET("/balances/:id/latest", authz.RequireAllMW("view_data"), h.GetLatestBalance)
@@ -324,6 +326,44 @@ func (h *AccountHandler) CloseAccount(c *gin.Context) {
 	}
 
 	utils.SuccessMessage(c, "Record deleted", "Success", http.StatusOK)
+}
+
+func (h *AccountHandler) GetAccountsForUser(c *gin.Context) {
+
+	ctx := c.Request.Context()
+
+	userID, err := strconv.ParseInt(c.Param("userID"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	records, err := h.service.FetchAccountsForUser(ctx, userID)
+	if err != nil {
+		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, records)
+}
+
+func (h *AccountHandler) PurgeAccount(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	actorID := c.GetInt64("user_id")
+
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.service.PurgeAccount(ctx, actorID, id); err != nil {
+		utils.ErrorMessage(c, "Purge error", err.Error(), http.StatusBadRequest, err)
+		return
+	}
+
+	utils.SuccessMessage(c, "Account purged", "Success", http.StatusOK)
 }
 
 func (h *AccountHandler) BackfillBalancesForUser(c *gin.Context) {

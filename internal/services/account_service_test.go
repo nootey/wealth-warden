@@ -659,6 +659,156 @@ func (s *AccountServiceTestSuite) TestCloseAccount_CloseDayVisibleInNetWorthView
 		initialBalance.String(), netWorthOnCloseDay.String())
 }
 
+// A purge takes the account and every row hanging off it, including both legs of
+// a transfer, and leaves the surviving account's history rebuilt without them.
+func (s *AccountServiceTestSuite) TestPurgeAccount_RemovesEverythingAndRebuildsPeers() {
+	svc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	openedAt := time.Now().AddDate(0, 0, -5)
+	victimStart := decimal.NewFromInt(10000)
+	peerStart := decimal.NewFromInt(5000)
+
+	victimID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Purge Me",
+		AccountTypeID: 1,
+		Balance:       &victimStart,
+		OpenedAt:      openedAt,
+	})
+	s.Require().NoError(err)
+
+	peerID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Keep Me",
+		AccountTypeID: 1,
+		Balance:       &peerStart,
+		OpenedAt:      openedAt,
+	})
+	s.Require().NoError(err)
+
+	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:       victimID,
+		TransactionType: "income",
+		Amount:          decimal.NewFromInt(2000),
+		TxnDate:         time.Now().AddDate(0, 0, -2),
+	})
+	s.Require().NoError(err)
+
+	_, err = txnSvc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID:      victimID,
+		DestinationID: peerID,
+		Amount:        decimal.NewFromInt(1000),
+		CreatedAt:     time.Now().AddDate(0, 0, -1),
+	})
+	s.Require().NoError(err)
+
+	// The transfer landed before the purge.
+	s.Require().True(peerStart.Add(decimal.NewFromInt(1000)).Equal(s.latestSnapshot(peerID)))
+
+	s.Require().NoError(svc.PurgeAccount(s.Ctx, userID, victimID))
+
+	count := func(table, where string, args ...any) int64 {
+		var n int64
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+			Raw("SELECT COUNT(*) FROM "+table+" WHERE "+where, args...).Scan(&n).Error)
+		return n
+	}
+
+	s.Assert().Zero(count("accounts", "id = ?", victimID), "account row should be gone")
+	s.Assert().Zero(count("balances", "account_id = ?", victimID), "balances should be gone")
+	s.Assert().Zero(count("account_daily_snapshots", "account_id = ?", victimID), "snapshots should be gone")
+	s.Assert().Zero(count("transactions", "account_id = ?", victimID), "transactions should be gone")
+	s.Assert().Zero(count("transfers", "user_id = ?", userID), "the transfer should be gone")
+	s.Assert().Zero(count("transactions", "account_id = ?", peerID), "the far transfer leg should be gone")
+
+	// The peer is rebuilt back to its opening balance, without the transfer.
+	s.Assert().True(peerStart.Equal(s.latestSnapshot(peerID)),
+		"peer should be back to %s, got %s", peerStart.String(), s.latestSnapshot(peerID).String())
+}
+
+// A closed account is the main reason to purge, so it must not be refused.
+func (s *AccountServiceTestSuite) TestPurgeAccount_WorksOnClosedAccount() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+	zero := decimal.Zero
+
+	accID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Closed Then Purged",
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      time.Now().AddDate(0, 0, -2),
+	})
+	s.Require().NoError(err)
+	s.Require().NoError(svc.CloseAccount(s.Ctx, userID, accID))
+
+	s.Require().NoError(svc.PurgeAccount(s.Ctx, userID, accID))
+
+	var n int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Account{}).
+		Where("id = ?", accID).Count(&n).Error)
+	s.Assert().Zero(n)
+}
+
+// Investment trade cash flows sit in balances with no transaction behind them.
+// The purge rebuild must re-chain them, never recompute them away.
+func (s *AccountServiceTestSuite) TestPurgeAccount_KeepsCashFlowsWithoutTransactions() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+
+	openedAt := time.Now().AddDate(0, 0, -5)
+	peerStart := decimal.NewFromInt(5000)
+	zero := decimal.Zero
+
+	peerID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Trade Flow Account",
+		AccountTypeID: 1,
+		Balance:       &peerStart,
+		OpenedAt:      openedAt,
+	})
+	s.Require().NoError(err)
+
+	victimID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Unrelated Account",
+		AccountTypeID: 1,
+		Balance:       &zero,
+		OpenedAt:      openedAt,
+	})
+	s.Require().NoError(err)
+
+	// Stand in for a trade outflow: a balance row with no transaction behind it.
+	tradeDay := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -3)
+	tradeCost := decimal.NewFromInt(500)
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&models.Balance{
+		AccountID:    peerID,
+		AsOf:         tradeDay,
+		Currency:     "EUR",
+		StartBalance: decimal.Zero,
+		CashOutflows: tradeCost,
+	}).Error)
+
+	s.Require().NoError(svc.PurgeAccount(s.Ctx, userID, victimID))
+
+	var bal models.Balance
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ? AND as_of = ?", peerID, tradeDay).First(&bal).Error)
+	s.Assert().True(tradeCost.Equal(bal.CashOutflows),
+		"trade outflow should survive, got %s", bal.CashOutflows.String())
+
+	want := peerStart.Sub(tradeCost)
+	s.Assert().True(want.Equal(s.latestSnapshot(peerID)),
+		"rebuild should carry the outflow forward to %s, got %s",
+		want.String(), s.latestSnapshot(peerID).String())
+}
+
+func (s *AccountServiceTestSuite) latestSnapshot(accountID int64) decimal.Decimal {
+	var snap models.AccountDailySnapshot
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+		Where("account_id = ?", accountID).
+		Order("as_of DESC").
+		First(&snap).Error)
+	return snap.EndBalance
+}
+
 // Tests that inserting a transaction to a closed account fails
 func (s *AccountServiceTestSuite) TestInsertTransaction_OnClosedAccount() {
 	svc := s.TC.App.AccountService

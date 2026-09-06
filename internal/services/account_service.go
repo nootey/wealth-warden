@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strconv"
@@ -31,6 +32,8 @@ type AccountServiceInterface interface {
 	UpdateAccount(ctx context.Context, userID int64, id int64, req *models.AccountReq) (int64, error)
 	ToggleAccountActiveState(ctx context.Context, userID int64, id int64) error
 	CloseAccount(ctx context.Context, userID int64, id int64) error
+	FetchAccountsForUser(ctx context.Context, userID int64) ([]models.AccountLookup, error)
+	PurgeAccount(ctx context.Context, actorID, accountID int64) error
 	UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal) error
 	UpdateBalancesForTransfer(ctx context.Context, tx *gorm.DB, fromAcc, toAcc *models.Account, when time.Time, amount decimal.Decimal) error
 	BackfillBalancesForUser(ctx context.Context, userID int64, from, to string) error
@@ -791,6 +794,102 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 	}
 
 	return nil
+}
+
+func (s *AccountService) FetchAccountsForUser(ctx context.Context, userID int64) ([]models.AccountLookup, error) {
+	return s.repo.FindAccountsForUser(ctx, nil, userID)
+}
+
+// A hard delete with no restore path. Closing an account is the normal route;
+// this is the override.
+func (s *AccountService) PurgeAccount(ctx context.Context, actorID, accountID int64) error {
+
+	acc, err := s.repo.FindAccountForPurge(ctx, nil, accountID)
+	if err != nil {
+		return fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	if err := s.repo.PurgeAccount(ctx, tx, acc.ID, acc.UserID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.rebuildUserHistory(ctx, tx, acc.UserID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	changes := utils.InitChanges()
+
+	utils.CompareChanges("", strconv.FormatInt(acc.ID, 10), changes, "id")
+	utils.CompareChanges(acc.Name, "", changes, "account")
+	utils.CompareChanges(strconv.FormatInt(acc.UserID, 10), "", changes, "owner")
+
+	if changes.IsEmpty() {
+		return nil
+	}
+
+	return s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
+		Event:       "purge",
+		Category:    "account",
+		Description: nil,
+		Payload:     changes,
+		Causer:      &actorID,
+	})
+}
+
+// A purge takes both legs of its transfers with it, so any other account of the
+// user can be left short. Re-chain and re-materialize every one of them from its
+// opening day.
+func (s *AccountService) rebuildUserHistory(ctx context.Context, tx *gorm.DB, userID int64) error {
+
+	accounts, err := s.repo.FindAllAccountsForRebuild(ctx, tx, userID)
+	if err != nil {
+		return err
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	earliest := today
+
+	for _, acc := range accounts {
+		from, err := s.repo.GetAccountOpeningAsOf(ctx, tx, acc.ID)
+		if err != nil {
+			// No balance rows means no history to rebuild.
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return err
+		}
+
+		if from.Before(earliest) {
+			earliest = from
+		}
+
+		if err := s.repo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, from); err != nil {
+			return err
+		}
+		if err := s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, from, today); err != nil {
+			return err
+		}
+	}
+
+	return s.repo.UpdateSnapshotMarketValues(ctx, tx, userID, utils.SnapshotRecomputeFrom(earliest))
 }
 
 func (s *AccountService) UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal) error {

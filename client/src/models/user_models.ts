@@ -9,6 +9,11 @@ export interface User {
   deleted_at?: Date | null;
 }
 
+export interface UserLookup {
+  id: number;
+  email: string;
+}
+
 export interface Invitation {
   id?: number;
   email: string;
