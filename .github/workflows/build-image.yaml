@@ -75,15 +75,15 @@ jobs:
           target: runtime
           file: ./build/Dockerfile
           platforms: linux/amd64
-          push: ${{ github.event_name == 'push' || inputs.version != '' }}
+          push: ${{ inputs.version != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
             COMMIT_SHA=${{ github.sha }}
             BUILD_TIME=${{ github.event.repository.updated_at }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=server
+          cache-to: type=gha,mode=max,scope=server,ignore-error=true
 
   build-client:
     name: Build a Client Docker image
@@ -126,12 +126,12 @@ jobs:
           context: .
           file: ./build/Dockerfile.client
           platforms: linux/amd64
-          push: ${{ github.event_name == 'push' || inputs.version != '' }}
+          push: ${{ inputs.version != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
             COMMIT_SHA=${{ github.sha }}
             BUILD_TIME=${{ github.event.repository.updated_at }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=client
+          cache-to: type=gha,mode=max,scope=client,ignore-error=true
