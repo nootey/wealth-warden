@@ -1,31 +1,7 @@
 services:
-  traefik:
-    image: traefik:latest
-    restart: unless-stopped
-    command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-      # Redirect HTTP → HTTPS
-      - --entrypoints.web.http.redirections.entrypoint.to=websecure
-      - --entrypoints.web.http.redirections.entrypoint.scheme=https
-      # ACME
-      - --certificatesresolvers.le.acme.email=${TRAEFIK_EMAIL-support@wealth.warden}
-      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
-      - --certificatesresolvers.le.acme.httpchallenge=true
-      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik_letsencrypt:/letsencrypt
-    networks:
-      - wealth-warden
-
   db:
     image: postgres:latest
+    platform: linux/arm64
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -43,6 +19,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    platform: linux/arm64
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
     volumes:
@@ -59,8 +36,11 @@ services:
     profiles: ["migrate"]
     image: nootey/wealth-warden:latest
     build:
-      context: ../..
+      context: .
       dockerfile: ./build/Dockerfile
+      args:
+        TARGETARCH: arm64
+    platform: linux/arm64
     depends_on:
       db:
         condition: service_healthy
@@ -73,16 +53,19 @@ services:
     entrypoint: ["server"]
     command: ["migrate", "up"]
     volumes:
-      - ../../logs:/app/logs
-      - ../../pkg/config/override:/app/pkg/config/override:ro
+      - ./logs:/app/logs
+      - ./pkg/config/override:/app/pkg/config/override:ro
     networks:
       - wealth-warden
 
   server:
     image: nootey/wealth-warden:latest
     build:
-      context: ../..
+      context: .
       dockerfile: ./build/Dockerfile
+      args:
+        TARGETARCH: arm64
+    platform: linux/arm64
     restart: unless-stopped
     depends_on:
       db:
@@ -103,39 +86,31 @@ services:
       - SESSION_MAX_LIFETIME_HOURS=${SESSION_MAX_LIFETIME_HOURS:-2160}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-tempo:4317}
     volumes:
-      - ../../logs:/app/logs
-      - ../../pkg/config/override:/app/pkg/config/override:ro
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.api.rule=Host(`${HOST:-localhost}`) && PathPrefix(`/api`)
-      - traefik.http.routers.api.entrypoints=websecure
-      - traefik.http.routers.api.tls.certresolver=le
-      - traefik.http.services.api.loadbalancer.server.port=2000
+      - ./logs:/app/logs
+      - ./pkg/config/override:/app/pkg/config/override:ro
     networks:
       - wealth-warden
 
   client:
     image: nootey/wealth-warden-client:latest
     build:
-      context: ../../
+      context: .
       dockerfile: ./build/Dockerfile.client
+      args:
+        TARGETARCH: arm64
+    platform: linux/arm64
     restart: unless-stopped
     depends_on:
       server:
         condition: service_healthy
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.client.rule=Host(`${HOST:-localhost}`) && PathPrefix(`/`)
-      - traefik.http.routers.client.entrypoints=websecure
-      - traefik.http.routers.client.tls.certresolver=le
-      - traefik.http.services.client.loadbalancer.server.port=80
+    ports:
+      - "5000:80"
     networks:
       - wealth-warden
 
 volumes:
   db:
   redis:
-  traefik_letsencrypt:
 
 networks:
   wealth-warden:

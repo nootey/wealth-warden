@@ -20,7 +20,7 @@ By default, the app will run and does not require any environment variables.
 
 It is recommended to create an override config file in `/pkg/config/override/dev.yaml` and fill it out with your information.
 
-If you're deploying with Traefik, you can also create a file in `/deployments/docker/.env`, to configure your domain and Traefik email.
+If you're deploying with Traefik, you can also create a file in `.env`, to configure your domain and Traefik email.
 
 Both files have examples provided in their respected directories.
 
@@ -29,20 +29,20 @@ Both files have examples provided in their respected directories.
 To spin up just the db component, you can use:
 
 ```sh
-docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden up db -d
+docker compose -f ./docker-compose.yaml -p wealth-warden up db -d
 ```
 
 For the first time setup, you must run migrations!
 
 ```sh
 # Run migrations (append arguments like 'migrate fresh-seed-basic' to run them)
-docker compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden run --rm --build migrate
+docker compose -f ./docker-compose.yaml -p wealth-warden run --rm --build migrate
 ```
 
 To run the app, which will run all docker services including the observability stack, use:
 
 ```sh
-docker compose -f ./deployments/docker/docker-compose.observability.yaml -f ./deployments/docker/docker-compose.yaml -p wealth-warden up -d
+docker compose -f ./docker-compose.observability.yaml -f ./docker-compose.yaml -p wealth-warden up -d
 ```
 
 The observability stack (Prometheus, Tempo, Grafana) is included by default. 

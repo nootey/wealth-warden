@@ -1,10 +1,10 @@
 .PHONY: default run migrate seed mock build test test-coverage lint lint-fix docker-up docker-down docker-migrate docker-rpi-up docker-rpi-down docker-rpi-migrate tidy pre-push observe observe-local
 
-COMPOSE_OBS       := -f ./deployments/docker/docker-compose.observability.yaml
-COMPOSE_OBS_LOCAL := -f ./deployments/docker/docker-compose.observability.local.yaml
-COMPOSE_MAIN      := -f ./deployments/docker/docker-compose.yaml
-COMPOSE_RPI       := -f ./deployments/docker/docker-compose.rpi.yaml
-COMPOSE_RPI_OBS   := -f ./deployments/docker/docker-compose.rpi.observability.yaml
+COMPOSE_OBS       := -f ./docker-compose.observability.yaml
+COMPOSE_OBS_LOCAL := -f ./docker-compose.observability.local.yaml
+COMPOSE_MAIN      := -f ./docker-compose.yaml
+COMPOSE_RPI       := -f ./docker-compose.rpi.yaml
+COMPOSE_RPI_OBS   := -f ./docker-compose.rpi.observability.yaml
 
 # Default target runs the app
 default: run
