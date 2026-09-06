@@ -321,6 +321,10 @@ func (h *AccountHandler) CloseAccount(c *gin.Context) {
 	}
 
 	if err := h.service.CloseAccount(ctx, userID, id); err != nil {
+		if errors.Is(err, services.ErrAccountNotEmpty) {
+			utils.ErrorMessage(c, "Invalid request", err.Error(), http.StatusBadRequest, err)
+			return
+		}
 		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
 		return
 	}

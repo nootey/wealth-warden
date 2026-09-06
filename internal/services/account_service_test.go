@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/services"
 	"wealth-warden/internal/tests"
 
 	"github.com/shopspring/decimal"
@@ -519,6 +520,17 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		"Yesterday's snapshot should be %s (after transaction), got %s",
 		expectedBalanceAfterTxn.String(), yesterdaySnapshotBefore.EndBalance.String())
 
+	// Empty the account, since a close is refused while money is left in it
+	emptyDesc := "Zero it out"
+	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:       accID,
+		TransactionType: "expense",
+		Amount:          expectedBalanceAfterTxn,
+		TxnDate:         time.Now(),
+		Description:     &emptyDesc,
+	})
+	s.Require().NoError(err)
+
 	// Close the account TODAY
 	err = svc.CloseAccount(s.Ctx, userID, accID)
 	s.Require().NoError(err)
@@ -565,15 +577,14 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		"Yesterday's snapshot should still be %s (after transaction), got %s",
 		expectedBalanceAfterTxn.String(), yesterdaySnapshotAfter.EndBalance.String())
 
-	// Verify today's snapshot exists and has correct final balance (12,000)
+	// Verify today's snapshot exists and is empty
 	var todaySnapshot models.AccountDailySnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&todaySnapshot).Error
 	s.Require().NoError(err, "snapshot should exist for closing date")
-	s.Assert().True(expectedBalanceAfterTxn.Equal(todaySnapshot.EndBalance),
-		"Today's final snapshot should be %s, got %s",
-		expectedBalanceAfterTxn.String(), todaySnapshot.EndBalance.String())
+	s.Assert().True(todaySnapshot.EndBalance.IsZero(),
+		"Today's final snapshot should be 0, got %s", todaySnapshot.EndBalance.String())
 
 	// Verify today's balance record exists
 	var todayBalance models.Balance
@@ -582,10 +593,11 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		First(&todayBalance).Error
 	s.Require().NoError(err, "balance record should exist for closing date")
 
-	// Today's balance should carry forward yesterday's ending balance (12,000)
-	s.Assert().True(expectedBalanceAfterTxn.Equal(todayBalance.EndBalance),
-		"Today's balance end_balance should be %s, got %s",
-		expectedBalanceAfterTxn.String(), todayBalance.EndBalance.String())
+	s.Assert().True(todayBalance.EndBalance.IsZero(),
+		"Today's balance end_balance should be 0, got %s", todayBalance.EndBalance.String())
+	s.Assert().True(expectedBalanceAfterTxn.Equal(todayBalance.CashOutflows),
+		"Today's balance should show cash_outflows of %s, got %s",
+		expectedBalanceAfterTxn.String(), todayBalance.CashOutflows.String())
 
 	// Verify yesterday's balance shows the income transaction
 	var yesterdayBalance models.Balance
@@ -598,13 +610,17 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		txnAmount.String(), yesterdayBalance.CashInflows.String())
 }
 
-// The close day is the account's last day in the net worth views, so a closed
-// account keeps its final balance instead of vanishing a day early.
+// The close day is the account's last day in the net worth views. Because the
+// money leaves through a transfer, net worth must not move on that day.
 func (s *AccountServiceTestSuite) TestCloseAccount_CloseDayVisibleInNetWorthView() {
 	svc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
 	userID := int64(1)
 
+	openedAt := time.Now().AddDate(0, 0, -3)
 	initialBalance := decimal.NewFromInt(10000)
+	zero := decimal.Zero
+
 	accID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
 		Name:           "Closed Day Account",
 		AccountTypeID:  1,
@@ -612,14 +628,45 @@ func (s *AccountServiceTestSuite) TestCloseAccount_CloseDayVisibleInNetWorthView
 		Subtype:        "cash",
 		Classification: "current",
 		Balance:        &initialBalance,
-		OpenedAt:       time.Now().AddDate(0, 0, -3),
+		OpenedAt:       openedAt,
+	})
+	s.Require().NoError(err)
+
+	peerID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Receiving Account",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &zero,
+		OpenedAt:       openedAt,
+	})
+	s.Require().NoError(err)
+
+	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
+	yesterdayMidnight := todayMidnight.AddDate(0, 0, -1)
+	tomorrowMidnight := todayMidnight.AddDate(0, 0, 1)
+
+	netWorthOn := func(day time.Time) decimal.Decimal {
+		var total decimal.Decimal
+		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+			Raw(`SELECT COALESCE(SUM(end_balance), 0)
+			     FROM v_user_daily_networth_snapshots
+			     WHERE user_id = ? AND as_of = ?`, userID, day).
+			Scan(&total).Error)
+		return total
+	}
+	netWorthBefore := netWorthOn(yesterdayMidnight)
+
+	_, err = txnSvc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID:      accID,
+		DestinationID: peerID,
+		Amount:        initialBalance,
+		CreatedAt:     time.Now(),
 	})
 	s.Require().NoError(err)
 
 	s.Require().NoError(svc.CloseAccount(s.Ctx, userID, accID))
-
-	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
-	tomorrowMidnight := todayMidnight.AddDate(0, 0, 1)
 
 	// A snapshot past the close day must stay out of the view.
 	s.Require().NoError(s.TC.DB.Create(&models.AccountDailySnapshot{
@@ -644,19 +691,45 @@ func (s *AccountServiceTestSuite) TestCloseAccount_CloseDayVisibleInNetWorthView
 	s.Require().NotEmpty(visible)
 	last := visible[len(visible)-1]
 	s.Assert().Equal(todayMidnight, last.AsOf.UTC(), "close day should be the last visible day")
-	s.Assert().True(initialBalance.Equal(last.EndBalance),
-		"close day should keep the final balance %s, got %s",
-		initialBalance.String(), last.EndBalance.String())
+	s.Assert().True(last.EndBalance.IsZero(),
+		"close day should be empty, got %s", last.EndBalance.String())
 
-	var netWorthOnCloseDay decimal.Decimal
-	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
-		Raw(`SELECT COALESCE(SUM(end_balance), 0)
-		     FROM v_user_daily_networth_snapshots
-		     WHERE user_id = ? AND as_of = ?`, userID, todayMidnight).
-		Scan(&netWorthOnCloseDay).Error)
+	netWorthOnCloseDay := netWorthOn(todayMidnight)
 	s.Assert().True(initialBalance.Equal(netWorthOnCloseDay),
 		"net worth on the close day should be %s, got %s",
 		initialBalance.String(), netWorthOnCloseDay.String())
+	s.Assert().True(netWorthBefore.Equal(netWorthOnCloseDay),
+		"closing must not move net worth: %s before, %s on the close day",
+		netWorthBefore.String(), netWorthOnCloseDay.String())
+}
+
+// Closing must not silently drop money out of net worth, so an account that
+// still holds a balance is refused.
+func (s *AccountServiceTestSuite) TestCloseAccount_RefusesNonEmptyAccount() {
+	svc := s.TC.App.AccountService
+	userID := int64(1)
+
+	initialBalance := decimal.NewFromInt(1000)
+	accID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:           "Still Has Money",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &initialBalance,
+		OpenedAt:       time.Now().AddDate(0, 0, -1),
+	})
+	s.Require().NoError(err)
+
+	err = svc.CloseAccount(s.Ctx, userID, accID)
+	s.Require().Error(err)
+	s.Assert().ErrorIs(err, services.ErrAccountNotEmpty)
+
+	var account models.Account
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+		Where("id = ?", accID).First(&account).Error)
+	s.Assert().True(account.IsActive, "a refused close must leave the account open")
+	s.Assert().Nil(account.ClosedAt, "a refused close must not set closed_at")
 }
 
 // A purge takes the account and every row hanging off it, including both legs of
@@ -815,8 +888,8 @@ func (s *AccountServiceTestSuite) TestInsertTransaction_OnClosedAccount() {
 	txnSvc := s.TC.App.TransactionService
 	userID := int64(1)
 
-	// Create account with initial balance of 10,000
-	initialBalance := decimal.NewFromInt(10000)
+	// An account can only be closed while empty
+	initialBalance := decimal.Zero
 	accReq := &models.AccountReq{
 		Name:           "Account to Close",
 		AccountTypeID:  1,

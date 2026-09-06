@@ -19,6 +19,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var ErrAccountNotEmpty = errors.New("account must have a zero balance before it can be closed")
+
 type AccountServiceInterface interface {
 	FetchAccountsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeInactive bool, classification string) ([]models.Account, *utils.Paginator, error)
 	FetchLatestBalance(ctx context.Context, accID, userID int64) (*models.Balance, error)
@@ -733,7 +735,13 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 	// Load the account
 	acc, err := s.repo.FindAccountByID(ctx, tx, id, userID, true)
 	if err != nil {
+		tx.Rollback()
 		return fmt.Errorf("can't find account with given id %w", err)
+	}
+
+	if !acc.Balance.TotalBalance.IsZero() {
+		tx.Rollback()
+		return ErrAccountNotEmpty
 	}
 
 	// Close it
@@ -742,17 +750,10 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 		return err
 	}
 
-	// Create a final balance record for today
+	// The close day needs a balance row. An existing one already carries the
+	// day's flows, so it must be left alone.
 	today := time.Now().UTC().Truncate(24 * time.Hour)
-	finalBalance := &models.Balance{
-		AccountID:    acc.ID,
-		Currency:     acc.Currency,
-		StartBalance: acc.Balance.EndBalance,
-		AsOf:         today,
-	}
-
-	_, err = s.repo.UpsertBalance(ctx, tx, finalBalance)
-	if err != nil {
+	if err := s.repo.EnsureDailyBalanceRow(ctx, tx, acc.ID, today, acc.Currency); err != nil {
 		tx.Rollback()
 		return err
 	}

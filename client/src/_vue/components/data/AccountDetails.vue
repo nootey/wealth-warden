@@ -101,7 +101,7 @@ async function confirmCloseAccount(id: number) {
   confirm.require({
     header: "Confirm account close",
     message:
-      "You are about to close this account. This action is irreversible. Are you sure?",
+      "You are about to close this account. The balance must be zero first, so move the money out with a transfer, a withdrawal, or a correction. This action is irreversible. Are you sure?",
     rejectProps: { label: "Cancel" },
     acceptProps: { label: "Close account", severity: "danger" },
     accept: () => emit("closeAccount", id),
