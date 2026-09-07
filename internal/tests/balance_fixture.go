@@ -150,10 +150,10 @@ func SeedBalanceFixture(ctx context.Context, app *bootstrap.ServiceContainer, db
 		}
 		for _, t := range txns {
 			if _, err := app.TransactionService.InsertTransaction(ctx, userID, &models.TransactionReq{
-				AccountID:       t.account,
-				TransactionType: t.kind,
-				Amount:          decimal.NewFromInt(t.amount),
-				TxnDate:         today.AddDate(0, 0, t.day),
+				AccountID: t.account,
+				Direction: t.kind,
+				Amount:    decimal.NewFromInt(t.amount),
+				TxnDate:   today.AddDate(0, 0, t.day),
 			}); err != nil {
 				return nil, fmt.Errorf("failed to insert fixture transaction: %w", err)
 			}

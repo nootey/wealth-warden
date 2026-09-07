@@ -184,7 +184,7 @@ func ApplyFilters(query *gorm.DB, filters []Filter) *gorm.DB {
 
 		// Special case 1: amount filters on transactions
 		if f.Source == "transactions" && f.Field == "amount" {
-			signedAmount := "CASE WHEN transaction_type = 'expense' THEN -amount ELSE amount END"
+			signedAmount := "CASE WHEN direction = 'expense' THEN -amount ELSE amount END"
 
 			switch f.Operator {
 			case "equals", "=":

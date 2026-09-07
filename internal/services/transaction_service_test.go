@@ -46,12 +46,12 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_CurrentDate() {
 	now := time.Now()
 
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		CategoryID:      nil,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         now,
-		Description:     &desc,
+		AccountID:   accID,
+		CategoryID:  nil,
+		Direction:   "expense",
+		Amount:      amount,
+		TxnDate:     now,
+		Description: &desc,
 	}
 
 	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
@@ -65,7 +65,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_CurrentDate() {
 		First(&transaction).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(accID, transaction.AccountID)
-	s.Assert().Equal("expense", transaction.TransactionType)
+	s.Assert().Equal("expense", transaction.Direction)
 	s.Assert().True(amount.Equal(transaction.Amount))
 	s.Assert().Equal(desc, *transaction.Description)
 
@@ -123,11 +123,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_PastDate() {
 	desc := "Past transaction"
 
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amount,
-		TxnDate:         txnDate,
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amount,
+		TxnDate:     txnDate,
+		Description: &desc,
 	}
 
 	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
@@ -202,11 +202,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SameDayMultiple() {
 	amt1 := decimal.NewFromInt(1000)
 	desc1 := "Expense 1"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt1,
-		TxnDate:         txnDate,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt1,
+		TxnDate:     txnDate,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
@@ -214,11 +214,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SameDayMultiple() {
 	amt2 := decimal.NewFromInt(2000)
 	desc2 := "Expense 2"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         txnDate,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     txnDate,
+		Description: &desc2,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
@@ -226,11 +226,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SameDayMultiple() {
 	amt3 := decimal.NewFromInt(5000)
 	desc3 := "Income"
 	req3 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt3,
-		TxnDate:         txnDate,
-		Description:     &desc3,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt3,
+		TxnDate:     txnDate,
+		Description: &desc3,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req3)
 	s.Require().NoError(err)
@@ -299,11 +299,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BeforeOpeningDate() 
 	desc := "Too early transaction"
 
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         txnDate,
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amount,
+		TxnDate:     txnDate,
+		Description: &desc,
 	}
 
 	_, err = svc.InsertTransaction(s.Ctx, userID, req)
@@ -346,11 +346,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_FutureDate() {
 	desc := "Future transaction"
 
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         futureDate,
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amount,
+		TxnDate:     futureDate,
+		Description: &desc,
 	}
 
 	_, err = svc.InsertTransaction(s.Ctx, userID, req)
@@ -397,11 +397,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 	amt1 := decimal.NewFromInt(5000)
 	desc1 := "Income 8 days ago"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt1,
-		TxnDate:         txn1Date,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt1,
+		TxnDate:     txn1Date,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
@@ -412,11 +412,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 	amt2 := decimal.NewFromInt(2000)
 	desc2 := "Expense 5 days ago"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         txn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     txn2Date,
+		Description: &desc2,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
@@ -427,11 +427,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 	amt3 := decimal.NewFromInt(3000)
 	desc3 := "Income 2 days ago"
 	req3 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt3,
-		TxnDate:         txn3Date,
-		Description:     &desc3,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt3,
+		TxnDate:     txn3Date,
+		Description: &desc3,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req3)
 	s.Require().NoError(err)
@@ -537,11 +537,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BackfillBehavior() {
 	amt1 := decimal.NewFromInt(2000)
 	desc1 := "Recent expense"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt1,
-		TxnDate:         txn1Date,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt1,
+		TxnDate:     txn1Date,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
@@ -566,11 +566,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BackfillBehavior() {
 	amt2 := decimal.NewFromInt(5000)
 	desc2 := "Backdated income"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt2,
-		TxnDate:         txn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt2,
+		TxnDate:     txn2Date,
+		Description: &desc2,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
@@ -650,11 +650,11 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_CurrentDate() {
 	amount := decimal.NewFromInt(3000)
 	desc := "Expense to delete"
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         time.Now(),
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amount,
+		TxnDate:     time.Now(),
+		Description: &desc,
 	}
 	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().NoError(err)
@@ -741,11 +741,11 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 	amt1 := decimal.NewFromInt(5000)
 	desc1 := "Income day -8"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt1,
-		TxnDate:         txn1Date,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt1,
+		TxnDate:     txn1Date,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
@@ -755,11 +755,11 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 	amt2 := decimal.NewFromInt(2000)
 	desc2 := "Expense day -5 (to delete)"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         txn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     txn2Date,
+		Description: &desc2,
 	}
 	txn2, err := svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
@@ -769,11 +769,11 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 	amt3 := decimal.NewFromInt(3000)
 	desc3 := "Income day -2"
 	req3 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt3,
-		TxnDate:         txn3Date,
-		Description:     &desc3,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt3,
+		TxnDate:     txn3Date,
+		Description: &desc3,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req3)
 	s.Require().NoError(err)
@@ -901,11 +901,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 	amt1 := decimal.NewFromInt(5000)
 	desc1 := "Income day -8"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt1,
-		TxnDate:         txn1Date,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt1,
+		TxnDate:     txn1Date,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
@@ -915,11 +915,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 	amt2 := decimal.NewFromInt(2000)
 	desc2 := "Expense day -5 (to update)"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         txn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     txn2Date,
+		Description: &desc2,
 	}
 	txn2, err := svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
@@ -929,11 +929,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 	amt3 := decimal.NewFromInt(3000)
 	desc3 := "Income day -2"
 	req3 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt3,
-		TxnDate:         txn3Date,
-		Description:     &desc3,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt3,
+		TxnDate:     txn3Date,
+		Description: &desc3,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req3)
 	s.Require().NoError(err)
@@ -969,11 +969,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 	newAmt2 := decimal.NewFromInt(4000)
 	newDesc2 := "Updated expense day -5"
 	updateReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          newAmt2,
-		TxnDate:         txn2Date,
-		Description:     &newDesc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      newAmt2,
+		TxnDate:     txn2Date,
+		Description: &newDesc2,
 	}
 	_, err = svc.UpdateTransaction(s.Ctx, userID, txn2.ID, updateReq)
 	s.Require().NoError(err)
@@ -1060,11 +1060,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 	amt1 := decimal.NewFromInt(5000)
 	desc1 := "Income day -8"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt1,
-		TxnDate:         txn1Date,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt1,
+		TxnDate:     txn1Date,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
@@ -1074,11 +1074,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 	amt2 := decimal.NewFromInt(2000)
 	desc2 := "Expense to move"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         txn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     txn2Date,
+		Description: &desc2,
 	}
 	txn2, err := svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
@@ -1088,11 +1088,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 	amt3 := decimal.NewFromInt(3000)
 	desc3 := "Income day -3"
 	req3 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt3,
-		TxnDate:         txn3Date,
-		Description:     &desc3,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt3,
+		TxnDate:     txn3Date,
+		Description: &desc3,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req3)
 	s.Require().NoError(err)
@@ -1122,11 +1122,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 	// Move transaction 2 from day -5 to day -2 (later)
 	newTxn2Date := time.Now().AddDate(0, 0, -2)
 	updateReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         newTxn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     newTxn2Date,
+		Description: &desc2,
 	}
 	_, err = svc.UpdateTransaction(s.Ctx, userID, txn2.ID, updateReq)
 	s.Require().NoError(err)
@@ -1236,11 +1236,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 	amt1 := decimal.NewFromInt(5000)
 	desc1 := "Income day -8"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt1,
-		TxnDate:         txn1Date,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt1,
+		TxnDate:     txn1Date,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
@@ -1250,11 +1250,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 	amt2 := decimal.NewFromInt(2000)
 	desc2 := "Expense to move earlier"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         txn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     txn2Date,
+		Description: &desc2,
 	}
 	txn2, err := svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
@@ -1264,11 +1264,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 	amt3 := decimal.NewFromInt(3000)
 	desc3 := "Income day -3"
 	req3 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt3,
-		TxnDate:         txn3Date,
-		Description:     &desc3,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt3,
+		TxnDate:     txn3Date,
+		Description: &desc3,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req3)
 	s.Require().NoError(err)
@@ -1288,11 +1288,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 	// Move transaction 2 from day -5 to day -7 (earlier, between day -8 and day -5)
 	newTxn2Date := time.Now().AddDate(0, 0, -7)
 	updateReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         newTxn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     newTxn2Date,
+		Description: &desc2,
 	}
 	_, err = svc.UpdateTransaction(s.Ctx, userID, txn2.ID, updateReq)
 	s.Require().NoError(err)
@@ -1415,11 +1415,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 	amount := decimal.NewFromInt(3000)
 	desc := "Transaction to flip"
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         txnDate,
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amount,
+		TxnDate:     txnDate,
+		Description: &desc,
 	}
 	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().NoError(err)
@@ -1450,11 +1450,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 
 	// Change from expense to income (flip the type)
 	updateReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amount,
-		TxnDate:         txnDate,
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amount,
+		TxnDate:     txnDate,
+		Description: &desc,
 	}
 	_, err = svc.UpdateTransaction(s.Ctx, userID, txn.ID, updateReq)
 	s.Require().NoError(err)
@@ -1465,7 +1465,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 		Where("id = ?", txn.ID).
 		First(&updatedTxn).Error
 	s.Require().NoError(err)
-	s.Assert().Equal("income", updatedTxn.TransactionType)
+	s.Assert().Equal("income", updatedTxn.Direction)
 
 	// After update: verify balance flipped - should have 0 outflows, 3,000 inflows
 	var balanceAfter models.Balance
@@ -1569,7 +1569,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 		First(&outflowTxn).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(sourceID, outflowTxn.AccountID)
-	s.Assert().Equal("expense", outflowTxn.TransactionType)
+	s.Assert().Equal("expense", outflowTxn.Direction)
 	s.Assert().True(transferAmount.Equal(outflowTxn.Amount))
 
 	var inflowTxn models.Transaction
@@ -1578,7 +1578,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 		First(&inflowTxn).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(destID, inflowTxn.AccountID)
-	s.Assert().Equal("income", inflowTxn.TransactionType)
+	s.Assert().Equal("income", inflowTxn.Direction)
 	s.Assert().True(transferAmount.Equal(inflowTxn.Amount))
 
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
@@ -2594,10 +2594,10 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 	expenseAmount := decimal.NewFromInt(55000)
 
 	txnReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          expenseAmount,
-		TxnDate:         today,
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    expenseAmount,
+		TxnDate:   today,
 	}
 
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, txnReq)
@@ -2642,10 +2642,10 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByInvestments
 	s.Require().NoError(err)
 
 	incomeReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          decimal.NewFromInt(50000),
-		TxnDate:         today,
+		AccountID: accID,
+		Direction: "income",
+		Amount:    decimal.NewFromInt(50000),
+		TxnDate:   today,
 	}
 
 	income, err := txnSvc.InsertTransaction(s.Ctx, userID, incomeReq)
@@ -2896,10 +2896,10 @@ func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedByInvestment
 
 	// Create and immediately delete a 50k expense
 	expenseReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          decimal.NewFromInt(50000),
-		TxnDate:         today,
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    decimal.NewFromInt(50000),
+		TxnDate:   today,
 	}
 
 	expense, err := txnSvc.InsertTransaction(s.Ctx, userID, expenseReq)
@@ -2993,10 +2993,10 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByGoalAllocat
 
 	// Expense of $600 should be blocked — only $500 is free
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          decimal.NewFromInt(600),
-		TxnDate:         today,
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    decimal.NewFromInt(600),
+		TxnDate:   today,
 	})
 	s.Require().Error(err, "should block expense that would eat into goal allocations")
 
@@ -3042,10 +3042,10 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByGoalAllocat
 
 	// Add $150 income — balance becomes $250, uncategorized = $250 - $200 = $50
 	income, err := txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          decimal.NewFromInt(150),
-		TxnDate:         today,
+		AccountID: accID,
+		Direction: "income",
+		Amount:    decimal.NewFromInt(150),
+		TxnDate:   today,
 	})
 	s.Require().NoError(err)
 
@@ -3080,11 +3080,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_IdempotencyKey_Dedup
 
 	key := "test-idempotency-key-txn-001"
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          decimal.NewFromInt(1000),
-		TxnDate:         time.Now(),
-		IdempotencyKey:  &key,
+		AccountID:      accID,
+		Direction:      "expense",
+		Amount:         decimal.NewFromInt(1000),
+		TxnDate:        time.Now(),
+		IdempotencyKey: &key,
 	}
 
 	first, err := svc.InsertTransaction(s.Ctx, userID, req)
@@ -3436,10 +3436,10 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_Expense_WithinCredit
 
 	amount := decimal.NewFromInt(500)
 	txn, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         time.Now(),
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    amount,
+		TxnDate:   time.Now(),
 	})
 	s.Require().NoError(err)
 	s.Assert().Greater(txn.ID, int64(0))
@@ -3474,10 +3474,10 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_Expense_ExceedsCredi
 
 	amount := decimal.NewFromInt(1500)
 	_, err = svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         time.Now(),
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    amount,
+		TxnDate:   time.Now(),
 	})
 	s.Require().Error(err)
 	s.Assert().Contains(err.Error(), "insufficient funds")
@@ -3598,16 +3598,16 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_Success() {
 	amount := decimal.NewFromInt(5000)
 
 	template := models.TransactionTemplate{
-		Name:            "Salary",
-		UserID:          userID,
-		AccountID:       accID,
-		TemplateType:    "transaction",
-		TransactionType: &txnType,
-		Amount:          amount,
-		Frequency:       "monthly",
-		DayOfMonth:      originalNextRun.Day(),
-		NextRunAt:       originalNextRun,
-		IsActive:        true,
+		Name:         "Salary",
+		UserID:       userID,
+		AccountID:    accID,
+		TemplateType: "transaction",
+		Direction:    &txnType,
+		Amount:       amount,
+		Frequency:    "monthly",
+		DayOfMonth:   originalNextRun.Day(),
+		NextRunAt:    originalNextRun,
+		IsActive:     true,
 	}
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
 
@@ -3650,16 +3650,16 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenAlread
 	txnType := "income"
 
 	template := models.TransactionTemplate{
-		Name:            "Salary",
-		UserID:          userID,
-		AccountID:       accID,
-		TemplateType:    "transaction",
-		TransactionType: &txnType,
-		Amount:          decimal.NewFromInt(5000),
-		Frequency:       "monthly",
-		DayOfMonth:      originalNextRun.Day(),
-		NextRunAt:       originalNextRun,
-		IsActive:        true,
+		Name:         "Salary",
+		UserID:       userID,
+		AccountID:    accID,
+		TemplateType: "transaction",
+		Direction:    &txnType,
+		Amount:       decimal.NewFromInt(5000),
+		Frequency:    "monthly",
+		DayOfMonth:   originalNextRun.Day(),
+		NextRunAt:    originalNextRun,
+		IsActive:     true,
 	}
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
 
@@ -3697,16 +3697,16 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenInacti
 	txnType := "expense"
 
 	template := models.TransactionTemplate{
-		Name:            "Paused rent",
-		UserID:          userID,
-		AccountID:       accID,
-		TemplateType:    "transaction",
-		TransactionType: &txnType,
-		Amount:          decimal.NewFromInt(2500),
-		Frequency:       "monthly",
-		DayOfMonth:      nextRun.Day(),
-		NextRunAt:       nextRun,
-		IsActive:        true,
+		Name:         "Paused rent",
+		UserID:       userID,
+		AccountID:    accID,
+		TemplateType: "transaction",
+		Direction:    &txnType,
+		Amount:       decimal.NewFromInt(2500),
+		Frequency:    "monthly",
+		DayOfMonth:   nextRun.Day(),
+		NextRunAt:    nextRun,
+		IsActive:     true,
 	}
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
 	// IsActive is a `default:true` column, so GORM omits an explicit `false` on Create; flip it
@@ -3741,16 +3741,16 @@ func (s *TransactionServiceTestSuite) TestProcessTemplate_SkipsCycleAlreadyRunEa
 	txnType := "income"
 
 	template := models.TransactionTemplate{
-		Name:            "Salary",
-		UserID:          userID,
-		AccountID:       accID,
-		TemplateType:    "transaction",
-		TransactionType: &txnType,
-		Amount:          decimal.NewFromInt(5000),
-		Frequency:       "weekly",
-		DayOfMonth:      overdue.Day(),
-		NextRunAt:       overdue,
-		IsActive:        true,
+		Name:         "Salary",
+		UserID:       userID,
+		AccountID:    accID,
+		TemplateType: "transaction",
+		Direction:    &txnType,
+		Amount:       decimal.NewFromInt(5000),
+		Frequency:    "weekly",
+		DayOfMonth:   overdue.Day(),
+		NextRunAt:    overdue,
+		IsActive:     true,
 	}
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
 
@@ -3792,11 +3792,11 @@ func (s *TransactionServiceTestSuite) TestMergeCategories_MovesTransactionsAndAr
 	s.Require().NoError(err)
 
 	_, err = svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       accID,
-		CategoryID:      &srcID,
-		TransactionType: "expense",
-		Amount:          decimal.NewFromInt(1200),
-		TxnDate:         time.Now(),
+		AccountID:  accID,
+		CategoryID: &srcID,
+		Direction:  "expense",
+		Amount:     decimal.NewFromInt(1200),
+		TxnDate:    time.Now(),
 	})
 	s.Require().NoError(err)
 

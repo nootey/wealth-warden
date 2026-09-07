@@ -75,7 +75,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceUp() {
 
 	// Verify adjustment is an income of 5,000
 	expectedAdjustment := decimal.NewFromInt(5000)
-	s.Assert().Equal("income", adjustmentTxn.TransactionType,
+	s.Assert().Equal("income", adjustmentTxn.Direction,
 		"adjustment should be income type")
 	s.Assert().True(expectedAdjustment.Equal(adjustmentTxn.Amount),
 		"adjustment amount should be %s, got %s",
@@ -165,7 +165,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceDown() {
 
 	// Verify adjustment is an expense of 8,000
 	expectedAdjustment := decimal.NewFromInt(8000)
-	s.Assert().Equal("expense", adjustmentTxn.TransactionType,
+	s.Assert().Equal("expense", adjustmentTxn.Direction,
 		"adjustment should be expense type")
 	s.Assert().True(expectedAdjustment.Equal(adjustmentTxn.Amount),
 		"adjustment amount should be %s, got %s",
@@ -317,7 +317,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustLiabilityBalance() {
 	s.Require().NoError(err, "adjustment transaction should exist")
 
 	expectedAdjustment := decimal.NewFromInt(3000)
-	s.Assert().Equal("expense", adjustmentTxn.TransactionType,
+	s.Assert().Equal("expense", adjustmentTxn.Direction,
 		"increasing liability debt should be expense type")
 	s.Assert().True(expectedAdjustment.Equal(adjustmentTxn.Amount),
 		"adjustment amount should be %s, got %s",
@@ -405,7 +405,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalancePastAccount() {
 		Where("account_id = ? AND is_adjustment = ?", accID, true).
 		First(&adjustmentTxn).Error
 	s.Require().NoError(err)
-	s.Assert().Equal("income", adjustmentTxn.TransactionType)
+	s.Assert().Equal("income", adjustmentTxn.Direction)
 	s.Assert().True(decimal.NewFromInt(5000).Equal(adjustmentTxn.Amount))
 
 	// Verify balance record on today has the adjustment
@@ -475,11 +475,11 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 	txnAmount := decimal.NewFromInt(2000)
 	desc := "Test income transaction"
 	txnReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          txnAmount,
-		TxnDate:         oneDayAgo,
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      txnAmount,
+		TxnDate:     oneDayAgo,
+		Description: &desc,
 	}
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, txnReq)
 	s.Require().NoError(err)
@@ -523,11 +523,11 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 	// Empty the account, since a close is refused while money is left in it
 	emptyDesc := "Zero it out"
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          expectedBalanceAfterTxn,
-		TxnDate:         time.Now(),
-		Description:     &emptyDesc,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      expectedBalanceAfterTxn,
+		TxnDate:     time.Now(),
+		Description: &emptyDesc,
 	})
 	s.Require().NoError(err)
 
@@ -760,10 +760,10 @@ func (s *AccountServiceTestSuite) TestPurgeAccount_RemovesEverythingAndRebuildsP
 	s.Require().NoError(err)
 
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       victimID,
-		TransactionType: "income",
-		Amount:          decimal.NewFromInt(2000),
-		TxnDate:         time.Now().AddDate(0, 0, -2),
+		AccountID: victimID,
+		Direction: "income",
+		Amount:    decimal.NewFromInt(2000),
+		TxnDate:   time.Now().AddDate(0, 0, -2),
 	})
 	s.Require().NoError(err)
 
@@ -919,11 +919,11 @@ func (s *AccountServiceTestSuite) TestInsertTransaction_OnClosedAccount() {
 	txnAmount := decimal.NewFromInt(1000)
 	desc := "Transaction on closed account"
 	txnReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          txnAmount,
-		TxnDate:         time.Now(),
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      txnAmount,
+		TxnDate:     time.Now(),
+		Description: &desc,
 	}
 
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, txnReq)
@@ -1112,18 +1112,18 @@ func (s *AccountServiceTestSuite) TestMergeAccount_Success() {
 	s.Require().NoError(err)
 
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       srcID,
-		TransactionType: "income",
-		Amount:          decimal.NewFromInt(1000),
-		TxnDate:         time.Now(),
+		AccountID: srcID,
+		Direction: "income",
+		Amount:    decimal.NewFromInt(1000),
+		TxnDate:   time.Now(),
 	})
 	s.Require().NoError(err)
 
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       srcID,
-		TransactionType: "expense",
-		Amount:          decimal.NewFromInt(200),
-		TxnDate:         time.Now(),
+		AccountID: srcID,
+		Direction: "expense",
+		Amount:    decimal.NewFromInt(200),
+		TxnDate:   time.Now(),
 	})
 	s.Require().NoError(err)
 
@@ -1229,10 +1229,10 @@ func (s *AccountServiceTestSuite) TestMergeAccount_IntraTransferVoided() {
 	s.Require().NoError(err)
 
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       srcID,
-		TransactionType: "income",
-		Amount:          decimal.NewFromInt(500),
-		TxnDate:         time.Now(),
+		AccountID: srcID,
+		Direction: "income",
+		Amount:    decimal.NewFromInt(500),
+		TxnDate:   time.Now(),
 	})
 	s.Require().NoError(err)
 
@@ -1372,12 +1372,12 @@ func (s *AccountServiceTestSuite) TestMergeAccount_BalancesAndSnapshotsWithTrans
 	s.Require().NoError(err)
 
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID: srcID, TransactionType: "income", Amount: decimal.NewFromInt(500), TxnDate: day5ago,
+		AccountID: srcID, Direction: "income", Amount: decimal.NewFromInt(500), TxnDate: day5ago,
 	})
 	s.Require().NoError(err)
 
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID: srcID, TransactionType: "income", Amount: decimal.NewFromInt(300), TxnDate: day2ago,
+		AccountID: srcID, Direction: "income", Amount: decimal.NewFromInt(300), TxnDate: day2ago,
 	})
 	s.Require().NoError(err)
 
@@ -1454,7 +1454,7 @@ func (s *AccountServiceTestSuite) TestMergeAccount_SourceOlderThanDestination_Ke
 	s.Require().NoError(err)
 
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID: srcID, TransactionType: "income", Amount: decimal.NewFromInt(400), TxnDate: txnDay,
+		AccountID: srcID, Direction: "income", Amount: decimal.NewFromInt(400), TxnDate: txnDay,
 	})
 	s.Require().NoError(err)
 

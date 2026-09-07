@@ -446,7 +446,7 @@ defineExpose({ refresh });
                   v-if="activeTab !== 'transfer'"
                   class="text-xs"
                   :class="
-                    (data.transaction_type === 'expense'
+                    (data.direction === 'expense'
                       ? data.amount * -1
                       : data.amount) >= 0
                       ? 'pi pi-angle-up'
@@ -454,7 +454,7 @@ defineExpose({ refresh });
                   "
                   :style="{
                     color:
-                      (data.transaction_type === 'expense'
+                      (data.direction === 'expense'
                         ? data.amount * -1
                         : data.amount) >= 0
                         ? colors.pos
@@ -464,7 +464,7 @@ defineExpose({ refresh });
                 <span>
                   {{
                     vueHelper.displayAsCurrency(
-                      data.transaction_type == "expense"
+                      data.direction == "expense"
                         ? data.amount * -1
                         : data.amount,
                     )
@@ -477,7 +477,7 @@ defineExpose({ refresh });
             </template>
             <template
               v-else-if="
-                col.field === 'transaction_type' || col.field === 'frequency'
+                col.field === 'direction' || col.field === 'frequency'
               "
             >
               {{ vueHelper.capitalize(data[col.field]) }}

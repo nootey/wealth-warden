@@ -73,11 +73,11 @@ func TestAutomateTemplateJob_NotifiesAfterCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	income := "income"
 	tmpl := &models.TransactionTemplate{
-		ID:              1,
-		UserID:          7,
-		Name:            "Salary",
-		TemplateType:    "transaction",
-		TransactionType: &income,
+		ID:           1,
+		UserID:       7,
+		Name:         "Salary",
+		TemplateType: "transaction",
+		Direction:    &income,
 	}
 
 	svc := mocks.NewMockTransactionServiceInterface(t)
@@ -101,11 +101,11 @@ func TestAutomateTemplateJob_CountsCancelledTemplates(t *testing.T) {
 	income, expense := "income", "expense"
 	in := &models.TransactionTemplate{
 		ID: 1, UserID: 7, Name: "Salary",
-		TemplateType: "transaction", TransactionType: &income,
+		TemplateType: "transaction", Direction: &income,
 	}
 	out := &models.TransactionTemplate{
 		ID: 2, UserID: 7, Name: "Rent",
-		TemplateType: "transaction", TransactionType: &expense,
+		TemplateType: "transaction", Direction: &expense,
 	}
 
 	svc := mocks.NewMockTransactionServiceInterface(t)

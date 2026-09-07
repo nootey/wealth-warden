@@ -130,7 +130,7 @@ func (s *TransactionService) FetchTransactionsPaginated(ctx context.Context, use
 	totals := &models.TransactionBatchTotals{}
 	for _, r := range records {
 		totals.Count++
-		if r.TransactionType == "income" {
+		if r.Direction == "income" {
 			totals.Income = totals.Income.Add(r.Amount)
 		} else {
 			totals.Expenses = totals.Expenses.Add(r.Amount)
@@ -256,7 +256,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		return models.InsertResult{}, fmt.Errorf("can't find account with given id %w", err)
 	}
 
-	if req.TransactionType == "expense" {
+	if req.Direction == "expense" {
 		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, account.ID, userID)
 		if err != nil {
 			tx.Rollback()
@@ -339,15 +339,15 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	}
 
 	tr := models.Transaction{
-		UserID:          userID,
-		AccountID:       account.ID,
-		CategoryID:      &category.ID,
-		TransactionType: strings.ToLower(req.TransactionType),
-		Amount:          req.Amount,
-		Currency:        account.Currency,
-		TxnDate:         txDay,
-		Description:     req.Description,
-		IdempotencyKey:  req.IdempotencyKey,
+		UserID:         userID,
+		AccountID:      account.ID,
+		CategoryID:     &category.ID,
+		Direction:      strings.ToLower(req.Direction),
+		Amount:         req.Amount,
+		Currency:       account.Currency,
+		TxnDate:        txDay,
+		Description:    req.Description,
+		IdempotencyKey: req.IdempotencyKey,
 	}
 
 	txnID, err := s.repo.InsertTransaction(ctx, tx, &tr)
@@ -361,7 +361,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		return models.InsertResult{}, err
 	}
 
-	if err := s.updateAccountBalance(ctx, tx, account, tr.TxnDate, tr.TransactionType, tr.Amount); err != nil {
+	if err := s.updateAccountBalance(ctx, tx, account, tr.TxnDate, tr.Direction, tr.Amount); err != nil {
 		tx.Rollback()
 		return models.InsertResult{}, err
 	}
@@ -392,7 +392,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 
 	utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
 	utils.CompareChanges("", account.Name, changes, "account")
-	utils.CompareChanges("", tr.TransactionType, changes, "type")
+	utils.CompareChanges("", tr.Direction, changes, "type")
 	utils.CompareChanges("", dateStr, changes, "date")
 	utils.CompareChanges("", amountString, changes, "amount")
 	utils.CompareChanges("", tr.Currency, changes, "currency")
@@ -484,14 +484,14 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	txDate := utils.LocalMidnightUTC(t, loc)
 
 	outflow := models.Transaction{
-		UserID:          userID,
-		AccountID:       fromAcc.ID,
-		TransactionType: "expense",
-		Amount:          req.Amount,
-		Currency:        fromAcc.Currency,
-		TxnDate:         txDate,
-		Description:     req.Notes,
-		IsTransfer:      true,
+		UserID:      userID,
+		AccountID:   fromAcc.ID,
+		Direction:   "expense",
+		Amount:      req.Amount,
+		Currency:    fromAcc.Currency,
+		TxnDate:     txDate,
+		Description: req.Notes,
+		IsTransfer:  true,
 	}
 
 	if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
@@ -500,14 +500,14 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	}
 
 	inflow := models.Transaction{
-		UserID:          userID,
-		AccountID:       toAcc.ID,
-		TransactionType: "income",
-		Amount:          req.Amount,
-		Currency:        toAcc.Currency,
-		TxnDate:         txDate,
-		Description:     req.Notes,
-		IsTransfer:      true,
+		UserID:      userID,
+		AccountID:   toAcc.ID,
+		Direction:   "income",
+		Amount:      req.Amount,
+		Currency:    toAcc.Currency,
+		TxnDate:     txDate,
+		Description: req.Notes,
+		IsTransfer:  true,
 	}
 
 	if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
@@ -700,13 +700,13 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 	var oldEffect, newEffect decimal.Decimal
 
-	if exTr.TransactionType == "expense" {
+	if exTr.Direction == "expense" {
 		oldEffect = exTr.Amount.Neg()
 	} else {
 		oldEffect = exTr.Amount
 	}
 
-	if req.TransactionType == "expense" {
+	if req.Direction == "expense" {
 		newEffect = req.Amount.Neg()
 	} else {
 		newEffect = req.Amount
@@ -784,15 +784,15 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 	// Update the transaction
 	tr := models.Transaction{
-		ID:              exTr.ID,
-		UserID:          userID,
-		AccountID:       newAccount.ID,
-		CategoryID:      &newCategory.ID,
-		TransactionType: strings.ToLower(req.TransactionType),
-		Amount:          req.Amount,
-		Currency:        exTr.Currency,
-		TxnDate:         newDay,
-		Description:     req.Description,
+		ID:          exTr.ID,
+		UserID:      userID,
+		AccountID:   newAccount.ID,
+		CategoryID:  &newCategory.ID,
+		Direction:   strings.ToLower(req.Direction),
+		Amount:      req.Amount,
+		Currency:    exTr.Currency,
+		TxnDate:     newDay,
+		Description: req.Description,
 	}
 	txnID, err := s.repo.UpdateTransaction(ctx, tx, tr)
 	if err != nil {
@@ -804,13 +804,13 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 	// Reverse old, apply new
 	if !exTr.Amount.IsZero() {
-		if err := s.updateAccountBalance(ctx, tx, oldAccount, oldDay, exTr.TransactionType, exTr.Amount.Neg()); err != nil {
+		if err := s.updateAccountBalance(ctx, tx, oldAccount, oldDay, exTr.Direction, exTr.Amount.Neg()); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
 	}
 	if !tr.Amount.IsZero() {
-		if err := s.updateAccountBalance(ctx, tx, newAccount, newDay, tr.TransactionType, tr.Amount); err != nil {
+		if err := s.updateAccountBalance(ctx, tx, newAccount, newDay, tr.Direction, tr.Amount); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
@@ -851,7 +851,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	// Dispatch transaction activity log
 	changes := utils.InitChanges()
 	utils.CompareChanges(oldAccount.Name, newAccount.Name, changes, "account")
-	utils.CompareChanges(exTr.TransactionType, tr.TransactionType, changes, "type")
+	utils.CompareChanges(exTr.Direction, tr.Direction, changes, "type")
 	utils.CompareDateChange(&exTr.TxnDate, &tr.TxnDate, changes, "date")
 	utils.CompareDecimalChange(&exTr.Amount, &tr.Amount, changes, "amount", 2)
 	utils.CompareChanges(exTr.Currency, tr.Currency, changes, "currency")
@@ -966,7 +966,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	}
 
 	// If deleting an income, balance will go down
-	if tr.TransactionType == "income" {
+	if tr.Direction == "income" {
 		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, account.ID, userID)
 		if err != nil {
 			tx.Rollback()
@@ -1009,7 +1009,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	}
 
 	// Reverse the original cash effect on the account
-	if err := s.updateAccountBalance(ctx, tx, account, tr.TxnDate, tr.TransactionType, tr.Amount.Neg()); err != nil {
+	if err := s.updateAccountBalance(ctx, tx, account, tr.TxnDate, tr.Direction, tr.Amount.Neg()); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1029,7 +1029,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 
 	utils.CompareChanges("", strconv.FormatInt(tr.ID, 10), changes, "id")
 	utils.CompareChanges(account.Name, "", changes, "account")
-	utils.CompareChanges(tr.TransactionType, "", changes, "type")
+	utils.CompareChanges(tr.Direction, "", changes, "type")
 	utils.CompareDateChange(&tr.TxnDate, nil, changes, "date")
 	utils.CompareDecimalChange(&tr.Amount, nil, changes, "amount", 2)
 	utils.CompareChanges(tr.Currency, "", changes, "currency")
@@ -1483,7 +1483,7 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 	}
 
 	// If restoring an expense, balance will go down
-	if tr.TransactionType == "expense" {
+	if tr.Direction == "expense" {
 		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, acc.ID, userID)
 		if err != nil {
 			tx.Rollback()
@@ -1506,7 +1506,7 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 			return amt
 		}
 	}
-	origEffect := signed(tr.TransactionType, tr.Amount)
+	origEffect := signed(tr.Direction, tr.Amount)
 
 	// Reverse balances
 	if !origEffect.IsZero() {
@@ -1836,9 +1836,9 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 			}
 			categoryID = &cat.ID
 		}
-		if req.TransactionType == nil {
+		if req.Direction == nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("transaction_type is required for transaction templates")
+			return 0, fmt.Errorf("direction is required for transaction templates")
 		}
 	}
 
@@ -1897,29 +1897,29 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 	}
 
 	var txnType *string
-	if req.TransactionType != nil {
-		v := strings.ToLower(*req.TransactionType)
+	if req.Direction != nil {
+		v := strings.ToLower(*req.Direction)
 		txnType = &v
 	}
 
 	day := firstRun.In(loc).Day()
 
 	tp := models.TransactionTemplate{
-		Name:            req.Name,
-		TemplateType:    templateType,
-		UserID:          userID,
-		AccountID:       account.ID,
-		ToAccountID:     toAccountID,
-		CategoryID:      categoryID,
-		TransactionType: txnType,
-		Amount:          req.Amount,
-		Frequency:       strings.ToLower(req.Frequency),
-		DayOfMonth:      day,
-		NextRunAt:       firstRun,
-		EndDate:         endDate,
-		MaxRuns:         req.MaxRuns,
-		RunCount:        0,
-		IsActive:        true,
+		Name:         req.Name,
+		TemplateType: templateType,
+		UserID:       userID,
+		AccountID:    account.ID,
+		ToAccountID:  toAccountID,
+		CategoryID:   categoryID,
+		Direction:    txnType,
+		Amount:       req.Amount,
+		Frequency:    strings.ToLower(req.Frequency),
+		DayOfMonth:   day,
+		NextRunAt:    firstRun,
+		EndDate:      endDate,
+		MaxRuns:      req.MaxRuns,
+		RunCount:     0,
+		IsActive:     true,
 	}
 
 	tpID, err := s.repo.InsertTransactionTemplate(ctx, tx, &tp)
@@ -1942,8 +1942,8 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		categoryName = tp.Category.Name
 	}
 	var txnTypeStr string
-	if tp.TransactionType != nil {
-		txnTypeStr = *tp.TransactionType
+	if tp.Direction != nil {
+		txnTypeStr = *tp.Direction
 	}
 
 	utils.CompareChanges("", strconv.FormatInt(tpID, 10), changes, "id")
@@ -2048,22 +2048,22 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 	day := nextRun.In(loc).Day()
 
 	tp := models.TransactionTemplate{
-		ID:              exTp.ID,
-		Name:            req.Name,
-		UserID:          userID,
-		AccountID:       exTp.AccountID,
-		ToAccountID:     exTp.ToAccountID,
-		CategoryID:      exTp.CategoryID,
-		TemplateType:    exTp.TemplateType,
-		TransactionType: exTp.TransactionType,
-		Amount:          req.Amount,
-		Frequency:       exTp.Frequency,
-		DayOfMonth:      day,
-		NextRunAt:       nextRun,
-		EndDate:         endDate,
-		MaxRuns:         req.MaxRuns,
-		RunCount:        exTp.RunCount,
-		IsActive:        exTp.IsActive,
+		ID:           exTp.ID,
+		Name:         req.Name,
+		UserID:       userID,
+		AccountID:    exTp.AccountID,
+		ToAccountID:  exTp.ToAccountID,
+		CategoryID:   exTp.CategoryID,
+		TemplateType: exTp.TemplateType,
+		Direction:    exTp.Direction,
+		Amount:       req.Amount,
+		Frequency:    exTp.Frequency,
+		DayOfMonth:   day,
+		NextRunAt:    nextRun,
+		EndDate:      endDate,
+		MaxRuns:      req.MaxRuns,
+		RunCount:     exTp.RunCount,
+		IsActive:     exTp.IsActive,
 	}
 
 	tpID, err := s.repo.UpdateTransactionTemplate(ctx, tx, tp, false)
@@ -2282,8 +2282,8 @@ func (s *TransactionService) DeleteTransactionTemplate(ctx context.Context, user
 		deleteCategoryName = tp.Category.Name
 	}
 	var deleteTypeStr string
-	if tp.TransactionType != nil {
-		deleteTypeStr = *tp.TransactionType
+	if tp.Direction != nil {
+		deleteTypeStr = *tp.Direction
 	}
 
 	utils.CompareChanges("", strconv.FormatInt(tp.ID, 10), changes, "id")
@@ -2346,7 +2346,7 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 	summary := &models.TemplateSummary{}
 	for _, t := range templates {
 		isTransfer := t.TemplateType == "transfer"
-		isExpense := t.TransactionType != nil && *t.TransactionType == "expense"
+		isExpense := t.Direction != nil && *t.Direction == "expense"
 
 		isOneOff := t.MaxRuns != nil && *t.MaxRuns == 1
 
@@ -2552,14 +2552,14 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		}
 
 		outflow := models.Transaction{
-			UserID:          currentTemplate.UserID,
-			AccountID:       srcAcc.ID,
-			TransactionType: "expense",
-			Amount:          currentTemplate.Amount,
-			Currency:        srcAcc.Currency,
-			TxnDate:         txDate,
-			Description:     &desc,
-			IsTransfer:      true,
+			UserID:      currentTemplate.UserID,
+			AccountID:   srcAcc.ID,
+			Direction:   "expense",
+			Amount:      currentTemplate.Amount,
+			Currency:    srcAcc.Currency,
+			TxnDate:     txDate,
+			Description: &desc,
+			IsTransfer:  true,
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
 			tx.Rollback()
@@ -2567,14 +2567,14 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		}
 
 		inflow := models.Transaction{
-			UserID:          currentTemplate.UserID,
-			AccountID:       toAcc.ID,
-			TransactionType: "income",
-			Amount:          currentTemplate.Amount,
-			Currency:        toAcc.Currency,
-			TxnDate:         txDate,
-			Description:     &desc,
-			IsTransfer:      true,
+			UserID:      currentTemplate.UserID,
+			AccountID:   toAcc.ID,
+			Direction:   "income",
+			Amount:      currentTemplate.Amount,
+			Currency:    toAcc.Currency,
+			TxnDate:     txDate,
+			Description: &desc,
+			IsTransfer:  true,
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
 			tx.Rollback()
@@ -2625,17 +2625,17 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		}
 
 		txnType := ""
-		if currentTemplate.TransactionType != nil {
-			txnType = *currentTemplate.TransactionType
+		if currentTemplate.Direction != nil {
+			txnType = *currentTemplate.Direction
 		}
 
 		txnReq := &models.TransactionReq{
-			AccountID:       acc.ID,
-			CategoryID:      categoryID,
-			TransactionType: txnType,
-			Amount:          currentTemplate.Amount,
-			TxnDate:         txDate,
-			Description:     &desc,
+			AccountID:   acc.ID,
+			CategoryID:  categoryID,
+			Direction:   txnType,
+			Amount:      currentTemplate.Amount,
+			TxnDate:     txDate,
+			Description: &desc,
 		}
 		if _, err = s.InsertTransaction(ctx, currentTemplate.UserID, txnReq, tx); err != nil {
 			tx.Rollback()

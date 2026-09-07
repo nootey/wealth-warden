@@ -513,15 +513,15 @@ func bulkTransactionsForAccount(
 		catID := cats[rng.Intn(len(cats))]
 
 		txns = append(txns, models.Transaction{
-			UserID:          acc.UserID,
-			AccountID:       acc.ID,
-			TransactionType: ttype,
-			CategoryID:      &catID,
-			Amount:          amt,
-			Currency:        acc.Currency,
-			TxnDate:         date,
-			CreatedAt:       now,
-			UpdatedAt:       now,
+			UserID:     acc.UserID,
+			AccountID:  acc.ID,
+			Direction:  ttype,
+			CategoryID: &catID,
+			Amount:     amt,
+			Currency:   acc.Currency,
+			TxnDate:    date,
+			CreatedAt:  now,
+			UpdatedAt:  now,
 		})
 
 		d, ok := byDay[date]

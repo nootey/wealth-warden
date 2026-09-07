@@ -60,7 +60,7 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 	// This ensures funds are available before withdrawals on the same day.
 	var inflows, rest []*models.TransactionTemplate
 	for _, tmpl := range templates {
-		if tmpl.TemplateType == "transaction" && tmpl.TransactionType != nil && *tmpl.TransactionType == "income" {
+		if tmpl.TemplateType == "transaction" && tmpl.Direction != nil && *tmpl.Direction == "income" {
 			inflows = append(inflows, tmpl)
 		} else {
 			rest = append(rest, tmpl)

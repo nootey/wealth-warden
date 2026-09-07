@@ -48,7 +48,7 @@ func TestBulkTransactionsForAccount(t *testing.T) {
 				assert.True(t, txn.Amount.IsPositive(), "amount must be positive")
 
 				signed := txn.Amount
-				if txn.TransactionType == "expense" {
+				if txn.Direction == "expense" {
 					signed = signed.Neg()
 				}
 				perDay[txn.TxnDate] = perDay[txn.TxnDate].Add(signed)

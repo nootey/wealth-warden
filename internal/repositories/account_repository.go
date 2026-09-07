@@ -865,8 +865,8 @@ func (r *AccountRepository) PurgeAccount(ctx context.Context, tx *gorm.DB, accou
             FROM (
                 SELECT t.account_id,
                        t.txn_date::date AS as_of,
-                       SUM(t.amount) FILTER (WHERE t.transaction_type = 'income')  AS income,
-                       SUM(t.amount) FILTER (WHERE t.transaction_type = 'expense') AS expense
+                       SUM(t.amount) FILTER (WHERE t.direction = 'income')  AS income,
+                       SUM(t.amount) FILTER (WHERE t.direction = 'expense') AS expense
                 FROM transactions t
                 WHERE t.id IN ?
                   AND t.account_id <> ?
@@ -1457,7 +1457,7 @@ func (r *AccountRepository) ClearInvestmentCashFlows(ctx context.Context, tx *go
 				FROM transactions t
 				WHERE t.account_id = b.account_id
 				  AND t.txn_date::date = b.as_of
-				  AND t.transaction_type = 'income'
+				  AND t.direction = 'income'
 				  AND t.deleted_at IS NULL
 			), 0),
 			cash_outflows = COALESCE((
@@ -1465,7 +1465,7 @@ func (r *AccountRepository) ClearInvestmentCashFlows(ctx context.Context, tx *go
 				FROM transactions t
 				WHERE t.account_id = b.account_id
 				  AND t.txn_date::date = b.as_of
-				  AND t.transaction_type = 'expense'
+				  AND t.direction = 'expense'
 				  AND t.deleted_at IS NULL
 			), 0),
 			updated_at = NOW()
@@ -1713,7 +1713,7 @@ func (r *AccountRepository) RebuildCashFlowsForAccount(ctx context.Context, tx *
 			FROM transactions t
 			WHERE t.account_id = b.account_id
 			  AND t.txn_date::date = b.as_of
-			  AND t.transaction_type = 'income'
+			  AND t.direction = 'income'
 			  AND t.deleted_at IS NULL
 		), 0),
 		cash_outflows = COALESCE((
@@ -1721,7 +1721,7 @@ func (r *AccountRepository) RebuildCashFlowsForAccount(ctx context.Context, tx *
 			FROM transactions t
 			WHERE t.account_id = b.account_id
 			  AND t.txn_date::date = b.as_of
-			  AND t.transaction_type = 'expense'
+			  AND t.direction = 'expense'
 			  AND t.deleted_at IS NULL
 		), 0),
 		updated_at = NOW()

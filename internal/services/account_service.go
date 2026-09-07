@@ -568,15 +568,15 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			}
 
 			txn := &models.Transaction{
-				UserID:          userID,
-				AccountID:       exAcc.ID,
-				CategoryID:      &category.ID,
-				TransactionType: txnType,
-				Amount:          amount,
-				Currency:        exAcc.Currency,
-				TxnDate:         time.Now().UTC(),
-				Description:     &desc,
-				IsAdjustment:    true,
+				UserID:       userID,
+				AccountID:    exAcc.ID,
+				CategoryID:   &category.ID,
+				Direction:    txnType,
+				Amount:       amount,
+				Currency:     exAcc.Currency,
+				TxnDate:      time.Now().UTC(),
+				Description:  &desc,
+				IsAdjustment: true,
 			}
 
 			if _, err := s.txnRepo.InsertTransaction(ctx, tx, txn); err != nil {

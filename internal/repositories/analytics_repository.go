@@ -200,12 +200,12 @@ func (r *AnalyticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.DB
 		sql := `
 		  SELECT
 		    $3::int AS year,
-		    COALESCE(SUM(CASE WHEN transaction_type='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
-		    COALESCE(SUM(CASE WHEN transaction_type='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
+		    COALESCE(SUM(CASE WHEN direction='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
+		    COALESCE(SUM(CASE WHEN direction='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
 		    		    COALESCE(SUM(
 						  CASE
-							WHEN transaction_type='income'  THEN amount
-							WHEN transaction_type='expense' THEN -amount
+							WHEN direction='income'  THEN amount
+							WHEN direction='expense' THEN -amount
 							ELSE 0
 						  END
 						),0)::text AS net_text,
@@ -226,12 +226,12 @@ func (r *AnalyticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.DB
 		sql := `
 		  SELECT
 		    $2::int AS year,
-		    COALESCE(SUM(CASE WHEN transaction_type='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
-		    COALESCE(SUM(CASE WHEN transaction_type='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
+		    COALESCE(SUM(CASE WHEN direction='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
+		    COALESCE(SUM(CASE WHEN direction='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
 		    		    COALESCE(SUM(
 						  CASE
-							WHEN transaction_type='income'  THEN amount
-							WHEN transaction_type='expense' THEN -amount
+							WHEN direction='income'  THEN amount
+							WHEN direction='expense' THEN -amount
 							ELSE 0
 						  END
 						),0)::text AS net_text,
@@ -266,12 +266,12 @@ func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx 
 		    $3::int AS year,
 		    t.category_id,
 		    c.display_name,
-		    COALESCE(SUM(CASE WHEN t.transaction_type='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
-		    COALESCE(SUM(CASE WHEN t.transaction_type='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
+		    COALESCE(SUM(CASE WHEN t.direction='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
+		    COALESCE(SUM(CASE WHEN t.direction='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
 			COALESCE(SUM(
 			  CASE
-				WHEN t.transaction_type='income'  THEN t.amount
-				WHEN t.transaction_type='expense' THEN -t.amount
+				WHEN t.direction='income'  THEN t.amount
+				WHEN t.direction='expense' THEN -t.amount
 				ELSE 0
 			  END
 			),0)::text AS net_text
@@ -296,12 +296,12 @@ func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx 
 		    $2::int AS year,
 		    t.category_id,
 		    c.display_name,
-		    COALESCE(SUM(CASE WHEN t.transaction_type='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
-            COALESCE(SUM(CASE WHEN t.transaction_type='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
+		    COALESCE(SUM(CASE WHEN t.direction='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
+            COALESCE(SUM(CASE WHEN t.direction='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
 			COALESCE(SUM(
 			  CASE
-				WHEN t.transaction_type='income'  THEN t.amount
-				WHEN t.transaction_type='expense' THEN -t.amount
+				WHEN t.direction='income'  THEN t.amount
+				WHEN t.direction='expense' THEN -t.amount
 				ELSE 0
 			  END
 			),0)::text AS net_text
@@ -338,12 +338,12 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, tx
            $3::int AS year,
            t.category_id,
            c.display_name,
-           COALESCE(SUM(CASE WHEN t.transaction_type='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
-           COALESCE(SUM(CASE WHEN t.transaction_type='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
+           COALESCE(SUM(CASE WHEN t.direction='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
+           COALESCE(SUM(CASE WHEN t.direction='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
           COALESCE(SUM(
             CASE
-             WHEN t.transaction_type='income'  THEN t.amount
-             WHEN t.transaction_type='expense' THEN -t.amount
+             WHEN t.direction='income'  THEN t.amount
+             WHEN t.direction='expense' THEN -t.amount
              ELSE 0
             END
           ),0)::text AS net_text
@@ -369,12 +369,12 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, tx
            $2::int AS year,
            t.category_id,
            c.display_name,
-           COALESCE(SUM(CASE WHEN t.transaction_type='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
-           COALESCE(SUM(CASE WHEN t.transaction_type='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
+           COALESCE(SUM(CASE WHEN t.direction='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
+           COALESCE(SUM(CASE WHEN t.direction='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
           COALESCE(SUM(
             CASE
-             WHEN t.transaction_type='income'  THEN t.amount
-             WHEN t.transaction_type='expense' THEN -t.amount
+             WHEN t.direction='income'  THEN t.amount
+             WHEN t.direction='expense' THEN -t.amount
              ELSE 0
             END
           ),0)::text AS net_text
@@ -415,12 +415,12 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotalsCheckingOnly(ctx context
         ?::int AS year,
         t.category_id,
         c.display_name,
-        COALESCE(SUM(CASE WHEN t.transaction_type='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
-        COALESCE(SUM(CASE WHEN t.transaction_type='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
+        COALESCE(SUM(CASE WHEN t.direction='income'  THEN t.amount ELSE 0 END),0)::text  AS inflow_text,
+        COALESCE(SUM(CASE WHEN t.direction='expense' THEN -t.amount ELSE 0 END),0)::text AS outflow_text,
         COALESCE(SUM(
           CASE
-           WHEN t.transaction_type='income'  THEN t.amount
-           WHEN t.transaction_type='expense' THEN -t.amount
+           WHEN t.direction='income'  THEN t.amount
+           WHEN t.direction='expense' THEN -t.amount
            ELSE 0
           END
         ),0)::text AS net_text
@@ -458,12 +458,12 @@ func (r *AnalyticsRepository) FetchMonthlyTotals(ctx context.Context, tx *gorm.D
 	base := `
 	  SELECT
 	    EXTRACT(MONTH FROM txn_date)::int AS month,
-	    COALESCE(SUM(CASE WHEN transaction_type='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
-	    COALESCE(SUM(CASE WHEN transaction_type='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
+	    COALESCE(SUM(CASE WHEN direction='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
+	    COALESCE(SUM(CASE WHEN direction='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
 	    COALESCE(SUM(
 	      CASE
-	        WHEN transaction_type='income'  THEN amount
-	        WHEN transaction_type='expense' THEN -amount
+	        WHEN direction='income'  THEN amount
+	        WHEN direction='expense' THEN -amount
 	        ELSE 0
 	      END
 	    ),0)::text AS net_text
@@ -509,12 +509,12 @@ func (r *AnalyticsRepository) FetchMonthlyTotalsCheckingOnly(ctx context.Context
 	query := `
 	  SELECT
 	    EXTRACT(MONTH FROM txn_date)::int AS month,
-	    COALESCE(SUM(CASE WHEN transaction_type='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
-	    COALESCE(SUM(CASE WHEN transaction_type='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
+	    COALESCE(SUM(CASE WHEN direction='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
+	    COALESCE(SUM(CASE WHEN direction='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
 	    COALESCE(SUM(
 	      CASE
-	        WHEN transaction_type='income'  THEN amount
-	        WHEN transaction_type='expense' THEN -amount
+	        WHEN direction='income'  THEN amount
+	        WHEN direction='expense' THEN -amount
 	        ELSE 0
 	      END
 	    ),0)::text AS net_text
@@ -630,12 +630,12 @@ func (r *AnalyticsRepository) FetchDailyTotals(ctx context.Context, tx *gorm.DB,
 
 	base := `
         SELECT
-            COALESCE(SUM(CASE WHEN transaction_type='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
-            COALESCE(SUM(CASE WHEN transaction_type='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
+            COALESCE(SUM(CASE WHEN direction='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
+            COALESCE(SUM(CASE WHEN direction='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
             COALESCE(SUM(
                 CASE
-                    WHEN transaction_type='income'  THEN amount
-                    WHEN transaction_type='expense' THEN -amount
+                    WHEN direction='income'  THEN amount
+                    WHEN direction='expense' THEN -amount
                     ELSE 0
                 END
             ),0)::text AS net_text
@@ -677,12 +677,12 @@ func (r *AnalyticsRepository) FetchDailyTotalsCheckingOnly(ctx context.Context, 
 
 	query := `
         SELECT
-            COALESCE(SUM(CASE WHEN transaction_type='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
-            COALESCE(SUM(CASE WHEN transaction_type='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
+            COALESCE(SUM(CASE WHEN direction='income'  THEN amount ELSE 0 END),0)::text  AS inflow_text,
+            COALESCE(SUM(CASE WHEN direction='expense' THEN -amount ELSE 0 END),0)::text AS outflow_text,
             COALESCE(SUM(
                 CASE
-                    WHEN transaction_type='income'  THEN amount
-                    WHEN transaction_type='expense' THEN -amount
+                    WHEN direction='income'  THEN amount
+                    WHEN direction='expense' THEN -amount
                     ELSE 0
                 END
             ),0)::text AS net_text

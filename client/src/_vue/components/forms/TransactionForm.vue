@@ -167,7 +167,7 @@ const rules = {
       required,
     },
   },
-  transaction_type: {
+  direction: {
     required,
   },
   amount: {
@@ -248,7 +248,7 @@ function initData(): Transaction {
         market_value: null,
       },
     },
-    transaction_type: "Expense",
+    direction: "Expense",
     amount: null,
     txn_date: dayjs().toDate(),
     description: null,
@@ -325,9 +325,9 @@ async function loadRecord(id: number) {
       parentCategories.value.find(
         (p) =>
           p.classification?.toLowerCase?.() ===
-            String(data.transaction_type).toLowerCase() ||
+            String(data.direction).toLowerCase() ||
           p.name?.toLowerCase?.() ===
-            String(data.transaction_type).toLowerCase(),
+            String(data.direction).toLowerCase(),
       ) || null;
 
     await nextTick();
@@ -374,7 +374,7 @@ async function startTransactionOperation() {
   const recordData = {
     account_id: record.value.account.id,
     category_id: record.value.category?.id,
-    transaction_type: selectedParentCategory.value?.classification,
+    direction: selectedParentCategory.value?.classification,
     amount: record.value.amount,
     txn_date: txn_date,
     description: record.value.description,
@@ -672,7 +672,7 @@ async function deleteRecord(id: number, tx_type: string) {
           label="Delete transaction"
           class="delete-button"
           style="height: 42px"
-          @click="deleteConfirmation(record.id!, record.transaction_type)"
+          @click="deleteConfirmation(record.id!, record.direction)"
         />
         <h5 v-else-if="showCantRestore" style="color: var(--text-secondary)">
           Transaction can not be restored!

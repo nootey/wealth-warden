@@ -321,7 +321,7 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_LinksLegacyTradesOnClos
 
 	// The trigger has to be back on, or every later write to a closed account passes.
 	err := s.TC.DB.WithContext(s.Ctx).Exec(`
-		INSERT INTO transactions (user_id, account_id, transaction_type, amount, currency, txn_date, is_system)
+		INSERT INTO transactions (user_id, account_id, direction, amount, currency, txn_date, is_system)
 		VALUES (?, ?, 'expense', 1, 'EUR', NOW(), false)`, userID, accID).Error
 	s.Assert().Error(err, "the closed-account trigger was left disabled")
 }

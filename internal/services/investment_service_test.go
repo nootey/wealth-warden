@@ -1482,7 +1482,7 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendCreatesL
 		"linked transaction amount should be 40 (50 gross - 10 tax withheld), got %s", txn.Amount.String())
 	s.Assert().True(txn.IsSystem, "linked dividend transaction must be marked is_system=true")
 	s.Assert().Equal(accID, txn.AccountID, "linked transaction should be in the asset's account")
-	s.Assert().Equal("income", txn.TransactionType)
+	s.Assert().Equal("income", txn.Direction)
 }
 
 // Tests that deleting a staking income record reverses the quantity increment on the asset.
@@ -1653,15 +1653,15 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendExcluded
 	regularAmount := decimal.NewFromInt(200)
 	desc := "Salary"
 	err = s.TC.DB.WithContext(s.Ctx).Create(&models.Transaction{
-		UserID:          userID,
-		AccountID:       accID,
-		CategoryID:      &incomeCat.ID,
-		TransactionType: "income",
-		Amount:          regularAmount,
-		Currency:        "EUR",
-		TxnDate:         today,
-		Description:     &desc,
-		IsSystem:        false,
+		UserID:      userID,
+		AccountID:   accID,
+		CategoryID:  &incomeCat.ID,
+		Direction:   "income",
+		Amount:      regularAmount,
+		Currency:    "EUR",
+		TxnDate:     today,
+		Description: &desc,
+		IsSystem:    false,
 	}).Error
 	s.Require().NoError(err)
 

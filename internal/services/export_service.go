@@ -150,7 +150,7 @@ func (s *ExportService) buildTxnAndTransfersExportJSON(txns []models.Transaction
 		}
 
 		out.Transactions = append(out.Transactions, models.JSONTxn{
-			TransactionType: t.TransactionType,
+			TransactionType: t.Direction,
 			Amount:          t.Amount.String(),
 			Currency:        t.Currency,
 			TxnDate:         t.TxnDate,

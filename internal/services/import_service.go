@@ -361,15 +361,15 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 		if txn.TransactionType == "income" || txn.TransactionType == "expense" {
 
 			t := models.Transaction{
-				UserID:          userID,
-				AccountID:       sourceAcc.ID,
-				CategoryID:      &category.ID,
-				TransactionType: txn.TransactionType,
-				Amount:          amount,
-				Currency:        sourceAcc.Currency,
-				TxnDate:         txDay,
-				Description:     &txn.Category,
-				ImportID:        &importID,
+				UserID:      userID,
+				AccountID:   sourceAcc.ID,
+				CategoryID:  &category.ID,
+				Direction:   txn.TransactionType,
+				Amount:      amount,
+				Currency:    sourceAcc.Currency,
+				TxnDate:     txDay,
+				Description: &txn.Category,
+				ImportID:    &importID,
 			}
 
 			if _, err := s.txnRepo.InsertTransaction(ctx, tx, &t); err != nil {
@@ -378,7 +378,7 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 				return err
 			}
 
-			if err := s.updateDailyCash(ctx, tx, sourceAcc, t.TxnDate, t.TransactionType, t.Amount, true); err != nil {
+			if err := s.updateDailyCash(ctx, tx, sourceAcc, t.TxnDate, t.Direction, t.Amount, true); err != nil {
 				tx.Rollback()
 				s.markImportFailed(ctx, importID, err)
 				return err
@@ -1002,15 +1002,15 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 
 		desc := txn.Description
 		expense := models.Transaction{
-			UserID:          userID,
-			AccountID:       checkingAcc.ID,
-			TransactionType: "expense",
-			Amount:          amt,
-			Currency:        checkingAcc.Currency,
-			TxnDate:         txDay,
-			Description:     &desc,
-			IsTransfer:      true,
-			ImportID:        &imp.ID,
+			UserID:      userID,
+			AccountID:   checkingAcc.ID,
+			Direction:   "expense",
+			Amount:      amt,
+			Currency:    checkingAcc.Currency,
+			TxnDate:     txDay,
+			Description: &desc,
+			IsTransfer:  true,
+			ImportID:    &imp.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &expense); err != nil {
 			_ = tx.Rollback()
@@ -1019,15 +1019,15 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 		}
 
 		income := models.Transaction{
-			UserID:          userID,
-			AccountID:       toAccount.ID,
-			TransactionType: "income",
-			Amount:          amt,
-			Currency:        toAccount.Currency,
-			TxnDate:         txDay,
-			Description:     &desc,
-			IsTransfer:      true,
-			ImportID:        &imp.ID,
+			UserID:      userID,
+			AccountID:   toAccount.ID,
+			Direction:   "income",
+			Amount:      amt,
+			Currency:    toAccount.Currency,
+			TxnDate:     txDay,
+			Description: &desc,
+			IsTransfer:  true,
+			ImportID:    &imp.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &income); err != nil {
 			_ = tx.Rollback()
@@ -1272,15 +1272,15 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 
 		desc := txn.Description
 		expense := models.Transaction{
-			UserID:          userID,
-			AccountID:       fromAccID,
-			TransactionType: "expense",
-			Amount:          amt,
-			Currency:        fromAcc.Currency,
-			TxnDate:         txDay,
-			Description:     &desc,
-			IsTransfer:      true,
-			ImportID:        &imp.ID,
+			UserID:      userID,
+			AccountID:   fromAccID,
+			Direction:   "expense",
+			Amount:      amt,
+			Currency:    fromAcc.Currency,
+			TxnDate:     txDay,
+			Description: &desc,
+			IsTransfer:  true,
+			ImportID:    &imp.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &expense); err != nil {
 			_ = tx.Rollback()
@@ -1289,15 +1289,15 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 		}
 
 		income := models.Transaction{
-			UserID:          userID,
-			AccountID:       toAccID,
-			TransactionType: "income",
-			Amount:          amt,
-			Currency:        toAcc.Currency,
-			TxnDate:         txDay,
-			Description:     &desc,
-			IsTransfer:      true,
-			ImportID:        &imp.ID,
+			UserID:      userID,
+			AccountID:   toAccID,
+			Direction:   "income",
+			Amount:      amt,
+			Currency:    toAcc.Currency,
+			TxnDate:     txDay,
+			Description: &desc,
+			IsTransfer:  true,
+			ImportID:    &imp.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &income); err != nil {
 			_ = tx.Rollback()
@@ -1542,15 +1542,15 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 
 		desc := txn.Description
 		expense := models.Transaction{
-			UserID:          userID,
-			AccountID:       fromAccID,
-			TransactionType: "expense",
-			Amount:          amt,
-			Currency:        fromAcc.Currency,
-			TxnDate:         txDay,
-			Description:     &desc,
-			IsTransfer:      true,
-			ImportID:        &imp.ID,
+			UserID:      userID,
+			AccountID:   fromAccID,
+			Direction:   "expense",
+			Amount:      amt,
+			Currency:    fromAcc.Currency,
+			TxnDate:     txDay,
+			Description: &desc,
+			IsTransfer:  true,
+			ImportID:    &imp.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &expense); err != nil {
 			_ = tx.Rollback()
@@ -1559,15 +1559,15 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 		}
 
 		income := models.Transaction{
-			UserID:          userID,
-			AccountID:       toAccID,
-			TransactionType: "income",
-			Amount:          amt,
-			Currency:        toAcc.Currency,
-			TxnDate:         txDay,
-			Description:     &desc,
-			IsTransfer:      true,
-			ImportID:        &imp.ID,
+			UserID:      userID,
+			AccountID:   toAccID,
+			Direction:   "income",
+			Amount:      amt,
+			Currency:    toAcc.Currency,
+			TxnDate:     txDay,
+			Description: &desc,
+			IsTransfer:  true,
+			ImportID:    &imp.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &income); err != nil {
 			_ = tx.Rollback()
@@ -2265,7 +2265,7 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 		// Reverse cash
 		amt := t.Amount.Neg()
 		kind := "income"
-		if strings.ToLower(t.TransactionType) == "expense" {
+		if strings.ToLower(t.Direction) == "expense" {
 			kind = "expense"
 		}
 		if err := s.updateDailyCash(ctx, tx, acc, t.TxnDate, kind, amt, false); err != nil {

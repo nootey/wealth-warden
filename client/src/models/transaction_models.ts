@@ -5,7 +5,7 @@ export interface Transaction {
   account_id: number | null;
   category_id: number | null;
   category: Category | null;
-  transaction_type: string;
+  direction: string;
   amount: string | null;
   txn_date: Date | null;
   description: string | null;
@@ -77,7 +77,7 @@ export interface TransactionTemplate {
   account_id: number | null;
   to_account_id?: number | null;
   category_id: number | null;
-  transaction_type: string;
+  direction: string;
   amount: string | null;
   period: string;
   frequency: string;
