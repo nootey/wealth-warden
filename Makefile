@@ -7,6 +7,9 @@ COMPOSE_BUILD     := -f ./docker-compose.build.yaml
 COMPOSE_RPI       := -f ./docker-compose.rpi.yaml
 COMPOSE_RPI_OBS   := -f ./docker-compose.rpi.observability.yaml
 
+# Pi targets pull published images by default; pass build=1 to build on the Pi instead
+RPI_BUILD          = $(if $(build),$(COMPOSE_BUILD))
+
 # Default target runs the app
 default: run
 
@@ -63,16 +66,16 @@ docker-migrate:
 	docker compose $(COMPOSE_MAIN) $(COMPOSE_BUILD) -p wealth-warden run --rm --build migrate migrate $(or $(type),up)
 
 docker-rpi-up:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_RPI) -p wealth-warden up -d --build
+	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_MAIN) $(COMPOSE_RPI) $(RPI_BUILD) -p wealth-warden up -d $(if $(build),--build)
 
 docker-rpi-down:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_RPI) -p wealth-warden down
+	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_MAIN) $(COMPOSE_RPI) -p wealth-warden down
 
 docker-rpi-restart:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_RPI) -p wealth-warden restart
+	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_MAIN) $(COMPOSE_RPI) -p wealth-warden restart
 
 docker-rpi-migrate:
-	docker compose $(COMPOSE_RPI) -p wealth-warden run --rm --build migrate migrate $(or $(type),up)
+	docker compose $(COMPOSE_MAIN) $(COMPOSE_RPI) $(RPI_BUILD) -p wealth-warden run --rm $(if $(build),--build) migrate migrate $(or $(type),up)
 
 tidy:
 	go mod tidy
