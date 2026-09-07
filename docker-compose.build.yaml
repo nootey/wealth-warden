@@ -1,0 +1,17 @@
+# Build overlay for local development.
+# The shared docker-compose.yaml only pulls images; add this file to build from source instead.
+services:
+  migrate:
+    build:
+      context: .
+      dockerfile: ./build/Dockerfile
+
+  server:
+    build:
+      context: .
+      dockerfile: ./build/Dockerfile
+
+  client:
+    build:
+      context: .
+      dockerfile: ./build/Dockerfile.client

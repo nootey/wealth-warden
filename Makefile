@@ -3,6 +3,7 @@
 COMPOSE_OBS       := -f ./docker-compose.observability.yaml
 COMPOSE_OBS_LOCAL := -f ./docker-compose.observability.local.yaml
 COMPOSE_MAIN      := -f ./docker-compose.yaml
+COMPOSE_BUILD     := -f ./docker-compose.build.yaml
 COMPOSE_RPI       := -f ./docker-compose.rpi.yaml
 COMPOSE_RPI_OBS   := -f ./docker-compose.rpi.observability.yaml
 
@@ -50,7 +51,7 @@ observe:
 	docker compose $(COMPOSE_OBS) $(COMPOSE_OBS_LOCAL) up -d
 
 docker-up:
-	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) -p wealth-warden up -d --build
+	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) $(COMPOSE_BUILD) -p wealth-warden up -d --build
 
 docker-down:
 	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) -p wealth-warden down
@@ -59,7 +60,7 @@ docker-restart:
 	docker compose $(COMPOSE_OBS) $(COMPOSE_MAIN) -p wealth-warden restart
 
 docker-migrate:
-	docker compose $(COMPOSE_MAIN) -p wealth-warden run --rm --build migrate migrate $(or $(type),up)
+	docker compose $(COMPOSE_MAIN) $(COMPOSE_BUILD) -p wealth-warden run --rm --build migrate migrate $(or $(type),up)
 
 docker-rpi-up:
 	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_RPI) -p wealth-warden up -d --build

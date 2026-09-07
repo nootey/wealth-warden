@@ -58,9 +58,6 @@ services:
   migrate:
     profiles: ["migrate"]
     image: nootey/wealth-warden:latest
-    build:
-      context: .
-      dockerfile: ./build/Dockerfile
     depends_on:
       db:
         condition: service_healthy
@@ -80,9 +77,6 @@ services:
 
   server:
     image: nootey/wealth-warden:latest
-    build:
-      context: .
-      dockerfile: ./build/Dockerfile
     restart: unless-stopped
     depends_on:
       db:
@@ -116,9 +110,6 @@ services:
 
   client:
     image: nootey/wealth-warden-client:latest
-    build:
-      context: .
-      dockerfile: ./build/Dockerfile.client
     restart: unless-stopped
     depends_on:
       server:

@@ -44,6 +44,11 @@ To run the app, which will run all docker services including the observability s
 ```sh
 docker compose -f ./docker-compose.observability.yaml -f ./docker-compose.yaml up -d
 ```
+
+`docker-compose.yaml` only pulls published images. To build from source instead, add the build overlay:
+
+```sh
+docker compose -f ./docker-compose.yaml -f ./docker-compose.build.yaml up -d --build
 ```
 
 The observability stack (Prometheus, Tempo, Grafana) is included by default. 
