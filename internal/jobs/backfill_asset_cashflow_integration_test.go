@@ -325,3 +325,34 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_LinksLegacyTradesOnClos
 		VALUES (?, ?, 'expense', 1, 'EUR', NOW(), 'ledger')`, userID, accID).Error
 	s.Assert().Error(err, "the closed-account trigger was left disabled")
 }
+
+func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_RelinksSoftDeletedTradeTransaction() {
+	userID := int64(1)
+	accID := s.seedTradedAccount(userID, "Brokerage")
+
+	before := s.balances(accID)
+	s.Require().NotEmpty(before)
+
+	var staleID int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Raw(`
+		SELECT it.transaction_id
+		FROM   investment_trades it
+		JOIN   investment_assets ia ON ia.id = it.asset_id
+		WHERE  ia.account_id = ? AND it.trade_type = 'buy'`, accID).Scan(&staleID).Error)
+	s.Require().NotZero(staleID, "the fixture buy has no cash transaction")
+
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Exec(
+		"UPDATE transactions SET deleted_at = NOW() WHERE id = ?", staleID).Error)
+
+	s.Require().NoError(s.newBackfillJob().Run(s.Ctx))
+
+	s.Assert().Equal(before, s.balances(accID), "the backfill left the buy without cash")
+
+	var unbacked int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Raw(`
+		SELECT count(*)
+		FROM   investment_trades it
+		LEFT   JOIN transactions t ON t.id = it.transaction_id AND t.deleted_at IS NULL
+		WHERE  it.user_id = ? AND t.id IS NULL`, userID).Scan(&unbacked).Error)
+	s.Assert().Zero(unbacked, "a trade is still without a live transaction")
+}

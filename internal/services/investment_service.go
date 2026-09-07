@@ -575,13 +575,21 @@ func (s *InvestmentService) sellProceeds(ctx context.Context, asset models.Inves
 func (s *InvestmentService) linkTradeTransaction(ctx context.Context, tx *gorm.DB, userID, tradeID int64, asset models.InvestmentAsset, tradeType models.TradeType, txnDate time.Time, amount decimal.Decimal, categoryID *int64) error {
 	txn := models.NewTradeCashTransaction(userID, asset.AccountID, categoryID, asset.Ticker, asset.Account.Currency, tradeType, txnDate, amount)
 
-	txnID, err := s.txnRepo.InsertTransaction(ctx, tx, &txn)
+	return linkTradeCashTransaction(ctx, tx, s.txnRepo, tradeID, txn)
+}
+
+func linkTradeCashTransaction(ctx context.Context, tx *gorm.DB, txnRepo repositories.TransactionRepositoryInterface, tradeID int64, cashTxn models.Transaction) error {
+	txnID, err := txnRepo.InsertTransaction(ctx, tx, &cashTxn)
 	if err != nil {
 		return fmt.Errorf("failed to create linked trade transaction: %w", err)
 	}
 
-	return tx.Model(&models.InvestmentTrade{}).Where("id = ?", tradeID).
-		Update("transaction_id", txnID).Error
+	if err := tx.Model(&models.InvestmentTrade{}).Where("id = ?", tradeID).
+		Update("transaction_id", txnID).Error; err != nil {
+		return fmt.Errorf("failed to link trade transaction: %w", err)
+	}
+
+	return nil
 }
 
 func (s *InvestmentService) unlinkTradeTransaction(ctx context.Context, tx *gorm.DB, userID int64, trade models.InvestmentTrade) error {
@@ -719,6 +727,15 @@ func (s *InvestmentService) ensureTradeTransactions(
 		return nil
 	}
 
+	missing, err := s.repo.FindTradeIDsWithoutCashTransaction(ctx, tx, userID)
+	if err != nil {
+		return err
+	}
+	needsCash := make(map[int64]bool, len(missing))
+	for _, id := range missing {
+		needsCash[id] = true
+	}
+
 	earliestByAccount := make(map[int64]time.Time)
 	accountCurrency := make(map[int64]string)
 
@@ -732,7 +749,7 @@ func (s *InvestmentService) ensureTradeTransactions(
 		}
 		accountCurrency[trade.Asset.AccountID] = trade.Asset.Account.Currency
 
-		if trade.TransactionID == nil {
+		if needsCash[trade.ID] {
 			unlinked = append(unlinked, trade)
 		}
 	}

@@ -2011,18 +2011,10 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		}
 
 		cashTxn := models.NewTradeCashTransaction(userID, cAccID, &cashCategory.ID, asset.Ticker, toAccount.Currency, tradeType, txDayAdjusted, cashAmount)
-		cashTxnID, err := s.txnRepo.InsertTransaction(ctx, tx, &cashTxn)
-		if err != nil {
+		if err := linkTradeCashTransaction(ctx, tx, s.txnRepo, tradeID, cashTxn); err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
-			return fmt.Errorf("failed to create linked trade transaction: %w", err)
-		}
-
-		if err := tx.Model(&models.InvestmentTrade{}).Where("id = ?", tradeID).
-			Update("transaction_id", cashTxnID).Error; err != nil {
-			s.markImportFailed(ctx, importID, err)
-			_ = tx.Rollback()
-			return fmt.Errorf("failed to link trade transaction: %w", err)
+			return err
 		}
 
 		// record earliest touched date

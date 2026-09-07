@@ -23,6 +23,7 @@ type InvestmentRepositoryInterface interface {
 	FindInvestmentTradeByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTrade, error)
 	FindInvestmentTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.InvestmentTrade, error)
 	FindAllTradesByUserID(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTrade, error)
+	FindTradeIDsWithoutCashTransaction(ctx context.Context, tx *gorm.DB, userID int64) ([]int64, error)
 	GetUserIDsWithInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error)
 	FindTickersForPriceBackfill(ctx context.Context, tx *gorm.DB) ([]models.AssetBackfillRow, error)
 	FindTickersForPriceSync(ctx context.Context, tx *gorm.DB) ([]models.AssetPriceSyncRow, error)
@@ -600,6 +601,25 @@ func (r *InvestmentRepository) FindAllTradesByUserID(ctx context.Context, tx *go
 		Find(&trades).Error
 
 	return trades, err
+}
+
+func (r *InvestmentRepository) FindTradeIDsWithoutCashTransaction(ctx context.Context, tx *gorm.DB, userID int64) ([]int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var ids []int64
+	err := db.Raw(`
+		SELECT it.id
+		FROM   investment_trades it
+		LEFT   JOIN transactions t
+		       ON t.id = it.transaction_id AND t.deleted_at IS NULL
+		WHERE  it.user_id = ? AND t.id IS NULL
+	`, userID).Scan(&ids).Error
+
+	return ids, err
 }
 
 func (r *InvestmentRepository) GetUserIDsWithInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error) {
