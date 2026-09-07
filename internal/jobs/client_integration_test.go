@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 	"time"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/tests"
-	"wealth-warden/pkg/config"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/suite"

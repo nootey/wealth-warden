@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/sessions"
-	"wealth-warden/pkg/config"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

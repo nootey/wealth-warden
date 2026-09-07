@@ -3,7 +3,7 @@ package workers
 import (
 	"context"
 	"fmt"
-	"wealth-warden/pkg/config"
+	"wealth-warden/internal/config"
 
 	"gorm.io/gorm"
 )

@@ -57,7 +57,7 @@ The instructions below are for anyone that wants to run the app locally.
 ### Getting started
 
 Edit configuration files
-- `.pkg/config/override/dev.yaml`
+- `./config/dev.yaml`
 - `./client/.env`
 
 By default, the app will be available at http://localhost:5000

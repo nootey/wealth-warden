@@ -3,7 +3,7 @@ package jobs
 import (
 	"testing"
 	"time"
-	"wealth-warden/pkg/config"
+	"wealth-warden/internal/config"
 
 	"github.com/stretchr/testify/require"
 )

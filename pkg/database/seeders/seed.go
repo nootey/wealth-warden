@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"slices"
 	"time"
-	"wealth-warden/pkg/config"
+	"wealth-warden/internal/config"
 	"wealth-warden/pkg/database/seeders/workers"
 
 	"go.uber.org/zap"

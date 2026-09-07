@@ -10,7 +10,7 @@ The app uses a Dockerfile, which is provided in `./build/Dockerfile`
 
 The app can be fully served with `docker-compose`.
 
-- It is located in `./deployments/docker`
+- The compose files are located in the repository root
 
 ### Deployment
 

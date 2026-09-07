@@ -6,11 +6,11 @@ import (
 	"math/rand"
 	"sort"
 	"time"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/finance"
 	"wealth-warden/pkg/utils"
 

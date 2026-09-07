@@ -12,11 +12,11 @@ import (
 	"strconv"
 	"time"
 	_ "time/tzdata"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/sessions"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 	"wealth-warden/pkg/version"
 

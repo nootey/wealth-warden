@@ -86,7 +86,7 @@ func LoadConfig(configPath *string, configName ...string) (*Config, error) {
 	if explicitPath {
 		v.SetConfigFile(filepath.Join(*configPath, cfgName+".yaml"))
 	} else {
-		v.SetConfigFile(filepath.Join("pkg", "config", "override", cfgName+".yaml"))
+		v.SetConfigFile(filepath.Join("config", cfgName+".yaml"))
 	}
 
 	if err := v.ReadInConfig(); err != nil {

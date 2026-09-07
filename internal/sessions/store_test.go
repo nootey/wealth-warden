@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/sessions"
-	"wealth-warden/pkg/config"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"

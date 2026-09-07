@@ -54,7 +54,7 @@ services:
     command: ["migrate", "up"]
     volumes:
       - ./logs:/app/logs
-      - ./pkg/config/override:/app/pkg/config/override:ro
+      - ./config:/app/config:ro
     networks:
       - wealth-warden
 
@@ -87,7 +87,7 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-tempo:4317}
     volumes:
       - ./logs:/app/logs
-      - ./pkg/config/override:/app/pkg/config/override:ro
+      - ./config:/app/config:ro
     networks:
       - wealth-warden
 

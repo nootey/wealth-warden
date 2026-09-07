@@ -4,7 +4,7 @@ on:
   push:
     paths-ignore:
       - 'docs/**'
-      - 'deployments/**'
+      - 'config/docker/**'
       - '*.md'
       - 'client/**'
       - '*.sql'
@@ -16,7 +16,7 @@ on:
   pull_request:
     paths-ignore:
       - 'docs/**'
-      - 'deployments/**'
+      - 'config/docker/**'
       - '*.md'
       - 'client/**'
       - '*.sql'

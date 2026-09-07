@@ -7,7 +7,7 @@ on:
       - development
     paths-ignore:
       - 'docs/**'
-      - 'deployments/**'
+      - 'config/docker/**'
       - '*.md'
 
   workflow_call:

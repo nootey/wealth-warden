@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 	"wealth-warden/internal/bootstrap"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/health"
 	"wealth-warden/internal/http"
 	"wealth-warden/internal/jobqueue"
@@ -12,7 +13,6 @@ import (
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/worker"
 	"wealth-warden/internal/ws"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database"
 	"wealth-warden/pkg/telemetry"
 

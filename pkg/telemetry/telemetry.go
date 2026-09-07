@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"wealth-warden/pkg/config"
+	"wealth-warden/internal/config"
 )
 
 type Provider struct {

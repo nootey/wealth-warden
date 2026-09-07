@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/models"
-	"wealth-warden/pkg/config"
 
 	"github.com/redis/go-redis/v9"
 )
