@@ -213,9 +213,7 @@ func (r *AnalyticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.DB
 		  FROM transactions
 		  WHERE user_id = $1
 		    AND account_id = $2
-		    AND is_adjustment = false
-		    AND is_system = false
-		    AND is_transfer = false
+		    AND transaction_type = 'ledger'
 		    AND txn_date >= make_date($3,1,1) AND txn_date < make_date($3+1,1,1)
 		    AND deleted_at IS NULL
 		`
@@ -238,9 +236,7 @@ func (r *AnalyticsRepository) FetchYearlyTotals(ctx context.Context, tx *gorm.DB
 		    COALESCE(COUNT(DISTINCT date_trunc('month', txn_date)),0)                            AS active_months
 		  FROM transactions
 		  WHERE user_id = $1
-		    AND is_adjustment = false
-		    AND is_system = false
-		    AND is_transfer = false
+		    AND transaction_type = 'ledger'
 		    AND txn_date >= make_date($2,1,1) AND txn_date < make_date($2+1,1,1)
 		    AND deleted_at IS NULL
 		`
@@ -279,9 +275,7 @@ func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx 
 		  LEFT JOIN categories c ON c.id = t.category_id
 		  WHERE t.user_id = $1
 		    AND t.account_id = $2
-		    AND t.is_adjustment = false
-		    AND t.is_system = false
-		    AND t.is_transfer = false
+		    AND t.transaction_type = 'ledger'
 		    AND t.txn_date >= make_date($3,1,1) AND t.txn_date < make_date($3+1,1,1)
 		    AND t.deleted_at IS NULL
 		  GROUP BY t.category_id, c.display_name
@@ -308,9 +302,7 @@ func (r *AnalyticsRepository) FetchYearlyCategoryTotals(ctx context.Context, tx 
 		  FROM transactions t
 		  LEFT JOIN categories c ON c.id = t.category_id
 		  WHERE t.user_id = $1
-		    AND t.is_adjustment = false
-		    AND t.is_system = false
-		    AND t.is_transfer = false
+		    AND t.transaction_type = 'ledger'
 		    AND t.txn_date >= make_date($2,1,1) AND t.txn_date < make_date($2+1,1,1)
 		    AND t.deleted_at IS NULL
 		  GROUP BY t.category_id, c.display_name
@@ -351,9 +343,7 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, tx
          LEFT JOIN categories c ON c.id = t.category_id
          WHERE t.user_id = $1
            AND t.account_id = $2
-           AND t.is_adjustment = false
-           AND t.is_system = false
-           AND t.is_transfer = false
+           AND t.transaction_type = 'ledger'
            AND t.txn_date >= make_date($3, $4, 1) 
            AND t.txn_date < make_date($3, $4, 1) + interval '1 month'
            AND t.deleted_at IS NULL
@@ -381,9 +371,7 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotals(ctx context.Context, tx
          FROM transactions t
          LEFT JOIN categories c ON c.id = t.category_id
          WHERE t.user_id = $1
-           AND t.is_adjustment = false
-           AND t.is_system = false
-           AND t.is_transfer = false
+           AND t.transaction_type = 'ledger'
            AND t.txn_date >= make_date($2, $3, 1) 
            AND t.txn_date < make_date($2, $3, 1) + interval '1 month'
            AND t.deleted_at IS NULL
@@ -428,9 +416,7 @@ func (r *AnalyticsRepository) FetchMonthlyCategoryTotalsCheckingOnly(ctx context
       LEFT JOIN categories c ON c.id = t.category_id
       WHERE t.user_id = ?
         AND t.account_id IN ?
-        AND t.is_adjustment = false
-        AND t.is_system = false
-        AND t.is_transfer = false
+        AND t.transaction_type = 'ledger'
         AND t.txn_date >= make_date(?, ?, 1) 
         AND t.txn_date < make_date(?, ?, 1) + interval '1 month'
         AND t.deleted_at IS NULL
@@ -469,9 +455,7 @@ func (r *AnalyticsRepository) FetchMonthlyTotals(ctx context.Context, tx *gorm.D
 	    ),0)::text AS net_text
 	  FROM transactions
 	  WHERE user_id = ? %s
-	    AND is_adjustment = false
-	    AND is_system = false
-	    AND is_transfer = false
+	    AND transaction_type = 'ledger'
 	    AND txn_date >= make_date(?,1,1) AND txn_date < make_date(?+1,1,1)
 	    AND deleted_at IS NULL
 	  GROUP BY month
@@ -520,9 +504,7 @@ func (r *AnalyticsRepository) FetchMonthlyTotalsCheckingOnly(ctx context.Context
 	    ),0)::text AS net_text
 	  FROM transactions
 	  WHERE user_id = ?
-	    AND is_adjustment = false
-	    AND is_system = false
-	    AND is_transfer = false
+	    AND transaction_type = 'ledger'
 	    AND txn_date >= make_date(?,1,1)
 	    AND txn_date < make_date(?+1,1,1)
 	    AND account_id IN ?
@@ -641,9 +623,7 @@ func (r *AnalyticsRepository) FetchDailyTotals(ctx context.Context, tx *gorm.DB,
             ),0)::text AS net_text
         FROM transactions
         WHERE user_id = ? %s
-            AND is_adjustment = false
-            AND is_system = false
-            AND is_transfer = false
+            AND transaction_type = 'ledger'
             AND txn_date = ?
         	AND deleted_at IS NULL
     `
@@ -688,9 +668,7 @@ func (r *AnalyticsRepository) FetchDailyTotalsCheckingOnly(ctx context.Context, 
             ),0)::text AS net_text
         FROM transactions
         WHERE user_id = ?
-            AND is_adjustment = false
-            AND is_system = false
-            AND is_transfer = false
+            AND transaction_type = 'ledger'
             AND txn_date = ?
             AND account_id IN ?
         	AND deleted_at IS NULL
@@ -837,9 +815,7 @@ func (r *AnalyticsRepository) FetchCategoryReportData(ctx context.Context, tx *g
 		JOIN accounts a ON a.id = t.account_id
 		WHERE t.user_id = ?
 			AND t.category_id IN ?
-			AND t.is_adjustment = false
-			AND t.is_system = false
-			AND t.is_transfer = false
+			AND t.transaction_type = 'ledger'
 			AND t.deleted_at IS NULL
 			%s
 			%s

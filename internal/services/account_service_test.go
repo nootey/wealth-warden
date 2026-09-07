@@ -69,7 +69,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceUp() {
 	// Verify an adjustment transaction was created
 	var adjustmentTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND is_adjustment = ?", accID, true).
+		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeAdjustment).
 		First(&adjustmentTxn).Error
 	s.Require().NoError(err, "adjustment transaction should exist")
 
@@ -159,7 +159,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceDown() {
 	// Verify an adjustment transaction was created
 	var adjustmentTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND is_adjustment = ?", accID, true).
+		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeAdjustment).
 		First(&adjustmentTxn).Error
 	s.Require().NoError(err, "adjustment transaction should exist")
 
@@ -171,7 +171,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceDown() {
 		"adjustment amount should be %s, got %s",
 		expectedAdjustment.String(), adjustmentTxn.Amount.String())
 	s.Assert().Equal("Manual adjustment", *adjustmentTxn.Description)
-	s.Assert().True(adjustmentTxn.IsAdjustment, "transaction should be marked as adjustment")
+	s.Assert().Equal(models.TxnTypeAdjustment, adjustmentTxn.TransactionType, "transaction should be marked as adjustment")
 
 	// Verify balance record shows the outflow
 	var balance models.Balance
@@ -233,7 +233,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceNoChange() {
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
 		Model(&models.Transaction{}).
-		Where("account_id = ? AND is_adjustment = ?", accID, true).
+		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeAdjustment).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount,
@@ -312,7 +312,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustLiabilityBalance() {
 	// Verify an adjustment transaction was created
 	var adjustmentTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND is_adjustment = ?", accID, true).
+		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeAdjustment).
 		First(&adjustmentTxn).Error
 	s.Require().NoError(err, "adjustment transaction should exist")
 
@@ -402,7 +402,7 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalancePastAccount() {
 	// Verify adjustment transaction created today
 	var adjustmentTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND is_adjustment = ?", accID, true).
+		Where("account_id = ? AND transaction_type = ?", accID, models.TxnTypeAdjustment).
 		First(&adjustmentTxn).Error
 	s.Require().NoError(err)
 	s.Assert().Equal("income", adjustmentTxn.Direction)
@@ -1256,7 +1256,7 @@ func (s *AccountServiceTestSuite) TestMergeAccount_IntraTransferVoided() {
 	// Both transfer transactions should be flagged as adjustments
 	var adjustmentCount int64
 	err = s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
-		Where("is_adjustment = true AND user_id = ?", userID).
+		Where("transaction_type = ? AND user_id = ?", models.TxnTypeAdjustment, userID).
 		Count(&adjustmentCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(2), adjustmentCount, "both transfer transactions should be flagged as adjustments")

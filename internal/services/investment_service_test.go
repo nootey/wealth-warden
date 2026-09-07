@@ -1430,8 +1430,8 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_StakingIncreases
 		"staking income amount should be FMV 0.5*45000=22500, got %s", income.Amount.String())
 }
 
-// Tests that dividend income creates a linked is_system transaction with the net-of-tax amount.
-func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendCreatesLinkedIsSystemTransaction() {
+// Tests that dividend income creates a linked investment_income transaction with the net-of-tax amount.
+func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendCreatesLinkedSystemTransaction() {
 	svc := s.TC.App.InvestmentService
 	accSvc := s.TC.App.AccountService
 	userID := int64(1)
@@ -1480,7 +1480,7 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendCreatesL
 	// net amount = 50 - 10 tax withheld = 40 EUR
 	s.Assert().True(decimal.NewFromInt(40).Equal(txn.Amount),
 		"linked transaction amount should be 40 (50 gross - 10 tax withheld), got %s", txn.Amount.String())
-	s.Assert().True(txn.IsSystem, "linked dividend transaction must be marked is_system=true")
+	s.Assert().Equal(models.TxnTypeInvestmentIncome, txn.TransactionType, "linked dividend transaction must be marked investment_income")
 	s.Assert().Equal(accID, txn.AccountID, "linked transaction should be in the asset's account")
 	s.Assert().Equal("income", txn.Direction)
 }
@@ -1553,7 +1553,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentIncome_StakingReversesQ
 	s.Assert().Equal(int64(0), count, "staking income record should be deleted")
 }
 
-// Tests that deleting a dividend income record cascades to the linked is_system transaction.
+// Tests that deleting a dividend income record cascades to the linked investment_income transaction.
 func (s *InvestmentServiceTestSuite) TestDeleteInvestmentIncome_DividendDeletesLinkedTransaction() {
 	svc := s.TC.App.InvestmentService
 	accSvc := s.TC.App.AccountService
@@ -1608,11 +1608,11 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentIncome_DividendDeletesL
 		Where("id = ? AND deleted_at IS NULL", linkedTxnID).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
-	s.Assert().Equal(int64(0), txnCount, "linked is_system transaction should be soft-deleted")
+	s.Assert().Equal(int64(0), txnCount, "linked investment_income transaction should be soft-deleted")
 }
 
-// Tests that dividend transactions are excluded from analytics via the is_system=false filter.
-// A non-system income transaction in the same account should be counted; the dividend should not.
+// Tests that dividend transactions are excluded from analytics via the transaction_type='ledger' filter.
+// A ledger income transaction in the same account should be counted; the dividend should not.
 func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendExcludedFromAnalytics() {
 	invSvc := s.TC.App.InvestmentService
 	anaSvc := s.TC.App.AnalyticsService
@@ -1653,19 +1653,19 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendExcluded
 	regularAmount := decimal.NewFromInt(200)
 	desc := "Salary"
 	err = s.TC.DB.WithContext(s.Ctx).Create(&models.Transaction{
-		UserID:      userID,
-		AccountID:   accID,
-		CategoryID:  &incomeCat.ID,
-		Direction:   "income",
-		Amount:      regularAmount,
-		Currency:    "EUR",
-		TxnDate:     today,
-		Description: &desc,
-		IsSystem:    false,
+		UserID:          userID,
+		AccountID:       accID,
+		CategoryID:      &incomeCat.ID,
+		Direction:       "income",
+		Amount:          regularAmount,
+		Currency:        "EUR",
+		TxnDate:         today,
+		Description:     &desc,
+		TransactionType: models.TxnTypeLedger,
 	}).Error
 	s.Require().NoError(err)
 
-	// Record a dividend of 50 EUR → creates is_system=true transaction
+	// Record a dividend of 50 EUR → creates an investment_income transaction
 	dividendAmount := decimal.NewFromInt(50)
 	_, err = invSvc.CreateInvestmentIncome(s.Ctx, userID, &models.InvestmentIncomeReq{
 		AssetID:    assetID,
@@ -1681,7 +1681,7 @@ func (s *InvestmentServiceTestSuite) TestCreateInvestmentIncome_DividendExcluded
 	s.Require().NotNil(stats)
 
 	s.Assert().True(regularAmount.Equal(stats.Inflow),
-		"only the non-system income (200) should appear in analytics; dividend (is_system=true) must be excluded, got inflow=%s",
+		"only the ledger income (200) should appear in analytics; the dividend must be excluded, got inflow=%s",
 		stats.Inflow.String())
 }
 

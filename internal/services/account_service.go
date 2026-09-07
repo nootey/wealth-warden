@@ -568,15 +568,15 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			}
 
 			txn := &models.Transaction{
-				UserID:       userID,
-				AccountID:    exAcc.ID,
-				CategoryID:   &category.ID,
-				Direction:    txnType,
-				Amount:       amount,
-				Currency:     exAcc.Currency,
-				TxnDate:      time.Now().UTC(),
-				Description:  &desc,
-				IsAdjustment: true,
+				UserID:          userID,
+				AccountID:       exAcc.ID,
+				CategoryID:      &category.ID,
+				Direction:       txnType,
+				Amount:          amount,
+				Currency:        exAcc.Currency,
+				TxnDate:         time.Now().UTC(),
+				Description:     &desc,
+				TransactionType: models.TxnTypeAdjustment,
 			}
 
 			if _, err := s.txnRepo.InsertTransaction(ctx, tx, txn); err != nil {
@@ -1400,8 +1400,8 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 		if err := tx.Model(&models.Transaction{}).
 			Where("id IN ?", txnIDs).
 			Updates(map[string]any{
-				"is_adjustment": true,
-				"updated_at":    now,
+				"transaction_type": models.TxnTypeAdjustment,
+				"updated_at":       now,
 			}).Error; err != nil {
 			tx.Rollback()
 			return err

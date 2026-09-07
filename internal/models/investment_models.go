@@ -108,15 +108,15 @@ func NewTradeCashTransaction(userID, accountID int64, categoryID *int64, ticker,
 	}
 
 	return Transaction{
-		UserID:      userID,
-		AccountID:   accountID,
-		CategoryID:  categoryID,
-		Direction:   txnType,
-		Amount:      amount,
-		Currency:    currency,
-		TxnDate:     txnDate,
-		Description: &desc,
-		IsSystem:    true,
+		UserID:          userID,
+		AccountID:       accountID,
+		CategoryID:      categoryID,
+		Direction:       txnType,
+		Amount:          amount,
+		Currency:        currency,
+		TxnDate:         txnDate,
+		Description:     &desc,
+		TransactionType: TxnTypeTrade,
 	}
 }
 

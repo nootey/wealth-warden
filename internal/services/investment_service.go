@@ -1494,15 +1494,15 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 		}
 		desc := "Dividend: " + asset.Ticker
 		txn := &models.Transaction{
-			UserID:      userID,
-			AccountID:   asset.AccountID,
-			CategoryID:  &category.ID,
-			Direction:   "income",
-			Amount:      dividendAmount,
-			Currency:    asset.Account.Currency,
-			TxnDate:     record.TxnDate,
-			Description: &desc,
-			IsSystem:    true,
+			UserID:          userID,
+			AccountID:       asset.AccountID,
+			CategoryID:      &category.ID,
+			Direction:       "income",
+			Amount:          dividendAmount,
+			Currency:        asset.Account.Currency,
+			TxnDate:         record.TxnDate,
+			Description:     &desc,
+			TransactionType: models.TxnTypeInvestmentIncome,
 		}
 		txnID, err := s.txnRepo.InsertTransaction(ctx, tx, txn)
 		if err != nil {
@@ -1857,15 +1857,15 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 			}
 			desc := "Dividend: " + asset.Ticker
 			txn := &models.Transaction{
-				UserID:      userID,
-				AccountID:   asset.AccountID,
-				CategoryID:  uncategorizedCatID,
-				Direction:   "income",
-				Amount:      dividendAmount,
-				Currency:    asset.Account.Currency,
-				TxnDate:     txnDate,
-				Description: &desc,
-				IsSystem:    true,
+				UserID:          userID,
+				AccountID:       asset.AccountID,
+				CategoryID:      uncategorizedCatID,
+				Direction:       "income",
+				Amount:          dividendAmount,
+				Currency:        asset.Account.Currency,
+				TxnDate:         txnDate,
+				Description:     &desc,
+				TransactionType: models.TxnTypeInvestmentIncome,
 			}
 			txnID, err := s.txnRepo.InsertTransaction(ctx, tx, txn)
 			if err != nil {

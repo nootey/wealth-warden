@@ -1565,7 +1565,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 	// Verify two transactions were created (outflow and inflow)
 	var outflowTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ? AND is_transfer = ?", transfer.TransactionOutflowID, true).
+		Where("id = ? AND transaction_type = ?", transfer.TransactionOutflowID, models.TxnTypeTransfer).
 		First(&outflowTxn).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(sourceID, outflowTxn.AccountID)
@@ -1574,7 +1574,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 
 	var inflowTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ? AND is_transfer = ?", transfer.TransactionInflowID, true).
+		Where("id = ? AND transaction_type = ?", transfer.TransactionInflowID, models.TxnTypeTransfer).
 		First(&inflowTxn).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(destID, inflowTxn.AccountID)
@@ -2607,7 +2607,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
 		Model(&models.Transaction{}).
-		Where("account_id = ? AND is_system = false", accID).
+		Where("account_id = ? AND transaction_type NOT IN ?", accID, []models.TransactionType{models.TxnTypeTrade, models.TxnTypeInvestmentIncome}).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
@@ -3572,7 +3572,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_Source_ExceedsCreditLim
 
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
-		Where("account_id = ? AND is_transfer = true", srcID).Count(&txnCount).Error
+		Where("account_id = ? AND transaction_type = ?", srcID, models.TxnTypeTransfer).Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transfer transaction should be created on source account")
 }

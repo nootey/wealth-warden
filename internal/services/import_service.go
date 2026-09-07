@@ -1002,15 +1002,15 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 
 		desc := txn.Description
 		expense := models.Transaction{
-			UserID:      userID,
-			AccountID:   checkingAcc.ID,
-			Direction:   "expense",
-			Amount:      amt,
-			Currency:    checkingAcc.Currency,
-			TxnDate:     txDay,
-			Description: &desc,
-			IsTransfer:  true,
-			ImportID:    &imp.ID,
+			UserID:          userID,
+			AccountID:       checkingAcc.ID,
+			Direction:       "expense",
+			Amount:          amt,
+			Currency:        checkingAcc.Currency,
+			TxnDate:         txDay,
+			Description:     &desc,
+			TransactionType: models.TxnTypeTransfer,
+			ImportID:        &imp.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &expense); err != nil {
 			_ = tx.Rollback()
@@ -1019,15 +1019,15 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 		}
 
 		income := models.Transaction{
-			UserID:      userID,
-			AccountID:   toAccount.ID,
-			Direction:   "income",
-			Amount:      amt,
-			Currency:    toAccount.Currency,
-			TxnDate:     txDay,
-			Description: &desc,
-			IsTransfer:  true,
-			ImportID:    &imp.ID,
+			UserID:          userID,
+			AccountID:       toAccount.ID,
+			Direction:       "income",
+			Amount:          amt,
+			Currency:        toAccount.Currency,
+			TxnDate:         txDay,
+			Description:     &desc,
+			TransactionType: models.TxnTypeTransfer,
+			ImportID:        &imp.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &income); err != nil {
 			_ = tx.Rollback()
@@ -1272,15 +1272,15 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 
 		desc := txn.Description
 		expense := models.Transaction{
-			UserID:      userID,
-			AccountID:   fromAccID,
-			Direction:   "expense",
-			Amount:      amt,
-			Currency:    fromAcc.Currency,
-			TxnDate:     txDay,
-			Description: &desc,
-			IsTransfer:  true,
-			ImportID:    &imp.ID,
+			UserID:          userID,
+			AccountID:       fromAccID,
+			Direction:       "expense",
+			Amount:          amt,
+			Currency:        fromAcc.Currency,
+			TxnDate:         txDay,
+			Description:     &desc,
+			TransactionType: models.TxnTypeTransfer,
+			ImportID:        &imp.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &expense); err != nil {
 			_ = tx.Rollback()
@@ -1289,15 +1289,15 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 		}
 
 		income := models.Transaction{
-			UserID:      userID,
-			AccountID:   toAccID,
-			Direction:   "income",
-			Amount:      amt,
-			Currency:    toAcc.Currency,
-			TxnDate:     txDay,
-			Description: &desc,
-			IsTransfer:  true,
-			ImportID:    &imp.ID,
+			UserID:          userID,
+			AccountID:       toAccID,
+			Direction:       "income",
+			Amount:          amt,
+			Currency:        toAcc.Currency,
+			TxnDate:         txDay,
+			Description:     &desc,
+			TransactionType: models.TxnTypeTransfer,
+			ImportID:        &imp.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &income); err != nil {
 			_ = tx.Rollback()
@@ -1542,15 +1542,15 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 
 		desc := txn.Description
 		expense := models.Transaction{
-			UserID:      userID,
-			AccountID:   fromAccID,
-			Direction:   "expense",
-			Amount:      amt,
-			Currency:    fromAcc.Currency,
-			TxnDate:     txDay,
-			Description: &desc,
-			IsTransfer:  true,
-			ImportID:    &imp.ID,
+			UserID:          userID,
+			AccountID:       fromAccID,
+			Direction:       "expense",
+			Amount:          amt,
+			Currency:        fromAcc.Currency,
+			TxnDate:         txDay,
+			Description:     &desc,
+			TransactionType: models.TxnTypeTransfer,
+			ImportID:        &imp.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &expense); err != nil {
 			_ = tx.Rollback()
@@ -1559,15 +1559,15 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 		}
 
 		income := models.Transaction{
-			UserID:      userID,
-			AccountID:   toAccID,
-			Direction:   "income",
-			Amount:      amt,
-			Currency:    toAcc.Currency,
-			TxnDate:     txDay,
-			Description: &desc,
-			IsTransfer:  true,
-			ImportID:    &imp.ID,
+			UserID:          userID,
+			AccountID:       toAccID,
+			Direction:       "income",
+			Amount:          amt,
+			Currency:        toAcc.Currency,
+			TxnDate:         txDay,
+			Description:     &desc,
+			TransactionType: models.TxnTypeTransfer,
+			ImportID:        &imp.ID,
 		}
 		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &income); err != nil {
 			_ = tx.Rollback()
@@ -2250,7 +2250,7 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 		if _, ok := skipTxn[t.ID]; ok {
 			continue
 		}
-		if t.IsTransfer {
+		if t.TransactionType == models.TxnTypeTransfer {
 			continue
 		}
 

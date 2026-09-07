@@ -202,7 +202,7 @@ func (r *TransactionRepository) FindAllTransactionsForUser(ctx context.Context, 
 
 	q := r.baseTxQuery(ctx, db, userID, false).
 		Preload("Category").
-		Where("transactions.is_system = ?", false)
+		Where("transactions.transaction_type NOT IN ?", []models.TransactionType{models.TxnTypeTrade, models.TxnTypeInvestmentIncome})
 
 	err := q.
 		Order("txn_date asc").
@@ -1110,7 +1110,7 @@ func (r *TransactionRepository) GetTransactionsByYearAndClass(ctx context.Contex
 	}
 	db = db.WithContext(ctx)
 
-	q := db.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ? AND direction = ? AND is_transfer = ? AND is_adjustment = ? AND is_system = ? AND deleted_at IS NULL", userID, year, class, false, false, false)
+	q := db.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ? AND direction = ? AND transaction_type = ? AND deleted_at IS NULL", userID, year, class, models.TxnTypeLedger)
 
 	if accountID != nil {
 		q = q.Where("account_id = ?", *accountID)
@@ -1131,7 +1131,7 @@ func (r *TransactionRepository) GetAllTimeStatsByClass(ctx context.Context, tx *
 
 	q := db.Model(&models.Transaction{}).
 		Select("COALESCE(SUM(amount), 0) as total, COUNT(DISTINCT EXTRACT(YEAR FROM txn_date) || '-' || EXTRACT(MONTH FROM txn_date)) as months_with_data").
-		Where("user_id = ? AND direction = ? AND is_transfer = ? AND is_adjustment = ? AND is_system = ? AND deleted_at IS NULL", userID, class, false, false, false)
+		Where("user_id = ? AND direction = ? AND transaction_type = ? AND deleted_at IS NULL", userID, class, models.TxnTypeLedger)
 
 	if accountID != nil {
 		q = q.Where("account_id = ?", *accountID)
@@ -1389,8 +1389,7 @@ func (r *TransactionRepository) GetYearlyAverageForCategory(ctx context.Context,
           AND account_id = ?
           AND category_id = ?
           AND deleted_at IS NULL
-          AND is_adjustment = false
-          AND is_system = false
+          AND transaction_type NOT IN ('adjustment','trade','investment_income')
           AND EXTRACT(YEAR FROM txn_date) = ?
     `
 
@@ -1428,8 +1427,7 @@ func (r *TransactionRepository) GetYearlyAverageForCategoryGroup(ctx context.Con
           AND t.account_id = ?
           AND cgm.group_id = ?
           AND t.deleted_at IS NULL
-          AND t.is_adjustment = false
-          AND t.is_system = false
+          AND t.transaction_type NOT IN ('adjustment','trade','investment_income')
           AND EXTRACT(YEAR FROM t.txn_date) = ?
     `
 

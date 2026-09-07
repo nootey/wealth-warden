@@ -484,14 +484,14 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	txDate := utils.LocalMidnightUTC(t, loc)
 
 	outflow := models.Transaction{
-		UserID:      userID,
-		AccountID:   fromAcc.ID,
-		Direction:   "expense",
-		Amount:      req.Amount,
-		Currency:    fromAcc.Currency,
-		TxnDate:     txDate,
-		Description: req.Notes,
-		IsTransfer:  true,
+		UserID:          userID,
+		AccountID:       fromAcc.ID,
+		Direction:       "expense",
+		Amount:          req.Amount,
+		Currency:        fromAcc.Currency,
+		TxnDate:         txDate,
+		Description:     req.Notes,
+		TransactionType: models.TxnTypeTransfer,
 	}
 
 	if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
@@ -500,14 +500,14 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	}
 
 	inflow := models.Transaction{
-		UserID:      userID,
-		AccountID:   toAcc.ID,
-		Direction:   "income",
-		Amount:      req.Amount,
-		Currency:    toAcc.Currency,
-		TxnDate:     txDate,
-		Description: req.Notes,
-		IsTransfer:  true,
+		UserID:          userID,
+		AccountID:       toAcc.ID,
+		Direction:       "income",
+		Amount:          req.Amount,
+		Currency:        toAcc.Currency,
+		TxnDate:         txDate,
+		Description:     req.Notes,
+		TransactionType: models.TxnTypeTransfer,
 	}
 
 	if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
@@ -663,8 +663,8 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	if err != nil {
 		return 0, fmt.Errorf("can't find transaction with given id %w", err)
 	}
-	if exTr.IsAdjustment {
-		return 0, errors.New("can't edit a manual adjustment transaction")
+	if !exTr.TransactionType.IsUserEditable() {
+		return 0, fmt.Errorf("can't edit a %s transaction", exTr.TransactionType)
 	}
 
 	// Load old account & category (for logs)
@@ -957,6 +957,10 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find transaction with given id %w", err)
+	}
+	if !tr.TransactionType.IsUserEditable() {
+		tx.Rollback()
+		return fmt.Errorf("can't delete a %s transaction", tr.TransactionType)
 	}
 
 	account, err := s.accRepo.FindAccountByID(ctx, tx, tr.AccountID, userID, false)
@@ -2552,14 +2556,14 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		}
 
 		outflow := models.Transaction{
-			UserID:      currentTemplate.UserID,
-			AccountID:   srcAcc.ID,
-			Direction:   "expense",
-			Amount:      currentTemplate.Amount,
-			Currency:    srcAcc.Currency,
-			TxnDate:     txDate,
-			Description: &desc,
-			IsTransfer:  true,
+			UserID:          currentTemplate.UserID,
+			AccountID:       srcAcc.ID,
+			Direction:       "expense",
+			Amount:          currentTemplate.Amount,
+			Currency:        srcAcc.Currency,
+			TxnDate:         txDate,
+			Description:     &desc,
+			TransactionType: models.TxnTypeTransfer,
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
 			tx.Rollback()
@@ -2567,14 +2571,14 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		}
 
 		inflow := models.Transaction{
-			UserID:      currentTemplate.UserID,
-			AccountID:   toAcc.ID,
-			Direction:   "income",
-			Amount:      currentTemplate.Amount,
-			Currency:    toAcc.Currency,
-			TxnDate:     txDate,
-			Description: &desc,
-			IsTransfer:  true,
+			UserID:          currentTemplate.UserID,
+			AccountID:       toAcc.ID,
+			Direction:       "income",
+			Amount:          currentTemplate.Amount,
+			Currency:        toAcc.Currency,
+			TxnDate:         txDate,
+			Description:     &desc,
+			TransactionType: models.TxnTypeTransfer,
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
 			tx.Rollback()

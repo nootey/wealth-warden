@@ -133,7 +133,7 @@ func (s *ExportService) buildTxnAndTransfersExportJSON(txns []models.Transaction
 
 	out.Transactions = make([]models.JSONTxn, 0, len(txns))
 	for _, t := range txns {
-		if t.IsTransfer {
+		if t.TransactionType == models.TxnTypeTransfer {
 			continue
 		}
 

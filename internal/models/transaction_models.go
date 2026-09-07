@@ -9,26 +9,38 @@ import (
 
 var ErrTemplateAlreadyRanToday = errors.New("template already executed today")
 
+type TransactionType string
+
+const (
+	TxnTypeLedger           TransactionType = "ledger"            // Standard type
+	TxnTypeTransfer         TransactionType = "transfer"          // Legs of a transfer
+	TxnTypeAdjustment       TransactionType = "adjustment"        // Manual balance adjustment
+	TxnTypeTrade            TransactionType = "trade"             // Investment trades
+	TxnTypeInvestmentIncome TransactionType = "investment_income" // Dividends
+)
+
+func (t TransactionType) IsUserEditable() bool {
+	return t == TxnTypeLedger || t == TxnTypeTransfer
+}
+
 type Transaction struct {
-	ID             int64           `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID         int64           `gorm:"not null;index:idx_transactions_user_date" json:"user_id"`
-	AccountID      int64           `gorm:"not null;index:idx_transactions_account_date" json:"account_id"`
-	CategoryID     *int64          `gorm:"index:idx_transactions_category" json:"category_id,omitempty"`
-	ImportID       *int64          `json:"import_id,omitempty"`
-	Direction      string          `gorm:"not null;enum(income,expense)" json:"direction"`
-	Amount         decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
-	Currency       string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
-	TxnDate        time.Time       `gorm:"not null;index" json:"txn_date"`
-	Description    *string         `gorm:"type:varchar(255)" json:"description,omitempty"`
-	IsAdjustment   bool            `gorm:"not null;type:boolean" json:"is_adjustment"`
-	IsSystem       bool            `gorm:"not null;type:boolean" json:"is_system"`
-	IsTransfer     bool            `gorm:"not null;type:boolean" json:"is_transfer"`
-	IdempotencyKey *string         `gorm:"type:varchar(64)" json:"idempotency_key,omitempty"`
-	Account        Account         `json:"account"`
-	Category       Category        `json:"category,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	DeletedAt      *time.Time      `json:"deleted_at"`
+	ID              int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID          int64           `gorm:"not null;index:idx_transactions_user_date" json:"user_id"`
+	AccountID       int64           `gorm:"not null;index:idx_transactions_account_date" json:"account_id"`
+	CategoryID      *int64          `gorm:"index:idx_transactions_category" json:"category_id,omitempty"`
+	ImportID        *int64          `json:"import_id,omitempty"`
+	Direction       string          `gorm:"not null;enum(income,expense)" json:"direction"`
+	Amount          decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
+	Currency        string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
+	TxnDate         time.Time       `gorm:"not null;index" json:"txn_date"`
+	Description     *string         `gorm:"type:varchar(255)" json:"description,omitempty"`
+	TransactionType TransactionType `gorm:"not null;default:'ledger'" json:"transaction_type"`
+	IdempotencyKey  *string         `gorm:"type:varchar(64)" json:"idempotency_key,omitempty"`
+	Account         Account         `json:"account"`
+	Category        Category        `json:"category,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	DeletedAt       *time.Time      `json:"deleted_at"`
 }
 
 type Transfer struct {

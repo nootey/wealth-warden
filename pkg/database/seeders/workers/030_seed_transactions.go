@@ -159,16 +159,16 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 				}
 
 				t := models.Transaction{
-					UserID:       u.ID,
-					AccountID:    acc.ID,
-					Direction:    ttype,
-					CategoryID:   catID,
-					Amount:       amt,
-					Currency:     acc.Currency,
-					TxnDate:      date,
-					IsAdjustment: false,
-					CreatedAt:    time.Now().UTC(),
-					UpdatedAt:    time.Now().UTC(),
+					UserID:          u.ID,
+					AccountID:       acc.ID,
+					Direction:       ttype,
+					CategoryID:      catID,
+					Amount:          amt,
+					Currency:        acc.Currency,
+					TxnDate:         date,
+					TransactionType: models.TxnTypeLedger,
+					CreatedAt:       time.Now().UTC(),
+					UpdatedAt:       time.Now().UTC(),
 				}
 				if err := db.WithContext(ctx).Create(&t).Error; err != nil {
 					return err
