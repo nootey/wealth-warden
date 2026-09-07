@@ -49,6 +49,7 @@ type AccountRepositoryInterface interface {
 	AddToDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, amt decimal.Decimal) error
 	PostCashDelta(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, currency, field string, amt decimal.Decimal) error
 	RebuildBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error
+	RebuildFromTransactions(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error
 	UpsertDailyCashBatch(ctx context.Context, tx *gorm.DB, accountID int64, currency string, deltas []models.DailyCashDelta) error
 	UpsertSnapshotsFromBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error
 	GetUserFirstBalanceDate(ctx context.Context, tx *gorm.DB, userID int64) (time.Time, error)
@@ -999,12 +1000,6 @@ func (r *AccountRepository) AddToDailyBalance(ctx context.Context, tx *gorm.DB, 
     `, field, field), amt, accountID, asOf).Error
 }
 
-// PostCashDelta and RebuildBalances are the two seams the balance schema migration
-// writes through. Every cash write goes through the first, every recompute through
-// the second, so the derivation can later change in one place instead of ~130.
-
-// A zero amt only anchors the day's row, which is what the callers that need a
-// frontfill target but no cash movement want. field is then ignored.
 func (r *AccountRepository) PostCashDelta(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, currency, field string, amt decimal.Decimal) error {
 	if err := r.EnsureDailyBalanceRow(ctx, tx, accountID, asOf, currency); err != nil {
 		return err
@@ -1013,6 +1008,18 @@ func (r *AccountRepository) PostCashDelta(ctx context.Context, tx *gorm.DB, acco
 		return nil
 	}
 	return r.AddToDailyBalance(ctx, tx, accountID, asOf, field, amt)
+}
+
+func (r *AccountRepository) RebuildFromTransactions(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error {
+	if err := r.EnsureDailyBalanceRow(ctx, tx, accountID, from, currency); err != nil {
+		return err
+	}
+
+	if err := r.RebuildCashFlowsForAccount(ctx, tx, accountID, currency, from); err != nil {
+		return err
+	}
+
+	return r.RebuildBalances(ctx, tx, userID, accountID, currency, from)
 }
 
 func (r *AccountRepository) RebuildBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error {

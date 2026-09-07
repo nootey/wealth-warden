@@ -7,6 +7,7 @@ import (
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/tests"
 
 	"github.com/riverqueue/river"
@@ -242,4 +243,85 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_FailureMidSequenceRolls
 
 	s.Assert().Equal(balancesBefore, s.balances(accID), "the failed run changed the balances")
 	s.Assert().Equal(snapshotsBefore, s.snapshots(userID), "the failed run changed the snapshots")
+}
+
+// Criterion 2: before trades became system transactions, a transactions-only rebuild
+// wiped their cash, and import_service re-applied every trade by hand to hide it.
+func (s *BackfillCashFlowsIntegrationSuite) TestRebuildFromTransactions_KeepsTradeCash() {
+	userID := int64(1)
+	accID := s.seedTradedAccount(userID, "Brokerage")
+
+	before := s.balances(accID)
+	s.Require().NotEmpty(before)
+
+	// Guard against a vacuous pass: the trades must have moved cash at all.
+	last := before[len(before)-1]
+	s.Require().False(last.EndBalance.Equal(decimal.NewFromInt(100000)),
+		"the fixture trades did not move any cash")
+
+	opening := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -10)
+	repo := repositories.NewAccountRepository(s.TC.DB)
+	s.Require().NoError(repo.RebuildFromTransactions(s.Ctx, nil, userID, accID, "EUR", opening))
+
+	s.Assert().Equal(before, s.balances(accID), "the rebuild erased trade cash")
+
+	s.Require().NoError(repo.RebuildFromTransactions(s.Ctx, nil, userID, accID, "EUR", opening))
+	s.Assert().Equal(before, s.balances(accID), "the second rebuild drifted")
+}
+
+// The migration path: legacy trades carry no transaction, and the backfill has to
+// create one for each without moving a single balance.
+func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_LinksLegacyTrades() {
+	userID := int64(1)
+	accID := s.seedTradedAccount(userID, "Brokerage")
+
+	before := s.balances(accID)
+	s.Require().NotEmpty(before)
+
+	s.stripTradeLinks(userID)
+
+	s.Require().NoError(s.newBackfillJob().Run(s.Ctx))
+
+	s.Assert().Equal(before, s.balances(accID), "the backfill changed the balances")
+
+	var unlinked int64
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+		Table("investment_trades").
+		Where("user_id = ? AND transaction_id IS NULL", userID).
+		Count(&unlinked).Error)
+	s.Assert().Zero(unlinked, "the backfill left trades without a transaction")
+}
+
+// Puts the user's trades back into their pre-phase-1 shape: cash written straight
+// into balances, no transaction behind it.
+func (s *BackfillCashFlowsIntegrationSuite) stripTradeLinks(userID int64) {
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Exec(`
+		DELETE FROM transactions
+		WHERE id IN (SELECT transaction_id FROM investment_trades
+		             WHERE user_id = ? AND transaction_id IS NOT NULL)`, userID).Error)
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Exec(
+		"UPDATE investment_trades SET transaction_id = NULL WHERE user_id = ?", userID).Error)
+}
+
+// The insert trigger blocks posting to a closed account, so the backfill suspends it.
+func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_LinksLegacyTradesOnClosedAccount() {
+	userID := int64(1)
+	accID := s.seedTradedAccount(userID, "Old Brokerage")
+
+	before := s.balances(accID)
+	s.Require().NotEmpty(before)
+
+	s.stripTradeLinks(userID)
+	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
+		Exec("UPDATE accounts SET is_active = false, closed_at = NOW() WHERE id = ?", accID).Error)
+
+	s.Require().NoError(s.newBackfillJob().Run(s.Ctx), "the backfill failed on a closed account")
+
+	s.Assert().Equal(before, s.balances(accID), "the backfill changed the balances")
+
+	// The trigger has to be back on, or every later write to a closed account passes.
+	err := s.TC.DB.WithContext(s.Ctx).Exec(`
+		INSERT INTO transactions (user_id, account_id, transaction_type, amount, currency, txn_date, is_system)
+		VALUES (?, ?, 'expense', 1, 'EUR', NOW(), false)`, userID, accID).Error
+	s.Assert().Error(err, "the closed-account trigger was left disabled")
 }

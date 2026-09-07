@@ -1953,7 +1953,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			Description:       nil,
 		}
 
-		_, err = s.investmentRepo.InsertInvestmentTrade(ctx, tx, &trade)
+		tradeID, err := s.investmentRepo.InsertInvestmentTrade(ctx, tx, &trade)
 		if err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
@@ -1989,7 +1989,6 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			return fmt.Errorf("failed to upsert asset price history for %s: %w", asset.Ticker, err)
 		}
 
-		// Write cash flow to daily balance
 		accCashRate := decimal.NewFromFloat(1.0)
 		if txn.Currency != toAccount.Currency {
 			r, rErr := client.GetExchangeRateOnDate(ctx, txn.Currency, toAccount.Currency, txDayAdjusted)
@@ -1998,27 +1997,32 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			}
 		}
 
-		if err := s.accRepo.PostCashDelta(ctx, tx, cAccID, txDayAdjusted, toAccount.Currency, "", decimal.Zero); err != nil {
-			s.markImportFailed(ctx, importID, err)
-			_ = tx.Rollback()
-			return err
+		tradeType := models.TradeType(txn.TransactionType)
+		cashAmount := txnRealizedValue.Mul(accCashRate)
+		if tradeType == models.InvestmentBuy {
+			cashAmount = valueAtBuy.Add(fee).Mul(accCashRate)
 		}
 
-		if models.TradeType(txn.TransactionType) == models.InvestmentBuy {
-			vb := valueAtBuy.Add(fee)
-			purchaseCost := vb.Mul(accCashRate)
-			if err := s.accRepo.PostCashDelta(ctx, tx, cAccID, txDayAdjusted, toAccount.Currency, "cash_outflows", purchaseCost); err != nil {
-				s.markImportFailed(ctx, importID, err)
-				_ = tx.Rollback()
-				return err
-			}
-		} else {
-			proceeds := txnRealizedValue.Mul(accCashRate)
-			if err := s.accRepo.PostCashDelta(ctx, tx, cAccID, txDayAdjusted, toAccount.Currency, "cash_inflows", proceeds); err != nil {
-				s.markImportFailed(ctx, importID, err)
-				_ = tx.Rollback()
-				return err
-			}
+		cashCategory, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+		if err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return fmt.Errorf("failed to find uncategorized category: %w", err)
+		}
+
+		cashTxn := models.NewTradeCashTransaction(userID, cAccID, &cashCategory.ID, asset.Ticker, toAccount.Currency, tradeType, txDayAdjusted, cashAmount)
+		cashTxnID, err := s.txnRepo.InsertTransaction(ctx, tx, &cashTxn)
+		if err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return fmt.Errorf("failed to create linked trade transaction: %w", err)
+		}
+
+		if err := tx.Model(&models.InvestmentTrade{}).Where("id = ?", tradeID).
+			Update("transaction_id", cashTxnID).Error; err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return fmt.Errorf("failed to link trade transaction: %w", err)
 		}
 
 		// record earliest touched date
@@ -2028,7 +2032,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 	for accID, from := range earliest {
 		acc := accCache[accID]
 
-		if err := s.accRepo.RebuildBalances(ctx, tx, userID, accID, acc.Currency, from); err != nil {
+		if err := s.accRepo.RebuildFromTransactions(ctx, tx, userID, accID, acc.Currency, from); err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return err
@@ -2508,15 +2512,6 @@ func (s *ImportService) backfillInvestmentCashFlows(ctx context.Context, userID 
 		return nil
 	}
 
-	cfg, err := config.LoadConfig(nil)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-	client, err := finance.NewPriceFetchClient(cfg.FinanceAPIBaseURL)
-	if err != nil {
-		return fmt.Errorf("failed to create price client: %w", err)
-	}
-
 	bfTx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -2556,71 +2551,8 @@ func (s *ImportService) backfillInvestmentCashFlows(ctx context.Context, userID 
 		affected[acc.ID] = accInfo{currency: acc.Currency, opening: opening}
 	}
 
-	// Reset balance rows for affected accounts to transactions-only cash flows.
 	for id, info := range affected {
-		if err := s.accRepo.RebuildCashFlowsForAccount(ctx, bfTx, id, info.currency, info.opening); err != nil {
-			bfTx.Rollback()
-			return err
-		}
-	}
-
-	// Re-apply remaining trade cash flows for affected accounts only.
-	trades, err := s.investmentRepo.FindAllTradesByUserID(ctx, bfTx, userID)
-	if err != nil {
-		bfTx.Rollback()
-		return err
-	}
-
-	for _, trade := range trades {
-		if !affectedSet[trade.Asset.AccountID] {
-			continue
-		}
-
-		txnDate := trade.TxnDate.UTC().Truncate(24 * time.Hour)
-
-		if err := s.accRepo.PostCashDelta(ctx, bfTx, trade.Asset.AccountID, txnDate, trade.Asset.Account.Currency, "", decimal.Zero); err != nil {
-			bfTx.Rollback()
-			return err
-		}
-
-		exchangeRate := decimal.NewFromFloat(1.0)
-		if trade.Currency != trade.Asset.Account.Currency {
-			rate, err := client.GetExchangeRateOnDate(ctx, trade.Currency, trade.Asset.Account.Currency, trade.TxnDate)
-			if err == nil {
-				exchangeRate = decimal.NewFromFloat(rate)
-			}
-		}
-
-		if trade.TradeType == models.InvestmentBuy {
-			// Not quantity * price_per_unit: NUMERIC(19,4) rounds a sub-cent
-			// asset to 0 and its cost vanishes.
-			grossCost := trade.ValueAtBuy
-			if trade.Asset.InvestmentType != models.InvestmentCrypto {
-				grossCost = grossCost.Add(trade.Fee)
-			}
-			purchaseCost := grossCost
-			if trade.Currency != trade.Asset.Account.Currency {
-				purchaseCost = grossCost.Mul(exchangeRate)
-			}
-			if err := s.accRepo.PostCashDelta(ctx, bfTx, trade.Asset.AccountID, txnDate, trade.Asset.Account.Currency, "cash_outflows", purchaseCost); err != nil {
-				bfTx.Rollback()
-				return err
-			}
-		} else {
-			proceeds := trade.RealizedValue
-			if trade.Currency != trade.Asset.Account.Currency {
-				proceeds = trade.RealizedValue.Mul(exchangeRate)
-			}
-			if err := s.accRepo.PostCashDelta(ctx, bfTx, trade.Asset.AccountID, txnDate, trade.Asset.Account.Currency, "cash_inflows", proceeds); err != nil {
-				bfTx.Rollback()
-				return err
-			}
-		}
-	}
-
-	// Rebuild snapshots for affected accounts only.
-	for id, info := range affected {
-		if err := s.accRepo.RebuildBalances(ctx, bfTx, userID, id, info.currency, info.opening); err != nil {
+		if err := s.accRepo.RebuildFromTransactions(ctx, bfTx, userID, id, info.currency, info.opening); err != nil {
 			bfTx.Rollback()
 			return err
 		}

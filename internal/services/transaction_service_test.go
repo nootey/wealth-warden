@@ -2603,10 +2603,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, txnReq)
 	s.Require().Error(err, "should block expense that would drop cash balance below cash invested")
 
+	// The buy writes its own system transaction, so only user rows are counted.
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
 		Model(&models.Transaction{}).
-		Where("account_id = ?", accID).
+		Where("account_id = ? AND is_system = false", accID).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")

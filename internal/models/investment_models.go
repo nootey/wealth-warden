@@ -90,11 +90,34 @@ type InvestmentTrade struct {
 	Currency          string          `gorm:"type:char(3);not null;default:'USD'" json:"currency"`
 	ExchangeRateToUSD decimal.Decimal `gorm:"type:decimal(19,6);not null;default:1.0" json:"exchange_rate_to_usd"`
 	Description       *string         `gorm:"type:varchar(255)" json:"description"`
+	TransactionID     *int64          `json:"transaction_id,omitempty"`
 	Asset             InvestmentAsset `json:"asset"`
 	ImportID          *int64          `json:"import_id,omitempty"`
 	TaxInfo           *TradeTaxInfo   `gorm:"-" json:"tax_info,omitempty"`
 	CreatedAt         time.Time       `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+// amount must already be in the account's currency.
+func NewTradeCashTransaction(userID, accountID int64, categoryID *int64, ticker, currency string, tradeType TradeType, txnDate time.Time, amount decimal.Decimal) Transaction {
+	txnType := "expense"
+	desc := "Buy: " + ticker
+	if tradeType == InvestmentSell {
+		txnType = "income"
+		desc = "Sell: " + ticker
+	}
+
+	return Transaction{
+		UserID:          userID,
+		AccountID:       accountID,
+		CategoryID:      categoryID,
+		TransactionType: txnType,
+		Amount:          amount,
+		Currency:        currency,
+		TxnDate:         txnDate,
+		Description:     &desc,
+		IsSystem:        true,
+	}
 }
 
 type TickerPriceHistory struct {

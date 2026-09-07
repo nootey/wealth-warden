@@ -144,6 +144,7 @@ type bulkPendingTrade struct {
 	valueAtBuy decimal.Decimal
 	currency   string
 	rateToUSD  decimal.Decimal
+	cost       decimal.Decimal
 }
 
 type bulkAccountSeed struct {
@@ -866,7 +867,11 @@ func seedBulkInvestments(
 
 	var assetRows []models.InvestmentAsset
 	var pend []bulkPendingTrade
-	deltas := make(map[int64][]models.DailyCashDelta)
+
+	var uncategorized models.Category
+	if err := tx.WithContext(ctx).Where("classification = ?", "uncategorized").First(&uncategorized).Error; err != nil {
+		return fmt.Errorf("failed to find uncategorized category: %w", err)
+	}
 
 	for ui, u := range users {
 		invAccID := accounts[ui*2].ID
@@ -891,8 +896,8 @@ func seedBulkInvestments(
 				*spent = spent.Add(cost)
 				assetRows = append(assetRows, row)
 				trade.assetIdx = len(assetRows) - 1
+				trade.cost = cost
 				pend = append(pend, trade)
-				deltas[accID] = append(deltas[accID], models.DailyCashDelta{AsOf: trade.date, Outflows: cost})
 			}
 		}
 
@@ -905,14 +910,28 @@ func seedBulkInvestments(
 			return fmt.Errorf("failed to insert investment assets: %w", err)
 		}
 
-		trades := make([]models.InvestmentTrade, 0, len(pend))
+		// Transactions first: each trade is built already pointing at its own.
+		cashTxns := make([]models.Transaction, 0, len(pend))
 		for _, p := range pend {
+			a := assetRows[p.assetIdx]
+			cashTxns = append(cashTxns, models.NewTradeCashTransaction(
+				a.UserID, a.AccountID, &uncategorized.ID, a.Ticker,
+				meta[a.AccountID].currency, models.InvestmentBuy, p.date, p.cost,
+			))
+		}
+		if err := tx.WithContext(ctx).CreateInBatches(&cashTxns, bulkInsertBatch).Error; err != nil {
+			return fmt.Errorf("failed to insert investment cash transactions: %w", err)
+		}
+
+		trades := make([]models.InvestmentTrade, 0, len(pend))
+		for i, p := range pend {
 			a := assetRows[p.assetIdx]
 			trades = append(trades, models.InvestmentTrade{
 				UserID: a.UserID, AssetID: a.ID, TxnDate: p.date, TradeType: models.InvestmentBuy,
 				Quantity: p.qty, Fee: p.fee, PricePerUnit: p.price, ValueAtBuy: p.valueAtBuy,
 				RealizedValue: decimal.Zero, Currency: p.currency, ExchangeRateToUSD: p.rateToUSD,
-				CreatedAt: p.date, UpdatedAt: p.date,
+				TransactionID: &cashTxns[i].ID,
+				CreatedAt:     p.date, UpdatedAt: p.date,
 			})
 		}
 		if err := tx.WithContext(ctx).CreateInBatches(&trades, bulkInsertBatch).Error; err != nil {
@@ -924,12 +943,7 @@ func seedBulkInvestments(
 	// worth, whether or not any buy landed on it.
 	for _, acc := range accounts {
 		m := meta[acc.ID]
-		if ds := deltas[acc.ID]; len(ds) > 0 {
-			if err := accRepo.UpsertDailyCashBatch(ctx, tx, acc.ID, m.currency, ds); err != nil {
-				return fmt.Errorf("failed to write investment cash flows: %w", err)
-			}
-		}
-		if err := accRepo.RebuildBalances(ctx, tx, m.userID, acc.ID, m.currency, openedAt); err != nil {
+		if err := accRepo.RebuildFromTransactions(ctx, tx, m.userID, acc.ID, m.currency, openedAt); err != nil {
 			return fmt.Errorf("failed to rebuild investment balances: %w", err)
 		}
 	}
