@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/url"
 	"strings"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/sessions"
 	"wealth-warden/internal/ws"
-	"wealth-warden/pkg/config"
 
 	"github.com/coder/websocket"
 	"github.com/gin-gonic/gin"

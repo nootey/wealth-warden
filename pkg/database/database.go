@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 	"time"
-	"wealth-warden/pkg/config"
+	"wealth-warden/internal/config"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"

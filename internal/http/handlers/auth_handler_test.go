@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/http/handlers"
 	"wealth-warden/internal/models"
 	"wealth-warden/mocks"
-	"wealth-warden/pkg/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/mock"

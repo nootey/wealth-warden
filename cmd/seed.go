@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-	"wealth-warden/pkg/config"
+	"wealth-warden/internal/config"
 	"wealth-warden/pkg/database"
 	"wealth-warden/pkg/database/seeders"
 

@@ -3,11 +3,11 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/internal/sessions"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
 	"github.com/gin-gonic/gin"

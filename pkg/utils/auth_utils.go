@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/models"
-	"wealth-warden/pkg/config"
 
 	"golang.org/x/crypto/bcrypt"
 )

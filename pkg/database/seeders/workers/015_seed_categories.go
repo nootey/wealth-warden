@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/models"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
 	"gorm.io/gorm"

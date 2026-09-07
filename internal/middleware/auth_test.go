@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/middleware"
 	"wealth-warden/internal/sessions"
-	"wealth-warden/pkg/config"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"

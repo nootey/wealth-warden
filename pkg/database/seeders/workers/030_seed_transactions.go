@@ -6,11 +6,11 @@ import (
 	"math"
 	"math/rand"
 	"time"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/services"
-	"wealth-warden/pkg/config"
 
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"

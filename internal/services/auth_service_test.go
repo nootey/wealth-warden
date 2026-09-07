@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/tests"
-	"wealth-warden/pkg/config"
 
 	"github.com/stretchr/testify/suite"
 )

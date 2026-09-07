@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/ws"
-	"wealth-warden/pkg/config"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"

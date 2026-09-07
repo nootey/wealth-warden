@@ -7,7 +7,7 @@ on:
       - development
     paths-ignore:
       - 'docs/**'
-      - 'deployments/**'
+      - 'config/docker/**'
       - '*.md'
 
   workflow_call:
@@ -73,7 +73,7 @@ jobs:
           context: .
           target: runtime
           file: ./build/Dockerfile
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: ${{ inputs.version != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -123,7 +123,7 @@ jobs:
         with:
           context: .
           file: ./build/Dockerfile.client
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: ${{ inputs.version != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"time"
 	"wealth-warden/internal/bootstrap"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/jobqueue"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/database/seeders"
 
 	"github.com/alicebob/miniredis/v2"

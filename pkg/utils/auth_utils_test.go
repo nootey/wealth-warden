@@ -3,8 +3,8 @@ package utils_test
 import (
 	"strings"
 	"testing"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/models"
-	"wealth-warden/pkg/config"
 	"wealth-warden/pkg/utils"
 
 	"github.com/stretchr/testify/assert"

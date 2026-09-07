@@ -2,8 +2,8 @@ package jobs
 
 import (
 	"time"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/jobqueue"
-	"wealth-warden/pkg/config"
 
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"

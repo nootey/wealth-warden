@@ -1,0 +1,11 @@
+# Raspberry Pi overlay. Layer it on top of docker-compose.yaml:
+# The published images are multi-arch, so the Pi resolves arm64 on its own.
+services:
+  # An overlay cannot delete a service, so Traefik is moved behind a profile
+  # instead. The Pi reaches the app on a host port, not through a reverse proxy.
+  traefik:
+    profiles: ["traefik"]
+
+  client:
+    ports:
+      - "5000:80"

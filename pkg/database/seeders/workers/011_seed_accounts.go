@@ -6,8 +6,8 @@ import (
 	"math/rand"
 	"strings"
 	"time"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/models"
-	"wealth-warden/pkg/config"
 
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"

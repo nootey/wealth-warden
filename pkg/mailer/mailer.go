@@ -1,7 +1,7 @@
 package mailer
 
 import (
-	"wealth-warden/pkg/config"
+	"wealth-warden/internal/config"
 
 	"gopkg.in/gomail.v2"
 )

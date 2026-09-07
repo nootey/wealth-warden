@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 	"wealth-warden/internal/bootstrap"
+	appConfig "wealth-warden/internal/config"
 	"wealth-warden/internal/middleware"
-	appConfig "wealth-warden/pkg/config"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/timeout"

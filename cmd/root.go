@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"wealth-warden/pkg/config"
+	"wealth-warden/internal/config"
 	logging "wealth-warden/pkg/logger"
 	"wealth-warden/pkg/version"
 

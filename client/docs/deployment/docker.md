@@ -10,12 +10,12 @@ The app uses a Dockerfile, which is provided in `./build/Dockerfile`
 
 The app can be fully served with `docker-compose`.
 
-- It is located in `./deployments/docker`
+- The compose files are located in the repository root
 
 ### Deployment
 
 To spin up just the db component, you can use:
 
 ```sh
-docker-compose -f ./deployments/docker/docker-compose.yaml -p wealth-warden up client -d
+docker-compose -f ./docker-compose.yaml -p wealth-warden up client -d
 ```

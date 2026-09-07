@@ -57,9 +57,7 @@ services:
 
   migrate:
     profiles: ["migrate"]
-    build:
-      context: ../..
-      dockerfile: ./build/Dockerfile
+    image: nootey/wealth-warden:latest
     depends_on:
       db:
         condition: service_healthy
@@ -72,16 +70,13 @@ services:
     entrypoint: ["server"]
     command: ["migrate", "up"]
     volumes:
-      - ../../logs:/app/logs
-      - ../../pkg/config/override:/app/pkg/config/override:ro
-      - ../../storage/migrations:/app/storage/migrations:ro
+      - ./logs:/app/logs
+      - ./config:/app/config:ro
     networks:
       - wealth-warden
 
   server:
-    build:
-      context: ../..
-      dockerfile: ./build/Dockerfile
+    image: nootey/wealth-warden:latest
     restart: unless-stopped
     depends_on:
       db:
@@ -102,10 +97,8 @@ services:
       - SESSION_MAX_LIFETIME_HOURS=${SESSION_MAX_LIFETIME_HOURS:-2160}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-tempo:4317}
     volumes:
-      - ../../logs:/app/logs
-      - ../../pkg/config/override:/app/pkg/config/override:ro
-      - ../../storage/mailer-templates:/app/storage/mailer-templates:ro
-      - ../../storage/migrations:/app/storage/migrations:ro
+      - ./logs:/app/logs
+      - ./config:/app/config:ro
     labels:
       - traefik.enable=true
       - traefik.http.routers.api.rule=Host(`${HOST:-localhost}`) && PathPrefix(`/api`)
@@ -116,9 +109,7 @@ services:
       - wealth-warden
 
   client:
-    build:
-      context: ../../
-      dockerfile: ./build/Dockerfile.client
+    image: nootey/wealth-warden-client:latest
     restart: unless-stopped
     depends_on:
       server:

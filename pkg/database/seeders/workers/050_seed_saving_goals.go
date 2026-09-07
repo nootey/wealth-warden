@@ -3,8 +3,8 @@ package workers
 import (
 	"context"
 	"time"
+	"wealth-warden/internal/config"
 	"wealth-warden/internal/models"
-	"wealth-warden/pkg/config"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"

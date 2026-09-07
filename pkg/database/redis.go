@@ -6,7 +6,7 @@ import (
 	"net"
 	"strconv"
 	"time"
-	"wealth-warden/pkg/config"
+	"wealth-warden/internal/config"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
