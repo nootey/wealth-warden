@@ -6,6 +6,7 @@ import (
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/jobs"
 	"wealth-warden/internal/models"
+	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/tests"
 
 	"github.com/shopspring/decimal"
@@ -37,9 +38,11 @@ func (s *AutoFundGoalsJobTestSuite) SetupSuite() {
 	s.savingsTypeID = at.ID
 }
 
-// createSavingsAccount creates an account with a balance row whose end_balance equals the given amount.
-// end_balance is generated as start_balance + inflows - outflows, so setting start_balance is sufficient.
+// createSavingsAccount creates an account holding the given amount. The money
+// arrives as an opening transaction, because the ledger is what the balance is
+// recomputed from.
 func (s *AutoFundGoalsJobTestSuite) createSavingsAccount(name string, balance decimal.Decimal) models.Account {
+	openedAt := time.Now().UTC()
 	acc := models.Account{
 		UserID:            s.memberUserID,
 		Name:              name,
@@ -47,18 +50,15 @@ func (s *AutoFundGoalsJobTestSuite) createSavingsAccount(name string, balance de
 		Currency:          "EUR",
 		BalanceProjection: "fixed",
 		ExpectedBalance:   decimal.Zero,
-		OpenedAt:          time.Now().UTC(),
+		OpenedAt:          openedAt,
 		IsActive:          true,
 	}
 	s.Require().NoError(s.TC.DB.Create(&acc).Error)
 
-	bal := models.Balance{
-		AccountID:    acc.ID,
-		AsOf:         time.Now().UTC(),
-		StartBalance: balance,
-		Currency:     "EUR",
-	}
-	s.Require().NoError(s.TC.DB.Create(&bal).Error)
+	opening := models.NewOpeningTransaction(s.memberUserID, acc.ID, nil, "EUR", openedAt, balance)
+	s.Require().NoError(s.TC.DB.Create(&opening).Error)
+	s.Require().NoError(repositories.NewBalanceRepository(s.TC.DB).
+		RecomputeFromTransactions(s.Ctx, nil, acc.ID))
 
 	return acc
 }

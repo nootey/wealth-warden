@@ -142,7 +142,12 @@ func (s *SavingsServiceTestSuite) TestAutoFundGoal_MissedMonthStaysMissed() {
 	s.False(funded)
 
 	// Credit balance in time for month B
-	err = s.TC.DB.Exec("UPDATE balances SET start_balance = 500 WHERE account_id = ?", accID).Error
+	_, err = s.TC.App.TransactionService.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: accID,
+		Direction: "income",
+		Amount:    decimal.NewFromInt(500),
+		TxnDate:   time.Now().UTC(),
+	})
 	s.Require().NoError(err)
 
 	goalWithProgress, err = svc.FetchGoalByID(s.Ctx, userID, goalID)

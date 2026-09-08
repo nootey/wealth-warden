@@ -74,14 +74,66 @@ type AccountRepositoryInterface interface {
 }
 
 type AccountRepository struct {
-	db *gorm.DB
+	db       *gorm.DB
+	balances *BalanceRepository
 }
 
 func NewAccountRepository(db *gorm.DB) *AccountRepository {
-	return &AccountRepository{db: db}
+	return &AccountRepository{db: db, balances: NewBalanceRepository(db)}
 }
 
 var _ AccountRepositoryInterface = (*AccountRepository)(nil)
+
+func (r *AccountRepository) currentBalance(ctx context.Context, db *gorm.DB, accountID int64) (models.Balance, error) {
+	var row struct {
+		AccountID  int64
+		Currency   string
+		EndBalance decimal.Decimal
+	}
+	if err := db.WithContext(ctx).Raw(`
+		SELECT a.id AS account_id, a.currency, COALESCE(ab.balance, 0) AS end_balance
+		FROM accounts a
+		LEFT JOIN account_balances ab ON ab.account_id = a.id
+		WHERE a.id = ?
+	`, accountID).Scan(&row).Error; err != nil {
+		return models.Balance{}, err
+	}
+	return models.Balance{
+		AccountID:  row.AccountID,
+		Currency:   row.Currency,
+		EndBalance: row.EndBalance,
+	}, nil
+}
+
+func (r *AccountRepository) currentBalances(ctx context.Context, db *gorm.DB, accountIDs []int64) (map[int64]models.Balance, error) {
+	out := make(map[int64]models.Balance, len(accountIDs))
+	if len(accountIDs) == 0 {
+		return out, nil
+	}
+
+	var rows []struct {
+		AccountID  int64
+		Currency   string
+		EndBalance decimal.Decimal
+	}
+	if err := db.WithContext(ctx).Raw(`
+		SELECT a.id AS account_id, a.currency, COALESCE(ab.balance, 0) AS end_balance
+		FROM accounts a
+		LEFT JOIN account_balances ab ON ab.account_id = a.id
+		WHERE a.id IN ?
+	`, accountIDs).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		out[row.AccountID] = models.Balance{
+			AccountID:  row.AccountID,
+			Currency:   row.Currency,
+			EndBalance: row.EndBalance,
+		}
+	}
+	return out, nil
+}
 
 func (r *AccountRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 	tx := r.db.WithContext(ctx).Begin()
@@ -138,20 +190,9 @@ func (r *AccountRepository) FindAccounts(ctx context.Context, tx *gorm.DB, userI
 		accountIDs[i] = acc.ID
 	}
 
-	var latestBalances []models.Balance
-	if err := r.db.WithContext(ctx).Raw(`
-		SELECT DISTINCT ON (account_id) *
-		FROM balances
-		WHERE account_id IN ?
-		ORDER BY account_id, as_of DESC
-	`, accountIDs).Scan(&latestBalances).Error; err != nil {
+	balanceMap, err := r.currentBalances(ctx, db, accountIDs)
+	if err != nil {
 		return nil, err
-	}
-
-	// map balances back into accounts
-	balanceMap := make(map[int64]models.Balance, len(latestBalances))
-	for _, b := range latestBalances {
-		balanceMap[b.AccountID] = b
 	}
 
 	for i := range accounts {
@@ -333,12 +374,6 @@ func (r *AccountRepository) FindAccountByID(ctx context.Context, tx *gorm.DB, ID
 	}
 	query = query.Preload("AccountType")
 
-	if withBalance {
-		query = query.Preload("Balance", func(db *gorm.DB) *gorm.DB {
-			return db.Order("as_of desc").Limit(1)
-		})
-	}
-
 	result := query.First(&record)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		var closedAccount models.Account
@@ -352,6 +387,12 @@ func (r *AccountRepository) FindAccountByID(ctx context.Context, tx *gorm.DB, ID
 	}
 
 	if result.Error == nil && withBalance {
+		bal, err := r.currentBalance(ctx, db, record.ID)
+		if err != nil {
+			return &record, err
+		}
+		record.Balance = bal
+
 		var mv struct{ MarketValue decimal.Decimal }
 		db.Raw(`
 			SELECT COALESCE(market_value, 0) AS market_value
@@ -377,14 +418,17 @@ func (r *AccountRepository) FindAccountByName(ctx context.Context, tx *gorm.DB, 
 
 	var record models.Account
 	query := db.Where("name = ? AND user_id = ? AND closed_at IS NULL AND is_active = true", name, userID).
-		Preload("AccountType").
-		Preload("Balance", func(db *gorm.DB) *gorm.DB {
-			return db.Order("as_of desc").Limit(1)
-		})
+		Preload("AccountType")
 
 	if err := query.First(&record).Error; err != nil {
 		return &record, err
 	}
+
+	bal, err := r.currentBalance(ctx, db, record.ID)
+	if err != nil {
+		return &record, err
+	}
+	record.Balance = bal
 
 	var mv struct{ MarketValue decimal.Decimal }
 	db.Raw(`
@@ -443,23 +487,13 @@ func (r *AccountRepository) FindAllAccountsWithLatestBalance(ctx context.Context
 		ids = append(ids, a.ID)
 	}
 
-	var bals []models.Balance
-	if err := db.
-		Where("account_id IN ?", ids).
-		Order("account_id DESC, as_of DESC").
-		Find(&bals).Error; err != nil {
+	balanceMap, err := r.currentBalances(ctx, db, ids)
+	if err != nil {
 		return nil, err
 	}
 
-	earliest := make(map[int64]models.Balance, len(ids))
-	for _, b := range bals {
-		if _, ok := earliest[b.AccountID]; !ok {
-			earliest[b.AccountID] = b
-		}
-	}
-
 	for i := range accounts {
-		if b, ok := earliest[accounts[i].ID]; ok {
+		if b, ok := balanceMap[accounts[i].ID]; ok {
 			accounts[i].Balance = b
 		}
 	}
@@ -479,14 +513,29 @@ func (r *AccountRepository) FindAccountByIDWithInitialBalance(ctx context.Contex
 
 	var record models.Account
 
-	query := db.Where("id = ? AND user_id = ?", ID, userID).
+	result := db.Where("id = ? AND user_id = ?", ID, userID).
 		Preload("AccountType").
-		Preload("Balance", func(db *gorm.DB) *gorm.DB {
-			return db.Order("as_of asc").Limit(1)
-		})
+		First(&record)
+	if result.Error != nil {
+		return &record, result.Error
+	}
 
-	result := query.First(&record)
-	return &record, result.Error
+	var opening decimal.Decimal
+	if err := db.Raw(`
+		SELECT COALESCE(SUM(CASE WHEN direction = 'expense' THEN -amount ELSE amount END), 0)
+		FROM transactions
+		WHERE account_id = ? AND transaction_type = 'opening' AND deleted_at IS NULL
+	`, record.ID).Scan(&opening).Error; err != nil {
+		return &record, err
+	}
+
+	record.Balance = models.Balance{
+		AccountID:    record.ID,
+		Currency:     record.Currency,
+		StartBalance: opening,
+	}
+
+	return &record, nil
 }
 
 func (r *AccountRepository) FindAccountTypeByID(ctx context.Context, tx *gorm.DB, ID int64) (models.AccountType, error) {
@@ -536,11 +585,7 @@ func (r *AccountRepository) FindLatestBalanceForAccountID(ctx context.Context, t
 	}
 	db = db.WithContext(ctx)
 
-	var record models.Balance
-	result := db.Where("account_id = ?", accID).
-		Order("as_of DESC").
-		First(&record)
-	return record, result.Error
+	return r.currentBalance(ctx, db, accID)
 }
 
 func (r *AccountRepository) InsertAccount(ctx context.Context, tx *gorm.DB, newRecord *models.Account) (int64, error) {
@@ -1004,6 +1049,16 @@ func (r *AccountRepository) PostCashDelta(ctx context.Context, tx *gorm.DB, acco
 	if err := r.EnsureDailyBalanceRow(ctx, tx, accountID, asOf, currency); err != nil {
 		return err
 	}
+
+	delta := amt
+	if field == "cash_outflows" {
+		delta = amt.Neg()
+	}
+	// The one row table has no date, so a zero post still seeds the account's row.
+	if err := r.balances.ApplyDelta(ctx, tx, accountID, delta); err != nil {
+		return err
+	}
+
 	if amt.IsZero() {
 		return nil
 	}
@@ -1024,6 +1079,10 @@ func (r *AccountRepository) RebuildFromTransactions(ctx context.Context, tx *gor
 
 func (r *AccountRepository) RebuildBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error {
 	if err := r.FrontfillBalances(ctx, tx, accountID, currency, from); err != nil {
+		return err
+	}
+
+	if err := r.balances.RecomputeFromTransactions(ctx, tx, accountID); err != nil {
 		return err
 	}
 
@@ -1331,15 +1390,28 @@ func (r *AccountRepository) FindLatestBalance(ctx context.Context, tx *gorm.DB, 
 	}
 	db = db.WithContext(ctx)
 
-	var balance models.Balance
-	err := db.Select("balances.*").
-		Joins("JOIN accounts ON accounts.id = balances.account_id").
-		Where("balances.account_id = ? AND accounts.user_id = ?", accountID, userID).
-		Order("balances.as_of DESC").
-		Limit(1).
-		First(&balance).Error
-	if err != nil {
-		return nil, err
+	var row struct {
+		AccountID  int64
+		Currency   string
+		EndBalance decimal.Decimal
+	}
+	result := db.Raw(`
+		SELECT a.id AS account_id, a.currency, COALESCE(ab.balance, 0) AS end_balance
+		FROM accounts a
+		LEFT JOIN account_balances ab ON ab.account_id = a.id
+		WHERE a.id = ? AND a.user_id = ?
+	`, accountID, userID).Scan(&row)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	balance := models.Balance{
+		AccountID:  row.AccountID,
+		Currency:   row.Currency,
+		EndBalance: row.EndBalance,
 	}
 
 	var mv struct{ MarketValue decimal.Decimal }
