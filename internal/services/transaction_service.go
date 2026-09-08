@@ -62,6 +62,7 @@ type TransactionServiceInterface interface {
 type TransactionService struct {
 	repo          repositories.TransactionRepositoryInterface
 	accRepo       repositories.AccountRepositoryInterface
+	balanceRepo   repositories.BalanceRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
 	savingsRepo   repositories.SavingsRepositoryInterface
 	jobDispatcher jobqueue.Dispatcher
@@ -72,6 +73,7 @@ func NewTransactionService(
 	logger *zap.Logger,
 	repo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
+	balanceRepo *repositories.BalanceRepository,
 	settingsRepo *repositories.SettingsRepository,
 	savingsRepo *repositories.SavingsRepository,
 	jobDispatcher jobqueue.Dispatcher,
@@ -79,6 +81,7 @@ func NewTransactionService(
 	return &TransactionService{
 		repo:          repo,
 		accRepo:       accRepo,
+		balanceRepo:   balanceRepo,
 		settingsRepo:  settingsRepo,
 		savingsRepo:   savingsRepo,
 		jobDispatcher: jobDispatcher,
@@ -89,20 +92,16 @@ func NewTransactionService(
 var _ TransactionServiceInterface = (*TransactionService)(nil)
 
 func (s *TransactionService) updateAccountBalance(ctx context.Context, tx *gorm.DB, account *models.Account, txnDate time.Time, direction string, amount decimal.Decimal) error {
-	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, account.ID, txnDate, account.Currency); err != nil {
+	delta := amount.Round(4)
+	if direction == "expense" {
+		delta = delta.Neg()
+	}
+
+	if err := s.balanceRepo.ApplyDelta(ctx, tx, account.ID, delta); err != nil {
 		return err
 	}
 
-	column := map[string]string{
-		"expense": "cash_outflows",
-		"income":  "cash_inflows",
-	}[direction]
-
-	if err := s.accRepo.AddToDailyBalance(ctx, tx, account.ID, txnDate, column, amount.Round(4)); err != nil {
-		return err
-	}
-
-	if err := s.accRepo.UpsertSnapshotsFromBalances(
+	if err := s.balanceRepo.RebuildDailyRange(
 		ctx,
 		tx,
 		account.UserID,
@@ -134,7 +133,7 @@ func (s *TransactionService) FetchTransactionsPaginated(ctx context.Context, use
 	totals := &models.TransactionBatchTotals{}
 	for _, r := range records {
 		totals.Count++
-		if r.TransactionType == "income" {
+		if r.Direction == "income" {
 			totals.Income = totals.Income.Add(r.Amount)
 		} else {
 			totals.Expenses = totals.Expenses.Add(r.Amount)
@@ -260,14 +259,14 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		return models.InsertResult{}, fmt.Errorf("can't find account with given id %w", err)
 	}
 
-	if req.TransactionType == "expense" {
-		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, account.ID, userID)
+	if req.Direction == "expense" {
+		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, account.ID, userID)
 		if err != nil {
 			tx.Rollback()
 			return models.InsertResult{}, err
 		}
 
-		resultingBalance := latestBalance.EndBalance.Sub(req.Amount)
+		resultingBalance := latestBalance.Sub(req.Amount)
 		if utils.AccountBelowLimit(resultingBalance, account) {
 			tx.Rollback()
 			return models.InsertResult{}, utils.AccountLimitError(resultingBalance, account)
@@ -343,15 +342,15 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	}
 
 	tr := models.Transaction{
-		UserID:          userID,
-		AccountID:       account.ID,
-		CategoryID:      &category.ID,
-		TransactionType: strings.ToLower(req.TransactionType),
-		Amount:          req.Amount,
-		Currency:        account.Currency,
-		TxnDate:         txDay,
-		Description:     req.Description,
-		IdempotencyKey:  req.IdempotencyKey,
+		UserID:         userID,
+		AccountID:      account.ID,
+		CategoryID:     &category.ID,
+		Direction:      strings.ToLower(req.Direction),
+		Amount:         req.Amount,
+		Currency:       account.Currency,
+		TxnDate:        txDay,
+		Description:    req.Description,
+		IdempotencyKey: req.IdempotencyKey,
 	}
 
 	txnID, err := s.repo.InsertTransaction(ctx, tx, &tr)
@@ -365,7 +364,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		return models.InsertResult{}, err
 	}
 
-	if err := s.updateAccountBalance(ctx, tx, account, tr.TxnDate, tr.TransactionType, tr.Amount); err != nil {
+	if err := s.updateAccountBalance(ctx, tx, account, tr.TxnDate, tr.Direction, tr.Amount); err != nil {
 		tx.Rollback()
 		return models.InsertResult{}, err
 	}
@@ -376,12 +375,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 	if from.Before(today) {
 
 		from := tr.TxnDate.UTC().Truncate(24 * time.Hour)
-		today := time.Now().UTC().Truncate(24 * time.Hour)
-		if err := s.accRepo.FrontfillBalances(ctx, tx, account.ID, account.Currency, from); err != nil {
-			tx.Rollback()
-			return models.InsertResult{}, err
-		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, account.ID, account.Currency, from, today); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, account.ID, account.Currency, from); err != nil {
 			tx.Rollback()
 			return models.InsertResult{}, err
 		}
@@ -401,7 +395,7 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 
 	utils.CompareChanges("", strconv.FormatInt(txnID, 10), changes, "id")
 	utils.CompareChanges("", account.Name, changes, "account")
-	utils.CompareChanges("", tr.TransactionType, changes, "type")
+	utils.CompareChanges("", tr.Direction, changes, "type")
 	utils.CompareChanges("", dateStr, changes, "date")
 	utils.CompareChanges("", amountString, changes, "amount")
 	utils.CompareChanges("", tr.Currency, changes, "currency")
@@ -449,7 +443,7 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	}
 
 	if fromAcc.AccountType.Classification == "asset" {
-		resultingBalance := fromAcc.Balance.EndBalance.Sub(req.Amount)
+		resultingBalance := fromAcc.Balance.Balance.Sub(req.Amount)
 		if utils.AccountBelowLimit(resultingBalance, fromAcc) {
 			tx.Rollback()
 			return models.InsertResult{}, utils.AccountLimitError(resultingBalance, fromAcc)
@@ -495,12 +489,12 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	outflow := models.Transaction{
 		UserID:          userID,
 		AccountID:       fromAcc.ID,
-		TransactionType: "expense",
+		Direction:       "expense",
 		Amount:          req.Amount,
 		Currency:        fromAcc.Currency,
 		TxnDate:         txDate,
 		Description:     req.Notes,
-		IsTransfer:      true,
+		TransactionType: models.TxnTypeTransfer,
 	}
 
 	if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
@@ -511,12 +505,12 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	inflow := models.Transaction{
 		UserID:          userID,
 		AccountID:       toAcc.ID,
-		TransactionType: "income",
+		Direction:       "income",
 		Amount:          req.Amount,
 		Currency:        toAcc.Currency,
 		TxnDate:         txDate,
 		Description:     req.Notes,
-		IsTransfer:      true,
+		TransactionType: models.TxnTypeTransfer,
 	}
 
 	if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
@@ -559,23 +553,14 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	}
 
 	from := txDate.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	// Frontfill and update snapshots for both accounts
-	if err := s.accRepo.FrontfillBalances(ctx, tx, fromAcc.ID, fromAcc.Currency, from); err != nil {
-		tx.Rollback()
-		return models.InsertResult{}, err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, from, today); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, from); err != nil {
 		tx.Rollback()
 		return models.InsertResult{}, err
 	}
 
-	if err := s.accRepo.FrontfillBalances(ctx, tx, toAcc.ID, toAcc.Currency, from); err != nil {
-		tx.Rollback()
-		return models.InsertResult{}, err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, from, today); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, from); err != nil {
 		tx.Rollback()
 		return models.InsertResult{}, err
 	}
@@ -681,8 +666,8 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	if err != nil {
 		return 0, fmt.Errorf("can't find transaction with given id %w", err)
 	}
-	if exTr.IsAdjustment {
-		return 0, errors.New("can't edit a manual adjustment transaction")
+	if !exTr.TransactionType.IsUserEditable() {
+		return 0, fmt.Errorf("can't edit a %s transaction", exTr.TransactionType)
 	}
 
 	// Load old account & category (for logs)
@@ -718,13 +703,13 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 	var oldEffect, newEffect decimal.Decimal
 
-	if exTr.TransactionType == "expense" {
+	if exTr.Direction == "expense" {
 		oldEffect = exTr.Amount.Neg()
 	} else {
 		oldEffect = exTr.Amount
 	}
 
-	if req.TransactionType == "expense" {
+	if req.Direction == "expense" {
 		newEffect = req.Amount.Neg()
 	} else {
 		newEffect = req.Amount
@@ -734,13 +719,13 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 	// If net change is negative (balance going down), validate
 	if netChange.IsNegative() {
-		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, newAccount.ID, userID)
+		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, newAccount.ID, userID)
 		if err != nil {
 			tx.Rollback()
 			return 0, err
 		}
 
-		resultingBalance := latestBalance.EndBalance.Add(netChange)
+		resultingBalance := latestBalance.Add(netChange)
 		if utils.AccountBelowLimit(resultingBalance, newAccount) {
 			tx.Rollback()
 			return 0, utils.AccountLimitError(resultingBalance, newAccount)
@@ -802,15 +787,15 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 	// Update the transaction
 	tr := models.Transaction{
-		ID:              exTr.ID,
-		UserID:          userID,
-		AccountID:       newAccount.ID,
-		CategoryID:      &newCategory.ID,
-		TransactionType: strings.ToLower(req.TransactionType),
-		Amount:          req.Amount,
-		Currency:        exTr.Currency,
-		TxnDate:         newDay,
-		Description:     req.Description,
+		ID:          exTr.ID,
+		UserID:      userID,
+		AccountID:   newAccount.ID,
+		CategoryID:  &newCategory.ID,
+		Direction:   strings.ToLower(req.Direction),
+		Amount:      req.Amount,
+		Currency:    exTr.Currency,
+		TxnDate:     newDay,
+		Description: req.Description,
 	}
 	txnID, err := s.repo.UpdateTransaction(ctx, tx, tr)
 	if err != nil {
@@ -822,19 +807,17 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 
 	// Reverse old, apply new
 	if !exTr.Amount.IsZero() {
-		if err := s.updateAccountBalance(ctx, tx, oldAccount, oldDay, exTr.TransactionType, exTr.Amount.Neg()); err != nil {
+		if err := s.updateAccountBalance(ctx, tx, oldAccount, oldDay, exTr.Direction, exTr.Amount.Neg()); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
 	}
 	if !tr.Amount.IsZero() {
-		if err := s.updateAccountBalance(ctx, tx, newAccount, newDay, tr.TransactionType, tr.Amount); err != nil {
+		if err := s.updateAccountBalance(ctx, tx, newAccount, newDay, tr.Direction, tr.Amount); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
 	}
-
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	// Determine the earliest affected date
 	earliestDate := oldDay
@@ -845,31 +828,19 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	// If account changed, we need to update both accounts
 	if oldAccount.ID != newAccount.ID {
 		// Update old account from old date forward
-		if err := s.accRepo.FrontfillBalances(ctx, tx, oldAccount.ID, oldAccount.Currency, oldDay); err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, oldAccount.ID, oldAccount.Currency, oldDay, today); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, oldAccount.ID, oldAccount.Currency, oldDay); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
 
 		// Update new account from new date forward
-		if err := s.accRepo.FrontfillBalances(ctx, tx, newAccount.ID, newAccount.Currency, newDay); err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, newAccount.ID, newAccount.Currency, newDay, today); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, newAccount.ID, newAccount.Currency, newDay); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
 	} else {
 		// Same account - update from earliest affected date forward
-		if err := s.accRepo.FrontfillBalances(ctx, tx, newAccount.ID, newAccount.Currency, earliestDate); err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, newAccount.ID, newAccount.Currency, earliestDate, today); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, newAccount.ID, newAccount.Currency, earliestDate); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
@@ -883,7 +854,7 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	// Dispatch transaction activity log
 	changes := utils.InitChanges()
 	utils.CompareChanges(oldAccount.Name, newAccount.Name, changes, "account")
-	utils.CompareChanges(exTr.TransactionType, tr.TransactionType, changes, "type")
+	utils.CompareChanges(exTr.Direction, tr.Direction, changes, "type")
 	utils.CompareDateChange(&exTr.TxnDate, &tr.TxnDate, changes, "date")
 	utils.CompareDecimalChange(&exTr.Amount, &tr.Amount, changes, "amount", 2)
 	utils.CompareChanges(exTr.Currency, tr.Currency, changes, "currency")
@@ -990,6 +961,10 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 		tx.Rollback()
 		return fmt.Errorf("can't find transaction with given id %w", err)
 	}
+	if !tr.TransactionType.IsUserDeletable() {
+		tx.Rollback()
+		return fmt.Errorf("can't delete a %s transaction", tr.TransactionType)
+	}
 
 	account, err := s.accRepo.FindAccountByID(ctx, tx, tr.AccountID, userID, false)
 	if err != nil {
@@ -998,14 +973,14 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	}
 
 	// If deleting an income, balance will go down
-	if tr.TransactionType == "income" {
-		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, account.ID, userID)
+	if tr.Direction == "income" {
+		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, account.ID, userID)
 		if err != nil {
 			tx.Rollback()
 			return err
 		}
 
-		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
+		resultingBalance := latestBalance.Sub(tr.Amount)
 		if utils.AccountBelowLimit(resultingBalance, account) {
 			tx.Rollback()
 			return utils.AccountLimitError(resultingBalance, account)
@@ -1041,18 +1016,13 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	}
 
 	// Reverse the original cash effect on the account
-	if err := s.updateAccountBalance(ctx, tx, account, tr.TxnDate, tr.TransactionType, tr.Amount.Neg()); err != nil {
+	if err := s.updateAccountBalance(ctx, tx, account, tr.TxnDate, tr.Direction, tr.Amount.Neg()); err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	from := tr.TxnDate.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	if err := s.accRepo.FrontfillBalances(ctx, tx, account.ID, account.Currency, from); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, account.ID, account.Currency, from, today); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, account.ID, account.Currency, from); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1066,7 +1036,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 
 	utils.CompareChanges("", strconv.FormatInt(tr.ID, 10), changes, "id")
 	utils.CompareChanges(account.Name, "", changes, "account")
-	utils.CompareChanges(tr.TransactionType, "", changes, "type")
+	utils.CompareChanges(tr.Direction, "", changes, "type")
 	utils.CompareDateChange(&tr.TxnDate, nil, changes, "date")
 	utils.CompareDecimalChange(&tr.Amount, nil, changes, "amount", 2)
 	utils.CompareChanges(tr.Currency, "", changes, "currency")
@@ -1159,7 +1129,7 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 	// Sufficient funds check: only when the outflow increases
 	netChange := req.Amount.Sub(oldAmount)
 	if netChange.GreaterThan(decimal.Zero) && fromAcc.AccountType.Classification == "asset" {
-		resultingBalance := fromAcc.Balance.EndBalance.Sub(netChange)
+		resultingBalance := fromAcc.Balance.Balance.Sub(netChange)
 		if utils.AccountBelowLimit(resultingBalance, fromAcc) {
 			tx.Rollback()
 			return utils.AccountLimitError(resultingBalance, fromAcc)
@@ -1226,22 +1196,13 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 	if newDate.Before(oldDate) {
 		recalcFrom = newDate
 	}
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	if err := s.accRepo.FrontfillBalances(ctx, tx, fromAcc.ID, fromAcc.Currency, recalcFrom); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, recalcFrom, today); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, recalcFrom); err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	if err := s.accRepo.FrontfillBalances(ctx, tx, toAcc.ID, toAcc.Currency, recalcFrom); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, recalcFrom, today); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, recalcFrom); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1329,48 +1290,16 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 	}
 
 	// Check if removing from destination would violate investment constraint
-	latestToBalance, err := s.accRepo.FindLatestBalance(ctx, tx, toAcc.ID, userID)
+	latestToBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, toAcc.ID, userID)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	resultingBalance := latestToBalance.EndBalance.Sub(inflow.Amount)
+	resultingBalance := latestToBalance.Sub(inflow.Amount)
 	if utils.AccountBelowLimit(resultingBalance, toAcc) {
 		tx.Rollback()
 		return utils.AccountLimitError(resultingBalance, toAcc)
-	}
-
-	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := s.updateAccountBalance(ctx, tx, toAcc, outflow.TxnDate, "income", outflow.Amount.Neg()); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	from := outflow.TxnDate.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-
-	// frontfill from the transfer date forward
-	if err := s.accRepo.FrontfillBalances(ctx, tx, fromAcc.ID, fromAcc.Currency, from); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, from, today); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := s.accRepo.FrontfillBalances(ctx, tx, toAcc.ID, toAcc.Currency, from); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, from, today); err != nil {
-		tx.Rollback()
-		return err
 	}
 
 	// Delete transfer
@@ -1385,6 +1314,28 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 		return err
 	}
 	if err := s.repo.DeleteTransaction(ctx, tx, outflow.ID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.updateAccountBalance(ctx, tx, toAcc, outflow.TxnDate, "income", outflow.Amount.Neg()); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	from := outflow.TxnDate.UTC().Truncate(24 * time.Hour)
+
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, from); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, from); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1529,6 +1480,10 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 		tx.Rollback()
 		return fmt.Errorf("transaction is not deleted")
 	}
+	if !tr.TransactionType.IsUserDeletable() {
+		tx.Rollback()
+		return fmt.Errorf("can't restore a %s transaction", tr.TransactionType)
+	}
 
 	// Load account
 	acc, err := s.accRepo.FindAccountByID(ctx, tx, tr.AccountID, userID, false)
@@ -1538,14 +1493,14 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 	}
 
 	// If restoring an expense, balance will go down
-	if tr.TransactionType == "expense" {
-		latestBalance, err := s.accRepo.FindLatestBalance(ctx, tx, acc.ID, userID)
+	if tr.Direction == "expense" {
+		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, acc.ID, userID)
 		if err != nil {
 			tx.Rollback()
 			return err
 		}
 
-		resultingBalance := latestBalance.EndBalance.Sub(tr.Amount)
+		resultingBalance := latestBalance.Sub(tr.Amount)
 		if utils.AccountBelowLimit(resultingBalance, acc) {
 			tx.Rollback()
 			return utils.AccountLimitError(resultingBalance, acc)
@@ -1561,7 +1516,7 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 			return amt
 		}
 	}
-	origEffect := signed(tr.TransactionType, tr.Amount)
+	origEffect := signed(tr.Direction, tr.Amount)
 
 	// Reverse balances
 	if !origEffect.IsZero() {
@@ -1891,9 +1846,9 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 			}
 			categoryID = &cat.ID
 		}
-		if req.TransactionType == nil {
+		if req.Direction == nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("transaction_type is required for transaction templates")
+			return 0, fmt.Errorf("direction is required for transaction templates")
 		}
 	}
 
@@ -1952,29 +1907,29 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 	}
 
 	var txnType *string
-	if req.TransactionType != nil {
-		v := strings.ToLower(*req.TransactionType)
+	if req.Direction != nil {
+		v := strings.ToLower(*req.Direction)
 		txnType = &v
 	}
 
 	day := firstRun.In(loc).Day()
 
 	tp := models.TransactionTemplate{
-		Name:            req.Name,
-		TemplateType:    templateType,
-		UserID:          userID,
-		AccountID:       account.ID,
-		ToAccountID:     toAccountID,
-		CategoryID:      categoryID,
-		TransactionType: txnType,
-		Amount:          req.Amount,
-		Frequency:       strings.ToLower(req.Frequency),
-		DayOfMonth:      day,
-		NextRunAt:       firstRun,
-		EndDate:         endDate,
-		MaxRuns:         req.MaxRuns,
-		RunCount:        0,
-		IsActive:        true,
+		Name:         req.Name,
+		TemplateType: templateType,
+		UserID:       userID,
+		AccountID:    account.ID,
+		ToAccountID:  toAccountID,
+		CategoryID:   categoryID,
+		Direction:    txnType,
+		Amount:       req.Amount,
+		Frequency:    strings.ToLower(req.Frequency),
+		DayOfMonth:   day,
+		NextRunAt:    firstRun,
+		EndDate:      endDate,
+		MaxRuns:      req.MaxRuns,
+		RunCount:     0,
+		IsActive:     true,
 	}
 
 	tpID, err := s.repo.InsertTransactionTemplate(ctx, tx, &tp)
@@ -1997,8 +1952,8 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		categoryName = tp.Category.Name
 	}
 	var txnTypeStr string
-	if tp.TransactionType != nil {
-		txnTypeStr = *tp.TransactionType
+	if tp.Direction != nil {
+		txnTypeStr = *tp.Direction
 	}
 
 	utils.CompareChanges("", strconv.FormatInt(tpID, 10), changes, "id")
@@ -2103,22 +2058,22 @@ func (s *TransactionService) UpdateTransactionTemplate(ctx context.Context, user
 	day := nextRun.In(loc).Day()
 
 	tp := models.TransactionTemplate{
-		ID:              exTp.ID,
-		Name:            req.Name,
-		UserID:          userID,
-		AccountID:       exTp.AccountID,
-		ToAccountID:     exTp.ToAccountID,
-		CategoryID:      exTp.CategoryID,
-		TemplateType:    exTp.TemplateType,
-		TransactionType: exTp.TransactionType,
-		Amount:          req.Amount,
-		Frequency:       exTp.Frequency,
-		DayOfMonth:      day,
-		NextRunAt:       nextRun,
-		EndDate:         endDate,
-		MaxRuns:         req.MaxRuns,
-		RunCount:        exTp.RunCount,
-		IsActive:        exTp.IsActive,
+		ID:           exTp.ID,
+		Name:         req.Name,
+		UserID:       userID,
+		AccountID:    exTp.AccountID,
+		ToAccountID:  exTp.ToAccountID,
+		CategoryID:   exTp.CategoryID,
+		TemplateType: exTp.TemplateType,
+		Direction:    exTp.Direction,
+		Amount:       req.Amount,
+		Frequency:    exTp.Frequency,
+		DayOfMonth:   day,
+		NextRunAt:    nextRun,
+		EndDate:      endDate,
+		MaxRuns:      req.MaxRuns,
+		RunCount:     exTp.RunCount,
+		IsActive:     exTp.IsActive,
 	}
 
 	tpID, err := s.repo.UpdateTransactionTemplate(ctx, tx, tp, false)
@@ -2337,8 +2292,8 @@ func (s *TransactionService) DeleteTransactionTemplate(ctx context.Context, user
 		deleteCategoryName = tp.Category.Name
 	}
 	var deleteTypeStr string
-	if tp.TransactionType != nil {
-		deleteTypeStr = *tp.TransactionType
+	if tp.Direction != nil {
+		deleteTypeStr = *tp.Direction
 	}
 
 	utils.CompareChanges("", strconv.FormatInt(tp.ID, 10), changes, "id")
@@ -2401,7 +2356,7 @@ func (s *TransactionService) GetTemplateSummary(ctx context.Context, userID int6
 	summary := &models.TemplateSummary{}
 	for _, t := range templates {
 		isTransfer := t.TemplateType == "transfer"
-		isExpense := t.TransactionType != nil && *t.TransactionType == "expense"
+		isExpense := t.Direction != nil && *t.Direction == "expense"
 
 		isOneOff := t.MaxRuns != nil && *t.MaxRuns == 1
 
@@ -2594,10 +2549,10 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			tx.Rollback()
 			return 0, time.Time{}, fmt.Errorf("source account not found: %w", err)
 		}
-		if srcAcc.Balance.EndBalance.Sub(currentTemplate.Amount).LessThan(decimal.Zero) {
+		if srcAcc.Balance.Balance.Sub(currentTemplate.Amount).LessThan(decimal.Zero) {
 			tx.Rollback()
 			return 0, time.Time{}, fmt.Errorf("insufficient funds in source account %s (balance: %s, requested: %s)",
-				srcAcc.Name, srcAcc.Balance.EndBalance.StringFixed(2), currentTemplate.Amount.StringFixed(2))
+				srcAcc.Name, srcAcc.Balance.Balance.StringFixed(2), currentTemplate.Amount.StringFixed(2))
 		}
 
 		toAcc, err := s.accRepo.FindAccountByID(ctx, tx, *currentTemplate.ToAccountID, currentTemplate.UserID, false)
@@ -2609,12 +2564,12 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		outflow := models.Transaction{
 			UserID:          currentTemplate.UserID,
 			AccountID:       srcAcc.ID,
-			TransactionType: "expense",
+			Direction:       "expense",
 			Amount:          currentTemplate.Amount,
 			Currency:        srcAcc.Currency,
 			TxnDate:         txDate,
 			Description:     &desc,
-			IsTransfer:      true,
+			TransactionType: models.TxnTypeTransfer,
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &outflow); err != nil {
 			tx.Rollback()
@@ -2624,12 +2579,12 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		inflow := models.Transaction{
 			UserID:          currentTemplate.UserID,
 			AccountID:       toAcc.ID,
-			TransactionType: "income",
+			Direction:       "income",
 			Amount:          currentTemplate.Amount,
 			Currency:        toAcc.Currency,
 			TxnDate:         txDate,
 			Description:     &desc,
-			IsTransfer:      true,
+			TransactionType: models.TxnTypeTransfer,
 		}
 		if _, err := s.repo.InsertTransaction(ctx, tx, &inflow); err != nil {
 			tx.Rollback()
@@ -2680,17 +2635,17 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		}
 
 		txnType := ""
-		if currentTemplate.TransactionType != nil {
-			txnType = *currentTemplate.TransactionType
+		if currentTemplate.Direction != nil {
+			txnType = *currentTemplate.Direction
 		}
 
 		txnReq := &models.TransactionReq{
-			AccountID:       acc.ID,
-			CategoryID:      categoryID,
-			TransactionType: txnType,
-			Amount:          currentTemplate.Amount,
-			TxnDate:         txDate,
-			Description:     &desc,
+			AccountID:   acc.ID,
+			CategoryID:  categoryID,
+			Direction:   txnType,
+			Amount:      currentTemplate.Amount,
+			TxnDate:     txDate,
+			Description: &desc,
 		}
 		if _, err = s.InsertTransaction(ctx, currentTemplate.UserID, txnReq, tx); err != nil {
 			tx.Rollback()

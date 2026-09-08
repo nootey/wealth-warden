@@ -2,12 +2,40 @@ package models
 
 import (
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/shopspring/decimal"
 )
 
-var ErrTemplateAlreadyRanToday = errors.New("template already executed today")
+var (
+	ErrTemplateAlreadyRanToday = errors.New("template already executed today")
+
+	ClientVisibleTxnTypes = []TransactionType{TxnTypeLedger, TxnTypeAdjustment, TxnTypeOpening}
+)
+
+type TransactionType string
+
+const (
+	TxnTypeLedger           TransactionType = "ledger"            // Standard type
+	TxnTypeTransfer         TransactionType = "transfer"          // Legs of a transfer
+	TxnTypeAdjustment       TransactionType = "adjustment"        // Manual balance adjustment
+	TxnTypeTrade            TransactionType = "trade"             // Investment trades
+	TxnTypeInvestmentIncome TransactionType = "investment_income" // Dividends
+	TxnTypeOpening          TransactionType = "opening"           // The amount an account started with
+)
+
+func (t TransactionType) IsUserEditable() bool {
+	return t == TxnTypeLedger || t == TxnTypeTransfer || t == TxnTypeOpening
+}
+
+func (t TransactionType) IsUserDeletable() bool {
+	return t == TxnTypeLedger || t == TxnTypeTransfer
+}
+
+func (t TransactionType) IsClientVisible() bool {
+	return slices.Contains(ClientVisibleTxnTypes, t)
+}
 
 type Transaction struct {
 	ID              int64           `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -15,20 +43,40 @@ type Transaction struct {
 	AccountID       int64           `gorm:"not null;index:idx_transactions_account_date" json:"account_id"`
 	CategoryID      *int64          `gorm:"index:idx_transactions_category" json:"category_id,omitempty"`
 	ImportID        *int64          `json:"import_id,omitempty"`
-	TransactionType string          `gorm:"not null;enum(income,expense)" json:"transaction_type"`
+	Direction       string          `gorm:"not null;enum(income,expense)" json:"direction"`
 	Amount          decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
 	Currency        string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	TxnDate         time.Time       `gorm:"not null;index" json:"txn_date"`
 	Description     *string         `gorm:"type:varchar(255)" json:"description,omitempty"`
-	IsAdjustment    bool            `gorm:"not null;type:boolean" json:"is_adjustment"`
-	IsSystem        bool            `gorm:"not null;type:boolean" json:"is_system"`
-	IsTransfer      bool            `gorm:"not null;type:boolean" json:"is_transfer"`
+	TransactionType TransactionType `gorm:"not null;default:'ledger'" json:"transaction_type"`
 	IdempotencyKey  *string         `gorm:"type:varchar(64)" json:"idempotency_key,omitempty"`
 	Account         Account         `json:"account"`
 	Category        Category        `json:"category,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 	DeletedAt       *time.Time      `json:"deleted_at"`
+}
+
+func NewOpeningTransaction(userID, accountID int64, categoryID *int64, currency string, openedAt time.Time, amount decimal.Decimal) Transaction {
+	direction := "income"
+	if amount.IsNegative() {
+		direction = "expense"
+		amount = amount.Neg()
+	}
+
+	desc := "Opening balance"
+
+	return Transaction{
+		UserID:          userID,
+		AccountID:       accountID,
+		CategoryID:      categoryID,
+		Direction:       direction,
+		Amount:          amount,
+		Currency:        currency,
+		TxnDate:         openedAt,
+		Description:     &desc,
+		TransactionType: TxnTypeOpening,
+	}
 }
 
 type Transfer struct {
@@ -52,28 +100,28 @@ type Transfer struct {
 }
 
 type TransactionTemplate struct {
-	ID              int64           `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name            string          `gorm:"varchar(150)" json:"name"`
-	UserID          int64           `gorm:"not null" json:"user_id"`
-	AccountID       int64           `gorm:"not null" json:"account_id"`
-	ToAccountID     *int64          `json:"to_account_id,omitempty"`
-	CategoryID      *int64          `json:"category_id,omitempty"`
-	TemplateType    string          `gorm:"not null;default:'transaction'" json:"template_type"`
-	TransactionType *string         `gorm:"enum(income,expense)" json:"transaction_type,omitempty"`
-	Amount          decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
-	Frequency       string          `gorm:"not null:enum(weekly,biweekly,monthly,quarterly,annually)" json:"frequency"`
-	DayOfMonth      int             `gorm:"not null;default:0" json:"day_of_month"`
-	NextRunAt       time.Time       `gorm:"not null" json:"next_run_at"`
-	LastRunAt       *time.Time      `json:"last_run_at"`
-	RunCount        int             `gorm:"not null;default:0" json:"run_count"`
-	EndDate         *time.Time      `json:"end_date"`
-	MaxRuns         *int            `json:"max_runs"`
-	IsActive        bool            `gorm:"not null;default:true" json:"is_active"`
-	Account         Account         `json:"account"`
-	ToAccount       *Account        `gorm:"foreignKey:ToAccountID" json:"to_account,omitempty"`
-	Category        *Category       `json:"category,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	ID           int64           `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name         string          `gorm:"varchar(150)" json:"name"`
+	UserID       int64           `gorm:"not null" json:"user_id"`
+	AccountID    int64           `gorm:"not null" json:"account_id"`
+	ToAccountID  *int64          `json:"to_account_id,omitempty"`
+	CategoryID   *int64          `json:"category_id,omitempty"`
+	TemplateType string          `gorm:"not null;default:'transaction'" json:"template_type"`
+	Direction    *string         `gorm:"enum(income,expense)" json:"direction,omitempty"`
+	Amount       decimal.Decimal `gorm:"type:decimal(19,4);not null" json:"amount"`
+	Frequency    string          `gorm:"not null:enum(weekly,biweekly,monthly,quarterly,annually)" json:"frequency"`
+	DayOfMonth   int             `gorm:"not null;default:0" json:"day_of_month"`
+	NextRunAt    time.Time       `gorm:"not null" json:"next_run_at"`
+	LastRunAt    *time.Time      `json:"last_run_at"`
+	RunCount     int             `gorm:"not null;default:0" json:"run_count"`
+	EndDate      *time.Time      `json:"end_date"`
+	MaxRuns      *int            `json:"max_runs"`
+	IsActive     bool            `gorm:"not null;default:true" json:"is_active"`
+	Account      Account         `json:"account"`
+	ToAccount    *Account        `gorm:"foreignKey:ToAccountID" json:"to_account,omitempty"`
+	Category     *Category       `json:"category,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
 }
 
 type Category struct {
@@ -131,13 +179,13 @@ type TemplateSummary struct {
 }
 
 type TransactionReq struct {
-	AccountID       int64           `json:"account_id" validate:"required"`
-	CategoryID      *int64          `json:"category_id,omitempty"`
-	TransactionType string          `json:"transaction_type" validate:"required"`
-	Amount          decimal.Decimal `json:"amount" validate:"required"`
-	TxnDate         time.Time       `json:"txn_date" validate:"required"`
-	Description     *string         `json:"description,omitempty"`
-	IdempotencyKey  *string         `json:"idempotency_key,omitempty"`
+	AccountID      int64           `json:"account_id" validate:"required"`
+	CategoryID     *int64          `json:"category_id,omitempty"`
+	Direction      string          `json:"direction" validate:"required"`
+	Amount         decimal.Decimal `json:"amount" validate:"required"`
+	TxnDate        time.Time       `json:"txn_date" validate:"required"`
+	Description    *string         `json:"description,omitempty"`
+	IdempotencyKey *string         `json:"idempotency_key,omitempty"`
 }
 
 type TransferReq struct {
@@ -178,16 +226,16 @@ type TemplateTimezoneUpdate struct {
 }
 
 type TransactionTemplateReq struct {
-	Name            string          `json:"name" validate:"required"`
-	TemplateType    string          `json:"template_type" validate:"required"`
-	AccountID       int64           `json:"account_id" validate:"required"`
-	ToAccountID     *int64          `json:"to_account_id,omitempty"`
-	CategoryID      *int64          `json:"category_id,omitempty"`
-	TransactionType *string         `json:"transaction_type,omitempty"`
-	Amount          decimal.Decimal `json:"amount" validate:"required"`
-	Frequency       string          `json:"frequency" validate:"required"`
-	NextRunAt       time.Time       `json:"next_run_at" validate:"required"`
-	EndDate         *time.Time      `json:"end_date"`
-	MaxRuns         *int            `json:"max_runs"`
-	IsActive        bool            `json:"is_active" validate:"required"`
+	Name         string          `json:"name" validate:"required"`
+	TemplateType string          `json:"template_type" validate:"required"`
+	AccountID    int64           `json:"account_id" validate:"required"`
+	ToAccountID  *int64          `json:"to_account_id,omitempty"`
+	CategoryID   *int64          `json:"category_id,omitempty"`
+	Direction    *string         `json:"direction,omitempty"`
+	Amount       decimal.Decimal `json:"amount" validate:"required"`
+	Frequency    string          `json:"frequency" validate:"required"`
+	NextRunAt    time.Time       `json:"next_run_at" validate:"required"`
+	EndDate      *time.Time      `json:"end_date"`
+	MaxRuns      *int            `json:"max_runs"`
+	IsActive     bool            `json:"is_active" validate:"required"`
 }

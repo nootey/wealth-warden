@@ -64,6 +64,7 @@ func (s *InvestmentServiceTestSuite) newInvestmentService(fetcher finance.PriceF
 		zaptest.NewLogger(s.T()),
 		repositories.NewInvestmentRepository(s.TC.DB),
 		repositories.NewAccountRepository(s.TC.DB),
+		repositories.NewBalanceRepository(s.TC.DB),
 		repositories.NewTransactionRepository(s.TC.DB),
 		repositories.NewSettingsRepository(s.TC.DB),
 		jobqueue.NoopDispatcher{},

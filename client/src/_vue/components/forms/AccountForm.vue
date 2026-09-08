@@ -54,18 +54,9 @@ const userSettings = ref<UserSettings>();
 
 const record = ref<Account>(initData());
 const balanceFieldRef = computed({
-  get: () => {
-    if (props.mode === "create") {
-      return record.value.balance.start_balance;
-    }
-    return record.value.balance.end_balance;
-  },
+  get: () => record.value.balance.balance,
   set: (val) => {
-    if (props.mode === "create") {
-      record.value.balance.start_balance = val;
-    } else {
-      record.value.balance.end_balance = val;
-    }
+    record.value.balance.balance = val;
   },
 });
 
@@ -149,30 +140,16 @@ const rules = computed(() => ({
     required,
   },
   balance: {
-    start_balance:
-      props.mode === "create"
-        ? {
-            required,
-            decimalValid,
-            ...(selectedClassification.value === "Asset"
-              ? { decimalMin: decimalMin(0) }
-              : {}),
-            decimalMax: decimalMax(1_000_000_000),
-          }
-        : {},
-    end_balance:
-      props.mode === "update"
-        ? {
-            required,
-            decimalValid,
-            ...(selectedClassification.value === "Asset" &&
-            record.value.credit_limit == null &&
-            originalCreditLimit.value == null
-              ? { decimalMin: decimalMin(0) }
-              : {}),
-            decimalMax: decimalMax(1_000_000_000),
-          }
-        : {},
+    balance: {
+      required,
+      decimalValid,
+      ...(selectedClassification.value === "Asset" &&
+      record.value.credit_limit == null &&
+      originalCreditLimit.value == null
+        ? { decimalMin: decimalMin(0) }
+        : {}),
+      decimalMax: decimalMax(1_000_000_000),
+    },
   },
   credit_limit: {
     decimalMin: decimalMin(0),
@@ -269,10 +246,7 @@ function initData(): Account {
       classification: "",
     },
     balance: {
-      id: null,
-      start_balance: null,
-      end_balance: null,
-      as_of: null,
+      balance: null,
       total_balance: null,
       market_value: null,
     },
@@ -317,9 +291,9 @@ async function loadRecord(id: number) {
       props.mode === "update" &&
       selectedClassification.value === "Liability"
     ) {
-      const b = record.value.balance.end_balance;
+      const b = record.value.balance.balance;
       if (b !== null) {
-        record.value.balance.end_balance = new Decimal(b).toString();
+        record.value.balance.balance = new Decimal(b).toString();
       }
     }
 
@@ -402,10 +376,7 @@ async function manageRecord() {
     return;
   }
 
-  let balanceToSend =
-    props.mode === "create"
-      ? record.value.balance.start_balance
-      : record.value.balance.end_balance;
+  let balanceToSend = record.value.balance.balance;
 
   const opened_at = dateHelper.mergeDateWithCurrentTime(
     dayjs(record.value.opened_at).format("YYYY-MM-DD"),
@@ -498,10 +469,7 @@ async function manageRecord() {
     <div class="flex flex-col gap-1">
       <ValidationError
         :is-required="true"
-        :message="
-          r$.balance.start_balance?.$errors[0] ??
-          r$.balance.end_balance?.$errors[0]
-        "
+        :message="r$.balance.balance?.$errors[0]"
       >
         <label>{{ hasMarketValue ? "Cash balance" : "Current balance" }}</label>
       </ValidationError>

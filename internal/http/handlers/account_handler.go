@@ -122,9 +122,17 @@ func (h *AccountHandler) GetAccountByID(c *gin.Context) {
 	}
 
 	qp := c.Request.URL.Query()
-	initialBalance := strings.EqualFold(qp.Get("initial_balance"), "true")
+	if strings.EqualFold(qp.Get("initial_balance"), "true") {
+		record, err := h.service.FetchAccountWithOpening(ctx, userID, id)
+		if err != nil {
+			utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+			return
+		}
+		c.JSON(http.StatusOK, record)
+		return
+	}
 
-	records, err := h.service.FetchAccountByID(ctx, userID, id, initialBalance)
+	records, err := h.service.FetchAccountByID(ctx, userID, id)
 	if err != nil {
 		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
 		return

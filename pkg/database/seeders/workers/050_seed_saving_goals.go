@@ -70,7 +70,7 @@ func SeedSavingGoals(ctx context.Context, db *gorm.DB, cfg *config.Config) error
 
 		// Keep total allocations within the account so the uncategorized
 		// balance stays positive; scale everything down proportionally
-		budget := bal.EndBalance.Mul(decimal.NewFromFloat(0.7))
+		budget := bal.Balance.Mul(decimal.NewFromFloat(0.7))
 		if budget.LessThan(decimal.NewFromInt(100)) {
 			continue
 		}

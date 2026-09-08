@@ -144,6 +144,7 @@ type bulkPendingTrade struct {
 	valueAtBuy decimal.Decimal
 	currency   string
 	rateToUSD  decimal.Decimal
+	cost       decimal.Decimal
 }
 
 type bulkAccountSeed struct {
@@ -246,7 +247,7 @@ func SeedBulkUsers(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 
 	rng := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 
-	accRepo := repositories.NewAccountRepository(db)
+	balanceRepo := repositories.NewBalanceRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
 
 	for start := 0; start < len(pending); start += bulkUsersPerTx {
@@ -254,7 +255,7 @@ func SeedBulkUsers(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 		chunk := pending[start:end]
 
 		err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			return seedBulkChunk(ctx, tx, accRepo, txnRepo, rng, today, b, chunk,
+			return seedBulkChunk(ctx, tx, balanceRepo, txnRepo, rng, today, b, chunk,
 				hashedPassword, roleID, accountTypeIDs, incCats, expCats,
 				pricePool, fx, invTypeID, cryptoTypeID)
 		})
@@ -267,7 +268,7 @@ func SeedBulkUsers(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 
 	// One set-based pass over every bulk user's investment/crypto snapshots,
 	// bounded to the investment window. Runs after the chunks commit.
-	if err := recomputeBulkInvestmentSnapshots(ctx, db, accRepo, b.EmailDomain, today); err != nil {
+	if err := recomputeBulkInvestmentSnapshots(ctx, db, balanceRepo, b.EmailDomain, today); err != nil {
 		return err
 	}
 
@@ -316,7 +317,7 @@ func bulkCategoryIDs(ctx context.Context, db *gorm.DB) (inc, exp []int64, err er
 func seedBulkChunk(
 	ctx context.Context,
 	tx *gorm.DB,
-	accRepo *repositories.AccountRepository,
+	balanceRepo *repositories.BalanceRepository,
 	txnRepo *repositories.TransactionRepository,
 	rng *rand.Rand,
 	today time.Time,
@@ -391,31 +392,32 @@ func seedBulkChunk(
 		return fmt.Errorf("failed to insert accounts: %w", err)
 	}
 
+	uncategorizedID, err := uncategorizedCategoryID(ctx, tx)
+	if err != nil {
+		return err
+	}
+
 	balances := make([]models.Balance, 0, len(accounts))
+	openings := make([]models.Transaction, 0, len(accounts))
 	for i, acc := range accounts {
-		balances = append(balances, models.Balance{
-			AccountID:    acc.ID,
-			AsOf:         openedAt[i],
-			StartBalance: bulkAccountSeeds[i%len(bulkAccountSeeds)].StartBalance,
-			Currency:     acc.Currency,
-			CreatedAt:    openedAt[i],
-			UpdatedAt:    openedAt[i],
-		})
+		txn, bal := seedOpeningRows(acc, openedAt[i], uncategorizedID, bulkAccountSeeds[i%len(bulkAccountSeeds)].StartBalance)
+		balances = append(balances, bal)
+		openings = append(openings, txn)
 	}
 	if err := tx.WithContext(ctx).CreateInBatches(&balances, bulkInsertBatch).Error; err != nil {
 		return fmt.Errorf("failed to insert opening balances: %w", err)
 	}
+	if err := tx.WithContext(ctx).CreateInBatches(&openings, bulkInsertBatch).Error; err != nil {
+		return fmt.Errorf("failed to insert opening transactions: %w", err)
+	}
 
 	perAcc := max(1, b.TxnsPerUser/len(bulkAccountSeeds))
 	txns := make([]models.Transaction, 0, len(accounts)*perAcc)
-	deltas := make(map[int64][]models.DailyCashDelta, len(accounts))
 
 	for i, acc := range accounts {
 		seed := bulkAccountSeeds[i%len(bulkAccountSeeds)]
-		accTxns, accDeltas := bulkTransactionsForAccount(
-			rng, today, openedAt[i], acc, seed, perAcc, incCats, expCats)
-		txns = append(txns, accTxns...)
-		deltas[acc.ID] = accDeltas
+		txns = append(txns, bulkTransactionsForAccount(
+			rng, today, openedAt[i], acc, seed, perAcc, incCats, expCats)...)
 	}
 
 	if err := txnRepo.InsertTransactionsBatch(ctx, tx, txns, bulkInsertBatch); err != nil {
@@ -424,14 +426,8 @@ func seedBulkChunk(
 
 	// Once per account, not once per transaction
 	for i, acc := range accounts {
-		if err := accRepo.UpsertDailyCashBatch(ctx, tx, acc.ID, acc.Currency, deltas[acc.ID]); err != nil {
-			return fmt.Errorf("failed to write daily balances: %w", err)
-		}
-		if err := accRepo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, openedAt[i]); err != nil {
-			return fmt.Errorf("failed to frontfill balances: %w", err)
-		}
-		if err := accRepo.UpsertSnapshotsFromBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, openedAt[i], today); err != nil {
-			return fmt.Errorf("failed to build snapshots: %w", err)
+		if err := balanceRepo.RebuildBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, openedAt[i]); err != nil {
+			return fmt.Errorf("failed to rebuild balances: %w", err)
 		}
 	}
 
@@ -439,7 +435,7 @@ func seedBulkChunk(
 		return err
 	}
 
-	return seedBulkInvestments(ctx, tx, accRepo, rng, today, users, pricePool, fx, invTypeID, cryptoTypeID)
+	return seedBulkInvestments(ctx, tx, balanceRepo, rng, today, users, pricePool, fx, invTypeID, cryptoTypeID)
 }
 
 func bulkDisplayName(rng *rand.Rand) string {
@@ -457,7 +453,7 @@ func bulkTransactionsForAccount(
 	seed bulkAccountSeed,
 	count int,
 	incCats, expCats []int64,
-) ([]models.Transaction, []models.DailyCashDelta) {
+) []models.Transaction {
 	isLiability := seed.StartBalance.IsNegative()
 
 	incomeProb := 0.62
@@ -478,8 +474,6 @@ func bulkTransactionsForAccount(
 
 	currBal := seed.StartBalance
 	txns := make([]models.Transaction, 0, count)
-	byDay := make(map[time.Time]*models.DailyCashDelta, count)
-	deltas := make([]models.DailyCashDelta, 0, count)
 
 	for _, date := range dates {
 		ttype := "expense"
@@ -515,35 +509,25 @@ func bulkTransactionsForAccount(
 		catID := cats[rng.Intn(len(cats))]
 
 		txns = append(txns, models.Transaction{
-			UserID:          acc.UserID,
-			AccountID:       acc.ID,
-			TransactionType: ttype,
-			CategoryID:      &catID,
-			Amount:          amt,
-			Currency:        acc.Currency,
-			TxnDate:         date,
-			CreatedAt:       now,
-			UpdatedAt:       now,
+			UserID:     acc.UserID,
+			AccountID:  acc.ID,
+			Direction:  ttype,
+			CategoryID: &catID,
+			Amount:     amt,
+			Currency:   acc.Currency,
+			TxnDate:    date,
+			CreatedAt:  now,
+			UpdatedAt:  now,
 		})
 
-		d, ok := byDay[date]
-		if !ok {
-			d = &models.DailyCashDelta{AsOf: date}
-			byDay[date] = d
-		}
 		if ttype == "income" {
-			d.Inflows = d.Inflows.Add(amt)
 			currBal = currBal.Add(amt)
 		} else {
-			d.Outflows = d.Outflows.Add(amt)
 			currBal = currBal.Sub(amt)
 		}
 	}
 
-	for _, d := range byDay {
-		deltas = append(deltas, *d)
-	}
-	return txns, deltas
+	return txns
 }
 
 func seedBulkSavingGoals(
@@ -566,15 +550,15 @@ func seedBulkSavingGoals(
 	}
 
 	type accBalance struct {
-		AccountID  int64
-		EndBalance decimal.Decimal
+		AccountID int64
+		Balance   decimal.Decimal
 	}
 	var latest []accBalance
 	if err := tx.WithContext(ctx).Raw(`
-		SELECT DISTINCT ON (account_id) account_id, end_balance
+		SELECT account_id, balance
 		FROM balances
 		WHERE account_id IN ?
-		ORDER BY account_id, as_of DESC
+		ORDER BY account_id
 	`, savingsIDs).Scan(&latest).Error; err != nil {
 		return fmt.Errorf("failed to read savings balances: %w", err)
 	}
@@ -596,7 +580,7 @@ func seedBulkSavingGoals(
 	for _, lb := range latest {
 		// Leave most of the account unallocated, or the uncategorized balance
 		// goes negative
-		budget := lb.EndBalance.Mul(decimal.NewFromFloat(0.4))
+		budget := lb.Balance.Mul(decimal.NewFromFloat(0.4))
 		if budget.LessThan(decimal.NewFromInt(200)) {
 			continue
 		}
@@ -707,10 +691,11 @@ func seedBulkAssetPricePool(ctx context.Context, db *gorm.DB, cfg *config.Config
 
 	invRepo := repositories.NewInvestmentRepository(db)
 	accRepo := repositories.NewAccountRepository(db)
+	balanceRepo := repositories.NewBalanceRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
 	invService := services.NewInvestmentService(
-		zap.NewNop(), invRepo, accRepo, txnRepo, settingsRepo, jobqueue.NoopDispatcher{}, priceClient)
+		zap.NewNop(), invRepo, accRepo, balanceRepo, txnRepo, settingsRepo, jobqueue.NoopDispatcher{}, priceClient)
 
 	// A few days of slack before the earliest account open, so priceOn always
 	// has a row to land on.
@@ -814,7 +799,7 @@ func buildBulkFX(ctx context.Context, priceClient finance.PriceFetcher, invRepo 
 func seedBulkInvestments(
 	ctx context.Context,
 	tx *gorm.DB,
-	accRepo *repositories.AccountRepository,
+	balanceRepo *repositories.BalanceRepository,
 	rng *rand.Rand,
 	today time.Time,
 	users []models.User,
@@ -850,26 +835,38 @@ func seedBulkInvestments(
 		return fmt.Errorf("failed to insert investment accounts: %w", err)
 	}
 
+	uncategorizedID, err := uncategorizedCategoryID(ctx, tx)
+	if err != nil {
+		return err
+	}
+
 	balances := make([]models.Balance, 0, len(accounts))
+	openings := make([]models.Transaction, 0, len(accounts))
 	meta := make(map[int64]accMeta, len(accounts))
 	for _, acc := range accounts {
 		start := bulkInvOpeningCash
 		if acc.Currency == "USD" {
 			start = bulkCryptoOpeningCash
 		}
-		balances = append(balances, models.Balance{
-			AccountID: acc.ID, AsOf: openedAt, StartBalance: start, Currency: acc.Currency,
-			CreatedAt: openedAt, UpdatedAt: openedAt,
-		})
+		txn, bal := seedOpeningRows(acc, openedAt, uncategorizedID, start)
+		balances = append(balances, bal)
+		openings = append(openings, txn)
 		meta[acc.ID] = accMeta{userID: acc.UserID, currency: acc.Currency}
 	}
 	if err := tx.WithContext(ctx).CreateInBatches(&balances, bulkInsertBatch).Error; err != nil {
 		return fmt.Errorf("failed to insert investment opening balances: %w", err)
 	}
+	if err := tx.WithContext(ctx).CreateInBatches(&openings, bulkInsertBatch).Error; err != nil {
+		return fmt.Errorf("failed to insert investment opening transactions: %w", err)
+	}
 
 	var assetRows []models.InvestmentAsset
 	var pend []bulkPendingTrade
-	deltas := make(map[int64][]models.DailyCashDelta)
+
+	var uncategorized models.Category
+	if err := tx.WithContext(ctx).Where("classification = ?", "uncategorized").First(&uncategorized).Error; err != nil {
+		return fmt.Errorf("failed to find uncategorized category: %w", err)
+	}
 
 	for ui, u := range users {
 		invAccID := accounts[ui*2].ID
@@ -894,8 +891,8 @@ func seedBulkInvestments(
 				*spent = spent.Add(cost)
 				assetRows = append(assetRows, row)
 				trade.assetIdx = len(assetRows) - 1
+				trade.cost = cost
 				pend = append(pend, trade)
-				deltas[accID] = append(deltas[accID], models.DailyCashDelta{AsOf: trade.date, Outflows: cost})
 			}
 		}
 
@@ -908,14 +905,28 @@ func seedBulkInvestments(
 			return fmt.Errorf("failed to insert investment assets: %w", err)
 		}
 
-		trades := make([]models.InvestmentTrade, 0, len(pend))
+		// Transactions first: each trade is built already pointing at its own.
+		cashTxns := make([]models.Transaction, 0, len(pend))
 		for _, p := range pend {
+			a := assetRows[p.assetIdx]
+			cashTxns = append(cashTxns, models.NewTradeCashTransaction(
+				a.UserID, a.AccountID, &uncategorized.ID, a.Ticker,
+				meta[a.AccountID].currency, models.InvestmentBuy, p.date, p.cost,
+			))
+		}
+		if err := tx.WithContext(ctx).CreateInBatches(&cashTxns, bulkInsertBatch).Error; err != nil {
+			return fmt.Errorf("failed to insert investment cash transactions: %w", err)
+		}
+
+		trades := make([]models.InvestmentTrade, 0, len(pend))
+		for i, p := range pend {
 			a := assetRows[p.assetIdx]
 			trades = append(trades, models.InvestmentTrade{
 				UserID: a.UserID, AssetID: a.ID, TxnDate: p.date, TradeType: models.InvestmentBuy,
 				Quantity: p.qty, Fee: p.fee, PricePerUnit: p.price, ValueAtBuy: p.valueAtBuy,
 				RealizedValue: decimal.Zero, Currency: p.currency, ExchangeRateToUSD: p.rateToUSD,
-				CreatedAt: p.date, UpdatedAt: p.date,
+				TransactionID: &cashTxns[i].ID,
+				CreatedAt:     p.date, UpdatedAt: p.date,
 			})
 		}
 		if err := tx.WithContext(ctx).CreateInBatches(&trades, bulkInsertBatch).Error; err != nil {
@@ -927,16 +938,8 @@ func seedBulkInvestments(
 	// worth, whether or not any buy landed on it.
 	for _, acc := range accounts {
 		m := meta[acc.ID]
-		if ds := deltas[acc.ID]; len(ds) > 0 {
-			if err := accRepo.UpsertDailyCashBatch(ctx, tx, acc.ID, m.currency, ds); err != nil {
-				return fmt.Errorf("failed to write investment cash flows: %w", err)
-			}
-		}
-		if err := accRepo.FrontfillBalances(ctx, tx, acc.ID, m.currency, openedAt); err != nil {
-			return fmt.Errorf("failed to frontfill investment balances: %w", err)
-		}
-		if err := accRepo.UpsertSnapshotsFromBalances(ctx, tx, m.userID, acc.ID, m.currency, openedAt, today); err != nil {
-			return fmt.Errorf("failed to build investment snapshots: %w", err)
+		if err := balanceRepo.RebuildBalances(ctx, tx, m.userID, acc.ID, m.currency, openedAt); err != nil {
+			return fmt.Errorf("failed to rebuild investment balances: %w", err)
 		}
 	}
 
@@ -1044,7 +1047,7 @@ func bulkPositionFromSpend(isCrypto bool, price, spend, stockFee decimal.Decimal
 // recomputeBulkInvestmentSnapshots runs one set-based market-value pass over
 // every bulk user's investment/crypto snapshots, bounded to the investment
 // window. Scales to a 10k-user seed without a per-user round trip.
-func recomputeBulkInvestmentSnapshots(ctx context.Context, db *gorm.DB, accRepo *repositories.AccountRepository, emailDomain string, today time.Time) error {
+func recomputeBulkInvestmentSnapshots(ctx context.Context, db *gorm.DB, balanceRepo *repositories.BalanceRepository, emailDomain string, today time.Time) error {
 	var ids []int64
 	if err := db.WithContext(ctx).
 		Raw(`SELECT id FROM users WHERE email LIKE ?`, "bulk%@"+emailDomain).
@@ -1059,7 +1062,7 @@ func recomputeBulkInvestmentSnapshots(ctx context.Context, db *gorm.DB, accRepo 
 	fmt.Printf("recomputing investment snapshot market values for %d bulk users ...\n", len(ids))
 
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return accRepo.UpdateSnapshotMarketValuesForUsers(ctx, tx, ids, &from)
+		return balanceRepo.UpdateSnapshotMarketValuesForUsers(ctx, tx, ids, &from)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to recompute investment snapshot market values: %w", err)

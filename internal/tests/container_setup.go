@@ -117,23 +117,27 @@ func (s *ServiceIntegrationSuite) SetupSuite() {
 	}
 }
 
-// SetupTest empties mutable tables and the session store between tests, ensuring a clean slate
-func (s *ServiceIntegrationSuite) SetupTest() {
-
-	const truncateTestTablesSQL = `
+const truncateTestTablesSQL = `
 TRUNCATE TABLE
     transactions,
     transfers,
     balances,
     accounts,
-    account_daily_snapshots,
+    balance_snapshots,
     ticker_price_history
 RESTART IDENTITY CASCADE;
 `
 
+// TruncateMutableTables resets every table a test may write to. CASCADE also
+// clears investment_assets and investment_trades, which hang off accounts.
+func (s *ServiceIntegrationSuite) TruncateMutableTables() {
 	err := s.TC.DB.Exec(truncateTestTablesSQL).Error
 	s.Require().NoError(err, "failed to truncate test tables")
+}
 
+// SetupTest empties mutable tables and the session store between tests, ensuring a clean slate
+func (s *ServiceIntegrationSuite) SetupTest() {
+	s.TruncateMutableTables()
 	s.redis.FlushAll()
 }
 

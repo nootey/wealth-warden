@@ -29,9 +29,10 @@ func SeedInvestments(ctx context.Context, db *gorm.DB, cfg *config.Config) error
 
 	invRepo := repositories.NewInvestmentRepository(db)
 	accRepo := repositories.NewAccountRepository(db)
+	balanceRepo := repositories.NewBalanceRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
-	invService := services.NewInvestmentService(zap.NewNop(), invRepo, accRepo, txnRepo, settingsRepo, jobqueue.NoopDispatcher{}, priceClient)
+	invService := services.NewInvestmentService(zap.NewNop(), invRepo, accRepo, balanceRepo, txnRepo, settingsRepo, jobqueue.NoopDispatcher{}, priceClient)
 
 	var users []models.User
 	if err := db.WithContext(ctx).Where("display_name IN ?", seededUsernames).Find(&users).Error; err != nil {
@@ -77,7 +78,7 @@ func SeedInvestments(ctx context.Context, db *gorm.DB, cfg *config.Config) error
 				return err
 			}
 
-			if err := seedTradesForAsset(ctx, rng, today, invRepo, accRepo, invService, u.ID, assetID, s.Trades, s.Currency); err != nil {
+			if err := seedTradesForAsset(ctx, rng, today, invRepo, balanceRepo, invService, u.ID, assetID, s.Trades, s.Currency); err != nil {
 				return err
 			}
 		}
@@ -91,7 +92,7 @@ func seedTradesForAsset(
 	rng *rand.Rand,
 	today time.Time,
 	invRepo *repositories.InvestmentRepository,
-	accRepo *repositories.AccountRepository,
+	balanceRepo *repositories.BalanceRepository,
 	invService *services.InvestmentService,
 	userID, assetID int64,
 	numTrades int,
@@ -134,7 +135,7 @@ func seedTradesForAsset(
 			quantity = asset.Quantity.Mul(fraction)
 		} else {
 			// Buy: cap spend so the affordability check never fails
-			bal, err := accRepo.FindLatestBalance(ctx, nil, asset.AccountID, userID)
+			bal, err := balanceRepo.FindLatestBalance(ctx, nil, asset.AccountID, userID)
 			if err != nil {
 				return err
 			}
@@ -143,7 +144,7 @@ func seedTradesForAsset(
 			if err != nil {
 				return err
 			}
-			maxSpend := bal.EndBalance.Mul(decimal.NewFromFloat(0.3)).Div(rate)
+			maxSpend := bal.Mul(decimal.NewFromFloat(0.3)).Div(rate)
 
 			spend := decimal.NewFromFloat(200 + rng.Float64()*1800)
 			if spend.GreaterThan(maxSpend) {

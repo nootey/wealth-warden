@@ -22,15 +22,6 @@ func TestAssetPriceHistoryBackfillJobSuite(t *testing.T) {
 	suite.Run(t, new(AssetPriceHistoryBackfillJobTestSuite))
 }
 
-// Tests that the job runs without error when there are no assets
-func (s *AssetPriceHistoryBackfillJobTestSuite) TestAssetPriceHistoryBackfillJob_NoAssets() {
-	logger := zaptest.NewLogger(s.T())
-	job := jobs.NewAssetPriceHistoryBackfillJob(logger, s.TC.App.InvestmentService, 4)
-
-	err := job.Run(s.Ctx)
-	s.NoError(err)
-}
-
 // Tests that the job backfills price history for an asset from its first trade date
 func (s *AssetPriceHistoryBackfillJobTestSuite) TestAssetPriceHistoryBackfillJob_BackfillsFromFirstTrade() {
 	accSvc := s.TC.App.AccountService

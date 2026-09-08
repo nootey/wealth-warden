@@ -25,7 +25,7 @@ const (
 	defaultPollInterval = time.Second
 	defaultJobTimeout   = 15 * time.Minute
 
-	schedulerQueueWorkers = 2
+	defaultSchedulerWorkers = 5
 
 	// Retention windows for finished jobs. River's defaults are 24h, the backoffice job monitor needs them to be longer.
 	completedJobRetention = 7 * 24 * time.Hour
@@ -36,6 +36,9 @@ const (
 func NewClient(pool *pgxpool.Pool, logger *zap.Logger, cfg config.QueueConfig, serviceName string, periodicJobs []*river.PeriodicJob) (*river.Client[pgx.Tx], *river.Workers, error) {
 	if cfg.Workers <= 0 {
 		cfg.Workers = 1
+	}
+	if cfg.SchedulerWorkers <= 0 {
+		cfg.SchedulerWorkers = defaultSchedulerWorkers
 	}
 
 	pollInterval := time.Duration(cfg.PollIntervalMs) * time.Millisecond
@@ -60,7 +63,7 @@ func NewClient(pool *pgxpool.Pool, logger *zap.Logger, cfg config.QueueConfig, s
 		Workers: workers,
 		Queues: map[string]river.QueueConfig{
 			river.QueueDefault:      {MaxWorkers: cfg.Workers},
-			jobqueue.QueueScheduler: {MaxWorkers: schedulerQueueWorkers},
+			jobqueue.QueueScheduler: {MaxWorkers: cfg.SchedulerWorkers},
 			// One worker is what serialises the investment rebuilds.
 			jobqueue.QueueRebuild: {MaxWorkers: 1},
 		},

@@ -46,12 +46,12 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_CurrentDate() {
 	now := time.Now()
 
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		CategoryID:      nil,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         now,
-		Description:     &desc,
+		AccountID:   accID,
+		CategoryID:  nil,
+		Direction:   "expense",
+		Amount:      amount,
+		TxnDate:     now,
+		Description: &desc,
 	}
 
 	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
@@ -65,24 +65,15 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_CurrentDate() {
 		First(&transaction).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(accID, transaction.AccountID)
-	s.Assert().Equal("expense", transaction.TransactionType)
+	s.Assert().Equal("expense", transaction.Direction)
 	s.Assert().True(amount.Equal(transaction.Amount))
 	s.Assert().Equal(desc, *transaction.Description)
 
 	// Verify balance record exists for today
 	todayMidnight := now.UTC().Truncate(24 * time.Hour)
-	var balance models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
-		First(&balance).Error
-	s.Require().NoError(err, "balance record should exist for transaction date")
-
-	// Verify cash_outflows was updated
-	s.Assert().True(amount.Equal(balance.CashOutflows),
-		"cash_outflows should equal transaction amount")
 
 	// Verify snapshot exists for today
-	var snapshot models.AccountDailySnapshot
+	var snapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshot).Error
@@ -123,11 +114,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_PastDate() {
 	desc := "Past transaction"
 
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amount,
-		TxnDate:         txnDate,
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amount,
+		TxnDate:     txnDate,
+		Description: &desc,
 	}
 
 	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
@@ -142,18 +133,10 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_PastDate() {
 	s.Require().NoError(err)
 
 	txnMidnight := txnDate.UTC().Truncate(24 * time.Hour)
-	var balance models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, txnMidnight).
-		First(&balance).Error
-	s.Require().NoError(err, "balance record should exist for transaction date")
-
-	s.Assert().True(amount.Equal(balance.CashInflows),
-		"cash_inflows should equal transaction amount")
 
 	// Verify snapshots exist for all days from transaction date to today
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
-	var snapshots []models.AccountDailySnapshot
+	var snapshots []models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of >= ? AND as_of <= ?",
 			accID, txnMidnight, todayMidnight).
@@ -202,11 +185,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SameDayMultiple() {
 	amt1 := decimal.NewFromInt(1000)
 	desc1 := "Expense 1"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt1,
-		TxnDate:         txnDate,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt1,
+		TxnDate:     txnDate,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
@@ -214,11 +197,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SameDayMultiple() {
 	amt2 := decimal.NewFromInt(2000)
 	desc2 := "Expense 2"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         txnDate,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     txnDate,
+		Description: &desc2,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
@@ -226,40 +209,16 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SameDayMultiple() {
 	amt3 := decimal.NewFromInt(5000)
 	desc3 := "Income"
 	req3 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt3,
-		TxnDate:         txnDate,
-		Description:     &desc3,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt3,
+		TxnDate:     txnDate,
+		Description: &desc3,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req3)
 	s.Require().NoError(err)
 
-	// Verify balance accumulates all transactions correctly
 	txnMidnight := txnDate.UTC().Truncate(24 * time.Hour)
-	var balance models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, txnMidnight).
-		First(&balance).Error
-	s.Require().NoError(err)
-
-	expectedOutflows := amt1.Add(amt2)
-	s.Assert().True(expectedOutflows.Equal(balance.CashOutflows),
-		"cash_outflows should be sum of both expenses: expected %s, got %s",
-		expectedOutflows.String(), balance.CashOutflows.String())
-
-	s.Assert().True(amt3.Equal(balance.CashInflows),
-		"cash_inflows should equal income amount: expected %s, got %s",
-		amt3.String(), balance.CashInflows.String())
-
-	// Verify only one balance record exists for that day
-	var balanceCount int64
-	err = s.TC.DB.WithContext(s.Ctx).
-		Model(&models.Balance{}).
-		Where("account_id = ? AND as_of = ?", accID, txnMidnight).
-		Count(&balanceCount).Error
-	s.Require().NoError(err)
-	s.Assert().Equal(int64(1), balanceCount, "should have exactly one balance record for the day")
 
 	// Verify all 3 transactions were inserted
 	var txnCount int64
@@ -299,11 +258,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BeforeOpeningDate() 
 	desc := "Too early transaction"
 
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         txnDate,
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amount,
+		TxnDate:     txnDate,
+		Description: &desc,
 	}
 
 	_, err = svc.InsertTransaction(s.Ctx, userID, req)
@@ -315,7 +274,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BeforeOpeningDate() 
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
 		Model(&models.Transaction{}).
-		Where("account_id = ?", accID).
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should have been inserted")
@@ -346,11 +305,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_FutureDate() {
 	desc := "Future transaction"
 
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         futureDate,
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amount,
+		TxnDate:     futureDate,
+		Description: &desc,
 	}
 
 	_, err = svc.InsertTransaction(s.Ctx, userID, req)
@@ -362,7 +321,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_FutureDate() {
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
 		Model(&models.Transaction{}).
-		Where("account_id = ?", accID).
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should have been inserted")
@@ -397,11 +356,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 	amt1 := decimal.NewFromInt(5000)
 	desc1 := "Income 8 days ago"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt1,
-		TxnDate:         txn1Date,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt1,
+		TxnDate:     txn1Date,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
@@ -412,11 +371,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 	amt2 := decimal.NewFromInt(2000)
 	desc2 := "Expense 5 days ago"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         txn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     txn2Date,
+		Description: &desc2,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
@@ -427,11 +386,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 	amt3 := decimal.NewFromInt(3000)
 	desc3 := "Income 2 days ago"
 	req3 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt3,
-		TxnDate:         txn3Date,
-		Description:     &desc3,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt3,
+		TxnDate:     txn3Date,
+		Description: &desc3,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req3)
 	s.Require().NoError(err)
@@ -444,7 +403,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
 
 	// Check snapshot on opening day (day -10): should be 10,000
-	var snapshot1 models.AccountDailySnapshot
+	var snapshot1 models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, openMidnight).
 		First(&snapshot1).Error
@@ -454,7 +413,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 		initialBalance.String(), snapshot1.EndBalance.String())
 
 	// Check snapshot on txn1 day (day -8): should be 15,000
-	var snapshot2 models.AccountDailySnapshot
+	var snapshot2 models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn1Midnight).
 		First(&snapshot2).Error
@@ -466,7 +425,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 
 	// Check snapshot on day -7 (between txn1 and txn2): should still be 15,000
 	day7Midnight := txn1Midnight.AddDate(0, 0, 1)
-	var snapshot3 models.AccountDailySnapshot
+	var snapshot3 models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, day7Midnight).
 		First(&snapshot3).Error
@@ -476,7 +435,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 		expectedAfterTxn1.String(), snapshot3.EndBalance.String())
 
 	// Check snapshot on txn2 day (day -5): should be 13,000
-	var snapshot4 models.AccountDailySnapshot
+	var snapshot4 models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
 		First(&snapshot4).Error
@@ -487,7 +446,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 		expectedAfterTxn2.String(), snapshot4.EndBalance.String())
 
 	// Check snapshot on txn3 day (day -2): should be 16,000
-	var snapshot5 models.AccountDailySnapshot
+	var snapshot5 models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn3Midnight).
 		First(&snapshot5).Error
@@ -498,7 +457,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_SnapshotValuesCorrec
 		expectedAfterTxn3.String(), snapshot5.EndBalance.String())
 
 	// Check snapshot today: should still be 16,000
-	var snapshot6 models.AccountDailySnapshot
+	var snapshot6 models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshot6).Error
@@ -537,17 +496,17 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BackfillBehavior() {
 	amt1 := decimal.NewFromInt(2000)
 	desc1 := "Recent expense"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt1,
-		TxnDate:         txn1Date,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt1,
+		TxnDate:     txn1Date,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
 
 	txn1Midnight := txn1Date.UTC().Truncate(24 * time.Hour)
-	var snapshotBefore models.AccountDailySnapshot
+	var snapshotBefore models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn1Midnight).
 		First(&snapshotBefore).Error
@@ -566,25 +525,18 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BackfillBehavior() {
 	amt2 := decimal.NewFromInt(5000)
 	desc2 := "Backdated income"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt2,
-		TxnDate:         txn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt2,
+		TxnDate:     txn2Date,
+		Description: &desc2,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
 
 	txn2Midnight := txn2Date.UTC().Truncate(24 * time.Hour)
-	var balance2 models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
-		First(&balance2).Error
-	s.Require().NoError(err)
-	s.Assert().True(amt2.Equal(balance2.CashInflows),
-		"Day -7 balance should have cash_inflows of %s", amt2.String())
 
-	var snapshot2 models.AccountDailySnapshot
+	var snapshot2 models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
 		First(&snapshot2).Error
@@ -595,7 +547,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BackfillBehavior() {
 		expectedAfterTxn2.String(), snapshot2.EndBalance.String())
 
 	// Verify snapshot on day -3 was updated to 13,000 (not still 8,000)
-	var snapshotAfter models.AccountDailySnapshot
+	var snapshotAfter models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn1Midnight).
 		First(&snapshotAfter).Error
@@ -607,7 +559,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BackfillBehavior() {
 
 	// Verify a day between the two transactions (day -5) was also updated
 	day5Midnight := txn2Midnight.AddDate(0, 0, 2)
-	var snapshot5 models.AccountDailySnapshot
+	var snapshot5 models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, day5Midnight).
 		First(&snapshot5).Error
@@ -618,7 +570,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BackfillBehavior() {
 
 	// Verify today's snapshot is also updated correctly
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
-	var snapshotToday models.AccountDailySnapshot
+	var snapshotToday models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotToday).Error
@@ -650,25 +602,18 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_CurrentDate() {
 	amount := decimal.NewFromInt(3000)
 	desc := "Expense to delete"
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         time.Now(),
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amount,
+		TxnDate:     time.Now(),
+		Description: &desc,
 	}
 	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().NoError(err)
 
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
-	var balanceBefore models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
-		First(&balanceBefore).Error
-	s.Require().NoError(err)
-	s.Assert().True(amount.Equal(balanceBefore.CashOutflows),
-		"Before delete: cash_outflows should be %s", amount.String())
 
-	var snapshotBefore models.AccountDailySnapshot
+	var snapshotBefore models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotBefore).Error
@@ -691,18 +636,8 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_CurrentDate() {
 	s.Require().NoError(err)
 	s.Assert().NotNil(deletedTxn.DeletedAt, "transaction should be soft-deleted")
 
-	// Verify balance outflow was reversed back to 0
-	var balanceAfter models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
-		First(&balanceAfter).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.Zero.Equal(balanceAfter.CashOutflows),
-		"After delete: cash_outflows should be 0, got %s",
-		balanceAfter.CashOutflows.String())
-
 	// Verify snapshot is back to initial balance of 10,000
-	var snapshotAfter models.AccountDailySnapshot
+	var snapshotAfter models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotAfter).Error
@@ -741,11 +676,11 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 	amt1 := decimal.NewFromInt(5000)
 	desc1 := "Income day -8"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt1,
-		TxnDate:         txn1Date,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt1,
+		TxnDate:     txn1Date,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
@@ -755,11 +690,11 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 	amt2 := decimal.NewFromInt(2000)
 	desc2 := "Expense day -5 (to delete)"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         txn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     txn2Date,
+		Description: &desc2,
 	}
 	txn2, err := svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
@@ -769,11 +704,11 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 	amt3 := decimal.NewFromInt(3000)
 	desc3 := "Income day -2"
 	req3 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt3,
-		TxnDate:         txn3Date,
-		Description:     &desc3,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt3,
+		TxnDate:     txn3Date,
+		Description: &desc3,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req3)
 	s.Require().NoError(err)
@@ -785,7 +720,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
 
 	// Before delete: verify day -5 snapshot is 13,000
-	var snapshotBefore models.AccountDailySnapshot
+	var snapshotBefore models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
 		First(&snapshotBefore).Error
@@ -796,7 +731,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 		expectedBeforeDelete.String(), snapshotBefore.EndBalance.String())
 
 	// Before delete: verify day -2 snapshot is 16,000
-	var snapshot3Before models.AccountDailySnapshot
+	var snapshot3Before models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn3Midnight).
 		First(&snapshot3Before).Error
@@ -819,18 +754,8 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 	s.Require().NoError(err)
 	s.Assert().NotNil(deletedTxn.DeletedAt)
 
-	// After delete: verify balance on day -5 has cash_outflows = 0
-	var balanceAfter models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
-		First(&balanceAfter).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.Zero.Equal(balanceAfter.CashOutflows),
-		"After delete: day -5 cash_outflows should be 0, got %s",
-		balanceAfter.CashOutflows.String())
-
 	// After delete: verify day -5 snapshot is now 15,000
-	var snapshotAfter models.AccountDailySnapshot
+	var snapshotAfter models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
 		First(&snapshotAfter).Error
@@ -841,7 +766,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 		expectedAfterDelete.String(), snapshotAfter.EndBalance.String())
 
 	// Verify day -2 snapshot was also updated to 18,000
-	var snapshot3After models.AccountDailySnapshot
+	var snapshot3After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn3Midnight).
 		First(&snapshot3After).Error
@@ -852,7 +777,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 		expectedDay2After.String(), snapshot3After.EndBalance.String())
 
 	// Verify today's snapshot is also updated to 18,000
-	var snapshotToday models.AccountDailySnapshot
+	var snapshotToday models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotToday).Error
@@ -862,7 +787,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_PastDateMiddle() {
 		expectedDay2After.String(), snapshotToday.EndBalance.String())
 
 	// Verify day -8 snapshot remains unchanged at 15,000 (transaction before deleted one)
-	var snapshot1After models.AccountDailySnapshot
+	var snapshot1After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn1Midnight).
 		First(&snapshot1After).Error
@@ -901,11 +826,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 	amt1 := decimal.NewFromInt(5000)
 	desc1 := "Income day -8"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt1,
-		TxnDate:         txn1Date,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt1,
+		TxnDate:     txn1Date,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
@@ -915,11 +840,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 	amt2 := decimal.NewFromInt(2000)
 	desc2 := "Expense day -5 (to update)"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         txn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     txn2Date,
+		Description: &desc2,
 	}
 	txn2, err := svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
@@ -929,11 +854,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 	amt3 := decimal.NewFromInt(3000)
 	desc3 := "Income day -2"
 	req3 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt3,
-		TxnDate:         txn3Date,
-		Description:     &desc3,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt3,
+		TxnDate:     txn3Date,
+		Description: &desc3,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req3)
 	s.Require().NoError(err)
@@ -944,7 +869,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
 
 	// Before update: day -5 should be 13,000
-	var snapshotBefore models.AccountDailySnapshot
+	var snapshotBefore models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
 		First(&snapshotBefore).Error
@@ -955,7 +880,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 		expectedBefore.String(), snapshotBefore.EndBalance.String())
 
 	// Before update: day -2 should be 16,000
-	var snapshot3Before models.AccountDailySnapshot
+	var snapshot3Before models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn3Midnight).
 		First(&snapshot3Before).Error
@@ -969,11 +894,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 	newAmt2 := decimal.NewFromInt(4000)
 	newDesc2 := "Updated expense day -5"
 	updateReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          newAmt2,
-		TxnDate:         txn2Date,
-		Description:     &newDesc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      newAmt2,
+		TxnDate:     txn2Date,
+		Description: &newDesc2,
 	}
 	_, err = svc.UpdateTransaction(s.Ctx, userID, txn2.ID, updateReq)
 	s.Require().NoError(err)
@@ -988,18 +913,8 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 		"Transaction amount should be updated to %s", newAmt2.String())
 	s.Assert().Equal(newDesc2, *updatedTxn.Description)
 
-	// Verify balance on day -5: should have 4,000 in outflows (not 2,000)
-	var balanceAfter models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
-		First(&balanceAfter).Error
-	s.Require().NoError(err)
-	s.Assert().True(newAmt2.Equal(balanceAfter.CashOutflows),
-		"After update: day -5 cash_outflows should be %s, got %s",
-		newAmt2.String(), balanceAfter.CashOutflows.String())
-
 	// After update: day -5 snapshot should be 11,000 (15,000 - 4,000)
-	var snapshotAfter models.AccountDailySnapshot
+	var snapshotAfter models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
 		First(&snapshotAfter).Error
@@ -1010,7 +925,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 		expectedAfter.String(), snapshotAfter.EndBalance.String())
 
 	// Verify day -2 snapshot was updated to 14,000 (11,000 + 3,000) not 16,000
-	var snapshot3After models.AccountDailySnapshot
+	var snapshot3After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn3Midnight).
 		First(&snapshot3After).Error
@@ -1021,7 +936,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_SameDateAmountChange
 		expectedDay2After.String(), snapshot3After.EndBalance.String())
 
 	// Verify today's snapshot is also updated to 14,000
-	var snapshotToday models.AccountDailySnapshot
+	var snapshotToday models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotToday).Error
@@ -1060,11 +975,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 	amt1 := decimal.NewFromInt(5000)
 	desc1 := "Income day -8"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt1,
-		TxnDate:         txn1Date,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt1,
+		TxnDate:     txn1Date,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
@@ -1074,11 +989,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 	amt2 := decimal.NewFromInt(2000)
 	desc2 := "Expense to move"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         txn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     txn2Date,
+		Description: &desc2,
 	}
 	txn2, err := svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
@@ -1088,11 +1003,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 	amt3 := decimal.NewFromInt(3000)
 	desc3 := "Income day -3"
 	req3 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt3,
-		TxnDate:         txn3Date,
-		Description:     &desc3,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt3,
+		TxnDate:     txn3Date,
+		Description: &desc3,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req3)
 	s.Require().NoError(err)
@@ -1101,7 +1016,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 	txn2Midnight := txn2Date.UTC().Truncate(24 * time.Hour)
 	txn3Midnight := txn3Date.UTC().Truncate(24 * time.Hour)
 
-	var snapshotDay5Before models.AccountDailySnapshot
+	var snapshotDay5Before models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
 		First(&snapshotDay5Before).Error
@@ -1110,7 +1025,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 	s.Assert().True(expectedDay5Before.Equal(snapshotDay5Before.EndBalance),
 		"Before update: day -5 should be %s", expectedDay5Before.String())
 
-	var snapshotDay3Before models.AccountDailySnapshot
+	var snapshotDay3Before models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn3Midnight).
 		First(&snapshotDay3Before).Error
@@ -1122,11 +1037,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 	// Move transaction 2 from day -5 to day -2 (later)
 	newTxn2Date := time.Now().AddDate(0, 0, -2)
 	updateReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         newTxn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     newTxn2Date,
+		Description: &desc2,
 	}
 	_, err = svc.UpdateTransaction(s.Ctx, userID, txn2.ID, updateReq)
 	s.Require().NoError(err)
@@ -1140,31 +1055,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 	newTxn2Midnight := newTxn2Date.UTC().Truncate(24 * time.Hour)
 	s.Assert().Equal(newTxn2Midnight, updatedTxn.TxnDate.UTC().Truncate(24*time.Hour))
 
-	// After update: verify old date (day -5) balance has 0 outflows
-	var balanceOldDate models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
-		First(&balanceOldDate).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.Zero.Equal(balanceOldDate.CashOutflows),
-		"After update: old date (day -5) should have 0 outflows, got %s",
-		balanceOldDate.CashOutflows.String())
-
-	// After update: verify newW date (day -2) balance has the outflows
-	var balanceNewDate models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, newTxn2Midnight).
-		First(&balanceNewDate).Error
-	s.Require().NoError(err)
-	s.Assert().True(amt2.Equal(balanceNewDate.CashOutflows),
-		"After update: new date (day -2) should have %s outflows, got %s",
-		amt2.String(), balanceNewDate.CashOutflows.String())
-
 	// After update: verify snapshots
 	// New timeline: 10k -> 15k (day -8) -> 15k (day -5, no txn) -> 18k (day -3, +3k) -> 16k (day -2, -2k)
 
 	// Day -5: should now be 15,000 (no longer has the -2k expense)
-	var snapshotDay5After models.AccountDailySnapshot
+	var snapshotDay5After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
 		First(&snapshotDay5After).Error
@@ -1175,7 +1070,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 		expectedDay5After.String(), snapshotDay5After.EndBalance.String())
 
 	// Day -3: should be 18,000 (15,000 + 3,000, expense moved away)
-	var snapshotDay3After models.AccountDailySnapshot
+	var snapshotDay3After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn3Midnight).
 		First(&snapshotDay3After).Error
@@ -1186,7 +1081,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 		expectedDay3After.String(), snapshotDay3After.EndBalance.String())
 
 	// Day -2 (new date): should be 16,000 (18,000 - 2,000)
-	var snapshotDay2After models.AccountDailySnapshot
+	var snapshotDay2After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, newTxn2Midnight).
 		First(&snapshotDay2After).Error
@@ -1198,7 +1093,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToLater() 
 
 	// Today: should be 16,000 (forward-filled from day -2)
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
-	var snapshotToday models.AccountDailySnapshot
+	var snapshotToday models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotToday).Error
@@ -1236,11 +1131,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 	amt1 := decimal.NewFromInt(5000)
 	desc1 := "Income day -8"
 	req1 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt1,
-		TxnDate:         txn1Date,
-		Description:     &desc1,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt1,
+		TxnDate:     txn1Date,
+		Description: &desc1,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req1)
 	s.Require().NoError(err)
@@ -1250,11 +1145,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 	amt2 := decimal.NewFromInt(2000)
 	desc2 := "Expense to move earlier"
 	req2 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         txn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     txn2Date,
+		Description: &desc2,
 	}
 	txn2, err := svc.InsertTransaction(s.Ctx, userID, req2)
 	s.Require().NoError(err)
@@ -1264,11 +1159,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 	amt3 := decimal.NewFromInt(3000)
 	desc3 := "Income day -3"
 	req3 := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amt3,
-		TxnDate:         txn3Date,
-		Description:     &desc3,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amt3,
+		TxnDate:     txn3Date,
+		Description: &desc3,
 	}
 	_, err = svc.InsertTransaction(s.Ctx, userID, req3)
 	s.Require().NoError(err)
@@ -1276,7 +1171,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 	// Before update: verify timeline is 10k -> 15k -> 13k -> 16k
 	txn2Midnight := txn2Date.UTC().Truncate(24 * time.Hour)
 
-	var snapshotDay5Before models.AccountDailySnapshot
+	var snapshotDay5Before models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
 		First(&snapshotDay5Before).Error
@@ -1288,11 +1183,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 	// Move transaction 2 from day -5 to day -7 (earlier, between day -8 and day -5)
 	newTxn2Date := time.Now().AddDate(0, 0, -7)
 	updateReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amt2,
-		TxnDate:         newTxn2Date,
-		Description:     &desc2,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amt2,
+		TxnDate:     newTxn2Date,
+		Description: &desc2,
 	}
 	_, err = svc.UpdateTransaction(s.Ctx, userID, txn2.ID, updateReq)
 	s.Require().NoError(err)
@@ -1306,26 +1201,6 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 	newTxn2Midnight := newTxn2Date.UTC().Truncate(24 * time.Hour)
 	s.Assert().Equal(newTxn2Midnight, updatedTxn.TxnDate.UTC().Truncate(24*time.Hour))
 
-	// After update: verify old date (day -5) balance has 0 outflows
-	var balanceOldDate models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
-		First(&balanceOldDate).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.Zero.Equal(balanceOldDate.CashOutflows),
-		"After update: old date (day -5) should have 0 outflows, got %s",
-		balanceOldDate.CashOutflows.String())
-
-	// After update: verify new date (day -7) balance has the outflows
-	var balanceNewDate models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, newTxn2Midnight).
-		First(&balanceNewDate).Error
-	s.Require().NoError(err)
-	s.Assert().True(amt2.Equal(balanceNewDate.CashOutflows),
-		"After update: new date (day -7) should have %s outflows, got %s",
-		amt2.String(), balanceNewDate.CashOutflows.String())
-
 	// After update: verify snapshots
 	// New timeline: 10k -> 15k (day -8) -> 13k (day -7, -2k) -> 13k (day -5, no txn) -> 16k (day -3, +3k)
 
@@ -1333,7 +1208,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 	txn3Midnight := txn3Date.UTC().Truncate(24 * time.Hour)
 
 	// Day -8: should still be 15,000 (unchanged)
-	var snapshotDay8After models.AccountDailySnapshot
+	var snapshotDay8After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn1Midnight).
 		First(&snapshotDay8After).Error
@@ -1344,7 +1219,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 		expectedDay8After.String(), snapshotDay8After.EndBalance.String())
 
 	// Day -7 (new date): should be 13,000 (15,000 - 2,000)
-	var snapshotDay7After models.AccountDailySnapshot
+	var snapshotDay7After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, newTxn2Midnight).
 		First(&snapshotDay7After).Error
@@ -1355,7 +1230,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 		expectedDay7After.String(), snapshotDay7After.EndBalance.String())
 
 	// Day -5 (old date): should be 13,000 (forward-filled, no transaction here anymore)
-	var snapshotDay5After models.AccountDailySnapshot
+	var snapshotDay5After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn2Midnight).
 		First(&snapshotDay5After).Error
@@ -1365,7 +1240,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 		expectedDay7After.String(), snapshotDay5After.EndBalance.String())
 
 	// Day -3: should be 16,000 (13,000 + 3,000)
-	var snapshotDay3After models.AccountDailySnapshot
+	var snapshotDay3After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txn3Midnight).
 		First(&snapshotDay3After).Error
@@ -1377,7 +1252,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeDateToEarlier(
 
 	// Today: should be 16,000 (forward-filled)
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
-	var snapshotToday models.AccountDailySnapshot
+	var snapshotToday models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotToday).Error
@@ -1415,11 +1290,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 	amount := decimal.NewFromInt(3000)
 	desc := "Transaction to flip"
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         txnDate,
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "expense",
+		Amount:      amount,
+		TxnDate:     txnDate,
+		Description: &desc,
 	}
 	txn, err := svc.InsertTransaction(s.Ctx, userID, req)
 	s.Require().NoError(err)
@@ -1427,18 +1302,9 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 	txnMidnight := txnDate.UTC().Truncate(24 * time.Hour)
 
 	// Before update: verify it's an expense with cash_outflows = 3,000
-	var balanceBefore models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, txnMidnight).
-		First(&balanceBefore).Error
-	s.Require().NoError(err)
-	s.Assert().True(amount.Equal(balanceBefore.CashOutflows),
-		"Before update: should have %s in outflows", amount.String())
-	s.Assert().True(decimal.Zero.Equal(balanceBefore.CashInflows),
-		"Before update: should have 0 in inflows")
 
 	// Before update: snapshot should be 7,000 (10,000 - 3,000)
-	var snapshotBefore models.AccountDailySnapshot
+	var snapshotBefore models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txnMidnight).
 		First(&snapshotBefore).Error
@@ -1450,11 +1316,11 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 
 	// Change from expense to income (flip the type)
 	updateReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          amount,
-		TxnDate:         txnDate,
-		Description:     &desc,
+		AccountID:   accID,
+		Direction:   "income",
+		Amount:      amount,
+		TxnDate:     txnDate,
+		Description: &desc,
 	}
 	_, err = svc.UpdateTransaction(s.Ctx, userID, txn.ID, updateReq)
 	s.Require().NoError(err)
@@ -1465,23 +1331,10 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 		Where("id = ?", txn.ID).
 		First(&updatedTxn).Error
 	s.Require().NoError(err)
-	s.Assert().Equal("income", updatedTxn.TransactionType)
-
-	// After update: verify balance flipped - should have 0 outflows, 3,000 inflows
-	var balanceAfter models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, txnMidnight).
-		First(&balanceAfter).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.Zero.Equal(balanceAfter.CashOutflows),
-		"After update: should have 0 in outflows, got %s",
-		balanceAfter.CashOutflows.String())
-	s.Assert().True(amount.Equal(balanceAfter.CashInflows),
-		"After update: should have %s in inflows, got %s",
-		amount.String(), balanceAfter.CashInflows.String())
+	s.Assert().Equal("income", updatedTxn.Direction)
 
 	// After update: snapshot should be 13,000 (10,000 + 3,000)
-	var snapshotAfter models.AccountDailySnapshot
+	var snapshotAfter models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, txnMidnight).
 		First(&snapshotAfter).Error
@@ -1493,7 +1346,7 @@ func (s *TransactionServiceTestSuite) TestUpdateTransaction_ChangeType() {
 
 	// Verify today's snapshot is also updated to 13,000
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
-	var snapshotToday models.AccountDailySnapshot
+	var snapshotToday models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshotToday).Error
@@ -1565,46 +1418,26 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 	// Verify two transactions were created (outflow and inflow)
 	var outflowTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ? AND is_transfer = ?", transfer.TransactionOutflowID, true).
+		Where("id = ? AND transaction_type = ?", transfer.TransactionOutflowID, models.TxnTypeTransfer).
 		First(&outflowTxn).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(sourceID, outflowTxn.AccountID)
-	s.Assert().Equal("expense", outflowTxn.TransactionType)
+	s.Assert().Equal("expense", outflowTxn.Direction)
 	s.Assert().True(transferAmount.Equal(outflowTxn.Amount))
 
 	var inflowTxn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("id = ? AND is_transfer = ?", transfer.TransactionInflowID, true).
+		Where("id = ? AND transaction_type = ?", transfer.TransactionInflowID, models.TxnTypeTransfer).
 		First(&inflowTxn).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(destID, inflowTxn.AccountID)
-	s.Assert().Equal("income", inflowTxn.TransactionType)
+	s.Assert().Equal("income", inflowTxn.Direction)
 	s.Assert().True(transferAmount.Equal(inflowTxn.Amount))
 
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
 
-	// Verify source account balance has 3,000 in outflows
-	var sourceBalance models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
-		First(&sourceBalance).Error
-	s.Require().NoError(err)
-	s.Assert().True(transferAmount.Equal(sourceBalance.CashOutflows),
-		"Source account should have %s in outflows, got %s",
-		transferAmount.String(), sourceBalance.CashOutflows.String())
-
-	// Verify destination account balance has 3,000 in inflows
-	var destBalanceRecord models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
-		First(&destBalanceRecord).Error
-	s.Require().NoError(err)
-	s.Assert().True(transferAmount.Equal(destBalanceRecord.CashInflows),
-		"Destination account should have %s in inflows, got %s",
-		transferAmount.String(), destBalanceRecord.CashInflows.String())
-
 	// Verify source account snapshot: 20,000 - 3,000 = 17,000
-	var sourceSnapshot models.AccountDailySnapshot
+	var sourceSnapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
 		First(&sourceSnapshot).Error
@@ -1615,7 +1448,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 		expectedSourceBalance.String(), sourceSnapshot.EndBalance.String())
 
 	// Verify destination account snapshot: 5,000 + 3,000 = 8,000
-	var destSnapshot models.AccountDailySnapshot
+	var destSnapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
 		First(&destSnapshot).Error
@@ -1692,25 +1525,8 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 	transferMidnight := transferDate.UTC().Truncate(24 * time.Hour)
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
 
-	// Verify balance records exist for transfer date on both accounts
-	var sourceBalanceRecord models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", sourceID, transferMidnight).
-		First(&sourceBalanceRecord).Error
-	s.Require().NoError(err, "source balance record should exist for transfer date")
-	s.Assert().True(transferAmount.Equal(sourceBalanceRecord.CashOutflows),
-		"source should have %s in outflows", transferAmount.String())
-
-	var destBalanceRecord models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", destID, transferMidnight).
-		First(&destBalanceRecord).Error
-	s.Require().NoError(err, "dest balance record should exist for transfer date")
-	s.Assert().True(transferAmount.Equal(destBalanceRecord.CashInflows),
-		"dest should have %s in inflows", transferAmount.String())
-
 	// Verify snapshots exist for source account from transfer date to today
-	var sourceSnapshots []models.AccountDailySnapshot
+	var sourceSnapshots []models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of >= ? AND as_of <= ?",
 			sourceID, transferMidnight, todayMidnight).
@@ -1723,7 +1539,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 		"source should have %d snapshots from transfer date to today", expectedSnapshotCount)
 
 	// Verify snapshots exist for destination account from transfer date to today
-	var destSnapshots []models.AccountDailySnapshot
+	var destSnapshots []models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of >= ? AND as_of <= ?",
 			destID, transferMidnight, todayMidnight).
@@ -1735,7 +1551,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 		"dest should have %d snapshots from transfer date to today", expectedSnapshotCount)
 
 	// Verify snapshot values on transfer date
-	var sourceSnapshot models.AccountDailySnapshot
+	var sourceSnapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, transferMidnight).
 		First(&sourceSnapshot).Error
@@ -1745,7 +1561,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 		"source snapshot on transfer date should be %s, got %s",
 		expectedSourceBalance.String(), sourceSnapshot.EndBalance.String())
 
-	var destSnapshot models.AccountDailySnapshot
+	var destSnapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, transferMidnight).
 		First(&destSnapshot).Error
@@ -1756,7 +1572,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 		expectedDestBalance.String(), destSnapshot.EndBalance.String())
 
 	// Verify today's snapshots are forward-filled correctly
-	var sourceTodaySnapshot models.AccountDailySnapshot
+	var sourceTodaySnapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
 		First(&sourceTodaySnapshot).Error
@@ -1765,7 +1581,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_PastDate() {
 		"source snapshot today should be forward-filled to %s, got %s",
 		expectedSourceBalance.String(), sourceTodaySnapshot.EndBalance.String())
 
-	var destTodaySnapshot models.AccountDailySnapshot
+	var destTodaySnapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
 		First(&destTodaySnapshot).Error
@@ -1831,7 +1647,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 	// After first transfer: source = 45,000, dest = 15,000
 	transfer1Midnight := transfer1Date.UTC().Truncate(24 * time.Hour)
 
-	var sourceSnapshotBefore models.AccountDailySnapshot
+	var sourceSnapshotBefore models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, transfer1Midnight).
 		First(&sourceSnapshotBefore).Error
@@ -1840,7 +1656,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 	s.Assert().True(expectedSourceBefore.Equal(sourceSnapshotBefore.EndBalance),
 		"Before backfill: source on day -3 should be %s", expectedSourceBefore.String())
 
-	var destSnapshotBefore models.AccountDailySnapshot
+	var destSnapshotBefore models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, transfer1Midnight).
 		First(&destSnapshotBefore).Error
@@ -1873,25 +1689,8 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 
 	transfer2Midnight := transfer2Date.UTC().Truncate(24 * time.Hour)
 
-	// Verify balance records for day -6
-	var sourceBalance2 models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", sourceID, transfer2Midnight).
-		First(&sourceBalance2).Error
-	s.Require().NoError(err)
-	s.Assert().True(amt2.Equal(sourceBalance2.CashOutflows),
-		"Day -6 source should have %s outflows", amt2.String())
-
-	var destBalance2 models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", destID, transfer2Midnight).
-		First(&destBalance2).Error
-	s.Require().NoError(err)
-	s.Assert().True(amt2.Equal(destBalance2.CashInflows),
-		"Day -6 dest should have %s inflows", amt2.String())
-
 	// Verify snapshot on day -6
-	var sourceSnapshot6 models.AccountDailySnapshot
+	var sourceSnapshot6 models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, transfer2Midnight).
 		First(&sourceSnapshot6).Error
@@ -1901,7 +1700,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 		"After backfill: source on day -6 should be %s, got %s",
 		expectedSource6.String(), sourceSnapshot6.EndBalance.String())
 
-	var destSnapshot6 models.AccountDailySnapshot
+	var destSnapshot6 models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, transfer2Midnight).
 		First(&destSnapshot6).Error
@@ -1912,7 +1711,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 		expectedDest6.String(), destSnapshot6.EndBalance.String())
 
 	// Verify snapshot on day -3 was updated (not 45k/15k anymore)
-	var sourceSnapshotAfter models.AccountDailySnapshot
+	var sourceSnapshotAfter models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, transfer1Midnight).
 		First(&sourceSnapshotAfter).Error
@@ -1922,7 +1721,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 		"After backfill: source on day -3 should be updated to %s, got %s",
 		expectedSource3.String(), sourceSnapshotAfter.EndBalance.String())
 
-	var destSnapshotAfter models.AccountDailySnapshot
+	var destSnapshotAfter models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, transfer1Midnight).
 		First(&destSnapshotAfter).Error
@@ -1935,7 +1734,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 	// Verify today's snapshots reflect all transfers
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
 
-	var sourceTodaySnapshot models.AccountDailySnapshot
+	var sourceTodaySnapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
 		First(&sourceTodaySnapshot).Error
@@ -1944,7 +1743,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_BetweenMultipleTransfer
 		"Today: source should be %s, got %s",
 		expectedSource3.String(), sourceTodaySnapshot.EndBalance.String())
 
-	var destTodaySnapshot models.AccountDailySnapshot
+	var destTodaySnapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
 		First(&destTodaySnapshot).Error
@@ -2055,49 +1854,8 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_SameDay() {
 
 	transferMidnight := transferDate.UTC().Truncate(24 * time.Hour)
 
-	// Verify Account A balance: 25,000 in outflows (10k + 15k), 0 inflows
-	var balanceRecordA models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accountAID, transferMidnight).
-		First(&balanceRecordA).Error
-	s.Require().NoError(err)
-	expectedOutflowsA := amt1.Add(amt2) // 10,000 + 15,000 = 25,000
-	s.Assert().True(expectedOutflowsA.Equal(balanceRecordA.CashOutflows),
-		"Account A should have %s in outflows, got %s",
-		expectedOutflowsA.String(), balanceRecordA.CashOutflows.String())
-	s.Assert().True(decimal.Zero.Equal(balanceRecordA.CashInflows),
-		"Account A should have 0 inflows, got %s",
-		balanceRecordA.CashInflows.String())
-
-	// Verify Account B balance: 5,000 in outflows, 10,000 in inflows
-	var balanceRecordB models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accountBID, transferMidnight).
-		First(&balanceRecordB).Error
-	s.Require().NoError(err)
-	s.Assert().True(amt3.Equal(balanceRecordB.CashOutflows),
-		"Account B should have %s in outflows, got %s",
-		amt3.String(), balanceRecordB.CashOutflows.String())
-	s.Assert().True(amt1.Equal(balanceRecordB.CashInflows),
-		"Account B should have %s in inflows, got %s",
-		amt1.String(), balanceRecordB.CashInflows.String())
-
-	// Verify Account C balance: 0 in outflows, 20,000 in inflows (15k + 5k)
-	var balanceRecordC models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accountCID, transferMidnight).
-		First(&balanceRecordC).Error
-	s.Require().NoError(err)
-	expectedInflowsC := amt2.Add(amt3)
-	s.Assert().True(decimal.Zero.Equal(balanceRecordC.CashOutflows),
-		"Account C should have 0 outflows, got %s",
-		balanceRecordC.CashOutflows.String())
-	s.Assert().True(expectedInflowsC.Equal(balanceRecordC.CashInflows),
-		"Account C should have %s in inflows, got %s",
-		expectedInflowsC.String(), balanceRecordC.CashInflows.String())
-
 	// Verify snapshots on transfer date
-	var snapshotA models.AccountDailySnapshot
+	var snapshotA models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accountAID, transferMidnight).
 		First(&snapshotA).Error
@@ -2107,7 +1865,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_SameDay() {
 		"Account A snapshot should be %s, got %s",
 		expectedBalanceA.String(), snapshotA.EndBalance.String())
 
-	var snapshotB models.AccountDailySnapshot
+	var snapshotB models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accountBID, transferMidnight).
 		First(&snapshotB).Error
@@ -2117,7 +1875,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_SameDay() {
 		"Account B snapshot should be %s, got %s",
 		expectedBalanceB.String(), snapshotB.EndBalance.String())
 
-	var snapshotC models.AccountDailySnapshot
+	var snapshotC models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accountCID, transferMidnight).
 		First(&snapshotC).Error
@@ -2127,19 +1885,6 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_SameDay() {
 		"Account C snapshot should be %s, got %s",
 		expectedBalanceC.String(), snapshotC.EndBalance.String())
 
-	// Verify only one balance record per account for that day
-	var countA, countB, countC int64
-	s.TC.DB.WithContext(s.Ctx).Model(&models.Balance{}).
-		Where("account_id = ? AND as_of = ?", accountAID, transferMidnight).Count(&countA)
-	s.Assert().Equal(int64(1), countA, "Account A should have exactly 1 balance record")
-
-	s.TC.DB.WithContext(s.Ctx).Model(&models.Balance{}).
-		Where("account_id = ? AND as_of = ?", accountBID, transferMidnight).Count(&countB)
-	s.Assert().Equal(int64(1), countB, "Account B should have exactly 1 balance record")
-
-	s.TC.DB.WithContext(s.Ctx).Model(&models.Balance{}).
-		Where("account_id = ? AND as_of = ?", accountCID, transferMidnight).Count(&countC)
-	s.Assert().Equal(int64(1), countC, "Account C should have exactly 1 balance record")
 }
 
 // Tests deleting a transfer on the current date
@@ -2192,25 +1937,8 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
 
-	// Before delete: verify balances
-	var sourceBalanceBefore models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
-		First(&sourceBalanceBefore).Error
-	s.Require().NoError(err)
-	s.Assert().True(transferAmount.Equal(sourceBalanceBefore.CashOutflows),
-		"Before delete: source should have %s outflows", transferAmount.String())
-
-	var destBalanceBefore models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
-		First(&destBalanceBefore).Error
-	s.Require().NoError(err)
-	s.Assert().True(transferAmount.Equal(destBalanceBefore.CashInflows),
-		"Before delete: dest should have %s inflows", transferAmount.String())
-
 	// Before delete: verify snapshots (source: 32k, dest: 18k)
-	var sourceSnapshotBefore models.AccountDailySnapshot
+	var sourceSnapshotBefore models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
 		First(&sourceSnapshotBefore).Error
@@ -2219,7 +1947,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 	s.Assert().True(expectedSourceBefore.Equal(sourceSnapshotBefore.EndBalance),
 		"Before delete: source snapshot should be %s", expectedSourceBefore.String())
 
-	var destSnapshotBefore models.AccountDailySnapshot
+	var destSnapshotBefore models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
 		First(&destSnapshotBefore).Error
@@ -2258,28 +1986,8 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 	s.Require().NoError(err)
 	s.Assert().NotNil(deletedOutflow.DeletedAt, "outflow transaction should be soft-deleted")
 
-	// After delete: verify source balance outflows reversed to 0
-	var sourceBalanceAfter models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
-		First(&sourceBalanceAfter).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.Zero.Equal(sourceBalanceAfter.CashOutflows),
-		"After delete: source should have 0 outflows, got %s",
-		sourceBalanceAfter.CashOutflows.String())
-
-	// After delete: verify dest balance inflows reversed to 0
-	var destBalanceAfter models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
-		First(&destBalanceAfter).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.Zero.Equal(destBalanceAfter.CashInflows),
-		"After delete: dest should have 0 inflows, got %s",
-		destBalanceAfter.CashInflows.String())
-
 	// After delete: verify snapshots reverted to original balances
-	var sourceSnapshotAfter models.AccountDailySnapshot
+	var sourceSnapshotAfter models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
 		First(&sourceSnapshotAfter).Error
@@ -2288,7 +1996,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 		"After delete: source snapshot should revert to %s, got %s",
 		srcBalance.String(), sourceSnapshotAfter.EndBalance.String())
 
-	var destSnapshotAfter models.AccountDailySnapshot
+	var destSnapshotAfter models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
 		First(&destSnapshotAfter).Error
@@ -2389,7 +2097,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 	transfer3Midnight := transfer3Date.UTC().Truncate(24 * time.Hour)
 
 	// Before delete: verify day -5 snapshots
-	var sourceSnapshot5Before models.AccountDailySnapshot
+	var sourceSnapshot5Before models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, transfer2Midnight).
 		First(&sourceSnapshot5Before).Error
@@ -2398,7 +2106,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 	s.Assert().True(expectedSource5Before.Equal(sourceSnapshot5Before.EndBalance),
 		"Before delete: source day -5 should be %s", expectedSource5Before.String())
 
-	var destSnapshot5Before models.AccountDailySnapshot
+	var destSnapshot5Before models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, transfer2Midnight).
 		First(&destSnapshot5Before).Error
@@ -2408,7 +2116,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		"Before delete: dest day -5 should be %s", expectedDest5Before.String())
 
 	// Before delete: verify day -2 snapshots
-	var sourceSnapshot2Before models.AccountDailySnapshot
+	var sourceSnapshot2Before models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, transfer3Midnight).
 		First(&sourceSnapshot2Before).Error
@@ -2417,7 +2125,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 	s.Assert().True(expectedSource2Before.Equal(sourceSnapshot2Before.EndBalance),
 		"Before delete: source day -2 should be %s", expectedSource2Before.String())
 
-	var destSnapshot2Before models.AccountDailySnapshot
+	var destSnapshot2Before models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, transfer3Midnight).
 		First(&destSnapshot2Before).Error
@@ -2445,27 +2153,8 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 	s.Require().NoError(err)
 	s.Assert().NotNil(deletedTransfer.DeletedAt)
 
-	// After delete: verify day -5 balances reversed to 0
-	var sourceBalance5After models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", sourceID, transfer2Midnight).
-		First(&sourceBalance5After).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.Zero.Equal(sourceBalance5After.CashOutflows),
-		"After delete: source day -5 should have 0 outflows, got %s",
-		sourceBalance5After.CashOutflows.String())
-
-	var destBalance5After models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", destID, transfer2Midnight).
-		First(&destBalance5After).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.Zero.Equal(destBalance5After.CashInflows),
-		"After delete: dest day -5 should have 0 inflows, got %s",
-		destBalance5After.CashInflows.String())
-
 	// After delete: verify day -5 snapshots (should be 90k/30k, no longer 85k/35k)
-	var sourceSnapshot5After models.AccountDailySnapshot
+	var sourceSnapshot5After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, transfer2Midnight).
 		First(&sourceSnapshot5After).Error
@@ -2475,7 +2164,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		"After delete: source day -5 should be %s, got %s",
 		expectedSource5After.String(), sourceSnapshot5After.EndBalance.String())
 
-	var destSnapshot5After models.AccountDailySnapshot
+	var destSnapshot5After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, transfer2Midnight).
 		First(&destSnapshot5After).Error
@@ -2486,7 +2175,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		expectedDest5After.String(), destSnapshot5After.EndBalance.String())
 
 	// After delete: verify day -2 snapshots were updated (not 77k/43k anymore)
-	var sourceSnapshot2After models.AccountDailySnapshot
+	var sourceSnapshot2After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, transfer3Midnight).
 		First(&sourceSnapshot2After).Error
@@ -2496,7 +2185,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		"After delete: source day -2 should be updated to %s, got %s",
 		expectedSource2After.String(), sourceSnapshot2After.EndBalance.String())
 
-	var destSnapshot2After models.AccountDailySnapshot
+	var destSnapshot2After models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, transfer3Midnight).
 		First(&destSnapshot2After).Error
@@ -2509,7 +2198,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 	// Verify today's snapshots are also updated correctly
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
 
-	var sourceTodaySnapshot models.AccountDailySnapshot
+	var sourceTodaySnapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", sourceID, todayMidnight).
 		First(&sourceTodaySnapshot).Error
@@ -2518,7 +2207,7 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_PastDateMiddle() {
 		"After delete: source today should be %s, got %s",
 		expectedSource2After.String(), sourceTodaySnapshot.EndBalance.String())
 
-	var destTodaySnapshot models.AccountDailySnapshot
+	var destTodaySnapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
 		First(&destTodaySnapshot).Error
@@ -2594,19 +2283,20 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 	expenseAmount := decimal.NewFromInt(55000)
 
 	txnReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          expenseAmount,
-		TxnDate:         today,
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    expenseAmount,
+		TxnDate:   today,
 	}
 
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, txnReq)
 	s.Require().Error(err, "should block expense that would drop cash balance below cash invested")
 
+	// The buy writes its own system transaction, so only user rows are counted.
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
 		Model(&models.Transaction{}).
-		Where("account_id = ?", accID).
+		Where("account_id = ? AND transaction_type NOT IN ?", accID, []models.TransactionType{models.TxnTypeTrade, models.TxnTypeInvestmentIncome, models.TxnTypeOpening}).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
@@ -2614,11 +2304,10 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 	var balanceAfter models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ?", accID).
-		Order("as_of DESC").
 		First(&balanceAfter).Error
 	s.Require().NoError(err)
 	expectedBalance := initialBalance.Sub(decimal.NewFromInt(60000)) // 40k after buy
-	s.Assert().True(expectedBalance.Equal(balanceAfter.EndBalance),
+	s.Assert().True(expectedBalance.Equal(balanceAfter.Balance),
 		"balance should remain at %s after failed transaction", expectedBalance.String())
 }
 
@@ -2641,10 +2330,10 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByInvestments
 	s.Require().NoError(err)
 
 	incomeReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          decimal.NewFromInt(50000),
-		TxnDate:         today,
+		AccountID: accID,
+		Direction: "income",
+		Amount:    decimal.NewFromInt(50000),
+		TxnDate:   today,
 	}
 
 	income, err := txnSvc.InsertTransaction(s.Ctx, userID, incomeReq)
@@ -2895,10 +2584,10 @@ func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedByInvestment
 
 	// Create and immediately delete a 50k expense
 	expenseReq := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          decimal.NewFromInt(50000),
-		TxnDate:         today,
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    decimal.NewFromInt(50000),
+		TxnDate:   today,
 	}
 
 	expense, err := txnSvc.InsertTransaction(s.Ctx, userID, expenseReq)
@@ -2992,17 +2681,17 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByGoalAllocat
 
 	// Expense of $600 should be blocked — only $500 is free
 	_, err = txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          decimal.NewFromInt(600),
-		TxnDate:         today,
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    decimal.NewFromInt(600),
+		TxnDate:   today,
 	})
 	s.Require().Error(err, "should block expense that would eat into goal allocations")
 
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
 		Model(&models.Transaction{}).
-		Where("account_id = ?", accID).
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
@@ -3041,10 +2730,10 @@ func (s *TransactionServiceTestSuite) TestDeleteTransaction_BlockedByGoalAllocat
 
 	// Add $150 income — balance becomes $250, uncategorized = $250 - $200 = $50
 	income, err := txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "income",
-		Amount:          decimal.NewFromInt(150),
-		TxnDate:         today,
+		AccountID: accID,
+		Direction: "income",
+		Amount:    decimal.NewFromInt(150),
+		TxnDate:   today,
 	})
 	s.Require().NoError(err)
 
@@ -3079,11 +2768,11 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_IdempotencyKey_Dedup
 
 	key := "test-idempotency-key-txn-001"
 	req := &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          decimal.NewFromInt(1000),
-		TxnDate:         time.Now(),
-		IdempotencyKey:  &key,
+		AccountID:      accID,
+		Direction:      "expense",
+		Amount:         decimal.NewFromInt(1000),
+		TxnDate:        time.Now(),
+		IdempotencyKey: &key,
 	}
 
 	first, err := svc.InsertTransaction(s.Ctx, userID, req)
@@ -3172,7 +2861,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_IdempotencyKey_Deduplic
 }
 
 func (s *TransactionServiceTestSuite) assertSnapshot(accountID int64, asOf time.Time, expected decimal.Decimal, label string) {
-	var snap models.AccountDailySnapshot
+	var snap models.BalanceSnapshot
 	err := s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accountID, asOf.UTC().Truncate(24*time.Hour)).
 		First(&snap).Error
@@ -3181,16 +2870,14 @@ func (s *TransactionServiceTestSuite) assertSnapshot(accountID int64, asOf time.
 		"%s snapshot: expected %s, got %s", label, expected.String(), snap.EndBalance.String())
 }
 
-func (s *TransactionServiceTestSuite) assertBalanceRow(accountID int64, asOf time.Time, expectedInflows, expectedOutflows decimal.Decimal, label string) {
+func (s *TransactionServiceTestSuite) assertBalance(accountID int64, expected decimal.Decimal, label string) {
 	var bal models.Balance
 	err := s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accountID, asOf.UTC().Truncate(24*time.Hour)).
+		Where("account_id = ?", accountID).
 		First(&bal).Error
 	s.Require().NoError(err, "%s balance row not found", label)
-	s.Assert().True(expectedInflows.Equal(bal.CashInflows),
-		"%s inflows: expected %s, got %s", label, expectedInflows.String(), bal.CashInflows.String())
-	s.Assert().True(expectedOutflows.Equal(bal.CashOutflows),
-		"%s outflows: expected %s, got %s", label, expectedOutflows.String(), bal.CashOutflows.String())
+	s.Assert().True(expected.Equal(bal.Balance),
+		"%s balance: expected %s, got %s", label, expected.String(), bal.Balance.String())
 }
 
 // TestUpdateTransfer_SameValues verifies that re-saving a transfer with identical
@@ -3230,9 +2917,9 @@ func (s *TransactionServiceTestSuite) TestUpdateTransfer_SameValues() {
 	// Destination: 100 + 50 = 150
 	s.assertSnapshot(dstID, today, dstBal.Add(amount), "destination")
 
-	// Balance rows: exactly one outflow/inflow of 50, no drift
-	s.assertBalanceRow(srcID, today, decimal.Zero, amount, "source balance")
-	s.assertBalanceRow(dstID, today, amount, decimal.Zero, "destination balance")
+	// The balances must not drift on a no-op update
+	s.assertBalance(srcID, srcBal.Sub(amount), "source balance")
+	s.assertBalance(dstID, dstBal.Add(amount), "destination balance")
 }
 
 // TestUpdateTransfer_AmountChange verifies that updating the amount correctly
@@ -3271,8 +2958,8 @@ func (s *TransactionServiceTestSuite) TestUpdateTransfer_AmountChange() {
 	// Destination: 100 + 40 = 140
 	s.assertSnapshot(dstID, today, dstBal.Add(updated), "destination")
 
-	s.assertBalanceRow(srcID, today, decimal.Zero, updated, "source balance")
-	s.assertBalanceRow(dstID, today, updated, decimal.Zero, "destination balance")
+	s.assertBalance(srcID, srcBal.Sub(updated), "source balance")
+	s.assertBalance(dstID, dstBal.Add(updated), "destination balance")
 
 	// Transfer record should reflect the new amount
 	var updatedTransfer models.Transfer
@@ -3313,13 +3000,9 @@ func (s *TransactionServiceTestSuite) TestUpdateTransfer_DateChange() {
 	})
 	s.Require().NoError(err)
 
-	// Old date balance row should now have no outflow/inflow
-	s.assertBalanceRow(srcID, yesterday, decimal.Zero, decimal.Zero, "source old date")
-	s.assertBalanceRow(dstID, yesterday, decimal.Zero, decimal.Zero, "destination old date")
-
-	// New date balance row should have the transfer
-	s.assertBalanceRow(srcID, today, decimal.Zero, amount, "source new date")
-	s.assertBalanceRow(dstID, today, amount, decimal.Zero, "destination new date")
+	// Moving the date must not change what either account holds
+	s.assertBalance(srcID, srcBal.Sub(amount), "source balance")
+	s.assertBalance(dstID, dstBal.Add(amount), "destination balance")
 
 	// Today snapshot: 500 - 50 = 450 for source, 100 + 50 = 150 for destination
 	s.assertSnapshot(srcID, today, srcBal.Sub(amount), "source today")
@@ -3360,8 +3043,8 @@ func (s *TransactionServiceTestSuite) TestUpdateTransfer_NotesOnly() {
 	// Balances must not drift
 	s.assertSnapshot(srcID, today, srcBal.Sub(amount), "source")
 	s.assertSnapshot(dstID, today, dstBal.Add(amount), "destination")
-	s.assertBalanceRow(srcID, today, decimal.Zero, amount, "source balance")
-	s.assertBalanceRow(dstID, today, amount, decimal.Zero, "destination balance")
+	s.assertBalance(srcID, srcBal.Sub(amount), "source balance")
+	s.assertBalance(dstID, dstBal.Add(amount), "destination balance")
 
 	// Notes updated on transfer and both transactions
 	var updatedTransfer models.Transfer
@@ -3435,16 +3118,16 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_Expense_WithinCredit
 
 	amount := decimal.NewFromInt(500)
 	txn, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         time.Now(),
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    amount,
+		TxnDate:   time.Now(),
 	})
 	s.Require().NoError(err)
 	s.Assert().Greater(txn.ID, int64(0))
 
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
-	var snapshot models.AccountDailySnapshot
+	var snapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, todayMidnight).
 		First(&snapshot).Error
@@ -3473,17 +3156,17 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_Expense_ExceedsCredi
 
 	amount := decimal.NewFromInt(1500)
 	_, err = svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       accID,
-		TransactionType: "expense",
-		Amount:          amount,
-		TxnDate:         time.Now(),
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    amount,
+		TxnDate:   time.Now(),
 	})
 	s.Require().Error(err)
 	s.Assert().Contains(err.Error(), "insufficient funds")
 
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
-		Where("account_id = ?", accID).Count(&txnCount).Error
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
 }
@@ -3524,7 +3207,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_Source_WithinCreditLimi
 	s.Assert().Greater(tr.ID, int64(0))
 
 	todayMidnight := time.Now().UTC().Truncate(24 * time.Hour)
-	var srcSnap models.AccountDailySnapshot
+	var srcSnap models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", srcID, todayMidnight).
 		First(&srcSnap).Error
@@ -3571,7 +3254,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_Source_ExceedsCreditLim
 
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
-		Where("account_id = ? AND is_transfer = true", srcID).Count(&txnCount).Error
+		Where("account_id = ? AND transaction_type = ?", srcID, models.TxnTypeTransfer).Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transfer transaction should be created on source account")
 }
@@ -3597,16 +3280,16 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_Success() {
 	amount := decimal.NewFromInt(5000)
 
 	template := models.TransactionTemplate{
-		Name:            "Salary",
-		UserID:          userID,
-		AccountID:       accID,
-		TemplateType:    "transaction",
-		TransactionType: &txnType,
-		Amount:          amount,
-		Frequency:       "monthly",
-		DayOfMonth:      originalNextRun.Day(),
-		NextRunAt:       originalNextRun,
-		IsActive:        true,
+		Name:         "Salary",
+		UserID:       userID,
+		AccountID:    accID,
+		TemplateType: "transaction",
+		Direction:    &txnType,
+		Amount:       amount,
+		Frequency:    "monthly",
+		DayOfMonth:   originalNextRun.Day(),
+		NextRunAt:    originalNextRun,
+		IsActive:     true,
 	}
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
 
@@ -3615,7 +3298,7 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_Success() {
 
 	var txn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND user_id = ?", accID, userID).
+		Where("account_id = ? AND user_id = ? AND transaction_type <> ?", accID, userID, models.TxnTypeOpening).
 		First(&txn).Error
 	s.Require().NoError(err)
 	today := utils.LocalMidnightUTC(time.Now(), time.UTC)
@@ -3649,16 +3332,16 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenAlread
 	txnType := "income"
 
 	template := models.TransactionTemplate{
-		Name:            "Salary",
-		UserID:          userID,
-		AccountID:       accID,
-		TemplateType:    "transaction",
-		TransactionType: &txnType,
-		Amount:          decimal.NewFromInt(5000),
-		Frequency:       "monthly",
-		DayOfMonth:      originalNextRun.Day(),
-		NextRunAt:       originalNextRun,
-		IsActive:        true,
+		Name:         "Salary",
+		UserID:       userID,
+		AccountID:    accID,
+		TemplateType: "transaction",
+		Direction:    &txnType,
+		Amount:       decimal.NewFromInt(5000),
+		Frequency:    "monthly",
+		DayOfMonth:   originalNextRun.Day(),
+		NextRunAt:    originalNextRun,
+		IsActive:     true,
 	}
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
 
@@ -3670,7 +3353,7 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenAlread
 
 	var txnCount int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
-		Where("account_id = ?", accID).Count(&txnCount).Error)
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).Count(&txnCount).Error)
 	s.Assert().Equal(int64(1), txnCount, "second execution should not create another transaction")
 
 	var updated models.TransactionTemplate
@@ -3696,16 +3379,16 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenInacti
 	txnType := "expense"
 
 	template := models.TransactionTemplate{
-		Name:            "Paused rent",
-		UserID:          userID,
-		AccountID:       accID,
-		TemplateType:    "transaction",
-		TransactionType: &txnType,
-		Amount:          decimal.NewFromInt(2500),
-		Frequency:       "monthly",
-		DayOfMonth:      nextRun.Day(),
-		NextRunAt:       nextRun,
-		IsActive:        true,
+		Name:         "Paused rent",
+		UserID:       userID,
+		AccountID:    accID,
+		TemplateType: "transaction",
+		Direction:    &txnType,
+		Amount:       decimal.NewFromInt(2500),
+		Frequency:    "monthly",
+		DayOfMonth:   nextRun.Day(),
+		NextRunAt:    nextRun,
+		IsActive:     true,
 	}
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
 	// IsActive is a `default:true` column, so GORM omits an explicit `false` on Create; flip it
@@ -3718,7 +3401,7 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenInacti
 
 	var txnCount int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
-		Where("account_id = ?", accID).Count(&txnCount).Error)
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).Count(&txnCount).Error)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should be created for a blocked execution")
 }
 
@@ -3740,16 +3423,16 @@ func (s *TransactionServiceTestSuite) TestProcessTemplate_SkipsCycleAlreadyRunEa
 	txnType := "income"
 
 	template := models.TransactionTemplate{
-		Name:            "Salary",
-		UserID:          userID,
-		AccountID:       accID,
-		TemplateType:    "transaction",
-		TransactionType: &txnType,
-		Amount:          decimal.NewFromInt(5000),
-		Frequency:       "weekly",
-		DayOfMonth:      overdue.Day(),
-		NextRunAt:       overdue,
-		IsActive:        true,
+		Name:         "Salary",
+		UserID:       userID,
+		AccountID:    accID,
+		TemplateType: "transaction",
+		Direction:    &txnType,
+		Amount:       decimal.NewFromInt(5000),
+		Frequency:    "weekly",
+		DayOfMonth:   overdue.Day(),
+		NextRunAt:    overdue,
+		IsActive:     true,
 	}
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&template).Error)
 
@@ -3763,7 +3446,7 @@ func (s *TransactionServiceTestSuite) TestProcessTemplate_SkipsCycleAlreadyRunEa
 
 	var txnCount int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
-		Where("account_id = ?", accID).Count(&txnCount).Error)
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).Count(&txnCount).Error)
 	s.Equal(int64(1), txnCount, "the cycle must produce a single transaction")
 
 	var updated models.TransactionTemplate
@@ -3791,11 +3474,11 @@ func (s *TransactionServiceTestSuite) TestMergeCategories_MovesTransactionsAndAr
 	s.Require().NoError(err)
 
 	_, err = svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
-		AccountID:       accID,
-		CategoryID:      &srcID,
-		TransactionType: "expense",
-		Amount:          decimal.NewFromInt(1200),
-		TxnDate:         time.Now(),
+		AccountID:  accID,
+		CategoryID: &srcID,
+		Direction:  "expense",
+		Amount:     decimal.NewFromInt(1200),
+		TxnDate:    time.Now(),
 	})
 	s.Require().NoError(err)
 
@@ -3837,4 +3520,172 @@ func (s *TransactionServiceTestSuite) TestQueueCategoryMerge_ValidatesWithoutTra
 	s.Require().NoError(err)
 
 	s.Require().NoError(svc.QueueCategoryMerge(s.Ctx, userID, srcID, dstID))
+}
+
+// Tests that the paginated transaction list returns only ledger and adjustment rows
+func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_OnlyClientVisibleTypes() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	invSvc := s.TC.App.InvestmentService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	cashBalance := decimal.NewFromInt(50000)
+	cashReq := &models.AccountReq{
+		Name:           "Visible Cash",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &cashBalance,
+		OpenedAt:       today,
+	}
+	cashID, err := accSvc.InsertAccount(s.Ctx, userID, cashReq)
+	s.Require().NoError(err)
+
+	destBalance := decimal.NewFromInt(10000)
+	destReq := &models.AccountReq{
+		Name:           "Transfer Destination",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &destBalance,
+		OpenedAt:       today,
+	}
+	destID, err := accSvc.InsertAccount(s.Ctx, userID, destReq)
+	s.Require().NoError(err)
+
+	// ledger
+	desc := "Groceries"
+	ledgerTxn, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:   cashID,
+		Direction:   "expense",
+		Amount:      decimal.NewFromInt(100),
+		TxnDate:     today,
+		Description: &desc,
+	})
+	s.Require().NoError(err)
+
+	// transfer legs
+	notes := "Move money"
+	_, err = svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID:      cashID,
+		DestinationID: destID,
+		Amount:        decimal.NewFromInt(500),
+		Notes:         &notes,
+		CreatedAt:     today,
+	})
+	s.Require().NoError(err)
+
+	// adjustment, posted by a balance change on the cash account
+	newBalance := decimal.NewFromInt(60000)
+	_, err = accSvc.UpdateAccount(s.Ctx, userID, cashID, &models.AccountReq{
+		Name:           "Visible Cash",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &newBalance,
+		OpenedAt:       today,
+	})
+	s.Require().NoError(err)
+
+	// trade, which posts a cash leg on the investment account
+	invBalance := decimal.NewFromInt(100000)
+	invID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &invBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := invSvc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      invID,
+		InvestmentType: models.InvestmentCrypto,
+		Name:           "Bitcoin",
+		Ticker:         "BTC-USD",
+		Currency:       "EUR",
+		Quantity:       decimal.NewFromInt(0),
+	})
+	s.Require().NoError(err)
+
+	_, err = invSvc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      today,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(1),
+		PricePerUnit: decimal.NewFromInt(50000),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	p := utils.PaginationParams{PageNumber: 1, RowsPerPage: 50, SortField: "id", SortOrder: "asc"}
+
+	// Three accounts, so three opening rows, plus the ledger and the adjustment.
+	records, totals, paginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, nil)
+	s.Require().NoError(err)
+	s.Require().Len(records, 5, "list should hold the openings, the ledger and the adjustment")
+	s.Assert().Equal(5, paginator.TotalRecords)
+	s.Assert().Equal(int64(5), totals.Count)
+	s.Assert().Equal(models.TxnTypeOpening, records[0].TransactionType)
+	s.Assert().Equal(ledgerTxn.ID, records[2].ID)
+	s.Assert().Equal(models.TxnTypeLedger, records[2].TransactionType)
+	s.Assert().Equal(models.TxnTypeAdjustment, records[3].TransactionType)
+
+	// same rule per account
+	accRecords, _, accPaginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, &cashID)
+	s.Require().NoError(err)
+	s.Require().Len(accRecords, 3)
+	s.Assert().Equal(3, accPaginator.TotalRecords)
+
+	invRecords, _, invPaginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, &invID)
+	s.Require().NoError(err)
+	s.Require().Len(invRecords, 1, "the trade cash leg must stay hidden")
+	s.Assert().Equal(models.TxnTypeOpening, invRecords[0].TransactionType)
+	s.Assert().Equal(1, invPaginator.TotalRecords)
+}
+
+func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedForNonEditableTypes() {
+	accSvc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Restore Guard Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	expense, err := txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    decimal.NewFromInt(500),
+		TxnDate:   today,
+	})
+	s.Require().NoError(err)
+
+	// The trigger rejects any update of an already soft-deleted row, so retype and
+	// delete in one statement.
+	err = s.TC.DB.WithContext(s.Ctx).Exec(
+		"UPDATE transactions SET transaction_type = ?, deleted_at = NOW() WHERE id = ?",
+		models.TxnTypeTrade, expense.ID).Error
+	s.Require().NoError(err)
+
+	err = txnSvc.RestoreTransaction(s.Ctx, userID, expense.ID)
+	s.Require().Error(err, "should block restoring a trade transaction")
+
+	var txn models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).Unscoped().
+		Where("id = ?", expense.ID).
+		First(&txn).Error
+	s.Require().NoError(err)
+	s.Assert().NotNil(txn.DeletedAt, "transaction should still be deleted")
 }

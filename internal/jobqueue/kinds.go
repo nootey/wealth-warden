@@ -15,6 +15,8 @@ const (
 	TypeMergeAccounts          = "merge_accounts"
 	TypeAssetHistoryBackfill   = "asset_history_backfill"
 	TypeBalanceBackfill        = "balance_backfill"
+	TypeBalanceBackfillBatch   = "balance_backfill_batch"
+	TypeBalanceReconcileBatch  = "balance_reconcile_batch"
 	TypeRecurringTransactions  = "recurring_transactions"
 	TypeAssetPriceSync         = "asset_price_sync"
 )

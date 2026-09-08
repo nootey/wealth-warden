@@ -28,6 +28,7 @@ type ServiceContainer struct {
 	UserService         *services.UserService
 	LoggingService      *services.LoggingService
 	AccountService      *services.AccountService
+	BalanceService      *services.BalanceService
 	TransactionService  *services.TransactionService
 	SettingsService     *services.SettingsService
 	RoleService         *services.RolePermissionService
@@ -39,6 +40,7 @@ type ServiceContainer struct {
 	SavingsService      *services.SavingsService
 	NotificationService *services.NotificationService
 	NotifDispatcher     jobqueue.NotificationDispatcher
+	JobDispatcher       jobqueue.Dispatcher
 	SessionsService     *services.SessionsService
 	Hub                 *ws.Hub
 }
@@ -71,6 +73,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 	userRepo := repositories.NewUserRepository(db)
 	roleRepo := repositories.NewRolePermissionRepositoryRepository(db)
 	accountRepo := repositories.NewAccountRepository(db)
+	balanceRepo := repositories.NewBalanceRepository(db)
 	transactionRepo := repositories.NewTransactionRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
 	importRepo := repositories.NewImportRepository(db)
@@ -86,12 +89,13 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 	authService := services.NewAuthService(userRepo, roleRepo, settingsRepo, jobDispatcher, mail, sessionStore)
 	roleService := services.NewRolePermissionService(roleRepo, jobDispatcher)
 	userService := services.NewUserService(userRepo, roleRepo, jobDispatcher, mail)
-	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, transactionRepo, settingsRepo, savingsRepo, investmentRepo, jobDispatcher, priceFetcher)
-	transactionService := services.NewTransactionService(logger.Named("transaction_srv"), transactionRepo, accountRepo, settingsRepo, savingsRepo, jobDispatcher)
+	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, balanceRepo, transactionRepo, settingsRepo, savingsRepo, investmentRepo, jobDispatcher, priceFetcher)
+	balanceService := services.NewBalanceService(logger.Named("balance_srv"), balanceRepo)
+	transactionService := services.NewTransactionService(logger.Named("transaction_srv"), transactionRepo, accountRepo, balanceRepo, settingsRepo, savingsRepo, jobDispatcher)
 	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, jobDispatcher, sessionStore)
-	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, investmentRepo, settingsRepo, jobDispatcher)
-	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, settingsRepo, jobDispatcher)
-	investmentService := services.NewInvestmentService(logger.Named("investment_sev"), investmentRepo, accountRepo, transactionRepo, settingsRepo, jobDispatcher, priceFetcher)
+	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, balanceRepo, investmentRepo, settingsRepo, jobDispatcher)
+	exportService := services.NewExportService(exportRepo, transactionRepo, accountRepo, balanceRepo, settingsRepo, jobDispatcher)
+	investmentService := services.NewInvestmentService(logger.Named("investment_sev"), investmentRepo, accountRepo, balanceRepo, transactionRepo, settingsRepo, jobDispatcher, priceFetcher)
 	notesService := services.NewNotesService(notesRepo, jobDispatcher)
 	analyticsService := services.NewAnalyticsService(analyticsRepo, accountRepo, transactionRepo, settingsRepo, jobDispatcher)
 	backOfficeService := services.NewBackofficeService(logger.Named("backoffice_srv"), jobDispatcher, backOfficeRepo, investmentService)
@@ -112,6 +116,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 		UserService:         userService,
 		LoggingService:      loggingService,
 		AccountService:      accountService,
+		BalanceService:      balanceService,
 		TransactionService:  transactionService,
 		SettingsService:     settingsService,
 		RoleService:         roleService,
@@ -123,6 +128,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 		SavingsService:      savingsService,
 		NotificationService: notificationService,
 		NotifDispatcher:     notifDispatcher,
+		JobDispatcher:       jobDispatcher,
 		SessionsService:     sessionsService,
 		Hub:                 hub,
 	}, nil

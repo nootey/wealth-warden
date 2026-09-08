@@ -28,13 +28,14 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 	}
 
 	accRepo := repositories.NewAccountRepository(db)
+	balanceRepo := repositories.NewBalanceRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
 	jobDispatcher := jobqueue.NoopDispatcher{}
 
 	investmentRepo := repositories.NewInvestmentRepository(db)
 	savingsRepo := repositories.NewSavingsRepository(db)
-	accService := services.NewAccountService(zap.NewNop(), accRepo, txnRepo, settingsRepo, savingsRepo, investmentRepo, jobDispatcher, nil)
+	accService := services.NewAccountService(zap.NewNop(), accRepo, balanceRepo, txnRepo, settingsRepo, savingsRepo, investmentRepo, jobDispatcher, nil)
 
 	var incCats, expCats []models.Category
 	_ = db.WithContext(ctx).Where("classification = ?", "income").Find(&incCats).Error
@@ -82,7 +83,7 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 				return err
 			}
 
-			currBal := bal.StartBalance
+			currBal := bal.Balance
 
 			openDays := int(today.Sub(acc.OpenedAt.UTC().Truncate(24*time.Hour)).Hours() / 24)
 			maxBack := int(math.Min(float64(openDays), float64(365*yearsSpan+7)))
@@ -161,12 +162,12 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 				t := models.Transaction{
 					UserID:          u.ID,
 					AccountID:       acc.ID,
-					TransactionType: ttype,
+					Direction:       ttype,
 					CategoryID:      catID,
 					Amount:          amt,
 					Currency:        acc.Currency,
 					TxnDate:         date,
-					IsAdjustment:    false,
+					TransactionType: models.TxnTypeLedger,
 					CreatedAt:       time.Now().UTC(),
 					UpdatedAt:       time.Now().UTC(),
 				}

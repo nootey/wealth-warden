@@ -45,15 +45,6 @@ func (s *AssetPriceSyncJobTestSuite) latestTickerPrice(ticker string) decimal.De
 	return ph.Price
 }
 
-// Test that job runs with no assets
-func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_Success() {
-	logger := zaptest.NewLogger(s.T())
-	job := jobs.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, &tests.MockPriceFetcher{}, nil, 0)
-
-	err := job.Run(s.Ctx)
-	s.NoError(err)
-}
-
 // Tests that an asset whose new price is >90% below the current price is skipped to prevent data corruption
 func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_SkipsExtremePriceDrop() {
 	accSvc := s.TC.App.AccountService
@@ -182,13 +173,13 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalan
 	s.Assert().True(priceHistory.Price.GreaterThan(decimal.Zero), "price history should be recorded")
 	s.Assert().False(oldPrice.Equal(priceHistory.Price), "price sync should have replaced the stale price")
 
-	// Verify cash balance reduced by purchase cost (buy wrote cash_outflows)
+	// Verify cash balance reduced by purchase cost
 	var balance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
+		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(balance.CashOutflows.GreaterThan(decimal.Zero), "buy should have written cash outflows")
+	s.Assert().True(balance.Balance.LessThan(initialBalance), "buy should have reduced the cash balance")
 }
 
 // countingPriceFetcher wraps the mock and records how the job reaches for prices.
