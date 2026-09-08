@@ -5,10 +5,12 @@ import InvitationsPaginated from "../components/data/InvitationsPaginated.vue";
 import UsersPaginated from "../components/data/UsersPaginated.vue";
 import type { Role } from "../../models/user_models.ts";
 import { useUserStore } from "../../services/stores/user_store.ts";
+import { useToastStore } from "../../services/stores/toast_store.ts";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import { useRouter } from "vue-router";
 
 const userStore = useUserStore();
+const toastStore = useToastStore();
 
 const { hasPermission } = usePermissions();
 const router = useRouter();
@@ -23,7 +25,11 @@ const roles = computed<Role[]>(() => userStore.roles);
 const activeTab = ref("users");
 
 onMounted(async () => {
-  await userStore.getRoles();
+  try {
+    await userStore.getRoles();
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
 });
 
 function manipulateDialog(modal: string, value: any) {
