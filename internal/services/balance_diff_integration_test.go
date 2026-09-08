@@ -68,3 +68,39 @@ func (s *BalanceDiffIntegrationSuite) TestDiffDetectsDrift() {
 	s.Assert().NotEmpty(tests.DiffDailyBalances(first, drifted), "the diff missed a changed balance")
 	s.Assert().NotEmpty(tests.DiffDailyBalances(first, first[:last]), "the diff missed a missing row")
 }
+
+// Phase 2's contract: the opening amount is a transaction like any other, so the
+// ledger alone adds up to the balance the app reads.
+func (s *BalanceDiffIntegrationSuite) TestOpeningBalanceIsATransaction() {
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	s.seedAndDump(today)
+
+	type row struct {
+		AccountID int64
+		Openings  int64
+		TxnSum    decimal.Decimal
+		EndBal    decimal.Decimal
+	}
+
+	var rows []row
+	s.Require().NoError(s.TC.DB.Raw(`
+		SELECT a.id AS account_id,
+		       COUNT(*) FILTER (WHERE t.transaction_type = 'opening'
+		                          AND t.category_id IS NOT NULL) AS openings,
+		       COALESCE(SUM(CASE WHEN t.direction = 'expense' THEN -t.amount ELSE t.amount END), 0) AS txn_sum,
+		       (SELECT b.end_balance FROM balances b
+		         WHERE b.account_id = a.id ORDER BY b.as_of DESC LIMIT 1) AS end_bal
+		FROM accounts a
+		LEFT JOIN transactions t ON t.account_id = a.id AND t.deleted_at IS NULL
+		GROUP BY a.id
+		ORDER BY a.id`).Scan(&rows).Error)
+
+	s.Require().NotEmpty(rows)
+	for _, r := range rows {
+		s.Assert().EqualValues(1, r.Openings,
+			"account %d needs exactly one opening transaction, with a category", r.AccountID)
+		s.Assert().True(r.TxnSum.Round(4).Equal(r.EndBal.Round(4)),
+			"account %d: transactions sum to %s, balance says %s",
+			r.AccountID, r.TxnSum.StringFixed(4), r.EndBal.StringFixed(4))
+	}
+}

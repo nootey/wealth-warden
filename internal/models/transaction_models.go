@@ -11,7 +11,7 @@ import (
 var (
 	ErrTemplateAlreadyRanToday = errors.New("template already executed today")
 
-	ClientVisibleTxnTypes = []TransactionType{TxnTypeLedger, TxnTypeAdjustment}
+	ClientVisibleTxnTypes = []TransactionType{TxnTypeLedger, TxnTypeAdjustment, TxnTypeOpening}
 )
 
 type TransactionType string
@@ -22,9 +22,14 @@ const (
 	TxnTypeAdjustment       TransactionType = "adjustment"        // Manual balance adjustment
 	TxnTypeTrade            TransactionType = "trade"             // Investment trades
 	TxnTypeInvestmentIncome TransactionType = "investment_income" // Dividends
+	TxnTypeOpening          TransactionType = "opening"           // The amount an account started with
 )
 
 func (t TransactionType) IsUserEditable() bool {
+	return t == TxnTypeLedger || t == TxnTypeTransfer || t == TxnTypeOpening
+}
+
+func (t TransactionType) IsUserDeletable() bool {
 	return t == TxnTypeLedger || t == TxnTypeTransfer
 }
 
@@ -50,6 +55,28 @@ type Transaction struct {
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 	DeletedAt       *time.Time      `json:"deleted_at"`
+}
+
+func NewOpeningTransaction(userID, accountID int64, categoryID *int64, currency string, openedAt time.Time, amount decimal.Decimal) Transaction {
+	direction := "income"
+	if amount.IsNegative() {
+		direction = "expense"
+		amount = amount.Neg()
+	}
+
+	desc := "Opening balance"
+
+	return Transaction{
+		UserID:          userID,
+		AccountID:       accountID,
+		CategoryID:      categoryID,
+		Direction:       direction,
+		Amount:          amount,
+		Currency:        currency,
+		TxnDate:         openedAt,
+		Description:     &desc,
+		TransactionType: TxnTypeOpening,
+	}
 }
 
 type Transfer struct {

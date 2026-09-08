@@ -555,6 +555,14 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 		loc = time.UTC
 	}
 
+	// The opening row is user editable, and the edit form needs a category on it.
+	openingCategory, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+	if err != nil {
+		s.markImportFailed(ctx, importID, err)
+		tx.Rollback()
+		return fmt.Errorf("can't find uncategorized category: %w", err)
+	}
+
 	for _, acc := range payload.Accounts {
 
 		openedAt := acc.OpenedAt
@@ -599,32 +607,15 @@ func (s *ImportService) ImportAccounts(ctx context.Context, userID int64, payloa
 			amount = decimal.Zero
 		}
 
-		asOf := openedDay
-
-		balance := &models.Balance{
-			AccountID:    accountID,
-			Currency:     account.Currency,
-			StartBalance: amount,
-			AsOf:         asOf,
-		}
-
-		_, err = s.accRepo.InsertBalance(ctx, tx, balance)
-		if err != nil {
+		account.ID = accountID
+		openingTxn := models.NewOpeningTransaction(userID, accountID, &openingCategory.ID, account.Currency, openedDay, amount)
+		if _, err := s.txnRepo.InsertTransaction(ctx, tx, &openingTxn); err != nil {
 			s.markImportFailed(ctx, importID, err)
 			tx.Rollback()
-			return err
+			return fmt.Errorf("failed to post the opening transaction: %w", err)
 		}
 
-		// seed snapshots from opened day to today
-		if err := s.accRepo.UpsertSnapshotsFromBalances(
-			ctx,
-			tx,
-			userID,
-			accountID,
-			account.Currency,
-			asOf,
-			time.Now().UTC().Truncate(24*time.Hour),
-		); err != nil {
+		if err := s.updateDailyCash(ctx, tx, account, openedDay, openingTxn.Direction, openingTxn.Amount, true); err != nil {
 			s.markImportFailed(ctx, importID, err)
 			tx.Rollback()
 			return err

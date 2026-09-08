@@ -392,19 +392,23 @@ func seedBulkChunk(
 		return fmt.Errorf("failed to insert accounts: %w", err)
 	}
 
+	uncategorizedID, err := uncategorizedCategoryID(ctx, tx)
+	if err != nil {
+		return err
+	}
+
 	balances := make([]models.Balance, 0, len(accounts))
+	openings := make([]models.Transaction, 0, len(accounts))
 	for i, acc := range accounts {
-		balances = append(balances, models.Balance{
-			AccountID:    acc.ID,
-			AsOf:         openedAt[i],
-			StartBalance: bulkAccountSeeds[i%len(bulkAccountSeeds)].StartBalance,
-			Currency:     acc.Currency,
-			CreatedAt:    openedAt[i],
-			UpdatedAt:    openedAt[i],
-		})
+		txn, bal := seedOpeningRows(acc, openedAt[i], uncategorizedID, bulkAccountSeeds[i%len(bulkAccountSeeds)].StartBalance)
+		balances = append(balances, bal)
+		openings = append(openings, txn)
 	}
 	if err := tx.WithContext(ctx).CreateInBatches(&balances, bulkInsertBatch).Error; err != nil {
 		return fmt.Errorf("failed to insert opening balances: %w", err)
+	}
+	if err := tx.WithContext(ctx).CreateInBatches(&openings, bulkInsertBatch).Error; err != nil {
+		return fmt.Errorf("failed to insert opening transactions: %w", err)
 	}
 
 	perAcc := max(1, b.TxnsPerUser/len(bulkAccountSeeds))
@@ -848,21 +852,29 @@ func seedBulkInvestments(
 		return fmt.Errorf("failed to insert investment accounts: %w", err)
 	}
 
+	uncategorizedID, err := uncategorizedCategoryID(ctx, tx)
+	if err != nil {
+		return err
+	}
+
 	balances := make([]models.Balance, 0, len(accounts))
+	openings := make([]models.Transaction, 0, len(accounts))
 	meta := make(map[int64]accMeta, len(accounts))
 	for _, acc := range accounts {
 		start := bulkInvOpeningCash
 		if acc.Currency == "USD" {
 			start = bulkCryptoOpeningCash
 		}
-		balances = append(balances, models.Balance{
-			AccountID: acc.ID, AsOf: openedAt, StartBalance: start, Currency: acc.Currency,
-			CreatedAt: openedAt, UpdatedAt: openedAt,
-		})
+		txn, bal := seedOpeningRows(acc, openedAt, uncategorizedID, start)
+		balances = append(balances, bal)
+		openings = append(openings, txn)
 		meta[acc.ID] = accMeta{userID: acc.UserID, currency: acc.Currency}
 	}
 	if err := tx.WithContext(ctx).CreateInBatches(&balances, bulkInsertBatch).Error; err != nil {
 		return fmt.Errorf("failed to insert investment opening balances: %w", err)
+	}
+	if err := tx.WithContext(ctx).CreateInBatches(&openings, bulkInsertBatch).Error; err != nil {
+		return fmt.Errorf("failed to insert investment opening transactions: %w", err)
 	}
 
 	var assetRows []models.InvestmentAsset

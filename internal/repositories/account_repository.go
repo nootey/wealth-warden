@@ -1143,9 +1143,8 @@ func (r *AccountRepository) GetUserFirstBalanceDate(ctx context.Context, tx *gor
 
 	var d *time.Time
 	err := db.Raw(`
-        SELECT MIN(b.as_of)::date
-        FROM balances b
-        JOIN accounts a ON a.id = b.account_id
+        SELECT MIN(a.opened_at)::date
+        FROM accounts a
         WHERE a.user_id = ?
     `, userID).Row().Scan(&d)
 	if err != nil && err != sql.ErrNoRows {
@@ -1191,7 +1190,7 @@ func (r *AccountRepository) GetAccountOpeningAsOf(ctx context.Context, tx *gorm.
 	// Row().Scan, not gorm's Scan: only the former reads a NULL into a *time.Time.
 	var open *time.Time
 	if err := db.Raw(`
-        SELECT MIN(as_of) FROM balances WHERE account_id = ?
+        SELECT opened_at FROM accounts WHERE id = ?
     `, accountID).Row().Scan(&open); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return time.Time{}, sql.ErrNoRows

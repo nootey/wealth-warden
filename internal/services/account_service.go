@@ -311,31 +311,21 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 		amount = amount.Neg()
 	}
 
-	asOf := openedDay
-
-	balance := &models.Balance{
-		AccountID:    accountID,
-		Currency:     account.Currency,
-		StartBalance: amount,
-		AsOf:         asOf,
-	}
-
-	_, err = s.repo.InsertBalance(ctx, tx, balance)
+	// The opening row is user editable, and the edit form needs a category on it.
+	openingCategory, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
 	if err != nil {
 		tx.Rollback()
-		return 0, err
+		return 0, fmt.Errorf("can't find uncategorized category: %w", err)
 	}
 
-	// seed snapshots from opened day to today
-	if err := s.repo.UpsertSnapshotsFromBalances(
-		ctx,
-		tx,
-		userID,
-		accountID,
-		account.Currency,
-		asOf,
-		time.Now().UTC().Truncate(24*time.Hour),
-	); err != nil {
+	openingTxn := models.NewOpeningTransaction(userID, accountID, &openingCategory.ID, account.Currency, openedDay, amount)
+	if _, err := s.txnRepo.InsertTransaction(ctx, tx, &openingTxn); err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("failed to post the opening transaction: %w", err)
+	}
+
+	account.ID = accountID
+	if err := s.UpdateAccountCashBalance(ctx, tx, account, openedDay, openingTxn.Direction, openingTxn.Amount); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -430,8 +420,6 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			}
 		}
 
-		initialBalance := exAcc.Balance.StartBalance
-
 		// Delete all existing snapshots for this account
 		err = s.repo.DeleteAccountSnapshots(ctx, tx, id)
 		if err != nil {
@@ -439,21 +427,22 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			return 0, fmt.Errorf("failed to delete existing snapshots: %w", err)
 		}
 
-		// Create new initial balance with the true initial amount at the new date
-		newInitialBalance := &models.Balance{
-			AccountID:    id,
-			Currency:     exAcc.Currency,
-			StartBalance: initialBalance,
-			AsOf:         newOpenedAt,
-		}
-
-		_, err = s.repo.InsertBalance(ctx, tx, newInitialBalance)
-		if err != nil {
+		// The opening transaction carries the starting amount, so retiming it is the
+		// whole move.
+		if err := tx.WithContext(ctx).Model(&models.Transaction{}).
+			Where("account_id = ? AND transaction_type = ? AND deleted_at IS NULL", id, models.TxnTypeOpening).
+			Update("txn_date", newOpenedAt).Error; err != nil {
 			tx.Rollback()
-			return 0, fmt.Errorf("failed to create new initial balance: %w", err)
+			return 0, fmt.Errorf("failed to move the opening transaction: %w", err)
 		}
 
-		if err := s.repo.RebuildBalances(ctx, tx, userID, id, exAcc.Currency, newOpenedAt); err != nil {
+		// Rebuild from the earlier of the two days, so the day it left is recomputed too.
+		rebuildFrom := newOpenedAt
+		if oldOpenedDay := exAcc.OpenedAt.UTC().Truncate(24 * time.Hour); oldOpenedDay.Before(rebuildFrom) {
+			rebuildFrom = oldOpenedDay
+		}
+
+		if err := s.repo.RebuildFromTransactions(ctx, tx, userID, id, exAcc.Currency, rebuildFrom); err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to rebuild balances from the new opened date: %w", err)
 		}
@@ -1466,27 +1455,6 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 		if err := s.repo.RebuildCashFlowsForAccount(ctx, tx, destinationID, dstAcc.Currency, *earliestTxnDate); err != nil {
 			tx.Rollback()
 			return err
-		}
-	}
-
-	// Transfer the source's opening start_balance to the destination, and zero it on source.
-	// This value is stored as start_balance on the opening balance row, not as a transaction,
-	// so it is not picked up by RebuildCashFlowsForAccount.
-	var srcOpeningBal models.Balance
-	if err := tx.WithContext(ctx).Where("account_id = ?", sourceID).Order("as_of ASC").First(&srcOpeningBal).Error; err == nil {
-		if !srcOpeningBal.StartBalance.IsZero() {
-			if err := tx.WithContext(ctx).Model(&models.Balance{}).
-				Where("account_id = ? AND as_of = ?", destinationID, dstOpeningDay).
-				Update("start_balance", gorm.Expr("start_balance + ?", srcOpeningBal.StartBalance)).Error; err != nil {
-				tx.Rollback()
-				return err
-			}
-			if err := tx.WithContext(ctx).Model(&models.Balance{}).
-				Where("account_id = ? AND as_of = ?", sourceID, srcOpeningBal.AsOf).
-				Update("start_balance", decimal.Zero).Error; err != nil {
-				tx.Rollback()
-				return err
-			}
 		}
 	}
 

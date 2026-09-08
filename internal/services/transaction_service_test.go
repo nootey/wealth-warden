@@ -315,7 +315,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BeforeOpeningDate() 
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
 		Model(&models.Transaction{}).
-		Where("account_id = ?", accID).
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should have been inserted")
@@ -362,7 +362,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_FutureDate() {
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
 		Model(&models.Transaction{}).
-		Where("account_id = ?", accID).
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should have been inserted")
@@ -1599,9 +1599,10 @@ func (s *TransactionServiceTestSuite) TestInsertTransfer_CurrentDate() {
 		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
 		First(&destBalanceRecord).Error
 	s.Require().NoError(err)
-	s.Assert().True(transferAmount.Equal(destBalanceRecord.CashInflows),
+	expectedDestInflows := destBalance.Add(transferAmount)
+	s.Assert().True(expectedDestInflows.Equal(destBalanceRecord.CashInflows),
 		"Destination account should have %s in inflows, got %s",
-		transferAmount.String(), destBalanceRecord.CashInflows.String())
+		expectedDestInflows.String(), destBalanceRecord.CashInflows.String())
 
 	// Verify source account snapshot: 20,000 - 3,000 = 17,000
 	var sourceSnapshot models.AccountDailySnapshot
@@ -2206,8 +2207,8 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
 		First(&destBalanceBefore).Error
 	s.Require().NoError(err)
-	s.Assert().True(transferAmount.Equal(destBalanceBefore.CashInflows),
-		"Before delete: dest should have %s inflows", transferAmount.String())
+	s.Assert().True(destBalance.Add(transferAmount).Equal(destBalanceBefore.CashInflows),
+		"Before delete: dest should have %s inflows", destBalance.Add(transferAmount).String())
 
 	// Before delete: verify snapshots (source: 32k, dest: 18k)
 	var sourceSnapshotBefore models.AccountDailySnapshot
@@ -2274,8 +2275,8 @@ func (s *TransactionServiceTestSuite) TestDeleteTransfer_CurrentDate() {
 		Where("account_id = ? AND as_of = ?", destID, todayMidnight).
 		First(&destBalanceAfter).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.Zero.Equal(destBalanceAfter.CashInflows),
-		"After delete: dest should have 0 inflows, got %s",
+	s.Assert().True(destBalance.Equal(destBalanceAfter.CashInflows),
+		"After delete: dest should be back to its opening inflow, got %s",
 		destBalanceAfter.CashInflows.String())
 
 	// After delete: verify snapshots reverted to original balances
@@ -2607,7 +2608,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
 		Model(&models.Transaction{}).
-		Where("account_id = ? AND transaction_type NOT IN ?", accID, []models.TransactionType{models.TxnTypeTrade, models.TxnTypeInvestmentIncome}).
+		Where("account_id = ? AND transaction_type NOT IN ?", accID, []models.TransactionType{models.TxnTypeTrade, models.TxnTypeInvestmentIncome, models.TxnTypeOpening}).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
@@ -3003,7 +3004,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByGoalAllocat
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).
 		Model(&models.Transaction{}).
-		Where("account_id = ?", accID).
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).
 		Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
@@ -3231,9 +3232,10 @@ func (s *TransactionServiceTestSuite) TestUpdateTransfer_SameValues() {
 	// Destination: 100 + 50 = 150
 	s.assertSnapshot(dstID, today, dstBal.Add(amount), "destination")
 
-	// Balance rows: exactly one outflow/inflow of 50, no drift
-	s.assertBalanceRow(srcID, today, decimal.Zero, amount, "source balance")
-	s.assertBalanceRow(dstID, today, amount, decimal.Zero, "destination balance")
+	// Balance rows: exactly one outflow/inflow of 50, no drift. Both accounts
+	// opened today, so their opening transactions are on this row too.
+	s.assertBalanceRow(srcID, today, srcBal, amount, "source balance")
+	s.assertBalanceRow(dstID, today, dstBal.Add(amount), decimal.Zero, "destination balance")
 }
 
 // TestUpdateTransfer_AmountChange verifies that updating the amount correctly
@@ -3272,8 +3274,8 @@ func (s *TransactionServiceTestSuite) TestUpdateTransfer_AmountChange() {
 	// Destination: 100 + 40 = 140
 	s.assertSnapshot(dstID, today, dstBal.Add(updated), "destination")
 
-	s.assertBalanceRow(srcID, today, decimal.Zero, updated, "source balance")
-	s.assertBalanceRow(dstID, today, updated, decimal.Zero, "destination balance")
+	s.assertBalanceRow(srcID, today, srcBal, updated, "source balance")
+	s.assertBalanceRow(dstID, today, dstBal.Add(updated), decimal.Zero, "destination balance")
 
 	// Transfer record should reflect the new amount
 	var updatedTransfer models.Transfer
@@ -3314,9 +3316,9 @@ func (s *TransactionServiceTestSuite) TestUpdateTransfer_DateChange() {
 	})
 	s.Require().NoError(err)
 
-	// Old date balance row should now have no outflow/inflow
-	s.assertBalanceRow(srcID, yesterday, decimal.Zero, decimal.Zero, "source old date")
-	s.assertBalanceRow(dstID, yesterday, decimal.Zero, decimal.Zero, "destination old date")
+	// Old date balance row should hold the opening amount and nothing else
+	s.assertBalanceRow(srcID, yesterday, srcBal, decimal.Zero, "source old date")
+	s.assertBalanceRow(dstID, yesterday, dstBal, decimal.Zero, "destination old date")
 
 	// New date balance row should have the transfer
 	s.assertBalanceRow(srcID, today, decimal.Zero, amount, "source new date")
@@ -3361,8 +3363,8 @@ func (s *TransactionServiceTestSuite) TestUpdateTransfer_NotesOnly() {
 	// Balances must not drift
 	s.assertSnapshot(srcID, today, srcBal.Sub(amount), "source")
 	s.assertSnapshot(dstID, today, dstBal.Add(amount), "destination")
-	s.assertBalanceRow(srcID, today, decimal.Zero, amount, "source balance")
-	s.assertBalanceRow(dstID, today, amount, decimal.Zero, "destination balance")
+	s.assertBalanceRow(srcID, today, srcBal, amount, "source balance")
+	s.assertBalanceRow(dstID, today, dstBal.Add(amount), decimal.Zero, "destination balance")
 
 	// Notes updated on transfer and both transactions
 	var updatedTransfer models.Transfer
@@ -3484,7 +3486,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_Expense_ExceedsCredi
 
 	var txnCount int64
 	err = s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
-		Where("account_id = ?", accID).Count(&txnCount).Error
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).Count(&txnCount).Error
 	s.Require().NoError(err)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should be created")
 }
@@ -3616,7 +3618,7 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_Success() {
 
 	var txn models.Transaction
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND user_id = ?", accID, userID).
+		Where("account_id = ? AND user_id = ? AND transaction_type <> ?", accID, userID, models.TxnTypeOpening).
 		First(&txn).Error
 	s.Require().NoError(err)
 	today := utils.LocalMidnightUTC(time.Now(), time.UTC)
@@ -3671,7 +3673,7 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenAlread
 
 	var txnCount int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
-		Where("account_id = ?", accID).Count(&txnCount).Error)
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).Count(&txnCount).Error)
 	s.Assert().Equal(int64(1), txnCount, "second execution should not create another transaction")
 
 	var updated models.TransactionTemplate
@@ -3719,7 +3721,7 @@ func (s *TransactionServiceTestSuite) TestExecuteTemplateEarly_BlockedWhenInacti
 
 	var txnCount int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
-		Where("account_id = ?", accID).Count(&txnCount).Error)
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).Count(&txnCount).Error)
 	s.Assert().Equal(int64(0), txnCount, "no transaction should be created for a blocked execution")
 }
 
@@ -3764,7 +3766,7 @@ func (s *TransactionServiceTestSuite) TestProcessTemplate_SkipsCycleAlreadyRunEa
 
 	var txnCount int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Model(&models.Transaction{}).
-		Where("account_id = ?", accID).Count(&txnCount).Error)
+		Where("account_id = ? AND transaction_type <> ?", accID, models.TxnTypeOpening).Count(&txnCount).Error)
 	s.Equal(int64(1), txnCount, "the cycle must produce a single transaction")
 
 	var updated models.TransactionTemplate
@@ -3841,7 +3843,7 @@ func (s *TransactionServiceTestSuite) TestQueueCategoryMerge_ValidatesWithoutTra
 }
 
 // Tests that the paginated transaction list returns only ledger and adjustment rows
-func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_OnlyLedgerAndAdjustment() {
+func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_OnlyClientVisibleTypes() {
 	svc := s.TC.App.TransactionService
 	accSvc := s.TC.App.AccountService
 	invSvc := s.TC.App.InvestmentService
@@ -3942,25 +3944,28 @@ func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_OnlyLedgerA
 
 	p := utils.PaginationParams{PageNumber: 1, RowsPerPage: 50, SortField: "id", SortOrder: "asc"}
 
+	// Three accounts, so three opening rows, plus the ledger and the adjustment.
 	records, totals, paginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, nil)
 	s.Require().NoError(err)
-	s.Require().Len(records, 2, "list should hold the ledger and the adjustment only")
-	s.Assert().Equal(2, paginator.TotalRecords)
-	s.Assert().Equal(int64(2), totals.Count)
-	s.Assert().Equal(ledgerTxn.ID, records[0].ID)
-	s.Assert().Equal(models.TxnTypeLedger, records[0].TransactionType)
-	s.Assert().Equal(models.TxnTypeAdjustment, records[1].TransactionType)
+	s.Require().Len(records, 5, "list should hold the openings, the ledger and the adjustment")
+	s.Assert().Equal(5, paginator.TotalRecords)
+	s.Assert().Equal(int64(5), totals.Count)
+	s.Assert().Equal(models.TxnTypeOpening, records[0].TransactionType)
+	s.Assert().Equal(ledgerTxn.ID, records[2].ID)
+	s.Assert().Equal(models.TxnTypeLedger, records[2].TransactionType)
+	s.Assert().Equal(models.TxnTypeAdjustment, records[3].TransactionType)
 
 	// same rule per account
 	accRecords, _, accPaginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, &cashID)
 	s.Require().NoError(err)
-	s.Require().Len(accRecords, 2)
-	s.Assert().Equal(2, accPaginator.TotalRecords)
+	s.Require().Len(accRecords, 3)
+	s.Assert().Equal(3, accPaginator.TotalRecords)
 
 	invRecords, _, invPaginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, &invID)
 	s.Require().NoError(err)
-	s.Assert().Empty(invRecords, "the trade cash leg must stay hidden")
-	s.Assert().Equal(0, invPaginator.TotalRecords)
+	s.Require().Len(invRecords, 1, "the trade cash leg must stay hidden")
+	s.Assert().Equal(models.TxnTypeOpening, invRecords[0].TransactionType)
+	s.Assert().Equal(1, invPaginator.TotalRecords)
 }
 
 func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedForNonEditableTypes() {

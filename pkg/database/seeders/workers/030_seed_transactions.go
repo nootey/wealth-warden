@@ -82,7 +82,7 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 				return err
 			}
 
-			currBal := bal.StartBalance
+			currBal := bal.EndBalance
 
 			openDays := int(today.Sub(acc.OpenedAt.UTC().Truncate(24*time.Hour)).Hours() / 24)
 			maxBack := int(math.Min(float64(openDays), float64(365*yearsSpan+7)))

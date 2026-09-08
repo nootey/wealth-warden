@@ -1,9 +1,18 @@
 import type { Account } from "./account_models.ts";
 
 export type TransactionType =
-  "ledger" | "transfer" | "adjustment" | "trade" | "investment_income";
+  | "ledger"
+  | "transfer"
+  | "adjustment"
+  | "trade"
+  | "investment_income"
+  | "opening";
 
 export function isTransactionEditable(type: TransactionType): boolean {
+  return type === "ledger" || type === "transfer" || type === "opening";
+}
+
+export function isTransactionDeletable(type: TransactionType): boolean {
   return type === "ledger" || type === "transfer";
 }
 

@@ -8,7 +8,10 @@ import type {
   Transaction,
   Transfer,
 } from "../../../models/transaction_models.ts";
-import { isTransactionEditable } from "../../../models/transaction_models.ts";
+import {
+  isTransactionDeletable,
+  isTransactionEditable,
+} from "../../../models/transaction_models.ts";
 import { required } from "@regle/rules";
 import {
   decimalValid,
@@ -88,7 +91,7 @@ const isAccountActive = computed(() => !!record.value.account?.is_active);
 
 const canRestore = computed(
   () =>
-    isTransactionEditable(record.value.transaction_type) &&
+    isTransactionDeletable(record.value.transaction_type) &&
     isFormReadOnly.value &&
     isTxnDeleted.value &&
     !isAccountDeleted.value &&
@@ -672,7 +675,11 @@ async function deleteRecord(id: number, tx_type: string) {
           @click="restoreTransaction"
         />
         <Button
-          v-if="!isFormReadOnly && mode == 'update'"
+          v-if="
+            !isFormReadOnly &&
+            mode == 'update' &&
+            isTransactionDeletable(record.transaction_type)
+          "
           label="Delete transaction"
           class="delete-button"
           style="height: 42px"

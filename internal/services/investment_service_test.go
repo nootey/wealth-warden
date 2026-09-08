@@ -489,7 +489,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 	// Proceeds = 1 * 90k = 90k (full proceeds recorded as cash_inflows)
 	// Cost basis = 1 * 50k = 50k
 	// Realized P&L = 40k (tracked on trade, not reflected in cash_inflows)
-	expectedProceeds := decimal.NewFromInt(90000)
+	expectedProceeds := decimal.NewFromInt(90000).Add(initialBalance)
 
 	var balanceAfterSell models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
@@ -497,8 +497,9 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 		First(&balanceAfterSell).Error
 	s.Require().NoError(err)
 
+	// The opening transaction shares this day, so it is in the same inflow column.
 	s.Assert().True(expectedProceeds.Equal(balanceAfterSell.CashInflows),
-		"full proceeds should be recorded as cash_inflows of %s, got %s",
+		"full proceeds plus the opening should be cash_inflows of %s, got %s",
 		expectedProceeds.String(), balanceAfterSell.CashInflows.String())
 
 	// End balance = 200k - 100k (buys) + 90k (full proceeds) = 190k
@@ -698,7 +699,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	s.Assert().True(expectedOutflows.Equal(balance.CashOutflows),
 		"cash outflows should be %s, got %s", expectedOutflows.String(), balance.CashOutflows.String())
 
-	expectedInflows := decimal.NewFromFloat(597)
+	expectedInflows := decimal.NewFromFloat(597).Add(initialBalance)
 	s.Assert().True(expectedInflows.Equal(balance.CashInflows),
 		"cash inflows (full proceeds after fee) should be %s, got %s", expectedInflows.String(), balance.CashInflows.String())
 
@@ -833,8 +834,8 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFee_Remov
 		Where("account_id = ? AND as_of = ?", accID, today).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(98).Equal(balance.CashInflows),
-		"cash inflows should be proceeds after fee (98), got %s", balance.CashInflows.String())
+	s.Assert().True(initialBalance.Add(decimal.NewFromInt(98)).Equal(balance.CashInflows),
+		"cash inflows should be the opening plus proceeds after fee (98), got %s", balance.CashInflows.String())
 }
 
 // Tests that deleting a sell trade reverses the realized P&L and recalculates the asset correctly
@@ -897,8 +898,8 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesSellReali
 
 	s.Assert().True(decimal.NewFromInt(100000).Equal(balanceBeforeDelete.CashOutflows),
 		"cash outflows should be 100k, got %s", balanceBeforeDelete.CashOutflows.String())
-	s.Assert().True(decimal.NewFromInt(90000).Equal(balanceBeforeDelete.CashInflows),
-		"cash inflows should be 90k, got %s", balanceBeforeDelete.CashInflows.String())
+	s.Assert().True(initialBalance.Add(decimal.NewFromInt(90000)).Equal(balanceBeforeDelete.CashInflows),
+		"cash inflows should be the opening plus 90k, got %s", balanceBeforeDelete.CashInflows.String())
 
 	// Delete the sell trade
 	err = svc.DeleteInvestmentTrade(s.Ctx, userID, sellTradeID)
@@ -921,8 +922,8 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesSellReali
 		First(&balanceAfterDelete).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.Zero.Equal(balanceAfterDelete.CashInflows),
-		"cash inflows should be 0 after reversing sell, got %s", balanceAfterDelete.CashInflows.String())
+	s.Assert().True(initialBalance.Equal(balanceAfterDelete.CashInflows),
+		"cash inflows should be back to the opening after reversing sell, got %s", balanceAfterDelete.CashInflows.String())
 
 	// Cash outflows still 100k (buy not reversed)
 	s.Assert().True(decimal.NewFromInt(100000).Equal(balanceAfterDelete.CashOutflows),
@@ -1195,8 +1196,8 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 
 	s.Assert().True(decimal.NewFromInt(100000).Equal(balanceBeforeDelete.CashOutflows),
 		"cash outflows should be 100k before delete")
-	s.Assert().True(decimal.NewFromInt(90000).Equal(balanceBeforeDelete.CashInflows),
-		"cash inflows should be 90k before delete")
+	s.Assert().True(initialBalance.Add(decimal.NewFromInt(90000)).Equal(balanceBeforeDelete.CashInflows),
+		"cash inflows should be the opening plus 90k before delete")
 	s.Assert().True(decimal.NewFromInt(190000).Equal(balanceBeforeDelete.EndBalance),
 		"end balance should be 190k before delete")
 
@@ -1239,8 +1240,8 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 
 	s.Assert().True(decimal.Zero.Equal(balanceAfterDelete.CashOutflows),
 		"cash outflows should be 0 after asset delete, got %s", balanceAfterDelete.CashOutflows.String())
-	s.Assert().True(decimal.Zero.Equal(balanceAfterDelete.CashInflows),
-		"cash inflows should be 0 after asset delete, got %s", balanceAfterDelete.CashInflows.String())
+	s.Assert().True(initialBalance.Equal(balanceAfterDelete.CashInflows),
+		"cash inflows should be back to the opening after asset delete, got %s", balanceAfterDelete.CashInflows.String())
 	s.Assert().True(initialBalance.Equal(balanceAfterDelete.EndBalance),
 		"end balance should be restored to initial %s, got %s",
 		initialBalance.String(), balanceAfterDelete.EndBalance.String())

@@ -958,7 +958,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 		tx.Rollback()
 		return fmt.Errorf("can't find transaction with given id %w", err)
 	}
-	if !tr.TransactionType.IsUserEditable() {
+	if !tr.TransactionType.IsUserDeletable() {
 		tx.Rollback()
 		return fmt.Errorf("can't delete a %s transaction", tr.TransactionType)
 	}
@@ -1478,7 +1478,7 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 		tx.Rollback()
 		return fmt.Errorf("transaction is not deleted")
 	}
-	if !tr.TransactionType.IsUserEditable() {
+	if !tr.TransactionType.IsUserDeletable() {
 		tx.Rollback()
 		return fmt.Errorf("can't restore a %s transaction", tr.TransactionType)
 	}

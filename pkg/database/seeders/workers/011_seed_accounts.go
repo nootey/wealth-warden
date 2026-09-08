@@ -2,6 +2,7 @@ package workers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -45,6 +46,11 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 	usersByName := map[string]models.User{}
 	for _, u := range users {
 		usersByName[u.DisplayName] = u
+	}
+
+	uncategorizedID, err := uncategorizedCategoryID(ctx, db)
+	if err != nil {
+		return err
 	}
 
 	rng := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
@@ -103,16 +109,11 @@ func SeedAccounts(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 				return err
 			}
 
-			// Create balance with start balance
-			bal := models.Balance{
-				AccountID:    acc.ID,
-				AsOf:         asOf,
-				StartBalance: s.StartBalance,
-				Currency:     strings.ToUpper(s.Currency),
-				CreatedAt:    asOf,
-				UpdatedAt:    asOf,
-			}
+			txn, bal := seedOpeningRows(acc, asOf, uncategorizedID, s.StartBalance)
 			if err := db.WithContext(ctx).Create(&bal).Error; err != nil {
+				return err
+			}
+			if err := db.WithContext(ctx).Create(&txn).Error; err != nil {
 				return err
 			}
 
@@ -151,6 +152,11 @@ func SeedRootAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 	usersByName := map[string]models.User{}
 	for _, u := range users {
 		usersByName[u.DisplayName] = u
+	}
+
+	uncategorizedID, err := uncategorizedCategoryID(ctx, db)
+	if err != nil {
+		return err
 	}
 
 	rng := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
@@ -209,16 +215,11 @@ func SeedRootAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 				return err
 			}
 
-			// Create balance with start balance
-			bal := models.Balance{
-				AccountID:    acc.ID,
-				AsOf:         asOf,
-				StartBalance: s.StartBalance,
-				Currency:     strings.ToUpper(s.Currency),
-				CreatedAt:    asOf,
-				UpdatedAt:    asOf,
-			}
+			txn, bal := seedOpeningRows(acc, asOf, uncategorizedID, s.StartBalance)
 			if err := db.WithContext(ctx).Create(&bal).Error; err != nil {
+				return err
+			}
+			if err := db.WithContext(ctx).Create(&txn).Error; err != nil {
 				return err
 			}
 
@@ -231,4 +232,40 @@ func SeedRootAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 	}
 
 	return nil
+}
+
+// seedOpeningRows builds the pair an account now starts with: the transaction that
+// records what it opened with, and the balance row carrying that amount as a cash
+// flow. start_balance stays 0, because the ledger is the record.
+func seedOpeningRows(acc models.Account, asOf time.Time, categoryID *int64, amount decimal.Decimal) (models.Transaction, models.Balance) {
+	txn := models.NewOpeningTransaction(acc.UserID, acc.ID, categoryID, acc.Currency, asOf, amount)
+
+	bal := models.Balance{
+		AccountID: acc.ID,
+		AsOf:      asOf,
+		Currency:  acc.Currency,
+		CreatedAt: asOf,
+		UpdatedAt: asOf,
+	}
+	if txn.Direction == "expense" {
+		bal.CashOutflows = txn.Amount
+	} else {
+		bal.CashInflows = txn.Amount
+	}
+
+	return txn, bal
+}
+
+// uncategorizedCategoryID returns the category every seeded opening row carries, so
+// the row can be edited like any other. Nil before SeedCategories has run.
+func uncategorizedCategoryID(ctx context.Context, db *gorm.DB) (*int64, error) {
+	var category models.Category
+	err := db.WithContext(ctx).Where("classification = ?", "uncategorized").First(&category).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &category.ID, nil
 }

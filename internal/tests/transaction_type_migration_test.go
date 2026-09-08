@@ -89,7 +89,8 @@ func TestTransactionTypeMigration(t *testing.T) {
 	err = db.Exec(`UPDATE transactions SET amount = 99 WHERE deleted_at IS NOT NULL`).Error
 	require.ErrorContains(t, err, "soft-deleted", "the guard trigger was left disabled")
 
-	require.NoError(t, goose.Down(sqlDB, path))
+	// DownTo, not Down: later migrations sit on top of this one now.
+	require.NoError(t, goose.DownTo(sqlDB, path, 20260908120000))
 
 	var n int64
 	require.NoError(t, db.Raw(`SELECT count(*) FROM transactions WHERE is_transfer`).Scan(&n).Error)
