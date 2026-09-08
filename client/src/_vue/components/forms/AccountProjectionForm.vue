@@ -112,9 +112,9 @@ const categoryOptions = computed(() => {
 });
 
 const currentBalanceNumber = computed(() => {
-  if (!account.value?.balance?.end_balance) return 0;
+  if (!account.value?.balance?.balance) return 0;
   try {
-    return new Decimal(account.value.balance.end_balance).toNumber();
+    return new Decimal(account.value.balance.balance).toNumber();
   } catch {
     return 0;
   }
@@ -123,13 +123,13 @@ const currentBalanceNumber = computed(() => {
 const expectedBalance = computed(() => {
   if (record.value.balance_projection === "percentage") {
     if (
-      !account.value?.balance?.end_balance ||
+      !account.value?.balance?.balance ||
       record.value.percentage_value === 0
     ) {
       return currentBalanceNumber.value;
     }
     try {
-      const currentBalance = new Decimal(account.value.balance.end_balance);
+      const currentBalance = new Decimal(account.value.balance.balance);
       const percentage = new Decimal(record.value.percentage_value || 0);
       const percentageIncrease = currentBalance.mul(percentage).div(100);
       const result = currentBalance.plus(percentageIncrease);
@@ -361,7 +361,7 @@ async function revertProjection() {
             <label>Current Balance</label>
             <InputNumber
               size="small"
-              :model-value="parseFloat(account.balance.end_balance!)"
+              :model-value="parseFloat(account.balance.balance!)"
               mode="currency"
               :currency="settingsStore.defaultCurrency"
               :locale="

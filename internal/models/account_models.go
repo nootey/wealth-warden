@@ -12,7 +12,7 @@ type Account struct {
 	Name              string           `gorm:"type:varchar(150);not null" json:"name"`
 	AccountTypeID     int64            `gorm:"not null" json:"account_type_id" validate:"required"`
 	AccountType       AccountType      `json:"account_type"`
-	Balance           Balance          `json:"balance"`
+	Balance           AccountBalance   `gorm:"-" json:"balance"`
 	Currency          string           `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	IsActive          bool             `gorm:"type:boolean;not null;default:true" json:"is_active"`
 	IsDefault         bool             `gorm:"type:boolean;not null;default:false" json:"is_default"`
@@ -26,6 +26,11 @@ type Account struct {
 	ClosedAt          *time.Time       `gorm:"column:closed_at;index" json:"closed_at"`
 }
 
+type AccountWithOpening struct {
+	Account
+	StartBalance decimal.Decimal `json:"start_balance"`
+}
+
 type AccountType struct {
 	ID             int64     `gorm:"primaryKey;autoIncrement" json:"id"`
 	Type           string    `gorm:"type:varchar(150);not null" json:"type" validate:"required"`
@@ -33,17 +38,6 @@ type AccountType struct {
 	Classification string    `gorm:"type:varchar(20)" json:"classification" validate:"required"`
 	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
-}
-
-type AccountDailySnapshot struct {
-	ID          int64           `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID      int64           `gorm:"not null" json:"user_id"`
-	AccountID   int64           `gorm:"not null" json:"account_id"`
-	AsOf        time.Time       `gorm:"type:date;not null;" json:"as_of"`
-	EndBalance  decimal.Decimal `gorm:"type:numeric(19,4);not null" json:"end_balance"`
-	MarketValue decimal.Decimal `gorm:"type:numeric(19,4);not null;default:0" json:"market_value"`
-	Currency    string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
-	ComputedAt  time.Time       `gorm:"autoCreateTime" json:"computed_at"`
 }
 
 type AccountReq struct {

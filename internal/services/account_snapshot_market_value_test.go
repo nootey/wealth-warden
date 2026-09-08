@@ -11,7 +11,7 @@ import (
 // A bounded recompute (non-nil from) must rewrite only the snapshots on or after
 // that date and leave the earlier ones as they were.
 func (s *InvestmentServiceTestSuite) TestUpdateSnapshotMarketValues_FromDateBoundsTheRecompute() {
-	repo := repositories.NewAccountRepository(s.TC.DB)
+	repo := repositories.NewBalanceRepository(s.TC.DB)
 	asset := s.createAssetRow("MVBOUND")
 	userID := int64(1)
 

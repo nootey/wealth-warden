@@ -31,6 +31,7 @@ type ExportService struct {
 	repo          repositories.ExportRepositoryInterface
 	txnRepo       repositories.TransactionRepositoryInterface
 	accRepo       repositories.AccountRepositoryInterface
+	balanceRepo   repositories.BalanceRepositoryInterface
 	settingsRepo  repositories.SettingsRepositoryInterface
 	jobDispatcher jobqueue.Dispatcher
 }
@@ -39,6 +40,7 @@ func NewExportService(
 	repo *repositories.ExportRepository,
 	txnRepo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
+	balanceRepo *repositories.BalanceRepository,
 	settingsRepo *repositories.SettingsRepository,
 	jobDispatcher jobqueue.Dispatcher,
 ) *ExportService {
@@ -46,6 +48,7 @@ func NewExportService(
 		repo:          repo,
 		txnRepo:       txnRepo,
 		accRepo:       accRepo,
+		balanceRepo:   balanceRepo,
 		settingsRepo:  settingsRepo,
 		jobDispatcher: jobDispatcher,
 	}
@@ -86,7 +89,7 @@ func (s *ExportService) buildAccountExportJSON(accs []models.Account) ([]byte, e
 		e.AccountType.SubType = a.AccountType.Subtype
 		e.AccountType.Classification = a.AccountType.Classification
 
-		e.Balance = a.Balance.EndBalance
+		e.Balance = a.Balance.Balance
 
 		out.Accounts = append(out.Accounts, e)
 	}

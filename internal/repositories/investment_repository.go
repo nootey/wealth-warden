@@ -214,9 +214,7 @@ func (r *InvestmentRepository) FindInvestmentAssetByID(ctx context.Context, tx *
 	var record models.InvestmentAsset
 	q := db.Model(&models.InvestmentAsset{}).
 		Table("investment_assets_valued AS investment_assets").
-		Preload("Account.Balance", func(db *gorm.DB) *gorm.DB {
-			return db.Order("created_at DESC").Limit(1)
-		}).
+		Preload("Account").
 		Where("investment_assets.id = ? AND investment_assets.user_id = ?", ID, userID)
 
 	q = q.First(&record)
@@ -233,9 +231,7 @@ func (r *InvestmentRepository) FindAssetByTicker(ctx context.Context, tx *gorm.D
 
 	var record models.InvestmentAsset
 	q := db.
-		Preload("Account.Balance", func(db *gorm.DB) *gorm.DB {
-			return db.Order("created_at DESC").Limit(1)
-		}).
+		Preload("Account").
 		Where("ticker = ? AND account_id = ? AND user_id = ?", ticker, accID, userID)
 
 	q = q.First(&record)

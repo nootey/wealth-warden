@@ -2307,7 +2307,7 @@ func (s *TransactionServiceTestSuite) TestInsertTransaction_BlockedByInvestments
 		First(&balanceAfter).Error
 	s.Require().NoError(err)
 	expectedBalance := initialBalance.Sub(decimal.NewFromInt(60000)) // 40k after buy
-	s.Assert().True(expectedBalance.Equal(balanceAfter.EndBalance),
+	s.Assert().True(expectedBalance.Equal(balanceAfter.Balance),
 		"balance should remain at %s after failed transaction", expectedBalance.String())
 }
 
@@ -2876,8 +2876,8 @@ func (s *TransactionServiceTestSuite) assertBalance(accountID int64, expected de
 		Where("account_id = ?", accountID).
 		First(&bal).Error
 	s.Require().NoError(err, "%s balance row not found", label)
-	s.Assert().True(expected.Equal(bal.EndBalance),
-		"%s balance: expected %s, got %s", label, expected.String(), bal.EndBalance.String())
+	s.Assert().True(expected.Equal(bal.Balance),
+		"%s balance: expected %s, got %s", label, expected.String(), bal.Balance.String())
 }
 
 // TestUpdateTransfer_SameValues verifies that re-saving a transfer with identical

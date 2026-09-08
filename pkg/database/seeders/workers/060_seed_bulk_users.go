@@ -247,7 +247,7 @@ func SeedBulkUsers(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 
 	rng := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
 
-	accRepo := repositories.NewAccountRepository(db)
+	balanceRepo := repositories.NewBalanceRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
 
 	for start := 0; start < len(pending); start += bulkUsersPerTx {
@@ -255,7 +255,7 @@ func SeedBulkUsers(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 		chunk := pending[start:end]
 
 		err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			return seedBulkChunk(ctx, tx, accRepo, txnRepo, rng, today, b, chunk,
+			return seedBulkChunk(ctx, tx, balanceRepo, txnRepo, rng, today, b, chunk,
 				hashedPassword, roleID, accountTypeIDs, incCats, expCats,
 				pricePool, fx, invTypeID, cryptoTypeID)
 		})
@@ -268,7 +268,7 @@ func SeedBulkUsers(ctx context.Context, db *gorm.DB, cfg *config.Config) error {
 
 	// One set-based pass over every bulk user's investment/crypto snapshots,
 	// bounded to the investment window. Runs after the chunks commit.
-	if err := recomputeBulkInvestmentSnapshots(ctx, db, accRepo, b.EmailDomain, today); err != nil {
+	if err := recomputeBulkInvestmentSnapshots(ctx, db, balanceRepo, b.EmailDomain, today); err != nil {
 		return err
 	}
 
@@ -317,7 +317,7 @@ func bulkCategoryIDs(ctx context.Context, db *gorm.DB) (inc, exp []int64, err er
 func seedBulkChunk(
 	ctx context.Context,
 	tx *gorm.DB,
-	accRepo *repositories.AccountRepository,
+	balanceRepo *repositories.BalanceRepository,
 	txnRepo *repositories.TransactionRepository,
 	rng *rand.Rand,
 	today time.Time,
@@ -426,7 +426,7 @@ func seedBulkChunk(
 
 	// Once per account, not once per transaction
 	for i, acc := range accounts {
-		if err := accRepo.RebuildBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, openedAt[i]); err != nil {
+		if err := balanceRepo.RebuildBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, openedAt[i]); err != nil {
 			return fmt.Errorf("failed to rebuild balances: %w", err)
 		}
 	}
@@ -435,7 +435,7 @@ func seedBulkChunk(
 		return err
 	}
 
-	return seedBulkInvestments(ctx, tx, accRepo, rng, today, users, pricePool, fx, invTypeID, cryptoTypeID)
+	return seedBulkInvestments(ctx, tx, balanceRepo, rng, today, users, pricePool, fx, invTypeID, cryptoTypeID)
 }
 
 func bulkDisplayName(rng *rand.Rand) string {
@@ -550,12 +550,12 @@ func seedBulkSavingGoals(
 	}
 
 	type accBalance struct {
-		AccountID  int64
-		EndBalance decimal.Decimal
+		AccountID int64
+		Balance   decimal.Decimal
 	}
 	var latest []accBalance
 	if err := tx.WithContext(ctx).Raw(`
-		SELECT account_id, balance AS end_balance
+		SELECT account_id, balance
 		FROM balances
 		WHERE account_id IN ?
 		ORDER BY account_id
@@ -580,7 +580,7 @@ func seedBulkSavingGoals(
 	for _, lb := range latest {
 		// Leave most of the account unallocated, or the uncategorized balance
 		// goes negative
-		budget := lb.EndBalance.Mul(decimal.NewFromFloat(0.4))
+		budget := lb.Balance.Mul(decimal.NewFromFloat(0.4))
 		if budget.LessThan(decimal.NewFromInt(200)) {
 			continue
 		}
@@ -691,10 +691,11 @@ func seedBulkAssetPricePool(ctx context.Context, db *gorm.DB, cfg *config.Config
 
 	invRepo := repositories.NewInvestmentRepository(db)
 	accRepo := repositories.NewAccountRepository(db)
+	balanceRepo := repositories.NewBalanceRepository(db)
 	txnRepo := repositories.NewTransactionRepository(db)
 	settingsRepo := repositories.NewSettingsRepository(db)
 	invService := services.NewInvestmentService(
-		zap.NewNop(), invRepo, accRepo, txnRepo, settingsRepo, jobqueue.NoopDispatcher{}, priceClient)
+		zap.NewNop(), invRepo, accRepo, balanceRepo, txnRepo, settingsRepo, jobqueue.NoopDispatcher{}, priceClient)
 
 	// A few days of slack before the earliest account open, so priceOn always
 	// has a row to land on.
@@ -798,7 +799,7 @@ func buildBulkFX(ctx context.Context, priceClient finance.PriceFetcher, invRepo 
 func seedBulkInvestments(
 	ctx context.Context,
 	tx *gorm.DB,
-	accRepo *repositories.AccountRepository,
+	balanceRepo *repositories.BalanceRepository,
 	rng *rand.Rand,
 	today time.Time,
 	users []models.User,
@@ -937,7 +938,7 @@ func seedBulkInvestments(
 	// worth, whether or not any buy landed on it.
 	for _, acc := range accounts {
 		m := meta[acc.ID]
-		if err := accRepo.RebuildBalances(ctx, tx, m.userID, acc.ID, m.currency, openedAt); err != nil {
+		if err := balanceRepo.RebuildBalances(ctx, tx, m.userID, acc.ID, m.currency, openedAt); err != nil {
 			return fmt.Errorf("failed to rebuild investment balances: %w", err)
 		}
 	}
@@ -1046,7 +1047,7 @@ func bulkPositionFromSpend(isCrypto bool, price, spend, stockFee decimal.Decimal
 // recomputeBulkInvestmentSnapshots runs one set-based market-value pass over
 // every bulk user's investment/crypto snapshots, bounded to the investment
 // window. Scales to a 10k-user seed without a per-user round trip.
-func recomputeBulkInvestmentSnapshots(ctx context.Context, db *gorm.DB, accRepo *repositories.AccountRepository, emailDomain string, today time.Time) error {
+func recomputeBulkInvestmentSnapshots(ctx context.Context, db *gorm.DB, balanceRepo *repositories.BalanceRepository, emailDomain string, today time.Time) error {
 	var ids []int64
 	if err := db.WithContext(ctx).
 		Raw(`SELECT id FROM users WHERE email LIKE ?`, "bulk%@"+emailDomain).
@@ -1061,7 +1062,7 @@ func recomputeBulkInvestmentSnapshots(ctx context.Context, db *gorm.DB, accRepo 
 	fmt.Printf("recomputing investment snapshot market values for %d bulk users ...\n", len(ids))
 
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return accRepo.UpdateSnapshotMarketValuesForUsers(ctx, tx, ids, &from)
+		return balanceRepo.UpdateSnapshotMarketValuesForUsers(ctx, tx, ids, &from)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to recompute investment snapshot market values: %w", err)

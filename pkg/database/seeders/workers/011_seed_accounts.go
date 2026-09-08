@@ -240,12 +240,12 @@ func seedOpeningRows(acc models.Account, asOf time.Time, categoryID *int64, amou
 	txn := models.NewOpeningTransaction(acc.UserID, acc.ID, categoryID, acc.Currency, asOf, amount)
 
 	bal := models.Balance{
-		AccountID:  acc.ID,
-		UserID:     acc.UserID,
-		Currency:   acc.Currency,
-		EndBalance: amount,
-		CreatedAt:  asOf,
-		UpdatedAt:  asOf,
+		AccountID: acc.ID,
+		UserID:    acc.UserID,
+		Currency:  acc.Currency,
+		Balance:   amount,
+		CreatedAt: asOf,
+		UpdatedAt: asOf,
 	}
 
 	return txn, bal

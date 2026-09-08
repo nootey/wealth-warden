@@ -23,8 +23,9 @@ var ErrAccountNotEmpty = errors.New("account must have a zero balance before it 
 
 type AccountServiceInterface interface {
 	FetchAccountsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeInactive bool, classification string) ([]models.Account, *utils.Paginator, error)
-	FetchLatestBalance(ctx context.Context, accID, userID int64) (*models.Balance, error)
-	FetchAccountByID(ctx context.Context, userID int64, id int64, initialBalance bool) (*models.Account, error)
+	FetchLatestBalance(ctx context.Context, accID, userID int64) (*models.AccountBalance, error)
+	FetchAccountByID(ctx context.Context, userID int64, id int64) (*models.Account, error)
+	FetchAccountWithOpening(ctx context.Context, userID int64, id int64) (*models.AccountWithOpening, error)
 	FetchAccountByName(ctx context.Context, userID int64, name string) (*models.Account, error)
 	FetchAllAccounts(ctx context.Context, userID int64, includeInactive bool, options ...bool) ([]models.Account, error)
 	FetchAllAccountTypes(ctx context.Context) ([]models.AccountType, error)
@@ -59,6 +60,7 @@ type AccountServiceInterface interface {
 
 type AccountService struct {
 	repo             repositories.AccountRepositoryInterface
+	balanceRepo      repositories.BalanceRepositoryInterface
 	txnRepo          repositories.TransactionRepositoryInterface
 	settingsRepo     repositories.SettingsRepositoryInterface
 	savingsRepo      repositories.SavingsRepositoryInterface
@@ -71,6 +73,7 @@ type AccountService struct {
 func NewAccountService(
 	logger *zap.Logger,
 	repo *repositories.AccountRepository,
+	balanceRepo *repositories.BalanceRepository,
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
 	savingsRepo *repositories.SavingsRepository,
@@ -80,6 +83,7 @@ func NewAccountService(
 ) *AccountService {
 	return &AccountService{
 		repo:             repo,
+		balanceRepo:      balanceRepo,
 		txnRepo:          txnRepo,
 		settingsRepo:     settingsRepo,
 		savingsRepo:      savingsRepo,
@@ -93,12 +97,11 @@ func NewAccountService(
 var _ AccountServiceInterface = (*AccountService)(nil)
 
 func (s *AccountService) LogBalanceChange(ctx context.Context, account *models.Account, userID int64, change decimal.Decimal) error {
-	newBalance, err := s.repo.FindLatestBalanceForAccountID(ctx, nil, account.ID)
+	endBalance, err := s.balanceRepo.GetBalance(ctx, nil, account.ID)
 	if err != nil {
 		return err
 	}
 
-	endBalance := newBalance.EndBalance
 	startBalance := endBalance.Sub(change)
 
 	changes := utils.InitChanges()
@@ -152,9 +155,9 @@ func (s *AccountService) FetchAccountsPaginated(ctx context.Context, userID int6
 	return records, paginator, nil
 }
 
-func (s *AccountService) FetchLatestBalance(ctx context.Context, accID, userID int64) (*models.Balance, error) {
+func (s *AccountService) FetchLatestBalance(ctx context.Context, accID, userID int64) (*models.AccountBalance, error) {
 
-	record, err := s.repo.FindLatestBalance(ctx, nil, accID, userID)
+	record, err := s.balanceRepo.FindAccountBalance(ctx, nil, accID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -162,21 +165,24 @@ func (s *AccountService) FetchLatestBalance(ctx context.Context, accID, userID i
 	return record, nil
 }
 
-func (s *AccountService) FetchAccountByID(ctx context.Context, userID int64, id int64, initialBalance bool) (*models.Account, error) {
+func (s *AccountService) FetchAccountByID(ctx context.Context, userID int64, id int64) (*models.Account, error) {
 
-	if initialBalance {
-		record, err := s.repo.FindAccountByIDWithInitialBalance(ctx, nil, id, userID)
-		if err != nil {
-			return nil, err
-		}
-		return record, nil
-	}
 	record, err := s.repo.FindAccountByID(ctx, nil, id, userID, true)
 	if err != nil {
 		return nil, err
 	}
 
 	return record, nil
+}
+
+func (s *AccountService) FetchAccountWithOpening(ctx context.Context, userID int64, id int64) (*models.AccountWithOpening, error) {
+
+	record, opening, err := s.repo.FindAccountByIDWithOpening(ctx, nil, id, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.AccountWithOpening{Account: *record, StartBalance: opening}, nil
 }
 
 func (s *AccountService) FetchAccountByName(ctx context.Context, userID int64, name string) (*models.Account, error) {
@@ -363,7 +369,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 	}()
 
 	// Load record
-	exAcc, err := s.repo.FindAccountByIDWithInitialBalance(ctx, tx, id, userID)
+	exAcc, _, err := s.repo.FindAccountByIDWithOpening(ctx, tx, id, userID)
 	if err != nil {
 		return 0, fmt.Errorf("can't find account with given id %w", err)
 	}
@@ -421,7 +427,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 		}
 
 		// Delete all existing snapshots for this account
-		err = s.repo.DeleteAccountSnapshots(ctx, tx, id)
+		err = s.balanceRepo.DeleteAccountSnapshots(ctx, tx, id)
 		if err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to delete existing snapshots: %w", err)
@@ -442,7 +448,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			rebuildFrom = oldOpenedDay
 		}
 
-		if err := s.repo.RebuildBalances(ctx, tx, userID, id, exAcc.Currency, rebuildFrom); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, id, exAcc.Currency, rebuildFrom); err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to rebuild balances from the new opened date: %w", err)
 		}
@@ -453,15 +459,15 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 	}
 
 	if (exAcc.CreditLimit != nil && req.CreditLimit == nil) || req.CreditLimit != nil {
-		latestBal, err := s.repo.FindLatestBalance(ctx, tx, exAcc.ID, userID)
+		latestBal, err := s.balanceRepo.FindLatestBalance(ctx, tx, exAcc.ID, userID)
 		if err != nil {
 			tx.Rollback()
 			return 0, err
 		}
-		if req.CreditLimit == nil && !latestBal.EndBalance.IsPositive() {
+		if req.CreditLimit == nil && !latestBal.IsPositive() {
 			tx.Rollback()
 			return 0, errors.New("cannot remove credit limit while account balance is not positive")
-		} else if req.CreditLimit != nil && latestBal.EndBalance.IsNegative() && req.CreditLimit.LessThanOrEqual(latestBal.EndBalance.Neg()) {
+		} else if req.CreditLimit != nil && latestBal.IsNegative() && req.CreditLimit.LessThanOrEqual(latestBal.Neg()) {
 			tx.Rollback()
 			return 0, errors.New("credit limit must exceed current negative balance")
 		}
@@ -502,7 +508,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			return 0, fmt.Errorf("invalid balance value: %w", err)
 		}
 
-		latestBalance, err := s.repo.FindLatestBalance(ctx, tx, exAcc.ID, userID)
+		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, exAcc.ID, userID)
 		if err != nil {
 			tx.Rollback()
 			return 0, err
@@ -525,7 +531,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			}
 		}
 
-		delta = desired.Sub(latestBalance.EndBalance)
+		delta = desired.Sub(latestBalance)
 
 		if delta.IsNegative() {
 			uncategorized, err := s.savingsRepo.GetUncategorizedBalance(ctx, tx, exAcc.ID, userID)
@@ -729,13 +735,13 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 
 	// Materialize a real snapshot for today so charts don’t copy yesterday’s value
 	// Upsert for the just-closed account
-	_ = s.repo.RebuildDailyRange(ctx, tx, userID, acc.ID, acc.Currency, today, today)
+	_ = s.balanceRepo.RebuildDailyRange(ctx, tx, userID, acc.ID, acc.Currency, today, today)
 
 	// Upsert for all still-open accounts for today (so the view has a “today” row)
 	openAccs, err := s.repo.FindAllAccounts(ctx, tx, userID, false, false)
 	if err == nil {
 		for _, a := range openAccs {
-			_ = s.repo.RebuildDailyRange(ctx, tx, userID, a.ID, a.Currency, today, today)
+			_ = s.balanceRepo.RebuildDailyRange(ctx, tx, userID, a.ID, a.Currency, today, today)
 		}
 	}
 
@@ -851,12 +857,12 @@ func (s *AccountService) rebuildUserHistory(ctx context.Context, tx *gorm.DB, us
 			earliest = from
 		}
 
-		if err := s.repo.RebuildBalances(ctx, tx, userID, acc.ID, acc.Currency, from); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, acc.ID, acc.Currency, from); err != nil {
 			return err
 		}
 	}
 
-	return s.repo.UpdateSnapshotMarketValues(ctx, tx, userID, utils.SnapshotRecomputeFrom(earliest))
+	return s.balanceRepo.UpdateSnapshotMarketValues(ctx, tx, userID, utils.SnapshotRecomputeFrom(earliest))
 }
 
 func (s *AccountService) UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal) error {
@@ -865,11 +871,11 @@ func (s *AccountService) UpdateAccountCashBalance(ctx context.Context, tx *gorm.
 	if strings.ToLower(transactionType) == "expense" {
 		amount = amount.Neg()
 	}
-	if err := s.repo.PostCashDelta(ctx, tx, acc.ID, amount); err != nil {
+	if err := s.balanceRepo.ApplyDelta(ctx, tx, acc.ID, amount); err != nil {
 		return err
 	}
 
-	if err := s.repo.RebuildBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, asOf); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, asOf); err != nil {
 		return err
 	}
 
@@ -983,7 +989,7 @@ func (s *AccountService) resolveUserDateRange(ctx context.Context, tx *gorm.DB, 
 }
 
 func (s *AccountService) backfillAccountRange(ctx context.Context, tx *gorm.DB, acc *models.Account, dfrom, dto time.Time) error {
-	return s.repo.RebuildDailyRange(
+	return s.balanceRepo.RebuildDailyRange(
 		ctx,
 		tx,
 		acc.UserID,
@@ -998,7 +1004,7 @@ func (s *AccountService) FrontfillBalancesForAccount(ctx context.Context, tx *go
 
 	from = from.UTC().Truncate(24 * time.Hour)
 
-	if err := s.repo.RebuildBalances(ctx, tx, userID, accountID, currency, from); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, accountID, currency, from); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1011,7 +1017,7 @@ func (s *AccountService) UpdateDailyCashNoSnapshot(ctx context.Context, tx *gorm
 	if strings.ToLower(txnType) == "expense" {
 		amt = amt.Neg()
 	}
-	return s.repo.PostCashDelta(ctx, tx, acc.ID, amt)
+	return s.balanceRepo.ApplyDelta(ctx, tx, acc.ID, amt)
 }
 
 func (s *AccountService) SaveAccountProjection(ctx context.Context, id, userID int64, req *models.AccountProjectionReq) error {
@@ -1212,7 +1218,7 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 }
 
 func (s *AccountService) UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error {
-	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID, utils.SnapshotRecomputeFrom(from))
+	return s.balanceRepo.UpdateSnapshotMarketValues(ctx, nil, userID, utils.SnapshotRecomputeFrom(from))
 }
 
 func (s *AccountService) SyncForUser(ctx context.Context, userID int64) error {
@@ -1229,7 +1235,7 @@ func (s *AccountService) SyncForUser(ctx context.Context, userID int64) error {
 	now := time.Now().In(loc)
 	today := now.Truncate(24 * time.Hour)
 
-	exists, err := s.repo.HasSnapshotForDate(ctx, userID, today)
+	exists, err := s.balanceRepo.HasSnapshotForDate(ctx, userID, today)
 	if err != nil {
 		return err
 	}
@@ -1242,7 +1248,7 @@ func (s *AccountService) SyncForUser(ctx context.Context, userID int64) error {
 		return err
 	}
 
-	return s.repo.UpdateSnapshotMarketValues(ctx, nil, userID, &today)
+	return s.balanceRepo.UpdateSnapshotMarketValues(ctx, nil, userID, &today)
 }
 
 func (s *AccountService) RecalculateAssetPnL(ctx context.Context, userID, assetID int64) error {
@@ -1428,11 +1434,11 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 	// left with none. These stay split from the daily rebuild below because
 	// CloseAccount runs between them, so the pair cannot be one call.
 	srcOpeningDate := srcAcc.OpenedAt.UTC().Truncate(24 * time.Hour)
-	if err := s.repo.RecomputeBalance(ctx, tx, sourceID); err != nil {
+	if err := s.balanceRepo.RecomputeFromTransactions(ctx, tx, sourceID); err != nil {
 		tx.Rollback()
 		return err
 	}
-	if err := s.repo.RecomputeBalance(ctx, tx, destinationID); err != nil {
+	if err := s.balanceRepo.RecomputeFromTransactions(ctx, tx, destinationID); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1452,7 +1458,7 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 		{sourceID, srcAcc.Currency, srcOpeningDate},
 		{destinationID, dstAcc.Currency, dstOpeningDay},
 	} {
-		if err := s.repo.RebuildDailyRange(ctx, tx, userID, pair.id, pair.currency, pair.from, now.Truncate(24*time.Hour)); err != nil {
+		if err := s.balanceRepo.RebuildDailyRange(ctx, tx, userID, pair.id, pair.currency, pair.from, now.Truncate(24*time.Hour)); err != nil {
 			tx.Rollback()
 			return err
 		}

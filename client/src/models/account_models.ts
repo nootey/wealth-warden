@@ -6,11 +6,8 @@ export interface AccountType {
   classification: string;
 }
 
-export interface Balance {
-  id: number | null;
-  as_of: Date | null;
-  start_balance: string | null;
-  end_balance: string | null;
+export interface AccountBalance {
+  balance: string | null;
   market_value: string | null;
   total_balance: string | null;
 }
@@ -19,7 +16,7 @@ export interface Account {
   id: number | null;
   name: string;
   account_type: AccountType;
-  balance: Balance;
+  balance: AccountBalance;
   currency?: string;
   is_active: boolean;
   expected_balance?: string;
@@ -28,6 +25,10 @@ export interface Account {
   closed_at: Date | null;
   is_default?: boolean;
   credit_limit?: string | null;
+}
+
+export interface AccountWithOpening extends Account {
+  start_balance: string | null;
 }
 
 export interface AccountLookup {

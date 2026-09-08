@@ -44,6 +44,7 @@ type ImportService struct {
 	repo           repositories.ImportRepositoryInterface
 	txnRepo        repositories.TransactionRepositoryInterface
 	accRepo        repositories.AccountRepositoryInterface
+	balanceRepo    repositories.BalanceRepositoryInterface
 	investmentRepo repositories.InvestmentRepositoryInterface
 	settingsRepo   repositories.SettingsRepositoryInterface
 	jobDispatcher  jobqueue.Dispatcher
@@ -53,6 +54,7 @@ func NewImportService(
 	repo *repositories.ImportRepository,
 	txnRepo *repositories.TransactionRepository,
 	accRepo *repositories.AccountRepository,
+	balanceRepo *repositories.BalanceRepository,
 	investmentRepo *repositories.InvestmentRepository,
 	settingsRepo *repositories.SettingsRepository,
 	jobDispatcher jobqueue.Dispatcher,
@@ -61,6 +63,7 @@ func NewImportService(
 		repo:           repo,
 		txnRepo:        txnRepo,
 		accRepo:        accRepo,
+		balanceRepo:    balanceRepo,
 		investmentRepo: investmentRepo,
 		settingsRepo:   settingsRepo,
 		jobDispatcher:  jobDispatcher,
@@ -75,12 +78,12 @@ func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *m
 		amt = amt.Neg()
 	}
 
-	if err := s.accRepo.PostCashDelta(ctx, tx, acc.ID, amt); err != nil {
+	if err := s.balanceRepo.ApplyDelta(ctx, tx, acc.ID, amt); err != nil {
 		return err
 	}
 
 	if snapshot {
-		if err := s.accRepo.RebuildDailyRange(
+		if err := s.balanceRepo.RebuildDailyRange(
 			ctx,
 			tx,
 			acc.UserID,
@@ -100,7 +103,7 @@ func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *m
 func (s *ImportService) frontfillBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error {
 	from = from.UTC().Truncate(24 * time.Hour)
 
-	if err := s.accRepo.RebuildBalances(ctx, tx, userID, accountID, currency, from); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, accountID, currency, from); err != nil {
 		return err
 	}
 
@@ -1995,7 +1998,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 	for accID, from := range earliest {
 		acc := accCache[accID]
 
-		if err := s.accRepo.RebuildBalances(ctx, tx, userID, accID, acc.Currency, from); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, accID, acc.Currency, from); err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return err
@@ -2031,7 +2034,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 	}
 
 	// Populate market_value on the new snapshots from the committed price history
-	if err := s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID, nil); err != nil {
+	if err := s.balanceRepo.UpdateSnapshotMarketValues(ctx, nil, userID, nil); err != nil {
 		s.markImportFailed(ctx, importID, err)
 		return err
 	}
@@ -2515,7 +2518,7 @@ func (s *ImportService) backfillInvestmentCashFlows(ctx context.Context, userID 
 	}
 
 	for id, info := range affected {
-		if err := s.accRepo.RebuildBalances(ctx, bfTx, userID, id, info.currency, info.opening); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, bfTx, userID, id, info.currency, info.opening); err != nil {
 			bfTx.Rollback()
 			return err
 		}
@@ -2525,5 +2528,5 @@ func (s *ImportService) backfillInvestmentCashFlows(ctx context.Context, userID 
 		return err
 	}
 
-	return s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID, nil)
+	return s.balanceRepo.UpdateSnapshotMarketValues(ctx, nil, userID, nil)
 }

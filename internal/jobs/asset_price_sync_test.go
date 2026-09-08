@@ -188,7 +188,7 @@ func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_UpdatesPricesAndBalan
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(balance.EndBalance.LessThan(initialBalance), "buy should have reduced the cash balance")
+	s.Assert().True(balance.Balance.LessThan(initialBalance), "buy should have reduced the cash balance")
 }
 
 // countingPriceFetcher wraps the mock and records how the job reaches for prices.

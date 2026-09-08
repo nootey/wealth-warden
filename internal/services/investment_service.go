@@ -67,6 +67,7 @@ type InvestmentService struct {
 	logger           *zap.Logger
 	repo             repositories.InvestmentRepositoryInterface
 	accRepo          repositories.AccountRepositoryInterface
+	balanceRepo      repositories.BalanceRepositoryInterface
 	txnRepo          repositories.TransactionRepositoryInterface
 	settingsRepo     *repositories.SettingsRepository
 	jobDispatcher    jobqueue.Dispatcher
@@ -77,6 +78,7 @@ func NewInvestmentService(
 	logger *zap.Logger,
 	repo *repositories.InvestmentRepository,
 	accRepo *repositories.AccountRepository,
+	balanceRepo *repositories.BalanceRepository,
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
 	jobDispatcher jobqueue.Dispatcher,
@@ -86,6 +88,7 @@ func NewInvestmentService(
 		logger:           logger,
 		repo:             repo,
 		accRepo:          accRepo,
+		balanceRepo:      balanceRepo,
 		txnRepo:          txnRepo,
 		settingsRepo:     settingsRepo,
 		jobDispatcher:    jobDispatcher,
@@ -380,7 +383,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 
 	// Validate buy affordability — balance already reflects cash only
 	if req.TradeType == models.InvestmentBuy {
-		availableBalance, err := s.accRepo.FindLatestBalance(ctx, tx, asset.AccountID, userID)
+		availableBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, asset.AccountID, userID)
 		if err != nil {
 			tx.Rollback()
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -402,12 +405,12 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		}
 
 		// Skip check for zero-cost trades (staking rewards, dividends recorded at price 0).
-		if purchaseCostInAccountCurrency.IsPositive() && purchaseCostInAccountCurrency.GreaterThan(availableBalance.EndBalance) {
+		if purchaseCostInAccountCurrency.IsPositive() && purchaseCostInAccountCurrency.GreaterThan(availableBalance) {
 			tx.Rollback()
 			return 0, fmt.Errorf("insufficient funds: need %s %s but only %s %s available",
 				purchaseCostInAccountCurrency.StringFixed(2),
 				asset.Account.Currency,
-				availableBalance.EndBalance.StringFixed(2),
+				availableBalance.StringFixed(2),
 				asset.Account.Currency)
 		}
 	}
@@ -500,7 +503,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, err
 	}
 
-	if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -699,7 +702,7 @@ func (s *InvestmentService) rebuildDerivedData(
 	trades []models.InvestmentTrade,
 	rates map[utils.TradeExchangeRateKey]decimal.Decimal,
 ) error {
-	if err := s.accRepo.ClearInvestmentSnapshots(ctx, tx, userID); err != nil {
+	if err := s.balanceRepo.ClearInvestmentSnapshots(ctx, tx, userID); err != nil {
 		return err
 	}
 
@@ -713,7 +716,7 @@ func (s *InvestmentService) rebuildDerivedData(
 
 	// Must take the tx: on its own connection this blocks on rows the open
 	// transaction holds, and that transaction waits for it to return.
-	return s.accRepo.UpdateSnapshotMarketValues(ctx, tx, userID, nil)
+	return s.balanceRepo.UpdateSnapshotMarketValues(ctx, tx, userID, nil)
 }
 
 func (s *InvestmentService) ensureTradeTransactions(
@@ -768,7 +771,7 @@ func (s *InvestmentService) ensureTradeTransactions(
 	}
 
 	for accountID, earliestDate := range earliestByAccount {
-		if err := s.accRepo.RebuildBalances(ctx, tx, userID, accountID, accountCurrency[accountID], earliestDate); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, accountID, accountCurrency[accountID], earliestDate); err != nil {
 			return err
 		}
 	}
@@ -848,7 +851,7 @@ func (s *InvestmentService) rebuildSnapshots(ctx context.Context, tx *gorm.DB, u
 			return fmt.Errorf("failed to get opening date for account %d: %w", acc.ID, err)
 		}
 
-		if err := s.accRepo.RebuildBalances(ctx, tx, userID, acc.ID, acc.Currency, earliest); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, acc.ID, acc.Currency, earliest); err != nil {
 			return fmt.Errorf("failed to rebuild balances for account %d: %w", acc.ID, err)
 		}
 	}
@@ -1139,7 +1142,7 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 	// Rebuild balances and snapshots from the earliest trade date
 	if !earliestTxnDate.IsZero() {
 
-		if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestTxnDate); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestTxnDate); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1221,7 +1224,7 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 		return err
 	}
 
-	if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1375,7 +1378,7 @@ func (s *InvestmentService) GetUserIDsWithActiveInvestments(ctx context.Context)
 }
 
 func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error {
-	return s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID, utils.SnapshotRecomputeFrom(from))
+	return s.balanceRepo.UpdateSnapshotMarketValues(ctx, nil, userID, utils.SnapshotRecomputeFrom(from))
 }
 
 func (s *InvestmentService) FetchInvestmentIncomeByAsset(ctx context.Context, userID int64, assetID int64, p utils.PaginationParams) ([]models.InvestmentIncome, *utils.Paginator, error) {
@@ -1531,7 +1534,7 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 			return 0, fmt.Errorf("failed to link dividend transaction: %w", err)
 		}
 
-		if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, record.TxnDate); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, record.TxnDate); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
@@ -1602,7 +1605,7 @@ func (s *InvestmentService) DeleteInvestmentIncome(ctx context.Context, userID i
 
 	incomeDate := income.TxnDate.UTC().Truncate(24 * time.Hour)
 
-	if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, incomeDate); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, incomeDate); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1911,7 +1914,7 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 		return err
 	}
 
-	if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestDate); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestDate); err != nil {
 		tx.Rollback()
 		return err
 	}

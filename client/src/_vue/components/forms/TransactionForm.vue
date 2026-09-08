@@ -244,10 +244,7 @@ function initData(): Transaction {
         classification: "",
       },
       balance: {
-        id: null,
-        as_of: null,
-        start_balance: null,
-        end_balance: null,
+        balance: null,
         total_balance: null,
         market_value: null,
       },

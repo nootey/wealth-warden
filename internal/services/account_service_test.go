@@ -96,9 +96,9 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceUp() {
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(newBalance.Equal(balance.EndBalance),
+	s.Assert().True(newBalance.Equal(balance.Balance),
 		"balance should be %s, got %s",
-		newBalance.String(), balance.EndBalance.String())
+		newBalance.String(), balance.Balance.String())
 
 	// Verify snapshot updated to 15,000
 	var snapshotAfter models.AccountDailySnapshot
@@ -179,9 +179,9 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceDown() {
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(newBalance.Equal(balance.EndBalance),
+	s.Assert().True(newBalance.Equal(balance.Balance),
 		"balance should be %s, got %s",
-		newBalance.String(), balance.EndBalance.String())
+		newBalance.String(), balance.Balance.String())
 
 	// Verify snapshot updated to 12,000
 	var snapshotAfter models.AccountDailySnapshot
@@ -246,8 +246,8 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalanceNoChange() {
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(balance.EndBalance),
-		"balance should hold the opening amount only, got %s", balance.EndBalance.String())
+	s.Assert().True(initialBalance.Equal(balance.Balance),
+		"balance should hold the opening amount only, got %s", balance.Balance.String())
 
 	// Verify snapshot remains at 10,000
 	var snapshot models.AccountDailySnapshot
@@ -327,9 +327,9 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustLiabilityBalance() {
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(newBalance.Equal(balance.EndBalance),
+	s.Assert().True(newBalance.Equal(balance.Balance),
 		"balance should be %s, got %s",
-		newBalance.String(), balance.EndBalance.String())
+		newBalance.String(), balance.Balance.String())
 
 	// Verify snapshot updated to -8,000
 	var snapshotAfter models.AccountDailySnapshot
@@ -412,9 +412,9 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_AdjustBalancePastAccount() {
 		Where("account_id = ?", accID).
 		First(&todayBalance).Error
 	s.Require().NoError(err)
-	s.Assert().True(newBalance.Equal(todayBalance.EndBalance),
+	s.Assert().True(newBalance.Equal(todayBalance.Balance),
 		"balance should be %s, got %s",
-		newBalance.String(), todayBalance.EndBalance.String())
+		newBalance.String(), todayBalance.Balance.String())
 
 	// Verify snapshots for past days remain 10,000
 	var snapshotDay4 models.AccountDailySnapshot
@@ -591,8 +591,8 @@ func (s *AccountServiceTestSuite) TestCloseAccount() {
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err, "balance record should exist for a closed account")
-	s.Assert().True(balance.EndBalance.IsZero(),
-		"closed account balance should be 0, got %s", balance.EndBalance.String())
+	s.Assert().True(balance.Balance.IsZero(),
+		"closed account balance should be 0, got %s", balance.Balance.String())
 }
 
 // The close day is the account's last day in the net worth views. Because the
@@ -861,8 +861,8 @@ func (s *AccountServiceTestSuite) TestPurgeAccount_KeepsTradeCashFlows() {
 	var bal models.Balance
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ?", peerID).First(&bal).Error)
-	s.Assert().True(peerStart.Sub(tradeCost).Equal(bal.EndBalance),
-		"trade outflow should survive, got %s", bal.EndBalance.String())
+	s.Assert().True(peerStart.Sub(tradeCost).Equal(bal.Balance),
+		"trade outflow should survive, got %s", bal.Balance.String())
 
 	want := peerStart.Sub(tradeCost)
 	s.Assert().True(want.Equal(s.latestSnapshot(peerID)),
@@ -944,8 +944,8 @@ func (s *AccountServiceTestSuite) TestInsertTransaction_OnClosedAccount() {
 		Where("account_id = ?", accID).
 		First(&todayBalance).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.Zero.Equal(todayBalance.EndBalance),
-		"balance should remain 0, got %s", todayBalance.EndBalance.String())
+	s.Assert().True(decimal.Zero.Equal(todayBalance.Balance),
+		"balance should remain 0, got %s", todayBalance.Balance.String())
 }
 
 // Tests that manual balance adjustment is blocked if it would set balance below total investment value
@@ -1023,9 +1023,9 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByInvestmentValue() {
 	s.Require().NoError(err)
 
 	expectedBalance := decimal.NewFromInt(10000)
-	s.Assert().True(expectedBalance.Equal(latestBalance.EndBalance),
+	s.Assert().True(expectedBalance.Equal(latestBalance.Balance),
 		"balance should remain at %s, got %s",
-		expectedBalance.String(), latestBalance.EndBalance.String())
+		expectedBalance.String(), latestBalance.Balance.String())
 }
 
 // Tests that manual balance adjustment is blocked if it would drop available balance below goal allocations.
@@ -1076,9 +1076,9 @@ func (s *AccountServiceTestSuite) TestUpdateAccount_BlockedByGoalAllocation() {
 		Where("account_id = ?", accID).
 		First(&latestBalance).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(latestBalance.EndBalance),
+	s.Assert().True(initialBalance.Equal(latestBalance.Balance),
 		"balance should remain at %s, got %s",
-		initialBalance.String(), latestBalance.EndBalance.String())
+		initialBalance.String(), latestBalance.Balance.String())
 }
 
 // Merging two cash accounts moves all transactions to the destination
@@ -1144,16 +1144,16 @@ func (s *AccountServiceTestSuite) TestMergeAccount_Success() {
 		Where("account_id = ?", dstID).
 		First(&bal).Error
 	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(800).Equal(bal.EndBalance),
-		"destination balance should be 800, got %s", bal.EndBalance)
+	s.Assert().True(decimal.NewFromInt(800).Equal(bal.Balance),
+		"destination balance should be 800, got %s", bal.Balance)
 
 	var srcBal models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ?", srcID).
 		First(&srcBal).Error
 	s.Require().NoError(err)
-	s.Assert().True(srcBal.EndBalance.IsZero(),
-		"source balance should be 0, got %s", srcBal.EndBalance)
+	s.Assert().True(srcBal.Balance.IsZero(),
+		"source balance should be 0, got %s", srcBal.Balance)
 }
 
 func (s *AccountServiceTestSuite) TestQueueAccountMerge_ValidatesWithoutTransaction() {
@@ -1402,14 +1402,14 @@ func (s *AccountServiceTestSuite) TestMergeAccount_BalancesAndSnapshotsWithTrans
 	var dstBal models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ?", dstID).First(&dstBal).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedTotal.Equal(dstBal.EndBalance),
-		"dest balance should be %s, got %s", expectedTotal, dstBal.EndBalance)
+	s.Assert().True(expectedTotal.Equal(dstBal.Balance),
+		"dest balance should be %s, got %s", expectedTotal, dstBal.Balance)
 
 	var srcBal models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ?", srcID).First(&srcBal).Error
 	s.Require().NoError(err)
-	s.Assert().True(srcBal.EndBalance.IsZero(),
-		"source balance should be 0, got %s", srcBal.EndBalance)
+	s.Assert().True(srcBal.Balance.IsZero(),
+		"source balance should be 0, got %s", srcBal.Balance)
 }
 
 // A source opened before the destination pushes the destination's opening day back.
@@ -1514,14 +1514,14 @@ func (s *AccountServiceTestSuite) TestMergeAccount_SourceNoTransactions_InitialB
 	var dstBal models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ?", dstID).First(&dstBal).Error
 	s.Require().NoError(err)
-	s.Assert().True(expectedTotal.Equal(dstBal.EndBalance),
-		"dest balance should be %s, got %s", expectedTotal, dstBal.EndBalance)
+	s.Assert().True(expectedTotal.Equal(dstBal.Balance),
+		"dest balance should be %s, got %s", expectedTotal, dstBal.Balance)
 
 	var srcBal models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).Where("account_id = ?", srcID).First(&srcBal).Error
 	s.Require().NoError(err)
-	s.Assert().True(srcBal.EndBalance.IsZero(),
-		"source balance should be 0, got %s", srcBal.EndBalance)
+	s.Assert().True(srcBal.Balance.IsZero(),
+		"source balance should be 0, got %s", srcBal.Balance)
 }
 
 // Tests creating an asset account with a credit limit and a negative initial balance

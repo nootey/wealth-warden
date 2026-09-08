@@ -301,9 +301,9 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 
 	// Verify end balance = initial - purchase cost
 	expectedEndBalance := initialBalance.Sub(buyPrice)
-	s.Assert().True(expectedEndBalance.Equal(balance.EndBalance),
+	s.Assert().True(expectedEndBalance.Equal(balance.Balance),
 		"end balance should be %s, got %s",
-		expectedEndBalance.String(), balance.EndBalance.String())
+		expectedEndBalance.String(), balance.Balance.String())
 
 	// Verify snapshot reflects cash balance
 	var snapshot models.AccountDailySnapshot
@@ -403,9 +403,9 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_MultipleBuysUpdat
 
 	// Verify end balance = 200k - 107.5k = 92.5k
 	expectedEndBalance := initialBalance.Sub(expectedOutflows)
-	s.Assert().True(expectedEndBalance.Equal(balance.EndBalance),
+	s.Assert().True(expectedEndBalance.Equal(balance.Balance),
 		"end balance should be %s, got %s",
-		expectedEndBalance.String(), balance.EndBalance.String())
+		expectedEndBalance.String(), balance.Balance.String())
 }
 
 // Tests that selling an investment records realized gains/losses as cash inflows/outflows in the balance
@@ -480,9 +480,9 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 
 	// End balance = 200k - 100k (buys) + 90k (full proceeds) = 190k
 	expectedEndBalance := decimal.NewFromInt(190000)
-	s.Assert().True(expectedEndBalance.Equal(balanceAfterSell.EndBalance),
+	s.Assert().True(expectedEndBalance.Equal(balanceAfterSell.Balance),
 		"end balance should be %s, got %s",
-		expectedEndBalance.String(), balanceAfterSell.EndBalance.String())
+		expectedEndBalance.String(), balanceAfterSell.Balance.String())
 }
 
 // Tests that fees are correctly handled for both crypto (fee in tokens) and stocks/ETFs (fee in currency)
@@ -586,9 +586,9 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 	s.Require().NoError(err)
 
 	expectedEndBalance := initialBalance.Sub(decimal.NewFromFloat(50003))
-	s.Assert().True(expectedEndBalance.Equal(finalBalance.EndBalance),
+	s.Assert().True(expectedEndBalance.Equal(finalBalance.Balance),
 		"end balance should be %s, got %s",
-		expectedEndBalance.String(), finalBalance.EndBalance.String())
+		expectedEndBalance.String(), finalBalance.Balance.String())
 }
 
 // Tests that fees are correctly deducted from realized P&L when selling investments (both crypto and stocks)
@@ -665,9 +665,9 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	s.Require().NoError(err)
 
 	expectedEndBalance := initialBalance.Sub(decimal.NewFromFloat(1005)).Add(decimal.NewFromFloat(597))
-	s.Assert().True(expectedEndBalance.Equal(balance.EndBalance),
+	s.Assert().True(expectedEndBalance.Equal(balance.Balance),
 		"end balance should be %s, got %s",
-		expectedEndBalance.String(), balance.EndBalance.String())
+		expectedEndBalance.String(), balance.Balance.String())
 
 	// Crypto with fee (fee in tokens)
 	cryptoAssetReq := &models.InvestmentAssetReq{
@@ -1114,7 +1114,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 		First(&balanceBeforeDelete).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.NewFromInt(190000).Equal(balanceBeforeDelete.EndBalance),
+	s.Assert().True(decimal.NewFromInt(190000).Equal(balanceBeforeDelete.Balance),
 		"end balance should be 190k before delete")
 
 	var tradeCountBefore int64
@@ -1154,9 +1154,9 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 		First(&balanceAfterDelete).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(initialBalance.Equal(balanceAfterDelete.EndBalance),
+	s.Assert().True(initialBalance.Equal(balanceAfterDelete.Balance),
 		"end balance should be restored to initial %s, got %s",
-		initialBalance.String(), balanceAfterDelete.EndBalance.String())
+		initialBalance.String(), balanceAfterDelete.Balance.String())
 }
 
 // Tests that deleting an asset with no trades succeeds cleanly and leaves account state untouched
@@ -1200,9 +1200,9 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_NoTrades_LeavesCl
 		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Equal(balance.EndBalance),
+	s.Assert().True(initialBalance.Equal(balance.Balance),
 		"end balance should be unchanged: expected %s, got %s",
-		initialBalance.String(), balance.EndBalance.String())
+		initialBalance.String(), balance.Balance.String())
 }
 
 // Tests that deleting a trade on a historical date recalculates snapshots from that date forward

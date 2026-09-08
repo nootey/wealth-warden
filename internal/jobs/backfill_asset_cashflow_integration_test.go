@@ -26,8 +26,8 @@ func TestBackfillCashFlowsIntegrationSuite(t *testing.T) {
 }
 
 type balanceRow struct {
-	AccountID  int64
-	EndBalance decimal.Decimal
+	AccountID int64
+	Balance   decimal.Decimal
 }
 
 type snapshotRow struct {
@@ -40,7 +40,7 @@ func (s *BackfillCashFlowsIntegrationSuite) balances(accountID int64) []balanceR
 	var rows []balanceRow
 	err := s.TC.DB.WithContext(s.Ctx).
 		Table("balances").
-		Select("account_id, balance AS end_balance").
+		Select("account_id, balance").
 		Where("account_id = ?", accountID).
 		Scan(&rows).Error
 	s.Require().NoError(err)
@@ -252,11 +252,11 @@ func (s *BackfillCashFlowsIntegrationSuite) TestRebuildFromTransactions_KeepsTra
 
 	// Guard against a vacuous pass: the trades must have moved cash at all.
 	last := before[len(before)-1]
-	s.Require().False(last.EndBalance.Equal(decimal.NewFromInt(100000)),
+	s.Require().False(last.Balance.Equal(decimal.NewFromInt(100000)),
 		"the fixture trades did not move any cash")
 
 	opening := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -10)
-	repo := repositories.NewAccountRepository(s.TC.DB)
+	repo := repositories.NewBalanceRepository(s.TC.DB)
 	s.Require().NoError(repo.RebuildBalances(s.Ctx, nil, userID, accID, "EUR", opening))
 
 	s.Assert().Equal(before, s.balances(accID), "the rebuild erased trade cash")
