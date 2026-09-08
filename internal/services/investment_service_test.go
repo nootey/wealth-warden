@@ -306,7 +306,7 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 		expectedEndBalance.String(), balance.Balance.String())
 
 	// Verify snapshot reflects cash balance
-	var snapshot models.AccountDailySnapshot
+	var snapshot models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, today).
 		First(&snapshot).Error
@@ -1244,7 +1244,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_HistoricalTrade_R
 	s.Require().NoError(err)
 
 	// Snapshot at trade date should reflect the outflow
-	var snapBefore models.AccountDailySnapshot
+	var snapBefore models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, tradDate).
 		First(&snapBefore).Error
@@ -1259,7 +1259,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_HistoricalTrade_R
 	s.Require().NoError(err)
 
 	// Snapshot at trade date should now be back to initial balance
-	var snapAtTrade models.AccountDailySnapshot
+	var snapAtTrade models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, tradDate).
 		First(&snapAtTrade).Error
@@ -1269,7 +1269,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_HistoricalTrade_R
 		initialBalance.String(), snapAtTrade.EndBalance.String())
 
 	// Snapshot at today should also reflect the reversal (forward recalculation)
-	var snapToday models.AccountDailySnapshot
+	var snapToday models.BalanceSnapshot
 	err = s.TC.DB.WithContext(s.Ctx).
 		Where("account_id = ? AND as_of = ?", accID, today).
 		First(&snapToday).Error

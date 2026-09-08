@@ -21,7 +21,7 @@ const accountBalanceQuery = `
 	LEFT JOIN balances ab ON ab.account_id = a.id
 	LEFT JOIN LATERAL (
 		SELECT s.market_value
-		FROM account_daily_snapshots s
+		FROM balance_snapshots s
 		WHERE s.account_id = a.id
 		ORDER BY s.as_of DESC
 		LIMIT 1
@@ -42,7 +42,7 @@ type BalanceRepositoryInterface interface {
 	UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, from *time.Time) error
 	UpdateSnapshotMarketValuesForUsers(ctx context.Context, tx *gorm.DB, userIDs []int64, from *time.Time) error
 	HasSnapshotForDate(ctx context.Context, userID int64, date time.Time) (bool, error)
-	GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.AccountDailySnapshot, error)
+	GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.BalanceSnapshot, error)
 	SetSnapshotMarketValue(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, value decimal.Decimal) error
 }
 
@@ -189,7 +189,7 @@ func (r *BalanceRepository) RebuildDailyRange(ctx context.Context, tx *gorm.DB, 
 			WHERE day >= ?::date AND day <= ?::date
 			GROUP BY day
 		)
-		INSERT INTO account_daily_snapshots (
+		INSERT INTO balance_snapshots (
 			user_id, account_id, as_of, end_balance, currency, computed_at
 		)
 		SELECT
@@ -218,7 +218,7 @@ func (r *BalanceRepository) DeleteAccountSnapshots(ctx context.Context, tx *gorm
 	db = db.WithContext(ctx)
 
 	return db.Where("account_id = ?", accountID).
-		Delete(&models.AccountDailySnapshot{}).Error
+		Delete(&models.BalanceSnapshot{}).Error
 }
 
 func (r *BalanceRepository) FindLatestBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64) (decimal.Decimal, error) {
@@ -270,7 +270,7 @@ func (r *BalanceRepository) ClearInvestmentSnapshots(ctx context.Context, tx *go
 	}
 	db = db.WithContext(ctx)
 	return db.Exec(`
-        DELETE FROM account_daily_snapshots
+        DELETE FROM balance_snapshots
         WHERE account_id IN (
             SELECT id FROM accounts WHERE user_id = ? AND closed_at IS NULL
         )
@@ -297,7 +297,7 @@ func (r *BalanceRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *
 	// A nil `from` recomputes all of history; pass a date to recompute only from the
 	// earliest day that changed.
 	query := fmt.Sprintf(`
-		UPDATE account_daily_snapshots s
+		UPDATE balance_snapshots s
 		SET market_value = (
 			SELECT COALESCE(SUM(
 				ph_latest.price
@@ -372,7 +372,7 @@ func (r *BalanceRepository) UpdateSnapshotMarketValuesForUsers(ctx context.Conte
 	}
 
 	query := fmt.Sprintf(`
-		UPDATE account_daily_snapshots s
+		UPDATE balance_snapshots s
 		SET market_value = (
 			SELECT COALESCE(SUM(
 				ph_latest.price
@@ -433,7 +433,7 @@ func (r *BalanceRepository) HasSnapshotForDate(ctx context.Context, userID int64
 	var exists bool
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT EXISTS (
-			SELECT 1 FROM account_daily_snapshots s
+			SELECT 1 FROM balance_snapshots s
 			JOIN accounts a ON a.id = s.account_id
 			WHERE a.user_id = ? AND s.as_of = ?
 		)
@@ -441,12 +441,12 @@ func (r *BalanceRepository) HasSnapshotForDate(ctx context.Context, userID int64
 	return exists, err
 }
 
-func (r *BalanceRepository) GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.AccountDailySnapshot, error) {
+func (r *BalanceRepository) GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.BalanceSnapshot, error) {
 	db := tx
 	if db == nil {
 		db = r.db
 	}
-	var snapshots []models.AccountDailySnapshot
+	var snapshots []models.BalanceSnapshot
 	err := db.WithContext(ctx).
 		Where("account_id = ?", accountID).
 		Order("as_of ASC").
@@ -460,7 +460,7 @@ func (r *BalanceRepository) SetSnapshotMarketValue(ctx context.Context, tx *gorm
 		db = r.db
 	}
 	return db.WithContext(ctx).Exec(`
-		UPDATE account_daily_snapshots
+		UPDATE balance_snapshots
 		SET market_value = ?
 		WHERE account_id = ? AND as_of = ?
 	`, value, accountID, asOf.UTC().Truncate(24*time.Hour)).Error

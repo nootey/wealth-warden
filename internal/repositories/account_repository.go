@@ -619,7 +619,7 @@ func (r *AccountRepository) PurgeImportedAccounts(ctx context.Context, tx *gorm.
 
 	// delete snapshots for these accounts
 	res = db.Exec(`
-        DELETE FROM account_daily_snapshots
+        DELETE FROM balance_snapshots
         WHERE user_id = ? AND account_id IN (
             SELECT id FROM accounts 
             WHERE user_id = ? AND import_id = ?
@@ -772,7 +772,7 @@ func (r *AccountRepository) PurgeAccount(ctx context.Context, tx *gorm.DB, accou
 		return fmt.Errorf("failed to delete investment assets: %w", err)
 	}
 
-	if err := db.Exec(`DELETE FROM account_daily_snapshots WHERE account_id = ?`, accountID).Error; err != nil {
+	if err := db.Exec(`DELETE FROM balance_snapshots WHERE account_id = ?`, accountID).Error; err != nil {
 		return fmt.Errorf("failed to delete snapshots: %w", err)
 	}
 

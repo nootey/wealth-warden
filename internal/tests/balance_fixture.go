@@ -217,7 +217,7 @@ func insertFixtureAccount(ctx context.Context, app *bootstrap.ServiceContainer, 
 func DumpDailyBalances(ctx context.Context, db *gorm.DB) ([]DailyBalanceRow, error) {
 	var rows []DailyBalanceRow
 	err := db.WithContext(ctx).
-		Table("account_daily_snapshots").
+		Table("balance_snapshots").
 		Select("account_id, as_of, end_balance").
 		Order("account_id ASC, as_of ASC").
 		Scan(&rows).Error

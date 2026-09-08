@@ -39,7 +39,7 @@ func (s *InvestmentServiceTestSuite) TestUpdateSnapshotMarketValues_FromDateBoun
 
 	sentinel := decimal.NewFromInt(999)
 	for n := -5; n <= 0; n++ {
-		s.Require().NoError(s.TC.DB.Create(&models.AccountDailySnapshot{
+		s.Require().NoError(s.TC.DB.Create(&models.BalanceSnapshot{
 			UserID:      userID,
 			AccountID:   asset.AccountID,
 			AsOf:        day(n),
@@ -53,7 +53,7 @@ func (s *InvestmentServiceTestSuite) TestUpdateSnapshotMarketValues_FromDateBoun
 	s.Require().NoError(repo.UpdateSnapshotMarketValues(s.Ctx, nil, userID, &from))
 
 	marketValueOn := func(n int) decimal.Decimal {
-		var snap models.AccountDailySnapshot
+		var snap models.BalanceSnapshot
 		s.Require().NoError(
 			s.TC.DB.Where("account_id = ? AND as_of = ?", asset.AccountID, day(n)).First(&snap).Error,
 		)

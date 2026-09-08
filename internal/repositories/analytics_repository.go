@@ -51,9 +51,9 @@ func (r *AnalyticsRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 
 func (r *AnalyticsRepository) sourceView(accountID *int64) string {
 	if accountID != nil {
-		return "v_user_account_daily_snapshots"
+		return "v_user_account_balance_snapshots"
 	}
-	return "v_user_daily_networth_snapshots"
+	return "v_user_networth_snapshots"
 }
 
 func (r *AnalyticsRepository) FetchNetWorthSeries(ctx context.Context, tx *gorm.DB, userID int64, currency string, from, to time.Time, gran string, accountID *int64) ([]models.ChartPoint, error) {

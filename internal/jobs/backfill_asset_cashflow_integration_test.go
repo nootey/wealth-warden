@@ -50,7 +50,7 @@ func (s *BackfillCashFlowsIntegrationSuite) balances(accountID int64) []balanceR
 func (s *BackfillCashFlowsIntegrationSuite) snapshots(userID int64) []snapshotRow {
 	var rows []snapshotRow
 	err := s.TC.DB.WithContext(s.Ctx).
-		Table("account_daily_snapshots").
+		Table("balance_snapshots").
 		Select("account_id, as_of, end_balance").
 		Where("user_id = ?", userID).
 		Order("account_id ASC, as_of ASC").
@@ -163,7 +163,7 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_KeepsClosedAccountSnaps
 
 	var countBefore int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
-		Table("account_daily_snapshots").
+		Table("balance_snapshots").
 		Where("account_id = ?", closedAccID).
 		Count(&countBefore).Error)
 	s.Require().Positive(countBefore, "closed account should still have snapshots before the run")
@@ -172,7 +172,7 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_KeepsClosedAccountSnaps
 
 	var countAfter int64
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
-		Table("account_daily_snapshots").
+		Table("balance_snapshots").
 		Where("account_id = ?", closedAccID).
 		Count(&countAfter).Error)
 	s.Assert().Equal(countBefore, countAfter, "the run deleted the closed account's snapshots")
@@ -205,7 +205,7 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_SkipsAccountWithoutBala
 	// step alone starts at the first trade.
 	var earliest time.Time
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).
-		Table("account_daily_snapshots").
+		Table("balance_snapshots").
 		Where("account_id = ?", tradedAccID).
 		Select("MIN(as_of)").
 		Scan(&earliest).Error)
@@ -229,10 +229,10 @@ func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_FailureMidSequenceRolls
 
 	// Reject snapshot writes, which happen after the clear.
 	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Exec(
-		`ALTER TABLE account_daily_snapshots ADD CONSTRAINT reject_all CHECK (false) NOT VALID`).Error)
+		`ALTER TABLE balance_snapshots ADD CONSTRAINT reject_all CHECK (false) NOT VALID`).Error)
 	defer func() {
 		s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Exec(
-			`ALTER TABLE account_daily_snapshots DROP CONSTRAINT reject_all`).Error)
+			`ALTER TABLE balance_snapshots DROP CONSTRAINT reject_all`).Error)
 	}()
 
 	s.Require().Error(job.Run(s.Ctx), "a failed user must fail the run so the queue retries it")

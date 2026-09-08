@@ -25,7 +25,7 @@ type AccountBalance struct {
 	TotalBalance decimal.Decimal `json:"total_balance"`
 }
 
-type AccountDailySnapshot struct {
+type BalanceSnapshot struct {
 	ID          int64           `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserID      int64           `gorm:"not null" json:"user_id"`
 	AccountID   int64           `gorm:"not null" json:"account_id"`
