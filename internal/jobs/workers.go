@@ -69,8 +69,23 @@ func RegisterWorkers(workers *river.Workers, c *bootstrap.ServiceContainer, logg
 			return river.AddWorkerSafely(workers, NewAssetPriceHistoryBackfillWorker(historyLogger, job))
 		},
 		func() error {
-			job := NewBalanceBackfillJob(balanceLogger, c.UserService, c.AccountService, c.BalanceService, concurrentWorkers)
+			job := NewBalanceBackfillJob(
+				balanceLogger,
+				c.UserService,
+				c.BalanceService,
+				c.JobDispatcher,
+				c.Config.Scheduler.BalanceBatchSize,
+				c.Config.Scheduler.ReconcileBatchSize,
+			)
 			return river.AddWorkerSafely(workers, NewBalanceBackfillWorker(balanceLogger, job))
+		},
+		func() error {
+			logger := logger.Named(jobqueue.TypeBalanceBackfillBatch)
+			return river.AddWorkerSafely(workers, NewBalanceBackfillBatchWorker(logger, c.AccountService))
+		},
+		func() error {
+			logger := logger.Named(jobqueue.TypeBalanceReconcileBatch)
+			return river.AddWorkerSafely(workers, NewBalanceReconcileBatchWorker(logger, c.BalanceService))
 		},
 		func() error {
 			templates := NewAutomateTemplateJob(recurringLogger.Named("templates"), c.TransactionService, c.NotifDispatcher, concurrentWorkers)

@@ -54,12 +54,13 @@ seed:
     password: "password"
 
 scheduler:
-  concurrent_workers: 5
+  concurrent_workers: 5             # goroutines inside one job; queue.scheduler_workers is how many jobs run at once
+  balance_batch_size: 100
+  reconcile_batch_size: 500
   immediate_jobs:
     - asset_price_sync
-#    - asset_history_backfill
-#    - balance_backfill
-#    - recurring_transactions
+    - asset_history_backfill
+    - balance_backfill
 
 otel:
   service_name: "wealth-warden"
@@ -68,6 +69,7 @@ otel:
 
 queue:
   workers: 1                          # jobs worked concurrently on the default queue
+  scheduler_workers: 5                # nightly fan-out sub-workers worked at once
   max_attempts: 5
   poll_interval_ms: 1000              # fallback only; LISTEN/NOTIFY wakes workers on insert
   job_timeout_sec: 900                # cancel a job past this, then let River's rescuer requeue it (> longest job runtime)

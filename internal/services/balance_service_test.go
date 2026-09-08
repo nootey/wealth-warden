@@ -307,6 +307,30 @@ func (s *BalanceServiceSuite) service() *services.BalanceService {
 	return services.NewBalanceService(zap.NewNop(), repositories.NewBalanceRepository(s.TC.DB))
 }
 
+// Walks the pages the way the nightly parent job does, then reconciles each page the
+// way a child job does. Closed accounts are filtered by the listing, not the repair.
+func (s *BalanceServiceSuite) reconcileAll() ([]models.BalanceDrift, error) {
+	svc := s.service()
+	var repaired []models.BalanceDrift
+
+	for afterID := int64(0); ; {
+		ids, err := svc.ListOpenAccountIDs(s.Ctx, afterID, 500)
+		if err != nil {
+			return repaired, err
+		}
+		if len(ids) == 0 {
+			return repaired, nil
+		}
+		afterID = ids[len(ids)-1]
+
+		batch, err := svc.ReconcileAccounts(s.Ctx, ids)
+		repaired = append(repaired, batch...)
+		if err != nil {
+			return repaired, err
+		}
+	}
+}
+
 func (s *BalanceServiceSuite) balanceOf(accountID int64) decimal.Decimal {
 	var balance decimal.Decimal
 	s.Require().NoError(s.TC.DB.
@@ -325,7 +349,7 @@ func (s *BalanceServiceSuite) TestReconcileRepairsOnlyTheDriftedAccount() {
 	s.Require().NoError(s.TC.DB.
 		Exec(`UPDATE balances SET balance = balance + 42.5 WHERE account_id = ?`, broken).Error)
 
-	repaired, err := s.service().ReconcileBalances(s.Ctx)
+	repaired, err := s.reconcileAll()
 	s.Require().NoError(err)
 
 	s.Require().Len(repaired, 1)
@@ -352,7 +376,7 @@ func (s *BalanceServiceSuite) TestReconcileRebuildsAMissingBalanceRow() {
 	s.Require().NoError(s.TC.DB.
 		Exec(`DELETE FROM balances WHERE account_id = ?`, orphan).Error)
 
-	repaired, err := s.service().ReconcileBalances(s.Ctx)
+	repaired, err := s.reconcileAll()
 	s.Require().NoError(err)
 
 	s.Require().Len(repaired, 1)
@@ -370,7 +394,7 @@ func (s *BalanceServiceSuite) TestReconcileSkipsClosedAccounts() {
 	s.Require().NoError(s.TC.DB.
 		Exec(`UPDATE balances SET balance = balance + 99 WHERE account_id = ?`, closed).Error)
 
-	repaired, err := s.service().ReconcileBalances(s.Ctx)
+	repaired, err := s.reconcileAll()
 	s.Require().NoError(err)
 	s.Assert().Empty(repaired)
 }
@@ -378,7 +402,7 @@ func (s *BalanceServiceSuite) TestReconcileSkipsClosedAccounts() {
 func (s *BalanceServiceSuite) TestReconcileReportsNothingWhenBalancesAgree() {
 	s.seedAccounts()
 
-	repaired, err := s.service().ReconcileBalances(s.Ctx)
+	repaired, err := s.reconcileAll()
 	s.Require().NoError(err)
 	s.Assert().Empty(repaired)
 }

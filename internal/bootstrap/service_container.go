@@ -40,6 +40,7 @@ type ServiceContainer struct {
 	SavingsService      *services.SavingsService
 	NotificationService *services.NotificationService
 	NotifDispatcher     jobqueue.NotificationDispatcher
+	JobDispatcher       jobqueue.Dispatcher
 	SessionsService     *services.SessionsService
 	Hub                 *ws.Hub
 }
@@ -127,6 +128,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 		SavingsService:      savingsService,
 		NotificationService: notificationService,
 		NotifDispatcher:     notifDispatcher,
+		JobDispatcher:       jobDispatcher,
 		SessionsService:     sessionsService,
 		Hub:                 hub,
 	}, nil

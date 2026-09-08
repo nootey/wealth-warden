@@ -9,7 +9,8 @@ import (
 )
 
 type BalanceServiceInterface interface {
-	ReconcileBalances(ctx context.Context) ([]models.BalanceDrift, error)
+	ListOpenAccountIDs(ctx context.Context, afterID int64, limit int) ([]int64, error)
+	ReconcileAccounts(ctx context.Context, accountIDs []int64) ([]models.BalanceDrift, error)
 }
 
 type BalanceService struct {
@@ -29,38 +30,36 @@ func NewBalanceService(
 
 var _ BalanceServiceInterface = (*BalanceService)(nil)
 
-func (s *BalanceService) ReconcileBalances(ctx context.Context) ([]models.BalanceDrift, error) {
+func (s *BalanceService) ListOpenAccountIDs(ctx context.Context, afterID int64, limit int) ([]int64, error) {
+	return s.repo.FindOpenAccountIDs(ctx, nil, afterID, limit)
+}
+
+func (s *BalanceService) ReconcileAccounts(ctx context.Context, accountIDs []int64) ([]models.BalanceDrift, error) {
 	var repaired []models.BalanceDrift
 
-	for afterID := int64(0); ; {
-		ids, err := s.repo.FindOpenAccountIDs(ctx, nil, afterID, 500)
-		if err != nil {
-			return repaired, err
-		}
-		if len(ids) == 0 {
-			return repaired, nil
-		}
-		afterID = ids[len(ids)-1]
+	if len(accountIDs) == 0 {
+		return repaired, nil
+	}
 
-		suspects, err := s.repo.FindDriftedAccounts(ctx, nil, ids)
-		if err != nil {
-			return repaired, err
-		}
+	suspects, err := s.repo.FindDriftedAccounts(ctx, nil, accountIDs)
+	if err != nil {
+		return repaired, err
+	}
 
-		for _, suspect := range suspects {
-			drift, fixed, err := s.repairAccount(ctx, suspect.AccountID)
-			if err != nil {
-				return repaired, err
-			}
-			if fixed {
-				repaired = append(repaired, drift)
-			}
-		}
-
+	for _, suspect := range suspects {
 		if ctx.Err() != nil {
 			return repaired, ctx.Err()
 		}
+		drift, fixed, err := s.repairAccount(ctx, suspect.AccountID)
+		if err != nil {
+			return repaired, err
+		}
+		if fixed {
+			repaired = append(repaired, drift)
+		}
 	}
+
+	return repaired, nil
 }
 
 func (s *BalanceService) repairAccount(ctx context.Context, accountID int64) (models.BalanceDrift, bool, error) {

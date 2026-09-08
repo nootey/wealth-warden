@@ -121,6 +121,26 @@ type BalanceBackfillArgs struct{}
 
 func (BalanceBackfillArgs) Kind() string { return TypeBalanceBackfill }
 
+type BalanceBackfillBatchArgs struct {
+	UserIDs []int64
+}
+
+func (BalanceBackfillBatchArgs) Kind() string { return TypeBalanceBackfillBatch }
+
+func (BalanceBackfillBatchArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{Queue: QueueScheduler}
+}
+
+type BalanceReconcileBatchArgs struct {
+	AccountIDs []int64
+}
+
+func (BalanceReconcileBatchArgs) Kind() string { return TypeBalanceReconcileBatch }
+
+func (BalanceReconcileBatchArgs) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{Queue: QueueScheduler}
+}
+
 type RecurringTransactionsArgs struct{}
 
 func (RecurringTransactionsArgs) Kind() string { return TypeRecurringTransactions }
