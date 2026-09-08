@@ -33,6 +33,9 @@ type BalanceRepositoryInterface interface {
 	ApplyDelta(ctx context.Context, tx *gorm.DB, accountID int64, amount decimal.Decimal) error
 	GetBalance(ctx context.Context, tx *gorm.DB, accountID int64) (decimal.Decimal, error)
 	RecomputeFromTransactions(ctx context.Context, tx *gorm.DB, accountID int64) error
+	FindOpenAccountIDs(ctx context.Context, tx *gorm.DB, afterID int64, limit int) ([]int64, error)
+	FindDriftedAccounts(ctx context.Context, tx *gorm.DB, accountIDs []int64) ([]models.BalanceDrift, error)
+	RepairBalance(ctx context.Context, tx *gorm.DB, accountID int64) (models.BalanceDrift, bool, error)
 	RebuildBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error
 	RebuildDailyRange(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error
 	DeleteAccountSnapshots(ctx context.Context, tx *gorm.DB, accountID int64) error
@@ -73,6 +76,7 @@ func (r *BalanceRepository) ApplyDelta(ctx context.Context, tx *gorm.DB, account
 		INSERT INTO balances (account_id, user_id, currency, balance)
 		SELECT a.id, a.user_id, a.currency, ?::numeric(19,4)
 		FROM   accounts a
+		
 		WHERE  a.id = ?::bigint
 		ON CONFLICT (account_id) DO UPDATE
 		SET balance = balances.balance + EXCLUDED.balance;
@@ -123,6 +127,109 @@ func (r *BalanceRepository) RecomputeFromTransactions(ctx context.Context, tx *g
 		    user_id  = EXCLUDED.user_id,
 		    currency = EXCLUDED.currency;
 	`, accountID).Error
+}
+
+const expectedBalanceSum = `COALESCE(SUM(CASE WHEN t.direction = 'expense' THEN -t.amount ELSE t.amount END), 0)::numeric(19,4)`
+
+func (r *BalanceRepository) FindOpenAccountIDs(ctx context.Context, tx *gorm.DB, afterID int64, limit int) ([]int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	var ids []int64
+	err := db.WithContext(ctx).Raw(`
+		SELECT id FROM accounts
+		WHERE  closed_at IS NULL AND id > ?::bigint
+		ORDER BY id
+		LIMIT  ?::int
+	`, afterID, limit).Scan(&ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (r *BalanceRepository) FindDriftedAccounts(ctx context.Context, tx *gorm.DB, accountIDs []int64) ([]models.BalanceDrift, error) {
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+
+	var rows []models.BalanceDrift
+	err := db.WithContext(ctx).Raw(`
+		WITH expected AS (
+			SELECT a.id AS account_id,
+			       a.user_id,
+			       `+expectedBalanceSum+` AS expected
+			FROM   accounts a
+			LEFT JOIN transactions t
+			       ON t.account_id = a.id AND t.deleted_at IS NULL
+			WHERE  a.id IN ?
+			GROUP BY a.id, a.user_id
+		)
+		SELECT e.account_id,
+		       e.user_id,
+		       COALESCE(b.balance, 0) AS actual,
+		       e.expected
+		FROM   expected e
+		LEFT JOIN balances b ON b.account_id = e.account_id
+		WHERE  COALESCE(b.balance, 0) <> e.expected
+		ORDER BY e.account_id
+	`, accountIDs).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+func (r *BalanceRepository) RepairBalance(ctx context.Context, tx *gorm.DB, accountID int64) (models.BalanceDrift, bool, error) {
+	db := tx.WithContext(ctx)
+
+	// An account with no balance row has nothing to lock, so give it a zero row.
+	if err := db.Exec(`
+		INSERT INTO balances (account_id, user_id, currency, balance)
+		SELECT a.id, a.user_id, a.currency, 0
+		FROM   accounts a
+		WHERE  a.id = ?::bigint
+		ON CONFLICT (account_id) DO NOTHING
+	`, accountID).Error; err != nil {
+		return models.BalanceDrift{}, false, err
+	}
+
+	var drift models.BalanceDrift
+	if err := db.Raw(`
+		SELECT account_id, user_id, balance AS actual
+		FROM   balances
+		WHERE  account_id = ?::bigint
+		FOR UPDATE
+	`, accountID).Scan(&drift).Error; err != nil {
+		return models.BalanceDrift{}, false, err
+	}
+
+	if err := db.Raw(`
+		SELECT `+expectedBalanceSum+`
+		FROM   transactions t
+		WHERE  t.account_id = ?::bigint AND t.deleted_at IS NULL
+	`, accountID).Scan(&drift.Expected).Error; err != nil {
+		return models.BalanceDrift{}, false, err
+	}
+
+	// The scan saw a gap that a live write has since closed. Not drift.
+	if drift.Actual.Equal(drift.Expected) {
+		return models.BalanceDrift{}, false, nil
+	}
+
+	if err := db.Exec(`
+		UPDATE balances SET balance = ?::numeric(19,4) WHERE account_id = ?::bigint
+	`, drift.Expected, accountID).Error; err != nil {
+		return models.BalanceDrift{}, false, err
+	}
+	return drift, true, nil
 }
 
 func (r *BalanceRepository) accountBalance(ctx context.Context, db *gorm.DB, accountID int64) (models.AccountBalance, error) {

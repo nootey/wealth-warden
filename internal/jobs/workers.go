@@ -69,7 +69,7 @@ func RegisterWorkers(workers *river.Workers, c *bootstrap.ServiceContainer, logg
 			return river.AddWorkerSafely(workers, NewAssetPriceHistoryBackfillWorker(historyLogger, job))
 		},
 		func() error {
-			job := NewBalanceBackfillJob(balanceLogger, c.UserService, c.AccountService, concurrentWorkers)
+			job := NewBalanceBackfillJob(balanceLogger, c.UserService, c.AccountService, c.BalanceService, concurrentWorkers)
 			return river.AddWorkerSafely(workers, NewBalanceBackfillWorker(balanceLogger, job))
 		},
 		func() error {

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 	"wealth-warden/internal/jobqueue"
+	"wealth-warden/internal/models"
 
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
@@ -14,6 +15,10 @@ import (
 
 type balanceUserSvc interface {
 	GetAllActiveUserIDs(ctx context.Context) ([]int64, error)
+}
+
+type balanceReconcileSvc interface {
+	ReconcileBalances(ctx context.Context) ([]models.BalanceDrift, error)
 }
 
 type balanceAccountSvc interface {
@@ -49,6 +54,7 @@ type BalanceBackfillJob struct {
 	logger            *zap.Logger
 	userSvc           balanceUserSvc
 	accountSvc        balanceAccountSvc
+	balanceSvc        balanceReconcileSvc
 	concurrentWorkers int
 }
 
@@ -56,6 +62,7 @@ func NewBalanceBackfillJob(
 	logger *zap.Logger,
 	userSvc balanceUserSvc,
 	accountSvc balanceAccountSvc,
+	balanceSvc balanceReconcileSvc,
 	concurrentWorkers int,
 ) *BalanceBackfillJob {
 	if concurrentWorkers < 1 {
@@ -65,6 +72,7 @@ func NewBalanceBackfillJob(
 		logger:            logger,
 		userSvc:           userSvc,
 		accountSvc:        accountSvc,
+		balanceSvc:        balanceSvc,
 		concurrentWorkers: concurrentWorkers,
 	}
 }
@@ -82,6 +90,8 @@ func (j *BalanceBackfillJob) Run(ctx context.Context) error {
 	}
 
 	j.logger.Info("Backfilling balances", zap.Int("userCount", len(userIDs)))
+
+	j.reconcile(ctx)
 
 	fromDate := time.Now().AddDate(0, 0, -1)
 	to := time.Now().Format("2006-01-02")
@@ -134,4 +144,21 @@ func (j *BalanceBackfillJob) backfillUser(ctx context.Context, userID int64, fro
 		return fmt.Errorf("market value update: %w", err)
 	}
 	return nil
+}
+
+func (j *BalanceBackfillJob) reconcile(ctx context.Context) {
+	drifted, err := j.balanceSvc.ReconcileBalances(ctx)
+	for _, d := range drifted {
+		j.logger.Warn("Balance drifted from its transactions; repaired",
+			zap.Int64("userID", d.UserID),
+			zap.Int64("accountID", d.AccountID),
+			zap.String("actual", d.Actual.String()),
+			zap.String("expected", d.Expected.String()),
+			zap.String("difference", d.Difference().String()))
+	}
+	// A failure here does not stop the backfill: the daily table reads transactions,
+	// so the two steps share nothing but the schedule.
+	if err != nil {
+		j.logger.Error("Balance reconcile failed", zap.Error(err))
+	}
 }

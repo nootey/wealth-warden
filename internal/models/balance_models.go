@@ -35,3 +35,14 @@ type BalanceSnapshot struct {
 	Currency    string          `gorm:"type:char(3);not null;default:'EUR'" json:"currency"`
 	ComputedAt  time.Time       `gorm:"autoCreateTime" json:"computed_at"`
 }
+
+type BalanceDrift struct {
+	AccountID int64           `json:"account_id"`
+	UserID    int64           `json:"user_id"`
+	Actual    decimal.Decimal `json:"actual"`
+	Expected  decimal.Decimal `json:"expected"`
+}
+
+func (d BalanceDrift) Difference() decimal.Decimal {
+	return d.Expected.Sub(d.Actual)
+}

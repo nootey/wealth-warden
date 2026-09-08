@@ -28,6 +28,7 @@ type ServiceContainer struct {
 	UserService         *services.UserService
 	LoggingService      *services.LoggingService
 	AccountService      *services.AccountService
+	BalanceService      *services.BalanceService
 	TransactionService  *services.TransactionService
 	SettingsService     *services.SettingsService
 	RoleService         *services.RolePermissionService
@@ -88,6 +89,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 	roleService := services.NewRolePermissionService(roleRepo, jobDispatcher)
 	userService := services.NewUserService(userRepo, roleRepo, jobDispatcher, mail)
 	accountService := services.NewAccountService(logger.Named("account_srv"), accountRepo, balanceRepo, transactionRepo, settingsRepo, savingsRepo, investmentRepo, jobDispatcher, priceFetcher)
+	balanceService := services.NewBalanceService(logger.Named("balance_srv"), balanceRepo)
 	transactionService := services.NewTransactionService(logger.Named("transaction_srv"), transactionRepo, accountRepo, balanceRepo, settingsRepo, savingsRepo, jobDispatcher)
 	settingsService := services.NewSettingsService(cfg, logger.Named("settings_srv"), settingsRepo, userRepo, jobDispatcher, sessionStore)
 	importService := services.NewImportService(importRepo, transactionRepo, accountRepo, balanceRepo, investmentRepo, settingsRepo, jobDispatcher)
@@ -113,6 +115,7 @@ func NewServiceContainer(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log
 		UserService:         userService,
 		LoggingService:      loggingService,
 		AccountService:      accountService,
+		BalanceService:      balanceService,
 		TransactionService:  transactionService,
 		SettingsService:     settingsService,
 		RoleService:         roleService,
