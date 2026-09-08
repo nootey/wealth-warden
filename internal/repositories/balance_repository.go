@@ -11,7 +11,9 @@ import (
 	"gorm.io/gorm"
 )
 
-const accountBalanceQuery = `
+const (
+	expectedBalanceSum  = `COALESCE(SUM(CASE WHEN t.direction = 'expense' THEN -t.amount ELSE t.amount END), 0)::numeric(19,4)`
+	accountBalanceQuery = `
 	SELECT a.id AS account_id,
 	       a.currency,
 	       COALESCE(ab.balance, 0)      AS balance,
@@ -27,6 +29,7 @@ const accountBalanceQuery = `
 		LIMIT 1
 	) mv ON TRUE
 `
+)
 
 type BalanceRepositoryInterface interface {
 	BeginTx(ctx context.Context) (*gorm.DB, error)
@@ -65,14 +68,11 @@ func (r *BalanceRepository) BeginTx(ctx context.Context) (*gorm.DB, error) {
 }
 
 func (r *BalanceRepository) ApplyDelta(ctx context.Context, tx *gorm.DB, accountID int64, amount decimal.Decimal) error {
-
-	db := tx
-	if db == nil {
-		db = r.db
+	if tx == nil {
+		return errors.New("ApplyDelta requires a transaction")
 	}
-	db = db.WithContext(ctx)
 
-	return db.Exec(`
+	return tx.WithContext(ctx).Exec(`
 		INSERT INTO balances (account_id, user_id, currency, balance)
 		SELECT a.id, a.user_id, a.currency, ?::numeric(19,4)
 		FROM   accounts a
@@ -105,31 +105,52 @@ func (r *BalanceRepository) GetBalance(ctx context.Context, tx *gorm.DB, account
 }
 
 func (r *BalanceRepository) RecomputeFromTransactions(ctx context.Context, tx *gorm.DB, accountID int64) error {
-	db := tx
-	if db == nil {
-		db = r.db
+	if tx == nil {
+		return errors.New("RecomputeFromTransactions requires a transaction")
 	}
-	db = db.WithContext(ctx)
+	if _, err := r.lockBalanceRow(ctx, tx, accountID); err != nil {
+		return err
+	}
 
-	return db.Exec(`
-		INSERT INTO balances (account_id, user_id, currency, balance)
-		SELECT a.id,
-		       a.user_id,
-		       a.currency,
-		       COALESCE(SUM(CASE WHEN t.direction = 'expense' THEN -t.amount ELSE t.amount END), 0)
+	return tx.WithContext(ctx).Exec(`
+		UPDATE balances b
+		SET balance  = (
+		        SELECT `+expectedBalanceSum+`
+		        FROM   transactions t
+		        WHERE  t.account_id = b.account_id AND t.deleted_at IS NULL
+		    ),
+		    user_id  = a.user_id,
+		    currency = a.currency
 		FROM   accounts a
-		LEFT JOIN transactions t
-		       ON t.account_id = a.id AND t.deleted_at IS NULL
-		WHERE  a.id = ?::bigint
-		GROUP BY a.id, a.user_id, a.currency
-		ON CONFLICT (account_id) DO UPDATE
-		SET balance  = EXCLUDED.balance,
-		    user_id  = EXCLUDED.user_id,
-		    currency = EXCLUDED.currency;
+		WHERE  a.id = b.account_id AND b.account_id = ?::bigint
 	`, accountID).Error
 }
 
-const expectedBalanceSum = `COALESCE(SUM(CASE WHEN t.direction = 'expense' THEN -t.amount ELSE t.amount END), 0)::numeric(19,4)`
+func (r *BalanceRepository) lockBalanceRow(ctx context.Context, tx *gorm.DB, accountID int64) (models.Balance, error) {
+	db := tx.WithContext(ctx)
+
+	// An account with no balance row has nothing to lock, so it gets a zero row first.
+	// Statements after the lock run on a fresh snapshot and see every committed write.
+
+	if err := db.Exec(`
+		INSERT INTO balances (account_id, user_id, currency, balance)
+		SELECT a.id, a.user_id, a.currency, 0
+		FROM   accounts a
+		WHERE  a.id = ?::bigint
+		ON CONFLICT (account_id) DO NOTHING
+	`, accountID).Error; err != nil {
+		return models.Balance{}, err
+	}
+
+	var row models.Balance
+	err := db.Raw(`
+		SELECT account_id, user_id, balance
+		FROM   balances
+		WHERE  account_id = ?::bigint
+		FOR UPDATE
+	`, accountID).Scan(&row).Error
+	return row, err
+}
 
 func (r *BalanceRepository) FindOpenAccountIDs(ctx context.Context, tx *gorm.DB, afterID int64, limit int) ([]int64, error) {
 	db := tx
@@ -190,26 +211,11 @@ func (r *BalanceRepository) FindDriftedAccounts(ctx context.Context, tx *gorm.DB
 func (r *BalanceRepository) RepairBalance(ctx context.Context, tx *gorm.DB, accountID int64) (models.BalanceDrift, bool, error) {
 	db := tx.WithContext(ctx)
 
-	// An account with no balance row has nothing to lock, so give it a zero row.
-	if err := db.Exec(`
-		INSERT INTO balances (account_id, user_id, currency, balance)
-		SELECT a.id, a.user_id, a.currency, 0
-		FROM   accounts a
-		WHERE  a.id = ?::bigint
-		ON CONFLICT (account_id) DO NOTHING
-	`, accountID).Error; err != nil {
+	row, err := r.lockBalanceRow(ctx, tx, accountID)
+	if err != nil {
 		return models.BalanceDrift{}, false, err
 	}
-
-	var drift models.BalanceDrift
-	if err := db.Raw(`
-		SELECT account_id, user_id, balance AS actual
-		FROM   balances
-		WHERE  account_id = ?::bigint
-		FOR UPDATE
-	`, accountID).Scan(&drift).Error; err != nil {
-		return models.BalanceDrift{}, false, err
-	}
+	drift := models.BalanceDrift{AccountID: row.AccountID, UserID: row.UserID, Actual: row.Balance}
 
 	if err := db.Raw(`
 		SELECT `+expectedBalanceSum+`

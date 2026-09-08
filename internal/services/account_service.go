@@ -865,21 +865,8 @@ func (s *AccountService) rebuildUserHistory(ctx context.Context, tx *gorm.DB, us
 	return s.balanceRepo.UpdateSnapshotMarketValues(ctx, tx, userID, utils.SnapshotRecomputeFrom(earliest))
 }
 
-func (s *AccountService) UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal) error {
-	amount = amount.Round(4)
-
-	if strings.ToLower(transactionType) == "expense" {
-		amount = amount.Neg()
-	}
-	if err := s.balanceRepo.ApplyDelta(ctx, tx, acc.ID, amount); err != nil {
-		return err
-	}
-
-	if err := s.balanceRepo.RebuildBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, asOf); err != nil {
-		return err
-	}
-
-	return nil
+func (s *AccountService) UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, _ string, _ decimal.Decimal) error {
+	return s.balanceRepo.RebuildBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, asOf)
 }
 
 func (s *AccountService) UpdateBalancesForTransfer(ctx context.Context, tx *gorm.DB, fromAcc, toAcc *models.Account, when time.Time, amount decimal.Decimal) error {

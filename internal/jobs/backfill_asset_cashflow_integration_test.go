@@ -257,11 +257,16 @@ func (s *BackfillCashFlowsIntegrationSuite) TestRebuildFromTransactions_KeepsTra
 
 	opening := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -10)
 	repo := repositories.NewBalanceRepository(s.TC.DB)
-	s.Require().NoError(repo.RebuildBalances(s.Ctx, nil, userID, accID, "EUR", opening))
+	rebuild := func() {
+		tx := s.TC.DB.Begin()
+		s.Require().NoError(repo.RebuildBalances(s.Ctx, tx, userID, accID, "EUR", opening))
+		s.Require().NoError(tx.Commit().Error)
+	}
 
+	rebuild()
 	s.Assert().Equal(before, s.balances(accID), "the rebuild erased trade cash")
 
-	s.Require().NoError(repo.RebuildBalances(s.Ctx, nil, userID, accID, "EUR", opening))
+	rebuild()
 	s.Assert().Equal(before, s.balances(accID), "the second rebuild drifted")
 }
 

@@ -115,18 +115,26 @@ func (s *BalanceServiceSuite) seedAccounts() []int64 {
 	return []int64{checkingID, brokerID, cardID}
 }
 
+func (s *BalanceServiceSuite) recompute(repo *repositories.BalanceRepository, accountID int64) {
+	tx := s.TC.DB.Begin()
+	s.Require().NoError(repo.RecomputeFromTransactions(s.Ctx, tx, accountID))
+	s.Require().NoError(tx.Commit().Error)
+}
+
 func (s *BalanceServiceSuite) TestApplyDeltaAccumulates() {
 	ids := s.seedAccounts()
 	repo := repositories.NewBalanceRepository(s.TC.DB)
 
 	id := ids[0]
-	s.Require().NoError(repo.RecomputeFromTransactions(s.Ctx, nil, id))
+	s.recompute(repo, id)
 
 	before, err := repo.GetBalance(s.Ctx, nil, id)
 	s.Require().NoError(err)
 
-	s.Require().NoError(repo.ApplyDelta(s.Ctx, nil, id, decimal.NewFromInt(100)))
-	s.Require().NoError(repo.ApplyDelta(s.Ctx, nil, id, decimal.NewFromInt(-30)))
+	tx := s.TC.DB.Begin()
+	s.Require().NoError(repo.ApplyDelta(s.Ctx, tx, id, decimal.NewFromInt(100)))
+	s.Require().NoError(repo.ApplyDelta(s.Ctx, tx, id, decimal.NewFromInt(-30)))
+	s.Require().NoError(tx.Commit().Error)
 
 	after, err := repo.GetBalance(s.Ctx, nil, id)
 	s.Require().NoError(err)
@@ -134,11 +142,59 @@ func (s *BalanceServiceSuite) TestApplyDeltaAccumulates() {
 		"two deltas moved the balance by %s, want 70", after.Sub(before).StringFixed(4))
 
 	// A recompute reads only transactions, so it must undo deltas nothing backed.
-	s.Require().NoError(repo.RecomputeFromTransactions(s.Ctx, nil, id))
+	s.recompute(repo, id)
 	healed, err := repo.GetBalance(s.Ctx, nil, id)
 	s.Require().NoError(err)
 	s.Assert().True(healed.Equal(before), "recompute left %s, want %s",
 		healed.StringFixed(4), before.StringFixed(4))
+}
+
+func (s *BalanceServiceSuite) TestBalanceWritesRefuseNilTx() {
+	repo := repositories.NewBalanceRepository(s.TC.DB)
+	s.Require().Error(repo.ApplyDelta(s.Ctx, nil, 1, decimal.NewFromInt(1)))
+	s.Require().Error(repo.RecomputeFromTransactions(s.Ctx, nil, 1))
+}
+
+// A recompute that starts while a delta is uncommitted must wait for it and then
+// count its transaction, not overwrite it with a sum from before the wait.
+func (s *BalanceServiceSuite) TestRecomputeWaitsForConcurrentDelta() {
+	ids := s.seedAccounts()
+	repo := repositories.NewBalanceRepository(s.TC.DB)
+	id := ids[0]
+
+	before, err := repo.GetBalance(s.Ctx, nil, id)
+	s.Require().NoError(err)
+
+	amount := decimal.NewFromInt(40)
+	writer := s.TC.DB.Begin()
+	txn := models.NewOpeningTransaction(seedUserID, id, nil, "EUR", s.today(), amount)
+	s.Require().NoError(writer.Create(&txn).Error)
+	s.Require().NoError(repo.ApplyDelta(s.Ctx, writer, id, amount))
+
+	recomputed := make(chan error, 1)
+	go func() {
+		tx := s.TC.DB.Begin()
+		if err := repo.RecomputeFromTransactions(s.Ctx, tx, id); err != nil {
+			tx.Rollback()
+			recomputed <- err
+			return
+		}
+		recomputed <- tx.Commit().Error
+	}()
+
+	select {
+	case err := <-recomputed:
+		s.Require().FailNowf("recompute did not block", "returned %v while the delta was uncommitted", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	s.Require().NoError(writer.Commit().Error)
+	s.Require().NoError(<-recomputed)
+
+	after, err := repo.GetBalance(s.Ctx, nil, id)
+	s.Require().NoError(err)
+	s.Assert().True(after.Equal(before.Add(amount)), "balance is %s, want %s",
+		after.StringFixed(4), before.Add(amount).StringFixed(4))
 }
 
 // ApplyDelta seeds its own row, so an account that never had one is not a special case.
@@ -153,7 +209,9 @@ func (s *BalanceServiceSuite) TestApplyDeltaSeedsAMissingRow() {
 	s.Require().NoError(err)
 	s.Require().True(zero.IsZero(), "a missing row must read as zero, got %s", zero.StringFixed(4))
 
-	s.Require().NoError(repo.ApplyDelta(s.Ctx, nil, id, decimal.NewFromInt(25)))
+	tx := s.TC.DB.Begin()
+	s.Require().NoError(repo.ApplyDelta(s.Ctx, tx, id, decimal.NewFromInt(25)))
+	s.Require().NoError(tx.Commit().Error)
 
 	got, err := repo.GetBalance(s.Ctx, nil, id)
 	s.Require().NoError(err)

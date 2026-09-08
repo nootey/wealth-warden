@@ -57,8 +57,10 @@ func (s *AutoFundGoalsJobTestSuite) createSavingsAccount(name string, balance de
 
 	opening := models.NewOpeningTransaction(s.memberUserID, acc.ID, nil, "EUR", openedAt, balance)
 	s.Require().NoError(s.TC.DB.Create(&opening).Error)
+	tx := s.TC.DB.Begin()
 	s.Require().NoError(repositories.NewBalanceRepository(s.TC.DB).
-		RecomputeFromTransactions(s.Ctx, nil, acc.ID))
+		RecomputeFromTransactions(s.Ctx, tx, acc.ID))
+	s.Require().NoError(tx.Commit().Error)
 
 	return acc
 }
