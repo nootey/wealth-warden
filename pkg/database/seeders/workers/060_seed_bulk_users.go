@@ -413,14 +413,11 @@ func seedBulkChunk(
 
 	perAcc := max(1, b.TxnsPerUser/len(bulkAccountSeeds))
 	txns := make([]models.Transaction, 0, len(accounts)*perAcc)
-	deltas := make(map[int64][]models.DailyCashDelta, len(accounts))
 
 	for i, acc := range accounts {
 		seed := bulkAccountSeeds[i%len(bulkAccountSeeds)]
-		accTxns, accDeltas := bulkTransactionsForAccount(
-			rng, today, openedAt[i], acc, seed, perAcc, incCats, expCats)
-		txns = append(txns, accTxns...)
-		deltas[acc.ID] = accDeltas
+		txns = append(txns, bulkTransactionsForAccount(
+			rng, today, openedAt[i], acc, seed, perAcc, incCats, expCats)...)
 	}
 
 	if err := txnRepo.InsertTransactionsBatch(ctx, tx, txns, bulkInsertBatch); err != nil {
@@ -429,9 +426,6 @@ func seedBulkChunk(
 
 	// Once per account, not once per transaction
 	for i, acc := range accounts {
-		if err := accRepo.UpsertDailyCashBatch(ctx, tx, acc.ID, acc.Currency, deltas[acc.ID]); err != nil {
-			return fmt.Errorf("failed to write daily balances: %w", err)
-		}
 		if err := accRepo.RebuildBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, openedAt[i]); err != nil {
 			return fmt.Errorf("failed to rebuild balances: %w", err)
 		}
@@ -459,7 +453,7 @@ func bulkTransactionsForAccount(
 	seed bulkAccountSeed,
 	count int,
 	incCats, expCats []int64,
-) ([]models.Transaction, []models.DailyCashDelta) {
+) []models.Transaction {
 	isLiability := seed.StartBalance.IsNegative()
 
 	incomeProb := 0.62
@@ -480,8 +474,6 @@ func bulkTransactionsForAccount(
 
 	currBal := seed.StartBalance
 	txns := make([]models.Transaction, 0, count)
-	byDay := make(map[time.Time]*models.DailyCashDelta, count)
-	deltas := make([]models.DailyCashDelta, 0, count)
 
 	for _, date := range dates {
 		ttype := "expense"
@@ -528,24 +520,14 @@ func bulkTransactionsForAccount(
 			UpdatedAt:  now,
 		})
 
-		d, ok := byDay[date]
-		if !ok {
-			d = &models.DailyCashDelta{AsOf: date}
-			byDay[date] = d
-		}
 		if ttype == "income" {
-			d.Inflows = d.Inflows.Add(amt)
 			currBal = currBal.Add(amt)
 		} else {
-			d.Outflows = d.Outflows.Add(amt)
 			currBal = currBal.Sub(amt)
 		}
 	}
 
-	for _, d := range byDay {
-		deltas = append(deltas, *d)
-	}
-	return txns, deltas
+	return txns
 }
 
 func seedBulkSavingGoals(
@@ -573,10 +555,10 @@ func seedBulkSavingGoals(
 	}
 	var latest []accBalance
 	if err := tx.WithContext(ctx).Raw(`
-		SELECT DISTINCT ON (account_id) account_id, end_balance
+		SELECT account_id, balance AS end_balance
 		FROM balances
 		WHERE account_id IN ?
-		ORDER BY account_id, as_of DESC
+		ORDER BY account_id
 	`, savingsIDs).Scan(&latest).Error; err != nil {
 		return fmt.Errorf("failed to read savings balances: %w", err)
 	}
@@ -955,7 +937,7 @@ func seedBulkInvestments(
 	// worth, whether or not any buy landed on it.
 	for _, acc := range accounts {
 		m := meta[acc.ID]
-		if err := accRepo.RebuildFromTransactions(ctx, tx, m.userID, acc.ID, m.currency, openedAt); err != nil {
+		if err := accRepo.RebuildBalances(ctx, tx, m.userID, acc.ID, m.currency, openedAt); err != nil {
 			return fmt.Errorf("failed to rebuild investment balances: %w", err)
 		}
 	}

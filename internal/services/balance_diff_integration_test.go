@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 	"wealth-warden/internal/models"
-	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/tests"
 
 	"github.com/shopspring/decimal"
@@ -94,8 +93,8 @@ func (s *BalanceDiffIntegrationSuite) assertLedgerMatchesBalances(context string
 		       COUNT(*) FILTER (WHERE t.transaction_type = 'opening'
 		                          AND t.category_id IS NOT NULL) AS openings,
 		       COALESCE(SUM(CASE WHEN t.direction = 'expense' THEN -t.amount ELSE t.amount END), 0) AS txn_sum,
-		       (SELECT b.end_balance FROM balances b
-		         WHERE b.account_id = a.id ORDER BY b.as_of DESC LIMIT 1) AS end_bal
+		       (SELECT b.balance FROM balances b
+		         WHERE b.account_id = a.id) AS end_bal
 		FROM accounts a
 		LEFT JOIN transactions t ON t.account_id = a.id AND t.deleted_at IS NULL
 		GROUP BY a.id
@@ -216,35 +215,4 @@ func (s *BalanceDiffIntegrationSuite) TestEveryWritePathLeavesATransaction() {
 		s.Require().NoError(s.TC.App.InvestmentService.DeleteInvestmentTrade(s.Ctx, userID, id))
 		s.assertLedgerMatchesBalances("after a trade delete")
 	})
-}
-
-func (s *BalanceDiffIntegrationSuite) TestDailyTableMatchesTheBalanceChain() {
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	fromTransactions := s.seedAndDump(today)
-	s.Require().NotEmpty(fromTransactions)
-
-	type acct struct {
-		ID       int64
-		UserID   int64
-		Currency string
-		OpenedAt time.Time
-	}
-	var accounts []acct
-	s.Require().NoError(s.TC.DB.Raw(
-		`SELECT id, user_id, currency, opened_at FROM accounts ORDER BY id`).Scan(&accounts).Error)
-	s.Require().NotEmpty(accounts)
-
-	s.Require().NoError(s.TC.DB.Exec(`TRUNCATE TABLE account_daily_snapshots`).Error)
-
-	repo := repositories.NewAccountRepository(s.TC.DB)
-	for _, a := range accounts {
-		s.Require().NoError(repo.UpsertSnapshotsFromBalances(
-			s.Ctx, nil, a.UserID, a.ID, a.Currency,
-			a.OpenedAt.UTC().Truncate(24*time.Hour), today))
-	}
-
-	fromBalances, err := tests.DumpDailyBalances(s.Ctx, s.TC.DB)
-	s.Require().NoError(err)
-
-	s.Assert().Empty(tests.DiffDailyBalances(fromBalances, fromTransactions))
 }

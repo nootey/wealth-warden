@@ -30,38 +30,6 @@ func (s *AccountBalanceIntegrationSuite) seedFixture() []int64 {
 	return ids
 }
 
-// The migration fills account_balances with the same statement RecomputeFromTransactions
-// runs. Phase 4's contract is that the number it produces is the one the old chain ends on.
-func (s *AccountBalanceIntegrationSuite) TestRecomputeMatchesTheOldChain() {
-	ids := s.seedFixture()
-	repo := repositories.NewBalanceRepository(s.TC.DB)
-
-	for _, id := range ids {
-		s.Require().NoError(repo.RecomputeFromTransactions(s.Ctx, nil, id))
-	}
-
-	type row struct {
-		AccountID int64
-		Balance   decimal.Decimal
-		EndBal    decimal.Decimal
-	}
-	var rows []row
-	s.Require().NoError(s.TC.DB.Raw(`
-		SELECT ab.account_id,
-		       ab.balance,
-		       (SELECT b.end_balance FROM balances b
-		         WHERE b.account_id = ab.account_id ORDER BY b.as_of DESC LIMIT 1) AS end_bal
-		FROM account_balances ab
-		ORDER BY ab.account_id`).Scan(&rows).Error)
-
-	s.Require().Len(rows, len(ids), "every account needs a balance row")
-	for _, r := range rows {
-		s.Assert().True(r.Balance.Round(4).Equal(r.EndBal.Round(4)),
-			"account %d: account_balances says %s, the chain ends on %s",
-			r.AccountID, r.Balance.StringFixed(4), r.EndBal.StringFixed(4))
-	}
-}
-
 func (s *AccountBalanceIntegrationSuite) TestApplyDeltaAccumulates() {
 	ids := s.seedFixture()
 	repo := repositories.NewBalanceRepository(s.TC.DB)
@@ -94,7 +62,7 @@ func (s *AccountBalanceIntegrationSuite) TestApplyDeltaSeedsAMissingRow() {
 	repo := repositories.NewBalanceRepository(s.TC.DB)
 
 	id := ids[0]
-	s.Require().NoError(s.TC.DB.Exec(`DELETE FROM account_balances WHERE account_id = ?`, id).Error)
+	s.Require().NoError(s.TC.DB.Exec(`DELETE FROM balances WHERE account_id = ?`, id).Error)
 
 	zero, err := repo.GetBalance(s.Ctx, nil, id)
 	s.Require().NoError(err)
@@ -121,7 +89,7 @@ func (s *AccountBalanceIntegrationSuite) assertBalanceMatchesLedger(context stri
 		       COALESCE(ab.balance, 0) AS balance,
 		       COALESCE(SUM(CASE WHEN t.direction = 'expense' THEN -t.amount ELSE t.amount END), 0) AS txn_sum
 		FROM accounts a
-		LEFT JOIN account_balances ab ON ab.account_id = a.id
+		LEFT JOIN balances ab ON ab.account_id = a.id
 		LEFT JOIN transactions t ON t.account_id = a.id AND t.deleted_at IS NULL
 		GROUP BY a.id, ab.balance
 		ORDER BY a.id`).Scan(&rows).Error)

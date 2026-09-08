@@ -40,12 +40,12 @@ func (r *BalanceRepository) ApplyDelta(ctx context.Context, tx *gorm.DB, account
 	db = db.WithContext(ctx)
 
 	return db.Exec(`
-		INSERT INTO account_balances (account_id, user_id, currency, balance)
+		INSERT INTO balances (account_id, user_id, currency, balance)
 		SELECT a.id, a.user_id, a.currency, ?::numeric(19,4)
 		FROM   accounts a
 		WHERE  a.id = ?::bigint
 		ON CONFLICT (account_id) DO UPDATE
-		SET balance = account_balances.balance + EXCLUDED.balance;
+		SET balance = balances.balance + EXCLUDED.balance;
 	`, amount, accountID).Error
 }
 
@@ -57,7 +57,7 @@ func (r *BalanceRepository) GetBalance(ctx context.Context, tx *gorm.DB, account
 	}
 	db = db.WithContext(ctx)
 
-	var record models.AccountBalance
+	var record models.Balance
 	err := db.
 		Where("account_id = ?", accountID).
 		Take(&record).Error
@@ -67,7 +67,7 @@ func (r *BalanceRepository) GetBalance(ctx context.Context, tx *gorm.DB, account
 		}
 		return decimal.Zero, err
 	}
-	return record.Balance, nil
+	return record.EndBalance, nil
 }
 
 func (r *BalanceRepository) RecomputeFromTransactions(ctx context.Context, tx *gorm.DB, accountID int64) error {
@@ -78,7 +78,7 @@ func (r *BalanceRepository) RecomputeFromTransactions(ctx context.Context, tx *g
 	db = db.WithContext(ctx)
 
 	return db.Exec(`
-		INSERT INTO account_balances (account_id, user_id, currency, balance)
+		INSERT INTO balances (account_id, user_id, currency, balance)
 		SELECT a.id,
 		       a.user_id,
 		       a.currency,

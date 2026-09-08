@@ -500,7 +500,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, err
 	}
 
-	if err := s.accRepo.RebuildFromTransactions(ctx, tx, userID, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -768,7 +768,7 @@ func (s *InvestmentService) ensureTradeTransactions(
 	}
 
 	for accountID, earliestDate := range earliestByAccount {
-		if err := s.accRepo.RebuildFromTransactions(ctx, tx, userID, accountID, accountCurrency[accountID], earliestDate); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, tx, userID, accountID, accountCurrency[accountID], earliestDate); err != nil {
 			return err
 		}
 	}
@@ -1139,7 +1139,7 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 	// Rebuild balances and snapshots from the earliest trade date
 	if !earliestTxnDate.IsZero() {
 
-		if err := s.accRepo.RebuildFromTransactions(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestTxnDate); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestTxnDate); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1221,7 +1221,7 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 		return err
 	}
 
-	if err := s.accRepo.RebuildFromTransactions(ctx, tx, userID, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1531,7 +1531,7 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 			return 0, fmt.Errorf("failed to link dividend transaction: %w", err)
 		}
 
-		if err := s.accRepo.RebuildFromTransactions(ctx, tx, userID, asset.AccountID, asset.Account.Currency, record.TxnDate); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, record.TxnDate); err != nil {
 			tx.Rollback()
 			return 0, err
 		}
@@ -1602,7 +1602,7 @@ func (s *InvestmentService) DeleteInvestmentIncome(ctx context.Context, userID i
 
 	incomeDate := income.TxnDate.UTC().Truncate(24 * time.Hour)
 
-	if err := s.accRepo.RebuildFromTransactions(ctx, tx, userID, asset.AccountID, asset.Account.Currency, incomeDate); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, incomeDate); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1911,7 +1911,7 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 		return err
 	}
 
-	if err := s.accRepo.RebuildFromTransactions(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestDate); err != nil {
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestDate); err != nil {
 		tx.Rollback()
 		return err
 	}

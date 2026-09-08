@@ -62,12 +62,6 @@ type AccountProjectionReq struct {
 	BalanceProjection string          `json:"balance_projection" validate:"required"`
 }
 
-type DailyCashDelta struct {
-	AsOf     time.Time
-	Inflows  decimal.Decimal
-	Outflows decimal.Decimal
-}
-
 type AccountLookup struct {
 	ID       int64      `json:"id"`
 	Name     string     `json:"name"`

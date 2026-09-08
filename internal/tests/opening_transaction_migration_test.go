@@ -92,7 +92,8 @@ func TestOpeningTransactionMigration(t *testing.T) {
 	before := dump()
 	require.Len(t, before, 6)
 
-	require.NoError(t, goose.Up(sqlDB, path))
+	// Stop on the backfill: later migrations replace the chain this test reads.
+	require.NoError(t, goose.UpTo(sqlDB, path, 20260910120001))
 
 	// The whole point: not one derived number moves.
 	require.Equal(t, before, dump(), "the backfill changed a balance")

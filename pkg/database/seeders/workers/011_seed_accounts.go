@@ -235,22 +235,17 @@ func SeedRootAccounts(ctx context.Context, db *gorm.DB, logger *zap.Logger) erro
 }
 
 // seedOpeningRows builds the pair an account now starts with: the transaction that
-// records what it opened with, and the balance row carrying that amount as a cash
-// flow. start_balance stays 0, because the ledger is the record.
+// records what it opened with, and the one balance row holding that same amount.
 func seedOpeningRows(acc models.Account, asOf time.Time, categoryID *int64, amount decimal.Decimal) (models.Transaction, models.Balance) {
 	txn := models.NewOpeningTransaction(acc.UserID, acc.ID, categoryID, acc.Currency, asOf, amount)
 
 	bal := models.Balance{
-		AccountID: acc.ID,
-		AsOf:      asOf,
-		Currency:  acc.Currency,
-		CreatedAt: asOf,
-		UpdatedAt: asOf,
-	}
-	if txn.Direction == "expense" {
-		bal.CashOutflows = txn.Amount
-	} else {
-		bal.CashInflows = txn.Amount
+		AccountID:  acc.ID,
+		UserID:     acc.UserID,
+		Currency:   acc.Currency,
+		EndBalance: amount,
+		CreatedAt:  asOf,
+		UpdatedAt:  asOf,
 	}
 
 	return txn, bal

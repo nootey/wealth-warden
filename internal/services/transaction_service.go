@@ -89,12 +89,12 @@ func NewTransactionService(
 var _ TransactionServiceInterface = (*TransactionService)(nil)
 
 func (s *TransactionService) updateAccountBalance(ctx context.Context, tx *gorm.DB, account *models.Account, txnDate time.Time, direction string, amount decimal.Decimal) error {
-	column := map[string]string{
-		"expense": "cash_outflows",
-		"income":  "cash_inflows",
-	}[direction]
+	delta := amount.Round(4)
+	if direction == "expense" {
+		delta = delta.Neg()
+	}
 
-	if err := s.accRepo.PostCashDelta(ctx, tx, account.ID, txnDate, account.Currency, column, amount.Round(4)); err != nil {
+	if err := s.accRepo.PostCashDelta(ctx, tx, account.ID, delta); err != nil {
 		return err
 	}
 

@@ -26,11 +26,8 @@ func TestBackfillCashFlowsIntegrationSuite(t *testing.T) {
 }
 
 type balanceRow struct {
-	AsOf         time.Time
-	StartBalance decimal.Decimal
-	CashInflows  decimal.Decimal
-	CashOutflows decimal.Decimal
-	EndBalance   decimal.Decimal
+	AccountID  int64
+	EndBalance decimal.Decimal
 }
 
 type snapshotRow struct {
@@ -43,9 +40,8 @@ func (s *BackfillCashFlowsIntegrationSuite) balances(accountID int64) []balanceR
 	var rows []balanceRow
 	err := s.TC.DB.WithContext(s.Ctx).
 		Table("balances").
-		Select("as_of, start_balance, cash_inflows, cash_outflows, end_balance").
+		Select("account_id, balance AS end_balance").
 		Where("account_id = ?", accountID).
-		Order("as_of ASC").
 		Scan(&rows).Error
 	s.Require().NoError(err)
 	return rows
@@ -128,7 +124,7 @@ func (s *BackfillCashFlowsIntegrationSuite) seedTradedAccount(userID int64, name
 	return accID
 }
 
-// AddToDailyBalance is additive, so a second run must land on the same numbers.
+// The backfill adds cash flows, so a second run must land on the same numbers.
 func (s *BackfillCashFlowsIntegrationSuite) TestBackfill_RepeatRunIsIdempotent() {
 	userID := int64(1)
 	accID := s.seedTradedAccount(userID, "Brokerage")
@@ -261,11 +257,11 @@ func (s *BackfillCashFlowsIntegrationSuite) TestRebuildFromTransactions_KeepsTra
 
 	opening := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -10)
 	repo := repositories.NewAccountRepository(s.TC.DB)
-	s.Require().NoError(repo.RebuildFromTransactions(s.Ctx, nil, userID, accID, "EUR", opening))
+	s.Require().NoError(repo.RebuildBalances(s.Ctx, nil, userID, accID, "EUR", opening))
 
 	s.Assert().Equal(before, s.balances(accID), "the rebuild erased trade cash")
 
-	s.Require().NoError(repo.RebuildFromTransactions(s.Ctx, nil, userID, accID, "EUR", opening))
+	s.Require().NoError(repo.RebuildBalances(s.Ctx, nil, userID, accID, "EUR", opening))
 	s.Assert().Equal(before, s.balances(accID), "the second rebuild drifted")
 }
 

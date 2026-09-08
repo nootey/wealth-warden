@@ -442,7 +442,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 			rebuildFrom = oldOpenedDay
 		}
 
-		if err := s.repo.RebuildFromTransactions(ctx, tx, userID, id, exAcc.Currency, rebuildFrom); err != nil {
+		if err := s.repo.RebuildBalances(ctx, tx, userID, id, exAcc.Currency, rebuildFrom); err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to rebuild balances from the new opened date: %w", err)
 		}
@@ -725,13 +725,7 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 		return err
 	}
 
-	// The close day needs a balance row. An existing one already carries the
-	// day's flows, so it must be left alone.
 	today := time.Now().UTC().Truncate(24 * time.Hour)
-	if err := s.repo.EnsureDailyBalanceRow(ctx, tx, acc.ID, today, acc.Currency); err != nil {
-		tx.Rollback()
-		return err
-	}
 
 	// Materialize a real snapshot for today so charts don’t copy yesterday’s value
 	// Upsert for the just-closed account
@@ -868,16 +862,11 @@ func (s *AccountService) rebuildUserHistory(ctx context.Context, tx *gorm.DB, us
 func (s *AccountService) UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal) error {
 	amount = amount.Round(4)
 
-	// increment the correct field on balances(as_of)
-	switch strings.ToLower(transactionType) {
-	case "expense":
-		if err := s.repo.PostCashDelta(ctx, tx, acc.ID, asOf, acc.Currency, "cash_outflows", amount); err != nil {
-			return err
-		}
-	default:
-		if err := s.repo.PostCashDelta(ctx, tx, acc.ID, asOf, acc.Currency, "cash_inflows", amount); err != nil {
-			return err
-		}
+	if strings.ToLower(transactionType) == "expense" {
+		amount = amount.Neg()
+	}
+	if err := s.repo.PostCashDelta(ctx, tx, acc.ID, amount); err != nil {
+		return err
 	}
 
 	if err := s.repo.RebuildBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, asOf); err != nil {
@@ -1020,9 +1009,9 @@ func (s *AccountService) FrontfillBalancesForAccount(ctx context.Context, tx *go
 func (s *AccountService) UpdateDailyCashNoSnapshot(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal) error {
 	amt = amt.Round(4)
 	if strings.ToLower(txnType) == "expense" {
-		return s.repo.PostCashDelta(ctx, tx, acc.ID, asOf, acc.Currency, "cash_outflows", amt)
+		amt = amt.Neg()
 	}
-	return s.repo.PostCashDelta(ctx, tx, acc.ID, asOf, acc.Currency, "cash_inflows", amt)
+	return s.repo.PostCashDelta(ctx, tx, acc.ID, amt)
 }
 
 func (s *AccountService) SaveAccountProjection(ctx context.Context, id, userID int64, req *models.AccountProjectionReq) error {
@@ -1433,35 +1422,17 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 			tx.Rollback()
 			return err
 		}
-
-		if err := s.repo.PostCashDelta(ctx, tx, destinationID, dstOpeningDay, dstAcc.Currency, "", decimal.Zero); err != nil {
-			tx.Rollback()
-			return err
-		}
 	}
 
-	// Rebuild cash flows for both accounts from their respective opening dates.
-	// Source will have 0 transactions after the bulk move, zeroing all its cash flow rows.
-	// Dest gets new rows created and flows recomputed to include the moved transactions.
+	// The transactions moved, so both balances have to be recounted. The source is
+	// left with none. These stay split from the daily rebuild below because
+	// CloseAccount runs between them, so the pair cannot be one call.
 	srcOpeningDate := srcAcc.OpenedAt.UTC().Truncate(24 * time.Hour)
-	if err := s.repo.RebuildCashFlowsForAccount(ctx, tx, sourceID, srcAcc.Currency, srcOpeningDate); err != nil {
+	if err := s.repo.RecomputeBalance(ctx, tx, sourceID); err != nil {
 		tx.Rollback()
 		return err
 	}
-	if earliestTxnDate != nil {
-		if err := s.repo.RebuildCashFlowsForAccount(ctx, tx, destinationID, dstAcc.Currency, *earliestTxnDate); err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
-	// Propagate the updated chains for both accounts. These stay split from the
-	// daily rebuild below because CloseAccount runs between them, so the pair cannot
-	if err := s.repo.FrontfillBalances(ctx, tx, sourceID, srcAcc.Currency, srcOpeningDate); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.repo.FrontfillBalances(ctx, tx, destinationID, dstAcc.Currency, dstOpeningDay); err != nil {
+	if err := s.repo.RecomputeBalance(ctx, tx, destinationID); err != nil {
 		tx.Rollback()
 		return err
 	}

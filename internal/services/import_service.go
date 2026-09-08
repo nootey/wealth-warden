@@ -71,13 +71,11 @@ var _ ImportServiceInterface = (*ImportService)(nil)
 
 func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal, snapshot bool) error {
 	amt = amt.Round(4)
-	column := map[string]string{
-		"expense": "cash_outflows",
-		"income":  "cash_inflows",
-	}[strings.ToLower(txnType)]
+	if strings.ToLower(txnType) == "expense" {
+		amt = amt.Neg()
+	}
 
-	err := s.accRepo.PostCashDelta(ctx, tx, acc.ID, asOf, acc.Currency, column, amt)
-	if err != nil {
+	if err := s.accRepo.PostCashDelta(ctx, tx, acc.ID, amt); err != nil {
 		return err
 	}
 
@@ -1997,7 +1995,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 	for accID, from := range earliest {
 		acc := accCache[accID]
 
-		if err := s.accRepo.RebuildFromTransactions(ctx, tx, userID, accID, acc.Currency, from); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, tx, userID, accID, acc.Currency, from); err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return err
@@ -2517,7 +2515,7 @@ func (s *ImportService) backfillInvestmentCashFlows(ctx context.Context, userID 
 	}
 
 	for id, info := range affected {
-		if err := s.accRepo.RebuildFromTransactions(ctx, bfTx, userID, id, info.currency, info.opening); err != nil {
+		if err := s.accRepo.RebuildBalances(ctx, bfTx, userID, id, info.currency, info.opening); err != nil {
 			bfTx.Rollback()
 			return err
 		}

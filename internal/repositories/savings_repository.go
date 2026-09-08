@@ -200,7 +200,7 @@ func (r *SavingsRepository) GetUncategorizedBalance(ctx context.Context, tx *gor
 
 	var endBalance decimal.Decimal
 	err := db.Raw(
-		`SELECT COALESCE(balance, 0) FROM account_balances WHERE account_id = ?`,
+		`SELECT COALESCE(balance, 0) FROM balances WHERE account_id = ?`,
 		accountID,
 	).Scan(&endBalance).Error
 	if err != nil {

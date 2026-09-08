@@ -122,7 +122,6 @@ TRUNCATE TABLE
     transactions,
     transfers,
     balances,
-    account_balances,
     accounts,
     account_daily_snapshots,
     ticker_price_history

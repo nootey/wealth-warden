@@ -295,13 +295,9 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyUpdatesPriceAn
 	// Verify buy wrote cash_outflows
 	var balance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
+		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
-
-	s.Assert().True(buyPrice.Equal(balance.CashOutflows),
-		"buy should write cash_outflows of %s, got %s",
-		buyPrice.String(), balance.CashOutflows.String())
 
 	// Verify end balance = initial - purchase cost
 	expectedEndBalance := initialBalance.Sub(buyPrice)
@@ -399,14 +395,11 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_MultipleBuysUpdat
 	// Verify cash outflows = total spent (50k + 30k + 27.5k = 107.5k)
 	var balance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
+		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
 
 	expectedOutflows := decimal.NewFromInt(107500)
-	s.Assert().True(expectedOutflows.Equal(balance.CashOutflows),
-		"cash outflows should be %s, got %s",
-		expectedOutflows.String(), balance.CashOutflows.String())
 
 	// Verify end balance = 200k - 107.5k = 92.5k
 	expectedEndBalance := initialBalance.Sub(expectedOutflows)
@@ -455,15 +448,6 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 	})
 	s.Require().NoError(err)
 
-	// Verify balance after buy: 200k - 100k = 100k
-	var balanceAfterBuy models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
-		First(&balanceAfterBuy).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(100000).Equal(balanceAfterBuy.CashOutflows),
-		"cash outflows after buy should be 100k, got %s", balanceAfterBuy.CashOutflows.String())
-
 	// Sell 1 BTC at 90k (profit of 40k)
 	sellQty := decimal.NewFromInt(1)
 	sellPrice := decimal.NewFromInt(90000)
@@ -486,21 +470,13 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellRecordsRealiz
 	s.Assert().True(decimal.NewFromInt(1).Equal(asset.Quantity))
 	s.Assert().True(decimal.NewFromInt(50000).Equal(asset.AverageBuyPrice))
 
-	// Proceeds = 1 * 90k = 90k (full proceeds recorded as cash_inflows)
-	// Cost basis = 1 * 50k = 50k
-	// Realized P&L = 40k (tracked on trade, not reflected in cash_inflows)
-	expectedProceeds := decimal.NewFromInt(90000).Add(initialBalance)
-
+	// Proceeds = 1 * 90k = 90k, cost basis = 50k, realized P&L = 40k tracked
+	// on the trade and not in the cash balance.
 	var balanceAfterSell models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
+		Where("account_id = ?", accID).
 		First(&balanceAfterSell).Error
 	s.Require().NoError(err)
-
-	// The opening transaction shares this day, so it is in the same inflow column.
-	s.Assert().True(expectedProceeds.Equal(balanceAfterSell.CashInflows),
-		"full proceeds plus the opening should be cash_inflows of %s, got %s",
-		expectedProceeds.String(), balanceAfterSell.CashInflows.String())
 
 	// End balance = 200k - 100k (buys) + 90k (full proceeds) = 190k
 	expectedEndBalance := decimal.NewFromInt(190000)
@@ -563,13 +539,6 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 		"crypto value at buy should be 49500, got %s", cryptoAsset.ValueAtBuy.String())
 
 	// Verify cash outflows = 49500 (effective value, crypto fee is in tokens not cash)
-	var balanceAfterCrypto models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
-		First(&balanceAfterCrypto).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromFloat(49500).Equal(balanceAfterCrypto.CashOutflows),
-		"cash outflows should be 49500, got %s", balanceAfterCrypto.CashOutflows.String())
 
 	// Buy 5 IWDA at 100 EUR with 3 EUR fee = value 500 EUR, cash out 503 EUR
 	stockAssetReq := &models.InvestmentAssetReq{
@@ -609,17 +578,17 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_BuyWithFees() {
 	s.Assert().True(decimal.NewFromFloat(100).Equal(stockAsset.AverageBuyPrice),
 		"stock avg buy price should be 100, got %s", stockAsset.AverageBuyPrice.String())
 
-	// Verify total cash outflows = 49500 (crypto) + 503 (stock qty*price+fee) = 50003
+	// Total spent = 49500 (crypto) + 503 (stock qty*price+fee) = 50003
 	var finalBalance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
+		Where("account_id = ?", accID).
 		First(&finalBalance).Error
 	s.Require().NoError(err)
 
-	expectedTotalOutflows := decimal.NewFromFloat(50003)
-	s.Assert().True(expectedTotalOutflows.Equal(finalBalance.CashOutflows),
-		"total cash outflows should be %s, got %s",
-		expectedTotalOutflows.String(), finalBalance.CashOutflows.String())
+	expectedEndBalance := initialBalance.Sub(decimal.NewFromFloat(50003))
+	s.Assert().True(expectedEndBalance.Equal(finalBalance.EndBalance),
+		"end balance should be %s, got %s",
+		expectedEndBalance.String(), finalBalance.EndBalance.String())
 }
 
 // Tests that fees are correctly deducted from realized P&L when selling investments (both crypto and stocks)
@@ -688,20 +657,17 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFees() {
 	s.Assert().True(decimal.NewFromInt(597).Equal(stockSellTrade.RealizedValue),
 		"stock realized value should be 597 (proceeds after fee)")
 
-	// Verify balance: buy wrote 1005 outflows (qty*price+fee), sell wrote 597 inflows
+	// Verify balance: the buy took 1005 (qty*price+fee), the sell returned 597
 	var balance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
+		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
 
-	expectedOutflows := decimal.NewFromFloat(1005)
-	s.Assert().True(expectedOutflows.Equal(balance.CashOutflows),
-		"cash outflows should be %s, got %s", expectedOutflows.String(), balance.CashOutflows.String())
-
-	expectedInflows := decimal.NewFromFloat(597).Add(initialBalance)
-	s.Assert().True(expectedInflows.Equal(balance.CashInflows),
-		"cash inflows (full proceeds after fee) should be %s, got %s", expectedInflows.String(), balance.CashInflows.String())
+	expectedEndBalance := initialBalance.Sub(decimal.NewFromFloat(1005)).Add(decimal.NewFromFloat(597))
+	s.Assert().True(expectedEndBalance.Equal(balance.EndBalance),
+		"end balance should be %s, got %s",
+		expectedEndBalance.String(), balance.EndBalance.String())
 
 	// Crypto with fee (fee in tokens)
 	cryptoAssetReq := &models.InvestmentAssetReq{
@@ -829,13 +795,6 @@ func (s *InvestmentServiceTestSuite) TestInsertInvestmentTrade_SellWithFee_Remov
 		"sell trade quantity should be the full 100, got %s", sellTrade.Quantity.String())
 
 	// Cash proceeds account for the fee: (100 - 2) * 1 = 98
-	var balance models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
-		First(&balance).Error
-	s.Require().NoError(err)
-	s.Assert().True(initialBalance.Add(decimal.NewFromInt(98)).Equal(balance.CashInflows),
-		"cash inflows should be the opening plus proceeds after fee (98), got %s", balance.CashInflows.String())
 }
 
 // Tests that deleting a sell trade reverses the realized P&L and recalculates the asset correctly
@@ -889,18 +848,6 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesSellReali
 	})
 	s.Require().NoError(err)
 
-	// Verify: balance should have 100k outflows (buy) and 90k inflows (full sell proceeds)
-	var balanceBeforeDelete models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
-		First(&balanceBeforeDelete).Error
-	s.Require().NoError(err)
-
-	s.Assert().True(decimal.NewFromInt(100000).Equal(balanceBeforeDelete.CashOutflows),
-		"cash outflows should be 100k, got %s", balanceBeforeDelete.CashOutflows.String())
-	s.Assert().True(initialBalance.Add(decimal.NewFromInt(90000)).Equal(balanceBeforeDelete.CashInflows),
-		"cash inflows should be the opening plus 90k, got %s", balanceBeforeDelete.CashInflows.String())
-
 	// Delete the sell trade
 	err = svc.DeleteInvestmentTrade(s.Ctx, userID, sellTradeID)
 	s.Require().NoError(err)
@@ -916,18 +863,6 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesSellReali
 		"average buy price should be 50k, got %s", assetAfterDelete.AverageBuyPrice.String())
 
 	// Verify realized P&L reversed — cash inflows back to 0
-	var balanceAfterDelete models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
-		First(&balanceAfterDelete).Error
-	s.Require().NoError(err)
-
-	s.Assert().True(initialBalance.Equal(balanceAfterDelete.CashInflows),
-		"cash inflows should be back to the opening after reversing sell, got %s", balanceAfterDelete.CashInflows.String())
-
-	// Cash outflows still 100k (buy not reversed)
-	s.Assert().True(decimal.NewFromInt(100000).Equal(balanceAfterDelete.CashOutflows),
-		"cash outflows should remain 100k, got %s", balanceAfterDelete.CashOutflows.String())
 
 	// Sell trade deleted
 	var tradeCount int64
@@ -997,14 +932,6 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesBuyAndRec
 	s.Assert().True(decimal.NewFromInt(2).Equal(assetBeforeDelete.Quantity))
 	s.Assert().True(decimal.NewFromInt(55000).Equal(assetBeforeDelete.AverageBuyPrice))
 
-	var balanceBeforeDelete models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
-		First(&balanceBeforeDelete).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(110000).Equal(balanceBeforeDelete.CashOutflows),
-		"cash outflows should be 110k before delete, got %s", balanceBeforeDelete.CashOutflows.String())
-
 	// Delete second buy
 	err = svc.DeleteInvestmentTrade(s.Ctx, userID, secondBuyTradeID)
 	s.Require().NoError(err)
@@ -1022,13 +949,6 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentTrade_ReversesBuyAndRec
 		"value at buy should be 50k, got %s", assetAfterDelete.ValueAtBuy.String())
 
 	// Verify cash outflows reversed: 110k - 60k = 50k
-	var balanceAfterDelete models.Balance
-	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
-		First(&balanceAfterDelete).Error
-	s.Require().NoError(err)
-	s.Assert().True(decimal.NewFromInt(50000).Equal(balanceAfterDelete.CashOutflows),
-		"cash outflows should be 50k after reversing second buy, got %s", balanceAfterDelete.CashOutflows.String())
 
 	// Trade deleted
 	var tradeCount int64
@@ -1190,14 +1110,10 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 	// Verify balance before delete: 100k outflows, 90k inflows (full proceeds), end = 190k
 	var balanceBeforeDelete models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
+		Where("account_id = ?", accID).
 		First(&balanceBeforeDelete).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.NewFromInt(100000).Equal(balanceBeforeDelete.CashOutflows),
-		"cash outflows should be 100k before delete")
-	s.Assert().True(initialBalance.Add(decimal.NewFromInt(90000)).Equal(balanceBeforeDelete.CashInflows),
-		"cash inflows should be the opening plus 90k before delete")
 	s.Assert().True(decimal.NewFromInt(190000).Equal(balanceBeforeDelete.EndBalance),
 		"end balance should be 190k before delete")
 
@@ -1234,14 +1150,10 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_DeletesAllTradesA
 	// Verify balance fully reversed: outflows and inflows both 0, end balance = initial
 	var balanceAfterDelete models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
+		Where("account_id = ?", accID).
 		First(&balanceAfterDelete).Error
 	s.Require().NoError(err)
 
-	s.Assert().True(decimal.Zero.Equal(balanceAfterDelete.CashOutflows),
-		"cash outflows should be 0 after asset delete, got %s", balanceAfterDelete.CashOutflows.String())
-	s.Assert().True(initialBalance.Equal(balanceAfterDelete.CashInflows),
-		"cash inflows should be back to the opening after asset delete, got %s", balanceAfterDelete.CashInflows.String())
 	s.Assert().True(initialBalance.Equal(balanceAfterDelete.EndBalance),
 		"end balance should be restored to initial %s, got %s",
 		initialBalance.String(), balanceAfterDelete.EndBalance.String())
@@ -1285,7 +1197,7 @@ func (s *InvestmentServiceTestSuite) TestDeleteInvestmentAsset_NoTrades_LeavesCl
 	// Balance and snapshot should be unaffected
 	var balance models.Balance
 	err = s.TC.DB.WithContext(s.Ctx).
-		Where("account_id = ? AND as_of = ?", accID, today).
+		Where("account_id = ?", accID).
 		First(&balance).Error
 	s.Require().NoError(err)
 	s.Assert().True(initialBalance.Equal(balance.EndBalance),
