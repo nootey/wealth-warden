@@ -2,12 +2,17 @@ package models
 
 import (
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/shopspring/decimal"
 )
 
-var ErrTemplateAlreadyRanToday = errors.New("template already executed today")
+var (
+	ErrTemplateAlreadyRanToday = errors.New("template already executed today")
+
+	ClientVisibleTxnTypes = []TransactionType{TxnTypeLedger, TxnTypeAdjustment}
+)
 
 type TransactionType string
 
@@ -21,6 +26,10 @@ const (
 
 func (t TransactionType) IsUserEditable() bool {
 	return t == TxnTypeLedger || t == TxnTypeTransfer
+}
+
+func (t TransactionType) IsClientVisible() bool {
+	return slices.Contains(ClientVisibleTxnTypes, t)
 }
 
 type Transaction struct {

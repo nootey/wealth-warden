@@ -3839,3 +3839,168 @@ func (s *TransactionServiceTestSuite) TestQueueCategoryMerge_ValidatesWithoutTra
 
 	s.Require().NoError(svc.QueueCategoryMerge(s.Ctx, userID, srcID, dstID))
 }
+
+// Tests that the paginated transaction list returns only ledger and adjustment rows
+func (s *TransactionServiceTestSuite) TestFetchTransactionsPaginated_OnlyLedgerAndAdjustment() {
+	svc := s.TC.App.TransactionService
+	accSvc := s.TC.App.AccountService
+	invSvc := s.TC.App.InvestmentService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	cashBalance := decimal.NewFromInt(50000)
+	cashReq := &models.AccountReq{
+		Name:           "Visible Cash",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &cashBalance,
+		OpenedAt:       today,
+	}
+	cashID, err := accSvc.InsertAccount(s.Ctx, userID, cashReq)
+	s.Require().NoError(err)
+
+	destBalance := decimal.NewFromInt(10000)
+	destReq := &models.AccountReq{
+		Name:           "Transfer Destination",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &destBalance,
+		OpenedAt:       today,
+	}
+	destID, err := accSvc.InsertAccount(s.Ctx, userID, destReq)
+	s.Require().NoError(err)
+
+	// ledger
+	desc := "Groceries"
+	ledgerTxn, err := svc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID:   cashID,
+		Direction:   "expense",
+		Amount:      decimal.NewFromInt(100),
+		TxnDate:     today,
+		Description: &desc,
+	})
+	s.Require().NoError(err)
+
+	// transfer legs
+	notes := "Move money"
+	_, err = svc.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+		SourceID:      cashID,
+		DestinationID: destID,
+		Amount:        decimal.NewFromInt(500),
+		Notes:         &notes,
+		CreatedAt:     today,
+	})
+	s.Require().NoError(err)
+
+	// adjustment, posted by a balance change on the cash account
+	newBalance := decimal.NewFromInt(60000)
+	_, err = accSvc.UpdateAccount(s.Ctx, userID, cashID, &models.AccountReq{
+		Name:           "Visible Cash",
+		AccountTypeID:  1,
+		Type:           "asset",
+		Subtype:        "cash",
+		Classification: "current",
+		Balance:        &newBalance,
+		OpenedAt:       today,
+	})
+	s.Require().NoError(err)
+
+	// trade, which posts a cash leg on the investment account
+	invBalance := decimal.NewFromInt(100000)
+	invID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Investment Account",
+		AccountTypeID: 5,
+		Balance:       &invBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	assetID, err := invSvc.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      invID,
+		InvestmentType: models.InvestmentCrypto,
+		Name:           "Bitcoin",
+		Ticker:         "BTC-USD",
+		Currency:       "EUR",
+		Quantity:       decimal.NewFromInt(0),
+	})
+	s.Require().NoError(err)
+
+	_, err = invSvc.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TxnDate:      today,
+		TradeType:    models.InvestmentBuy,
+		Quantity:     decimal.NewFromInt(1),
+		PricePerUnit: decimal.NewFromInt(50000),
+		Currency:     "EUR",
+	})
+	s.Require().NoError(err)
+
+	p := utils.PaginationParams{PageNumber: 1, RowsPerPage: 50, SortField: "id", SortOrder: "asc"}
+
+	records, totals, paginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, nil)
+	s.Require().NoError(err)
+	s.Require().Len(records, 2, "list should hold the ledger and the adjustment only")
+	s.Assert().Equal(2, paginator.TotalRecords)
+	s.Assert().Equal(int64(2), totals.Count)
+	s.Assert().Equal(ledgerTxn.ID, records[0].ID)
+	s.Assert().Equal(models.TxnTypeLedger, records[0].TransactionType)
+	s.Assert().Equal(models.TxnTypeAdjustment, records[1].TransactionType)
+
+	// same rule per account
+	accRecords, _, accPaginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, &cashID)
+	s.Require().NoError(err)
+	s.Require().Len(accRecords, 2)
+	s.Assert().Equal(2, accPaginator.TotalRecords)
+
+	invRecords, _, invPaginator, err := svc.FetchTransactionsPaginated(s.Ctx, userID, p, false, &invID)
+	s.Require().NoError(err)
+	s.Assert().Empty(invRecords, "the trade cash leg must stay hidden")
+	s.Assert().Equal(0, invPaginator.TotalRecords)
+}
+
+func (s *TransactionServiceTestSuite) TestRestoreTransaction_BlockedForNonEditableTypes() {
+	accSvc := s.TC.App.AccountService
+	txnSvc := s.TC.App.TransactionService
+	userID := int64(1)
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	initialBalance := decimal.NewFromInt(100000)
+
+	accID, err := accSvc.InsertAccount(s.Ctx, userID, &models.AccountReq{
+		Name:          "Restore Guard Account",
+		AccountTypeID: 5,
+		Balance:       &initialBalance,
+		OpenedAt:      today,
+	})
+	s.Require().NoError(err)
+
+	expense, err := txnSvc.InsertTransaction(s.Ctx, userID, &models.TransactionReq{
+		AccountID: accID,
+		Direction: "expense",
+		Amount:    decimal.NewFromInt(500),
+		TxnDate:   today,
+	})
+	s.Require().NoError(err)
+
+	// The trigger rejects any update of an already soft-deleted row, so retype and
+	// delete in one statement.
+	err = s.TC.DB.WithContext(s.Ctx).Exec(
+		"UPDATE transactions SET transaction_type = ?, deleted_at = NOW() WHERE id = ?",
+		models.TxnTypeTrade, expense.ID).Error
+	s.Require().NoError(err)
+
+	err = txnSvc.RestoreTransaction(s.Ctx, userID, expense.ID)
+	s.Require().Error(err, "should block restoring a trade transaction")
+
+	var txn models.Transaction
+	err = s.TC.DB.WithContext(s.Ctx).Unscoped().
+		Where("id = ?", expense.ID).
+		First(&txn).Error
+	s.Require().NoError(err)
+	s.Assert().NotNil(txn.DeletedAt, "transaction should still be deleted")
+}

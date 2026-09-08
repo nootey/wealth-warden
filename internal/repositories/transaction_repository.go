@@ -163,7 +163,8 @@ func (r *TransactionRepository) FindTransactions(ctx context.Context, tx *gorm.D
 
 	q := r.baseTxQuery(ctx, db, userID, includeDeleted).
 		Preload("Category").
-		Preload("Account")
+		Preload("Account").
+		Where("transactions.transaction_type IN ?", models.ClientVisibleTxnTypes)
 
 	if accountID != nil {
 		q = q.Where("transactions.account_id = ?", *accountID)
@@ -329,7 +330,8 @@ func (r *TransactionRepository) CountTransactions(ctx context.Context, tx *gorm.
 	db = db.WithContext(ctx)
 
 	var totalRecords int64
-	q := r.baseTxQuery(ctx, db, userID, includeDeleted)
+	q := r.baseTxQuery(ctx, db, userID, includeDeleted).
+		Where("transactions.transaction_type IN ?", models.ClientVisibleTxnTypes)
 	if accountID != nil {
 		q = q.Where("transactions.account_id = ?", *accountID)
 	}

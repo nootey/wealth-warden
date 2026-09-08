@@ -1478,6 +1478,10 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 		tx.Rollback()
 		return fmt.Errorf("transaction is not deleted")
 	}
+	if !tr.TransactionType.IsUserEditable() {
+		tx.Rollback()
+		return fmt.Errorf("can't restore a %s transaction", tr.TransactionType)
+	}
 
 	// Load account
 	acc, err := s.accRepo.FindAccountByID(ctx, tx, tr.AccountID, userID, false)

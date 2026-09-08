@@ -1,5 +1,12 @@
 import type { Account } from "./account_models.ts";
 
+export type TransactionType =
+  "ledger" | "transfer" | "adjustment" | "trade" | "investment_income";
+
+export function isTransactionEditable(type: TransactionType): boolean {
+  return type === "ledger" || type === "transfer";
+}
+
 export interface Transaction {
   id: number | null;
   account_id: number | null;
@@ -13,8 +20,7 @@ export interface Transaction {
   deleted_at: Date | null;
   created_at?: Date;
   updated_at?: Date;
-  is_adjustment: boolean;
-  is_system: boolean;
+  transaction_type: TransactionType;
 }
 
 export interface Transfer {

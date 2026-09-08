@@ -169,9 +169,7 @@ async function deleteRecord(id: number) {
           <template v-if="col.field === 'amount'">
             {{
               vueHelper.displayAsCurrency(
-                data.direction == "expense"
-                  ? data.amount * -1
-                  : data.amount,
+                data.direction == "expense" ? data.amount * -1 : data.amount,
               )
             }}
           </template>

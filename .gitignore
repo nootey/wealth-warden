@@ -42,3 +42,4 @@ coverage.out
 
 /build/wealthwarden
 /build/wealthwarden.exe
+/backup.sql

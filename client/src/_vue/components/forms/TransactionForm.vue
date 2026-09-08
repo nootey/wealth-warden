@@ -8,6 +8,7 @@ import type {
   Transaction,
   Transfer,
 } from "../../../models/transaction_models.ts";
+import { isTransactionEditable } from "../../../models/transaction_models.ts";
 import { required } from "@regle/rules";
 import {
   decimalValid,
@@ -65,8 +66,7 @@ const idempotencyKey = ref(crypto.randomUUID());
 const isGlobalReadOnly = computed(
   () =>
     !!record.value.deleted_at ||
-    !!record.value.is_adjustment ||
-    !!record.value.is_system,
+    !isTransactionEditable(record.value.transaction_type),
 );
 
 const isAccountRestricted = computed<boolean>(() => {
@@ -88,6 +88,7 @@ const isAccountActive = computed(() => !!record.value.account?.is_active);
 
 const canRestore = computed(
   () =>
+    isTransactionEditable(record.value.transaction_type) &&
     isFormReadOnly.value &&
     isTxnDeleted.value &&
     !isAccountDeleted.value &&
@@ -253,8 +254,7 @@ function initData(): Transaction {
     txn_date: dayjs().toDate(),
     description: null,
     deleted_at: null,
-    is_adjustment: false,
-    is_system: false,
+    transaction_type: "ledger",
   };
 }
 
@@ -326,8 +326,7 @@ async function loadRecord(id: number) {
         (p) =>
           p.classification?.toLowerCase?.() ===
             String(data.direction).toLowerCase() ||
-          p.name?.toLowerCase?.() ===
-            String(data.direction).toLowerCase(),
+          p.name?.toLowerCase?.() === String(data.direction).toLowerCase(),
       ) || null;
 
     await nextTick();
@@ -645,7 +644,12 @@ async function deleteRecord(id: number, tx_type: string) {
       </div>
     </div>
 
-    <div v-if="!record.is_adjustment" class="flex flex-row gap-2 w-full">
+    <div
+      v-if="
+        isTransactionEditable(record.transaction_type) || !!record.deleted_at
+      "
+      class="flex flex-row gap-2 w-full"
+    >
       <div class="flex flex-col w-full gap-2">
         <Button
           v-if="!isFormReadOnly"

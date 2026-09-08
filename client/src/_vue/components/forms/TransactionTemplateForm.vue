@@ -336,8 +336,7 @@ async function loadRecord(id: number) {
           (p) =>
             p.classification?.toLowerCase?.() ===
               String(data.direction).toLowerCase() ||
-            p.name?.toLowerCase?.() ===
-              String(data.direction).toLowerCase(),
+            p.name?.toLowerCase?.() === String(data.direction).toLowerCase(),
         ) || null;
     }
 

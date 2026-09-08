@@ -476,9 +476,7 @@ defineExpose({ refresh });
               {{ data[col.field]?.display_name }}
             </template>
             <template
-              v-else-if="
-                col.field === 'direction' || col.field === 'frequency'
-              "
+              v-else-if="col.field === 'direction' || col.field === 'frequency'"
             >
               {{ vueHelper.capitalize(data[col.field]) }}
             </template>
