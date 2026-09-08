@@ -98,7 +98,7 @@ async function handleEmit(emitType: any) {
     />
   </Dialog>
 
-  <main class="flex flex-col w-full items-center">
+  <div class="flex flex-col w-full items-center">
     <div
       id="mobile-container"
       class="flex flex-col justify-center w-full gap-4 rounded-xl"
@@ -111,7 +111,7 @@ async function handleEmit(emitType: any) {
               v-if="hasPermission('manage_roles')"
               v-tooltip="'Go to roles settings.'"
               class="pi pi-external-link hover-icon mr-auto text-sm"
-              @click="router.push('settings/roles')"
+              @click="router.push('/settings/roles')"
             />
           </div>
           <div>View and manage users and invitations.</div>
@@ -180,7 +180,7 @@ async function handleEmit(emitType: any) {
         </div>
       </Transition>
     </div>
-  </main>
+  </div>
 </template>
 
 <style scoped></style>

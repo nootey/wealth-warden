@@ -9,7 +9,6 @@ import TransactionsPage from "../../_vue/pages/TransactionsPage.vue";
 import GoalsPage from "../../_vue/pages/GoalsPage.vue";
 import SettingsPage from "../../_vue/pages/SettingsPage.vue";
 import ResetPassword from "../../_vue/features/auth/ResetPassword.vue";
-import UsersPage from "../../_vue/pages/UsersPage.vue";
 import NotFound from "../../_vue/components/base/NotFound.vue";
 import GeneralSettings from "../../_vue/pages/Settings/GeneralSettings.vue";
 import ProfileSettings from "../../_vue/pages/Settings/ProfileSettings.vue";
@@ -105,12 +104,6 @@ const routes: RouteRecordRaw[] = [
     name: "transactions",
     meta: { title: "Transactions", requiresAuth: true },
     component: TransactionsPage,
-  },
-  {
-    path: "/users",
-    name: "users",
-    meta: { title: "Users", requiresAuth: true, permsAny: ["manage_users"] },
-    component: UsersPage,
   },
   {
     path: "/analytics",

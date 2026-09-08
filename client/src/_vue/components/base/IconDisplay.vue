@@ -19,6 +19,7 @@ const properties = ref<any>({
     "confirm-email": { icon: "pi pi-envelope" },
     "password-reset": { icon: "pi pi-undo" },
     resend: { icon: "pi pi-sync" },
+    purge: { icon: "pi pi-file-excel" },
   },
 });
 

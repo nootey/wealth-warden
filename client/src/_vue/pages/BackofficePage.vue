@@ -6,15 +6,17 @@ import { usePermissions } from "../../utils/use_permissions.ts";
 import ActivityLogsPage from "./ActivityLogsPage.vue";
 import JobMonitorPage from "./backoffice/JobMonitorPage.vue";
 import PurgeAccount from "../features/PurgeAccount.vue";
+import UsersPage from "./UsersPage.vue";
 
 const backofficeStore = useBackofficeStore();
 const toastStore = useToastStore();
 const { hasPermission } = usePermissions();
 
 const tabs = [
-  { key: "jobs", label: "Jobs", permission: "access_backoffice" },
   { key: "logs", label: "Audit", permission: "view_activity_logs" },
+  { key: "jobs", label: "Jobs", permission: "access_backoffice" },
   { key: "admin", label: "Admin", permission: "access_backoffice" },
+  { key: "users", label: "Users", permission: "manage_users" },
 ];
 
 const visibleTabs = computed(() =>
@@ -187,6 +189,13 @@ async function runZeroCostMigration() {
           </div>
 
           <PurgeAccount v-if="hasPermission('root_access')" />
+        </div>
+        <div
+          v-else-if="activeTab === 'users'"
+          key="users"
+          class="flex flex-col gap-4"
+        >
+          <UsersPage />
         </div>
       </Transition>
     </div>
