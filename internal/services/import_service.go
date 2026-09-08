@@ -82,7 +82,7 @@ func (s *ImportService) updateDailyCash(ctx context.Context, tx *gorm.DB, acc *m
 	}
 
 	if snapshot {
-		if err := s.accRepo.UpsertSnapshotsFromBalances(
+		if err := s.accRepo.RebuildDailyRange(
 			ctx,
 			tx,
 			acc.UserID,
@@ -1074,14 +1074,8 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 	}
 
 	// Frontfill & refresh snapshots for each affected account from its earliest date
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for accID, from := range earliest {
 		if err := s.frontfillBalances(ctx, tx, userID, accID, checkingAcc.Currency, from); err != nil {
-			_ = tx.Rollback()
-			s.markImportFailed(ctx, payload.ImportID, err)
-			return err
-		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, checkingAcc.Currency, from, today); err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
@@ -1344,14 +1338,8 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 	}
 
 	// Frontfill & refresh snapshots for each affected account from its earliest date
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for accID, from := range earliest {
 		if err := s.frontfillBalances(ctx, tx, userID, accID, checkingAcc.Currency, from); err != nil {
-			_ = tx.Rollback()
-			s.markImportFailed(ctx, payload.ImportID, err)
-			return err
-		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, checkingAcc.Currency, from, today); err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err
@@ -1614,14 +1602,8 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 	}
 
 	// Frontfill & refresh snapshots for each affected account from its earliest date
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 	for accID, from := range earliest {
 		if err := s.frontfillBalances(ctx, tx, userID, accID, checkingAcc.Currency, from); err != nil {
-			_ = tx.Rollback()
-			s.markImportFailed(ctx, payload.ImportID, err)
-			return err
-		}
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accID, checkingAcc.Currency, from, today); err != nil {
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return err

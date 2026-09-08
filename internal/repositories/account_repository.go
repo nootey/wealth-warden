@@ -51,7 +51,7 @@ type AccountRepositoryInterface interface {
 	RebuildBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error
 	RebuildFromTransactions(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error
 	UpsertDailyCashBatch(ctx context.Context, tx *gorm.DB, accountID int64, currency string, deltas []models.DailyCashDelta) error
-	UpsertSnapshotsFromBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error
+	RebuildDailyRange(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error
 	GetUserFirstBalanceDate(ctx context.Context, tx *gorm.DB, userID int64) (time.Time, error)
 	GetUserFirstTxnDate(ctx context.Context, tx *gorm.DB, userID int64) (time.Time, error)
 	GetAccountOpeningAsOf(ctx context.Context, tx *gorm.DB, accountID int64) (time.Time, error)
@@ -1028,7 +1028,54 @@ func (r *AccountRepository) RebuildBalances(ctx context.Context, tx *gorm.DB, us
 	}
 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
-	return r.UpsertSnapshotsFromBalances(ctx, tx, userID, accountID, currency, from, today)
+	return r.RebuildDailyRange(ctx, tx, userID, accountID, currency, from, today)
+}
+
+func (r *AccountRepository) RebuildDailyRange(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	from = from.UTC().Truncate(24 * time.Hour)
+	to = to.UTC().Truncate(24 * time.Hour)
+
+	return db.Exec(`
+		WITH signed AS (
+			SELECT t.txn_date::date AS day,
+			       CASE WHEN t.direction = 'expense' THEN -t.amount ELSE t.amount END AS delta
+			FROM transactions t
+			WHERE t.account_id = ?::bigint AND t.deleted_at IS NULL
+		),
+		seed AS (
+			SELECT COALESCE(SUM(delta), 0) AS amount FROM signed WHERE day < ?::date
+		),
+		daily AS (
+			SELECT day, SUM(delta) AS delta FROM signed
+			WHERE day >= ?::date AND day <= ?::date
+			GROUP BY day
+		)
+		INSERT INTO account_daily_snapshots (
+			user_id, account_id, as_of, end_balance, currency, computed_at
+		)
+		SELECT
+			?::bigint AS user_id,
+			?::bigint AS account_id,
+			d.day     AS as_of,
+			((SELECT amount FROM seed)
+			  + SUM(COALESCE(daily.delta, 0)) OVER (ORDER BY d.day))::numeric(19,4) AS end_balance,
+			?::char(3) AS currency,
+			NOW()      AS computed_at
+		FROM generate_series(?::date, ?::date, '1 day') AS d(day)
+		LEFT JOIN daily ON daily.day = d.day
+		ON CONFLICT (account_id, as_of) DO UPDATE
+		SET user_id     = EXCLUDED.user_id,
+			currency    = EXCLUDED.currency,
+			end_balance = EXCLUDED.end_balance,
+			computed_at = NOW();
+	`, accountID, from, from, to, userID, accountID, currency, from, to).Error
 }
 
 func (r *AccountRepository) UpsertDailyCashBatch(ctx context.Context, tx *gorm.DB, accountID int64, currency string, deltas []models.DailyCashDelta) error {

@@ -98,7 +98,7 @@ func (s *TransactionService) updateAccountBalance(ctx context.Context, tx *gorm.
 		return err
 	}
 
-	if err := s.accRepo.UpsertSnapshotsFromBalances(
+	if err := s.accRepo.RebuildDailyRange(
 		ctx,
 		tx,
 		account.UserID,
@@ -1299,29 +1299,6 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 		return utils.AccountLimitError(resultingBalance, toAcc)
 	}
 
-	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := s.updateAccountBalance(ctx, tx, toAcc, outflow.TxnDate, "income", outflow.Amount.Neg()); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	from := outflow.TxnDate.UTC().Truncate(24 * time.Hour)
-
-	// frontfill from the transfer date forward
-	if err := s.accRepo.RebuildBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, from); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := s.accRepo.RebuildBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, from); err != nil {
-		tx.Rollback()
-		return err
-	}
-
 	// Delete transfer
 	if err := s.repo.DeleteTransfer(ctx, tx, transfer.ID, userID); err != nil {
 		tx.Rollback()
@@ -1334,6 +1311,28 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 		return err
 	}
 	if err := s.repo.DeleteTransaction(ctx, tx, outflow.ID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.updateAccountBalance(ctx, tx, toAcc, outflow.TxnDate, "income", outflow.Amount.Neg()); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	from := outflow.TxnDate.UTC().Truncate(24 * time.Hour)
+
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, from); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := s.accRepo.RebuildBalances(ctx, tx, userID, toAcc.ID, toAcc.Currency, from); err != nil {
 		tx.Rollback()
 		return err
 	}

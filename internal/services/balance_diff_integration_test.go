@@ -3,6 +3,8 @@ package services_test
 import (
 	"testing"
 	"time"
+	"wealth-warden/internal/models"
+	"wealth-warden/internal/repositories"
 	"wealth-warden/internal/tests"
 
 	"github.com/shopspring/decimal"
@@ -75,6 +77,10 @@ func (s *BalanceDiffIntegrationSuite) TestOpeningBalanceIsATransaction() {
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	s.seedAndDump(today)
 
+	s.assertLedgerMatchesBalances("after the fixture seed")
+}
+
+func (s *BalanceDiffIntegrationSuite) assertLedgerMatchesBalances(context string) {
 	type row struct {
 		AccountID int64
 		Openings  int64
@@ -98,9 +104,147 @@ func (s *BalanceDiffIntegrationSuite) TestOpeningBalanceIsATransaction() {
 	s.Require().NotEmpty(rows)
 	for _, r := range rows {
 		s.Assert().EqualValues(1, r.Openings,
-			"account %d needs exactly one opening transaction, with a category", r.AccountID)
+			"%s: account %d needs exactly one opening transaction, with a category", context, r.AccountID)
 		s.Assert().True(r.TxnSum.Round(4).Equal(r.EndBal.Round(4)),
-			"account %d: transactions sum to %s, balance says %s",
-			r.AccountID, r.TxnSum.StringFixed(4), r.EndBal.StringFixed(4))
+			"%s: account %d: transactions sum to %s, balance says %s",
+			context, r.AccountID, r.TxnSum.StringFixed(4), r.EndBal.StringFixed(4))
 	}
+}
+
+func (s *BalanceDiffIntegrationSuite) accountID(name string) int64 {
+	var id int64
+	s.Require().NoError(s.TC.DB.Raw(`SELECT id FROM accounts WHERE name = ?`, name).Scan(&id).Error)
+	s.Require().NotZero(id, "fixture account %q is missing", name)
+	return id
+}
+
+func (s *BalanceDiffIntegrationSuite) TestEveryWritePathLeavesATransaction() {
+	userID := int64(1)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	s.seedAndDump(today)
+
+	checkingID := s.accountID("Fixture Checking A")
+	brokerID := s.accountID("Fixture Brokerage A")
+	cardID := s.accountID("Fixture Card A")
+
+	s.Run("transfer", func() {
+		_, err := s.TC.App.TransactionService.InsertTransfer(s.Ctx, userID, &models.TransferReq{
+			SourceID:      checkingID,
+			DestinationID: cardID,
+			Amount:        decimal.NewFromInt(50),
+			CreatedAt:     today.AddDate(0, 0, -5),
+		})
+		s.Require().NoError(err)
+		s.assertLedgerMatchesBalances("after a transfer")
+	})
+
+	s.Run("dividend", func() {
+		var assetID int64
+		s.Require().NoError(s.TC.DB.Raw(
+			`SELECT id FROM investment_assets WHERE account_id = ?`, brokerID).Scan(&assetID).Error)
+		s.Require().NotZero(assetID)
+
+		amount := decimal.NewFromInt(30)
+		tax := decimal.NewFromInt(5)
+		_, err := s.TC.App.InvestmentService.CreateInvestmentIncome(s.Ctx, userID, &models.InvestmentIncomeReq{
+			AssetID:     assetID,
+			TxnDate:     today.AddDate(0, 0, -6),
+			IncomeType:  models.IncomeTypeDividend,
+			Amount:      &amount,
+			TaxWithheld: &tax,
+			Currency:    "EUR",
+		})
+		s.Require().NoError(err)
+		s.assertLedgerMatchesBalances("after dividend income")
+	})
+
+	s.Run("balance edit", func() {
+		var typeID int64
+		s.Require().NoError(s.TC.DB.Raw(
+			`SELECT account_type_id FROM accounts WHERE id = ?`, checkingID).Scan(&typeID).Error)
+
+		desired := decimal.NewFromInt(777)
+		_, err := s.TC.App.AccountService.UpdateAccount(s.Ctx, userID, checkingID, &models.AccountReq{
+			Name:          "Fixture Checking A",
+			AccountTypeID: typeID,
+			Balance:       &desired,
+		})
+		s.Require().NoError(err)
+		s.assertLedgerMatchesBalances("after a manual balance edit")
+	})
+
+	s.Run("transaction update", func() {
+		var txn models.Transaction
+		s.Require().NoError(s.TC.DB.Raw(`
+			SELECT * FROM transactions
+			WHERE account_id = ? AND transaction_type = 'ledger' AND deleted_at IS NULL
+			ORDER BY id LIMIT 1`, checkingID).Scan(&txn).Error)
+		s.Require().NotZero(txn.ID)
+
+		_, err := s.TC.App.TransactionService.UpdateTransaction(s.Ctx, userID, txn.ID, &models.TransactionReq{
+			AccountID:  txn.AccountID,
+			CategoryID: txn.CategoryID,
+			Direction:  txn.Direction,
+			Amount:     txn.Amount.Add(decimal.NewFromInt(11)),
+			TxnDate:    txn.TxnDate,
+		})
+		s.Require().NoError(err)
+		s.assertLedgerMatchesBalances("after a transaction edit")
+	})
+
+	s.Run("transaction delete", func() {
+		var id int64
+		s.Require().NoError(s.TC.DB.Raw(`
+			SELECT id FROM transactions
+			WHERE account_id = ? AND transaction_type = 'ledger' AND deleted_at IS NULL
+			ORDER BY id LIMIT 1`, checkingID).Scan(&id).Error)
+		s.Require().NotZero(id)
+
+		s.Require().NoError(s.TC.App.TransactionService.DeleteTransaction(s.Ctx, userID, id))
+		s.assertLedgerMatchesBalances("after a transaction delete")
+	})
+
+	s.Run("trade delete", func() {
+		var id int64
+		s.Require().NoError(s.TC.DB.Raw(`
+			SELECT it.id FROM investment_trades it
+			JOIN investment_assets ia ON ia.id = it.asset_id
+			WHERE ia.account_id = ? AND it.trade_type = 'sell'
+			ORDER BY it.id LIMIT 1`, brokerID).Scan(&id).Error)
+		s.Require().NotZero(id)
+
+		s.Require().NoError(s.TC.App.InvestmentService.DeleteInvestmentTrade(s.Ctx, userID, id))
+		s.assertLedgerMatchesBalances("after a trade delete")
+	})
+}
+
+func (s *BalanceDiffIntegrationSuite) TestDailyTableMatchesTheBalanceChain() {
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	fromTransactions := s.seedAndDump(today)
+	s.Require().NotEmpty(fromTransactions)
+
+	type acct struct {
+		ID       int64
+		UserID   int64
+		Currency string
+		OpenedAt time.Time
+	}
+	var accounts []acct
+	s.Require().NoError(s.TC.DB.Raw(
+		`SELECT id, user_id, currency, opened_at FROM accounts ORDER BY id`).Scan(&accounts).Error)
+	s.Require().NotEmpty(accounts)
+
+	s.Require().NoError(s.TC.DB.Exec(`TRUNCATE TABLE account_daily_snapshots`).Error)
+
+	repo := repositories.NewAccountRepository(s.TC.DB)
+	for _, a := range accounts {
+		s.Require().NoError(repo.UpsertSnapshotsFromBalances(
+			s.Ctx, nil, a.UserID, a.ID, a.Currency,
+			a.OpenedAt.UTC().Truncate(24*time.Hour), today))
+	}
+
+	fromBalances, err := tests.DumpDailyBalances(s.Ctx, s.TC.DB)
+	s.Require().NoError(err)
+
+	s.Assert().Empty(tests.DiffDailyBalances(fromBalances, fromTransactions))
 }

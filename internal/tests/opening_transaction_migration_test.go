@@ -117,8 +117,7 @@ func TestOpeningTransactionMigration(t *testing.T) {
 	require.Equal(t, "income", txns[1].Direction)
 	require.True(t, decimal.NewFromInt(1000).Equal(txns[1].Amount))
 
-	// Only the earliest row per account held a seed. The later rows carry the
-	// chain, and phase 3 is what retires that.
+	// Only the earliest row per account held a seed. The later rows carry the chain
 	// Without a category the row cannot be opened in the edit form.
 	for _, txn := range txns {
 		require.NotNil(t, txn.CategoryID, "%s opening row has no category", txn.Name)

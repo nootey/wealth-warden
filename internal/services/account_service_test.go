@@ -827,9 +827,7 @@ func (s *AccountServiceTestSuite) TestPurgeAccount_WorksOnClosedAccount() {
 	s.Assert().Zero(n)
 }
 
-// Investment trade cash flows sit in balances with no transaction behind them.
-// The purge rebuild must re-chain them, never recompute them away.
-func (s *AccountServiceTestSuite) TestPurgeAccount_KeepsCashFlowsWithoutTransactions() {
+func (s *AccountServiceTestSuite) TestPurgeAccount_KeepsTradeCashFlows() {
 	svc := s.TC.App.AccountService
 	userID := int64(1)
 
@@ -839,7 +837,7 @@ func (s *AccountServiceTestSuite) TestPurgeAccount_KeepsCashFlowsWithoutTransact
 
 	peerID, err := svc.InsertAccount(s.Ctx, userID, &models.AccountReq{
 		Name:          "Trade Flow Account",
-		AccountTypeID: 1,
+		AccountTypeID: 5,
 		Balance:       &peerStart,
 		OpenedAt:      openedAt,
 	})
@@ -853,16 +851,29 @@ func (s *AccountServiceTestSuite) TestPurgeAccount_KeepsCashFlowsWithoutTransact
 	})
 	s.Require().NoError(err)
 
-	// Stand in for a trade outflow: a balance row with no transaction behind it.
+	assetID, err := s.TC.App.InvestmentService.InsertAsset(s.Ctx, userID, &models.InvestmentAssetReq{
+		AccountID:      peerID,
+		InvestmentType: models.InvestmentETF,
+		Name:           "iShares Core MSCI World",
+		Ticker:         "IWDA.AS",
+		Quantity:       decimal.Zero,
+		Currency:       "EUR",
+	})
+	s.Require().NoError(err)
+
 	tradeDay := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -3)
 	tradeCost := decimal.NewFromInt(500)
-	s.Require().NoError(s.TC.DB.WithContext(s.Ctx).Create(&models.Balance{
-		AccountID:    peerID,
-		AsOf:         tradeDay,
+	fee := decimal.Zero
+	_, err = s.TC.App.InvestmentService.InsertInvestmentTrade(s.Ctx, userID, &models.InvestmentTradeReq{
+		AssetID:      assetID,
+		TradeType:    models.InvestmentBuy,
+		TxnDate:      tradeDay,
+		Quantity:     decimal.NewFromInt(5),
+		PricePerUnit: decimal.NewFromInt(100),
 		Currency:     "EUR",
-		StartBalance: decimal.Zero,
-		CashOutflows: tradeCost,
-	}).Error)
+		Fee:          &fee,
+	})
+	s.Require().NoError(err)
 
 	s.Require().NoError(svc.PurgeAccount(s.Ctx, userID, victimID))
 

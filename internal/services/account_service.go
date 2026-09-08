@@ -735,13 +735,13 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 
 	// Materialize a real snapshot for today so charts don’t copy yesterday’s value
 	// Upsert for the just-closed account
-	_ = s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, today, today)
+	_ = s.repo.RebuildDailyRange(ctx, tx, userID, acc.ID, acc.Currency, today, today)
 
 	// Upsert for all still-open accounts for today (so the view has a “today” row)
 	openAccs, err := s.repo.FindAllAccounts(ctx, tx, userID, false, false)
 	if err == nil {
 		for _, a := range openAccs {
-			_ = s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, a.ID, a.Currency, today, today)
+			_ = s.repo.RebuildDailyRange(ctx, tx, userID, a.ID, a.Currency, today, today)
 		}
 	}
 
@@ -857,10 +857,7 @@ func (s *AccountService) rebuildUserHistory(ctx context.Context, tx *gorm.DB, us
 			earliest = from
 		}
 
-		if err := s.repo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, from); err != nil {
-			return err
-		}
-		if err := s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, from, today); err != nil {
+		if err := s.repo.RebuildBalances(ctx, tx, userID, acc.ID, acc.Currency, from); err != nil {
 			return err
 		}
 	}
@@ -997,7 +994,7 @@ func (s *AccountService) resolveUserDateRange(ctx context.Context, tx *gorm.DB, 
 }
 
 func (s *AccountService) backfillAccountRange(ctx context.Context, tx *gorm.DB, acc *models.Account, dfrom, dto time.Time) error {
-	return s.repo.UpsertSnapshotsFromBalances(
+	return s.repo.RebuildDailyRange(
 		ctx,
 		tx,
 		acc.UserID,
@@ -1459,8 +1456,7 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 	}
 
 	// Propagate the updated chains for both accounts. These stay split from the
-	// snapshot rebuild below because CloseAccount runs between them, so they cannot
-	// use RebuildBalances until phase 3 rewrites this function.
+	// daily rebuild below because CloseAccount runs between them, so the pair cannot
 	if err := s.repo.FrontfillBalances(ctx, tx, sourceID, srcAcc.Currency, srcOpeningDate); err != nil {
 		tx.Rollback()
 		return err
@@ -1485,7 +1481,7 @@ func (s *AccountService) MergeAccount(ctx context.Context, userID, sourceID, des
 		{sourceID, srcAcc.Currency, srcOpeningDate},
 		{destinationID, dstAcc.Currency, dstOpeningDay},
 	} {
-		if err := s.repo.UpsertSnapshotsFromBalances(ctx, tx, userID, pair.id, pair.currency, pair.from, now.Truncate(24*time.Hour)); err != nil {
+		if err := s.repo.RebuildDailyRange(ctx, tx, userID, pair.id, pair.currency, pair.from, now.Truncate(24*time.Hour)); err != nil {
 			tx.Rollback()
 			return err
 		}
