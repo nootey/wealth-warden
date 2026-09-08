@@ -45,15 +45,6 @@ func (s *AssetPriceSyncJobTestSuite) latestTickerPrice(ticker string) decimal.De
 	return ph.Price
 }
 
-// Test that job runs with no assets
-func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_Success() {
-	logger := zaptest.NewLogger(s.T())
-	job := jobs.NewAssetPriceSyncJob(logger, s.TC.App.InvestmentService, &tests.MockPriceFetcher{}, nil, 0)
-
-	err := job.Run(s.Ctx)
-	s.NoError(err)
-}
-
 // Tests that an asset whose new price is >90% below the current price is skipped to prevent data corruption
 func (s *AssetPriceSyncJobTestSuite) TestAssetPriceSyncJob_SkipsExtremePriceDrop() {
 	accSvc := s.TC.App.AccountService

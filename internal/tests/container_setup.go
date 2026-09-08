@@ -130,7 +130,6 @@ RESTART IDENTITY CASCADE;
 
 // TruncateMutableTables resets every table a test may write to. CASCADE also
 // clears investment_assets and investment_trades, which hang off accounts.
-// RESTART IDENTITY makes the ids repeatable, which the balance diff harness needs.
 func (s *ServiceIntegrationSuite) TruncateMutableTables() {
 	err := s.TC.DB.Exec(truncateTestTablesSQL).Error
 	s.Require().NoError(err, "failed to truncate test tables")

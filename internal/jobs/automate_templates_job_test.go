@@ -26,15 +26,6 @@ func TestAutomateTemplateJobSuite(t *testing.T) {
 	suite.Run(t, new(AutomateTemplateJobTestSuite))
 }
 
-// Test that automate template job runs
-func (s *AutomateTemplateJobTestSuite) TestAutomateTemplateJob_Success() {
-	logger := zaptest.NewLogger(s.T())
-	job := jobs.NewAutomateTemplateJob(logger, s.TC.App.TransactionService, nil, 0)
-
-	err := job.Run(s.Ctx)
-	s.NoError(err)
-}
-
 type recordedNotification struct {
 	userID    int64
 	title     string

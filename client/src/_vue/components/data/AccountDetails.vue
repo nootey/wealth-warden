@@ -198,9 +198,7 @@ async function handleEmit(type: string) {
         </div>
         <span>
           Start balance:
-          <b
-            >{{ vueHelper.displayAsCurrency(account.start_balance) }}
-          </b>
+          <b>{{ vueHelper.displayAsCurrency(account.start_balance) }} </b>
         </span>
         <span
           v-if="

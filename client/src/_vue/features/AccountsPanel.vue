@@ -128,8 +128,7 @@ const groupedAccounts = computed(() => {
 
 const groupTotal = (group: Account[]) =>
   group.reduce(
-    (sum, acc) =>
-      sum.add(new Decimal(acc.balance.total_balance || 0)),
+    (sum, acc) => sum.add(new Decimal(acc.balance.total_balance || 0)),
     new Decimal(0),
   );
 
