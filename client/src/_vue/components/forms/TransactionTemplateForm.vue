@@ -133,7 +133,7 @@ const rules = computed(() => ({
   category: {
     name: {},
   },
-  transaction_type: isTransfer.value ? {} : { required },
+  direction: isTransfer.value ? {} : { required },
   amount: {
     required,
     decimalValid,
@@ -196,10 +196,7 @@ function initData(): TransactionTemplate {
       classification: "",
     },
     balance: {
-      id: null,
-      as_of: null,
-      start_balance: null,
-      end_balance: null,
+      balance: null,
       total_balance: null,
       market_value: null,
     },
@@ -223,7 +220,7 @@ function initData(): TransactionTemplate {
     },
     account: emptyAccount(),
     to_account: emptyAccount(),
-    transaction_type: "Expense",
+    direction: "Expense",
     amount: null,
     period: "",
     run_count: 0,
@@ -335,9 +332,8 @@ async function loadRecord(id: number) {
         parentCategories.value.find(
           (p) =>
             p.classification?.toLowerCase?.() ===
-              String(data.transaction_type).toLowerCase() ||
-            p.name?.toLowerCase?.() ===
-              String(data.transaction_type).toLowerCase(),
+              String(data.direction).toLowerCase() ||
+            p.name?.toLowerCase?.() === String(data.direction).toLowerCase(),
         ) || null;
     }
 
@@ -500,7 +496,7 @@ async function startOperation() {
     recordData.to_account_id = record.value.to_account?.id;
   } else {
     recordData.category_id = record.value.category?.id;
-    recordData.transaction_type = selectedParentCategory.value?.classification;
+    recordData.direction = selectedParentCategory.value?.classification;
   }
 
   try {

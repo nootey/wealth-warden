@@ -52,12 +52,6 @@ const profileMenuItems: ProfileMenuItem[] = [
     action: () => router.push("/backoffice"),
   },
   {
-    icon: "pi-users",
-    text: "Users",
-    permission: "manage_users",
-    action: () => router.push("/users"),
-  },
-  {
     icon: "pi-bookmark",
     text: "Notes",
     action: () => notesRef.value?.toggle(),

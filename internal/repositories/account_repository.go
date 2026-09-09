@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 	"wealth-warden/internal/models"
 	"wealth-warden/pkg/utils"
@@ -28,55 +27,35 @@ type AccountRepositoryInterface interface {
 	FindAccountByName(ctx context.Context, tx *gorm.DB, userID int64, name string) (*models.Account, error)
 	FindAccountTypeByAccID(ctx context.Context, tx *gorm.DB, accID, userID int64) (*models.AccountType, error)
 	FindAllAccountsWithLatestBalance(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Account, error)
-	FindAccountByIDWithInitialBalance(ctx context.Context, tx *gorm.DB, ID, userID int64) (*models.Account, error)
+	FindAccountByIDWithOpening(ctx context.Context, tx *gorm.DB, ID, userID int64) (*models.Account, decimal.Decimal, error)
 	FindAccountTypeByID(ctx context.Context, tx *gorm.DB, ID int64) (models.AccountType, error)
 	FindAccountTypeByType(ctx context.Context, tx *gorm.DB, atype, sub_type string) (models.AccountType, error)
-	FindLatestBalanceForAccountID(ctx context.Context, tx *gorm.DB, accID int64) (models.Balance, error)
 	InsertAccount(ctx context.Context, tx *gorm.DB, newRecord *models.Account) (int64, error)
 	UpdateAccount(ctx context.Context, tx *gorm.DB, record *models.Account) (int64, error)
 	UpdateAccountProjection(ctx context.Context, tx *gorm.DB, record *models.Account) (int64, error)
 	FindEarliestTransactionDate(ctx context.Context, tx *gorm.DB, accountID int64) (*time.Time, error)
-	InsertBalance(ctx context.Context, tx *gorm.DB, newRecord *models.Balance) (int64, error)
-	UpsertBalance(ctx context.Context, tx *gorm.DB, newRecord *models.Balance) (int64, error)
-	UpdateBalance(ctx context.Context, tx *gorm.DB, record models.Balance) (int64, error)
 	CloseAccount(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	PurgeImportedAccounts(ctx context.Context, tx *gorm.DB, importID, userID int64) error
 	PurgeAccount(ctx context.Context, tx *gorm.DB, accountID, userID int64) error
 	FindAccountForPurge(ctx context.Context, tx *gorm.DB, accountID int64) (*models.Account, error)
 	FindAllAccountsForRebuild(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Account, error)
 	FindAccountsForUser(ctx context.Context, tx *gorm.DB, userID int64) ([]models.AccountLookup, error)
-	EnsureDailyBalanceRow(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, currency string) error
-	AddToDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, amt decimal.Decimal) error
-	UpsertDailyCashBatch(ctx context.Context, tx *gorm.DB, accountID int64, currency string, deltas []models.DailyCashDelta) error
-	UpsertSnapshotsFromBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error
 	GetUserFirstBalanceDate(ctx context.Context, tx *gorm.DB, userID int64) (time.Time, error)
 	GetUserFirstTxnDate(ctx context.Context, tx *gorm.DB, userID int64) (time.Time, error)
 	GetAccountOpeningAsOf(ctx context.Context, tx *gorm.DB, accountID int64) (time.Time, error)
-	FrontfillBalances(ctx context.Context, tx *gorm.DB, accountID int64, currency string, from time.Time) error
-	DeleteAccountSnapshots(ctx context.Context, tx *gorm.DB, accountID int64) error
-	FindLatestBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64) (*models.Balance, error)
 	FindAccountsWithDefaults(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Account, error)
 	FindAccountTypesWithoutDefaults(ctx context.Context, tx *gorm.DB, userID int64) ([]models.AccountType, error)
 	UpdateDefaultAccount(ctx context.Context, tx *gorm.DB, account models.Account, setAsDefault bool) error
 	HasDefaultForAccountType(ctx context.Context, tx *gorm.DB, userID, accountTypeID int64) (bool, error)
-	SetDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, value decimal.Decimal) error
-	GetBalancesInRange(ctx context.Context, tx *gorm.DB, accountID int64, fromDate, toDate time.Time) ([]models.Balance, error)
-	ClearInvestmentCashFlows(ctx context.Context, tx *gorm.DB, userID int64) error
-	ClearInvestmentSnapshots(ctx context.Context, tx *gorm.DB, userID int64) error
-	UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, from *time.Time) error
-	UpdateSnapshotMarketValuesForUsers(ctx context.Context, tx *gorm.DB, userIDs []int64, from *time.Time) error
-	HasSnapshotForDate(ctx context.Context, userID int64, date time.Time) (bool, error)
-	GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.AccountDailySnapshot, error)
-	SetSnapshotMarketValue(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, value decimal.Decimal) error
-	RebuildCashFlowsForAccount(ctx context.Context, tx *gorm.DB, accountID int64, currency string, from time.Time) error
 }
 
 type AccountRepository struct {
-	db *gorm.DB
+	db       *gorm.DB
+	balances *BalanceRepository
 }
 
 func NewAccountRepository(db *gorm.DB) *AccountRepository {
-	return &AccountRepository{db: db}
+	return &AccountRepository{db: db, balances: NewBalanceRepository(db)}
 }
 
 var _ AccountRepositoryInterface = (*AccountRepository)(nil)
@@ -136,20 +115,9 @@ func (r *AccountRepository) FindAccounts(ctx context.Context, tx *gorm.DB, userI
 		accountIDs[i] = acc.ID
 	}
 
-	var latestBalances []models.Balance
-	if err := r.db.WithContext(ctx).Raw(`
-		SELECT DISTINCT ON (account_id) *
-		FROM balances
-		WHERE account_id IN ?
-		ORDER BY account_id, as_of DESC
-	`, accountIDs).Scan(&latestBalances).Error; err != nil {
+	balanceMap, err := r.balances.findAccountBalancesByIDs(ctx, db, accountIDs)
+	if err != nil {
 		return nil, err
-	}
-
-	// map balances back into accounts
-	balanceMap := make(map[int64]models.Balance, len(latestBalances))
-	for _, b := range latestBalances {
-		balanceMap[b.AccountID] = b
 	}
 
 	for i := range accounts {
@@ -157,8 +125,6 @@ func (r *AccountRepository) FindAccounts(ctx context.Context, tx *gorm.DB, userI
 			accounts[i].Balance = b
 		}
 	}
-
-	r.fillMarketValues(ctx, db, accounts)
 
 	return accounts, nil
 }
@@ -331,12 +297,6 @@ func (r *AccountRepository) FindAccountByID(ctx context.Context, tx *gorm.DB, ID
 	}
 	query = query.Preload("AccountType")
 
-	if withBalance {
-		query = query.Preload("Balance", func(db *gorm.DB) *gorm.DB {
-			return db.Order("as_of desc").Limit(1)
-		})
-	}
-
 	result := query.First(&record)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		var closedAccount models.Account
@@ -350,16 +310,11 @@ func (r *AccountRepository) FindAccountByID(ctx context.Context, tx *gorm.DB, ID
 	}
 
 	if result.Error == nil && withBalance {
-		var mv struct{ MarketValue decimal.Decimal }
-		db.Raw(`
-			SELECT COALESCE(market_value, 0) AS market_value
-			FROM account_daily_snapshots
-			WHERE account_id = ?
-			ORDER BY as_of DESC
-			LIMIT 1
-		`, record.ID).Scan(&mv)
-		record.Balance.MarketValue = mv.MarketValue
-		record.Balance.TotalBalance = record.Balance.EndBalance.Add(mv.MarketValue)
+		bal, err := r.balances.findAccountBalanceByID(ctx, db, record.ID)
+		if err != nil {
+			return &record, err
+		}
+		record.Balance = bal
 	}
 
 	return &record, result.Error
@@ -375,25 +330,17 @@ func (r *AccountRepository) FindAccountByName(ctx context.Context, tx *gorm.DB, 
 
 	var record models.Account
 	query := db.Where("name = ? AND user_id = ? AND closed_at IS NULL AND is_active = true", name, userID).
-		Preload("AccountType").
-		Preload("Balance", func(db *gorm.DB) *gorm.DB {
-			return db.Order("as_of desc").Limit(1)
-		})
+		Preload("AccountType")
 
 	if err := query.First(&record).Error; err != nil {
 		return &record, err
 	}
 
-	var mv struct{ MarketValue decimal.Decimal }
-	db.Raw(`
-		SELECT COALESCE(market_value, 0) AS market_value
-		FROM account_daily_snapshots
-		WHERE account_id = ?
-		ORDER BY as_of DESC
-		LIMIT 1
-	`, record.ID).Scan(&mv)
-	record.Balance.MarketValue = mv.MarketValue
-	record.Balance.TotalBalance = record.Balance.EndBalance.Add(mv.MarketValue)
+	bal, err := r.balances.findAccountBalanceByID(ctx, db, record.ID)
+	if err != nil {
+		return &record, err
+	}
+	record.Balance = bal
 
 	return &record, nil
 }
@@ -441,33 +388,21 @@ func (r *AccountRepository) FindAllAccountsWithLatestBalance(ctx context.Context
 		ids = append(ids, a.ID)
 	}
 
-	var bals []models.Balance
-	if err := db.
-		Where("account_id IN ?", ids).
-		Order("account_id DESC, as_of DESC").
-		Find(&bals).Error; err != nil {
+	balanceMap, err := r.balances.findAccountBalancesByIDs(ctx, db, ids)
+	if err != nil {
 		return nil, err
 	}
 
-	earliest := make(map[int64]models.Balance, len(ids))
-	for _, b := range bals {
-		if _, ok := earliest[b.AccountID]; !ok {
-			earliest[b.AccountID] = b
-		}
-	}
-
 	for i := range accounts {
-		if b, ok := earliest[accounts[i].ID]; ok {
+		if b, ok := balanceMap[accounts[i].ID]; ok {
 			accounts[i].Balance = b
 		}
 	}
 
-	r.fillMarketValues(ctx, db, accounts)
-
 	return accounts, nil
 }
 
-func (r *AccountRepository) FindAccountByIDWithInitialBalance(ctx context.Context, tx *gorm.DB, ID, userID int64) (*models.Account, error) {
+func (r *AccountRepository) FindAccountByIDWithOpening(ctx context.Context, tx *gorm.DB, ID, userID int64) (*models.Account, decimal.Decimal, error) {
 
 	db := tx
 	if db == nil {
@@ -477,14 +412,23 @@ func (r *AccountRepository) FindAccountByIDWithInitialBalance(ctx context.Contex
 
 	var record models.Account
 
-	query := db.Where("id = ? AND user_id = ?", ID, userID).
+	result := db.Where("id = ? AND user_id = ?", ID, userID).
 		Preload("AccountType").
-		Preload("Balance", func(db *gorm.DB) *gorm.DB {
-			return db.Order("as_of asc").Limit(1)
-		})
+		First(&record)
+	if result.Error != nil {
+		return &record, decimal.Zero, result.Error
+	}
 
-	result := query.First(&record)
-	return &record, result.Error
+	var opening decimal.Decimal
+	if err := db.Raw(`
+		SELECT COALESCE(SUM(CASE WHEN direction = 'expense' THEN -amount ELSE amount END), 0)
+		FROM transactions
+		WHERE account_id = ? AND transaction_type = 'opening' AND deleted_at IS NULL
+	`, record.ID).Scan(&opening).Error; err != nil {
+		return &record, decimal.Zero, err
+	}
+
+	return &record, opening, nil
 }
 
 func (r *AccountRepository) FindAccountTypeByID(ctx context.Context, tx *gorm.DB, ID int64) (models.AccountType, error) {
@@ -523,21 +467,6 @@ func (r *AccountRepository) FindAccountTypeClassification(ctx context.Context, t
 
 	var record []models.AccountType
 	result := db.Where("classification = ?", class).Find(&record)
-	return record, result.Error
-}
-
-func (r *AccountRepository) FindLatestBalanceForAccountID(ctx context.Context, tx *gorm.DB, accID int64) (models.Balance, error) {
-
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	var record models.Balance
-	result := db.Where("account_id = ?", accID).
-		Order("as_of DESC").
-		First(&record)
 	return record, result.Error
 }
 
@@ -642,71 +571,6 @@ func (r *AccountRepository) FindEarliestTransactionDate(ctx context.Context, tx 
 	return &result.TxnDate, nil
 }
 
-func (r *AccountRepository) InsertBalance(ctx context.Context, tx *gorm.DB, newRecord *models.Balance) (int64, error) {
-
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	if err := db.Create(&newRecord).Error; err != nil {
-		return 0, err
-	}
-	return newRecord.ID, nil
-}
-
-func (r *AccountRepository) UpsertBalance(ctx context.Context, tx *gorm.DB, newRecord *models.Balance) (int64, error) {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	var existing models.Balance
-	err := db.Where("account_id = ? AND as_of = ?", newRecord.AccountID, newRecord.AsOf).
-		First(&existing).Error
-
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		// Record doesn't exist, insert it
-		if err := db.Create(&newRecord).Error; err != nil {
-			return 0, err
-		}
-		return newRecord.ID, nil
-	} else if err != nil {
-		return 0, err
-	}
-
-	// Record exists, update it
-	if err := db.Model(&existing).Updates(newRecord).Error; err != nil {
-		return 0, err
-	}
-
-	return existing.ID, nil
-}
-
-func (r *AccountRepository) UpdateBalance(ctx context.Context, tx *gorm.DB, record models.Balance) (int64, error) {
-
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	if err := db.Model(models.Balance{}).
-		Where("id = ?", record.ID).
-		Updates(map[string]interface{}{
-			"as_of":         record.AsOf,
-			"start_balance": record.StartBalance,
-			"cash_inflows":  record.CashInflows,
-			"cash_outflows": record.CashOutflows,
-			"currency":      record.Currency,
-		}).Error; err != nil {
-		return 0, err
-	}
-	return record.ID, nil
-}
-
 func (r *AccountRepository) CloseAccount(ctx context.Context, tx *gorm.DB, id, userID int64) error {
 
 	db := tx
@@ -755,7 +619,7 @@ func (r *AccountRepository) PurgeImportedAccounts(ctx context.Context, tx *gorm.
 
 	// delete snapshots for these accounts
 	res = db.Exec(`
-        DELETE FROM account_daily_snapshots
+        DELETE FROM balance_snapshots
         WHERE user_id = ? AND account_id IN (
             SELECT id FROM accounts 
             WHERE user_id = ? AND import_id = ?
@@ -852,28 +716,14 @@ func (r *AccountRepository) PurgeAccount(ctx context.Context, tx *gorm.DB, accou
 	}
 
 	if len(legIDs) > 0 {
-		// Back the far legs out of their day rows by hand. Recomputing the whole
-		// account from the transactions table would wipe investment trade cash
-		// flows, which live in balances with no transaction behind them.
-		if err := db.Exec(`
-            UPDATE balances b
-            SET cash_inflows  = b.cash_inflows  - COALESCE(leg.income, 0),
-                cash_outflows = b.cash_outflows - COALESCE(leg.expense, 0),
-                updated_at    = NOW()
-            FROM (
-                SELECT t.account_id,
-                       t.txn_date::date AS as_of,
-                       SUM(t.amount) FILTER (WHERE t.transaction_type = 'income')  AS income,
-                       SUM(t.amount) FILTER (WHERE t.transaction_type = 'expense') AS expense
-                FROM transactions t
-                WHERE t.id IN ?
-                  AND t.account_id <> ?
-                  AND t.deleted_at IS NULL
-                GROUP BY t.account_id, t.txn_date::date
-            ) leg
-            WHERE b.account_id = leg.account_id AND b.as_of = leg.as_of
-        `, legIDs, accountID).Error; err != nil {
-			return fmt.Errorf("failed to reverse transfer legs: %w", err)
+		// The far accounts survive the purge, so their balance has to lose the leg
+		// that is about to go. Collected before the delete, recomputed after it.
+		var farAccountIDs []int64
+		if err := db.Raw(`
+            SELECT DISTINCT account_id FROM transactions
+            WHERE id IN ? AND account_id <> ?
+        `, legIDs, accountID).Scan(&farAccountIDs).Error; err != nil {
+			return fmt.Errorf("failed to collect far leg accounts: %w", err)
 		}
 
 		if err := db.Exec(`
@@ -885,6 +735,12 @@ func (r *AccountRepository) PurgeAccount(ctx context.Context, tx *gorm.DB, accou
 
 		if err := db.Exec(`DELETE FROM transactions WHERE id IN ?`, legIDs).Error; err != nil {
 			return fmt.Errorf("failed to delete transfer legs: %w", err)
+		}
+
+		for _, farID := range farAccountIDs {
+			if err := r.balances.RecomputeFromTransactions(ctx, db, farID); err != nil {
+				return fmt.Errorf("failed to recompute account %d: %w", farID, err)
+			}
 		}
 	}
 
@@ -916,7 +772,7 @@ func (r *AccountRepository) PurgeAccount(ctx context.Context, tx *gorm.DB, accou
 		return fmt.Errorf("failed to delete investment assets: %w", err)
 	}
 
-	if err := db.Exec(`DELETE FROM account_daily_snapshots WHERE account_id = ?`, accountID).Error; err != nil {
+	if err := db.Exec(`DELETE FROM balance_snapshots WHERE account_id = ?`, accountID).Error; err != nil {
 		return fmt.Errorf("failed to delete snapshots: %w", err)
 	}
 
@@ -935,171 +791,6 @@ func (r *AccountRepository) PurgeAccount(ctx context.Context, tx *gorm.DB, accou
 	return nil
 }
 
-func (r *AccountRepository) EnsureDailyBalanceRow(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, currency string) error {
-
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	asOf = asOf.UTC().Truncate(24 * time.Hour)
-	return db.Exec(`
-    WITH prev AS (
-        SELECT end_balance
-        FROM balances
-        WHERE account_id = ? AND as_of < ?
-        ORDER BY as_of DESC
-        LIMIT 1
-    ),
-    nxt AS (
-        SELECT start_balance
-        FROM balances
-        WHERE account_id = ? AND as_of > ?
-        ORDER BY as_of ASC
-        LIMIT 1
-    )
-    INSERT INTO balances (
-        account_id, as_of, start_balance,
-        cash_inflows, cash_outflows,
-        currency, created_at, updated_at
-    )
-    VALUES (
-        ?, ?, COALESCE((SELECT end_balance FROM prev),
-                       (SELECT start_balance FROM nxt), 0),
-        0, 0,
-        ?, NOW(), NOW()
-    )
-    ON CONFLICT (account_id, as_of) DO NOTHING
-`, accountID, asOf, accountID, asOf, accountID, asOf, currency).Error
-}
-
-func (r *AccountRepository) AddToDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, amt decimal.Decimal) error {
-
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	asOf = asOf.UTC().Truncate(24 * time.Hour)
-
-	// guard: only allow the expected columns
-	switch field {
-	case "cash_inflows", "cash_outflows":
-	default:
-		return fmt.Errorf("invalid balance field %q", field)
-	}
-
-	return db.Exec(fmt.Sprintf(`
-        UPDATE balances
-        SET %s = %s + ?, updated_at = NOW()
-        WHERE account_id = ? AND as_of = ?
-    `, field, field), amt, accountID, asOf).Error
-}
-
-func (r *AccountRepository) UpsertDailyCashBatch(ctx context.Context, tx *gorm.DB, accountID int64, currency string, deltas []models.DailyCashDelta) error {
-
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	if len(deltas) == 0 {
-		return nil
-	}
-
-	// ON CONFLICT DO UPDATE cannot touch the same row twice in one statement,
-	// so fold repeated days together first
-	merged := make(map[time.Time]*models.DailyCashDelta, len(deltas))
-	days := make([]time.Time, 0, len(deltas))
-	for _, d := range deltas {
-		day := d.AsOf.UTC().Truncate(24 * time.Hour)
-		if m, ok := merged[day]; ok {
-			m.Inflows = m.Inflows.Add(d.Inflows)
-			m.Outflows = m.Outflows.Add(d.Outflows)
-			continue
-		}
-		merged[day] = &models.DailyCashDelta{AsOf: day, Inflows: d.Inflows, Outflows: d.Outflows}
-		days = append(days, day)
-	}
-
-	// Postgres caps a statement at 65535 bind parameters, and each row uses 5
-	const chunkSize = 2000
-
-	for start := 0; start < len(days); start += chunkSize {
-		end := min(start+chunkSize, len(days))
-
-		placeholders := make([]string, 0, end-start)
-		args := make([]any, 0, (end-start)*5)
-		for _, day := range days[start:end] {
-			d := merged[day]
-			placeholders = append(placeholders, "(?, ?, 0, ?, ?, ?, NOW(), NOW())")
-			args = append(args, accountID, day, d.Inflows.Round(4), d.Outflows.Round(4), currency)
-		}
-
-		// New rows land with start_balance 0. FrontfillBalances rewrites every
-		// start_balance after its anchor day, so the chain is corrected there.
-		err := db.Exec(`
-			INSERT INTO balances (
-				account_id, as_of, start_balance,
-				cash_inflows, cash_outflows,
-				currency, created_at, updated_at
-			)
-			VALUES `+strings.Join(placeholders, ",")+`
-			ON CONFLICT (account_id, as_of) DO UPDATE
-			SET cash_inflows  = balances.cash_inflows  + EXCLUDED.cash_inflows,
-				cash_outflows = balances.cash_outflows + EXCLUDED.cash_outflows,
-				updated_at    = NOW()
-		`, args...).Error
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (r *AccountRepository) UpsertSnapshotsFromBalances(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from, to time.Time) error {
-
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	from = from.UTC().Truncate(24 * time.Hour)
-	to = to.UTC().Truncate(24 * time.Hour)
-
-	// One-shot insert/update using generate_series and "last balance <= day"
-	return db.Exec(`
-		INSERT INTO account_daily_snapshots (
-			user_id, account_id, as_of, end_balance, currency, computed_at
-		)
-		SELECT
-			?::bigint        AS user_id,
-			?::bigint        AS account_id,
-			d.day            AS as_of,
-			COALESCE(lb.end_balance, 0)::numeric(19,4) AS end_balance,
-			?::char(3)       AS currency,
-			NOW()            AS computed_at
-		FROM generate_series(?::date, ?::date, '1 day') AS d(day)
-		LEFT JOIN LATERAL (
-			SELECT b.end_balance
-			FROM balances b
-			WHERE b.account_id = ? AND b.as_of::date <= d.day
-			ORDER BY b.as_of DESC
-			LIMIT 1
-		) lb ON TRUE
-		ON CONFLICT (account_id, as_of) DO UPDATE
-		SET user_id     = EXCLUDED.user_id,
-			currency    = EXCLUDED.currency,
-			end_balance = EXCLUDED.end_balance,
-			computed_at = NOW();
-	`, userID, accountID, currency, from, to, accountID).Error
-}
-
 func (r *AccountRepository) GetUserFirstBalanceDate(ctx context.Context, tx *gorm.DB, userID int64) (time.Time, error) {
 
 	db := tx
@@ -1110,9 +801,8 @@ func (r *AccountRepository) GetUserFirstBalanceDate(ctx context.Context, tx *gor
 
 	var d *time.Time
 	err := db.Raw(`
-        SELECT MIN(b.as_of)::date
-        FROM balances b
-        JOIN accounts a ON a.id = b.account_id
+        SELECT MIN(a.opened_at)::date
+        FROM accounts a
         WHERE a.user_id = ?
     `, userID).Row().Scan(&d)
 	if err != nil && err != sql.ErrNoRows {
@@ -1158,7 +848,7 @@ func (r *AccountRepository) GetAccountOpeningAsOf(ctx context.Context, tx *gorm.
 	// Row().Scan, not gorm's Scan: only the former reads a NULL into a *time.Time.
 	var open *time.Time
 	if err := db.Raw(`
-        SELECT MIN(as_of) FROM balances WHERE account_id = ?
+        SELECT opened_at FROM accounts WHERE id = ?
     `, accountID).Row().Scan(&open); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return time.Time{}, sql.ErrNoRows
@@ -1171,140 +861,6 @@ func (r *AccountRepository) GetAccountOpeningAsOf(ctx context.Context, tx *gorm.
 	// normalize to UTC midnight
 	t := open.UTC().Truncate(24 * time.Hour)
 	return t, nil
-}
-
-func (r *AccountRepository) FrontfillBalances(ctx context.Context, tx *gorm.DB, accountID int64, currency string, from time.Time) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	from = from.UTC().Truncate(24 * time.Hour)
-
-	return db.Exec(`
-		WITH params AS (
-		  SELECT ?::bigint AS account_id, ?::date AS from_date
-		),
-		base AS (
-		  SELECT COALESCE(
-			-- prefer exact 'from' day end_balance if a row exists
-			(SELECT b.end_balance
-			 FROM balances b, params p
-			 WHERE b.account_id = p.account_id
-			   AND b.as_of = p.from_date
-			 LIMIT 1),
-			-- otherwise, last end_balance before 'from'
-			(SELECT b.end_balance
-			 FROM balances b, params p
-			 WHERE b.account_id = p.account_id
-			   AND b.as_of < p.from_date
-			 ORDER BY b.as_of DESC
-			 LIMIT 1),
-			0
-		  )::numeric(19,4) AS base_end
-		),
-		series AS (
-		  SELECT
-			b.account_id,
-			b.as_of,
-			( b.cash_inflows
-			- b.cash_outflows)::numeric(19,4) AS delta
-		  FROM balances b, params p
-		  WHERE b.account_id = p.account_id
-			AND b.as_of > p.from_date
-		  ORDER BY b.as_of
-		),
-		chain AS (
-		  SELECT
-			s.account_id,
-			s.as_of,
-			( SELECT base_end FROM base )
-			+ ( SUM(s.delta) OVER (ORDER BY s.as_of
-								   ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
-				- s.delta ) AS new_start
-		  FROM series s
-		)
-		UPDATE balances b
-		SET start_balance = c.new_start,
-			updated_at    = NOW()
-		FROM chain c
-		WHERE b.account_id = c.account_id
-		  AND b.as_of      = c.as_of;
-	`, accountID, from).Error
-}
-
-func (r *AccountRepository) DeleteAccountSnapshots(ctx context.Context, tx *gorm.DB, accountID int64) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	return db.Where("account_id = ?", accountID).
-		Delete(&models.AccountDailySnapshot{}).Error
-}
-
-func (r *AccountRepository) FindLatestBalance(ctx context.Context, tx *gorm.DB, accountID, userID int64) (*models.Balance, error) {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	var balance models.Balance
-	err := db.Select("balances.*").
-		Joins("JOIN accounts ON accounts.id = balances.account_id").
-		Where("balances.account_id = ? AND accounts.user_id = ?", accountID, userID).
-		Order("balances.as_of DESC").
-		Limit(1).
-		First(&balance).Error
-	if err != nil {
-		return nil, err
-	}
-
-	var mv struct{ MarketValue decimal.Decimal }
-	db.Raw(`
-		SELECT COALESCE(market_value, 0) AS market_value
-		FROM account_daily_snapshots
-		WHERE account_id = ?
-		ORDER BY as_of DESC
-		LIMIT 1
-	`, accountID).Scan(&mv)
-	balance.MarketValue = mv.MarketValue
-	balance.TotalBalance = balance.EndBalance.Add(mv.MarketValue)
-
-	return &balance, nil
-}
-
-func (r *AccountRepository) fillMarketValues(ctx context.Context, db *gorm.DB, accounts []models.Account) {
-	if len(accounts) == 0 {
-		return
-	}
-	ids := make([]int64, len(accounts))
-	for i, a := range accounts {
-		ids[i] = a.ID
-	}
-
-	var rows []struct {
-		AccountID   int64
-		MarketValue decimal.Decimal
-	}
-	db.WithContext(ctx).Raw(`
-		SELECT DISTINCT ON (account_id) account_id, market_value
-		FROM account_daily_snapshots
-		WHERE account_id IN ?
-		ORDER BY account_id, as_of DESC
-	`, ids).Scan(&rows)
-
-	mv := make(map[int64]decimal.Decimal, len(rows))
-	for _, row := range rows {
-		mv[row.AccountID] = row.MarketValue
-	}
-	for i := range accounts {
-		accounts[i].Balance.MarketValue = mv[accounts[i].ID]
-		accounts[i].Balance.TotalBalance = accounts[i].Balance.EndBalance.Add(accounts[i].Balance.MarketValue)
-	}
 }
 
 func (r *AccountRepository) FindAccountsWithDefaults(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Account, error) {
@@ -1392,329 +948,4 @@ func (r *AccountRepository) HasDefaultForAccountType(ctx context.Context, tx *go
 		Count(&count).Error
 
 	return count > 0, err
-}
-
-func (r *AccountRepository) SetDailyBalance(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, field string, value decimal.Decimal) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	asOf = asOf.UTC().Truncate(24 * time.Hour)
-
-	switch field {
-	case "cash_inflows", "cash_outflows":
-	default:
-		return fmt.Errorf("invalid balance field %q", field)
-	}
-
-	return db.Exec(fmt.Sprintf(`
-        UPDATE balances
-        SET %s = ?, updated_at = NOW()
-        WHERE account_id = ? AND as_of = ?
-    `, field), value, accountID, asOf).Error
-}
-
-func (r *AccountRepository) GetBalancesInRange(ctx context.Context, tx *gorm.DB, accountID int64, fromDate, toDate time.Time) ([]models.Balance, error) {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-
-	var balances []models.Balance
-	err := db.WithContext(ctx).
-		Where("account_id = ? AND as_of >= ? AND as_of <= ?", accountID, fromDate, toDate).
-		Order("as_of ASC").
-		Find(&balances).Error
-	return balances, err
-}
-
-func (r *AccountRepository) ClearInvestmentCashFlows(ctx context.Context, tx *gorm.DB, userID int64) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-	// Reset every balance row for this user to only what the transactions table
-	// actually records. This makes the state safe for BackfillInvestmentCashFlows
-	// to add trade flows on top without double-counting or losing regular txns.
-	return db.Exec(`
-		UPDATE balances b
-		SET cash_inflows  = COALESCE((
-				SELECT SUM(t.amount)
-				FROM transactions t
-				WHERE t.account_id = b.account_id
-				  AND t.txn_date::date = b.as_of
-				  AND t.transaction_type = 'income'
-				  AND t.deleted_at IS NULL
-			), 0),
-			cash_outflows = COALESCE((
-				SELECT SUM(t.amount)
-				FROM transactions t
-				WHERE t.account_id = b.account_id
-				  AND t.txn_date::date = b.as_of
-				  AND t.transaction_type = 'expense'
-				  AND t.deleted_at IS NULL
-			), 0),
-			updated_at = NOW()
-		FROM accounts a
-		WHERE b.account_id = a.id
-		  AND a.user_id = ?;
-	`, userID).Error
-}
-
-func (r *AccountRepository) ClearInvestmentSnapshots(ctx context.Context, tx *gorm.DB, userID int64) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-	return db.Exec(`
-        DELETE FROM account_daily_snapshots
-        WHERE account_id IN (
-            SELECT id FROM accounts WHERE user_id = ? AND closed_at IS NULL
-        )
-    `, userID).Error
-}
-
-func (r *AccountRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, from *time.Time) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	dateFilter := ""
-	args := []interface{}{userID}
-	if from != nil {
-		dateFilter = "AND s.as_of >= ?"
-		args = append(args, from.UTC().Truncate(24*time.Hour))
-	}
-
-	// For each investment/crypto account snapshot, sum (last known price × quantity held)
-	// across all assets for that account on that date, with inline currency conversion
-	// via the exchange_rate_history cache. Falls back to rate=1 if no cached rate exists.
-	// A nil `from` recomputes all of history; pass a date to recompute only from the
-	// earliest day that changed.
-	query := fmt.Sprintf(`
-		UPDATE account_daily_snapshots s
-		SET market_value = (
-			SELECT COALESCE(SUM(
-				ph_latest.price
-				* COALESCE(erh_latest.rate, 1)
-				* GREATEST(qty.held, 0)
-			), 0)
-			FROM investment_assets ia
-			JOIN LATERAL (
-				SELECT ph.price, ph.currency
-				FROM ticker_price_history ph
-				WHERE ph.ticker = ia.ticker
-				  AND ph.as_of <= s.as_of
-				ORDER BY ph.as_of DESC
-				LIMIT 1
-			) ph_latest ON true
-			JOIN LATERAL (
-				SELECT
-					COALESCE(SUM(
-						CASE WHEN it.trade_type = 'buy'  THEN  it.quantity
-						     WHEN it.trade_type = 'sell' THEN -it.quantity
-						END
-					), 0)
-					+ COALESCE((
-						SELECT SUM(ii.quantity)
-						FROM investment_income ii
-						WHERE ii.asset_id    = ia.id
-						  AND ii.income_type = 'staking_reward'
-						  AND ii.txn_date   <= s.as_of
-					), 0) AS held
-				FROM investment_trades it
-				WHERE it.asset_id  = ia.id
-				  AND it.txn_date <= s.as_of
-			) qty ON true
-			LEFT JOIN LATERAL (
-				SELECT erh.rate
-				FROM exchange_rate_history erh
-				WHERE erh.from_currency = ph_latest.currency
-				  AND erh.to_currency   = a.currency
-				  AND erh.as_of        <= s.as_of
-				ORDER BY erh.as_of DESC
-				LIMIT 1
-			) erh_latest ON ph_latest.currency != a.currency
-			WHERE ia.account_id = s.account_id
-		)
-		FROM accounts a
-		JOIN account_types at ON at.id = a.account_type_id
-		WHERE s.account_id = a.id
-		  AND a.user_id    = ?
-		  AND at.type IN ('investment', 'crypto')
-		  %s;
-	`, dateFilter)
-
-	return db.Exec(query, args...).Error
-}
-
-func (r *AccountRepository) UpdateSnapshotMarketValuesForUsers(ctx context.Context, tx *gorm.DB, userIDs []int64, from *time.Time) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	if len(userIDs) == 0 {
-		return nil
-	}
-
-	dateFilter := ""
-	args := []interface{}{userIDs}
-	if from != nil {
-		dateFilter = "AND s.as_of >= ?"
-		args = append(args, from.UTC().Truncate(24*time.Hour))
-	}
-
-	query := fmt.Sprintf(`
-		UPDATE account_daily_snapshots s
-		SET market_value = (
-			SELECT COALESCE(SUM(
-				ph_latest.price
-				* COALESCE(erh_latest.rate, 1)
-				* GREATEST(qty.held, 0)
-			), 0)
-			FROM investment_assets ia
-			JOIN LATERAL (
-				SELECT ph.price, ph.currency
-				FROM ticker_price_history ph
-				WHERE ph.ticker = ia.ticker
-				  AND ph.as_of <= s.as_of
-				ORDER BY ph.as_of DESC
-				LIMIT 1
-			) ph_latest ON true
-			JOIN LATERAL (
-				SELECT
-					COALESCE(SUM(
-						CASE WHEN it.trade_type = 'buy'  THEN  it.quantity
-						     WHEN it.trade_type = 'sell' THEN -it.quantity
-						END
-					), 0)
-					+ COALESCE((
-						SELECT SUM(ii.quantity)
-						FROM investment_income ii
-						WHERE ii.asset_id    = ia.id
-						  AND ii.income_type = 'staking_reward'
-						  AND ii.txn_date   <= s.as_of
-					), 0) AS held
-				FROM investment_trades it
-				WHERE it.asset_id  = ia.id
-				  AND it.txn_date <= s.as_of
-			) qty ON true
-			LEFT JOIN LATERAL (
-				SELECT erh.rate
-				FROM exchange_rate_history erh
-				WHERE erh.from_currency = ph_latest.currency
-				  AND erh.to_currency   = a.currency
-				  AND erh.as_of        <= s.as_of
-				ORDER BY erh.as_of DESC
-				LIMIT 1
-			) erh_latest ON ph_latest.currency != a.currency
-			WHERE ia.account_id = s.account_id
-		)
-		FROM accounts a
-		JOIN account_types at ON at.id = a.account_type_id
-		WHERE s.account_id = a.id
-		  AND a.user_id IN ?
-		  AND at.type IN ('investment', 'crypto')
-		  %s;
-	`, dateFilter)
-
-	return db.Exec(query, args...).Error
-}
-
-func (r *AccountRepository) HasSnapshotForDate(ctx context.Context, userID int64, date time.Time) (bool, error) {
-	normalized := date.UTC().Truncate(24 * time.Hour)
-	var exists bool
-	err := r.db.WithContext(ctx).Raw(`
-		SELECT EXISTS (
-			SELECT 1 FROM account_daily_snapshots s
-			JOIN accounts a ON a.id = s.account_id
-			WHERE a.user_id = ? AND s.as_of = ?
-		)
-	`, userID, normalized).Scan(&exists).Error
-	return exists, err
-}
-
-func (r *AccountRepository) GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.AccountDailySnapshot, error) {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	var snapshots []models.AccountDailySnapshot
-	err := db.WithContext(ctx).
-		Where("account_id = ?", accountID).
-		Order("as_of ASC").
-		Find(&snapshots).Error
-	return snapshots, err
-}
-
-func (r *AccountRepository) SetSnapshotMarketValue(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, value decimal.Decimal) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	return db.WithContext(ctx).Exec(`
-		UPDATE account_daily_snapshots
-		SET market_value = ?
-		WHERE account_id = ? AND as_of = ?
-	`, value, accountID, asOf.UTC().Truncate(24*time.Hour)).Error
-}
-
-func (r *AccountRepository) RebuildCashFlowsForAccount(ctx context.Context, tx *gorm.DB, accountID int64, currency string, from time.Time) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-	from = from.UTC().Truncate(24 * time.Hour)
-
-	// Ensure a balance row exists for every date that now has transactions
-	if err := db.Exec(`
-		INSERT INTO balances (account_id, as_of, currency, start_balance, cash_inflows, cash_outflows, created_at, updated_at)
-		SELECT
-			?::bigint,
-			t.txn_date::date,
-			?::char(3),
-			0, 0, 0,
-			NOW(), NOW()
-		FROM transactions t
-		WHERE t.account_id = ?
-		  AND t.deleted_at IS NULL
-		  AND t.txn_date::date >= ?
-		GROUP BY t.txn_date::date
-		ON CONFLICT (account_id, as_of) DO NOTHING
-	`, accountID, currency, accountID, from).Error; err != nil {
-		return err
-	}
-
-	// Recompute cash_inflows and cash_outflows for all rows from the earliest date
-	return db.Exec(`
-		UPDATE balances b
-		SET cash_inflows = COALESCE((
-			SELECT SUM(t.amount)
-			FROM transactions t
-			WHERE t.account_id = b.account_id
-			  AND t.txn_date::date = b.as_of
-			  AND t.transaction_type = 'income'
-			  AND t.deleted_at IS NULL
-		), 0),
-		cash_outflows = COALESCE((
-			SELECT SUM(t.amount)
-			FROM transactions t
-			WHERE t.account_id = b.account_id
-			  AND t.txn_date::date = b.as_of
-			  AND t.transaction_type = 'expense'
-			  AND t.deleted_at IS NULL
-		), 0),
-		updated_at = NOW()
-		WHERE b.account_id = ?
-		  AND b.as_of >= ?
-	`, accountID, from).Error
 }

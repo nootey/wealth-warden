@@ -8,6 +8,10 @@ import type {
   Transaction,
   Transfer,
 } from "../../../models/transaction_models.ts";
+import {
+  isTransactionDeletable,
+  isTransactionEditable,
+} from "../../../models/transaction_models.ts";
 import { required } from "@regle/rules";
 import {
   decimalValid,
@@ -65,8 +69,7 @@ const idempotencyKey = ref(crypto.randomUUID());
 const isGlobalReadOnly = computed(
   () =>
     !!record.value.deleted_at ||
-    !!record.value.is_adjustment ||
-    !!record.value.is_system,
+    !isTransactionEditable(record.value.transaction_type),
 );
 
 const isAccountRestricted = computed<boolean>(() => {
@@ -88,6 +91,7 @@ const isAccountActive = computed(() => !!record.value.account?.is_active);
 
 const canRestore = computed(
   () =>
+    isTransactionDeletable(record.value.transaction_type) &&
     isFormReadOnly.value &&
     isTxnDeleted.value &&
     !isAccountDeleted.value &&
@@ -167,7 +171,7 @@ const rules = {
       required,
     },
   },
-  transaction_type: {
+  direction: {
     required,
   },
   amount: {
@@ -240,21 +244,17 @@ function initData(): Transaction {
         classification: "",
       },
       balance: {
-        id: null,
-        as_of: null,
-        start_balance: null,
-        end_balance: null,
+        balance: null,
         total_balance: null,
         market_value: null,
       },
     },
-    transaction_type: "Expense",
+    direction: "Expense",
     amount: null,
     txn_date: dayjs().toDate(),
     description: null,
     deleted_at: null,
-    is_adjustment: false,
-    is_system: false,
+    transaction_type: "ledger",
   };
 }
 
@@ -325,9 +325,8 @@ async function loadRecord(id: number) {
       parentCategories.value.find(
         (p) =>
           p.classification?.toLowerCase?.() ===
-            String(data.transaction_type).toLowerCase() ||
-          p.name?.toLowerCase?.() ===
-            String(data.transaction_type).toLowerCase(),
+            String(data.direction).toLowerCase() ||
+          p.name?.toLowerCase?.() === String(data.direction).toLowerCase(),
       ) || null;
 
     await nextTick();
@@ -374,7 +373,7 @@ async function startTransactionOperation() {
   const recordData = {
     account_id: record.value.account.id,
     category_id: record.value.category?.id,
-    transaction_type: selectedParentCategory.value?.classification,
+    direction: selectedParentCategory.value?.classification,
     amount: record.value.amount,
     txn_date: txn_date,
     description: record.value.description,
@@ -645,7 +644,12 @@ async function deleteRecord(id: number, tx_type: string) {
       </div>
     </div>
 
-    <div v-if="!record.is_adjustment" class="flex flex-row gap-2 w-full">
+    <div
+      v-if="
+        isTransactionEditable(record.transaction_type) || !!record.deleted_at
+      "
+      class="flex flex-row gap-2 w-full"
+    >
       <div class="flex flex-col w-full gap-2">
         <Button
           v-if="!isFormReadOnly"
@@ -668,11 +672,15 @@ async function deleteRecord(id: number, tx_type: string) {
           @click="restoreTransaction"
         />
         <Button
-          v-if="!isFormReadOnly && mode == 'update'"
+          v-if="
+            !isFormReadOnly &&
+            mode == 'update' &&
+            isTransactionDeletable(record.transaction_type)
+          "
           label="Delete transaction"
           class="delete-button"
           style="height: 42px"
-          @click="deleteConfirmation(record.id!, record.transaction_type)"
+          @click="deleteConfirmation(record.id!, record.direction)"
         />
         <h5 v-else-if="showCantRestore" style="color: var(--text-secondary)">
           Transaction can not be restored!

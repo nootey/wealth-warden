@@ -25,6 +25,8 @@ export const JOB_KINDS = [
   "migrate_zero_cost_trades",
   "asset_history_backfill",
   "balance_backfill",
+  "balance_backfill_batch",
+  "balance_reconcile_batch",
   "recurring_transactions",
   "asset_price_sync",
   "merge_categories",

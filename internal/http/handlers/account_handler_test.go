@@ -204,7 +204,7 @@ func (suite *AccountHandlerTestSuite) TestGetAccountByID_Success() {
 	}
 
 	suite.mockService.EXPECT().
-		FetchAccountByID(mock.Anything, int64(123), int64(1), false).
+		FetchAccountByID(mock.Anything, int64(123), int64(1)).
 		Return(mockAccount, nil).
 		Once()
 
@@ -226,7 +226,7 @@ func (suite *AccountHandlerTestSuite) TestGetAccountByID_Success() {
 // verifies that a non-existent account returns appropriate error
 func (suite *AccountHandlerTestSuite) TestGetAccountByID_NotFound() {
 	suite.mockService.EXPECT().
-		FetchAccountByID(mock.Anything, int64(123), int64(999), false).
+		FetchAccountByID(mock.Anything, int64(123), int64(999)).
 		Return(nil, errors.New("account not found")).
 		Once()
 

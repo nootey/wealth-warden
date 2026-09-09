@@ -5,10 +5,12 @@ import InvitationsPaginated from "../components/data/InvitationsPaginated.vue";
 import UsersPaginated from "../components/data/UsersPaginated.vue";
 import type { Role } from "../../models/user_models.ts";
 import { useUserStore } from "../../services/stores/user_store.ts";
+import { useToastStore } from "../../services/stores/toast_store.ts";
 import { usePermissions } from "../../utils/use_permissions.ts";
 import { useRouter } from "vue-router";
 
 const userStore = useUserStore();
+const toastStore = useToastStore();
 
 const { hasPermission } = usePermissions();
 const router = useRouter();
@@ -23,7 +25,11 @@ const roles = computed<Role[]>(() => userStore.roles);
 const activeTab = ref("users");
 
 onMounted(async () => {
-  await userStore.getRoles();
+  try {
+    await userStore.getRoles();
+  } catch (error) {
+    toastStore.errorResponseToast(error);
+  }
 });
 
 function manipulateDialog(modal: string, value: any) {
@@ -98,7 +104,7 @@ async function handleEmit(emitType: any) {
     />
   </Dialog>
 
-  <main class="flex flex-col w-full items-center">
+  <div class="flex flex-col w-full items-center">
     <div
       id="mobile-container"
       class="flex flex-col justify-center w-full gap-4 rounded-xl"
@@ -111,7 +117,7 @@ async function handleEmit(emitType: any) {
               v-if="hasPermission('manage_roles')"
               v-tooltip="'Go to roles settings.'"
               class="pi pi-external-link hover-icon mr-auto text-sm"
-              @click="router.push('settings/roles')"
+              @click="router.push('/settings/roles')"
             />
           </div>
           <div>View and manage users and invitations.</div>
@@ -180,7 +186,7 @@ async function handleEmit(emitType: any) {
         </div>
       </Transition>
     </div>
-  </main>
+  </div>
 </template>
 
 <style scoped></style>

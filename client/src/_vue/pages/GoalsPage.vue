@@ -140,7 +140,7 @@ const groupedGoals = computed(() => {
       const account = accountStore.accounts.find(
         (a) => a.id === goal.account_id,
       );
-      const totalBalance = new Decimal(account?.balance?.end_balance ?? "0");
+      const totalBalance = new Decimal(account?.balance?.balance ?? "0");
       map.set(goal.account_id, {
         accountID: goal.account_id,
         accountName: account?.name ?? "—",

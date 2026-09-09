@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import type { Account, Balance } from "../../../models/account_models.ts";
+import type {
+  AccountBalance,
+  AccountWithOpening,
+} from "../../../models/account_models.ts";
 import vueHelper from "../../../utils/vue_helper.ts";
 import { computed, nextTick, onMounted, ref } from "vue";
 import { useToastStore } from "../../../services/stores/toast_store.ts";
@@ -32,9 +35,9 @@ const sharedStore = useSharedStore();
 const accountStore = useAccountStore();
 
 const confirm = useConfirm();
-const account = ref<Account | null>(null);
+const account = ref<AccountWithOpening | null>(null);
 const projectionsModal = ref(false);
-const latestBalance = ref<Balance | null>(null);
+const latestBalance = ref<AccountBalance | null>(null);
 
 const { colors } = useChartColors();
 
@@ -47,14 +50,13 @@ const transactionColumns = computed<Column[]>(() => [
 
 const expectedDifference = computed(() => {
   const expectedBalance = account.value?.expected_balance;
-  const endBalance =
-    latestBalance.value?.total_balance ?? latestBalance.value?.end_balance;
+  const currentBalance = latestBalance.value?.total_balance;
 
-  if (!expectedBalance || !endBalance) {
+  if (!expectedBalance || !currentBalance) {
     return null;
   }
 
-  return new Decimal(endBalance).minus(expectedBalance).toString();
+  return new Decimal(currentBalance).minus(expectedBalance).toString();
 });
 
 const differenceColor = computed(() => {
@@ -196,9 +198,7 @@ async function handleEmit(type: string) {
         </div>
         <span>
           Start balance:
-          <b
-            >{{ vueHelper.displayAsCurrency(account.balance.start_balance) }}
-          </b>
+          <b>{{ vueHelper.displayAsCurrency(account.start_balance) }} </b>
         </span>
         <span
           v-if="
@@ -209,7 +209,7 @@ async function handleEmit(type: string) {
         >
           Cash:
           <b>{{
-            vueHelper.displayAsCurrency(latestBalance?.end_balance ?? null)
+            vueHelper.displayAsCurrency(latestBalance?.balance ?? null)
           }}</b>
         </span>
 

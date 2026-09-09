@@ -23,6 +23,7 @@ type InvestmentRepositoryInterface interface {
 	FindInvestmentTradeByID(ctx context.Context, tx *gorm.DB, ID, userID int64) (models.InvestmentTrade, error)
 	FindInvestmentTradesByAssetID(ctx context.Context, tx *gorm.DB, assetID int64) ([]models.InvestmentTrade, error)
 	FindAllTradesByUserID(ctx context.Context, tx *gorm.DB, userID int64) ([]models.InvestmentTrade, error)
+	FindTradeIDsWithoutCashTransaction(ctx context.Context, tx *gorm.DB, userID int64) ([]int64, error)
 	GetUserIDsWithInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error)
 	FindTickersForPriceBackfill(ctx context.Context, tx *gorm.DB) ([]models.AssetBackfillRow, error)
 	FindTickersForPriceSync(ctx context.Context, tx *gorm.DB) ([]models.AssetPriceSyncRow, error)
@@ -36,6 +37,7 @@ type InvestmentRepositoryInterface interface {
 	UpdateInvestmentAsset(ctx context.Context, tx *gorm.DB, record models.InvestmentAsset) (int64, error)
 	UpdateInvestmentTrade(ctx context.Context, tx *gorm.DB, record models.InvestmentTrade) (int64, error)
 	CorrectTradeValueAtBuy(ctx context.Context, tx *gorm.DB, tradeID int64, valueAtBuy decimal.Decimal) error
+	SetTradeTransaction(ctx context.Context, tx *gorm.DB, tradeID, transactionID int64) error
 	RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error
 	DeleteInvestmentTrade(ctx context.Context, tx *gorm.DB, id int64) error
 	GetEarliestTradeDate(ctx context.Context, tx *gorm.DB, assetID, userID int64) (time.Time, error)
@@ -213,9 +215,7 @@ func (r *InvestmentRepository) FindInvestmentAssetByID(ctx context.Context, tx *
 	var record models.InvestmentAsset
 	q := db.Model(&models.InvestmentAsset{}).
 		Table("investment_assets_valued AS investment_assets").
-		Preload("Account.Balance", func(db *gorm.DB) *gorm.DB {
-			return db.Order("created_at DESC").Limit(1)
-		}).
+		Preload("Account").
 		Where("investment_assets.id = ? AND investment_assets.user_id = ?", ID, userID)
 
 	q = q.First(&record)
@@ -232,9 +232,7 @@ func (r *InvestmentRepository) FindAssetByTicker(ctx context.Context, tx *gorm.D
 
 	var record models.InvestmentAsset
 	q := db.
-		Preload("Account.Balance", func(db *gorm.DB) *gorm.DB {
-			return db.Order("created_at DESC").Limit(1)
-		}).
+		Preload("Account").
 		Where("ticker = ? AND account_id = ? AND user_id = ?", ticker, accID, userID)
 
 	q = q.First(&record)
@@ -496,6 +494,19 @@ func (r *InvestmentRepository) CorrectTradeValueAtBuy(ctx context.Context, tx *g
 		}).Error
 }
 
+func (r *InvestmentRepository) SetTradeTransaction(ctx context.Context, tx *gorm.DB, tradeID, transactionID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).Model(&models.InvestmentTrade{}).
+		Where("id = ?", tradeID).
+		Updates(map[string]interface{}{
+			"transaction_id": transactionID,
+			"updated_at":     time.Now().UTC(),
+		}).Error
+}
+
 func (r *InvestmentRepository) RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error {
 	db := tx
 	if db == nil {
@@ -600,6 +611,25 @@ func (r *InvestmentRepository) FindAllTradesByUserID(ctx context.Context, tx *go
 		Find(&trades).Error
 
 	return trades, err
+}
+
+func (r *InvestmentRepository) FindTradeIDsWithoutCashTransaction(ctx context.Context, tx *gorm.DB, userID int64) ([]int64, error) {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	var ids []int64
+	err := db.Raw(`
+		SELECT it.id
+		FROM   investment_trades it
+		LEFT   JOIN transactions t
+		       ON t.id = it.transaction_id AND t.deleted_at IS NULL
+		WHERE  it.user_id = ? AND t.id IS NULL
+	`, userID).Scan(&ids).Error
+
+	return ids, err
 }
 
 func (r *InvestmentRepository) GetUserIDsWithInvestments(ctx context.Context, tx *gorm.DB) ([]int64, error) {

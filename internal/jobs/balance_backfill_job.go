@@ -3,22 +3,19 @@ package jobs
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 	"wealth-warden/internal/jobqueue"
 
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
 type balanceUserSvc interface {
 	GetAllActiveUserIDs(ctx context.Context) ([]int64, error)
 }
 
-type balanceAccountSvc interface {
-	BackfillBalancesForUser(ctx context.Context, userID int64, from, to string) error
-	UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error
+type balanceAccountLister interface {
+	ListOpenAccountIDs(ctx context.Context, afterID int64, limit int) ([]int64, error)
 }
 
 type BalanceBackfillWorker struct {
@@ -36,102 +33,108 @@ func (w *BalanceBackfillWorker) Timeout(*river.Job[jobqueue.BalanceBackfillArgs]
 }
 
 func (w *BalanceBackfillWorker) Work(ctx context.Context, _ *river.Job[jobqueue.BalanceBackfillArgs]) error {
-	w.logger.Info("Starting scheduled backfill job...")
+	w.logger.Info("Starting scheduled backfill fan-out...")
 	if err := w.job.Run(ctx); err != nil {
-		w.logger.Error("Backfill failed", zap.Error(err))
+		w.logger.Error("Backfill fan-out failed", zap.Error(err))
 		return err
 	}
-	w.logger.Info("Backfill completed successfully")
+	w.logger.Info("Backfill fan-out completed successfully")
 	return nil
 }
 
 type BalanceBackfillJob struct {
-	logger            *zap.Logger
-	userSvc           balanceUserSvc
-	accountSvc        balanceAccountSvc
-	concurrentWorkers int
+	logger             *zap.Logger
+	userSvc            balanceUserSvc
+	accountLister      balanceAccountLister
+	dispatcher         jobqueue.Dispatcher
+	userBatchSize      int
+	reconcileBatchSize int
 }
 
 func NewBalanceBackfillJob(
 	logger *zap.Logger,
 	userSvc balanceUserSvc,
-	accountSvc balanceAccountSvc,
-	concurrentWorkers int,
+	accountLister balanceAccountLister,
+	dispatcher jobqueue.Dispatcher,
+	userBatchSize int,
+	reconcileBatchSize int,
 ) *BalanceBackfillJob {
-	if concurrentWorkers < 1 {
-		concurrentWorkers = defaultWorkers
+	if userBatchSize < 1 {
+		userBatchSize = defaultUserBatchSize
+	}
+	if reconcileBatchSize < 1 {
+		reconcileBatchSize = defaultReconcileBatchSize
 	}
 	return &BalanceBackfillJob{
-		logger:            logger,
-		userSvc:           userSvc,
-		accountSvc:        accountSvc,
-		concurrentWorkers: concurrentWorkers,
+		logger:             logger,
+		userSvc:            userSvc,
+		accountLister:      accountLister,
+		dispatcher:         dispatcher,
+		userBatchSize:      userBatchSize,
+		reconcileBatchSize: reconcileBatchSize,
 	}
 }
+
+const (
+	defaultUserBatchSize      = 100
+	defaultReconcileBatchSize = 500
+)
 
 func (j *BalanceBackfillJob) Run(ctx context.Context) error {
-
-	userIDs, err := j.userSvc.GetAllActiveUserIDs(ctx)
+	reconcileBatches, err := j.fanOutReconcile(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get user IDs: %w", err)
-	}
-
-	if len(userIDs) == 0 {
-		j.logger.Info("No users to backfill")
-		return nil
-	}
-
-	j.logger.Info("Backfilling balances", zap.Int("userCount", len(userIDs)))
-
-	fromDate := time.Now().AddDate(0, 0, -1)
-	to := time.Now().Format("2006-01-02")
-	from := fromDate.Format("2006-01-02")
-
-	var (
-		mu     sync.Mutex
-		failed int
-	)
-
-	g := new(errgroup.Group)
-	g.SetLimit(j.concurrentWorkers)
-
-	for _, userID := range userIDs {
-		g.Go(func() error {
-			if ctx.Err() != nil {
-				return nil
-			}
-			if err := j.backfillUser(ctx, userID, fromDate, from, to); err != nil {
-				mu.Lock()
-				failed++
-				mu.Unlock()
-				return fmt.Errorf("user %d: %w", userID, err)
-			}
-			return nil
-		})
-	}
-	firstErr := g.Wait()
-
-	j.logger.Info("Balance backfill completed",
-		zap.Int("total", len(userIDs)),
-		zap.Int("failed", failed))
-
-	if firstErr != nil {
-		j.logger.Error("Balance backfill had failures",
-			zap.Int("failed", failed),
-			zap.Error(firstErr))
-	}
-
-	return ctx.Err()
-}
-
-// The market value update is scoped to investment and crypto accounts, so a user
-// without them matches no rows.
-func (j *BalanceBackfillJob) backfillUser(ctx context.Context, userID int64, fromDate time.Time, from, to string) error {
-	if err := j.accountSvc.BackfillBalancesForUser(ctx, userID, from, to); err != nil {
 		return err
 	}
-	if err := j.accountSvc.UpdateSnapshotMarketValues(ctx, userID, fromDate); err != nil {
-		return fmt.Errorf("market value update: %w", err)
+
+	backfillBatches, err := j.fanOutBackfill(ctx)
+	if err != nil {
+		return err
 	}
+
+	j.logger.Info("Balance fan-out enqueued",
+		zap.Int("reconcileBatches", reconcileBatches),
+		zap.Int("backfillBatches", backfillBatches))
+
 	return nil
+}
+
+func (j *BalanceBackfillJob) fanOutBackfill(ctx context.Context) (int, error) {
+	userIDs, err := j.userSvc.GetAllActiveUserIDs(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get user IDs: %w", err)
+	}
+
+	batches := 0
+	for start := 0; start < len(userIDs); start += j.userBatchSize {
+		end := min(start+j.userBatchSize, len(userIDs))
+
+		args := jobqueue.BalanceBackfillBatchArgs{UserIDs: userIDs[start:end]}
+		if err := j.dispatcher.Dispatch(ctx, args); err != nil {
+			return batches, fmt.Errorf("enqueue backfill batch: %w", err)
+		}
+		batches++
+	}
+
+	return batches, nil
+}
+
+func (j *BalanceBackfillJob) fanOutReconcile(ctx context.Context) (int, error) {
+	batches := 0
+
+	for afterID := int64(0); ; {
+		ids, err := j.accountLister.ListOpenAccountIDs(ctx, afterID, j.reconcileBatchSize)
+		if err != nil {
+			return batches, fmt.Errorf("list open accounts: %w", err)
+		}
+		if len(ids) == 0 {
+			return batches, nil
+		}
+		afterID = ids[len(ids)-1]
+
+		args := jobqueue.BalanceReconcileBatchArgs{AccountIDs: ids}
+		if err := j.dispatcher.Dispatch(ctx, args); err != nil {
+			return batches, fmt.Errorf("enqueue reconcile batch: %w", err)
+		}
+		batches++
+	}
 }

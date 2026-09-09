@@ -53,6 +53,7 @@ type TransactionRepositoryInterface interface {
 	ArchiveCategory(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	DeleteCategory(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	RestoreTransaction(ctx context.Context, tx *gorm.DB, id, userID int64) error
+	RetimeOpeningTransactions(ctx context.Context, tx *gorm.DB, accountID int64, when time.Time) error
 	RestoreCategory(ctx context.Context, tx *gorm.DB, id int64, userID *int64) error
 	RestoreCategoryName(ctx context.Context, tx *gorm.DB, id int64, userID *int64, name string) error
 	FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, templateType string) ([]models.TransactionTemplate, error)
@@ -163,7 +164,8 @@ func (r *TransactionRepository) FindTransactions(ctx context.Context, tx *gorm.D
 
 	q := r.baseTxQuery(ctx, db, userID, includeDeleted).
 		Preload("Category").
-		Preload("Account")
+		Preload("Account").
+		Where("transactions.transaction_type IN ?", models.ClientVisibleTxnTypes)
 
 	if accountID != nil {
 		q = q.Where("transactions.account_id = ?", *accountID)
@@ -202,7 +204,7 @@ func (r *TransactionRepository) FindAllTransactionsForUser(ctx context.Context, 
 
 	q := r.baseTxQuery(ctx, db, userID, false).
 		Preload("Category").
-		Where("transactions.is_system = ?", false)
+		Where("transactions.transaction_type NOT IN ?", []models.TransactionType{models.TxnTypeTrade, models.TxnTypeInvestmentIncome})
 
 	err := q.
 		Order("txn_date asc").
@@ -329,7 +331,8 @@ func (r *TransactionRepository) CountTransactions(ctx context.Context, tx *gorm.
 	db = db.WithContext(ctx)
 
 	var totalRecords int64
-	q := r.baseTxQuery(ctx, db, userID, includeDeleted)
+	q := r.baseTxQuery(ctx, db, userID, includeDeleted).
+		Where("transactions.transaction_type IN ?", models.ClientVisibleTxnTypes)
 	if accountID != nil {
 		q = q.Where("transactions.account_id = ?", *accountID)
 	}
@@ -647,14 +650,14 @@ func (r *TransactionRepository) UpdateTransaction(ctx context.Context, tx *gorm.
 	if err := db.Model(models.Transaction{}).
 		Where("id = ?", record.ID).
 		Updates(map[string]interface{}{
-			"account_id":       record.AccountID,
-			"category_id":      record.CategoryID,
-			"transaction_type": record.TransactionType,
-			"amount":           record.Amount,
-			"currency":         record.Currency,
-			"txn_date":         record.TxnDate,
-			"description":      record.Description,
-			"updated_at":       time.Now().UTC(),
+			"account_id":  record.AccountID,
+			"category_id": record.CategoryID,
+			"direction":   record.Direction,
+			"amount":      record.Amount,
+			"currency":    record.Currency,
+			"txn_date":    record.TxnDate,
+			"description": record.Description,
+			"updated_at":  time.Now().UTC(),
 		}).Error; err != nil {
 		return 0, err
 	}
@@ -837,6 +840,22 @@ func (r *TransactionRepository) RestoreTransaction(ctx context.Context, tx *gorm
 			"updated_at": time.Now().UTC(),
 		})
 	return res.Error
+}
+
+func (r *TransactionRepository) RetimeOpeningTransactions(ctx context.Context, tx *gorm.DB, accountID int64, when time.Time) error {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	return db.Model(&models.Transaction{}).
+		Where("account_id = ? AND transaction_type = ? AND deleted_at IS NULL", accountID, models.TxnTypeOpening).
+		Updates(map[string]any{
+			"txn_date":   when,
+			"updated_at": time.Now().UTC(),
+		}).Error
 }
 
 func (r *TransactionRepository) RestoreCategory(ctx context.Context, tx *gorm.DB, id int64, userID *int64) error {
@@ -1110,7 +1129,7 @@ func (r *TransactionRepository) GetTransactionsByYearAndClass(ctx context.Contex
 	}
 	db = db.WithContext(ctx)
 
-	q := db.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ? AND transaction_type = ? AND is_transfer = ? AND is_adjustment = ? AND is_system = ? AND deleted_at IS NULL", userID, year, class, false, false, false)
+	q := db.Where("user_id = ? AND EXTRACT(YEAR FROM txn_date) = ? AND direction = ? AND transaction_type = ? AND deleted_at IS NULL", userID, year, class, models.TxnTypeLedger)
 
 	if accountID != nil {
 		q = q.Where("account_id = ?", *accountID)
@@ -1131,7 +1150,7 @@ func (r *TransactionRepository) GetAllTimeStatsByClass(ctx context.Context, tx *
 
 	q := db.Model(&models.Transaction{}).
 		Select("COALESCE(SUM(amount), 0) as total, COUNT(DISTINCT EXTRACT(YEAR FROM txn_date) || '-' || EXTRACT(MONTH FROM txn_date)) as months_with_data").
-		Where("user_id = ? AND transaction_type = ? AND is_transfer = ? AND is_adjustment = ? AND is_system = ? AND deleted_at IS NULL", userID, class, false, false, false)
+		Where("user_id = ? AND direction = ? AND transaction_type = ? AND deleted_at IS NULL", userID, class, models.TxnTypeLedger)
 
 	if accountID != nil {
 		q = q.Where("account_id = ?", *accountID)
@@ -1389,8 +1408,7 @@ func (r *TransactionRepository) GetYearlyAverageForCategory(ctx context.Context,
           AND account_id = ?
           AND category_id = ?
           AND deleted_at IS NULL
-          AND is_adjustment = false
-          AND is_system = false
+          AND transaction_type = 'ledger'
           AND EXTRACT(YEAR FROM txn_date) = ?
     `
 
@@ -1428,8 +1446,7 @@ func (r *TransactionRepository) GetYearlyAverageForCategoryGroup(ctx context.Con
           AND t.account_id = ?
           AND cgm.group_id = ?
           AND t.deleted_at IS NULL
-          AND t.is_adjustment = false
-          AND t.is_system = false
+          AND t.transaction_type = 'ledger'
           AND EXTRACT(YEAR FROM t.txn_date) = ?
     `
 

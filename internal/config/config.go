@@ -58,11 +58,14 @@ func setDefaults(v *viper.Viper) {
 
 	v.SetDefault("scheduler.concurrent_workers", 5)
 	v.SetDefault("scheduler.immediate_jobs", []string{})
+	v.SetDefault("scheduler.balance_batch_size", 100)
+	v.SetDefault("scheduler.reconcile_batch_size", 500)
 
 	v.SetDefault("otel.otlp_endpoint", "tempo:4317")
 	v.SetDefault("otel.service_name", "wealth-warden")
 
 	v.SetDefault("queue.workers", 1)
+	v.SetDefault("queue.scheduler_workers", 5)
 	v.SetDefault("queue.max_attempts", 5)
 	v.SetDefault("queue.poll_interval_ms", 1000)
 	v.SetDefault("queue.job_timeout_sec", 900)

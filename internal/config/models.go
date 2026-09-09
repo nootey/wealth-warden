@@ -78,8 +78,10 @@ type MailerConfig struct {
 }
 
 type SchedulerConfig struct {
-	ImmediateJobs     []string `mapstructure:"immediate_jobs"`
-	ConcurrentWorkers int      `mapstructure:"concurrent_workers"`
+	ImmediateJobs      []string `mapstructure:"immediate_jobs"`
+	ConcurrentWorkers  int      `mapstructure:"concurrent_workers"`
+	BalanceBatchSize   int      `mapstructure:"balance_batch_size"`
+	ReconcileBatchSize int      `mapstructure:"reconcile_batch_size"`
 }
 
 type OtelConfig struct {
@@ -88,8 +90,9 @@ type OtelConfig struct {
 }
 
 type QueueConfig struct {
-	Workers        int `mapstructure:"workers"`
-	MaxAttempts    int `mapstructure:"max_attempts"`
-	PollIntervalMs int `mapstructure:"poll_interval_ms"`
-	JobTimeoutSec  int `mapstructure:"job_timeout_sec"` // past this, a job is cancelled; River's rescuer requeues it.
+	Workers          int `mapstructure:"workers"`
+	SchedulerWorkers int `mapstructure:"scheduler_workers"`
+	MaxAttempts      int `mapstructure:"max_attempts"`
+	PollIntervalMs   int `mapstructure:"poll_interval_ms"`
+	JobTimeoutSec    int `mapstructure:"job_timeout_sec"` // past this, a job is cancelled; River's rescuer requeues it.
 }

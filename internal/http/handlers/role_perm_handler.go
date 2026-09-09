@@ -30,7 +30,7 @@ func NewRolePermissionHandler(
 }
 
 func (h *RolePermissionHandler) Routes(apiGroup *gin.RouterGroup) {
-	apiGroup.GET("", authz.RequireAllMW("manage_roles"), h.GetAllRoles)
+	apiGroup.GET("", authz.RequireAnyMW("manage_users", "manage_roles"), h.GetAllRoles)
 	apiGroup.GET("/permissions", authz.RequireAllMW("manage_roles"), h.GetAllPermissions)
 	apiGroup.GET(":id", authz.RequireAllMW("manage_roles"), h.GetRoleById)
 	apiGroup.PUT("", authz.RequireAllMW("manage_roles"), h.InsertRole)

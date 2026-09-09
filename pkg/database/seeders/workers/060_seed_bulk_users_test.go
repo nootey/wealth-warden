@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The deltas are the only thing keeping seeded balances honest: nothing
-// recomputes them from the transactions afterwards.
+// A seeded asset account must never go negative, and a seeded liability must never
+// turn positive. The walk below is the one the rebuild will repeat from these rows.
 func TestBulkTransactionsForAccount(t *testing.T) {
 	today := time.Date(2026, 8, 25, 0, 0, 0, 0, time.UTC)
 	opened := today.AddDate(-2, 0, 0)
@@ -35,42 +35,29 @@ func TestBulkTransactionsForAccount(t *testing.T) {
 			acc := models.Account{ID: 7, UserID: 3, Currency: "EUR"}
 			rng := rand.New(rand.NewSource(1))
 
-			txns, deltas := bulkTransactionsForAccount(
+			txns := bulkTransactionsForAccount(
 				rng, today, opened, acc, tc.seed, 400, incCats, expCats)
 
 			require.NotEmpty(t, txns)
-			require.NotEmpty(t, deltas)
 
-			perDay := map[time.Time]decimal.Decimal{}
 			for _, txn := range txns {
 				assert.False(t, txn.TxnDate.Before(opened), "date before the account opened")
 				assert.False(t, txn.TxnDate.After(today), "date in the future")
 				assert.True(t, txn.Amount.IsPositive(), "amount must be positive")
-
-				signed := txn.Amount
-				if txn.TransactionType == "expense" {
-					signed = signed.Neg()
-				}
-				perDay[txn.TxnDate] = perDay[txn.TxnDate].Add(signed)
 			}
 
-			assert.Len(t, deltas, len(perDay), "one delta per day with activity")
-
-			for _, d := range deltas {
-				want, ok := perDay[d.AsOf]
-				require.True(t, ok, "delta on a day with no transactions: %s", d.AsOf)
-				assert.Equal(t, want.String(), d.Inflows.Sub(d.Outflows).String(),
-					"delta does not match its transactions on %s", d.AsOf)
-			}
-
-			sort.Slice(deltas, func(i, j int) bool { return deltas[i].AsOf.Before(deltas[j].AsOf) })
+			sort.Slice(txns, func(i, j int) bool { return txns[i].TxnDate.Before(txns[j].TxnDate) })
 			balance := tc.seed.StartBalance
-			for _, d := range deltas {
-				balance = balance.Add(d.Inflows).Sub(d.Outflows)
-				if tc.seed.StartBalance.IsNegative() {
-					assert.False(t, balance.IsPositive(), "liability turned positive on %s", d.AsOf)
+			for _, txn := range txns {
+				if txn.Direction == "expense" {
+					balance = balance.Sub(txn.Amount)
 				} else {
-					assert.False(t, balance.IsNegative(), "asset went negative on %s", d.AsOf)
+					balance = balance.Add(txn.Amount)
+				}
+				if tc.seed.StartBalance.IsNegative() {
+					assert.False(t, balance.IsPositive(), "liability turned positive on %s", txn.TxnDate)
+				} else {
+					assert.False(t, balance.IsNegative(), "asset went negative on %s", txn.TxnDate)
 				}
 			}
 		})

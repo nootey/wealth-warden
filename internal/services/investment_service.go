@@ -67,6 +67,7 @@ type InvestmentService struct {
 	logger           *zap.Logger
 	repo             repositories.InvestmentRepositoryInterface
 	accRepo          repositories.AccountRepositoryInterface
+	balanceRepo      repositories.BalanceRepositoryInterface
 	txnRepo          repositories.TransactionRepositoryInterface
 	settingsRepo     *repositories.SettingsRepository
 	jobDispatcher    jobqueue.Dispatcher
@@ -77,6 +78,7 @@ func NewInvestmentService(
 	logger *zap.Logger,
 	repo *repositories.InvestmentRepository,
 	accRepo *repositories.AccountRepository,
+	balanceRepo *repositories.BalanceRepository,
 	txnRepo *repositories.TransactionRepository,
 	settingsRepo *repositories.SettingsRepository,
 	jobDispatcher jobqueue.Dispatcher,
@@ -86,6 +88,7 @@ func NewInvestmentService(
 		logger:           logger,
 		repo:             repo,
 		accRepo:          accRepo,
+		balanceRepo:      balanceRepo,
 		txnRepo:          txnRepo,
 		settingsRepo:     settingsRepo,
 		jobDispatcher:    jobDispatcher,
@@ -380,7 +383,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 
 	// Validate buy affordability — balance already reflects cash only
 	if req.TradeType == models.InvestmentBuy {
-		availableBalance, err := s.accRepo.FindLatestBalance(ctx, tx, asset.AccountID, userID)
+		availableBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, asset.AccountID, userID)
 		if err != nil {
 			tx.Rollback()
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -402,12 +405,12 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		}
 
 		// Skip check for zero-cost trades (staking rewards, dividends recorded at price 0).
-		if purchaseCostInAccountCurrency.IsPositive() && purchaseCostInAccountCurrency.GreaterThan(availableBalance.EndBalance) {
+		if purchaseCostInAccountCurrency.IsPositive() && purchaseCostInAccountCurrency.GreaterThan(availableBalance) {
 			tx.Rollback()
 			return 0, fmt.Errorf("insufficient funds: need %s %s but only %s %s available",
 				purchaseCostInAccountCurrency.StringFixed(2),
 				asset.Account.Currency,
-				availableBalance.EndBalance.StringFixed(2),
+				availableBalance.StringFixed(2),
 				asset.Account.Currency)
 		}
 	}
@@ -468,42 +471,39 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 		return 0, err
 	}
 
-	// Write cash flow to balances + update snapshots
 	txnDate := req.TxnDate.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency); err != nil {
+	category, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+	if err != nil {
 		tx.Rollback()
-		return 0, err
+		return 0, fmt.Errorf("failed to find uncategorized category: %w", err)
 	}
 
+	var cashAmount decimal.Decimal
 	if req.TradeType == models.InvestmentBuy {
 		grossCost := valueAtBuy
 		if asset.InvestmentType != models.InvestmentCrypto {
 			grossCost = grossCost.Add(fee)
 		}
-		purchaseCostInAccountCurrency := grossCost
+		cashAmount = grossCost
 		if req.Currency != asset.Account.Currency {
-			purchaseCostInAccountCurrency = grossCost.Mul(exchangeRate)
-		}
-		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", purchaseCostInAccountCurrency); err != nil {
-			tx.Rollback()
-			return 0, err
+			cashAmount = grossCost.Mul(exchangeRate)
 		}
 	} else {
 		// Sell: cash returns via realized P&L
-		if err := s.handleSellTrade(ctx, tx, asset, effectiveQuantity, req.PricePerUnit, fee, asset.InvestmentType, txnDate, req.Currency); err != nil {
+		cashAmount, err = s.sellProceeds(ctx, asset, effectiveQuantity, req.PricePerUnit, fee, asset.InvestmentType, txnDate, req.Currency)
+		if err != nil {
 			tx.Rollback()
 			return 0, err
 		}
 	}
 
-	if err := s.accRepo.FrontfillBalances(ctx, tx, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
+	if err := s.linkTradeTransaction(ctx, tx, userID, txnID, asset, req.TradeType, txnDate, cashAmount, &category.ID); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
 
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, txnDate, today); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -555,7 +555,7 @@ func (s *InvestmentService) InsertInvestmentTrade(ctx context.Context, userID in
 	return txnID, nil
 }
 
-func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, asset models.InvestmentAsset, quantitySold, salePrice, fee decimal.Decimal, investmentType models.InvestmentType, txnDate time.Time, tradeCurrency string) error {
+func (s *InvestmentService) sellProceeds(ctx context.Context, asset models.InvestmentAsset, quantitySold, salePrice, fee decimal.Decimal, investmentType models.InvestmentType, txnDate time.Time, tradeCurrency string) (decimal.Decimal, error) {
 
 	var proceeds decimal.Decimal
 	if investmentType == models.InvestmentCrypto {
@@ -564,21 +564,41 @@ func (s *InvestmentService) handleSellTrade(ctx context.Context, tx *gorm.DB, as
 		proceeds = quantitySold.Mul(salePrice).Sub(fee)
 	}
 
-	proceedsInAccountCurrency := proceeds
-	if tradeCurrency != asset.Account.Currency {
-		exchangeRate, err := s.GetExchangeRate(ctx, tradeCurrency, asset.Account.Currency, &txnDate)
-		if err != nil {
-			return err
-		}
-		proceedsInAccountCurrency = proceeds.Mul(exchangeRate)
+	if tradeCurrency == asset.Account.Currency {
+		return proceeds, nil
 	}
 
-	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency); err != nil {
-		return err
+	exchangeRate, err := s.GetExchangeRate(ctx, tradeCurrency, asset.Account.Currency, &txnDate)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	return proceeds.Mul(exchangeRate), nil
+}
+
+func (s *InvestmentService) linkTradeTransaction(ctx context.Context, tx *gorm.DB, userID, tradeID int64, asset models.InvestmentAsset, tradeType models.TradeType, txnDate time.Time, amount decimal.Decimal, categoryID *int64) error {
+	txn := models.NewTradeCashTransaction(userID, asset.AccountID, categoryID, asset.Ticker, asset.Account.Currency, tradeType, txnDate, amount)
+
+	return linkTradeCashTransaction(ctx, tx, s.txnRepo, s.repo, tradeID, txn)
+}
+
+func linkTradeCashTransaction(ctx context.Context, tx *gorm.DB, txnRepo repositories.TransactionRepositoryInterface, invRepo repositories.InvestmentRepositoryInterface, tradeID int64, cashTxn models.Transaction) error {
+	txnID, err := txnRepo.InsertTransaction(ctx, tx, &cashTxn)
+	if err != nil {
+		return fmt.Errorf("failed to create linked trade transaction: %w", err)
 	}
 
-	// Full proceeds return to cash — cost basis was already deducted on the buy
-	return s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_inflows", proceedsInAccountCurrency)
+	if err := invRepo.SetTradeTransaction(ctx, tx, tradeID, txnID); err != nil {
+		return fmt.Errorf("failed to link trade transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (s *InvestmentService) unlinkTradeTransaction(ctx context.Context, tx *gorm.DB, userID int64, trade models.InvestmentTrade) error {
+	if trade.TransactionID == nil {
+		return nil
+	}
+	return s.txnRepo.DeleteTransaction(ctx, tx, *trade.TransactionID, userID)
 }
 
 func (s *InvestmentService) resolveUserTradeRates(ctx context.Context, userID int64) (map[utils.TradeExchangeRateKey]decimal.Decimal, error) {
@@ -681,15 +701,11 @@ func (s *InvestmentService) rebuildDerivedData(
 	trades []models.InvestmentTrade,
 	rates map[utils.TradeExchangeRateKey]decimal.Decimal,
 ) error {
-	if err := s.accRepo.ClearInvestmentCashFlows(ctx, tx, userID); err != nil {
+	if err := s.balanceRepo.ClearInvestmentSnapshots(ctx, tx, userID); err != nil {
 		return err
 	}
 
-	if err := s.accRepo.ClearInvestmentSnapshots(ctx, tx, userID); err != nil {
-		return err
-	}
-
-	if err := s.addTradeCashFlows(ctx, tx, userID, trades, rates); err != nil {
+	if err := s.ensureTradeTransactions(ctx, tx, userID, trades, rates); err != nil {
 		return err
 	}
 
@@ -699,10 +715,10 @@ func (s *InvestmentService) rebuildDerivedData(
 
 	// Must take the tx: on its own connection this blocks on rows the open
 	// transaction holds, and that transaction waits for it to return.
-	return s.accRepo.UpdateSnapshotMarketValues(ctx, tx, userID, nil)
+	return s.balanceRepo.UpdateSnapshotMarketValues(ctx, tx, userID, nil)
 }
 
-func (s *InvestmentService) addTradeCashFlows(
+func (s *InvestmentService) ensureTradeTransactions(
 	ctx context.Context,
 	tx *gorm.DB,
 	userID int64,
@@ -713,23 +729,70 @@ func (s *InvestmentService) addTradeCashFlows(
 		return nil
 	}
 
-	// Track earliest date and currency per account for frontfill
+	missing, err := s.repo.FindTradeIDsWithoutCashTransaction(ctx, tx, userID)
+	if err != nil {
+		return err
+	}
+	needsCash := make(map[int64]bool, len(missing))
+	for _, id := range missing {
+		needsCash[id] = true
+	}
+
 	earliestByAccount := make(map[int64]time.Time)
 	accountCurrency := make(map[int64]string)
 
+	var unlinked []models.InvestmentTrade
+
+	for _, trade := range trades {
+		txnDate := trade.TxnDate.UTC().Truncate(24 * time.Hour)
+
+		if earliest, ok := earliestByAccount[trade.Asset.AccountID]; !ok || txnDate.Before(earliest) {
+			earliestByAccount[trade.Asset.AccountID] = txnDate
+		}
+		accountCurrency[trade.Asset.AccountID] = trade.Asset.Account.Currency
+
+		if needsCash[trade.ID] {
+			unlinked = append(unlinked, trade)
+		}
+	}
+
+	if len(unlinked) > 0 {
+		category, err := s.txnRepo.FindCategoryByClassification(ctx, tx, "uncategorized", &userID)
+		if err != nil {
+			return fmt.Errorf("failed to find uncategorized category: %w", err)
+		}
+
+		if err := s.withClosedAccountPostingAllowed(ctx, tx, func() error {
+			return s.linkTrades(ctx, tx, userID, unlinked, rates, &category.ID)
+		}); err != nil {
+			return err
+		}
+	}
+
+	for accountID, earliestDate := range earliestByAccount {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, accountID, accountCurrency[accountID], earliestDate); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *InvestmentService) linkTrades(
+	ctx context.Context,
+	tx *gorm.DB,
+	userID int64,
+	trades []models.InvestmentTrade,
+	rates map[utils.TradeExchangeRateKey]decimal.Decimal,
+	categoryID *int64,
+) error {
 	for _, trade := range trades {
 		txnDate := trade.TxnDate.UTC().Truncate(24 * time.Hour)
 		accCurrency := trade.Asset.Account.Currency
 
-		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, trade.Asset.AccountID, txnDate, accCurrency); err != nil {
-			return err
-		}
-
-		field := "cash_inflows"
 		amount := trade.RealizedValue
 
 		if trade.TradeType == models.InvestmentBuy {
-			field = "cash_outflows"
 			// Not quantity * price_per_unit: NUMERIC(19,4) rounds a sub-cent
 			// asset to 0 and its cost vanishes.
 			amount = trade.ValueAtBuy
@@ -746,26 +809,7 @@ func (s *InvestmentService) addTradeCashFlows(
 			amount = amount.Mul(rate)
 		}
 
-		if err := s.accRepo.AddToDailyBalance(ctx, tx, trade.Asset.AccountID, txnDate, field, amount); err != nil {
-			return err
-		}
-
-		if earliest, ok := earliestByAccount[trade.Asset.AccountID]; !ok || txnDate.Before(earliest) {
-			earliestByAccount[trade.Asset.AccountID] = txnDate
-		}
-		accountCurrency[trade.Asset.AccountID] = accCurrency
-	}
-
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-
-	for accountID, earliestDate := range earliestByAccount {
-		currency := accountCurrency[accountID]
-
-		if err := s.accRepo.FrontfillBalances(ctx, tx, accountID, currency, earliestDate); err != nil {
-			return err
-		}
-
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, accountID, currency, earliestDate, today); err != nil {
+		if err := s.linkTradeTransaction(ctx, tx, userID, trade.ID, trade.Asset, trade.TradeType, txnDate, amount, categoryID); err != nil {
 			return err
 		}
 	}
@@ -773,13 +817,26 @@ func (s *InvestmentService) addTradeCashFlows(
 	return nil
 }
 
+func (s *InvestmentService) withClosedAccountPostingAllowed(ctx context.Context, tx *gorm.DB, fn func() error) error {
+	db := tx.WithContext(ctx)
+
+	if err := db.Exec("SET LOCAL ww.allow_closed_posting = 'on'").Error; err != nil {
+		return fmt.Errorf("failed to suspend the closed-account guard: %w", err)
+	}
+	defer func() {
+		if err := db.Exec("SET LOCAL ww.allow_closed_posting = 'off'").Error; err != nil {
+			s.logger.Error("failed to restore the closed-account guard", zap.Error(err))
+		}
+	}()
+
+	return fn()
+}
+
 func (s *InvestmentService) rebuildSnapshots(ctx context.Context, tx *gorm.DB, userID int64) error {
 	accounts, err := s.accRepo.FindAllAccounts(ctx, tx, userID, true, false)
 	if err != nil {
 		return err
 	}
-
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	for _, acc := range accounts {
 		earliest, err := s.accRepo.GetAccountOpeningAsOf(ctx, tx, acc.ID)
@@ -790,12 +847,8 @@ func (s *InvestmentService) rebuildSnapshots(ctx context.Context, tx *gorm.DB, u
 			return fmt.Errorf("failed to get opening date for account %d: %w", acc.ID, err)
 		}
 
-		if err := s.accRepo.FrontfillBalances(ctx, tx, acc.ID, acc.Currency, earliest); err != nil {
-			return fmt.Errorf("failed to frontfill balances for account %d: %w", acc.ID, err)
-		}
-
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, acc.ID, acc.Currency, earliest, today); err != nil {
-			return fmt.Errorf("failed to rebuild snapshots for account %d: %w", acc.ID, err)
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, acc.ID, acc.Currency, earliest); err != nil {
+			return fmt.Errorf("failed to rebuild balances for account %d: %w", acc.ID, err)
 		}
 	}
 
@@ -1064,40 +1117,9 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 	}
 
 	for _, trade := range allTrades {
-		txnDate := trade.TxnDate.UTC().Truncate(24 * time.Hour)
-
-		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency); err != nil {
+		if err := s.unlinkTradeTransaction(ctx, tx, userID, trade); err != nil {
 			tx.Rollback()
 			return err
-		}
-
-		exchangeRate, err := s.GetExchangeRate(ctx, trade.Currency, asset.Account.Currency, &trade.TxnDate)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		if trade.TradeType == models.InvestmentBuy {
-			// Reverse cash outflow
-			purchaseCost := trade.ValueAtBuy
-			if trade.Currency != asset.Account.Currency {
-				purchaseCost = trade.ValueAtBuy.Mul(exchangeRate)
-			}
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", purchaseCost.Neg()); err != nil {
-				tx.Rollback()
-				return err
-			}
-		} else {
-			// Reverse sell: subtract the proceeds that were credited to cash
-			proceeds := trade.RealizedValue
-			proceedsInAccountCurrency := proceeds
-			if trade.Currency != asset.Account.Currency {
-				proceedsInAccountCurrency = proceeds.Mul(exchangeRate)
-			}
-			if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_inflows", proceedsInAccountCurrency.Neg()); err != nil {
-				tx.Rollback()
-				return err
-			}
 		}
 	}
 
@@ -1115,14 +1137,8 @@ func (s *InvestmentService) DeleteInvestmentAsset(ctx context.Context, userID in
 
 	// Rebuild balances and snapshots from the earliest trade date
 	if !earliestTxnDate.IsZero() {
-		today := time.Now().UTC().Truncate(24 * time.Hour)
 
-		if err := s.accRepo.FrontfillBalances(ctx, tx, asset.AccountID, asset.Account.Currency, earliestTxnDate); err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestTxnDate, today); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestTxnDate); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -1187,45 +1203,10 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 	}
 
 	txnDate := exTxn.TxnDate.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, txnDate, asset.Account.Currency); err != nil {
+	if err := s.unlinkTradeTransaction(ctx, tx, userID, exTxn); err != nil {
 		tx.Rollback()
 		return err
-	}
-
-	// Reverse the cash flow that was written when the trade was created
-	if exTxn.TradeType == models.InvestmentBuy {
-		// Reverse cash outflow — cash comes back
-		exchangeRate, err := s.GetExchangeRate(ctx, exTxn.Currency, asset.Account.Currency, &exTxn.TxnDate)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-		purchaseCost := exTxn.ValueAtBuy
-		if exTxn.Currency != asset.Account.Currency {
-			purchaseCost = exTxn.ValueAtBuy.Mul(exchangeRate)
-		}
-		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_outflows", purchaseCost.Neg()); err != nil {
-			tx.Rollback()
-			return err
-		}
-	} else {
-		// Reverse sell: subtract the proceeds that were credited to cash
-		proceeds := exTxn.RealizedValue
-		proceedsInAccountCurrency := proceeds
-		if exTxn.Currency != asset.Account.Currency {
-			exchangeRate, err := s.GetExchangeRate(ctx, exTxn.Currency, asset.Account.Currency, &exTxn.TxnDate)
-			if err != nil {
-				tx.Rollback()
-				return err
-			}
-			proceedsInAccountCurrency = proceeds.Mul(exchangeRate)
-		}
-		if err := s.accRepo.AddToDailyBalance(ctx, tx, asset.AccountID, txnDate, "cash_inflows", proceedsInAccountCurrency.Neg()); err != nil {
-			tx.Rollback()
-			return err
-		}
 	}
 
 	if err := s.repo.DeleteInvestmentTrade(ctx, tx, id); err != nil {
@@ -1239,19 +1220,7 @@ func (s *InvestmentService) DeleteInvestmentTrade(ctx context.Context, userID in
 		return err
 	}
 
-	if err := s.accRepo.FrontfillBalances(ctx, tx, asset.AccountID, asset.Account.Currency, exTxn.TxnDate); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := s.accRepo.UpsertSnapshotsFromBalances(
-		ctx, tx,
-		userID,
-		asset.AccountID,
-		asset.Account.Currency,
-		exTxn.TxnDate.UTC().Truncate(24*time.Hour),
-		today,
-	); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, txnDate); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -1405,7 +1374,7 @@ func (s *InvestmentService) GetUserIDsWithActiveInvestments(ctx context.Context)
 }
 
 func (s *InvestmentService) UpdateSnapshotMarketValues(ctx context.Context, userID int64, from time.Time) error {
-	return s.accRepo.UpdateSnapshotMarketValues(ctx, nil, userID, utils.SnapshotRecomputeFrom(from))
+	return s.balanceRepo.UpdateSnapshotMarketValues(ctx, nil, userID, utils.SnapshotRecomputeFrom(from))
 }
 
 func (s *InvestmentService) FetchInvestmentIncomeByAsset(ctx context.Context, userID int64, assetID int64, p utils.PaginationParams) ([]models.InvestmentIncome, *utils.Paginator, error) {
@@ -1544,12 +1513,12 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 			UserID:          userID,
 			AccountID:       asset.AccountID,
 			CategoryID:      &category.ID,
-			TransactionType: "income",
+			Direction:       "income",
 			Amount:          dividendAmount,
 			Currency:        asset.Account.Currency,
 			TxnDate:         record.TxnDate,
 			Description:     &desc,
-			IsSystem:        true,
+			TransactionType: models.TxnTypeInvestmentIncome,
 		}
 		txnID, err := s.txnRepo.InsertTransaction(ctx, tx, txn)
 		if err != nil {
@@ -1559,6 +1528,11 @@ func (s *InvestmentService) CreateInvestmentIncome(ctx context.Context, userID i
 		if err := tx.Model(&models.InvestmentIncome{}).Where("id = ?", id).Update("linked_transaction_id", txnID).Error; err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to link dividend transaction: %w", err)
+		}
+
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, record.TxnDate); err != nil {
+			tx.Rollback()
+			return 0, err
 		}
 	}
 
@@ -1623,24 +1597,13 @@ func (s *InvestmentService) DeleteInvestmentIncome(ctx context.Context, userID i
 			tx.Rollback()
 			return err
 		}
+	}
 
-		incomeDate := income.TxnDate.UTC().Truncate(24 * time.Hour)
-		today := time.Now().UTC().Truncate(24 * time.Hour)
+	incomeDate := income.TxnDate.UTC().Truncate(24 * time.Hour)
 
-		if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, incomeDate, asset.Account.Currency); err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		if err := s.accRepo.FrontfillBalances(ctx, tx, asset.AccountID, asset.Account.Currency, incomeDate); err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, incomeDate, today); err != nil {
-			tx.Rollback()
-			return err
-		}
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, incomeDate); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	return tx.Commit().Error
@@ -1913,12 +1876,12 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 				UserID:          userID,
 				AccountID:       asset.AccountID,
 				CategoryID:      uncategorizedCatID,
-				TransactionType: "income",
+				Direction:       "income",
 				Amount:          dividendAmount,
 				Currency:        asset.Account.Currency,
 				TxnDate:         txnDate,
 				Description:     &desc,
-				IsSystem:        true,
+				TransactionType: models.TxnTypeInvestmentIncome,
 			}
 			txnID, err := s.txnRepo.InsertTransaction(ctx, tx, txn)
 			if err != nil {
@@ -1929,6 +1892,11 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 				tx.Rollback()
 				return fmt.Errorf("failed to link dividend transaction for trade %d: %w", trade.ID, err)
 			}
+		}
+
+		if err := s.unlinkTradeTransaction(ctx, tx, userID, trade); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to unlink trade %d: %w", trade.ID, err)
 		}
 
 		if err := s.repo.DeleteInvestmentTrade(ctx, tx, trade.ID); err != nil {
@@ -1942,19 +1910,7 @@ func (s *InvestmentService) MigrateZeroCostTradesForAsset(ctx context.Context, u
 		return err
 	}
 
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-
-	if err := s.accRepo.EnsureDailyBalanceRow(ctx, tx, asset.AccountID, earliestDate, asset.Account.Currency); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := s.accRepo.FrontfillBalances(ctx, tx, asset.AccountID, asset.Account.Currency, earliestDate); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := s.accRepo.UpsertSnapshotsFromBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestDate, today); err != nil {
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, asset.AccountID, asset.Account.Currency, earliestDate); err != nil {
 		tx.Rollback()
 		return err
 	}
