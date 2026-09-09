@@ -75,7 +75,7 @@ docker-rpi-restart:
 	docker compose $(COMPOSE_OBS) $(COMPOSE_RPI_OBS) $(COMPOSE_MAIN) $(COMPOSE_RPI) -p wealth-warden restart
 
 docker-rpi-migrate:
-	docker compose $(COMPOSE_MAIN) $(COMPOSE_RPI) $(RPI_BUILD) -p wealth-warden run --rm $(if $(build),--build) migrate migrate $(or $(type),up)
+	docker compose $(COMPOSE_MAIN) $(COMPOSE_RPI) $(COMPOSE_BUILD) -p wealth-warden run --rm --build migrate migrate $(or $(type),up)
 
 tidy:
 	go mod tidy
