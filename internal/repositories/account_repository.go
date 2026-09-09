@@ -115,7 +115,7 @@ func (r *AccountRepository) FindAccounts(ctx context.Context, tx *gorm.DB, userI
 		accountIDs[i] = acc.ID
 	}
 
-	balanceMap, err := r.balances.accountBalances(ctx, db, accountIDs)
+	balanceMap, err := r.balances.findAccountBalancesByIDs(ctx, db, accountIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +310,7 @@ func (r *AccountRepository) FindAccountByID(ctx context.Context, tx *gorm.DB, ID
 	}
 
 	if result.Error == nil && withBalance {
-		bal, err := r.balances.accountBalance(ctx, db, record.ID)
+		bal, err := r.balances.findAccountBalanceByID(ctx, db, record.ID)
 		if err != nil {
 			return &record, err
 		}
@@ -336,7 +336,7 @@ func (r *AccountRepository) FindAccountByName(ctx context.Context, tx *gorm.DB, 
 		return &record, err
 	}
 
-	bal, err := r.balances.accountBalance(ctx, db, record.ID)
+	bal, err := r.balances.findAccountBalanceByID(ctx, db, record.ID)
 	if err != nil {
 		return &record, err
 	}
@@ -388,7 +388,7 @@ func (r *AccountRepository) FindAllAccountsWithLatestBalance(ctx context.Context
 		ids = append(ids, a.ID)
 	}
 
-	balanceMap, err := r.balances.accountBalances(ctx, db, ids)
+	balanceMap, err := r.balances.findAccountBalancesByIDs(ctx, db, ids)
 	if err != nil {
 		return nil, err
 	}

@@ -236,7 +236,7 @@ func (r *BalanceRepository) RepairBalance(ctx context.Context, tx *gorm.DB, acco
 	return drift, true, nil
 }
 
-func (r *BalanceRepository) accountBalance(ctx context.Context, db *gorm.DB, accountID int64) (models.AccountBalance, error) {
+func (r *BalanceRepository) findAccountBalanceByID(ctx context.Context, db *gorm.DB, accountID int64) (models.AccountBalance, error) {
 	var balance models.AccountBalance
 	if err := db.WithContext(ctx).
 		Raw(accountBalanceQuery+` WHERE a.id = ?`, accountID).
@@ -246,7 +246,7 @@ func (r *BalanceRepository) accountBalance(ctx context.Context, db *gorm.DB, acc
 	return balance, nil
 }
 
-func (r *BalanceRepository) accountBalances(ctx context.Context, db *gorm.DB, accountIDs []int64) (map[int64]models.AccountBalance, error) {
+func (r *BalanceRepository) findAccountBalancesByIDs(ctx context.Context, db *gorm.DB, accountIDs []int64) (map[int64]models.AccountBalance, error) {
 	out := make(map[int64]models.AccountBalance, len(accountIDs))
 	if len(accountIDs) == 0 {
 		return out, nil
