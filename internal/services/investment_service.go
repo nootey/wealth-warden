@@ -578,17 +578,16 @@ func (s *InvestmentService) sellProceeds(ctx context.Context, asset models.Inves
 func (s *InvestmentService) linkTradeTransaction(ctx context.Context, tx *gorm.DB, userID, tradeID int64, asset models.InvestmentAsset, tradeType models.TradeType, txnDate time.Time, amount decimal.Decimal, categoryID *int64) error {
 	txn := models.NewTradeCashTransaction(userID, asset.AccountID, categoryID, asset.Ticker, asset.Account.Currency, tradeType, txnDate, amount)
 
-	return linkTradeCashTransaction(ctx, tx, s.txnRepo, tradeID, txn)
+	return linkTradeCashTransaction(ctx, tx, s.txnRepo, s.repo, tradeID, txn)
 }
 
-func linkTradeCashTransaction(ctx context.Context, tx *gorm.DB, txnRepo repositories.TransactionRepositoryInterface, tradeID int64, cashTxn models.Transaction) error {
+func linkTradeCashTransaction(ctx context.Context, tx *gorm.DB, txnRepo repositories.TransactionRepositoryInterface, invRepo repositories.InvestmentRepositoryInterface, tradeID int64, cashTxn models.Transaction) error {
 	txnID, err := txnRepo.InsertTransaction(ctx, tx, &cashTxn)
 	if err != nil {
 		return fmt.Errorf("failed to create linked trade transaction: %w", err)
 	}
 
-	if err := tx.Model(&models.InvestmentTrade{}).Where("id = ?", tradeID).
-		Update("transaction_id", txnID).Error; err != nil {
+	if err := invRepo.SetTradeTransaction(ctx, tx, tradeID, txnID); err != nil {
 		return fmt.Errorf("failed to link trade transaction: %w", err)
 	}
 

@@ -433,9 +433,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 
 		// The opening transaction carries the starting amount, so retiming it is the
 		// whole move.
-		if err := tx.WithContext(ctx).Model(&models.Transaction{}).
-			Where("account_id = ? AND transaction_type = ? AND deleted_at IS NULL", id, models.TxnTypeOpening).
-			Update("txn_date", newOpenedAt).Error; err != nil {
+		if err := s.txnRepo.RetimeOpeningTransactions(ctx, tx, id, newOpenedAt); err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to move the opening transaction: %w", err)
 		}

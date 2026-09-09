@@ -48,8 +48,6 @@ type BalanceRepositoryInterface interface {
 	UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, from *time.Time) error
 	UpdateSnapshotMarketValuesForUsers(ctx context.Context, tx *gorm.DB, userIDs []int64, from *time.Time) error
 	HasSnapshotForDate(ctx context.Context, userID int64, date time.Time) (bool, error)
-	GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.BalanceSnapshot, error)
-	SetSnapshotMarketValue(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, value decimal.Decimal) error
 }
 
 type BalanceRepository struct {
@@ -391,79 +389,7 @@ func (r *BalanceRepository) ClearInvestmentSnapshots(ctx context.Context, tx *go
 }
 
 func (r *BalanceRepository) UpdateSnapshotMarketValues(ctx context.Context, tx *gorm.DB, userID int64, from *time.Time) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	db = db.WithContext(ctx)
-
-	dateFilter := ""
-	args := []interface{}{userID}
-	if from != nil {
-		dateFilter = "AND s.as_of >= ?"
-		args = append(args, from.UTC().Truncate(24*time.Hour))
-	}
-
-	// For each investment/crypto account snapshot, sum (last known price × quantity held)
-	// across all assets for that account on that date, with inline currency conversion
-	// via the exchange_rate_history cache. Falls back to rate=1 if no cached rate exists.
-	// A nil `from` recomputes all of history; pass a date to recompute only from the
-	// earliest day that changed.
-	query := fmt.Sprintf(`
-		UPDATE balance_snapshots s
-		SET market_value = (
-			SELECT COALESCE(SUM(
-				ph_latest.price
-				* COALESCE(erh_latest.rate, 1)
-				* GREATEST(qty.held, 0)
-			), 0)
-			FROM investment_assets ia
-			JOIN LATERAL (
-				SELECT ph.price, ph.currency
-				FROM ticker_price_history ph
-				WHERE ph.ticker = ia.ticker
-				  AND ph.as_of <= s.as_of
-				ORDER BY ph.as_of DESC
-				LIMIT 1
-			) ph_latest ON true
-			JOIN LATERAL (
-				SELECT
-					COALESCE(SUM(
-						CASE WHEN it.trade_type = 'buy'  THEN  it.quantity
-						     WHEN it.trade_type = 'sell' THEN -it.quantity
-						END
-					), 0)
-					+ COALESCE((
-						SELECT SUM(ii.quantity)
-						FROM investment_income ii
-						WHERE ii.asset_id    = ia.id
-						  AND ii.income_type = 'staking_reward'
-						  AND ii.txn_date   <= s.as_of
-					), 0) AS held
-				FROM investment_trades it
-				WHERE it.asset_id  = ia.id
-				  AND it.txn_date <= s.as_of
-			) qty ON true
-			LEFT JOIN LATERAL (
-				SELECT erh.rate
-				FROM exchange_rate_history erh
-				WHERE erh.from_currency = ph_latest.currency
-				  AND erh.to_currency   = a.currency
-				  AND erh.as_of        <= s.as_of
-				ORDER BY erh.as_of DESC
-				LIMIT 1
-			) erh_latest ON ph_latest.currency != a.currency
-			WHERE ia.account_id = s.account_id
-		)
-		FROM accounts a
-		JOIN account_types at ON at.id = a.account_type_id
-		WHERE s.account_id = a.id
-		  AND a.user_id    = ?
-		  AND at.type IN ('investment', 'crypto')
-		  %s;
-	`, dateFilter)
-
-	return db.Exec(query, args...).Error
+	return r.UpdateSnapshotMarketValuesForUsers(ctx, tx, []int64{userID}, from)
 }
 
 func (r *BalanceRepository) UpdateSnapshotMarketValuesForUsers(ctx context.Context, tx *gorm.DB, userIDs []int64, from *time.Time) error {
@@ -552,29 +478,4 @@ func (r *BalanceRepository) HasSnapshotForDate(ctx context.Context, userID int64
 		)
 	`, userID, normalized).Scan(&exists).Error
 	return exists, err
-}
-
-func (r *BalanceRepository) GetSnapshotsForAccount(ctx context.Context, tx *gorm.DB, accountID int64) ([]models.BalanceSnapshot, error) {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	var snapshots []models.BalanceSnapshot
-	err := db.WithContext(ctx).
-		Where("account_id = ?", accountID).
-		Order("as_of ASC").
-		Find(&snapshots).Error
-	return snapshots, err
-}
-
-func (r *BalanceRepository) SetSnapshotMarketValue(ctx context.Context, tx *gorm.DB, accountID int64, asOf time.Time, value decimal.Decimal) error {
-	db := tx
-	if db == nil {
-		db = r.db
-	}
-	return db.WithContext(ctx).Exec(`
-		UPDATE balance_snapshots
-		SET market_value = ?
-		WHERE account_id = ? AND as_of = ?
-	`, value, accountID, asOf.UTC().Truncate(24*time.Hour)).Error
 }

@@ -37,6 +37,7 @@ type InvestmentRepositoryInterface interface {
 	UpdateInvestmentAsset(ctx context.Context, tx *gorm.DB, record models.InvestmentAsset) (int64, error)
 	UpdateInvestmentTrade(ctx context.Context, tx *gorm.DB, record models.InvestmentTrade) (int64, error)
 	CorrectTradeValueAtBuy(ctx context.Context, tx *gorm.DB, tradeID int64, valueAtBuy decimal.Decimal) error
+	SetTradeTransaction(ctx context.Context, tx *gorm.DB, tradeID, transactionID int64) error
 	RecalculateAssetFromTrades(ctx context.Context, tx *gorm.DB, assetID, userID int64) error
 	DeleteInvestmentTrade(ctx context.Context, tx *gorm.DB, id int64) error
 	GetEarliestTradeDate(ctx context.Context, tx *gorm.DB, assetID, userID int64) (time.Time, error)
@@ -490,6 +491,19 @@ func (r *InvestmentRepository) CorrectTradeValueAtBuy(ctx context.Context, tx *g
 		Updates(map[string]interface{}{
 			"value_at_buy": valueAtBuy,
 			"updated_at":   time.Now().UTC(),
+		}).Error
+}
+
+func (r *InvestmentRepository) SetTradeTransaction(ctx context.Context, tx *gorm.DB, tradeID, transactionID int64) error {
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	return db.WithContext(ctx).Model(&models.InvestmentTrade{}).
+		Where("id = ?", tradeID).
+		Updates(map[string]interface{}{
+			"transaction_id": transactionID,
+			"updated_at":     time.Now().UTC(),
 		}).Error
 }
 

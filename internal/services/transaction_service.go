@@ -91,31 +91,6 @@ func NewTransactionService(
 
 var _ TransactionServiceInterface = (*TransactionService)(nil)
 
-func (s *TransactionService) updateAccountBalance(ctx context.Context, tx *gorm.DB, account *models.Account, txnDate time.Time, direction string, amount decimal.Decimal) error {
-	delta := amount.Round(4)
-	if direction == "expense" {
-		delta = delta.Neg()
-	}
-
-	if err := s.balanceRepo.ApplyDelta(ctx, tx, account.ID, delta); err != nil {
-		return err
-	}
-
-	if err := s.balanceRepo.RebuildDailyRange(
-		ctx,
-		tx,
-		account.UserID,
-		account.ID,
-		account.Currency,
-		txnDate.UTC().Truncate(24*time.Hour),
-		time.Now().UTC().Truncate(24*time.Hour),
-	); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (s *TransactionService) FetchTransactionsPaginated(ctx context.Context, userID int64, p utils.PaginationParams, includeDeleted bool, accountID *int64) ([]models.Transaction, *models.TransactionBatchTotals, *utils.Paginator, error) {
 
 	totalRecords, err := s.repo.CountTransactions(ctx, nil, userID, p.Filters, includeDeleted, accountID)
@@ -364,22 +339,10 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		return models.InsertResult{}, err
 	}
 
-	if err := s.updateAccountBalance(ctx, tx, account, tr.TxnDate, tr.Direction, tr.Amount); err != nil {
+	from := tr.TxnDate.UTC().Truncate(24 * time.Hour)
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, account.ID, account.Currency, from); err != nil {
 		tx.Rollback()
 		return models.InsertResult{}, err
-	}
-
-	// forward-fill the balance chain when the txn is back-dated
-	from := tr.TxnDate.UTC().Truncate(24 * time.Hour)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-	if from.Before(today) {
-
-		from := tr.TxnDate.UTC().Truncate(24 * time.Hour)
-		if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, account.ID, account.Currency, from); err != nil {
-			tx.Rollback()
-			return models.InsertResult{}, err
-		}
-
 	}
 
 	if ownsTx {
@@ -541,20 +504,9 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		return models.InsertResult{}, err
 	}
 
-	// Update balances for both accounts
-	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount); err != nil {
-		tx.Rollback()
-		return models.InsertResult{}, err
-	}
-
-	if err := s.updateAccountBalance(ctx, tx, toAcc, inflow.TxnDate, "income", inflow.Amount); err != nil {
-		tx.Rollback()
-		return models.InsertResult{}, err
-	}
-
 	from := txDate.UTC().Truncate(24 * time.Hour)
 
-	// Frontfill and update snapshots for both accounts
+	// Both legs are in the ledger, so a rebuild per account is the whole update.
 	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, from); err != nil {
 		tx.Rollback()
 		return models.InsertResult{}, err
@@ -803,22 +755,6 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 		return 0, err
 	}
 
-	// Adjust balances
-
-	// Reverse old, apply new
-	if !exTr.Amount.IsZero() {
-		if err := s.updateAccountBalance(ctx, tx, oldAccount, oldDay, exTr.Direction, exTr.Amount.Neg()); err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-	}
-	if !tr.Amount.IsZero() {
-		if err := s.updateAccountBalance(ctx, tx, newAccount, newDay, tr.Direction, tr.Amount); err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-	}
-
 	// Determine the earliest affected date
 	earliestDate := oldDay
 	if newDay.Before(earliestDate) {
@@ -1015,12 +951,7 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 		category = cat
 	}
 
-	// Reverse the original cash effect on the account
-	if err := s.updateAccountBalance(ctx, tx, account, tr.TxnDate, tr.Direction, tr.Amount.Neg()); err != nil {
-		tx.Rollback()
-		return err
-	}
-
+	// The row is gone from the ledger, so the rebuild alone reverses it.
 	from := tr.TxnDate.UTC().Truncate(24 * time.Hour)
 	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, account.ID, account.Currency, from); err != nil {
 		tx.Rollback()
@@ -1146,26 +1077,6 @@ func (s *TransactionService) UpdateTransfer(ctx context.Context, userID int64, i
 				return err
 			}
 		}
-	}
-
-	// Reverse old balance effects
-	if err := s.updateAccountBalance(ctx, tx, fromAcc, oldDate, "expense", oldAmount.Neg()); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.updateAccountBalance(ctx, tx, toAcc, oldDate, "income", oldAmount.Neg()); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	// Apply new balance effects
-	if err := s.updateAccountBalance(ctx, tx, fromAcc, newDate, "expense", req.Amount); err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := s.updateAccountBalance(ctx, tx, toAcc, newDate, "income", req.Amount); err != nil {
-		tx.Rollback()
-		return err
 	}
 
 	// Update transfer record
@@ -1498,29 +1409,16 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 		}
 	}
 
-	// Re-apply og cash effect
-	signed := func(tt string, amt decimal.Decimal) decimal.Decimal {
-		switch strings.ToLower(tt) {
-		case "expense":
-			return amt.Neg()
-		default:
-			return amt
-		}
-	}
-	origEffect := signed(tr.Direction, tr.Amount)
-
-	// Reverse balances
-	if !origEffect.IsZero() {
-		dir := map[bool]string{true: "expense", false: "income"}[origEffect.IsNegative()]
-
-		if err := s.updateAccountBalance(ctx, tx, acc, tr.TxnDate, dir, origEffect.Abs()); err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
 	// Unmark as soft deleted
 	if err := s.repo.RestoreTransaction(ctx, tx, tr.ID, userID); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// The row counts again, so the rebuild re-applies its cash effect. It has to
+	// run after the restore, or the recompute still reads the row as deleted.
+	from := tr.TxnDate.UTC().Truncate(24 * time.Hour)
+	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, acc.ID, acc.Currency, from); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -2600,11 +2498,12 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		transferSrcName = srcAcc.Name
 		transferDstName = toAcc.Name
 
-		if err := s.updateAccountBalance(ctx, tx, srcAcc, txDate, "expense", currentTemplate.Amount); err != nil {
+		from := txDate.UTC().Truncate(24 * time.Hour)
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, currentTemplate.UserID, srcAcc.ID, srcAcc.Currency, from); err != nil {
 			tx.Rollback()
 			return 0, time.Time{}, err
 		}
-		if err := s.updateAccountBalance(ctx, tx, toAcc, txDate, "income", currentTemplate.Amount); err != nil {
+		if err := s.balanceRepo.RebuildBalances(ctx, tx, currentTemplate.UserID, toAcc.ID, toAcc.Currency, from); err != nil {
 			tx.Rollback()
 			return 0, time.Time{}, err
 		}

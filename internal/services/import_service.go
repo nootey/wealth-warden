@@ -1985,7 +1985,7 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 		}
 
 		cashTxn := models.NewTradeCashTransaction(userID, cAccID, &cashCategory.ID, asset.Ticker, toAccount.Currency, tradeType, txDayAdjusted, cashAmount)
-		if err := linkTradeCashTransaction(ctx, tx, s.txnRepo, tradeID, cashTxn); err != nil {
+		if err := linkTradeCashTransaction(ctx, tx, s.txnRepo, s.investmentRepo, tradeID, cashTxn); err != nil {
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return err

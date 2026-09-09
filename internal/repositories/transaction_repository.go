@@ -53,6 +53,7 @@ type TransactionRepositoryInterface interface {
 	ArchiveCategory(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	DeleteCategory(ctx context.Context, tx *gorm.DB, id, userID int64) error
 	RestoreTransaction(ctx context.Context, tx *gorm.DB, id, userID int64) error
+	RetimeOpeningTransactions(ctx context.Context, tx *gorm.DB, accountID int64, when time.Time) error
 	RestoreCategory(ctx context.Context, tx *gorm.DB, id int64, userID *int64) error
 	RestoreCategoryName(ctx context.Context, tx *gorm.DB, id int64, userID *int64, name string) error
 	FindTransactionTemplates(ctx context.Context, tx *gorm.DB, userID int64, offset, limit int, sortField, sortOrder string, templateType string) ([]models.TransactionTemplate, error)
@@ -839,6 +840,22 @@ func (r *TransactionRepository) RestoreTransaction(ctx context.Context, tx *gorm
 			"updated_at": time.Now().UTC(),
 		})
 	return res.Error
+}
+
+func (r *TransactionRepository) RetimeOpeningTransactions(ctx context.Context, tx *gorm.DB, accountID int64, when time.Time) error {
+
+	db := tx
+	if db == nil {
+		db = r.db
+	}
+	db = db.WithContext(ctx)
+
+	return db.Model(&models.Transaction{}).
+		Where("account_id = ? AND transaction_type = ? AND deleted_at IS NULL", accountID, models.TxnTypeOpening).
+		Updates(map[string]any{
+			"txn_date":   when,
+			"updated_at": time.Now().UTC(),
+		}).Error
 }
 
 func (r *TransactionRepository) RestoreCategory(ctx context.Context, tx *gorm.DB, id int64, userID *int64) error {
