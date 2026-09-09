@@ -37,10 +37,8 @@ type AccountServiceInterface interface {
 	CloseAccount(ctx context.Context, userID int64, id int64) error
 	FetchAccountsForUser(ctx context.Context, userID int64) ([]models.AccountLookup, error)
 	PurgeAccount(ctx context.Context, actorID, accountID int64) error
-	UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal) error
-	UpdateBalancesForTransfer(ctx context.Context, tx *gorm.DB, fromAcc, toAcc *models.Account, when time.Time, amount decimal.Decimal) error
+	UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time) error
 	BackfillBalancesForUser(ctx context.Context, userID int64, from, to string) error
-	FrontfillBalancesForAccount(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error
 	UpdateDailyCashNoSnapshot(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal) error
 	SaveAccountProjection(ctx context.Context, id, userID int64, req *models.AccountProjectionReq) error
 	RevertAccountProjection(ctx context.Context, id, userID int64) error
@@ -331,7 +329,7 @@ func (s *AccountService) InsertAccount(ctx context.Context, userID int64, req *m
 	}
 
 	account.ID = accountID
-	if err := s.UpdateAccountCashBalance(ctx, tx, account, openedDay, openingTxn.Direction, openingTxn.Amount); err != nil {
+	if err := s.UpdateAccountCashBalance(ctx, tx, account, openedDay); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -579,7 +577,7 @@ func (s *AccountService) UpdateAccount(ctx context.Context, userID int64, id int
 				return 0, fmt.Errorf("failed to post adjustment transaction: %w", err)
 			}
 
-			err = s.UpdateAccountCashBalance(ctx, tx, acc, txn.TxnDate, txnType, amount)
+			err = s.UpdateAccountCashBalance(ctx, tx, acc, txn.TxnDate)
 			if err != nil {
 				tx.Rollback()
 				return 0, err
@@ -865,20 +863,8 @@ func (s *AccountService) rebuildUserHistory(ctx context.Context, tx *gorm.DB, us
 	return s.balanceRepo.UpdateSnapshotMarketValues(ctx, tx, userID, utils.SnapshotRecomputeFrom(earliest))
 }
 
-func (s *AccountService) UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, _ string, _ decimal.Decimal) error {
+func (s *AccountService) UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time) error {
 	return s.balanceRepo.RebuildBalances(ctx, tx, acc.UserID, acc.ID, acc.Currency, asOf)
-}
-
-func (s *AccountService) UpdateBalancesForTransfer(ctx context.Context, tx *gorm.DB, fromAcc, toAcc *models.Account, when time.Time, amount decimal.Decimal) error {
-	if err := s.UpdateAccountCashBalance(ctx, tx, fromAcc, when, "expense", amount); err != nil {
-		return err
-	}
-
-	if err := s.UpdateAccountCashBalance(ctx, tx, toAcc, when, "income", amount); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s *AccountService) BackfillBalancesForUser(ctx context.Context, userID int64, from, to string) error {
@@ -985,18 +971,6 @@ func (s *AccountService) backfillAccountRange(ctx context.Context, tx *gorm.DB, 
 		dfrom,
 		dto,
 	)
-}
-
-func (s *AccountService) FrontfillBalancesForAccount(ctx context.Context, tx *gorm.DB, userID, accountID int64, currency string, from time.Time) error {
-
-	from = from.UTC().Truncate(24 * time.Hour)
-
-	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, accountID, currency, from); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	return nil
 }
 
 func (s *AccountService) UpdateDailyCashNoSnapshot(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, txnType string, amt decimal.Decimal) error {

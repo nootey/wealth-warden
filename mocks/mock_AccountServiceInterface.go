@@ -1067,87 +1067,6 @@ func (_c *MockAccountServiceInterface_FetchLatestBalance_Call) RunAndReturn(run 
 	return _c
 }
 
-// FrontfillBalancesForAccount provides a mock function for the type MockAccountServiceInterface
-func (_mock *MockAccountServiceInterface) FrontfillBalancesForAccount(ctx context.Context, tx *gorm.DB, userID int64, accountID int64, currency string, from time.Time) error {
-	ret := _mock.Called(ctx, tx, userID, accountID, currency, from)
-
-	if len(ret) == 0 {
-		panic("no return value specified for FrontfillBalancesForAccount")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *gorm.DB, int64, int64, string, time.Time) error); ok {
-		r0 = returnFunc(ctx, tx, userID, accountID, currency, from)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// MockAccountServiceInterface_FrontfillBalancesForAccount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FrontfillBalancesForAccount'
-type MockAccountServiceInterface_FrontfillBalancesForAccount_Call struct {
-	*mock.Call
-}
-
-// FrontfillBalancesForAccount is a helper method to define mock.On call
-//   - ctx context.Context
-//   - tx *gorm.DB
-//   - userID int64
-//   - accountID int64
-//   - currency string
-//   - from time.Time
-func (_e *MockAccountServiceInterface_Expecter) FrontfillBalancesForAccount(ctx any, tx any, userID any, accountID any, currency any, from any) *MockAccountServiceInterface_FrontfillBalancesForAccount_Call {
-	return &MockAccountServiceInterface_FrontfillBalancesForAccount_Call{Call: _e.mock.On("FrontfillBalancesForAccount", ctx, tx, userID, accountID, currency, from)}
-}
-
-func (_c *MockAccountServiceInterface_FrontfillBalancesForAccount_Call) Run(run func(ctx context.Context, tx *gorm.DB, userID int64, accountID int64, currency string, from time.Time)) *MockAccountServiceInterface_FrontfillBalancesForAccount_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 *gorm.DB
-		if args[1] != nil {
-			arg1 = args[1].(*gorm.DB)
-		}
-		var arg2 int64
-		if args[2] != nil {
-			arg2 = args[2].(int64)
-		}
-		var arg3 int64
-		if args[3] != nil {
-			arg3 = args[3].(int64)
-		}
-		var arg4 string
-		if args[4] != nil {
-			arg4 = args[4].(string)
-		}
-		var arg5 time.Time
-		if args[5] != nil {
-			arg5 = args[5].(time.Time)
-		}
-		run(
-			arg0,
-			arg1,
-			arg2,
-			arg3,
-			arg4,
-			arg5,
-		)
-	})
-	return _c
-}
-
-func (_c *MockAccountServiceInterface_FrontfillBalancesForAccount_Call) Return(err error) *MockAccountServiceInterface_FrontfillBalancesForAccount_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *MockAccountServiceInterface_FrontfillBalancesForAccount_Call) RunAndReturn(run func(ctx context.Context, tx *gorm.DB, userID int64, accountID int64, currency string, from time.Time) error) *MockAccountServiceInterface_FrontfillBalancesForAccount_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetAssetIDsForAccount provides a mock function for the type MockAccountServiceInterface
 func (_mock *MockAccountServiceInterface) GetAssetIDsForAccount(ctx context.Context, userID int64, accountID int64) ([]int64, error) {
 	ret := _mock.Called(ctx, userID, accountID)
@@ -2141,16 +2060,16 @@ func (_c *MockAccountServiceInterface_UpdateAccount_Call) RunAndReturn(run func(
 }
 
 // UpdateAccountCashBalance provides a mock function for the type MockAccountServiceInterface
-func (_mock *MockAccountServiceInterface) UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal) error {
-	ret := _mock.Called(ctx, tx, acc, asOf, transactionType, amount)
+func (_mock *MockAccountServiceInterface) UpdateAccountCashBalance(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time) error {
+	ret := _mock.Called(ctx, tx, acc, asOf)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateAccountCashBalance")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *gorm.DB, *models.Account, time.Time, string, decimal.Decimal) error); ok {
-		r0 = returnFunc(ctx, tx, acc, asOf, transactionType, amount)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *gorm.DB, *models.Account, time.Time) error); ok {
+		r0 = returnFunc(ctx, tx, acc, asOf)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -2167,13 +2086,11 @@ type MockAccountServiceInterface_UpdateAccountCashBalance_Call struct {
 //   - tx *gorm.DB
 //   - acc *models.Account
 //   - asOf time.Time
-//   - transactionType string
-//   - amount decimal.Decimal
-func (_e *MockAccountServiceInterface_Expecter) UpdateAccountCashBalance(ctx any, tx any, acc any, asOf any, transactionType any, amount any) *MockAccountServiceInterface_UpdateAccountCashBalance_Call {
-	return &MockAccountServiceInterface_UpdateAccountCashBalance_Call{Call: _e.mock.On("UpdateAccountCashBalance", ctx, tx, acc, asOf, transactionType, amount)}
+func (_e *MockAccountServiceInterface_Expecter) UpdateAccountCashBalance(ctx any, tx any, acc any, asOf any) *MockAccountServiceInterface_UpdateAccountCashBalance_Call {
+	return &MockAccountServiceInterface_UpdateAccountCashBalance_Call{Call: _e.mock.On("UpdateAccountCashBalance", ctx, tx, acc, asOf)}
 }
 
-func (_c *MockAccountServiceInterface_UpdateAccountCashBalance_Call) Run(run func(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal)) *MockAccountServiceInterface_UpdateAccountCashBalance_Call {
+func (_c *MockAccountServiceInterface_UpdateAccountCashBalance_Call) Run(run func(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time)) *MockAccountServiceInterface_UpdateAccountCashBalance_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -2191,21 +2108,11 @@ func (_c *MockAccountServiceInterface_UpdateAccountCashBalance_Call) Run(run fun
 		if args[3] != nil {
 			arg3 = args[3].(time.Time)
 		}
-		var arg4 string
-		if args[4] != nil {
-			arg4 = args[4].(string)
-		}
-		var arg5 decimal.Decimal
-		if args[5] != nil {
-			arg5 = args[5].(decimal.Decimal)
-		}
 		run(
 			arg0,
 			arg1,
 			arg2,
 			arg3,
-			arg4,
-			arg5,
 		)
 	})
 	return _c
@@ -2216,88 +2123,7 @@ func (_c *MockAccountServiceInterface_UpdateAccountCashBalance_Call) Return(err 
 	return _c
 }
 
-func (_c *MockAccountServiceInterface_UpdateAccountCashBalance_Call) RunAndReturn(run func(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time, transactionType string, amount decimal.Decimal) error) *MockAccountServiceInterface_UpdateAccountCashBalance_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// UpdateBalancesForTransfer provides a mock function for the type MockAccountServiceInterface
-func (_mock *MockAccountServiceInterface) UpdateBalancesForTransfer(ctx context.Context, tx *gorm.DB, fromAcc *models.Account, toAcc *models.Account, when time.Time, amount decimal.Decimal) error {
-	ret := _mock.Called(ctx, tx, fromAcc, toAcc, when, amount)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UpdateBalancesForTransfer")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *gorm.DB, *models.Account, *models.Account, time.Time, decimal.Decimal) error); ok {
-		r0 = returnFunc(ctx, tx, fromAcc, toAcc, when, amount)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// MockAccountServiceInterface_UpdateBalancesForTransfer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateBalancesForTransfer'
-type MockAccountServiceInterface_UpdateBalancesForTransfer_Call struct {
-	*mock.Call
-}
-
-// UpdateBalancesForTransfer is a helper method to define mock.On call
-//   - ctx context.Context
-//   - tx *gorm.DB
-//   - fromAcc *models.Account
-//   - toAcc *models.Account
-//   - when time.Time
-//   - amount decimal.Decimal
-func (_e *MockAccountServiceInterface_Expecter) UpdateBalancesForTransfer(ctx any, tx any, fromAcc any, toAcc any, when any, amount any) *MockAccountServiceInterface_UpdateBalancesForTransfer_Call {
-	return &MockAccountServiceInterface_UpdateBalancesForTransfer_Call{Call: _e.mock.On("UpdateBalancesForTransfer", ctx, tx, fromAcc, toAcc, when, amount)}
-}
-
-func (_c *MockAccountServiceInterface_UpdateBalancesForTransfer_Call) Run(run func(ctx context.Context, tx *gorm.DB, fromAcc *models.Account, toAcc *models.Account, when time.Time, amount decimal.Decimal)) *MockAccountServiceInterface_UpdateBalancesForTransfer_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 *gorm.DB
-		if args[1] != nil {
-			arg1 = args[1].(*gorm.DB)
-		}
-		var arg2 *models.Account
-		if args[2] != nil {
-			arg2 = args[2].(*models.Account)
-		}
-		var arg3 *models.Account
-		if args[3] != nil {
-			arg3 = args[3].(*models.Account)
-		}
-		var arg4 time.Time
-		if args[4] != nil {
-			arg4 = args[4].(time.Time)
-		}
-		var arg5 decimal.Decimal
-		if args[5] != nil {
-			arg5 = args[5].(decimal.Decimal)
-		}
-		run(
-			arg0,
-			arg1,
-			arg2,
-			arg3,
-			arg4,
-			arg5,
-		)
-	})
-	return _c
-}
-
-func (_c *MockAccountServiceInterface_UpdateBalancesForTransfer_Call) Return(err error) *MockAccountServiceInterface_UpdateBalancesForTransfer_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *MockAccountServiceInterface_UpdateBalancesForTransfer_Call) RunAndReturn(run func(ctx context.Context, tx *gorm.DB, fromAcc *models.Account, toAcc *models.Account, when time.Time, amount decimal.Decimal) error) *MockAccountServiceInterface_UpdateBalancesForTransfer_Call {
+func (_c *MockAccountServiceInterface_UpdateAccountCashBalance_Call) RunAndReturn(run func(ctx context.Context, tx *gorm.DB, acc *models.Account, asOf time.Time) error) *MockAccountServiceInterface_UpdateAccountCashBalance_Call {
 	_c.Call.Return(run)
 	return _c
 }

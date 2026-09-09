@@ -1318,16 +1318,7 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 		return err
 	}
 
-	if err := s.updateAccountBalance(ctx, tx, fromAcc, outflow.TxnDate, "expense", outflow.Amount.Neg()); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := s.updateAccountBalance(ctx, tx, toAcc, outflow.TxnDate, "income", outflow.Amount.Neg()); err != nil {
-		tx.Rollback()
-		return err
-	}
-
+	// Both legs are gone from the ledger, so the rebuild alone reverses them.
 	from := outflow.TxnDate.UTC().Truncate(24 * time.Hour)
 
 	if err := s.balanceRepo.RebuildBalances(ctx, tx, userID, fromAcc.ID, fromAcc.Currency, from); err != nil {

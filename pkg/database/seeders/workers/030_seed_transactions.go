@@ -175,7 +175,7 @@ func SeedTransactions(ctx context.Context, db *gorm.DB, cfg *config.Config) erro
 					return err
 				}
 
-				if err := accService.UpdateAccountCashBalance(ctx, db, &acc, t.TxnDate, ttype, amt); err != nil {
+				if err := accService.UpdateAccountCashBalance(ctx, db, &acc, t.TxnDate); err != nil {
 					return err
 				}
 

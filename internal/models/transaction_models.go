@@ -2,7 +2,6 @@ package models
 
 import (
 	"errors"
-	"slices"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -31,10 +30,6 @@ func (t TransactionType) IsUserEditable() bool {
 
 func (t TransactionType) IsUserDeletable() bool {
 	return t == TxnTypeLedger || t == TxnTypeTransfer
-}
-
-func (t TransactionType) IsClientVisible() bool {
-	return slices.Contains(ClientVisibleTxnTypes, t)
 }
 
 type Transaction struct {

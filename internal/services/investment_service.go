@@ -821,19 +821,16 @@ func (s *InvestmentService) linkTrades(
 func (s *InvestmentService) withClosedAccountPostingAllowed(ctx context.Context, tx *gorm.DB, fn func() error) error {
 	db := tx.WithContext(ctx)
 
-	if err := db.Exec("ALTER TABLE transactions DISABLE TRIGGER trg_txn_prevent_post_to_closed").Error; err != nil {
-		return fmt.Errorf("failed to suspend the closed-account trigger: %w", err)
+	if err := db.Exec("SET LOCAL ww.allow_closed_posting = 'on'").Error; err != nil {
+		return fmt.Errorf("failed to suspend the closed-account guard: %w", err)
 	}
+	defer func() {
+		if err := db.Exec("SET LOCAL ww.allow_closed_posting = 'off'").Error; err != nil {
+			s.logger.Error("failed to restore the closed-account guard", zap.Error(err))
+		}
+	}()
 
-	if err := fn(); err != nil {
-		return err
-	}
-
-	if err := db.Exec("ALTER TABLE transactions ENABLE TRIGGER trg_txn_prevent_post_to_closed").Error; err != nil {
-		return fmt.Errorf("failed to restore the closed-account trigger: %w", err)
-	}
-
-	return nil
+	return fn()
 }
 
 func (s *InvestmentService) rebuildSnapshots(ctx context.Context, tx *gorm.DB, userID int64) error {
