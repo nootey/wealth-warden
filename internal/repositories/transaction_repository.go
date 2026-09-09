@@ -1408,7 +1408,7 @@ func (r *TransactionRepository) GetYearlyAverageForCategory(ctx context.Context,
           AND account_id = ?
           AND category_id = ?
           AND deleted_at IS NULL
-          AND transaction_type NOT IN ('adjustment','trade','investment_income')
+          AND transaction_type = 'ledger'
           AND EXTRACT(YEAR FROM txn_date) = ?
     `
 
@@ -1446,7 +1446,7 @@ func (r *TransactionRepository) GetYearlyAverageForCategoryGroup(ctx context.Con
           AND t.account_id = ?
           AND cgm.group_id = ?
           AND t.deleted_at IS NULL
-          AND t.transaction_type NOT IN ('adjustment','trade','investment_income')
+          AND t.transaction_type = 'ledger'
           AND EXTRACT(YEAR FROM t.txn_date) = ?
     `
 
