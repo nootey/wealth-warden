@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -15,16 +15,16 @@ import (
 )
 
 type UserHandler struct {
-	Service *services.UserService
-	v       *validators.GoValidator
+	service services.UserServiceInterface
+	v       validators.Validator
 }
 
 func NewUserHandler(
-	service *services.UserService,
-	v *validators.GoValidator,
+	service services.UserServiceInterface,
+	v validators.Validator,
 ) *UserHandler {
 	return &UserHandler{
-		Service: service,
+		service: service,
 		v:       v,
 	}
 }
@@ -49,9 +49,9 @@ func (h *UserHandler) PublicRoutes(apiGroup *gin.RouterGroup) {
 
 func (h *UserHandler) SearchUsers(c *gin.Context) {
 
-	users, err := h.Service.SearchUsersByEmail(c.Request.Context(), c.Query("q"))
+	users, err := h.service.SearchUsersByEmail(c.Request.Context(), c.Query("q"))
 	if err != nil {
-		utils.ErrorMessage(c, "Search error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -65,9 +65,9 @@ func (h *UserHandler) GetUsersPaginated(c *gin.Context) {
 	p := utils.GetPaginationParams(qp)
 	includeDeleted := strings.EqualFold(qp.Get("include_deleted"), "true")
 
-	records, paginator, err := h.Service.FetchUsersPaginated(ctx, p, includeDeleted)
+	records, paginator, err := h.service.FetchUsersPaginated(ctx, p, includeDeleted)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -89,9 +89,9 @@ func (h *UserHandler) GetInvitationsPaginated(c *gin.Context) {
 	qp := c.Request.URL.Query()
 	p := utils.GetPaginationParams(qp)
 
-	records, paginator, err := h.Service.FetchInvitationsPaginated(ctx, p)
+	records, paginator, err := h.service.FetchInvitationsPaginated(ctx, p)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -112,20 +112,19 @@ func (h *UserHandler) GetUserById(c *gin.Context) {
 	ctx := c.Request.Context()
 	idStr := c.Param("id")
 	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
 		return
 	}
 
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		utils.ErrorMessage(c, "param error", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
 		return
 	}
 
-	user, err := h.Service.FetchUserByID(ctx, id)
+	user, err := h.service.FetchUserByID(ctx, id)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, user)
@@ -137,9 +136,9 @@ func (h *UserHandler) GetUserByToken(c *gin.Context) {
 	tokenType := c.Query("type")
 	tokenValue := c.Query("value")
 
-	user, err := h.Service.FetchUserByToken(ctx, tokenType, tokenValue)
+	user, err := h.service.FetchUserByToken(ctx, tokenType, tokenValue)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, user)
@@ -150,14 +149,13 @@ func (h *UserHandler) GetInvitationByHash(c *gin.Context) {
 	ctx := c.Request.Context()
 	hash := c.Param("hash")
 	if hash == "" {
-		err := errors.New("invalid hash provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.New(apperr.Invalid, "invalid hash provided"))
 		return
 	}
 
-	record, err := h.Service.FetchInvitationByHash(ctx, hash)
+	record, err := h.service.FetchInvitationByHash(ctx, hash)
 	if err != nil {
-		utils.ErrorMessage(c, "fetch error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, record)
@@ -171,24 +169,23 @@ func (h *UserHandler) InsertInvitation(c *gin.Context) {
 	var req models.InvitationReq
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
-	validator := validators.NewValidator()
-	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := utils.SanitizeStruct(&req); err != nil {
-		utils.ErrorMessage(c, "Sanitization error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(apperr.Wrap(apperr.Internal, apperr.GenericMessage, err))
 		return
 	}
 
-	_, err := h.Service.InsertInvitation(ctx, userID, req)
+	_, err := h.service.InsertInvitation(ctx, userID, req)
 	if err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -202,32 +199,31 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 
 	idStr := c.Param("id")
 	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
 		return
 	}
 
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
 		return
 	}
 
 	var record *models.UserReq
 
 	if err := c.ShouldBindJSON(&record); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(record); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
-	_, err = h.Service.UpdateUser(ctx, userID, id, record)
+	_, err = h.service.UpdateUser(ctx, userID, id, record)
 	if err != nil {
-		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -242,19 +238,18 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	idStr := c.Param("id")
 
 	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
 		return
 	}
 
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
 		return
 	}
 
-	if err := h.Service.DeleteUser(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+	if err := h.service.DeleteUser(ctx, userID, id); err != nil {
+		_ = c.Error(err)
 		return
 	}
 
@@ -269,20 +264,19 @@ func (h *UserHandler) ResendInvitation(c *gin.Context) {
 	idStr := c.Param("id")
 
 	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
 		return
 	}
 
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
 		return
 	}
 
-	_, err = h.Service.ResendInvitation(ctx, userID, id)
+	_, err = h.service.ResendInvitation(ctx, userID, id)
 	if err != nil {
-		utils.ErrorMessage(c, "Resend error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -297,19 +291,18 @@ func (h *UserHandler) DeleteInvitation(c *gin.Context) {
 	idStr := c.Param("id")
 
 	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
 		return
 	}
 
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
 		return
 	}
 
-	if err := h.Service.DeleteInvitation(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+	if err := h.service.DeleteInvitation(ctx, userID, id); err != nil {
+		_ = c.Error(err)
 		return
 	}
 

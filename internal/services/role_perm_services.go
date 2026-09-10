@@ -3,13 +3,21 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
+)
+
+var (
+	ErrRoleNotFound      = apperr.New(apperr.NotFound, "Role not found")
+	ErrRoleNameTaken     = apperr.New(apperr.Conflict, "A role with that name already exists")
+	ErrDefaultRoleDelete = apperr.New(apperr.Conflict, "Default roles cannot be deleted")
+	ErrNoPermissions     = apperr.New(apperr.Invalid, "At least one permission is required")
+	ErrUnknownPermission = apperr.New(apperr.Invalid, "One or more selected permissions do not exist")
 )
 
 type RolePermissionServiceInterface interface {
@@ -37,6 +45,25 @@ func NewRolePermissionService(
 
 var _ RolePermissionServiceInterface = (*RolePermissionService)(nil)
 
+func (s *RolePermissionService) buildPermissionIDs(perms []models.Permission) ([]int64, error) {
+	seen := make(map[int64]struct{}, len(perms))
+	ids := make([]int64, 0, len(perms))
+	for _, p := range perms {
+		if p.ID <= 0 {
+			continue
+		}
+		if _, dup := seen[p.ID]; dup {
+			continue
+		}
+		seen[p.ID] = struct{}{}
+		ids = append(ids, p.ID)
+	}
+	if len(ids) == 0 {
+		return nil, ErrNoPermissions
+	}
+	return ids, nil
+}
+
 func (s *RolePermissionService) FetchAllRoles(ctx context.Context, withPermissions bool) ([]models.Role, error) {
 	return s.repo.FindAllRoles(ctx, nil, withPermissions)
 }
@@ -50,16 +77,31 @@ func (s *RolePermissionService) FetchRoleByID(ctx context.Context, ID int64, wit
 	if err != nil {
 		return nil, err
 	}
+	if record.ID == 0 {
+		return nil, ErrRoleNotFound
+	}
 
 	return record, nil
 }
 
 func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, req models.RoleReq) (int64, error) {
 
+	permIDs, err := s.buildPermissionIDs(req.Permissions)
+	if err != nil {
+		return 0, err
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
 	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
 
 	role := models.Role{
 		Name:        req.Name,
@@ -69,20 +111,25 @@ func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, re
 
 	roleID, err := s.repo.InsertRole(ctx, tx, &role)
 	if err != nil {
+		tx.Rollback()
+		if utils.IsUniqueViolation(err) {
+			return 0, ErrRoleNameTaken
+		}
 		return 0, err
 	}
 
-	permIDs := make([]int64, 0, len(req.Permissions))
-	for _, p := range req.Permissions {
-		if p.ID > 0 {
-			permIDs = append(permIDs, p.ID)
-		}
-	}
-	if err = s.repo.EnsurePermissionsExist(ctx, tx, permIDs); err != nil {
+	permCount, err := s.repo.CountPermissionsByIDs(ctx, tx, permIDs)
+	if err != nil {
+		tx.Rollback()
 		return 0, err
+	}
+	if permCount != int64(len(permIDs)) {
+		tx.Rollback()
+		return 0, ErrUnknownPermission
 	}
 
 	if err = s.repo.AttachPermissionIDs(ctx, tx, role.ID, permIDs); err != nil {
+		tx.Rollback()
 		return 0, err
 	}
 
@@ -129,6 +176,11 @@ func (s *RolePermissionService) InsertRole(ctx context.Context, userID int64, re
 
 func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64, req *models.RoleReq) (int64, error) {
 
+	permIDs, err := s.buildPermissionIDs(req.Permissions)
+	if err != nil {
+		return 0, err
+	}
+
 	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
 		return 0, err
@@ -140,11 +192,14 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 		}
 	}()
 
-	// Load existing user
 	exRole, err := s.repo.FindRoleByID(ctx, tx, id, true)
 	if err != nil {
 		tx.Rollback()
-		return 0, fmt.Errorf("can't find user with given id %w", err)
+		return 0, err
+	}
+	if exRole.ID == 0 {
+		tx.Rollback()
+		return 0, ErrRoleNotFound
 	}
 
 	role := models.Role{
@@ -156,19 +211,21 @@ func (s *RolePermissionService) UpdateRole(ctx context.Context, userID, id int64
 	roleID, err := s.repo.UpdateRole(ctx, tx, role)
 	if err != nil {
 		tx.Rollback()
+		if utils.IsUniqueViolation(err) {
+			return 0, ErrRoleNameTaken
+		}
 		return 0, err
 	}
 
-	if !role.IsDefault {
-		permIDs := make([]int64, 0, len(req.Permissions))
-		for _, p := range req.Permissions {
-			if p.ID > 0 {
-				permIDs = append(permIDs, p.ID)
-			}
-		}
-		if err := s.repo.EnsurePermissionsExist(ctx, tx, permIDs); err != nil {
+	if !exRole.IsDefault {
+		permCount, err := s.repo.CountPermissionsByIDs(ctx, tx, permIDs)
+		if err != nil {
 			tx.Rollback()
 			return 0, err
+		}
+		if permCount != int64(len(permIDs)) {
+			tx.Rollback()
+			return 0, ErrUnknownPermission
 		}
 		if err := s.repo.ReplaceRolePermissions(ctx, tx, role.ID, permIDs); err != nil {
 			tx.Rollback()
@@ -232,12 +289,16 @@ func (s *RolePermissionService) DeleteRole(ctx context.Context, userID, id int64
 	role, err := s.repo.FindRoleByID(ctx, tx, id, false)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("can't find user with given id %w", err)
+		return err
+	}
+	if role.ID == 0 {
+		tx.Rollback()
+		return ErrRoleNotFound
 	}
 
 	if role.IsDefault {
 		tx.Rollback()
-		return errors.New("default roles can not be deleted")
+		return ErrDefaultRoleDelete
 	}
 
 	cnt, err := s.repo.CountActiveUsersForRole(ctx, tx, role.ID)
@@ -247,7 +308,7 @@ func (s *RolePermissionService) DeleteRole(ctx context.Context, userID, id int64
 	}
 	if cnt > 0 {
 		tx.Rollback()
-		return fmt.Errorf("cannot permanently delete category: %d active transactions still reference it", cnt)
+		return apperr.New(apperr.Conflict, fmt.Sprintf("cannot delete role: %d users still have it", cnt))
 	}
 
 	if err := s.repo.DeleteRole(ctx, tx, role.ID); err != nil {
@@ -266,7 +327,7 @@ func (s *RolePermissionService) DeleteRole(ctx context.Context, userID, id int64
 	if !changes.IsEmpty() {
 		if err := s.jobDispatcher.Dispatch(ctx, jobqueue.ActivityLogArgs{
 			Event:       "delete",
-			Category:    "user",
+			Category:    "role",
 			Description: nil,
 			Payload:     changes,
 			Causer:      &userID,

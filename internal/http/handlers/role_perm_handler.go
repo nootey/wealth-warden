@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -15,16 +15,16 @@ import (
 )
 
 type RolePermissionHandler struct {
-	Service *services.RolePermissionService
-	v       *validators.GoValidator
+	service services.RolePermissionServiceInterface
+	v       validators.Validator
 }
 
 func NewRolePermissionHandler(
-	service *services.RolePermissionService,
-	v *validators.GoValidator,
+	service services.RolePermissionServiceInterface,
+	v validators.Validator,
 ) *RolePermissionHandler {
 	return &RolePermissionHandler{
-		Service: service,
+		service: service,
 		v:       v,
 	}
 }
@@ -44,9 +44,9 @@ func (h *RolePermissionHandler) GetAllRoles(c *gin.Context) {
 	qp := c.Request.URL.Query()
 	withPermissions := strings.EqualFold(qp.Get("with_permissions"), "true")
 
-	records, err := h.Service.FetchAllRoles(ctx, withPermissions)
+	records, err := h.service.FetchAllRoles(ctx, withPermissions)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -56,9 +56,9 @@ func (h *RolePermissionHandler) GetAllRoles(c *gin.Context) {
 func (h *RolePermissionHandler) GetAllPermissions(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	records, err := h.Service.FetchAllPermissions(ctx)
+	records, err := h.service.FetchAllPermissions(ctx)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -72,23 +72,22 @@ func (h *RolePermissionHandler) GetRoleById(c *gin.Context) {
 	wp := strings.EqualFold(qp.Get("with_permissions"), "true")
 
 	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
 		return
 	}
 
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		utils.ErrorMessage(c, "param error", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
 		return
 	}
 
-	user, err := h.Service.FetchRoleByID(ctx, id, wp)
+	record, err := h.service.FetchRoleByID(ctx, id, wp)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, user)
+	c.JSON(http.StatusOK, record)
 }
 
 func (h *RolePermissionHandler) InsertRole(c *gin.Context) {
@@ -99,24 +98,23 @@ func (h *RolePermissionHandler) InsertRole(c *gin.Context) {
 	var req models.RoleReq
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
-	validator := validators.NewValidator()
-	if err := validator.ValidateStruct(req); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+	if err := h.v.ValidateStruct(req); err != nil {
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
 	if err := utils.SanitizeStruct(&req); err != nil {
-		utils.ErrorMessage(c, "Sanitization error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(apperr.Wrap(apperr.Internal, apperr.GenericMessage, err))
 		return
 	}
 
-	_, err := h.Service.InsertRole(ctx, userID, req)
+	_, err := h.service.InsertRole(ctx, userID, req)
 	if err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -131,32 +129,31 @@ func (h *RolePermissionHandler) UpdateRole(c *gin.Context) {
 	idStr := c.Param("id")
 
 	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
 		return
 	}
 
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
 		return
 	}
 
 	var record *models.RoleReq
 
 	if err := c.ShouldBindJSON(&record); err != nil {
-		utils.ErrorMessage(c, "Invalid JSON", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "Invalid JSON", err))
 		return
 	}
 
 	if err := h.v.ValidateStruct(record); err != nil {
-		utils.ValidationFailed(c, err.Error(), err)
+		_ = c.Error(apperr.Wrap(apperr.Validation, err.Error(), err))
 		return
 	}
 
-	_, err = h.Service.UpdateRole(ctx, userID, id, record)
+	_, err = h.service.UpdateRole(ctx, userID, id, record)
 	if err != nil {
-		utils.ErrorMessage(c, "Update error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -170,19 +167,18 @@ func (h *RolePermissionHandler) DeleteRole(c *gin.Context) {
 	idStr := c.Param("id")
 
 	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
 		return
 	}
 
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
 		return
 	}
 
-	if err := h.Service.DeleteRole(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Delete error", err.Error(), http.StatusInternalServerError, err)
+	if err := h.service.DeleteRole(ctx, userID, id); err != nil {
+		_ = c.Error(err)
 		return
 	}
 

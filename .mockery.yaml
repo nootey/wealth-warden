@@ -10,6 +10,8 @@ packages:
       AuthServiceInterface:
       SessionsServiceInterface:
       NotesServiceInterface:
+      RolePermissionServiceInterface:
+      UserServiceInterface:
   wealth-warden/pkg/validators:
     interfaces:
       Validator:
