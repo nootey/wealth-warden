@@ -6,6 +6,8 @@ packages:
   wealth-warden/internal/services:
     interfaces:
       AccountServiceInterface:
+      AnalyticsServiceInterface:
+      JobServiceInterface:
       TransactionServiceInterface:
       AuthServiceInterface:
       SessionsServiceInterface:

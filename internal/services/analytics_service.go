@@ -10,12 +10,14 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
 	"wealth-warden/pkg/utils"
 
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 type AnalyticsServiceInterface interface {
@@ -28,6 +30,8 @@ type AnalyticsServiceInterface interface {
 	GetAccountBasicStatistics(ctx context.Context, accID *int64, userID int64, year int) (*models.BasicAccountStats, error)
 	GetAvailableStatsYears(ctx context.Context, accID *int64, userID int64, includeMonths bool) ([]models.AvailableStatsYear, error)
 	GetMonthlyStats(ctx context.Context, userID int64, accountID *int64, year, month int) (*models.MonthlyStats, error)
+	GetTodayStats(ctx context.Context, userID int64, accountID *int64) (*models.TodayStats, error)
+	GetYearlyBreakdownStats(ctx context.Context, accID *int64, userID int64, year int, comparisonYear *int) (*models.YearlyBreakdownStats, error)
 	GetYearlyAverageForCategory(ctx context.Context, userID int64, accountID int64, categoryID int64, isGroup bool) (float64, error)
 	GenerateCategoryReport(ctx context.Context, userID int64, params models.CategoryReportParams) (*models.Report, error)
 	FindReportByID(ctx context.Context, id, userID int64) (*models.Report, error)
@@ -97,7 +101,7 @@ func (s *AnalyticsService) GetNetWorthSeries(ctx context.Context, userID int64, 
 			dto, err = time.Parse("2006-01-02", to)
 			if err != nil {
 				tx.Rollback()
-				return nil, fmt.Errorf("invalid to: %w", err)
+				return nil, apperr.Wrap(apperr.Invalid, "'to' must be a date in YYYY-MM-DD format", err)
 			}
 		}
 		if from == "" {
@@ -106,7 +110,7 @@ func (s *AnalyticsService) GetNetWorthSeries(ctx context.Context, userID int64, 
 			dfrom, err = time.Parse("2006-01-02", from)
 			if err != nil {
 				tx.Rollback()
-				return nil, fmt.Errorf("invalid from: %w", err)
+				return nil, apperr.Wrap(apperr.Invalid, "'from' must be a date in YYYY-MM-DD format", err)
 			}
 		}
 	} else {
@@ -1336,7 +1340,7 @@ func (s *AnalyticsService) GenerateCategoryReport(
 	params models.CategoryReportParams,
 ) (*models.Report, error) {
 	if len(params.OutflowCategoryIDs) > 0 && len(params.InflowCategoryIDs) == 0 {
-		return nil, errors.New("at least one primary category is required when secondary categories are selected")
+		return nil, apperr.New(apperr.Validation, "at least one primary category is required when secondary categories are selected")
 	}
 
 	var name string
@@ -1408,32 +1412,20 @@ func (s *AnalyticsService) FindReportAccountScope(ctx context.Context, userID, a
 
 func (s *AnalyticsService) DownloadReport(ctx context.Context, id, userID int64) ([]byte, string, error) {
 
-	tx, err := s.repo.BeginTx(ctx)
+	report, err := s.repo.FindReportByID(ctx, nil, id, userID)
 	if err != nil {
-		return nil, "", err
-	}
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", apperr.New(apperr.NotFound, "report not found")
 		}
-	}()
-
-	report, err := s.repo.FindReportByID(ctx, tx, id, userID)
-	if err != nil {
 		return nil, "", err
 	}
 
 	if report.Status != "completed" || report.FilePath == nil {
-		return nil, "", fmt.Errorf("report is not ready for download")
+		return nil, "", apperr.New(apperr.Conflict, "report is not ready for download")
 	}
 
 	data, err := os.ReadFile(*report.FilePath)
 	if err != nil {
-		return nil, "", err
-	}
-
-	if err := tx.Commit().Error; err != nil {
 		return nil, "", err
 	}
 
@@ -1455,20 +1447,25 @@ func (s *AnalyticsService) DeleteReport(ctx context.Context, userID, id int64) e
 
 	report, err := s.repo.FindReportByID(ctx, tx, id, userID)
 	if err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperr.New(apperr.NotFound, "report not found")
+		}
 		return err
 	}
 
-	if report.FilePath != nil && *report.FilePath != "" {
-		_ = os.Remove(*report.FilePath)
-	}
-
-	err = s.repo.DeleteReport(ctx, nil, id, userID)
-	if err != nil {
+	if err := s.repo.DeleteReport(ctx, tx, id, userID); err != nil {
+		tx.Rollback()
 		return err
 	}
 
 	if err := tx.Commit().Error; err != nil {
 		return err
+	}
+
+	// Remove the file only once the row is gone, so a failed commit cannot leave a report without its file.
+	if report.FilePath != nil && *report.FilePath != "" {
+		_ = os.Remove(*report.FilePath)
 	}
 
 	return nil
@@ -1507,6 +1504,9 @@ func (s *AnalyticsService) FetchAssetChart(ctx context.Context, userID, assetID 
 
 	currency, mv, cb, err := s.repo.FetchAssetChartSeries(ctx, nil, userID, assetID, dfrom, dto, gran)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperr.New(apperr.NotFound, "asset not found")
+		}
 		return nil, err
 	}
 

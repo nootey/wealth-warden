@@ -888,11 +888,11 @@ func (r *AnalyticsRepository) FetchAssetChartSeries(ctx context.Context, tx *gor
 		Currency       string
 		InvestmentType models.InvestmentType
 	}
-	if err := db.Raw(`SELECT ticker, currency, investment_type FROM investment_assets WHERE id = ? AND user_id = ?`, assetID, userID).Scan(&meta).Error; err != nil || meta.Currency == "" {
-		if err != nil {
-			return "", nil, nil, err
-		}
-		return "", nil, nil, fmt.Errorf("asset not found")
+	if err := db.Raw(`SELECT ticker, currency, investment_type FROM investment_assets WHERE id = ? AND user_id = ?`, assetID, userID).Scan(&meta).Error; err != nil {
+		return "", nil, nil, err
+	}
+	if meta.Currency == "" {
+		return "", nil, nil, gorm.ErrRecordNotFound
 	}
 	currency := meta.Currency
 

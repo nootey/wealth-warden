@@ -50,7 +50,7 @@ func (r *RouteInitializerHTTP) initV1Routes(_v1 *gin.RouterGroup, wm *middleware
 	exportHandler := httpHandlers.NewExportHandler(r.Container.ExportService, validator)
 	investmentHandler := httpHandlers.NewInvestmentHandler(r.Container.InvestmentService, validator)
 	notesHandler := httpHandlers.NewNotesHandler(r.Container.NotesService, validator)
-	analyticsHandler := httpHandlers.NewAnalyticsHandler(r.Container.AnalyticsService, validator)
+	analyticsHandler := httpHandlers.NewAnalyticsHandler(r.Container.AnalyticsService)
 	savingsHandler := httpHandlers.NewSavingsHandler(r.Container.SavingsService, validator)
 	notificationHandler := httpHandlers.NewNotificationHandler(r.Container.NotificationService)
 	websocketHandler := httpHandlers.NewWebsocketHandler(r.Container.Hub, r.Container.Config)
