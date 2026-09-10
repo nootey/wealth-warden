@@ -12,6 +12,9 @@ packages:
       NotesServiceInterface:
       RolePermissionServiceInterface:
       UserServiceInterface:
+      BackofficeServiceInterface:
+      ExportServiceInterface:
+      ImportServiceInterface:
   wealth-warden/pkg/validators:
     interfaces:
       Validator:

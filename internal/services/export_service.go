@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/jobqueue"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/repositories"
@@ -21,7 +22,6 @@ import (
 type ExportServiceInterface interface {
 	FetchExports(ctx context.Context, userID int64) ([]models.Export, error)
 	FetchExportByID(ctx context.Context, tx *gorm.DB, id, userID int64) (*models.Export, error)
-	FetchExportsByExportType(ctx context.Context, userID int64, exportType string) ([]models.Export, error)
 	CreateExport(ctx context.Context, userID int64) (*models.Export, error)
 	DownloadExport(ctx context.Context, id, userID int64) ([]byte, error)
 	DeleteExport(ctx context.Context, userID, id int64) error
@@ -56,16 +56,24 @@ func NewExportService(
 
 var _ ExportServiceInterface = (*ExportService)(nil)
 
+var (
+	ErrExportNotFound = apperr.New(apperr.NotFound, "Export not found")
+	ErrExportNotReady = apperr.New(apperr.Conflict, "That export is not ready to download yet")
+)
+
 func (s *ExportService) FetchExports(ctx context.Context, userID int64) ([]models.Export, error) {
 	return s.repo.FindExports(ctx, nil, userID)
 }
 
 func (s *ExportService) FetchExportByID(ctx context.Context, tx *gorm.DB, id, userID int64) (*models.Export, error) {
-	return s.repo.FindExportByID(ctx, tx, id, userID)
-}
-
-func (s *ExportService) FetchExportsByExportType(ctx context.Context, userID int64, exportType string) ([]models.Export, error) {
-	return s.repo.FindExportsByExportType(ctx, nil, userID, exportType)
+	record, err := s.repo.FindExportByID(ctx, tx, id, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrExportNotFound
+		}
+		return nil, err
+	}
+	return record, nil
 }
 
 func (s *ExportService) buildAccountExportJSON(accs []models.Account) ([]byte, error) {
@@ -431,17 +439,18 @@ func (s *ExportService) updateExportStatus(ctx context.Context, exportID int64, 
 
 func (s *ExportService) DownloadExport(ctx context.Context, id, userID int64) ([]byte, error) {
 
-	export, err := s.repo.FindExportByID(ctx, nil, id, userID)
+	export, err := s.FetchExportByID(ctx, nil, id, userID)
 	if err != nil {
 		return nil, err
 	}
 
 	if export.Status != "success" {
-		return nil, fmt.Errorf("export is not ready (status: %s)", export.Status)
+		return nil, ErrExportNotReady
 	}
 
+	// A successful export with no path means the row and the disk disagree.
 	if export.FilePath == nil {
-		return nil, fmt.Errorf("export file path not found")
+		return nil, fmt.Errorf("export %d is successful but has no file path", id)
 	}
 
 	data, err := os.ReadFile(*export.FilePath)
