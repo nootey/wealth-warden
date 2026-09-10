@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
@@ -44,7 +44,7 @@ func (h *LoggingHandler) GetPaginatedLogs(c *gin.Context) {
 
 	records, paginator, err := h.Service.FetchPaginatedLogs(ctx, p)
 	if err != nil {
-		utils.ErrorMessage(c, "Fetch error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -67,7 +67,7 @@ func (h *LoggingHandler) GetActivityLogFilterData(c *gin.Context) {
 
 	response, err := h.Service.FetchActivityLogFilterData(c, activityIndex)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -80,19 +80,18 @@ func (h *LoggingHandler) DeleteActivityLog(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	if idStr == "" {
-		err := errors.New("invalid id provided")
-		utils.ErrorMessage(c, "param error", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
 		return
 	}
 
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		utils.ErrorMessage(c, "Error occurred", "id must be a valid integer", http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
 		return
 	}
 
 	if err := h.Service.DeleteActivityLog(ctx, id); err != nil {
-		utils.ErrorMessage(c, "Create error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -106,15 +105,13 @@ func (h *LoggingHandler) GetAuditTrail(c *gin.Context) {
 
 	id := qp.Get("id")
 	if id == "" {
-		err := errors.New("id is required")
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.New(apperr.Invalid, "id is required"))
 		return
 	}
 
 	categoryStr := qp.Get("category")
 	if categoryStr == "" {
-		err := errors.New("category is required")
-		utils.ErrorMessage(c, "Error occurred", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.New(apperr.Invalid, "category is required"))
 		return
 	}
 	categories := strings.Split(categoryStr, ",")
@@ -137,7 +134,7 @@ func (h *LoggingHandler) GetAuditTrail(c *gin.Context) {
 
 	trail, paginator, err := h.Service.FetchAuditTrail(ctx, id, categories, events, userID, p)
 	if err != nil {
-		utils.ErrorMessage(c, "Audit trail error", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 

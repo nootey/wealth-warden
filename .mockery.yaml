@@ -9,6 +9,7 @@ packages:
       TransactionServiceInterface:
       AuthServiceInterface:
       SessionsServiceInterface:
+      NotesServiceInterface:
   wealth-warden/pkg/validators:
     interfaces:
       Validator:

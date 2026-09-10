@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/utils"
 
@@ -33,7 +34,7 @@ func (h *NotificationHandler) GetNotifications(c *gin.Context) {
 
 	records, paginator, err := h.service.GetNotifications(ctx, userID, onlyUnread, p)
 	if err != nil {
-		utils.ErrorMessage(c, "Failed to fetch notifications", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -53,12 +54,12 @@ func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		utils.ErrorMessage(c, "Invalid ID", err.Error(), http.StatusBadRequest, err)
+		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
 		return
 	}
 
 	if err := h.service.MarkAsRead(ctx, userID, id); err != nil {
-		utils.ErrorMessage(c, "Failed to mark notification as read", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -70,7 +71,7 @@ func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 
 	if err := h.service.MarkAllAsRead(ctx, userID); err != nil {
-		utils.ErrorMessage(c, "Failed to mark all notifications as read", err.Error(), http.StatusInternalServerError, err)
+		_ = c.Error(err)
 		return
 	}
 
