@@ -98,7 +98,6 @@ func NewRouter(container *bootstrap.ServiceContainer, logger *zap.Logger, health
 	// Logging & recovery
 	wm := middleware.NewWebClientMiddleware(container.Config, logger, container.SessionStore)
 
-	r.Use(middleware.ErrorHandler(logger))
 	r.Use(ginzap.RecoveryWithZap(logger, true))
 
 	// Timeout
@@ -115,6 +114,11 @@ func NewRouter(container *bootstrap.ServiceContainer, logger *zap.Logger, health
 		}
 		reqTimeout(c)
 	})
+
+	// Must run after the timeout middleware: gin timeout buffers
+	// c.Writer and only restores it on panic, not on normal completion, so
+	// writing here before timeout would silently drop the response body.
+	r.Use(middleware.ErrorHandler(logger))
 
 	r.GET("/health", gin.WrapH(healthHandler))
 
