@@ -236,6 +236,10 @@ func (s *TransactionService) InsertTransaction(ctx context.Context, userID int64
 		}
 		return models.InsertResult{}, err
 	}
+	if err := utils.ValidateAccount(account, ""); err != nil {
+		tx.Rollback()
+		return models.InsertResult{}, err
+	}
 
 	if req.Direction == "expense" {
 		latestBalance, err := s.balanceRepo.FindLatestBalance(ctx, tx, account.ID, userID)
@@ -407,6 +411,10 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 		tx.Rollback()
 		return models.InsertResult{}, fmt.Errorf("can't find source account %w", err)
 	}
+	if err := utils.ValidateAccount(fromAcc, "source"); err != nil {
+		tx.Rollback()
+		return models.InsertResult{}, err
+	}
 
 	if fromAcc.AccountType.Classification == "asset" {
 		resultingBalance := fromAcc.Balance.Balance.Sub(req.Amount)
@@ -432,6 +440,10 @@ func (s *TransactionService) InsertTransfer(ctx context.Context, userID int64, r
 	if err != nil {
 		tx.Rollback()
 		return models.InsertResult{}, fmt.Errorf("can't find destination account %w", err)
+	}
+	if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
+		tx.Rollback()
+		return models.InsertResult{}, err
 	}
 
 	settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, userID)
@@ -628,7 +640,12 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	// Load old account & category (for logs)
 	oldAccount, err := s.accRepo.FindAccountByID(ctx, tx, exTr.AccountID, userID, false)
 	if err != nil {
+		tx.Rollback()
 		return 0, fmt.Errorf("can't find existing account: %w", err)
+	}
+	if err := utils.ValidateAccount(oldAccount, "existing"); err != nil {
+		tx.Rollback()
+		return 0, err
 	}
 	var oldCategory models.Category
 	if exTr.CategoryID != nil {
@@ -641,7 +658,12 @@ func (s *TransactionService) UpdateTransaction(ctx context.Context, userID int64
 	// Resolve new account & category
 	newAccount, err := s.accRepo.FindAccountByID(ctx, tx, req.AccountID, userID, false)
 	if err != nil {
+		tx.Rollback()
 		return 0, fmt.Errorf("can't find account with given id %w", err)
+	}
+	if err := utils.ValidateAccount(newAccount, "new"); err != nil {
+		tx.Rollback()
+		return 0, err
 	}
 	var newCategory models.Category
 	if req.CategoryID != nil {
@@ -909,6 +931,10 @@ func (s *TransactionService) DeleteTransaction(ctx context.Context, userID int64
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find account with given id %w", err)
+	}
+	if err := utils.ValidateAccount(account, ""); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	// If deleting an income, balance will go down
@@ -1197,9 +1223,11 @@ func (s *TransactionService) DeleteTransfer(ctx context.Context, userID int64, i
 	}
 
 	if err := utils.ValidateAccount(fromAcc, "source"); err != nil {
+		tx.Rollback()
 		return err
 	}
 	if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -1395,6 +1423,10 @@ func (s *TransactionService) RestoreTransaction(ctx context.Context, userID int6
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("can't find account for transaction %w", err)
+	}
+	if err := utils.ValidateAccount(acc, ""); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	// If restoring an expense, balance will go down
@@ -1721,6 +1753,10 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		tx.Rollback()
 		return 0, fmt.Errorf("can't find account with given id %w", err)
 	}
+	if err := utils.ValidateAccount(account, ""); err != nil {
+		tx.Rollback()
+		return 0, err
+	}
 
 	templateType := strings.ToLower(req.TemplateType)
 	if templateType != "transaction" && templateType != "transfer" {
@@ -1758,6 +1794,10 @@ func (s *TransactionService) InsertTransactionTemplate(ctx context.Context, user
 		if err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("can't find destination account with given id %w", err)
+		}
+		if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
+			tx.Rollback()
+			return 0, err
 		}
 		toAccountID = &toAcc.ID
 	}
@@ -2407,6 +2447,10 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		tx.Rollback()
 		return 0, time.Time{}, fmt.Errorf("account not found: %w", err)
 	}
+	if err := utils.ValidateAccount(acc, ""); err != nil {
+		tx.Rollback()
+		return 0, time.Time{}, err
+	}
 
 	loc := time.UTC
 	if settings, err := s.settingsRepo.FetchUserSettings(ctx, tx, currentTemplate.UserID); err == nil {
@@ -2441,6 +2485,10 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 			tx.Rollback()
 			return 0, time.Time{}, fmt.Errorf("source account not found: %w", err)
 		}
+		if err := utils.ValidateAccount(srcAcc, "source"); err != nil {
+			tx.Rollback()
+			return 0, time.Time{}, err
+		}
 		if srcAcc.Balance.Balance.Sub(currentTemplate.Amount).LessThan(decimal.Zero) {
 			tx.Rollback()
 			return 0, time.Time{}, fmt.Errorf("insufficient funds in source account %s (balance: %s, requested: %s)",
@@ -2451,6 +2499,10 @@ func (s *TransactionService) runTemplate(ctx context.Context, template *models.T
 		if err != nil {
 			tx.Rollback()
 			return 0, time.Time{}, fmt.Errorf("destination account not found: %w", err)
+		}
+		if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
+			tx.Rollback()
+			return 0, time.Time{}, err
 		}
 
 		outflow := models.Transaction{

@@ -221,6 +221,9 @@ func (s *ImportService) ImportTransactions(ctx context.Context, userID, checkID 
 	if err != nil {
 		return err
 	}
+	if err := utils.ValidateAccount(sourceAcc, ""); err != nil {
+		return err
+	}
 
 	openedYear := sourceAcc.OpenedAt.Year()
 
@@ -894,6 +897,10 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 		tx.Rollback()
 		return apperr.Wrap(apperr.Validation, "The source account does not exist", err)
 	}
+	if err := utils.ValidateAccount(checkingAcc, "source"); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
 	if err != nil {
@@ -954,6 +961,11 @@ func (s *ImportService) TransferInvestmentsFromImport(ctx context.Context, userI
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return apperr.Wrap(apperr.Validation, fmt.Sprintf("Destination account %d does not exist", id), err)
+		}
+		if err := utils.ValidateAccount(acc, "destination"); err != nil {
+			_ = tx.Rollback()
+			s.markImportFailed(ctx, payload.ImportID, err)
+			return err
 		}
 		accCache[id] = acc
 	}
@@ -1145,6 +1157,10 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 		tx.Rollback()
 		return apperr.Wrap(apperr.Validation, "The source account does not exist", err)
 	}
+	if err := utils.ValidateAccount(checkingAcc, "source"); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
 	if err != nil {
@@ -1205,6 +1221,11 @@ func (s *ImportService) TransferSavingsFromImport(ctx context.Context, userID in
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return apperr.Wrap(apperr.Validation, fmt.Sprintf("Destination account %d does not exist", id), err)
+		}
+		if err := utils.ValidateAccount(acc, "destination"); err != nil {
+			_ = tx.Rollback()
+			s.markImportFailed(ctx, payload.ImportID, err)
+			return err
 		}
 		accCache[id] = acc
 	}
@@ -1409,6 +1430,10 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 		tx.Rollback()
 		return apperr.Wrap(apperr.Validation, "The source account does not exist", err)
 	}
+	if err := utils.ValidateAccount(checkingAcc, "source"); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	imp, err := s.repo.FindImportByID(ctx, tx, payload.ImportID, userID, "custom")
 	if err != nil {
@@ -1469,6 +1494,11 @@ func (s *ImportService) TransferRepaymentsFromImport(ctx context.Context, userID
 			_ = tx.Rollback()
 			s.markImportFailed(ctx, payload.ImportID, err)
 			return apperr.Wrap(apperr.Validation, fmt.Sprintf("Destination account %d does not exist", id), err)
+		}
+		if err := utils.ValidateAccount(acc, "destination"); err != nil {
+			_ = tx.Rollback()
+			s.markImportFailed(ctx, payload.ImportID, err)
+			return err
 		}
 		accCache[id] = acc
 	}
@@ -1749,6 +1779,11 @@ func (s *ImportService) TransferInvestmentsTrades(ctx context.Context, userID in
 			s.markImportFailed(ctx, importID, err)
 			_ = tx.Rollback()
 			return apperr.Wrap(apperr.Validation, fmt.Sprintf("Destination account %d does not exist", id), err)
+		}
+		if err := utils.ValidateAccount(acc, "destination"); err != nil {
+			s.markImportFailed(ctx, importID, err)
+			_ = tx.Rollback()
+			return err
 		}
 		accCache[id] = acc
 	}
@@ -2195,10 +2230,18 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 			tx.Rollback()
 			return fmt.Errorf("can't find source account %w", err)
 		}
+		if err := utils.ValidateAccount(fromAcc, "source"); err != nil {
+			tx.Rollback()
+			return err
+		}
 		toAcc, err := s.accRepo.FindAccountByID(ctx, tx, inflow.AccountID, userID, false)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("can't find destination account %w", err)
+		}
+		if err := utils.ValidateAccount(toAcc, "destination"); err != nil {
+			tx.Rollback()
+			return err
 		}
 
 		touch(fromAcc, outflow.TxnDate)
@@ -2228,6 +2271,10 @@ func (s *ImportService) deleteTxnImport(ctx context.Context, userID int64, imp *
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf("can't find account %w", err)
+		}
+		if err := utils.ValidateAccount(acc, ""); err != nil {
+			tx.Rollback()
+			return err
 		}
 
 		touch(acc, t.TxnDate)

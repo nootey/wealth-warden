@@ -22,7 +22,7 @@ type AccountRepositoryInterface interface {
 	FindAccountsBySubtype(ctx context.Context, tx *gorm.DB, userID int64, subtype string, activeOnly bool) ([]models.Account, error)
 	FetchAccountsByType(ctx context.Context, tx *gorm.DB, userID int64, t string, activeOnly bool) ([]models.Account, error)
 	FindAccountsByImportID(ctx context.Context, tx *gorm.DB, ID, userID int64) ([]models.Account, error)
-	FindAccountByID(ctx context.Context, tx *gorm.DB, ID, userID int64, withBalance bool, skipActiveCheck ...bool) (*models.Account, error)
+	FindAccountByID(ctx context.Context, tx *gorm.DB, ID, userID int64, withBalance bool) (*models.Account, error)
 	FindAccountByName(ctx context.Context, tx *gorm.DB, userID int64, name string) (*models.Account, error)
 	FindAccountTypeByAccID(ctx context.Context, tx *gorm.DB, accID, userID int64) (*models.AccountType, error)
 	FindAllAccountsWithLatestBalance(ctx context.Context, tx *gorm.DB, userID int64) ([]models.Account, error)
@@ -278,7 +278,7 @@ func (r *AccountRepository) FindAccountsByImportID(ctx context.Context, tx *gorm
 	return records, err
 }
 
-func (r *AccountRepository) FindAccountByID(ctx context.Context, tx *gorm.DB, ID, userID int64, withBalance bool, skipActiveCheck ...bool) (*models.Account, error) {
+func (r *AccountRepository) FindAccountByID(ctx context.Context, tx *gorm.DB, ID, userID int64, withBalance bool) (*models.Account, error) {
 
 	db := tx
 	if db == nil {
@@ -288,25 +288,11 @@ func (r *AccountRepository) FindAccountByID(ctx context.Context, tx *gorm.DB, ID
 
 	var record models.Account
 
-	shouldSkipActiveCheck := len(skipActiveCheck) > 0 && skipActiveCheck[0]
-
-	query := db.Where("id = ? AND user_id = ? AND closed_at IS NULL", ID, userID)
-	if !shouldSkipActiveCheck {
-		query = query.Where("is_active = true")
-	}
-	query = query.Preload("AccountType")
-
-	result := query.First(&record)
-	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		var closedAccount models.Account
-		err := db.Where("id = ? AND user_id = ?", ID, userID).First(&closedAccount).Error
-		if err == nil && closedAccount.ClosedAt != nil {
-			return nil, fmt.Errorf("account is closed")
-		}
-		if !shouldSkipActiveCheck && err == nil && !closedAccount.IsActive {
-			return nil, fmt.Errorf("account is not active")
-		}
-	}
+	// Deliberately unfiltered by closed_at/is_active: the caller decides what
+	// a closed or inactive account means for it via utils.ValidateAccount.
+	result := db.Where("id = ? AND user_id = ?", ID, userID).
+		Preload("AccountType").
+		First(&record)
 
 	if result.Error == nil && withBalance {
 		bal, err := r.balances.findAccountBalanceByID(ctx, db, record.ID)

@@ -181,6 +181,9 @@ func (s *AccountService) FetchAccountByID(ctx context.Context, userID int64, id 
 		}
 		return nil, err
 	}
+	if err := utils.ValidateAccount(record, ""); err != nil {
+		return nil, err
+	}
 
 	return record, nil
 }
@@ -663,12 +666,16 @@ func (s *AccountService) ToggleAccountActiveState(ctx context.Context, userID in
 	}()
 
 	// Load record to confirm it exists
-	exAcc, err := s.repo.FindAccountByID(ctx, tx, id, userID, false, true)
+	exAcc, err := s.repo.FindAccountByID(ctx, tx, id, userID, false)
 	if err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrAccountNotFound
 		}
+		return err
+	}
+	if err := utils.ValidateAccount(exAcc, "", utils.AllowInactive); err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -751,6 +758,10 @@ func (s *AccountService) CloseAccount(ctx context.Context, userID int64, id int6
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrAccountNotFound
 		}
+		return err
+	}
+	if err := utils.ValidateAccount(acc, ""); err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -1042,6 +1053,10 @@ func (s *AccountService) SaveAccountProjection(ctx context.Context, id, userID i
 		}
 		return err
 	}
+	if err := utils.ValidateAccount(exAcc, ""); err != nil {
+		tx.Rollback()
+		return err
+	}
 
 	acc := &models.Account{
 		ID:                id,
@@ -1104,6 +1119,10 @@ func (s *AccountService) RevertAccountProjection(ctx context.Context, id, userID
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrAccountNotFound
 		}
+		return err
+	}
+	if err := utils.ValidateAccount(exAcc, ""); err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -1184,6 +1203,10 @@ func (s *AccountService) updateDefaultAccount(ctx context.Context, userID, accou
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrAccountNotFound
 		}
+		return err
+	}
+	if err := utils.ValidateAccount(account, ""); err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -1316,18 +1339,24 @@ func (s *AccountService) resolveAccountMerge(ctx context.Context, tx *gorm.DB, u
 		return nil, nil, apperr.New(apperr.Validation, "source and destination accounts must be different")
 	}
 
-	srcAcc, err := s.repo.FindAccountByID(ctx, tx, sourceID, userID, false, true)
+	srcAcc, err := s.repo.FindAccountByID(ctx, tx, sourceID, userID, false)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, ErrInvalidAccountID
 		}
 		return nil, nil, err
 	}
-	dstAcc, err := s.repo.FindAccountByID(ctx, tx, destinationID, userID, false, true)
+	if err := utils.ValidateAccount(srcAcc, "source", utils.AllowInactive); err != nil {
+		return nil, nil, err
+	}
+	dstAcc, err := s.repo.FindAccountByID(ctx, tx, destinationID, userID, false)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, ErrInvalidAccountID
 		}
+		return nil, nil, err
+	}
+	if err := utils.ValidateAccount(dstAcc, "destination", utils.AllowInactive); err != nil {
 		return nil, nil, err
 	}
 

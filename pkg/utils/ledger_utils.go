@@ -12,12 +12,30 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func ValidateAccount(acc *models.Account, role string) error {
-	if acc.ClosedAt != nil {
-		return fmt.Errorf("%s account (ID=%d) is closed and cannot be used", role, acc.ID)
+type AccountCheckOption int
+
+const (
+	AllowClosed AccountCheckOption = iota
+	AllowInactive
+)
+
+// ValidateAccount rejects a closed or inactive account unless the matching option is given.
+func ValidateAccount(acc *models.Account, role string, opts ...AccountCheckOption) error {
+	allow := make(map[AccountCheckOption]bool, len(opts))
+	for _, opt := range opts {
+		allow[opt] = true
 	}
-	if !acc.IsActive {
-		return fmt.Errorf("%s account (ID=%d) is inactive and cannot be used", role, acc.ID)
+
+	label := role
+	if label != "" {
+		label += " "
+	}
+
+	if acc.ClosedAt != nil && !allow[AllowClosed] {
+		return apperr.New(apperr.Conflict, fmt.Sprintf("%saccount (ID=%d) is closed and cannot be used", label, acc.ID))
+	}
+	if !acc.IsActive && !allow[AllowInactive] {
+		return apperr.New(apperr.Conflict, fmt.Sprintf("%saccount (ID=%d) is inactive and cannot be used", label, acc.ID))
 	}
 	return nil
 }

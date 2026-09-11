@@ -265,7 +265,13 @@ func (s *AnalyticsService) GetYearlyCashFlowBreakdown(ctx context.Context, userI
 
 	// Validate account if provided
 	if accountID != nil {
-		if _, err := s.accRepo.FindAccountByID(ctx, tx, *accountID, userID, true); err != nil {
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, *accountID, userID, true)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if err := utils.ValidateAccount(acc, ""); err != nil {
+			tx.Rollback()
 			return nil, err
 		}
 	}
@@ -283,6 +289,10 @@ func (s *AnalyticsService) GetYearlyCashFlowBreakdown(ctx context.Context, userI
 	if accountID != nil {
 		acc, err := s.accRepo.FindAccountByID(ctx, tx, *accountID, userID, false)
 		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if err := utils.ValidateAccount(acc, ""); err != nil {
 			tx.Rollback()
 			return nil, err
 		}
@@ -537,7 +547,11 @@ func (s *AnalyticsService) GetYearlySankeyData(ctx context.Context, userID int64
 
 	if accountID != nil {
 		// Validate account belongs to user
-		if _, err := s.accRepo.FindAccountByID(ctx, tx, *accountID, userID, false); err != nil {
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, *accountID, userID, false)
+		if err != nil {
+			return nil, err
+		}
+		if err := utils.ValidateAccount(acc, ""); err != nil {
 			return nil, err
 		}
 
@@ -656,7 +670,13 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 	}()
 
 	if accID != nil {
-		if _, err := s.accRepo.FindAccountByID(ctx, tx, *accID, userID, true); err != nil {
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, *accID, userID, true)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if err := utils.ValidateAccount(acc, ""); err != nil {
+			tx.Rollback()
 			return nil, err
 		}
 	}
@@ -690,6 +710,10 @@ func (s *AnalyticsService) GetAccountBasicStatistics(ctx context.Context, accID 
 		if errAcc != nil {
 			tx.Rollback()
 			return nil, errAcc
+		}
+		if err := utils.ValidateAccount(acc, ""); err != nil {
+			tx.Rollback()
+			return nil, err
 		}
 		if acc.AccountType.Subtype == "checking" {
 			shouldSubtractTransfers = true
@@ -865,6 +889,10 @@ func (s *AnalyticsService) GetMonthlyStats(ctx context.Context, userID int64, ac
 		if errAcc != nil {
 			tx.Rollback()
 			return nil, errAcc
+		}
+		if err := utils.ValidateAccount(acc, ""); err != nil {
+			tx.Rollback()
+			return nil, err
 		}
 		checkingAccounts = []models.Account{*acc}
 		mrows, err = s.repo.FetchMonthlyTotals(ctx, tx, userID, accountID, year)
@@ -1049,6 +1077,10 @@ func (s *AnalyticsService) GetTodayStats(ctx context.Context, userID int64, acco
 			tx.Rollback()
 			return nil, errAcc
 		}
+		if err := utils.ValidateAccount(acc, ""); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
 		row, err = s.repo.FetchDailyTotals(ctx, tx, userID, &acc.ID, today)
 	} else {
 		checkingAccounts, err = s.accRepo.FindAccountsBySubtype(ctx, tx, userID, "checking", true)
@@ -1143,7 +1175,13 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 	}()
 
 	if accID != nil {
-		if _, err := s.accRepo.FindAccountByID(ctx, tx, *accID, userID, true); err != nil {
+		acc, err := s.accRepo.FindAccountByID(ctx, tx, *accID, userID, true)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		if err := utils.ValidateAccount(acc, ""); err != nil {
+			tx.Rollback()
 			return nil, err
 		}
 	}
@@ -1178,6 +1216,10 @@ func (s *AnalyticsService) getYearStatsWithAllocations(ctx context.Context, accI
 		if errAcc != nil {
 			tx.Rollback()
 			return nil, errAcc
+		}
+		if err := utils.ValidateAccount(acc, ""); err != nil {
+			tx.Rollback()
+			return nil, err
 		}
 		if acc.AccountType.Subtype == "checking" {
 			shouldSubtractTransfers = true

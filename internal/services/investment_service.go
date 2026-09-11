@@ -260,6 +260,10 @@ func (s *InvestmentService) InsertAsset(ctx context.Context, userID int64, req *
 		}
 		return 0, err
 	}
+	if err := utils.ValidateAccount(account, ""); err != nil {
+		tx.Rollback()
+		return 0, err
+	}
 
 	// Validate ticker and fetch price
 	var currentPrice *decimal.Decimal
