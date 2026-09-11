@@ -77,7 +77,7 @@ func (j *AutomateTemplateJob) Run(ctx context.Context) error {
 	var firstErr error
 
 	for r := range results {
-		if errors.Is(r.err, models.ErrTemplateAlreadyRanToday) {
+		if errors.Is(r.err, services.ErrTemplateAlreadyRanToday) {
 			alreadyRan++
 			continue
 		}
