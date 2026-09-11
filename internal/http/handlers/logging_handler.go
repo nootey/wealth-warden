@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
@@ -76,17 +75,11 @@ func (h *LoggingHandler) GetActivityLogFilterData(c *gin.Context) {
 
 func (h *LoggingHandler) DeleteActivityLog(c *gin.Context) {
 
-	idStr := c.Param("id")
 	ctx := c.Request.Context()
 
-	if idStr == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 

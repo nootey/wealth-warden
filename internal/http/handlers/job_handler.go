@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"net/http"
-	"strconv"
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
@@ -74,9 +73,9 @@ func (h *JobHandler) JobCounts(c *gin.Context) {
 }
 
 func (h *JobHandler) GetJob(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 
@@ -173,9 +172,9 @@ func (h *JobHandler) ListUserJobs(c *gin.Context) {
 
 func (h *JobHandler) RetryUserJob(c *gin.Context) {
 	userID := c.GetInt64("user_id")
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 
@@ -190,9 +189,9 @@ func (h *JobHandler) RetryUserJob(c *gin.Context) {
 
 func (h *JobHandler) CancelUserJob(c *gin.Context) {
 	userID := c.GetInt64("user_id")
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 

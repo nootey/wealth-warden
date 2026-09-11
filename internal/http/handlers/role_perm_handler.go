@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
@@ -67,18 +66,12 @@ func (h *RolePermissionHandler) GetAllPermissions(c *gin.Context) {
 func (h *RolePermissionHandler) GetRoleById(c *gin.Context) {
 
 	ctx := c.Request.Context()
-	idStr := c.Param("id")
 	qp := c.Request.URL.Query()
 	wp := strings.EqualFold(qp.Get("with_permissions"), "true")
 
-	if idStr == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 
@@ -126,16 +119,9 @@ func (h *RolePermissionHandler) UpdateRole(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 
@@ -164,16 +150,10 @@ func (h *RolePermissionHandler) DeleteRole(c *gin.Context) {
 
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
-	idStr := c.Param("id")
 
-	if idStr == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 

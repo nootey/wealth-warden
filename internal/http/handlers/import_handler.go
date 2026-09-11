@@ -70,9 +70,9 @@ func (h *ImportHandler) GetStoredCustomImport(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 
@@ -447,9 +447,9 @@ func (h *ImportHandler) DeleteImport(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/models"
 	"wealth-warden/internal/services"
@@ -66,16 +65,9 @@ func (h *NotesHandler) GetNoteByID(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 
@@ -117,16 +109,9 @@ func (h *NotesHandler) UpdateNote(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 
@@ -155,16 +140,9 @@ func (h *NotesHandler) ToggleResolveState(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 
@@ -180,16 +158,9 @@ func (h *NotesHandler) DeleteNote(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 

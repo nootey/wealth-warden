@@ -376,16 +376,9 @@ func (h *AnalyticsHandler) GetYearlyAverageForCategory(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	var categoryID int64
-	if s := c.Param("id"); s != "" {
-		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
-			return
-		}
-		categoryID = v
-	} else {
-		_ = c.Error(apperr.New(apperr.Invalid, "id is required"))
+	categoryID, err := utils.ParseID(c, "id")
+	if err != nil {
+		_ = c.Error(err)
 		return
 	}
 
@@ -540,9 +533,9 @@ func (h *AnalyticsHandler) DownloadReport(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.New(apperr.Invalid, "id must be a valid integer"))
+		_ = c.Error(err)
 		return
 	}
 
@@ -563,16 +556,9 @@ func (h *AnalyticsHandler) DeleteReport(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-
-	if idStr == "" {
-		_ = c.Error(apperr.New(apperr.Invalid, "invalid id provided"))
-		return
-	}
-
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 
@@ -588,10 +574,9 @@ func (h *AnalyticsHandler) AssetChart(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	idStr := c.Param("id")
-	assetID, err := strconv.ParseInt(idStr, 10, 64)
+	assetID, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 

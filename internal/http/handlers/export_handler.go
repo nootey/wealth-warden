@@ -3,9 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
-	"wealth-warden/internal/apperr"
 	"wealth-warden/internal/services"
 	"wealth-warden/pkg/authz"
 	"wealth-warden/pkg/utils"
@@ -69,9 +67,9 @@ func (h *ExportHandler) DownloadExport(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 
@@ -93,9 +91,9 @@ func (h *ExportHandler) DeleteExport(c *gin.Context) {
 	ctx := c.Request.Context()
 	userID := c.GetInt64("user_id")
 
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	id, err := utils.ParseID(c, "id")
 	if err != nil {
-		_ = c.Error(apperr.Wrap(apperr.Invalid, "id must be a valid integer", err))
+		_ = c.Error(err)
 		return
 	}
 
