@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "wealth-warden.api.name" . }}-config
+  labels:
+    {{- include "wealth-warden.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+data:
+  dev.yaml: |
+    host: "0.0.0.0"
+    release: {{ .Values.config.release }}
+    finance_api_base_url: {{ .Values.config.financeApiBaseUrl | quote | default "https://query1.finance.yahoo.com" }}
+    
+    http_server:
+      port: {{ .Values.config.httpServer.port | quote }}
+      request_timeout: {{ .Values.config.httpServer.requestTimeout }}
+    
+    web_client:
+      domain: {{ .Values.config.webClient.domain | quote }}
+      port: {{ .Values.config.webClient.port | quote }}
+    
+    postgres:
+      host: {{ include "wealth-warden.postgresHost" . | quote }}
+      user: {{ include "wealth-warden.postgresUser" . | quote }}
+      password: {{- if .Values.postgresql.enabled }}{{- if .Values.secrets.create }}{{ .Values.secrets.postgresPassword | default "" | quote }}{{- else }}{{ .Values.postgresql.auth.postgresPassword | default "" | quote }}{{- end }}{{- else }}{{- if .Values.secrets.create }}{{ .Values.secrets.postgresPassword | default "" | quote }}{{- else }}{{ .Values.config.postgres.password | quote }}{{- end }}{{- end }}
+      port: {{ .Values.config.postgres.port }}
+      db: {{ include "wealth-warden.postgresDatabase" . | quote }}
+    
+    jwt:
+      web_client_access: {{- if .Values.secrets.create }}{{ .Values.secrets.jwtWebClientAccess | default .Values.config.jwt.webClientAccess | quote }}{{- else }}{{ .Values.config.jwt.webClientAccess | quote }}{{- end }}
+      web_client_refresh: {{- if .Values.secrets.create }}{{ .Values.secrets.jwtWebClientRefresh | default .Values.config.jwt.webClientRefresh | quote }}{{- else }}{{ .Values.config.jwt.webClientRefresh | quote }}{{- end }}
+      web_client_encode_id: {{- if .Values.secrets.create }}{{ .Values.secrets.jwtWebClientEncodeId | default .Values.config.jwt.webClientEncodeId | quote }}{{- else }}{{ .Values.config.jwt.webClientEncodeId | quote }}{{- end }}
+    
+    cors:
+      allowedOrigins:
+{{- range .Values.config.cors.allowedOrigins }}
+        - {{ . | quote }}
+{{- end }}
+      wildcardSuffixes:
+{{- range .Values.config.cors.wildcardSuffixes }}
+        - {{ . | quote }}
+{{- end }}
+      allowedSchemes:
+{{- range .Values.config.cors.allowedSchemes }}
+        - {{ . | quote }}
+{{- end }}
+    
+    mailer:
+      host: {{ .Values.config.mailer.host | quote }}
+      port: {{ .Values.config.mailer.port }}
+      username: {{ .Values.config.mailer.username | quote }}
+      password: {{- if .Values.secrets.create }}{{ .Values.secrets.mailerPassword | default .Values.config.mailer.password | quote }}{{- else }}{{ .Values.config.mailer.password | quote }}{{- end }}
+    
+    seed:
+      super_admin_email: {{ .Values.config.seed.superAdminEmail | quote }}
+      super_admin_password: {{- if .Values.secrets.create }}{{ .Values.secrets.superAdminPassword | default .Values.config.seed.superAdminPassword | quote }}{{- else }}{{ .Values.config.seed.superAdminPassword | quote }}{{- end }}
+      member_user_email: {{ .Values.config.seed.memberUserEmail | quote }}
+      member_user_password: {{ .Values.config.seed.memberUserPassword | quote }}
+
